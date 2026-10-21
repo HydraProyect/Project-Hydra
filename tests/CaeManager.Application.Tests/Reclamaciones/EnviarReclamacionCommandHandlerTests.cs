@@ -61,16 +61,10 @@ public class EnviarReclamacionCommandHandlerTests
             return new(Empresas, Documentos, TiposDocumento, alcanceDatos, Agenda, RegistroEnvio, CrearPendientes(alcanceDatos));
         }
 
-        /// <summary>El servicio REAL de lo pendiente sin fecha (con sus dos dependencias reales) sobre los dobles de contexto: lo que se prueba es su regla, no una respuesta enlatada.</summary>
-        public PendientesDeReclamacionService CrearPendientes(AlcanceDatosServiceFalso? alcanceDatos = null)
-        {
-            alcanceDatos ??= new AlcanceDatosServiceFalso();
-            return new(
-                Documentos, TiposDocumento, Trabajadores, Asignaciones, Centros, Empresas,
-                new DocumentosFaltantesService(TiposDocumento, Documentos, Centros),
-                new EvaluacionDeAccesoPorCentroService(Centros, TiposDocumento, Trabajadores, Asignaciones, Documentos, alcanceDatos),
-                alcanceDatos);
-        }
+        /// <summary>El servicio REAL de lo pendiente sin fecha (con sus dependencias reales) sobre los dobles de contexto: lo que se prueba es su regla, no una respuesta enlatada.</summary>
+        public PendientesDeReclamacionService CrearPendientes(AlcanceDatosServiceFalso? alcanceDatos = null) =>
+            PendientesDeReclamacionPruebas.Crear(
+                Documentos, TiposDocumento, Trabajadores, Asignaciones, Centros, Empresas, alcanceDatos ?? new AlcanceDatosServiceFalso());
     }
 
     private const string Dni = "77189989B";

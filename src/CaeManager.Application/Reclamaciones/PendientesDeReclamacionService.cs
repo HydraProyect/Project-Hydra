@@ -85,10 +85,11 @@ public sealed record PendientesDeUnTitular(Guid TitularId, string TitularNombre,
 /// <para>
 /// De dónde sale que un documento «falta»: de Trabajador, el mismo cálculo que las Alertas
 /// (<see cref="IDocumentosFaltantesService"/>: el Tipo aplica al Centro y no hay ningún Documento operativo de ese Tipo);
-/// de Empresa, la regla única de acceso por Centro (<see cref="IEvaluacionDeAccesoPorCentroService"/>, situación
-/// <see cref="SituacionDeRequisitoBloqueante.Ausente"/>) — es el único lugar que sabe qué documentos de Empresa exige un Centro,
-/// así que solo se piden los que bloquean el acceso. Alcance: el mismo que el lote por vencimiento (Trabajadores, Centros y
-/// Clientes visibles; Empresas de gestión), y Centros sin gestión CAE excluidos.
+/// de Empresa, los pares de Empresa exigidos del Centro 360 (<see cref="ICalculoEstadoCentroService.ObtenerParesDeEmpresaExigidosAsync"/>:
+/// el tipo de ámbito Empresa aplica al Centro y la Empresa no tiene ningún Documento operativo de ese Tipo), bloquee o no el
+/// acceso — antes solo se pedían los que lo bloqueaban, y una Empresa salía «al día» con documentos propios por subir.
+/// Alcance: el mismo que el lote por vencimiento (Trabajadores, Centros y Clientes visibles; Empresas de gestión), y Centros
+/// sin gestión CAE excluidos.
 /// </para>
 /// </summary>
 public interface IPendientesDeReclamacionService
@@ -131,7 +132,7 @@ public class PendientesDeReclamacionService(
     ICentrosQueryContext centrosContext,
     IEmpresasQueryContext empresasContext,
     IDocumentosFaltantesService documentosFaltantes,
-    IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso,
+    ICalculoEstadoCentroService calculoEstadoCentro,
     IAlcanceDatosService alcanceDatos)
     : IPendientesDeReclamacionService
 {
@@ -239,18 +240,19 @@ public class PendientesDeReclamacionService(
         filas.AddRange(sinConfirmar.Select(d => (d.EmpresaId, new DocumentoPendienteDto(
             d.DocumentoId, null, null, d.TipoId, d.TipoNombre, MotivoPendienteDeReclamacion.SinConfirmar))));
 
-        // Ausentes: lo que algún Centro visible exige a la Empresa de sus Trabajadores asignados y no existe.
-        var evaluacion = await evaluacionDeAcceso.EvaluarAsync(null, cancellationToken);
-        var ausentes = evaluacion.Requisitos
-            .Where(r => r.Ambito == AmbitoAplicacion.Empresa
-                && r.Resultado.Situacion == SituacionDeRequisitoBloqueante.Ausente
-                && r.EmpresaId is not null)
-            .Select(r => (EmpresaId: r.EmpresaId!.Value, r.TipoDocumentoId))
-            .Where(a => (empresaId is null || a.EmpresaId == empresaId)
-                && (empresaIdsVisibles is null || empresaIdsVisibles.Contains(a.EmpresaId))
-                && (tipoDocumentoIds is null || tipoDocumentoIds.Contains(a.TipoDocumentoId)))
-            .Distinct()
-            .ToList();
+        // Ausentes: lo que algún Centro exige a la Empresa y no tiene ningún Documento operativo. Misma regla que los pares de
+        // Empresa del Centro 360 (ObtenerParesDeEmpresaExigidosAsync: ResolucionTipoDocumentoCentro), bloquee o no el acceso;
+        // un Centro que no marca nada «bloquea el acceso» sigue exigiendo. Solo cuentan los Centros donde la Empresa tiene un
+        // Trabajador visible con Asignación activa, con Centro y Cliente empresarial visibles: el alcance del lote de Trabajador.
+        var presencias = await PresenciasVisiblesDeEmpresasAsync(empresaId, empresaIdsVisibles, cancellationToken);
+        var ausentes = presencias.Count == 0
+            ? []
+            : (await calculoEstadoCentro.ObtenerParesDeEmpresaExigidosAsync([.. presencias.Select(p => p.CentroId).Distinct()], cancellationToken))
+                .Where(p => p.Estado == EstadoDocumento.Faltante && presencias.Contains((p.CentroId, p.EmpresaId)))
+                .Where(p => tipoDocumentoIds is null || tipoDocumentoIds.Contains(p.TipoDocumentoId))
+                .Select(p => (p.EmpresaId, p.TipoDocumentoId))
+                .Distinct()
+                .ToList();
 
         if (ausentes.Count > 0)
         {
@@ -280,6 +282,39 @@ public class PendientesDeReclamacionService(
                 g.Key, nombresEmpresa[g.Key],
                 [.. g.Select(f => f.Pendiente).DistinctBy(p => p.Clave).OrderBy(Orden)]))
             .OrderBy(t => t.TitularNombre)];
+    }
+
+    /// <summary>
+    /// Los pares Centro × Empresa en los que se le puede pedir algo a una Empresa: un Trabajador suyo (o de la Subcontrata, si el
+    /// Trabajador no tiene Empresa, como en los pares de Empresa del Centro) con Asignación activa, todo dentro del alcance visible
+    /// (Trabajador, Centro y Cliente empresarial) y la Empresa en el alcance de gestión. Centros sin gestión CAE fuera.
+    /// </summary>
+    private async Task<HashSet<(Guid CentroId, Guid EmpresaId)>> PresenciasVisiblesDeEmpresasAsync(
+        Guid? empresaId, IReadOnlyList<Guid>? empresaIdsVisibles, CancellationToken cancellationToken)
+    {
+        var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
+
+        var filas = await (
+            from asignacion in asignacionesContext.Asignaciones
+            where asignacion.FechaBaja == null
+            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(asignacion.TrabajadorId)
+            where centroIdsVisibles == null || centroIdsVisibles.Contains(asignacion.CentroId)
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            where empresaId == null || trabajador.EmpresaId == empresaId || (trabajador.EmpresaId == null && trabajador.SubcontrataId == empresaId)
+            join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
+            where centro.GestionCae != ModalidadGestionCae.SinGestionCae
+            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
+            select new { asignacion.CentroId, trabajador.EmpresaId, trabajador.SubcontrataId })
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        return filas
+            .Select(f => (f.CentroId, EmpresaId: f.EmpresaId ?? f.SubcontrataId))
+            .Where(f => f.EmpresaId is { } id && (empresaIdsVisibles is null || empresaIdsVisibles.Contains(id)))
+            .Select(f => (f.CentroId, f.EmpresaId!.Value))
+            .ToHashSet();
     }
 
     public async Task<Result<IReadOnlyList<DocumentoPendienteDto>>> ResolverParaClienteAsync(

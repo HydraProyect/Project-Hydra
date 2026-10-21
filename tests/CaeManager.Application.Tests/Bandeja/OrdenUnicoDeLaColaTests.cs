@@ -256,6 +256,9 @@ public class OrdenUnicoDeLaColaTests
 
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
         public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private static async Task<IReadOnlyList<ItemBandejaDto>> ColaAgrupadaAsync(ColaDeUnTenant cola)
