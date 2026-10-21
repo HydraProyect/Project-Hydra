@@ -110,6 +110,10 @@ public partial class UsuariosGen2Tests : BunitContext
         public Func<int, IReadOnlyDictionary<Guid, CarteraDeUsuario>> Carteras { get; set; } =
             _ => new Dictionary<Guid, CarteraDeUsuario>();
 
+        /// <summary>Por defecto, la organización no opera ninguna Empresa gestionada.</summary>
+        public Func<EmpresasGestionadasDeLaOrganizacion> EmpresasGestionadas { get; set; } =
+            () => EmpresasGestionadasDeLaOrganizacion.Ninguna;
+
         public Func<string, IReadOnlyList<ApplicationUser>> EnRol { get; set; } = _ => [];
 
         /// <summary>El rol de cada cuenta: por defecto, el que tenga en el <see cref="UserManagerFalso"/> del arnés.</summary>
@@ -149,6 +153,9 @@ public partial class UsuariosGen2Tests : BunitContext
 
         protected override Task<IReadOnlyDictionary<Guid, CarteraDeUsuario>> ObtenerCarterasVigentesAsync(CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.Carteras(++Fuente.LlamadasCarteras));
+
+        protected override Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(Fuente.EmpresasGestionadas());
 
         protected override Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesEnRolAsync(string rol, CancellationToken cancellationToken)
         {
@@ -642,7 +649,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         return new DirectorioUsuariosTenant(
             new UserManagerFalso(), new TenantsQueryContextQueNadieDebeTocar(), tenantActual,
-            new PuertaAccesoDatos(), identidad);
+            new PuertaAccesoDatos(), identidad, null!);
     }
 
     // ---------------------------------------------------------------- arnés
@@ -2537,5 +2544,77 @@ public partial class UsuariosGen2Tests : BunitContext
         await ConfirmarDesactivacionAsync(cut);
 
         _identidad.Cuentas[AnderId].LockoutEnd.Should().Be(DateTimeOffset.MaxValue);
+    }
+
+    /// <summary>
+    /// Bug del 21-10 con la siembra del piloto Outbound: desde el Operador CAE externo, la columna
+    /// «Ámbito efectivo» decía «Sin cartera» de una Gestora CAE cuyo Mi trabajo mostraba
+    /// «Mi cartera · 5 empresas», porque solo miraba las carteras del Tenant activo. El Gestor CAE
+    /// cuenta las de su Asignación de Cartera; el Coordinador CAE, las que su organización opera
+    /// enteras, donde entra sin cartera (decisión Chris 2026-10-20), como su selector y su Mi trabajo.
+    /// </summary>
+    [Fact]
+    public void El_ambito_efectivo_cuenta_las_Empresas_gestionadas_del_Gestor_CAE_y_de_su_Coordinador()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
+        ander.CoordinadorUsuarioId = IkerId;
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.CoordinadorCae));
+        var montajes = new EmpresaGestionada(Guid.NewGuid(), "Montajes Ejemplo S.L.", Parcial: false);
+        var obras = new EmpresaGestionada(Guid.NewGuid(), "Obras Ejemplo S.A.", Parcial: false);
+        var reformas = new EmpresaGestionada(Guid.NewGuid(), "Reformas Ejemplo S.L.", Parcial: true);
+        _fuente.EmpresasGestionadas = () => new EmpresasGestionadasDeLaOrganizacion(
+            [montajes, obras],
+            new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>> { [AnderId] = [obras, montajes, reformas, obras] });
+
+        var cut = Renderizar(actorId: MartaId);
+
+        var deAnder = Fila(cut, "a.beitia@talveg.es").QuerySelector("td[title]")!;
+        deAnder.TextContent.Trim().Should().Be("3 Empresas gestionadas", "una Empresa gestionada repetida cuenta una vez");
+        deAnder.GetAttribute("title").Should().Contain(
+            "Montajes Ejemplo S.L., Obras Ejemplo S.A., Reformas Ejemplo S.L. (solo un Cliente)");
+
+        var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
+        deIker.TextContent.Trim().Should().Be("2 Empresas gestionadas",
+            "un Coordinador CAE entra en las que su organización opera enteras, no en la operación acotada de su Gestor");
+        deIker.GetAttribute("title").Should().Contain("entra sin Asignación de Cartera");
+    }
+
+    /// <summary>
+    /// Con cartera en el Tenant activo y Empresas gestionadas a la vez, la columna dice las dos cosas; y un
+    /// Coordinador CAE sin equipo ni cartera, pero con Empresas gestionadas por su organización, no es
+    /// «Sin gestores asignados».
+    /// </summary>
+    [Fact]
+    public void El_ambito_efectivo_junta_la_cartera_propia_y_las_Empresas_gestionadas()
+    {
+        var iker = Cuenta(IkerId, "i.larra@talveg.es", "Iker Larrañaga");
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.GestorCae),
+            (iker, RolesIdentidad.CoordinadorCae));
+        var montajes = new EmpresaGestionada(Guid.NewGuid(), "Montajes Ejemplo S.L.", Parcial: false);
+        _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
+        // Montajes llega dos veces: por una operación acotada a un Cliente y por otra entera. Gana la entera.
+        _fuente.EmpresasGestionadas = () => new EmpresasGestionadasDeLaOrganizacion(
+            [montajes], new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>>
+            {
+                [AnderId] = [montajes with { Parcial = true }, montajes],
+            });
+
+        var cut = Renderizar(actorId: MartaId);
+
+        var deAnder = Fila(cut, "a.beitia@talveg.es").QuerySelector("td[title]")!;
+        deAnder.TextContent.Trim().Should().Be("Toda la operación · 1 Empresa gestionada");
+        deAnder.GetAttribute("title").Should().Contain("Montajes Ejemplo S.L.")
+            .And.NotContain("solo un Cliente", "basta una operación entera para que la Empresa gestionada no sea parcial");
+
+        var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
+        deIker.TextContent.Trim().Should().Be("1 Empresa gestionada");
+        deIker.GetAttribute("title").Should().StartWith("Entra sin Asignación de Cartera")
+            .And.NotContain("0 Gestores CAE", "sin equipo ni cartera propia, la explicación no habla de un equipo vacío");
     }
 }

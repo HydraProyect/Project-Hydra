@@ -33,9 +33,9 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     /// <summary>Trabajador, Centro y tipo de documento de una fila: lo que la distingue en la siembra.</summary>
     private static async Task<(string Trabajador, string Centro, string Tipo)> IdentidadAsync(ILocator fila) =>
-        ((await fila.Locator("button.nombre-abre-vista-rapida").InnerTextAsync()).Trim(),
+        ((await fila.Locator(".gestion-trabajador-centro button:not(.gestion-centro)").InnerTextAsync()).Trim(),
          (await fila.Locator("button.gestion-centro").InnerTextAsync()).Trim(),
-         (await fila.Locator("td.gestion-tipo-documento").InnerTextAsync()).Trim());
+         (await fila.Locator("td.gestion-tipo-documento button.nombre-abre-vista-rapida").InnerTextAsync()).Trim());
 
     [Fact]
     public async Task El_clic_en_un_punto_sin_controles_de_la_fila_abre_su_vista_rapida_y_Enter_tambien()
@@ -49,8 +49,8 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Expect(page.Locator("tbody .menu-acciones-disparador")).ToHaveCountAsync(0);
         await Expect(vista).ToHaveCountAsync(0);
 
-        // La celda del tipo de documento es texto: ningún control.
-        await fila.Locator("td.gestion-tipo-documento").ClickAsync();
+        // La celda de la fecha de creación es texto: ningún control.
+        await fila.Locator("td.gestion-creada").ClickAsync();
         await Expect(vista.Locator(".nombre-vista-rapida-gestion")).ToHaveTextAsync(trabajador);
         await Expect(vista.Locator(".vista-rapida-centro strong")).ToHaveTextAsync(centro);
         await Expect(vista.Locator(".vista-rapida-tipo-documento strong")).ToHaveTextAsync(tipo);

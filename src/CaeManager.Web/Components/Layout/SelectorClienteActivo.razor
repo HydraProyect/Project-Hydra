@@ -113,16 +113,20 @@
                         </div>
                     }
 
-                    @* Como en el marco de Design (20-10), la lista principal siempre lleva cabecera: «Resultados» al buscar (la
-                       búsqueda ve la cartera entera y plana, por orden alfabético), «Resto de empresas» si hay fijadas (o
-                       recientes) encima y «Todas las empresas» si no las hay. *@
+                    @* Como en el marco de Design (20-10), la lista principal, siempre por orden alfabético, lleva cabecera «Resultados» al buscar
+                       (la búsqueda ve la cartera entera y plana) y «Todas las empresas» si no hay fijadas ni recientes encima;
+                       con ellas encima va sin rótulo (solo aria-label). *@
                     @* Si todas las empresas ya están en Fijadas o Recientes, o la búsqueda no encuentra nada, la lista principal
                        queda vacía: sin cabecera ni lista, y «Ninguna empresa coincide» solo al buscar. *@
                     @if (Filtrados.Any())
                     {
-                        <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(Buscando ? Textos["SelectorTenantResultados"] : HayGruposArriba ? Textos["SelectorTenantResto"] : Textos["SelectorTenantTodas"])</h6>
+                        @if (Buscando || !HayGruposArriba)
+                        {
+                            <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(Buscando ? Textos["SelectorTenantResultados"] : Textos["SelectorTenantTodas"])</h6>
+                        }
                         <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
-                             aria-labelledby="selector-tenant-resto">
+                             aria-labelledby="@(Buscando || !HayGruposArriba ? "selector-tenant-resto" : null)"
+                             aria-label="@(Buscando || !HayGruposArriba ? null : Textos["SelectorTenantTodas"].Value)">
                             @foreach (var cliente in Filtrados)
                             {
                                 @Opcion(cliente, false)

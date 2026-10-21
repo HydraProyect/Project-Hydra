@@ -673,12 +673,12 @@ public class SelectorClienteActivoTests : BunitContext
         await AbrirConFijadas(cut);
 
         cut.WaitForAssertion(() => cut.Find("#selector-tenant-fijadas").TextContent.Trim().Should().Be("Fijadas"));
-        cut.Find("#selector-tenant-resto").TextContent.Trim().Should().Be("Resto de empresas");
-        NombresDeLaLista(cut).Should().Equal("Empresa Sur", "Empresa Norte", "Empresa Este");
+        cut.FindAll("#selector-tenant-resto").Should().BeEmpty("con fijadas encima la lista principal va sin rótulo «Resto de empresas»");
+        NombresDeLaLista(cut).Should().Equal("Empresa Sur", "Empresa Este", "Empresa Norte");
         var fijadas = cut.Find("[aria-labelledby=selector-tenant-fijadas]");
         fijadas.QuerySelector(".selector-tenant-atajo")!.TextContent.Trim().Should().Be("Alt 1");
         cut.FindAll(".selector-tenant-atajo").Should().ContainSingle("solo la fijada lleva atajo");
-        cut.Find("[aria-labelledby=selector-tenant-resto]").QuerySelectorAll("[role=option]").Should().HaveCount(2);
+        cut.Find("[role=listbox][aria-label=\"Todas las empresas\"]").QuerySelectorAll("[role=option]").Should().HaveCount(2);
     }
 
     [Fact]

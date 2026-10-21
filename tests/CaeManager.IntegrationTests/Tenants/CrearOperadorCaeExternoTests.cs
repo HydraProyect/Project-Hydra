@@ -68,6 +68,8 @@ public class CrearOperadorCaeExternoTests : IAsyncLifetime
 
         servicios.AddScoped<ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         servicios.AddScoped<DirectorioUsuariosTenant>();
+        // El directorio exige la sesión (Ámbito efectivo); el arnés que no la registra recibe la de por defecto.
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<CaeManager.Application.Common.ICurrentUserService>(servicios, new CurrentUserServiceFalso());
 
         // Identity real, con los proveedores de token: sin ellos GenerarTokenActivacionAsync
         // lanza NotSupportedException y el alta fallaría por el arnés, no por el Command.

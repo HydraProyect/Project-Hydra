@@ -410,6 +410,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
         _confirmarEliminarLoteVisible = false;
         _seleccionados.Clear();
         _documentosAbiertos.Clear();
+        _destinosCompletos.Clear();
         _opcionesOrdenVisible = null;
 
         _mostrarGuardarFiltro = false;
@@ -778,18 +779,29 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private bool _agruparPorAmbito;
     private readonly HashSet<Guid> _documentosAbiertos = [];
 
+    /// <summary>Documentos desplegados a los que se pidió «Ver los N restantes»: el resto enseña solo los primeros destinos.</summary>
+    private readonly HashSet<Guid> _destinosCompletos = [];
+
     private List<DocumentoListaDto> ElementosVisibles => _elementosPagina;
     private bool HayDestinos => _elementosPagina.Any(d => d.DestinosEnCentros is { Count: > 0 });
 
     private void AlternarDocumento(Guid id)
     {
-        if (!_documentosAbiertos.Add(id)) _documentosAbiertos.Remove(id);
+        if (!_documentosAbiertos.Add(id))
+        {
+            _documentosAbiertos.Remove(id);
+            _destinosCompletos.Remove(id);
+        }
     }
 
     private void ExpandirTodos() => _documentosAbiertos.UnionWith(
         _elementosPagina.Where(d => d.DestinosEnCentros is { Count: > 0 }).Select(d => d.Id));
 
-    private void ContraerTodos() => _documentosAbiertos.Clear();
+    private void ContraerTodos()
+    {
+        _documentosAbiertos.Clear();
+        _destinosCompletos.Clear();
+    }
 
     private string? MotivoDestino(DocumentoEnCentroListaDto destino, DocumentoListaDto documento) =>
         destino.EnToleranciaHasta is { } hasta
@@ -910,6 +922,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var elementos = resultado.Elementos.ToList();
             _elementosPagina = elementos;
             _documentosAbiertos.IntersectWith(elementos.Select(d => d.Id));
+            _destinosCompletos.IntersectWith(_documentosAbiertos);
             _seleccionados.Clear();
             _idEnfocado = null;
 

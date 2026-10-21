@@ -74,11 +74,24 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacion(
         IOperacionesQueryContext operaciones, Guid usuarioId, Guid tenantOrigenId, DateTime ahora) =>
+        CarterasPorOperacionDeLaOrganizacion(operaciones, tenantOrigenId, ahora)
+            .Where(v => v.Cartera.UsuarioId == usuarioId);
+
+    /// <summary>
+    /// <see cref="CarterasPorOperacion"/> para todas las personas a la vez: las carteras
+    /// vigentes bajo operaciones vigentes externas del Operador CAE
+    /// <paramref name="tenantOrigenId"/>. Es la posición de operador de
+    /// <see cref="IOperacionesQueryContext"/>, así que solo la debe llamar quien tenga ese
+    /// Tenant como origen. La usa la columna «Ámbito efectivo» de <c>/usuarios</c> para
+    /// contar las Empresas gestionadas de cada Gestor CAE con el mismo predicado que
+    /// «Mi cartera · N empresas».
+    /// </summary>
+    public static IQueryable<CarteraBajoOperacionVigente> CarterasPorOperacionDeLaOrganizacion(
+        IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
         from cartera in operaciones.AsignacionesCartera
         join operacion in operaciones.AsignacionesOperacion
             on cartera.AsignacionOperacionId equals operacion.Id
-        where cartera.UsuarioId == usuarioId
-              && cartera.Estado == EstadoAsignacion.Vigente
+        where cartera.Estado == EstadoAsignacion.Vigente
               && cartera.VigenciaDesde <= ahora
               && (cartera.VigenciaHasta == null || ahora < cartera.VigenciaHasta)
               // La raíz es el fallback del propietario sobre sí mismo, no un

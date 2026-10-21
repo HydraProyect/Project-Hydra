@@ -564,6 +564,9 @@
   <data name="Visita360PestanaPaquete" xml:space="preserve">
     <value>Paquete de acreditación</value>
   </data>
+  <data name="Visita360PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
   <data name="Visita360FilaSinDocumento" xml:space="preserve">
     <value>No hay documento</value>
   </data>
