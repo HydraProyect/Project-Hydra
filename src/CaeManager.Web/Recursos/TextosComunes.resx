@@ -579,9 +579,6 @@
   <data name="SelectorTenantFijadas" xml:space="preserve">
     <value>Fijadas</value>
   </data>
-  <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resto de empresas</value>
-  </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fijar arriba</value>
   </data>
