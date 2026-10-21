@@ -1,0 +1,233 @@
+@*
+    «Reclamar para acceso» según «Reclamacion por acceso TALVEG.dc.html» (decisión de Chris, 2026-10-19): cuando uno o varios
+    Trabajadores de una Empresa tienen que entrar en un Centro, se reclama de una vez, a la Empresa empleadora, todo lo que ese
+    Centro exige y está vencido o pendiente, de la Empresa y de esos Trabajadores. Qué sale lo decide ObtenerReclamacionPorAccesoQuery
+    (alcance de cartera incluido); esta pantalla no recuenta ni amplía nada y no tiene envío propio: «Reclamar a la Empresa» abre el
+    DrawerReclamacionLote de siempre ya en su revisión, y nada se envía sin el clic del Gestor CAE en el cajón.
+*@
+@page "/empresas/{EmpresaId:guid}/reclamar-acceso"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@implements IDisposable
+@using CaeManager.Application.Empresas.Queries.ObtenerEmpresaPorId
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Bandeja.Components
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosReclamarParaAcceso> Textos
+@inject IStringLocalizer<TextosEmpresas> TextosEmpresa
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["TituloPestana"] — @(_empresa?.RazonSocial ?? TextosEmpresa["Kicker"]) — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina reclamar-acceso">
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/empresas" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
+                     NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="ReintentarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_empresa is null)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else
+    {
+        <CabeceraPagina Titulo="@Textos["Titulo"]" Kicker="@Textos["Kicker"]">
+            <Descripcion>
+                <span>@TextosEmpresa["Kicker"]</span>
+                <a class="reclamar-acceso-empresa" href="@($"/empresas/{EmpresaId}")">@_empresa.RazonSocial</a>
+                @if (!string.IsNullOrWhiteSpace(_empresa.Cif))
+                {
+                    <span aria-hidden="true">·</span>
+                    <BotonCopiar Valor="@_empresa.Cif" Texto="@_empresa.Cif" Etiqueta="@TextosEmpresa["CopiarElCif"]" />
+                }
+            </Descripcion>
+            <Acciones>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{EmpresaId}")">@Textos["VolverAEmpresa"]</Boton>
+            </Acciones>
+        </CabeceraPagina>
+
+        @if (_centros.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["SinCentrosTitulo"]" Descripcion="@Textos["SinCentrosDescripcion"]" />
+        }
+        else
+        {
+            <section class="reclamar-acceso-seleccion" aria-label="@Textos["CentroEtiqueta"]">
+                <CampoSelect Etiqueta="@Textos["CentroEtiqueta"]" Valor="@(_centroId?.ToString() ?? string.Empty)" ValorChanged="CambiarCentroAsync">
+                    @foreach (var centro in _centros)
+                    {
+                        <option value="@centro.CentroId" selected="@(centro.CentroId == _centroId)">@centro.CentroNombre</option>
+                    }
+                </CampoSelect>
+                <p class="texto-descriptivo">@Textos["CentroAyuda"]</p>
+
+                <fieldset class="reclamar-acceso-trabajadores">
+                    <legend>@Textos["TrabajadoresLeyenda"]</legend>
+                    <div class="reclamar-acceso-trabajadores-barra">
+                        <span class="reclamar-acceso-resumen">@Textos["SeleccionResumen", _seleccion.Count, TrabajadoresDelCentro.Count]</span>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="SeleccionarTodosAsync">@Textos["SeleccionarTodos"]</Boton>
+                        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarSeleccionAsync">@Textos["QuitarSeleccion"]</Boton>
+                    </div>
+                    <div class="reclamar-acceso-trabajadores-lista">
+                        @foreach (var trabajador in TrabajadoresDelCentro)
+                        {
+                            <label class="campo-checkbox" @key="trabajador.Id">
+                                <input type="checkbox" checked="@_seleccion.Contains(trabajador.Id)"
+                                       @onchange="AlAlternarTrabajador(trabajador.Id)" />
+                                <span>@trabajador.Nombre</span>
+                            </label>
+                        }
+                    </div>
+                    <p class="texto-descriptivo">@Textos["TrabajadoresAyuda", _empresa.RazonSocial]</p>
+                </fieldset>
+            </section>
+
+            @if (_errorLotes)
+            {
+                <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
+                             NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Secundario" OnClick="RecalcularAsync">@Textos["Reintentar"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else if (_seleccion.Count == 0)
+            {
+                <EstadoVacio Titulo="@Textos["ElegirTrabajadorTitulo"]" Descripcion="@Textos["ElegirTrabajadorDescripcion", NombreCentro]" />
+            }
+            else if (_calculando && !_lotesCalculados)
+            {
+                <EstadoCargando Filas="4" />
+            }
+            else if (_lotes.Count == 0)
+            {
+                <EstadoVacio Titulo="@Textos["NadaTitulo"]" Descripcion="@Textos["NadaDescripcion", NombreCentro]"
+                             NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)">
+                    <Accion>
+                        <Badge Tono="TonoBadge.Exito">@Textos["NadaInsignia"]</Badge>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else
+            {
+                <div class="reclamar-acceso-cuerpo" aria-busy="@(_calculando ? "true" : "false")" aria-live="polite">
+                    <div class="reclamar-acceso-documentos">
+                        @if (_filasEmpresa.Count > 0)
+                        {
+                            <section class="reclamar-acceso-seccion" aria-labelledby="reclamar-acceso-empresa-titulo">
+                                <div class="reclamar-acceso-seccion-cabecera">
+                                    <h2 id="reclamar-acceso-empresa-titulo" class="reclamar-acceso-seccion-titulo">@Textos["SeccionEmpresa"]</h2>
+                                    <span class="texto-descriptivo">@Recuento(_filasEmpresa.Count)</span>
+                                </div>
+                                <ul class="reclamar-acceso-filas">
+                                    @{ var clavesFilasEmpresa = new ClavesDeHermanos(); }
+                                    @foreach (var fila in _filasEmpresa)
+                                    {
+                                        <li class="reclamar-acceso-fila" @key="clavesFilasEmpresa.De(fila.Id)">
+                                            <span class="reclamar-acceso-fila-nombre">
+                                                <span>@fila.Nombre</span>
+                                                <span class="texto-descriptivo">@fila.Detalle</span>
+                                            </span>
+                                            <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                        </li>
+                                    }
+                                </ul>
+                            </section>
+                        }
+                        @if (_gruposTrabajadores.Count > 0)
+                        {
+                            <section class="reclamar-acceso-seccion" aria-labelledby="reclamar-acceso-trabajadores-titulo">
+                                <div class="reclamar-acceso-seccion-cabecera">
+                                    <h2 id="reclamar-acceso-trabajadores-titulo" class="reclamar-acceso-seccion-titulo">@Textos["SeccionTrabajadores"]</h2>
+                                    <span class="texto-descriptivo">@Recuento(TotalDocumentosDeTrabajadores)</span>
+                                </div>
+                                @foreach (var grupo in _gruposTrabajadores)
+                                {
+                                    <div class="reclamar-acceso-grupo" @key="grupo.TrabajadorId">
+                                        <h3 class="reclamar-acceso-grupo-nombre">@grupo.Nombre</h3>
+                                        <ul class="reclamar-acceso-filas">
+                                            @{ var clavesFilasGrupo = new ClavesDeHermanos(); }
+                                            @foreach (var fila in grupo.Filas)
+                                            {
+                                                <li class="reclamar-acceso-fila" @key="clavesFilasGrupo.De(fila.Id)">
+                                                    <span class="reclamar-acceso-fila-nombre">
+                                                        <span>@fila.Nombre</span>
+                                                        <span class="texto-descriptivo">@fila.Detalle</span>
+                                                    </span>
+                                                    <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                                </li>
+                                            }
+                                        </ul>
+                                    </div>
+                                }
+                            </section>
+                        }
+                        <p class="texto-descriptivo reclamar-acceso-nota">@Textos["NotaPlataforma"]</p>
+                    </div>
+
+                    <aside class="reclamar-acceso-lateral" aria-label="@Textos["DestinatariosTitulo"]">
+                        <h2 class="reclamar-acceso-seccion-titulo">@Textos["DestinatariosTitulo"]</h2>
+                        @{ var clavesLotes = new ClavesDeHermanos(); }
+                        @foreach (var lote in _lotes)
+                        {
+                            <div class="reclamar-acceso-destino" @key="clavesLotes.De(lote.Clave)">
+                                <div class="reclamar-acceso-destino-cabecera">
+                                    <span class="reclamar-acceso-destino-titulo">@TituloDestino(lote)</span>
+                                    <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@(lote.Documentos.Count + (lote.PendientesSinFecha?.Count ?? 0))</Badge>
+                                </div>
+                                @if (lote.Destinatarios is { Count: > 0 })
+                                {
+                                    @foreach (var destinatario in lote.Destinatarios)
+                                    {
+                                        <span class="reclamar-acceso-contacto" @key="destinatario.ContactoId">
+                                            <strong>@destinatario.Nombre</strong>
+                                            <span class="texto-descriptivo">@destinatario.Email</span>
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <div class="alerta-formulario" role="alert">@TextoSinContacto(lote)</div>
+                                }
+                            </div>
+                        }
+                        <SoloConEscritura>
+                            <div class="reclamar-acceso-cta">
+                                <Boton Variante="VarianteBoton.Primario" Deshabilitado="!PuedeReclamar" OnClick="AbrirReclamacion">@Textos["Reclamar"]</Boton>
+                                @if (!PuedeReclamar && !_calculando)
+                                {
+                                    <span class="texto-descriptivo">@Textos["ReclamarSinDestinatario"]</span>
+                                }
+                                else
+                                {
+                                    <span class="texto-descriptivo">@Textos["NadaSeEnvia"]</span>
+                                }
+                            </div>
+                        </SoloConEscritura>
+                    </aside>
+                </div>
+            }
+        }
+
+        @* El cajón de siempre, abierto ya en su revisión con lo que enseña esta pantalla. Cada tarjeta se envía con su comando, que
+           vuelve a validar documentos, cartera y destinatarios. *@
+        <DrawerReclamacionLote Visible="_reclamacionVisible" VisibleChanged="CambiarReclamacionVisible"
+                               AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+                               LotesIniciales="@(_reclamacionVisible ? _lotes : null)" IncluirPendientesSinFecha="true"
+                               OnReclamacionEnviada="RecalcularAsync" />
+    }
+</div>
+</LimiteDeErrores>

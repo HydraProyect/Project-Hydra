@@ -56,6 +56,7 @@ public class EnlaceProfundoNoCambiaDeEmpresaPorGetTests
     [InlineData("src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Empresas/Pages/DeteccionTrabajadores.razor")]
+    [InlineData("src/CaeManager.Web/Features/Empresas/Pages/ReclamarParaAcceso.razor")]
     [InlineData("src/CaeManager.Web/Features/Subcontratas/Pages/SubcontrataDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Vehiculos/Pages/VehiculoDetalle.razor")]
     [InlineData("src/CaeManager.Web/Features/Proyectos/Pages/ProyectoDetalle.razor")]

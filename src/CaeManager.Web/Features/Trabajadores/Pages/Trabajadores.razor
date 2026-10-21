@@ -468,7 +468,7 @@
     EnProgreso="_eliminandoFiltroGuardado"
     OnConfirmar="ConfirmarEliminarFiltroGuardadoAsync" />
 
-<Modal @ref="_modalAsignarCentro" HayCambios="() => HayCambiosSinGuardar" Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
+<Modal @ref="_modalAsignarCentro" HayCambios="() => HayCambiosSinGuardar" Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v) CerrarAsignarCentro(); }" Titulo="@(_seleccionados.Count == 1 ? Textos["ModalAsignarCentroTituloUno"] : Textos["ModalAsignarCentroTitulo", _seleccionados.Count])" CerrarAlHacerClicFuera="!_asignandoLote">
     <ChildContent>
         <CampoBuscarSelect
             Etiqueta="@Textos["EtiquetaCentro"]"

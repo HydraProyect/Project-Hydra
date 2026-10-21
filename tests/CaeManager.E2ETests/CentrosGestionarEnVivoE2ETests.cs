@@ -135,7 +135,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // El ☑ de la cabecera de la lista (rediseño de listados, fase 1): un icono con nombre accesible, sin texto visible.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         // Una recarga de la lista posterior al alta del Trabajador limpia la selección (CargarListaAsync sin conservarSeleccion):
-        // se marca y se abre «Asignar a centro…» con un tiempo acotado; si la recarga borró la selección, la barra de lote
+        // se marca y se abre «Asignar a un centro» con un tiempo acotado; si la recarga borró la selección, la barra de lote
         // desaparece, el clic agota el tiempo y se vuelve a marcar. Hipótesis de causa (no demostrada): la recarga propia
         // del alta aterriza después del filtro.
         for (var intento = 1; ; intento++)
@@ -144,7 +144,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
             if (!await casilla.IsCheckedAsync()) await casilla.CheckAsync();
             try
             {
-                await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…")
+                await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro")
                     .ClickAsync(new LocatorClickOptions { Timeout = 3_000 });
                 break;
             }

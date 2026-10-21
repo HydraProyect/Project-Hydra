@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestana" xml:space="preserve">
+    <value>Reclamar para acceso</value>
+    <comment>Título de la pestaña del navegador.</comment>
+  </data>
+  <data name="Kicker" xml:space="preserve">
+    <value>Reclamación por acceso</value>
+    <comment>Rótulo sobre el título de la pantalla.</comment>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Reclamar para acceso</value>
+    <comment>Título de la pantalla Reclamar para acceso.</comment>
+  </data>
+  <data name="VolverAEmpresa" xml:space="preserve">
+    <value>Volver a Empresa 360</value>
+    <comment>Botón de la cabecera: vuelve a la ficha de la Empresa.</comment>
+  </data>
+  <data name="CentroEtiqueta" xml:space="preserve">
+    <value>Centro</value>
+    <comment>Etiqueta del selector de Centro.</comment>
+  </data>
+  <data name="CentroAyuda" xml:space="preserve">
+    <value>Se reclama lo que este Centro exige y la Empresa tiene vencido o pendiente, de la Empresa y de los Trabajadores elegidos.</value>
+    <comment>Ayuda bajo el selector de Centro.</comment>
+  </data>
+  <data name="TrabajadoresLeyenda" xml:space="preserve">
+    <value>Trabajadores que acceden</value>
+    <comment>Leyenda del grupo de casillas de Trabajadores.</comment>
+  </data>
+  <data name="TrabajadoresAyuda" xml:space="preserve">
+    <value>Solo Trabajadores de {0} con Asignación activa en este Centro.</value>
+    <comment>{0} = razón social de la Empresa.</comment>
+  </data>
+  <data name="SeleccionarTodos" xml:space="preserve">
+    <value>Seleccionar todos</value>
+    <comment>Marca todos los Trabajadores del Centro.</comment>
+  </data>
+  <data name="QuitarSeleccion" xml:space="preserve">
+    <value>Quitar selección</value>
+    <comment>Desmarca todos los Trabajadores.</comment>
+  </data>
+  <data name="SeleccionResumen" xml:space="preserve">
+    <value>{0} de {1} seleccionados</value>
+    <comment>{0} = elegidos, {1} = Trabajadores de la Empresa en ese Centro.</comment>
+  </data>
+  <data name="ErrorTitulo" xml:space="preserve">
+    <value>No pudimos calcular lo que exige este Centro</value>
+    <comment>Fallo de la consulta de la reclamación por acceso.</comment>
+  </data>
+  <data name="ErrorDescripcion" xml:space="preserve">
+    <value>Vuelve a intentarlo. Si el error sigue, lo que exige el Centro se puede consultar en su Centro 360.</value>
+    <comment>Detalle del error de carga.</comment>
+  </data>
+  <data name="Reintentar" xml:space="preserve">
+    <value>Reintentar</value>
+    <comment>Botón de reintento.</comment>
+  </data>
+  <data name="SinCentrosTitulo" xml:space="preserve">
+    <value>Sin Centros con gestión CAE</value>
+    <comment>La Empresa no tiene Trabajadores en ningún Centro con gestión CAE.</comment>
+  </data>
+  <data name="SinCentrosDescripcion" xml:space="preserve">
+    <value>Esta Empresa no tiene Trabajadores con Asignación activa en un Centro con gestión CAE, así que no hay acceso que reclamar.</value>
+    <comment>Estado vacío sin Centros.</comment>
+  </data>
+  <data name="ElegirTrabajadorTitulo" xml:space="preserve">
+    <value>Elige al menos un Trabajador</value>
+    <comment>Estado vacío sin Trabajadores elegidos.</comment>
+  </data>
+  <data name="ElegirTrabajadorDescripcion" xml:space="preserve">
+    <value>Marca los Trabajadores que van a entrar en {0}.</value>
+    <comment>{0} = nombre del Centro.</comment>
+  </data>
+  <data name="NadaInsignia" xml:space="preserve">
+    <value>Al día</value>
+    <comment>Insignia del estado vacío sin nada que reclamar.</comment>
+  </data>
+  <data name="NadaTitulo" xml:space="preserve">
+    <value>Nada que reclamar para este acceso</value>
+    <comment>Todo lo que exige el Centro está al día en TALVEG.</comment>
+  </data>
+  <data name="NadaDescripcion" xml:space="preserve">
+    <value>Lo que exige {0} está al día en TALVEG para la Empresa y los Trabajadores elegidos.</value>
+    <comment>{0} = nombre del Centro.</comment>
+  </data>
+  <data name="NotaPlataforma" xml:space="preserve">
+    <value>Solo se reclama a la Empresa lo que falta o vence en TALVEG. Lo vigente que una plataforma aún no acredita es trabajo del Gestor CAE, no de la Empresa.</value>
+    <comment>Aclara que el estado en plataforma no se reclama.</comment>
+  </data>
+  <data name="SeccionEmpresa" xml:space="preserve">
+    <value>Documentos de Empresa</value>
+    <comment>Sección con lo que exige el Centro de la propia Empresa.</comment>
+  </data>
+  <data name="SeccionTrabajadores" xml:space="preserve">
+    <value>Documentos de los Trabajadores</value>
+    <comment>Sección con lo que exige el Centro de los Trabajadores.</comment>
+  </data>
+  <data name="RecuentoUno" xml:space="preserve">
+    <value>1 documento</value>
+    <comment>Recuento de una sección.</comment>
+  </data>
+  <data name="RecuentoVarios" xml:space="preserve">
+    <value>{0} documentos</value>
+    <comment>{0} = número.</comment>
+  </data>
+  <data name="DocumentoVencimiento" xml:space="preserve">
+    <value>Vencimiento {0}</value>
+    <comment>{0} = fecha de vencimiento.</comment>
+  </data>
+  <data name="InsigniaFalta" xml:space="preserve">
+    <value>Falta</value>
+    <comment>Documento que nunca se subió.</comment>
+  </data>
+  <data name="DetalleFalta" xml:space="preserve">
+    <value>Ningún documento de este tipo subido</value>
+    <comment>Detalle de «Falta».</comment>
+  </data>
+  <data name="InsigniaSinConfirmar" xml:space="preserve">
+    <value>Sin confirmar</value>
+    <comment>Documento subido sin fecha de vencimiento confirmada.</comment>
+  </data>
+  <data name="DetalleSinConfirmar" xml:space="preserve">
+    <value>Subido, sin fecha de vencimiento confirmada</value>
+    <comment>Detalle de «Sin confirmar».</comment>
+  </data>
+  <data name="DestinatariosTitulo" xml:space="preserve">
+    <value>Destinatarios</value>
+    <comment>Título del lateral.</comment>
+  </data>
+  <data name="DestinoDelegacion" xml:space="preserve">
+    <value>Delegación {0}</value>
+    <comment>{0} = nombre de la Delegación de la Empresa.</comment>
+  </data>
+  <data name="DestinoAgenda" xml:space="preserve">
+    <value>Contactos de la Empresa</value>
+    <comment>Lote sin Delegación: va a la agenda de la Empresa.</comment>
+  </data>
+  <data name="DestinoSinContacto" xml:space="preserve">
+    <value>No hay ningún contacto al que reclamar esta documentación.</value>
+    <comment>Aviso de un lote sin destinatario.</comment>
+  </data>
+  <data name="DestinoDelegacionSinContacto" xml:space="preserve">
+    <value>No hay ningún contacto de reclamación visible para esta Delegación, así que no se le puede reclamar desde aquí.</value>
+    <comment>Aviso de un lote de una Delegación sin destinatario (sin contacto, o contacto que el usuario no puede ver).</comment>
+  </data>
+  <data name="Reclamar" xml:space="preserve">
+    <value>Reclamar a la Empresa</value>
+    <comment>Botón principal: abre el cajón de revisión y envío.</comment>
+  </data>
+  <data name="ReclamarSinDestinatario" xml:space="preserve">
+    <value>Ningún documento tiene destinatario.</value>
+    <comment>Motivo de que el botón esté deshabilitado.</comment>
+  </data>
+  <data name="NadaSeEnvia" xml:space="preserve">
+    <value>Nada se envía hasta que lo revises y confirmes en el cajón.</value>
+    <comment>Aclara que el envío es siempre una decisión del Gestor CAE.</comment>
+  </data>
+</root>

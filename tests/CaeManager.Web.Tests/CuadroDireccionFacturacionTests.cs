@@ -139,6 +139,39 @@ public partial class CuadroDireccionTests
     }
 
     [Fact]
+    public void La_pestana_Facturacion_usa_los_textos_de_la_maqueta_del_20_10_en_totales_formulas_y_columna_de_Gestor_CAE()
+    {
+        var cut = PintarFacturacion(Facturacion(), Roles.DireccionCae, out _);
+
+        cut.Find("[data-tabla=facturacion-empresas] tfoot th[scope=row]").TextContent.Trim().Should().Be("Total");
+        var formulas = cut.Find("[data-fact=como-se-calcula] dl").TextContent;
+        formulas.Should().Contain("Total").And.NotContain("Total por gestión");
+        cut.Find("[data-fact-kpi=extranjeros] .fact-kpi-etiqueta").GetAttribute("title")
+            .Should().Contain("Trabajadores con Pasaporte (casilla «Trabajador extranjero (cobrable)»). El NIE no cuenta porque puede ser residente.");
+    }
+
+    [Fact]
+    public void La_pestana_Facturacion_dice_cuantas_empresas_no_alcanza_quien_mira_con_la_explicacion_en_el_titulo()
+    {
+        var parcial = Facturacion() with { TenantsSinAlcanceCompleto = 2 };
+
+        var cut = PintarFacturacion(parcial, Roles.DireccionCae, out _);
+
+        var aviso = cut.Find("[data-facturacion=operador] [data-fact=sin-alcance]");
+        aviso.TextContent.Trim().Should().Be("Faltan 2 empresas que no alcanzas por completo");
+        aviso.GetAttribute("title").Should().Be("No entran en las cifras porque tu Asignación de Cartera sobre ellas es parcial.");
+    }
+
+    [Fact]
+    public void La_pestana_Facturacion_dice_en_singular_que_falta_una_empresa()
+    {
+        var cut = PintarFacturacion(Facturacion() with { TenantsSinAlcanceCompleto = 1 }, Roles.DireccionCae, out _);
+
+        cut.Find("[data-facturacion=operador] [data-fact=sin-alcance]").TextContent.Trim()
+            .Should().Be("Falta 1 empresa que no alcanzas por completo");
+    }
+
+    [Fact]
     public void La_pestana_Facturacion_pinta_cinco_KPI_y_la_cuota_por_Empresa_gestionada()
     {
         var cut = PintarFacturacion(Facturacion(), Roles.DireccionCae, out _);

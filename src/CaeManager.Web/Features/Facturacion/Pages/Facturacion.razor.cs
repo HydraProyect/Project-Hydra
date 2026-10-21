@@ -253,6 +253,38 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
     private string DineroOSinDato(double? valor, EmpresaFacturada e) =>
         valor is { } v && e.Cuota.Count == 1 ? Dinero((decimal)v, e.Cuota[0].Moneda, true) : Textos["SinDato"].Value;
 
+    /// <summary>
+    /// «Costo × gestión» con su cuenta, como la maqueta y la tabla del Cuadro: «(cuota − importe de extranjeros) ÷ gestiones
+    /// normales». Solo se pinta la cuenta con una única moneda y con las cifras a la vista; el valor lo da el modelo.
+    /// </summary>
+    private string CostoPorGestionConCuenta(EmpresaFacturada e)
+    {
+        var valor = DineroOSinDato(e.CostoPorGestion, e);
+        if (e.CostoPorGestion is null || e.Cuota.Count != 1 || e.Gestiones is not { } gestiones)
+            return valor;
+
+        var cuota = e.Cuota[0];
+        var importeExtranjeros = e.Concepto(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero).Importe ?? 0m;
+        var normales = Math.Max(0, gestiones - (e.GestionesExtranjero ?? 0));
+        return Textos["ValorConCuenta", valor,
+            Textos["CuentaGestionesNormales", Dinero(cuota.Importe - importeExtranjeros, cuota.Moneda, false), normales.ToString(CultureInfo.CurrentCulture)].Value].Value;
+    }
+
+    /// <summary>«Costo × extranjero» con su cuenta: «importe de extranjeros ÷ gestiones de extranjeros».</summary>
+    private string CostoPorExtranjeroConCuenta(EmpresaFacturada e)
+    {
+        var valor = DineroOSinDato(e.CostoPorExtranjero, e);
+        if (e.CostoPorExtranjero is null || e.Cuota.Count != 1 || e.GestionesExtranjero is not { } gestionesExtranjero)
+            return valor;
+
+        var importeExtranjeros = e.Concepto(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero);
+        if (importeExtranjeros.Importe is not { } importe)
+            return valor;
+
+        return Textos["ValorConCuenta", valor,
+            Textos["CuentaGestionesExtranjero", Dinero(importe, importeExtranjeros.Moneda ?? e.Cuota[0].Moneda, false), gestionesExtranjero.ToString(CultureInfo.CurrentCulture)].Value].Value;
+    }
+
     private string TextoRelacion(EmpresaFacturada e) => e.Relacion is { } r
         ? "×" + r.ToString("0.0", CultureInfo.CurrentCulture)
         : Textos["SinDato"].Value;

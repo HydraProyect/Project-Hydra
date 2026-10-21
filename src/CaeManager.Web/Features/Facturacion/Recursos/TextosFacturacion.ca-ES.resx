@@ -171,6 +171,15 @@
   <data name="Gestiones" xml:space="preserve">
     <value>Gestions</value>
   </data>
+  <data name="ValorConCuenta" xml:space="preserve">
+    <value>{0} ({1})</value>
+  </data>
+  <data name="CuentaGestionesNormales" xml:space="preserve">
+    <value>{0} ÷ {1} gestions normals</value>
+  </data>
+  <data name="CuentaGestionesExtranjero" xml:space="preserve">
+    <value>{0} ÷ {1} d&apos;estranger</value>
+  </data>
   <data name="GestionesDetalle" xml:space="preserve">
     <value>{0} normals + {1} d&apos;estranger</value>
   </data>
@@ -205,10 +214,10 @@
     <value>Quan la teva organització gestioni Empreses i tinguis accés complet a les seves dades, apareixeran aquí amb la seva quota.</value>
   </data>
   <data name="SinAccesoCifrasTitulo" xml:space="preserve">
-    <value>El teu rol encara no pot llegir les xifres del mes</value>
+    <value>Facturació no està disponible per al teu rol</value>
   </data>
   <data name="SinAccesoCifrasDescripcion" xml:space="preserve">
-    <value>Disponible quan s&apos;activi l&apos;accés de l&apos;Administrador al Quadre de direcció.</value>
+    <value>La veuen Direcció CAE, Coordinació CAE i Administració de l&apos;Operador CAE.</value>
   </data>
   <data name="DrawerTitulo" xml:space="preserve">
     <value>Tarifes de {0}</value>
