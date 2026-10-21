@@ -683,7 +683,7 @@ public static class CatalogoPilotoOutbound
             new(0, 12, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión trimestral de las cámaras de frío"),
             new(2, 25, 2, EstadoVisitaPilotoOutbound.Futura, "Parada programada de las unidades de tratamiento de aire"),
             new(4, 6, 1, EstadoVisitaPilotoOutbound.Futura, "Mantenimiento preventivo de los robots de pintura", PorCorreo: true),
-            new(3, -5, 14, EstadoVisitaPilotoOutbound.EnCurso, "Sustitución de las enfriadoras de la clínica"),
+            new(3, -10, 14, EstadoVisitaPilotoOutbound.EnCurso, "Sustitución de las enfriadoras de la clínica"),
             new(1, -20, 1, EstadoVisitaPilotoOutbound.Realizada, "Revisión anual de los muelles de carga"),
             new(2, -40, 1, EstadoVisitaPilotoOutbound.Realizada, "Inspección de la instalación de gases medicinales")
         ]

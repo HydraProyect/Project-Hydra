@@ -919,7 +919,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // acreditaciones: una segunda siembra que duplicara cualquiera de ellas dejaba el recuento igual hasta entonces.
         // Las cifras salen de la matriz (A..G): 2+1+4+6+1+3+1 Vehículos, los 5 Proyectos de D y la Subcontrata Supervisada de F por sus tres tipos.
         (antes["Vehículos"], antes["Proyectos"], antes["Verificaciones externas de Subcontrata"])
-            .Should().Be((19, 8, 3), "MEDIDO: Vehículos, Proyectos (con los tres eventos de H) y verificaciones externas del lote");
+            .Should().Be((31, 12, 3), "MEDIDO (A..H: 19, 8, 3; I, J y K suman 12 Vehículos y 4 Proyectos):Vehículos, Proyectos (con los tres eventos de H) y verificaciones externas del lote");
         antes["Acreditaciones externas"].Should().BeGreaterThan(0, "MEDIDO: las plataformas de A, B y C llevan acreditaciones");
 
         var segunda = await fixture.Arnes.SembrarAsync(fixture.Configuracion);
@@ -941,7 +941,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Los_siete_Tenants_sin_Administrador_propio_llevan_el_encargo_de_la_siembra_y_C_no()
     {
         var conEncargo = CatalogoPilotoOutbound.Tenants.Where(t => !ReferenceEquals(t, C)).Select(t => t.Nombre).ToList();
-        conEncargo.Should().HaveCount(7);
+        conEncargo.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count - 1);
 
         var medido = await fixture.Arnes.ComoBootstrapAsync(async b =>
         {
@@ -1564,7 +1564,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
 
         var discrepancias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         foreach (var linea in discrepancias) salida.WriteLine("MEDIDO " + linea);
-        discrepancias.Should().HaveCount(20, "MEDIDO: una por Tenant y por cuenta: seis de la Gestora CAE, cinco del segundo Gestor CAE y nueve de la Coordinadora CAE");
+        discrepancias.Should().HaveCount(26, "una por Tenant y por cuenta: ocho de la Gestora CAE (con I y K), seis del segundo Gestor CAE (con J) y doce de la Coordinadora CAE");
         discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
         discrepancias.Should().Contain(
             $"Asistente IA · cartera de la Coordinadora CAE · «{CatalogoPilotoOutbound.NombreTenantC}»: medido sin instrucción de tratamiento de IA " +
@@ -1574,7 +1574,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var resiembra = await arnes.SembrarAsync(configuracion);
         resiembra!.Escribio.Should().BeFalse("MEDIDO: añadir la instrucción que faltaba no cuenta como haber escrito el lote");
         resiembra.TenantsConDatosNuevos.Should().BeEmpty();
-        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: vuelve a haber nueve instrucciones y nada más ha cambiado");
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "vuelve a haber una instrucción por Tenant del lote y nada más ha cambiado");
         (await InstruccionesDelPilotoAsync(arnes)).Select(i => i.Tenant).Should().BeEquivalentTo(
             Vigentes, "MEDIDO: una por Tenant, no nueve en uno");
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
