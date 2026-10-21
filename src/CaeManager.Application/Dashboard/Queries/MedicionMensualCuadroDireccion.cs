@@ -120,6 +120,8 @@ public class MedicionMensualCuadroDireccion(
             var vivo = DefinicionesCuadroDireccion.VivoAlCorte(corteUtc).Compile();
             var alta = DefinicionesCuadroDireccion.AltaEnElMes(inicio, fin).Compile();
             var baja = DefinicionesCuadroDireccion.BajaEnElMes(inicio, fin).Compile();
+            // Un único recorte al mes para toda la actividad leída de la ventana: [inicio, fin).
+            bool EnElMes(DateTime? instante) => instante >= inicio && instante < fin;
 
             var activos = trabajadores.Where(t => vivo(t.Vida)).ToList();
             var altasDeCentros = centros.Where(c => alta(c.Vida)).ToList();
@@ -137,13 +139,13 @@ public class MedicionMensualCuadroDireccion(
                 trabajadores.Count(t => baja(t.Vida)),
                 centros.Count(c => vivo(c.Vida)),
                 altasDeCentros.Count,
-                documentosGestionados.Count(d => d >= inicio && d < fin),
-                requerimientos.Count(r => r >= inicio && r < fin),
-                solicitudes.Where(s => s >= inicio && s < fin).ToList(),
+                documentosGestionados.Count(d => EnElMes(d)),
+                requerimientos.Count(r => EnElMes(r)),
+                solicitudes.Where(s => EnElMes(s)).ToList(),
                 documental,
-                gestiones?.Count(g => g >= inicio && g < fin),
+                gestiones?.Count(EnElMes),
                 ExtranjerosActivos: activos.Count(t => t.Extranjero),
-                ObrasNuevas: obras?.Count(o => o >= inicio && o < fin),
+                ObrasNuevas: obras?.Count(o => EnElMes(o)),
                 CentrosNuevosPorCliente: porCliente,
                 VisitasTrabajadorExtranjero: visitas?.Count(v => v.Extranjero && v.CreadoEnUtc <= corteUtc
                     && v.FechaInicio >= primerDia && v.FechaInicio < primerDia.AddMonths(1)));

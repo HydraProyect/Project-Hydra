@@ -30,6 +30,7 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
 
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _tenant = Guid.NewGuid();
+    private readonly Dictionary<string, Guid> _trabajadorPorDocumento = [];
 
     public async Task InitializeAsync()
     {
@@ -48,6 +49,7 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
         contexto.Centros.Add(centro);
         contexto.Trabajadores.AddRange(recurrente, otro, nacional);
         await contexto.SaveChangesAsync();
+        (_trabajadorPorDocumento[NieValido], _trabajadorPorDocumento[OtroNieValido], _trabajadorPorDocumento[DniValido]) = (recurrente.Id, otro.Id, nacional.Id);
 
         // 30-sep y 1-nov quedan fuera de octubre; el 1 y el 31 dentro. El 31 lleva dos extranjeros, así que un
         // límite desplazado un día (30-sep dentro, 31-oct fuera) daría 2 en vez de 3.
@@ -137,14 +139,33 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
         deUnaPasada.Select(m => m.VisitasTrabajadorExtranjero).Should().Equal(1, 3, 1);
         deUnaPasada.Select(m => m.AltasCentros).Should().Equal(0, 1, 0);
         deUnaPasada.Select(m => m.ObrasNuevas).Should().Equal(0, 1, 0);
-        for (var i = 0; i < meses.Length; i++)
-        {
-            var suelta = await medicion.MedirAsync(meses[i], corte, CancellationToken.None, medirDocumental: false);
-            (deUnaPasada[i].TrabajadoresActivos, deUnaPasada[i].ExtranjerosActivos, deUnaPasada[i].CentrosActivos,
-                    deUnaPasada[i].AltasTrabajadores, deUnaPasada[i].DocumentosGestionados)
-                .Should().Be((suelta.TrabajadoresActivos, suelta.ExtranjerosActivos, suelta.CentrosActivos,
-                    suelta.AltasTrabajadores, suelta.DocumentosGestionados), "el mes {0} mide lo mismo suelto", meses[i]);
-        }
+
+        // La vida de los Trabajadores repartida por mes, cada uno con su corte al final del mes: el NIE recurrente se da
+        // de alta en septiembre, el otro NIE en octubre y el DNI en octubre, que se elimina en noviembre.
+        await FijarVidaAsync(contexto, NieValido, new DateTime(2025, 9, 10, 9, 0, 0, DateTimeKind.Utc), null);
+        await FijarVidaAsync(contexto, OtroNieValido, new DateTime(2025, 10, 10, 9, 0, 0, DateTimeKind.Utc), null);
+        await FijarVidaAsync(contexto, DniValido, new DateTime(2025, 10, 12, 9, 0, 0, DateTimeKind.Utc), new DateTime(2025, 11, 10, 9, 0, 0, DateTimeKind.Utc));
+
+        var alFinalDeCadaMes = await medicion.MedirMesesAsync(
+            meses.Select(m => new MesAMedir(m, m.FinUtc)).ToList(), CancellationToken.None, medirDocumental: false);
+
+        alFinalDeCadaMes.Select(m => m.AltasTrabajadores).Should().Equal(1, 2, 0);
+        alFinalDeCadaMes.Select(m => m.BajasTrabajadores).Should().Equal(0, 0, 1);
+        alFinalDeCadaMes.Select(m => m.TrabajadoresActivos).Should().Equal(1, 3, 2);
+        alFinalDeCadaMes.Select(m => m.ExtranjerosActivos).Should().Equal(1, 2, 2);
+        alFinalDeCadaMes.Select(m => m.CentrosActivos).Should().Equal(0, 1, 1);
+        alFinalDeCadaMes.Select(m => m.VisitasTrabajadorExtranjero).Should().Equal([0, 0, 0],
+            "las Visitas se crearon hoy: con el corte en 2025 aún no existían");
+    }
+
+    private async Task FijarVidaAsync(CaeManagerDbContext contexto, string documento, DateTime altaUtc, DateTime? bajaUtc)
+    {
+        var id = _trabajadorPorDocumento[documento];
+        await contexto.Trabajadores.Where(t => t.Id == id)
+            .ExecuteUpdateAsync(s => s
+                .SetProperty(t => t.CreadoEnUtc, altaUtc)
+                .SetProperty(t => t.EstaEliminado, bajaUtc != null)
+                .SetProperty(t => t.EliminadoEnUtc, bajaUtc));
     }
 
     private MedicionMensualCuadroDireccion Medicion(CaeManagerDbContext contexto) =>

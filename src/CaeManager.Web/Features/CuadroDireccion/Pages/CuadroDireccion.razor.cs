@@ -331,7 +331,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         }
         finally
         {
-            _cargandoComunicaciones = false;
+            // Con la serie ya pintada se puede cambiar de mes mientras esto sigue en vuelo: una carga anterior no apaga
+            // el «Calculando» de la que la sustituyó.
+            if (EsVigente(version)) _cargandoComunicaciones = false;
         }
 
         if (!EsVigente(version)) return;
