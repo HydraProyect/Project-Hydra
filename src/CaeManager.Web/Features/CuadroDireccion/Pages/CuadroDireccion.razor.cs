@@ -918,9 +918,17 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private sealed record AlertaCuadro(string Empresa, int Porcentaje, int Prioridad);
 
+    /// <summary>
+    /// El cumplimiento de una fila de Empresa: contexto Empresa (pares exigidos a sus Trabajadores en sus Centros, los que
+    /// faltan en contra), el mismo número que /empresas y Empresa 360. No es el «documentos de Trabajador al día» del KPI
+    /// global, que sigue igual a Inicio (decisión de Coordinación, 2026-10-21). Null sin pares exigidos.
+    /// </summary>
+    private static int? CumplimientoEmpresa(CumplimientoActualDto cumplimiento) => cumplimiento.Exigido?.Porcentaje;
+
     private IReadOnlyList<AlertaCuadro> Alertas => EmpresasVisibles
-        .Where(e => !e.Cifras.Cumplimiento.SinDatos && e.Cifras.Cumplimiento.Porcentaje < 80)
-        .Select(e => new AlertaCuadro(e.TenantNombre, e.Cifras.Cumplimiento.Porcentaje, e.Cifras.Cumplimiento.Porcentaje < 70 ? 1 : 2))
+        .Select(e => (e.TenantNombre, Porcentaje: CumplimientoEmpresa(e.Cifras.Cumplimiento)))
+        .Where(e => e.Porcentaje < 80)
+        .Select(e => new AlertaCuadro(e.TenantNombre, e.Porcentaje!.Value, e.Porcentaje < 70 ? 1 : 2))
         .OrderBy(a => a.Prioridad).ThenBy(a => a.Porcentaje)
         .Take(8)
         .ToList();
@@ -949,7 +957,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             "rotacion" => f.Rotacion,
             "facturacion" => (double)f.Facturacion,
             "ingreso" => f.IngresoPorGestion,
-            "cumplimiento" => f.Empresa.Cifras.Cumplimiento.SinDatos ? null : f.Empresa.Cifras.Cumplimiento.Porcentaje,
+            "cumplimiento" => CumplimientoEmpresa(f.Empresa.Cifras.Cumplimiento),
             _ => null,
         };
 
@@ -1365,7 +1373,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             f.Empresa.TenantNombre, Numero(f.Empresa.Cifras.TrabajadoresActivos.Valor),
             Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", ImporteOSinDato(f.Facturacion),
             f.IngresoPorGestion is { } i ? Importe((decimal)i) : "—",
-            f.Empresa.Cifras.Cumplimiento.SinDatos ? "—" : f.Empresa.Cifras.Cumplimiento.Porcentaje + " %"])));
+            CumplimientoEmpresa(f.Empresa.Cifras.Cumplimiento) is { } cumplimiento ? cumplimiento + " %" : "—"])));
 
     private Task ExportarCarteraAsync() => DescargarCsvAsync("cartera",
         new[] { (IReadOnlyList<string>)[Textos["ColumnaGestorCae"].Value, Textos["ColumnaEquipo"].Value, Textos["ColumnaEmpresas"].Value, Textos["ColumnaEmpresasTitulares"].Value, Textos["ColumnaCentros"].Value, Textos["ColumnaTrabajadores"].Value, Textos["ColumnaExtranjeros"].Value, Textos["ColumnaGestiones"].Value, Textos["ColumnaMayorEmpresa"].Value, Textos["ColumnaIndice"].Value] }

@@ -131,7 +131,7 @@ public partial class CuadroDireccionTests : BunitContext
             Solicitudes: new SolicitudesDelMesDto(
                 c(solicitudes),
                 franjas ?? [new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 30), new FranjaSolicitudesDto(DayOfWeek.Tuesday, 10, 90)]),
-            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow),
+            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow, Exigido: new(92, 100)),
             Gestiones: c(42),
             Extranjeros: c(7));
     }
@@ -445,7 +445,7 @@ public partial class CuadroDireccionTests : BunitContext
     public void El_contador_de_alertas_concuerda_en_singular_y_plural(int empresasEnAlerta, string glosa)
     {
         var baseCuadro = Cuadro(EstadoCifraMensual.Parcial);
-        var bajo = baseCuadro.Tenants[0].Cifras with { Cumplimiento = new CumplimientoActualDto(60, 5, 3, 2, 0, 0, 0, 60, false, DateTime.UtcNow) };
+        var bajo = baseCuadro.Tenants[0].Cifras with { Cumplimiento = new CumplimientoActualDto(60, 5, 3, 2, 0, 0, 0, 60, false, DateTime.UtcNow, Exigido: new(60, 100)) };
         var cuadro = baseCuadro with
         {
             Tenants =
