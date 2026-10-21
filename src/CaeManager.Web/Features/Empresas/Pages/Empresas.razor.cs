@@ -77,7 +77,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private int _cargaVigente;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<ElementoSeleccionable> _clientesDisponiblesSelector => _clientesDisponibles
@@ -453,7 +453,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         var consulta = new ObtenerEmpresasQuery(
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Pagina: _pagina,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
             ConRecuentosPorEstado: true,
             // Esta página pinta el motivo del estado: es quien pide el desglose.
@@ -612,40 +612,23 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_estadoFiltro) || _clienteFiltro is not null;
 
     /// <summary>
-    /// Las filas de la página con el título del grupo en la primera de cada uno cuando se agrupa «Por Cliente»
-    /// (el orden ya viene del servidor: los de un mismo Cliente, seguidos). <c>Cantidad</c> es cuántas filas
-    /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
+    /// Las filas con la cabecera del grupo en la primera de cada uno cuando se agrupa «Por Cliente» (el orden ya viene
+    /// del servidor: los de un mismo Cliente, seguidos). Agrupada, la pantalla pide todas las filas filtradas
+    /// (<see cref="TamanoPedido"/>), así que cada grupo está entero. Los grupos nacen plegados. Sin agrupar, ninguna
+    /// fila lleva cabecera.
     /// </summary>
-    /// <summary>
-    /// El recuento del título de grupo cuenta las filas de esta página (agrupar es ordenar en servidor): con más de una
-    /// página no es el total del grupo y lo dice, para que no se lea como tal.
-    /// </summary>
-    private string RecuentoDeGrupo(int cantidad) =>
-        Textos[TotalPaginas > 1 ? "RecuentoGrupoEnPagina" : "RecuentoGrupo", cantidad].Value;
+    private IEnumerable<FilaDeGrupo<EmpresaListaDto>> FilasConGrupo() =>
+        GruposDeLista.Agrupar(_elementosPagina, _agruparPorCliente, e => e.ClientePrincipal ?? string.Empty,
+            (_, e) => e.ClientePrincipal ?? Textos["GrupoSinCliente"].Value, EsFilaRoja, _gruposAbiertos);
 
-    private IEnumerable<(EmpresaListaDto Empresa, string? Grupo, int Cantidad)> FilasConGrupo()
-    {
-        if (!_agruparPorCliente)
-        {
-            foreach (var empresa in _elementosPagina)
-                yield return (empresa, null, 0);
-            yield break;
-        }
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
 
-        var cantidades = _elementosPagina
-            .GroupBy(e => e.ClientePrincipal ?? string.Empty)
-            .ToDictionary(g => g.Key, g => g.Count());
-        string? anterior = null;
-        foreach (var empresa in _elementosPagina)
-        {
-            var clave = empresa.ClientePrincipal ?? string.Empty;
-            var empiezaGrupo = anterior is null || clave != anterior;
-            anterior = clave;
-            yield return empiezaGrupo
-                ? (empresa, empresa.ClientePrincipal ?? Textos["GrupoSinCliente"].Value, cantidades[clave])
-                : (empresa, null, 0);
-        }
-    }
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(EmpresaListaDto empresa) => ClaseTinte(empresa.EstadoDocumental).Contains("peligro", StringComparison.Ordinal);
+
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorCliente, _tamanoPagina);
 
     private Task QuitarFiltroBusquedaAsync() => BuscarAsync(string.Empty);
 

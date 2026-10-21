@@ -174,8 +174,16 @@
                     <tbody>
                     @foreach (var grupo in GruposDeVisitas)
                     {
-                        @if (_agruparPor == "cliente") { <tr class="visitas-grupo"><th colspan="@(_seleccionMultiple ? 8 : 7)">@(grupo.First().ClienteRazonSocial) @if (_resumenPorGrupo?.GetValueOrDefault(grupo.Key.ToString()) is { } resumenGrupo) { <span>· @resumenGrupo.Total</span> }</th></tr> }
-                        @foreach (var context in grupo)
+                        var grupoAbierto = _agruparPor != "cliente" || _gruposAbiertos.EstaAbierto(grupo.Key.ToString());
+                        @if (_agruparPor == "cliente")
+                        {
+                            @* Grupo plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y, plegado, la pastilla roja. *@
+                            <tr class="visitas-grupo"><th colspan="@(_seleccionMultiple ? 8 : 7)">
+                                <CabeceraGrupoLista Nombre="@grupo.First().ClienteRazonSocial" Total="grupo.Count()" Incidencias="grupo.Count(EsFilaRoja)"
+                                                    Abierto="grupoAbierto" OnAlternar="() => _gruposAbiertos.Alternar(grupo.Key.ToString())" />
+                            </th></tr>
+                        }
+                        @foreach (var context in grupoAbierto ? grupo : Enumerable.Empty<VisitaListaDto>())
                         {
                         <tr @key="context.Id" class="@ObtenerClaseFila(context)" data-id="@context.Id">
                             @if (_seleccionMultiple) { <td><input type="checkbox" aria-label="@Textos["AriaSeleccionarVisita", context.EmpresaRazonSocial, context.CentroNombre, TextoFechas(context.FechaInicio, context.FechaFin)]" checked="@_seleccionados.Contains(context.Id)" @onchange="e => AlternarSeleccion(context.Id, (bool)e.Value!)" /></td> }

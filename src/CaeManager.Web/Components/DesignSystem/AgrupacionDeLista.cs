@@ -23,6 +23,15 @@ public sealed class AgrupacionDeLista(string? claveDeFabrica, params string[] cl
     /// <summary>Nombre del parámetro de la URL.</summary>
     public const string Parametro = "agrupar";
 
+    /// <summary>
+    /// Filas que pide una pantalla agrupada: todas las que pasan los filtros. Los grupos se calculan sobre todas las
+    /// filas visibles, así que el tamaño de página (20/50/100) no puede cortarlos.
+    /// </summary>
+    public const int TamanoPaginaAgrupada = 5000;
+
+    /// <summary>El tamaño de página que se pide: el elegido, o todas las filas si la pantalla está agrupada.</summary>
+    public static int TamanoPedido(bool agrupado, int tamanoElegido) => agrupado ? TamanoPaginaAgrupada : tamanoElegido;
+
     /// <summary>Valor del parámetro para «sin agrupar».</summary>
     public const string SinAgrupar = "no";
 

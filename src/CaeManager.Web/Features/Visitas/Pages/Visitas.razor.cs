@@ -43,7 +43,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private int _pagina;
     private int _tamanoPagina = 20;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private async Task CambiarPaginaAsync(int pagina)
     {
@@ -63,7 +66,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string _orden = string.Empty;
     private string _estadoFiltro = string.Empty;
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
-    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -340,7 +342,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
             SoloUrgentes: _soloUrgentes,
             Pagina: _pagina + 1,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
@@ -357,7 +359,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
-            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _elementosPagina = elementos;
             _preparaciones.Clear();
             _preparacionCargando.Clear();

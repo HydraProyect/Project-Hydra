@@ -229,14 +229,22 @@
             </div>
 
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
-                @foreach (var (context, grupo, cantidadGrupo) in FilasConGrupo())
+                @{ var clavesDeGrupo = new ClavesDeHermanos(); }
+                @foreach (var filaDeGrupo in FilasConGrupo())
                 {
-                    @if (grupo is not null)
+                    var context = filaDeGrupo.Fila;
+                    @if (filaDeGrupo.Cabecera is { } grupo)
                     {
-                        @* Título del grupo «Por Empresa», «Por Delegación» o «Por Oficio» (maqueta de Trabajadores): su nombre y cuántos Trabajadores suyos hay en esta página. *@
-                        <div class="cabecera-grupo-trabajadores" data-grupo-empresa="@(_agrupar == "empresa" ? grupo : null)" data-grupo="@grupo" data-agrupar="@_agrupar">
-                            @grupo<span class="cabecera-grupo-trabajadores-recuento">@(TotalPaginas > 1 ? Textos["RecuentoGrupoEnEstaPagina", cantidadGrupo].Value : $"· {cantidadGrupo}")</span>
+                        @* Grupo «Por Empresa», «Por Delegación» o «Por Oficio» (maqueta de Trabajadores), plegable (bloque 1 de
+                           CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y, plegado, la pastilla roja de las filas en rojo. *@
+                        <div data-grupo-empresa="@(_agrupar == "empresa" ? grupo.Nombre : null)" data-grupo="@grupo.Nombre" data-agrupar="@_agrupar" @key="clavesDeGrupo.De(grupo.Clave)">
+                            <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                Abierto="filaDeGrupo.Abierto" OnAlternar="() => _gruposAbiertos.Alternar(grupo.Clave)" />
                         </div>
+                    }
+                    @if (filaDeGrupo.Oculta)
+                    {
+                        continue;
                     }
                     <div class="@ClaseTarjeta(context)" @key="context.Id">
                         @{ var expandido = context.Incidencias.Count > 0 && EstaExpandido(context); }

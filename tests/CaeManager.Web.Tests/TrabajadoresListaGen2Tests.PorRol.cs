@@ -3,6 +3,7 @@ using Bunit;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
@@ -243,7 +244,7 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Renderizar(ConTresEmpresas());
 
         FilasDeDatos(cut).Should().HaveCount(3);
-        cut.FindAll(".cabecera-grupo-trabajadores").Should().BeEmpty();
+        cut.FindAll("[data-grupo]").Should().BeEmpty();
     }
 
     [Theory]
@@ -255,9 +256,12 @@ public partial class TrabajadoresListaGen2Tests
 
         var cut = Renderizar(mediador, "trabajadores?agrupar=empresa");
 
-        var cabeceras = cut.FindAll(".cabecera-grupo-trabajadores");
+        var cabeceras = cut.FindAll("[data-grupo]");
         cabeceras.Select(c => c.GetAttribute("data-grupo-empresa")).Should().Equal("Dexter Industrial S.A.", "Montajes Ebro S.L.");
-        cabeceras.Select(c => c.QuerySelector(".cabecera-grupo-trabajadores-recuento")!.TextContent.Trim()).Should().Equal("· 1", "· 2");
+        cabeceras.Select(c => c.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim()).Should().Equal("Dexter Industrial S.A.", "Montajes Ebro S.L.");
+        cabeceras.Select(c => c.QuerySelector(".grupo-lista-contador")!.TextContent.Trim()).Should().Equal("· 1", "· 2");
+        FilasDeDatos(cut).Should().BeEmpty("los grupos nacen plegados: sus filas no se pintan");
+        cut.AbrirGrupos();
         FilasDeDatos(cut).Select(f => f.QuerySelector(".enlace-nombre-fila")!.TextContent.Trim())
             .Should().Equal("Bea Moreno", "Ana Alonso", "Carla Navas");
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.EmpleadorNombre),
@@ -266,28 +270,31 @@ public partial class TrabajadoresListaGen2Tests
     }
 
     [Fact]
-    public void Con_mas_de_una_pagina_el_recuento_del_grupo_dice_que_es_de_esta_pagina()
+    public void Agrupada_se_pide_una_sola_pagina_con_todas_las_filas_y_el_recuento_del_grupo_es_el_total()
     {
-        // El agrupado es por página: con 21 Trabajadores en dos páginas, el recuento del grupo no es el total de la Empresa.
+        // Agrupada, la pantalla pide todas las filas filtradas: con 21 Trabajadores el grupo no se corta en dos páginas
+        // y su recuento es el total de la Empresa, sin «en esta página».
         var mediador = new MediatorFalso();
         for (var i = 0; i < 21; i++) mediador.Almacen.Add(Trabajador($"Persona{i:00}", "Alonso"));
 
         var cut = Renderizar(mediador, "trabajadores?agrupar=empresa");
 
-        cut.Find(".cabecera-grupo-trabajadores .cabecera-grupo-trabajadores-recuento").TextContent.Trim()
-            .Should().Be("· 20 en esta página");
+        UltimaConsulta(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada);
+        cut.Find("[data-grupo] .grupo-lista-contador").TextContent.Trim().Should().Be("· 21");
+        cut.AbrirGrupos();
+        FilasDeDatos(cut).Should().HaveCount(21, "el grupo trae todas sus filas aunque el tamaño de página sea menor");
     }
 
     [Fact]
     public async Task Ordenar_por_una_columna_desactiva_la_agrupacion_y_lo_escribe_en_la_URL()
     {
         var cut = Renderizar(ConTresEmpresas(), "trabajadores?agrupar=empresa");
-        cut.FindAll(".cabecera-grupo-trabajadores").Should().HaveCount(2, "control positivo: estaba agrupada");
+        cut.FindAll("[data-grupo]").Should().HaveCount(2, "control positivo: estaba agrupada");
 
         await cut.FindAll(".cabecera-columnas-trabajadores button.col-title").First().ClickAsync(new MouseEventArgs());
 
         var uri = Services.GetRequiredService<NavigationManager>().Uri;
         uri.Should().Contain("orden=").And.NotContain("agrupar=");
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-trabajadores").Should().BeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("[data-grupo]").Should().BeEmpty());
     }
 }

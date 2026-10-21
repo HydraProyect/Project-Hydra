@@ -78,27 +78,35 @@ public partial class DocumentosGen2Tests
     }
 
     [Fact]
-    public async Task Agrupar_por_ambito_muestra_titulos_estaticos_y_permite_volver_al_listado()
+    public async Task Agrupar_por_ambito_muestra_titulos_plegables_y_permite_volver_al_listado()
     {
         var trabajador = DocumentoDeFila();
         var empresa = DocumentoDeFila() with { Ambito = AmbitoAplicacion.Empresa, PropietarioNombre = "Empresa de prueba" };
         var (cut, mediador) = Renderizar(ConDocumentos(trabajador, empresa));
         cut.WaitForAssertion(() => cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().HaveCount(2));
         var ordenOriginal = UltimaConsultaDeDocumentos(mediador).OrdenarPor;
-        cut.FindAll("button.documentos-grupo").Should().BeEmpty();
+        cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty();
 
         await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por ámbito")
             .ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeTrue());
+        UltimaConsultaDeDocumentos(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "agrupada, la pantalla pide todas las filas filtradas: el tamaño de página no corta los grupos");
         cut.FindAll(".documentos-cabecera-grupo").Should().HaveCount(2);
-        cut.FindAll("button.documentos-grupo").Should().BeEmpty("los títulos de agrupación no son controles de despliegue");
+        var titulos = cut.FindAll("button.grupo-lista-cabecera");
+        titulos.Should().HaveCount(2, "los títulos de agrupación son botones que pliegan y abren el grupo");
+        titulos.Should().OnlyContain(t => t.GetAttribute("aria-expanded") == "false", "los grupos nacen plegados");
+        cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().BeEmpty("las filas de un grupo plegado no se pintan");
+
+        cut.AbrirGrupos();
+        cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().HaveCount(2);
 
         await cut.Find("button[aria-label='Agrupar: por ámbito']").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Sin agrupar")
             .ClickAsync(new MouseEventArgs());
-        cut.WaitForAssertion(() => cut.FindAll("button.documentos-grupo").Should().BeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("button.grupo-lista-cabecera").Should().BeEmpty());
         cut.WaitForAssertion(() => UltimaConsultaDeDocumentos(mediador).OrdenarPor.Should().Be(ordenOriginal));
         UltimaConsultaDeDocumentos(mediador).AgruparPorAmbito.Should().BeFalse();
         cut.FindAll("tbody tr:has(button.enlace-nombre-fila)").Should().HaveCount(2);
@@ -121,7 +129,12 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(mediador);
         await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
         await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por ámbito").ClickAsync(new MouseEventArgs());
-        cut.Find(".documentos-grupo-total").TextContent.Trim().Should().Be("· 72", "el grupo no se recuenta con las dos filas de la página");
+        UltimaConsultaDeDocumentos(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "agrupada, la pantalla pide todas las filas filtradas: la 'página' es el listado entero y el grupo no se corta");
+        cut.ContadoresDeGrupo().Should().Equal(["· 1", "· 1"],
+            "el recuento del grupo es el de sus filas (todas las pedidas), no el resumen de la consulta ni «n de N»");
+        cut.FindAll(".documentos-tabla-agrupada tbody tr:has(button.enlace-nombre-fila)").Should().BeEmpty("los grupos nacen plegados");
+        cut.AbrirGrupos();
         cut.FindAll(".documentos-tabla-agrupada tbody tr:has(button.enlace-nombre-fila)").Should().HaveCount(2);
 
         var atajos = cut.FindComponent<AtajosListaTeclado>().Instance;

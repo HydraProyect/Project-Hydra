@@ -36,7 +36,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private int _pagina = 1;
     private int _tamanoPagina = 20;
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
     private bool _cargaPendiente = true;
     private bool _opcionesOrdenVehiculo;
     private readonly HashSet<Guid> _expandidos = [];
@@ -413,7 +413,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
             Pagina: _pagina,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
@@ -512,7 +512,18 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         vehiculo.DocumentosRegistrados <= 0 ? null : vehiculo.DocumentosVigentes * 100 / vehiculo.DocumentosRegistrados;
 
     /// <summary>Cuántos Vehículos de la Empresa hay en esta página (agrupar es ordenar en servidor: el recuento es el de la página).</summary>
-    private int VehiculosDelGrupo(string empresa) => _elementosPagina.Count(v => v.EmpleadorNombre == empresa);
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>Las filas con la cabecera del grupo «Por Empresa» en la primera de cada uno; los grupos plegados las ocultan.</summary>
+    private IEnumerable<FilaDeGrupo<VehiculoListaDto>> FilasConGrupo() =>
+        GruposDeLista.Agrupar(_elementosPagina, _agruparPorEmpresa, v => v.EmpleadorNombre, (clave, _) => clave, EsFilaRoja, _gruposAbiertos);
+
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(VehiculoListaDto item) => item.EstadoDocumental is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorEmpresa, _tamanoPagina);
 
     private async Task FiltrarPorEmpresaAsync(string valor)
     {

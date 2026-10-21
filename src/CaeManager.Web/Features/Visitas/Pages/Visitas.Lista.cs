@@ -81,6 +81,14 @@ public partial class Visitas
     [SupplyParameterFromQuery(Name = "agrupar")]
     public string? AgruparInicial { get; set; }
 
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>Fila en rojo: la que pinta <c>visitas-fila-peligro</c> (vencida o faltante, en un Centro con gestión CAE y sin cancelar).</summary>
+    private static bool EsFilaRoja(VisitaListaDto visita) =>
+        !visita.EstaCancelada && visita.CentroRequiereGestionCae
+        && EstadoDocumentoVisitaUi.TonoDeFila(EstadoDocumentalDe(visita)) == TonoFila.Peligro;
+
     private IEnumerable<IGrouping<Guid, VisitaListaDto>> GruposDeVisitas =>
         _elementosPagina.GroupBy(v => _agruparPor == "cliente" ? EmpresaTitularDe(v) : Guid.Empty);
 

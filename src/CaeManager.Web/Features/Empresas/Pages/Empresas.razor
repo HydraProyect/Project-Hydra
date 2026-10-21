@@ -235,14 +235,22 @@
             </div>
 
             <div class="lista-filas-acordeon">
-                @foreach (var (empresa, grupo, cantidadGrupo) in FilasConGrupo())
+                @{ var clavesDeGrupo = new ClavesDeHermanos(); }
+                @foreach (var filaDeGrupo in FilasConGrupo())
                 {
-                    @if (grupo is not null)
+                    var empresa = filaDeGrupo.Fila;
+                    @if (filaDeGrupo.Cabecera is { } grupo)
                     {
-                        @* Título del grupo «Por Cliente» (maqueta de Empresas): el Cliente y cuántas Empresas suyas hay en esta página. *@
-                        <div class="cabecera-grupo-empresas" data-grupo-cliente="@grupo">
-                            @grupo<span class="cabecera-grupo-empresas-recuento">@RecuentoDeGrupo(cantidadGrupo)</span>
+                        @* Grupo «Por Cliente» (maqueta de Empresas), plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado,
+                           con «· N» y, plegado, la pastilla roja de las Empresas en rojo. *@
+                        <div data-grupo-cliente="@grupo.Nombre" @key="clavesDeGrupo.De(grupo.Clave)">
+                            <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                Abierto="filaDeGrupo.Abierto" OnAlternar="() => _gruposAbiertos.Alternar(grupo.Clave)" />
                         </div>
+                    }
+                    @if (filaDeGrupo.Oculta)
+                    {
+                        continue;
                     }
                     <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
                         @{ var expandido = _expandidos.Contains(empresa.Id); }
