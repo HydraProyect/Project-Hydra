@@ -41,10 +41,10 @@ public partial class ProyectosGen2Tests
         var cut = await RenderizarConClienteAsync();
         cut.FindAll("tr.proyecto-documentacion").Should().BeEmpty();
 
-        await cut.FindAll(".lista-herramientas-maqueta button").Single(b => b.TextContent.Contains("Expandir todo")).ClickAsync(new());
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Expandir todo")).ClickAsync(new());
         cut.FindAll("tr.proyecto-documentacion").Should().HaveCount(2);
 
-        await cut.FindAll(".lista-herramientas-maqueta button").Single(b => b.TextContent.Contains("Contraer todo")).ClickAsync(new());
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Contraer todo")).ClickAsync(new());
         cut.FindAll("tr.proyecto-documentacion").Should().BeEmpty();
     }
 
