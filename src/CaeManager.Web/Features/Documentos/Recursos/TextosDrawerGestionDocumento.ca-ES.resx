@@ -51,4 +51,7 @@
   <data name="SeguirConArchivoAnterior" xml:space="preserve">
     <value>Continuar amb l'arxiu anterior</value>
   </data>
+  <data name="DemasiadosArchivos" xml:space="preserve">
+    <value>Pots pujar fins a {0} arxius alhora.</value>
+  </data>
 </root>

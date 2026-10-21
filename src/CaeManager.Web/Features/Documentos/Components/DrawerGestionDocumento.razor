@@ -192,7 +192,7 @@
                 NombreArchivoActual="@(_archivoUrl is not null && !_archivoNoAdjuntado ? "Archivo adjuntado correctamente." : null)" />
             @if (_archivoNoAdjuntado && !_subiendoArchivo)
             {
-                <span class="campo-mensaje-error" role="alert">@TextosDrawerGestionDocumento.Texto("ArchivoNoAdjuntado")</span>
+                <span class="campo-mensaje-error">@TextosDrawerGestionDocumento.Texto("ArchivoNoAdjuntado")</span>
                 <Boton Variante="VarianteBoton.Fantasma" OnClick="DescartarArchivoNoAdjuntadoAsync" class="boton-descartar-archivo-no-adjuntado">
                     @TextosDrawerGestionDocumento.Texto(_archivoUrlDelDocumento is null ? "SeguirSinArchivo" : "SeguirConArchivoAnterior")
                 </Boton>

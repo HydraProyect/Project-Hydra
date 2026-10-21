@@ -581,7 +581,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         // GetMultipleFiles lanza por encima del máximo: se avisa en vez de dejar escapar la excepción.
         if (e.FileCount > MaximoArchivosPorSubida)
         {
-            ToastService.Mostrar($"Puedes subir hasta {MaximoArchivosPorSubida} archivos a la vez.", TonoToast.Error);
+            ToastService.Mostrar(string.Format(System.Globalization.CultureInfo.CurrentCulture, TextosDrawerGestionDocumento.Texto("DemasiadosArchivos"), MaximoArchivosPorSubida), TonoToast.Error);
             return;
         }
 
