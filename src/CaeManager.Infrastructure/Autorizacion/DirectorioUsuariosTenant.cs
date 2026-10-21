@@ -807,11 +807,15 @@ public class DirectorioUsuariosTenant(
     /// después seguiría pareciendo activa (ver <c>GestionCuentasUsuarioIdentity.CargarEnFrescoAsync</c>).
     ///
     /// <para>
-    /// El rol efectivo de un Operador CAE externo es el de su Asignación de Operador
-    /// Delegado desde SU Tenant sobre el activo, no el de Identity —que es el de su
-    /// organización—, con el mismo filtro de vigencia que
+    /// El rol que este destino devuelve para un Operador CAE externo es el guardado en su
+    /// Asignación de Operador Delegado desde SU Tenant sobre el activo, no el de Identity
+    /// —que es el de su organización—, con el mismo filtro de vigencia que
     /// <see cref="ObtenerRolesDeOperadoresDelegadosAsync(Guid, CancellationToken)"/> y la misma
     /// terna que exige <c>AsignacionesOperativasWriter</c>: propietario, operador y usuario.
+    /// No es el rol que ejerce y enseña la columna Rol de <c>/usuarios</c>
+    /// (<see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>, decisión Chris
+    /// 2026-10-20): ese solo cambió la etiqueta; alinear aquí la validación del destino de una
+    /// cartera sería un cambio de permisos y queda fuera.
     /// </para>
     /// </summary>
     public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(

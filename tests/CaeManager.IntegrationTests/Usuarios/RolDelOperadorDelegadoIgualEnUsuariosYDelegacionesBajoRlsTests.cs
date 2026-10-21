@@ -105,7 +105,9 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
                     _empresaY, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeY), desde, null, ahora),
                 AsignacionOperacion.Externa(
                     _empresaZ, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, ahora.AddDays(-1), ahora),
-                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora));
+                // Otro servicio: IX_AsignacionesOperacion_DelegacionTotalVigente admite una sola operación vigente del
+                // Tenant entero por propietario y servicio. OperacionesDelTenantEntero no mira el servicio.
+                AsignacionOperacion.Externa(_empresaX, _plataforma, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora));
         await propietario.SaveChangesAsync();
 
         var sobreX = new DelegacionTenant(_operadorA, _empresaX);
@@ -168,6 +170,14 @@ public class RolDelOperadorDelegadoIgualEnUsuariosYDelegacionesBajoRlsTests : IA
                 "sin operación vigente del Tenant entero el perfil de origen no rige y se enseña el rol guardado");
             usuarios.Should().BeEquivalentTo(delegaciones);
         }
+
+        // Desde el Operador CAE A en el contexto delegado de Y: la RLS le deja leer también su operación del Tenant
+        // entero sobre X por la posición de operador, y esa no puede subir a nadie en Y.
+        var (usuariosDesdeA, delegacionesDesdeA) = await LeerAsync(
+            sesion: _administradoraDeA, tenantOrigen: _operadorA, tenantActivo: _empresaY);
+        delegacionesDesdeA.Should().BeEquivalentTo(new Dictionary<Guid, string> { [_administradoraDeA] = "GestorCae" },
+            "la operación entera de A sobre X no cuenta en Y, donde A solo opera un Cliente empresarial");
+        usuariosDesdeA.Should().BeEquivalentTo(delegacionesDesdeA);
     }
 
     /// <summary>
