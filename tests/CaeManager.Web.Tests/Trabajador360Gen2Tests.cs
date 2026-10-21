@@ -96,6 +96,11 @@ public partial class Trabajador360Gen2Tests : BunitContext
         public bool FallarDocumentos { get; set; }
         public bool FallarDocumentacionBase { get; set; }
 
+        /// <summary>Detecciones de personal de la Empresa (aviso «Podría estar de baja»).</summary>
+        public List<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto> Detecciones { get; } = [];
+        public CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResultadoResolucionAusente ResultadoResolverDeteccion { get; set; } =
+            CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResultadoResolucionAusente.DadoDeBaja;
+
         /// <summary>El comando dice cuántas bajas hizo y qué errores hubo: un éxito pelado no distingue «dada de baja» de «no se dio de baja ninguna».</summary>
         public Result<ResultadoBajaLoteDto> ResultadoDarDeBajaAsignacion { get; set; } =
             Result.Exito(new ResultadoBajaLoteDto(1, []));
@@ -145,6 +150,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Selector,
             ObtenerAgendaContactosQuery => Contactos,
+            CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.ObtenerDeteccionesPorEmpresaQuery =>
+                Result.Exito<IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto>>(Detecciones),
+            CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResolverDeteccionAusenteCommand =>
+                Result.Exito(ResultadoResolverDeteccion),
             ObtenerDocumentosQuery when FallarDocumentos => throw new InvalidOperationException("Fallo simulado de la consulta de documentos."),
             ObtenerDocumentosQuery q => PaginarDocumentos(q),
             ObtenerDocumentoPorIdQuery => null,
@@ -1392,6 +1401,65 @@ public partial class Trabajador360Gen2Tests : BunitContext
 
         var franja = cut.Find("[aria-label='Vigencia sin confirmar']");
         franja.TextContent.Should().Contain("Documento de identidad").And.Contain("Gestionar");
+    }
+
+    private MediatorFalso ConDeteccionAusente(Guid id, Guid? trabajadorDeLaDeteccion = null)
+    {
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Javier", "Salas Moreno");
+        mediador.Centros[id] = [];
+        mediador.Detecciones.Add(new(Guid.NewGuid(), CaeManager.Domain.Trabajadores.TipoDeteccion.Ausente, "Javier", "Salas Moreno",
+            "12345678Z", trabajadorDeLaDeteccion ?? id, DateTime.UtcNow, 2));
+        return mediador;
+    }
+
+    [Fact]
+    public void Una_deteccion_Ausente_del_trabajador_pinta_el_aviso_de_posible_baja_a_quien_escribe()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id);
+
+        var cut = Renderizar(id);
+
+        cut.Find(".trabajador360-baja").TextContent.Should().Contain("Podría estar de baja").And.Contain("Confirmar baja").And.Contain("Ignorar");
+    }
+
+    [Theory]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Cliente)]
+    public void El_aviso_de_posible_baja_no_se_pinta_sin_permiso_de_escritura(string rol)
+    {
+        this.ConRolDeEscritura(rol);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id);
+
+        Renderizar(id).FindAll(".trabajador360-baja").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void La_deteccion_de_otro_trabajador_no_pinta_el_aviso()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        ConDeteccionAusente(id, trabajadorDeLaDeteccion: Guid.NewGuid());
+
+        Renderizar(id).FindAll(".trabajador360-baja").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Ignorar_el_aviso_resuelve_la_deteccion_sin_dar_de_baja_y_lo_oculta()
+    {
+        this.ConRolDeEscritura(Roles.GestorCae);
+        var id = Guid.NewGuid();
+        var mediador = ConDeteccionAusente(id);
+        var cut = Renderizar(id);
+
+        await cut.Find(".trabajador360-baja-acciones button:last-of-type").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResolverDeteccionAusenteCommand>()
+            .Should().ContainSingle().Which.Desactivar.Should().BeFalse();
+        cut.FindAll(".trabajador360-baja").Should().BeEmpty();
     }
 
     [Fact]

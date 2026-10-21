@@ -679,13 +679,16 @@
     <value>¿Dar de baja a este trabajador?</value>
   </data>
   <data name="BajaDeteccionDialogoMensaje" xml:space="preserve">
-    <value>{0} dejará de estar activo y se cerrarán sus asignaciones a Centros. Lo puedes ver en la comparación antes de confirmar.</value>
+    <value>{0} dejará de estar activo y se cerrarán sus asignaciones a Centros. Desde aquí no se puede deshacer.</value>
   </data>
   <data name="ToastBajaDeteccionConfirmada" xml:space="preserve">
     <value>Trabajador dado de baja.</value>
   </data>
   <data name="ToastBajaDeteccionIgnorada" xml:space="preserve">
     <value>Aviso ignorado: el trabajador sigue de alta.</value>
+  </data>
+  <data name="ToastBajaDeteccionYaNoActivo" xml:space="preserve">
+    <value>El trabajador ya no estaba de alta: no se ha cambiado nada.</value>
   </data>
   <data name="DatosTrabajadorSinDato" xml:space="preserve">
     <value>Sin informar</value>

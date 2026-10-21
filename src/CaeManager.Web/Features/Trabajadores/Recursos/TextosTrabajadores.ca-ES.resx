@@ -679,13 +679,16 @@
     <value>Vols donar de baixa aquest treballador?</value>
   </data>
   <data name="BajaDeteccionDialogoMensaje" xml:space="preserve">
-    <value>{0} deixarà d'estar actiu i es tancaran les seves assignacions a Centres. Ho pots veure a la comparació abans de confirmar.</value>
+    <value>{0} deixarà d'estar actiu i es tancaran les seves assignacions a Centres. Des d'aquí no es pot desfer.</value>
   </data>
   <data name="ToastBajaDeteccionConfirmada" xml:space="preserve">
     <value>Treballador donat de baixa.</value>
   </data>
   <data name="ToastBajaDeteccionIgnorada" xml:space="preserve">
     <value>Avís ignorat: el treballador continua d'alta.</value>
+  </data>
+  <data name="ToastBajaDeteccionYaNoActivo" xml:space="preserve">
+    <value>El treballador ja no estava d'alta: no s'ha canviat res.</value>
   </data>
   <data name="DatosTrabajadorSinDato" xml:space="preserve">
     <value>Sense informar</value>

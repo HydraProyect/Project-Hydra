@@ -765,7 +765,11 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             var resultado = await Mediator.Send(new ResolverDeteccionAusenteCommand(deteccion.Id, darDeBaja), _ciclo.Token);
             if (resultado.EsFallido)
             {
+                // La detección ya no está pendiente (la resolvió otra persona): se cierra el diálogo y se relee el aviso.
                 ToastService.MostrarError(resultado.Error);
+                _confirmarBajaDeteccionVisible = false;
+                _deteccionBaja = null;
+                await CargarDeteccionBajaAsync();
                 return;
             }
 
@@ -773,8 +777,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _deteccionBaja = null;
             if (darDeBaja)
             {
-                ToastService.Mostrar(Textos["ToastBajaDeteccionConfirmada"], TonoToast.Exito);
-                await CargarAsync();
+                // Lo que la operación hizo de verdad, no lo que se pidió: otra persona pudo dar ya de baja al Trabajador.
+                var toast = resultado.Valor == ResultadoResolucionAusente.DadoDeBaja
+                    ? Textos["ToastBajaDeteccionConfirmada"]
+                    : Textos["ToastBajaDeteccionYaNoActivo"];
+                ToastService.Mostrar(toast, resultado.Valor == ResultadoResolucionAusente.DadoDeBaja ? TonoToast.Exito : TonoToast.Info);
+                // La baja es un borrado lógico: la ficha deja de existir, así que se vuelve a la lista.
+                NavigationManager.NavigateTo("/trabajadores");
             }
             else
             {
