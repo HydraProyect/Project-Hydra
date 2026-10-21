@@ -217,7 +217,8 @@
 }
 
 .documentos-tabla-visible thead th { position: relative; }
-.documentos-orden-superposicion { position: fixed; inset: 0; z-index: 19; }
+/* Por debajo de la cabecera pegajosa (z-index 1 en list-page.css), que abre su propio contexto de apilado: con 19 la superposición tapaba el menú de opciones y no se podía pulsar. */
+.documentos-orden-superposicion { position: fixed; inset: 0; z-index: 0; }
 .documentos-tabla-visible .documentos-opciones-orden { position: absolute; top: 100%; left: 0; z-index: 20; min-width: 200px; padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-overlay); text-transform: none; letter-spacing: normal; }
 .documentos-celda-expandir { width: 24px; }
 .documentos-expandir { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-muted); cursor: pointer; }

@@ -173,7 +173,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // --- Paso 4 (Vencimiento, primera lectura): semáforo "Urgente" a 10 días ---
         // Mismo umbral que FlujoCriticoTests (rojo = 15 días) — se reutiliza
         // el patrón ya establecido en vez de reinventar el cálculo aquí.
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
@@ -324,7 +324,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         // --- Paso 7 (Renovación): nueva fecha de vencimiento, el semáforo pasa a "Vigente" ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // La fila ya no lleva menú «⋯»: «Renovar» es su acción rápida, que abre el mismo drawer.
@@ -342,7 +342,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Lo correcto ya no lleva pastilla de color (2026-10-08): punto verde y texto gris.
         var insigniaVigente = filaDocumento.Locator("[data-pieza=estado-correcto]");
