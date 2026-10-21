@@ -95,9 +95,9 @@ public class SerieValoracionEnVigenciaTests
 
     private static LineaFacturacionCuadroDto[] Lineas(int centros, int obras, int visitas) =>
     [
-        new(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", "EUR", visitas, visitas * 10m),
-        new(ConceptoTarifaOperadorCae.CentroNuevo, "Centro nuevo", "EUR", centros, centros * 50m),
-        new(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", "EUR", obras, obras * 100m),
+        new(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, "Visita de Trabajador extranjero", "EUR", visitas, visitas * 10m, 10m, true),
+        new(ConceptoTarifaOperadorCae.CentroNuevo, "Centro nuevo", "EUR", centros, centros * 50m, 50m, true),
+        new(ConceptoTarifaOperadorCae.ObraNueva, "Obra nueva", "EUR", obras, obras * 100m, 100m, true),
     ];
 
     private static async Task<(SerieCuadroDireccionDto Serie, List<(Guid? Tenant, IReadOnlyList<TramoDeVigencia> Tramos)> Tramos)> PedirSerieAsync()

@@ -39,6 +39,34 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     /// <summary>Empresa titular del centro, sujeto del ámbito Empresa (OD-13).</summary>
     [Parameter] public Guid EmpresaId { get; set; }
+    [Parameter] public bool MostrarEstadoPlataforma { get; set; }
+    /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
+    [Parameter] public string? NombrePlataforma { get; set; }
+    [Parameter] public RenderFragment? Busqueda { get; set; }
+
+    private static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
+    private static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true;
+    private static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
+        BloqueaPlataforma(documento) ? 0 : TienePendienteValidacion(documento) ? 1 : 2;
+    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+    private static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Peligro,
+        EstadoAcreditacion.Subida => TonoBadge.Advertencia,
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        _ => TonoBadge.Neutro
+    };
+
     [Parameter] public string EmpresaNombre { get; set; } = string.Empty;
 
     /// <summary>
@@ -616,6 +644,26 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     }
 
     private DrawerGestionDocumento _drawerGestion = default!;
+
+    private sealed record AcreditacionAGestionar(DocumentoRequeridoDto Documento, Guid PropietarioId, string PropietarioNombre);
+
+    private AcreditacionAGestionar? _acreditacionAGestionar;
+    private bool _panelAcreditacionVisible;
+
+    /// <summary>
+    /// «Gestionar» de un documento vigente en TALVEG: abre el panel que cambia su estado en las plataformas de este Centro.
+    /// Un Centro sin plataforma para ese documento no tiene estado de acreditación que cambiar, y entonces se abre el
+    /// drawer del documento, como antes.
+    /// </summary>
+    private Task GestionarAcreditacion(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+            return GestionarAsync(trabajador.TrabajadorId, documento);
+
+        _acreditacionAGestionar = new AcreditacionAGestionar(documento, trabajador.TrabajadorId, trabajador.TrabajadorNombre);
+        _panelAcreditacionVisible = true;
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Gestionar in situ (contrato de fidelidad 2026-08-09, item 3 del

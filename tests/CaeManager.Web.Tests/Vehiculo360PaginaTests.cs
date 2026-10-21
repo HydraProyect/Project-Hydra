@@ -1,4 +1,4 @@
-using CaeManager.Web.Components.Layout;
+﻿using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
@@ -244,11 +244,11 @@ public partial class Vehiculo360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id, "?extra=conservar");
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Sin actividad en Centros visibles de su Empresa empleadora"));
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("pestana=centros").And.Contain("extra=conservar");
         cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Documentación")).Click();
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle();
     }
 
@@ -260,7 +260,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         mediador.DocumentosPendientes = documentos;
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
         documentos.SetResult();
         await cut.InvokeAsync(() => Task.CompletedTask);
@@ -530,7 +530,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id, "?pestana=historial");
 
-        cut.FindAll(".pestanas-boton").Should().HaveCount(4);
+        cut.FindAll(".pestanas-boton").Should().HaveCount(5);
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Historial");
         var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
         historial.Get(x => x.EntidadTipo).Should().Be("Vehiculo");
@@ -560,7 +560,8 @@ public partial class Vehiculo360PaginaTests : BunitContext
         lateral.TextContent.Should().Contain("Información")
             .And.Contain("Camión grúa").And.Contain("9012 GHI").And.Contain("Iveco Daily").And.Contain("Montajes Skynet S.L.")
             .And.Contain("El empleador no se puede cambiar.");
-        lateral.TextContent.Should().NotContain("Alta", "la fecha de alta no viaja en el detalle: es un dato nuevo, fuera del primer incremento");
+        lateral.QuerySelectorAll("dt").Select(t => t.TextContent.Trim()).Should().ContainInOrder("Nombre", "Matrícula", "Modelo", "Alta", "Empleador");
+        lateral.QuerySelectorAll("dd")[3].TextContent.Trim().Should().Be("—", "la fecha de alta aún no viaja en el detalle");
     }
 
     [Fact]
@@ -728,19 +729,17 @@ public partial class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public async Task La_fila_del_empleador_abre_su_Empresa_sin_un_porcentaje_inventado()
+    public async Task La_fila_del_empleador_en_Ficha_enlaza_su_Empresa_sin_un_porcentaje_inventado()
     {
         var empresaId = Guid.NewGuid();
         var (id, mediador) = CamionGrua(empresaId);
         Registrar(mediador);
         var cut = Renderizar(id);
-        var lateral = cut.Find("[data-pieza=lateral]");
-        var fila = lateral.QuerySelector(".fila-relacion")!;
-        fila.TextContent.Should().Contain("Montajes Skynet S.L.").And.NotContain("%");
+        await AbrirFicha(cut);
+        var fila = cut.Find("[data-caja='empleador'] .fila-relacion");
+        fila.TextContent.Should().Contain("Montajes Skynet S.L.").And.Contain("Empresa").And.NotContain("%");
         fila.QuerySelector(".fila-relacion-nombre")!.GetAttribute("href").Should().Be($"/empresas/{empresaId}");
-        await fila.QuerySelector(".boton-360")!.ClickAsync(new());
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should()
-            .Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresaId, "Montajes Skynet S.L.", "informacion"));
+        fila.QuerySelector(".boton-360")!.GetAttribute("href").Should().Be($"/empresas/{empresaId}");
     }
 
     // ── Carreras y ciclo de vida ──────────────────────────────────────────

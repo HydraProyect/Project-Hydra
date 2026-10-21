@@ -627,6 +627,15 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ves a la teva pantalla principal</value>
   </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Codi per a suport</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si es repeteix, envia aquest codi a suport.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el codi per a suport</value>
+  </data>
   <data name="VolverListaTrabajadores" xml:space="preserve">
     <value>Tornar a la llista de treballadors</value>
   </data>
@@ -659,5 +668,20 @@
   </data>
   <data name="VolverListaAlertas" xml:space="preserve">
     <value>Tornar a la llista d'alertes</value>
+  </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablir ordre</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Moure la targeta {0}. Utilitza les fletxes amunt i avall.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrossega ⠿ per reordenar les targetes</value></data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota per a Comunicacions</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Tracte especial o precaució en respondre-li</value>
+  </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Quan aquesta persona escrigui, la nota apareix com a marcapàgines a la conversa. Només la veu el teu equip, mai el contacte.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Surt com a marcapàgines a Comunicacions quan escriu</value>
   </data>
 </root>

@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas.Queries.ObtenerCentrosConActividadDeEmpresa;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
@@ -53,6 +53,7 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     [
         ("documentacion", "EtiquetaDocumentacion"),
         ("centros", "PestanaCentrosEmpleador360"),
+        ("plataformas", "PestanaPlataformas360"),
         ("ficha", "PestanaFicha"),
         ("historial", "PestanaHistorial")
     ];
@@ -425,12 +426,6 @@ public partial class VehiculoDetalle : CaeManager.Web.Components.PaginaInteracti
     private string? RutaEmpleador =>
         _detalle?.EmpresaId is { } empresaId ? $"/empresas/{empresaId}"
         : _detalle?.SubcontrataId is { } contraparteId ? $"/subcontratas/{contraparteId}" : null;
-
-    private EventCallback AbrirEmpleador => _detalle?.EmpresaId is { } empresaId
-        ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Empresa, empresaId, _detalle.EmpleadorNombre, "informacion"))
-        : _detalle?.SubcontrataId is { } contraparteId
-            ? EventCallback.Factory.Create(this, () => WorkspaceService.AbrirAsync(EntidadWorkspace.Subcontrata, contraparteId, _detalle.EmpleadorNombre, "informacion"))
-            : default;
 
     /// <summary>
     /// El peor estado dice Vencido pero ningún documento pintado lo está: el

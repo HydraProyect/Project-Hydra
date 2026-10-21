@@ -56,6 +56,8 @@ public class BotonVarianteYUnSoloPrimarioTests
     private static readonly IReadOnlyDictionary<string, int> PrimariosPermitidosPorSuperficie = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 4,
+        // 2 el 2026-10-21 (404 con volver a la lista): el primario de «Volver a la lista de…» (línea 53) y el de la pantalla principal (línea 56) son ramas excluyentes: la línea 56 pasa a Secundario cuando hay lista, así que siempre hay un solo primario pintado.
+        ["src/CaeManager.Web/Components/Pages/PaginaEstadoSistema.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaAgendaContactos.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaDocumentacion.razor"] = 2,
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor"] = 3,
@@ -95,7 +97,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Empresas/Pages/DeteccionTrabajadores.razor"] = 2,
         ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor"] = 4,
         ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor"] = 3,
-        ["src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor"] = 4,
+        ["src/CaeManager.Web/Features/Facturacion/Pages/FacturacionPorClienteEmpresarial.razor"] = 4,
         ["src/CaeManager.Web/Features/GestionRoles/Pages/Roles.razor"] = 2,
         ["src/CaeManager.Web/Features/Gestiones/Pages/Gestiones.razor"] = 2,
         ["src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor"] = 5,

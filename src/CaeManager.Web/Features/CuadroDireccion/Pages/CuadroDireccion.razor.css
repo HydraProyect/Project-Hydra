@@ -511,13 +511,6 @@
 .cuadro-sev { width: 10px; height: 10px; border-radius: 50%; background: var(--color-warning-500); flex: none; }
 .cuadro-alerta[data-prioridad="1"] .cuadro-sev { background: var(--color-danger-500); }
 
-/* Simulador de tarifa. */
-.cuadro-sim { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); align-items: end; }
-@media (max-width: 700px) { .cuadro-sim { grid-template-columns: 1fr; } }
-.cuadro-sim-importe { font-size: 18px; line-height: 20px; font-weight: 700; }
-/* Controles del simulador de 38 px (maqueta). */
-.cuadro-sim ::deep input, .cuadro-sim ::deep select, .cuadro-sim-como .cuadro-select { min-height: 38px; box-sizing: border-box; }
-
 /* Recomendación «Si hubiera que reforzar a media jornada». */
 .cuadro-reco-grande { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
 .cuadro-reco dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; }
@@ -606,12 +599,3 @@
 .cuadro-indice-valor { font-weight: 600; text-align: left; }
 .cuadro-indice-media { height: 22px; color: var(--color-text-muted); }
 .cuadro-indice-media > span { grid-column: 2; position: relative; left: var(--media); transform: translateX(-50%); width: max-content; }
-/* Simulador: precios de ejemplo en chips y el selector «se factura como» (maqueta). */
-.cuadro-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.cuadro-chips button {
-    font: inherit; font-size: 13px; padding: 4px 12px; cursor: pointer; color: var(--color-text);
-    background: var(--color-surface); border: 1px solid var(--color-border-control); border-radius: 6px;
-}
-.cuadro-chips button[aria-pressed="true"] { color: var(--color-primario-texto); background: var(--color-primario-fondo); border-color: var(--color-primario-fondo); }
-.cuadro-sim-como { display: grid; gap: 10px; padding-top: 12px; border-top: 1px solid var(--color-border); }
-.cuadro-sim-como-etiqueta { display: grid; gap: 4px; font-size: 13px; font-weight: 600; max-width: 320px; }
