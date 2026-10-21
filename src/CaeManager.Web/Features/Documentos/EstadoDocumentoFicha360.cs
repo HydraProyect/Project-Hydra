@@ -105,7 +105,9 @@ public static class EstadoDocumentoFicha360
     /// <summary>
     /// Si la fila de un documento en este estado lleva el botón «Gestionar»: todos los estados (regla de Chris, 2026-10-18,
     /// que sustituye a la de #1435, en la que Vigente y Sin caducidad no llevaban botón). Quien lo lleva con tono secundario es
-    /// lo que ya está al día (<see cref="GestionarEsDiscreto"/>). A Consulta no se le ofrece en ningún estado: lo decide
+    /// lo que ya está al día (<see cref="GestionarEsDiscreto"/>). Excepción (maqueta Trabajador 360, 2026-10-21): en Trabajador 360,
+    /// pestañas Operación y Documentación, lo vigente no lleva botón y solo lo lleva lo que <see cref="PideTrabajo"/>; los Centros
+    /// de esa ficha y el resto de pantallas 360 conservan esta regla. A Consulta no se le ofrece en ningún estado: lo decide
     /// <c>SoloConEscritura</c>, no el estado.
     /// </summary>
     public static bool PideGestionar(EstadoDocumento estado) => Enum.IsDefined(estado);

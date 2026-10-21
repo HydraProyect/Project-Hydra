@@ -88,6 +88,47 @@
     gap: 2px;
 }
 
+.trabajador360-contacto-vacio {
+    font-weight: 400;
+    color: var(--color-text-muted);
+}
+
+/* Aviso «Podría estar de baja» (maqueta Trabajador 360): tarjeta con filete del color del sistema. */
+.trabajador360-baja {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding: var(--space-4);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-left: 3px solid var(--color-warning-500);
+    border-radius: var(--radius-lg);
+}
+
+.trabajador360-baja-texto {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.trabajador360-baja-motivo,
+.trabajador360-baja-ayuda {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.trabajador360-baja-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.trabajador360-baja-enlace {
+    font: var(--font-label);
+}
+
 .trabajador360-contacto-clave {
     font: var(--font-caption);
     color: var(--color-text-muted);

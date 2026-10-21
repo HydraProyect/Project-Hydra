@@ -431,6 +431,7 @@ src/CaeManager.Infrastructure/Persistence/Repositories/TarifaClienteRepository.c
 src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacionPlataformaRepository.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Persistence/Repositories/UltimoResumenNotificacionPlataformaRepository.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs :: TenantClienteId = 5
+src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs :: ClienteId = 2
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: ClienteId = 10
 src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs :: clienteId = 4
 src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs :: ClienteId = 8

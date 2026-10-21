@@ -2,7 +2,7 @@
    sistema (Error, /not-found, /acceso-denegado) — Estados Sistema
    TALVEG.dc.html. Estas páginas no llevan MainLayout: sin sesión (Error) o
    con ella pero sin destino claro (404, denegado), no tiene sentido pintar
-   menú lateral ni barra superior. Marca arriba con salida al Dashboard,
+   menú lateral ni barra superior. Marca arriba con salida a Inicio,
    tarjeta con acento de color por Tipo, EstadoVacio del catálogo para
    icono/título/descripción, y un camino de salida siempre visible.
 
@@ -22,7 +22,7 @@
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
 @inject IStringLocalizer<TextosComunes> Textos
 <div class="pagina-estado-sistema">
-    <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir al Dashboard")">
+    <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir a Inicio")">
         <span class="marca-estado-sistema-marca" aria-hidden="true"></span>
         <span class="marca-estado-sistema-nombre">@Marca.Nombre</span>
     </a>
@@ -185,7 +185,7 @@
     private string Descripcion => Tipo switch
     {
         TipoEstadoSistema.Error => "No pudimos completar tu solicitud. Inténtalo nuevamente en unos segundos.",
-        TipoEstadoSistema.NoEncontrado => "Comprueba la dirección o vuelve al Dashboard.",
+        TipoEstadoSistema.NoEncontrado => "Comprueba la dirección o vuelve a Inicio.",
         // Nunca "el cliente X no es tuyo" ni "esa ficha no existe": ambas
         // frases confirmarían que el recurso existe, y eso es justo la fuga
         // de información que esta pantalla existe para evitar.
