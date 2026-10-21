@@ -427,13 +427,15 @@ public class PropuestaApoyoCarteraBajoRuntimeTests : IAsyncLifetime
         {
             var ahora = DateTime.UtcNow;
             var operacion = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                contexto, usuarioId, _operador.Id, tenantId, ahora, CancellationToken.None);
+                contexto, usuarioId, _operador.Id, tenantId, Roles.GestorCae, ahora, CancellationToken.None);
             if (operacion is null)
                 return (await TenantsBeneficiariosAutorizados.EstaAutorizadoAsync(
-                    contexto, contexto, usuarioId, _operador.Id, tenantId, ahora, CancellationToken.None), (string?)null);
+                    contexto, contexto, usuarioId, _operador.Id, tenantId, Roles.GestorCae, ahora, CancellationToken.None), (string?)null);
 
-            return (true, await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
-                contexto, usuarioId, _operador.Id, tenantId, operacion.Value, ahora, CancellationToken.None));
+            // Decisión Chris 2026-10-20: el rol efectivo es el perfil de origen, no el de la cartera.
+            return (true, await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
+                contexto, usuarioId, _operador.Id, tenantId, operacion.Value, Roles.GestorCae, Roles.GestorCae, ahora,
+                CancellationToken.None));
         });
 
     private async Task<PropuestaApoyoCartera> PropuestaAsync(Guid propuestaId)

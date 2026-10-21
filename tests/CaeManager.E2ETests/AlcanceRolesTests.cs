@@ -38,28 +38,22 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     }
 
     /// <summary>
-    /// Antes este test se llamaba "Administrador ve los 200 clientes
-    /// sembrados" y comprobaba justo lo contrario: que ser Administrador en
-    /// la Consultora bastaba para verlo todo dentro del Delegated Workspace.
-    /// Eso era el hallazgo N-5 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md —
-    /// <c>AsignacionOperadorDelegado.Rol</c> se guardaba y no se leía nunca—,
-    /// así que el test estaba fijando el defecto.
+    /// Regla de Chris del 2026-10-20 (opción A, PR #1488): el usuario del Operador CAE externo tiene
+    /// su rol de origen, con todos sus poderes, en cada Tenant beneficiario que cubre una Asignación
+    /// de Operación vigente, externa y del Tenant entero de su organización. Solo el Gestor CAE sigue
+    /// acotado por su Asignación de Cartera. El rol que guarda la delegación heredada
+    /// (<c>AsignacionOperadorDelegado.Rol</c>, <c>DelegacionDemoSeeder.RolOperadorDelegadoDemo</c>) ya
+    /// no decide: deroga la regla anterior, por la que el Administrador del Operador CAE externo
+    /// entraba aquí como <c>GestorCae</c> con cartera vacía.
     ///
-    /// Desde que el rol efectivo lo decide la asignación (ADR-004 § 5.3), el
-    /// administrador entra al workspace de demo como <c>GestorCae</c>
-    /// (<c>DelegacionDemoSeeder.RolOperadorDelegadoDemo</c>) y solo ve la
-    /// cartera de ese rol, no los ~200 clientes del Cliente Delegante.
+    /// <para>
+    /// La frontera que sigue en pie es la Asignación de Operación: sin ella no hay entrada (lo
+    /// comprueba <c>EncargoAdministracionE2ETests</c> con un Tenant que la organización no opera).
+    /// </para>
     ///
-    /// Que ningún Operador Delegado alcance acceso total es deliberado:
-    /// <c>CrearAsignacionOperadorDelegadoCommandValidator</c> excluye
-    /// Administrador y DireccionCae de los roles asignables — se opera dentro
-    /// del alcance del workspace, nunca con privilegios de administración de
-    /// la plataforma del cliente.
-    ///
-    /// El Administrador que opera el Delegated Workspace es el de ArcoSPA
-    /// (la Consultora de la demo), no <c>admin@caemanager.local</c> — desde
-    /// el 2026-08-14 la cuenta de plataforma no opera ningún Delegated
-    /// Workspace (ver DelegacionDemoSeeder).
+    /// El Administrador que opera el Tenant beneficiario es el de la Consultora de la demo, no
+    /// <c>admin@caemanager.local</c>: desde el 2026-08-14 la cuenta de plataforma no opera ningún
+    /// Tenant delegado (ver DelegacionDemoSeeder).
     /// </summary>
     // F3b (2026-08-26) puso en cuarentena las pruebas de visibilidad acotada
     // de más abajo: leían el contador del paginador de /clientes, y con
@@ -73,12 +67,8 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
     // carteras con ámbito Empresa.Id — los dos lados del Contains hablan del
     // mismo identificador, que es lo que hacía falta para que el filtro
     // recorte en vez de vaciar. Cuarentena levantada el 2026-08-28.
-    //
-    // Comprobado por mutación, no solo por verde: quitando el filtro de
-    // alcance de ObtenerClientesQuery el test del administrador delegado se
-    // pone en rojo (pasa de alcance cero a ver la cartera entera).
     [Fact]
-    public async Task El_rol_de_la_delegacion_acota_al_administrador_dentro_del_workspace_delegado()
+    public async Task El_Administrador_del_Operador_CAE_externo_ve_el_Tenant_beneficiario_entero_con_su_rol_de_origen()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -92,36 +82,15 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // El administrador no es ejecutivo de ninguno de los clientes
-        // sembrados y nadie le asigna cartera en el workspace delegado (ver
-        // DelegacionDemoSeeder: le da rol, no clientes), así que como
-        // GestorCae su cartera está vacía. Lo que se comprueba es que NO
-        // aparece la cartera entera (9 clientes en la siembra determinista):
-        // si el rol del claim volviera a filtrarse al workspace ajeno, el
-        // contador saldría con el total y este test fallaría — verificado
-        // por mutación el 2026-08-28, no supuesto.
-        //
-        // El contador de la cabecera se pinta también con cero, así que esta prueba ya no es de
-        // un solo sentido: el total tiene que quedar por debajo de la cartera entera, y si es
-        // cero (el camino esperado: alcance cero) se exige además el estado vacío propio —sin
-        // esa exigencia, una /clientes rota por cualquier otro motivo pasaría por "acotada
-        // correctamente", que es justo el falso verde que la cuarentena de F3b dejó vivo dos días.
-        //
-        // Con alcance cero, desde P0-9a (FS-05) el estado vacío ya no es «Aún no
-        // hay clientes» —que invitaba a crear lo que existe fuera de su
-        // cartera— sino el aviso «Sin Asignación de Cartera», y la cabecera
-        // deja de ofrecer «+ Nuevo Cliente empresarial».
+        // El administrador no es la referencia de ninguno de los Clientes empresariales sembrados ni
+        // tiene Asignación de Cartera en este Tenant: lo que le abre el Tenant entero es su rol de
+        // origen bajo la Asignación de Operación. La siembra determinista tiene 9; otros tests de la
+        // colección pueden añadir alguno, así que se exige al menos la cartera entera, no el número
+        // exacto. Con la regla derogada salía 0 y el aviso «Sin Asignación de Cartera».
         var total = await LeerTotalDeLaCabeceraAsync(page);
-        Assert.True(total < 9, $"el administrador delegado ve {total} Clientes: la cartera entera son 9");
+        Assert.True(total >= 9, $"el Administrador del Operador CAE externo ve {total} Clientes: el Tenant entero son al menos 9");
 
-        if (total == 0)
-        {
-            await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]"))
-                .ToContainTextAsync("Sin Asignación de Cartera", new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
-            await Assertions.Expect(page.GetByText("Aún no hay Clientes")).Not.ToBeVisibleAsync();
-            await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente" }))
-                .Not.ToBeVisibleAsync();
-        }
+        await Assertions.Expect(page.Locator("[data-estado=sin-asignacion-cartera]")).ToHaveCountAsync(0);
     }
 
     /// <summary>

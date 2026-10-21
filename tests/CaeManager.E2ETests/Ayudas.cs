@@ -77,10 +77,9 @@ public static class Ayudas
     /// Operador Delegado de ArcoSPA con rol Consulta (ver
     /// DelegacionDemoSeeder.SembrarOperadoresConsultoraAsync), delegado sobre
     /// <see cref="NombreClienteDelegadoDemo"/> (Dexter) — el mismo workspace que
-    /// el Administrador inicial, pero con otro rol. A diferencia de ese
-    /// Administrador (rol GestorCae dentro del workspace delegado, HO-136-05:
-    /// cero AsignacionCartera, alcance cero por diseño, ver AlcanceRolesTests),
-    /// Consulta tiene <c>TieneAccesoTotalAsync</c> sin depender de cartera
+    /// el Administrador inicial, pero con otro rol. Desde la regla del
+    /// 2026-10-20 ese Administrador también ve el Tenant entero (ver
+    /// AlcanceRolesTests); este usuario sigue sirviendo porque Consulta tiene <c>TieneAccesoTotalAsync</c> sin depender de cartera
     /// (AlcanceDatosService), así que SÍ ve las Empresas sembradas al entrar a
     /// ese workspace. Usarlo cuando el test necesite comprobar contenido
     /// visible tras un cambio de workspace sin que el resultado dependa de si

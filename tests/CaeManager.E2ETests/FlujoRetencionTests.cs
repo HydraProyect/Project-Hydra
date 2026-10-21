@@ -32,27 +32,14 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
 
-        // Quien administra la retención de un tenant es un Administrador DE
-        // ESE tenant, y aquí lo es sin cambiar de workspace: los "veteranos"
+        // El ciclo lo recorre un Administrador propio del Tenant, sin cambiar
+        // de Tenant activo: los "veteranos"
         // viven en el Cliente Delegante de demo, y DatosPruebaSeeder siembra
         // ahí mismo un juego completo de usuarios por rol.
         //
-        // Antes esto se hacía como el Administrador de ArcoSPA cambiando al
-        // workspace del cliente, con un comentario que afirmaba que "el rol
-        // Administrador es global a la cuenta, no por tenant". Era falso, y
-        // era el agujero: la cartera de ese usuario sobre este Cliente empresarial le da
-        // GestorCae (DelegacionDemoSeeder.RolOperadorDelegadoDemo), no
-        // Administrador. AutorizacionEscrituraBehavior ya comprobaba el rol
-        // EFECTIVO para las escrituras; lo que no lo comprobaba eran las
-        // puertas [Authorize(Roles = ...)] de las páginas, y por eso aquel
-        // usuario entraba en /retencion con una autoridad que nadie le había
-        // dado sobre este tenant. Lo cierra RolEfectivoDelWorkspaceMiddleware,
-        // y el segundo test de esta clase lo fija como regresión.
-        //
-        // Que un operador de la consultora pueda administrar al cliente sigue
-        // siendo posible — decisión del propietario del 2026-08-30 — pero la
-        // autoridad tiene que venir de una Asignación de Cartera con rol
-        // Administrador, nunca del rol que tenga en su propio tenant.
+        // El Administrador del Operador CAE externo también administra la retención de este Tenant
+        // beneficiario (regla del 2026-10-20, segundo test de esta clase), pero el ciclo completo se
+        // recorre con el Administrador propio para no depender de esa vía.
         await Ayudas.IniciarSesionAsync(
             page, fixture.BaseUrl, Ayudas.EmailPrueba("administrador", 1), Ayudas.ContrasenaUsuariosPrueba);
 
@@ -116,27 +103,21 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
     }
 
     /// <summary>
-    /// La regresión de la escalada de privilegios entre tenants, extremo a
-    /// extremo y con navegador real.
+    /// Regla de Chris del 2026-10-20 (opción A, PR #1488): el Administrador del Operador CAE externo
+    /// entra en cada Tenant beneficiario que cubre una Asignación de Operación vigente, externa y del
+    /// Tenant entero de su organización con su rol de origen y todos sus poderes, sin Encargo de
+    /// administración. Las exclusiones de los encargos no plenos, Retención entre ellas, dejan de
+    /// aplicarse. Deroga la regla anterior, por la que aquí entraba con el rol <b>GestorCae</b> de su
+    /// delegación heredada y la puerta de <c>/retencion</c> lo mandaba a acceso denegado.
     ///
     /// <para>
-    /// El Administrador de ArcoSPA opera el workspace del Cliente Delegante,
-    /// donde su cartera le concede <b>GestorCae</b>. Antes conservaba en el
-    /// <c>ClaimsPrincipal</c> el rol de su propio tenant, así que las 30
-    /// puertas <c>[Authorize(Roles = …)]</c> le contestaban que sí: entraba en
-    /// Retención, Configuración, Roles, Claves de API, Auditoría e
-    /// Integraciones de un cliente sobre el que no tenía esa autoridad.
-    /// </para>
-    ///
-    /// <para>
-    /// Se comprueba sobre <c>/retencion</c> porque es la puerta que este mismo
-    /// fichero ya sabe abrir cuando el rol SÍ corresponde: si algún día el
-    /// contenido de la página cambiara, el otro test de esta clase fallaría
-    /// primero y no quedaría un verde por mirar a un sitio vacío.
+    /// Lo que sigue cerrado es la frontera de la Asignación de Operación: sin ella no entra en el
+    /// Tenant (<c>EncargoAdministracionE2ETests</c>). Este test no dispara ninguna purga: mide la
+    /// puerta, y el ciclo completo lo recorre el primero.
     /// </para>
     /// </summary>
     [Fact]
-    public async Task Un_operador_delegado_no_administra_la_retencion_del_cliente_que_opera()
+    public async Task El_Administrador_del_Operador_CAE_externo_administra_la_retencion_del_Tenant_beneficiario_que_opera()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -145,22 +126,17 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
             page, fixture.BaseUrl, Ayudas.EmailAdministradorConsultora, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreClienteDelegadoDemo);
 
-        await page.GotoAsync($"{fixture.BaseUrl}/retencion");
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 
-        // Se afirma la señal POSITIVA de la denegación —el destino al que
-        // Routes.razor manda a un usuario autenticado sin el rol requerido— y
-        // no solo la ausencia del botón. Un test que únicamente comprueba que
-        // algo no se ve pasa igual de verde cuando la página no ha renderizado
-        // todavía, que es exactamente el modo de fallo que no distinguiría un
-        // control efectivo de una carrera ganada por accidente.
-        await Assertions.Expect(page).ToHaveURLAsync(
-            new System.Text.RegularExpressions.Regex("/acceso-denegado"),
-            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
-
-        // Y encima de esa ancla, lo que no puede aparecer: el control que
-        // dispara la purga.
+        // Evidencia positiva: la página de Retención del Tenant beneficiario, con el control que
+        // abre el ciclo, y no la de acceso denegado.
         await Assertions.Expect(page.GetByText("Buscar datos que hayan cumplido plazo"))
-            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
+            .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        Assert.DoesNotContain("/acceso-denegado", page.Url);
+        await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
+            "data-tenant-id",
+            await fixture.LeerValorSqlAsync(
+                """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @nombre""", ("nombre", Ayudas.NombreClienteDelegadoDemo)));
     }
 
     /// <summary>

@@ -37,19 +37,23 @@ public class CurrentUserService(
     }
 
     /// <summary>
-    /// Roles que una delegación o una cartera externa pueden dar en el Tenant
+    /// Roles que una delegación heredada (acceso de soporte) puede dar en el Tenant
     /// propietario: solo de Operación (decisión del propietario, 2026-09-23;
     /// misma lista que <c>AsignacionesOperativasWriter</c>). Se vuelve a
-    /// exigir al LEER porque pueden quedar filas anteriores a esa decisión.
+    /// exigir al LEER porque pueden quedar filas anteriores a esa decisión. No
+    /// aplica a la vía de Operación, donde rige el perfil de origen (decisión Chris
+    /// 2026-10-20).
     /// </summary>
     private static readonly string[] RolesDelegables = [Roles.CoordinadorCae, Roles.GestorCae, Roles.Consulta];
 
     /// <summary>
     /// El rol <b>efectivo en el contexto actual</b>, no el del claim de
-    /// sesión. Mientras se opera un Delegated Workspace manda el rol de la
-    /// <c>AsignacionOperadorDelegado</c> de esa delegación, que es lo que
-    /// ADR-004 § 5.3 promete al decir que un mismo usuario puede ser GestorCae
-    /// en un cliente y Consulta en otro.
+    /// sesión. Mientras se opera un Tenant beneficiario delegado por Asignación de
+    /// Operación, el rol efectivo es el perfil de la sesión en el Tenant de origen,
+    /// el mismo en todos los Tenants que la organización opera y con todos sus
+    /// poderes (decisión Chris 2026-10-20, que deroga el «GestorCae en un cliente
+    /// y Consulta en otro» de ADR-004 § 5.3 para esta vía); por la vía heredada
+    /// (acceso de soporte) sigue mandando el rol de la <c>AsignacionOperadorDelegado</c>.
     ///
     /// Antes se devolvía siempre el claim, así que el rol de la asignación se
     /// guardaba y no se leía jamás: un operador asignado como Consulta sobre
@@ -84,15 +88,22 @@ public class CurrentUserService(
     /// </para>
     ///
     /// <para>
-    /// Decisión D-8 (2026-10-08): por la vía de Operación, el rol de la cartera
-    /// es el suelo y un Encargo de administración vigente del Tenant
-    /// propietario puede subir el techo hasta el perfil de Propiedad de la
-    /// cuenta en su Tenant de origen. Ese cálculo vive entero en
-    /// <see cref="TechoDeRolPorEncargo"/>; aquí solo se le pasa el rol de la
-    /// sesión en origen. Este servicio no lee el rol de Identity para ello.
+    /// Decisión Chris 2026-10-20 (deroga la D-8 del 2026-10-08 en el rol): por la
+    /// vía de Operación ya no hay rol de cartera ni techo por Encargo de
+    /// administración. El rol es el de la sesión en origen, si la operación le
+    /// sigue autorizando el Tenant
+    /// (<see cref="TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync"/>).
+    /// Este servicio no lee el rol de Identity para ello.
     /// </para>
     /// </summary>
     public async Task<string?> ObtenerRolEfectivoAsync() => (await ResolverRolEfectivoAsync()).Rol;
+
+    /// <inheritdoc />
+    public async Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => PerfilQueDecideAlcance(await ObtenerUsuarioAsync());
+
+    /// <inheritdoc />
+    public async Task<bool> OperaPorAsignacionDeOperacionAsync() =>
+        await ResolverRolEfectivoAsync() is { PorOperacion: true, Rol: not null };
 
     /// <inheritdoc />
     public async Task<Guid?> EncargoQueElevaAsync() => (await ResolverRolEfectivoAsync()).EncargoAdministracionId;
@@ -204,15 +215,33 @@ public class CurrentUserService(
     /// </para>
     ///
     /// <para>
-    /// También es la mitad «de sesión» del techo por Encargo de administración
-    /// (<see cref="TechoDeRolPorEncargo"/>, paso 6): la claim nunca eleva, solo
-    /// puede impedirlo cuando no coincide con el perfil de Identity.
+    /// Es además el rol efectivo en los Tenants beneficiarios delegados por la vía de
+    /// Operación (decisión Chris 2026-10-20).
     /// </para>
     /// </summary>
     private static string? RolDeSesionEnOrigen(ClaimsPrincipal? usuario) =>
         usuario?.FindFirst(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen) is { } conservado
             ? (conservado.Value.Length > 0 ? conservado.Value : null)
             : usuario?.FindFirst(ClaimTypes.Role)?.Value;
+
+    /// <summary>
+    /// El perfil de origen que decide qué Tenants beneficiarios delegados alcanza la sesión
+    /// (decisión Chris 2026-10-20): el rol de sesión en origen, salvo que la sesión esté
+    /// limitada a Consulta por login local; entonces, el perfil anterior a esa restricción
+    /// (<see cref="RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir"/>),
+    /// para que la restricción nunca amplíe el alcance de un Gestor CAE de su cartera a toda la
+    /// operación. No es rol efectivo: el rol sigue siendo <see cref="RolDeSesionEnOrigen"/>.
+    ///
+    /// <para>
+    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol y
+    /// el perfil es <c>null</c> (fallo cerrado), nunca el Consulta que la restricción le puso.
+    /// Sin restricción, el rol de sesión en origen.
+    /// </para>
+    /// </summary>
+    private static string? PerfilQueDecideAlcance(ClaimsPrincipal? usuario) =>
+        usuario?.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir) is { } antes
+            ? (antes.Value.Length > 0 ? antes.Value : null)
+            : RolDeSesionEnOrigen(usuario);
 
     /// <summary>
     /// Rol de la organización de origen, de Identity. Ver el contrato en
@@ -270,7 +299,8 @@ public class CurrentUserService(
         if (tenantOrigenId is null) return RolEfectivoPorOperacion.Ninguno;
         var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
             serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
-            usuarioId.Value, tenantOrigenId.Value, tenantAmbito, DateTime.UtcNow, CancellationToken.None);
+            usuarioId.Value, tenantOrigenId.Value, tenantAmbito, PerfilQueDecideAlcance(await ObtenerUsuarioAsync()),
+            DateTime.UtcNow, CancellationToken.None);
 
         return operacionId is not null
             ? await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen)
@@ -278,48 +308,28 @@ public class CurrentUserService(
     }
 
     /// <summary>
-    /// Vía de Operación, con el predicado único de
-    /// <see cref="TenantsBeneficiariosAutorizados"/>: la cartera vigente del
-    /// usuario bajo una Asignación de Operación vigente, no raíz, de su Operador
-    /// CAE de origen sobre <paramref name="tenantId"/>, bajo la operación
-    /// <paramref name="asignacionOperacionId"/>: la del token de la selección o,
-    /// en el fan-out, la que elegiría <c>/cuenta/cliente-activo</c>.
-    ///
-    /// <para>
-    /// El par (operación, usuario) NO es único: los índices admiten una cartera
-    /// universal y varias por cliente del mismo usuario bajo la misma operación,
-    /// y el backfill genera esa combinación. Se ordena por ámbito universal
-    /// primero y luego por Id: la universal es la que describe el rol en el
-    /// Tenant, y el Id desempata de forma estable.
-    /// </para>
-    ///
-    /// <para>
-    /// Una cartera EXTERNA solo guarda roles de Operación (decisión del
-    /// propietario, 2026-09-23): una fila heredada con Administrador o Dirección
-    /// CAE no da ese rol en el Tenant propietario aunque siga vigente. Desde P8 la
-    /// migración las cierra (Revocada); esta condición queda como defensa en
-    /// profundidad. El predicado solo devuelve operaciones externas, así que la
-    /// lista blanca aplica siempre.
-    /// </para>
-    ///
-    /// <para>
-    /// Sobre ese rol de cartera, <see cref="TechoDeRolPorEncargo"/> decide si un
-    /// Encargo de administración vigente lo sube (decisión D-8, 2026-10-08).
-    /// Se resuelve dentro del método por el mismo ciclo de DI que el resto de
-    /// este servicio: depende de los contextos de consulta y de Identity.
-    /// </para>
+    /// Vía de Operación (decisión Chris 2026-10-20): el rol efectivo en
+    /// <paramref name="tenantId"/> es el perfil de la sesión en origen, con todos
+    /// sus poderes, mientras <paramref name="asignacionOperacionId"/> —la del token
+    /// de la selección o, en el fan-out, la que elegiría <c>/cuenta/cliente-activo</c>—
+    /// le siga autorizando ese Tenant por el predicado único
+    /// (<see cref="TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync"/>):
+    /// operación del Tenant entero de su organización para Administrador, Dirección
+    /// CAE, Coordinador CAE y Consulta; además cartera vigente para el Gestor CAE.
+    /// El rol guardado en la cartera y el Encargo de administración ya no deciden.
     /// </summary>
     private async Task<RolEfectivoPorOperacion> ResolverRolViaOperacionAsync(
         Guid tenantId, Guid usuarioId, Guid asignacionOperacionId, string? rolDeSesionEnOrigen)
     {
         if (await ObtenerTenantOrigenIdAsync() is not { } tenantOrigenId) return RolEfectivoPorOperacion.Ninguno;
 
-        // La operación llega ya elegida (token o, en el fan-out, la misma que
-        // embebería el POST). Elegirla dentro de esta misma expresión creaba una
-        // expresión autorreferente que desbordaba la pila del funcletizador de EF.
-        return await serviceProvider.GetRequiredService<TechoDeRolPorEncargo>().ResolverAsync(
-            usuarioId, tenantOrigenId, tenantId, asignacionOperacionId, rolDeSesionEnOrigen,
+        var rol = await TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync(
+            serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
+            usuarioId, tenantOrigenId, tenantId, asignacionOperacionId,
+            PerfilQueDecideAlcance(await ObtenerUsuarioAsync()), rolDeSesionEnOrigen,
             DateTime.UtcNow, CancellationToken.None);
+
+        return new RolEfectivoPorOperacion(rol, null, PorOperacion: true);
     }
 
     /// <summary>

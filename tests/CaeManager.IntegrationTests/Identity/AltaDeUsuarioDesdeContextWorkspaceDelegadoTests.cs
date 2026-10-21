@@ -5,6 +5,7 @@ using CaeManager.Application.Tenants;
 using CaeManager.Application.Usuarios;
 using CaeManager.Application.Usuarios.Commands.CrearUsuario;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -43,6 +44,14 @@ namespace CaeManager.IntegrationTests.Identity;
 /// que desde el Context Workspace delegado no se da de alta ninguna cuenta, ni
 /// con rol reservado ni sin él: administrar las cuentas del Tenant propietario
 /// es Propiedad, y la Operación no la concede.
+/// </para>
+///
+/// <para>
+/// Decisión Chris 2026-10-20: lo anterior vale ya solo para la vía heredada (acceso de
+/// soporte). Por una Asignación de Operación vigente del Tenant entero de su organización,
+/// el Administrador del Operador CAE externo es Administrador en el Tenant beneficiario con
+/// todos sus poderes, también los de Propiedad, y da de alta allí un Administrador. La
+/// Sesión Privilegiada se comporta igual que antes: sin rol de negocio, no da de alta nada.
 /// </para>
 ///
 /// <para>
@@ -136,6 +145,64 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         contexto.AsignacionesOperadorDelegadoConRevocadas.Add(
             new AsignacionOperadorDelegado(delegacion.Id, _actorDelOperador, Roles.Administrador));
         await contexto.SaveChangesAsync();
+
+        // Decisión Chris 2026-10-20: un Tenant beneficiario que el Operador CAE externo opera por una
+        // Asignación de Operación vigente del Tenant entero, sin cartera de nadie y sin encargo.
+        var beneficiario = new Tenant("Tenant beneficiario operado por Asignación de Operación");
+        contexto.Tenants.Add(beneficiario);
+        await contexto.SaveChangesAsync();
+        _tenantOperadoPorOperacion = beneficiario.Id;
+        var ahora = DateTime.UtcNow;
+        using (AmbitoTenantExplicito.Establecer(beneficiario.Id))
+        {
+            var operacion = AsignacionOperacion.Externa(
+                beneficiario.Id, _tenantOperadorCae, ServicioCae.Outbound, AmbitoAsignacion.Universal,
+                ahora.AddDays(-1), null, ahora);
+            contexto.AsignacionesOperacion.Add(operacion);
+            await contexto.SaveChangesAsync();
+            _operacionDelBeneficiario = operacion.Id;
+        }
+    }
+
+    private Guid _tenantOperadoPorOperacion;
+    private Guid _operacionDelBeneficiario;
+
+    [Fact]
+    public async Task Por_Asignacion_de_Operacion_el_Administrador_del_Operador_CAE_da_de_alta_un_Administrador_en_el_Tenant_beneficiario()
+    {
+        var (nuevo, mensaje) = await DarDeAltaAsync(
+            "admin.beneficiario@arcosspa.test", Roles.Administrador, contextWorkspaceSeleccionado: _tenantOperadoPorOperacion,
+            asignacionOperacionId: _operacionDelBeneficiario);
+
+        mensaje.Should().BeNull("su perfil de origen rige con todos sus poderes, también los de Propiedad");
+        nuevo.Should().NotBeNull();
+        nuevo!.TenantId.Should().Be(_tenantOperadoPorOperacion, "la cuenta nace en el Tenant beneficiario que opera");
+
+        using var ambito = _servicios.CreateScope();
+        (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().IsInRoleAsync(nuevo, Roles.Administrador))
+            .Should().BeTrue();
+    }
+
+    /// <summary>
+    /// La Sesión Privilegiada se comporta igual que antes de la decisión Chris 2026-10-20: en el mismo
+    /// Tenant beneficiario, y aunque la selección traiga también la Asignación de Operación que sí
+    /// autoriza, un contexto de plataforma no tiene rol de negocio, así que no da de alta ninguna cuenta.
+    /// </summary>
+    [Fact]
+    public async Task Con_Sesion_Privilegiada_en_el_mismo_Tenant_beneficiario_no_da_de_alta_ninguna_cuenta()
+    {
+        var (nuevo, mensaje) = await DarDeAltaAsync(
+            "privilegiada.beneficiario@arcosspa.test", Roles.Administrador,
+            contextWorkspaceSeleccionado: _tenantOperadoPorOperacion, asignacionOperacionId: _operacionDelBeneficiario,
+            sesionPrivilegiadaId: Guid.NewGuid());
+
+        nuevo.Should().BeNull("una Sesión Privilegiada no tiene rol de negocio en el Tenant que visita");
+        mensaje.Should().Be(AutoridadSobreCuentas.SinAutoridad.Mensaje);
+
+        using var ambito = _servicios.CreateScope();
+        (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().Users
+                .AnyAsync(u => u.TenantId == _tenantOperadoPorOperacion))
+            .Should().BeFalse();
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -181,13 +248,14 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
     }
 
     private async Task<(ApplicationUser? Nuevo, string? MensajeError)> DarDeAltaAsync(
-        string email, string rol, Guid? contextWorkspaceSeleccionado)
+        string email, string rol, Guid? contextWorkspaceSeleccionado, Guid? asignacionOperacionId = null,
+        Guid? sesionPrivilegiadaId = null)
     {
         using var ambito = _servicios.CreateScope();
         var sp = ambito.ServiceProvider;
 
         var autenticacion = new AutenticacionConTenant(_actorDelOperador, _tenantOperadorCae, Roles.Administrador);
-        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado);
+        var seleccion = new SeleccionFija(contextWorkspaceSeleccionado, asignacionOperacionId, sesionPrivilegiadaId);
         var tenantActualReal = new TenantActual(autenticacion, new HttpContextAccessor(), seleccion);
 
         // Premisa del instrumento: la resolución real devuelve lo que el escenario dice.
@@ -203,9 +271,15 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         serviciosMediator.AddSingleton<IClienteActivoSeleccionado>(seleccion);
         serviciosMediator.AddSingleton<ITenantActual>(tenantActualReal);
         serviciosMediator.AddSingleton<ICurrentUserService, CurrentUserService>();
+        // Como AddApplication() en producción: la señal de operación la da la misma clase que resuelve
+        // el rol efectivo. Sin ella, RolesReservadosAlTenantDeOrigen falla cerrado.
+        serviciosMediator.AddSingleton<IEncargoDeAdministracionActual>(sp =>
+            (IEncargoDeAdministracionActual)sp.GetRequiredService<ICurrentUserService>());
         // CurrentUserService resuelve el rol efectivo del Context Workspace delegado
         // contra la base: la misma que la del alta.
         serviciosMediator.AddSingleton(sp.GetRequiredService<ITenantsQueryContext>());
+        serviciosMediator.AddSingleton<CaeManager.Application.Operaciones.IOperacionesQueryContext>(
+            sp.GetRequiredService<CaeManagerDbContext>());
         serviciosMediator.AddSingleton(sp.GetRequiredService<UserManager<ApplicationUser>>());
         serviciosMediator.AddSingleton<IGestionCuentasUsuario>(new GestionCuentasUsuarioIdentity(
             sp.GetRequiredService<UserManager<ApplicationUser>>(),
@@ -279,11 +353,13 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         }
     }
 
-    private sealed class SeleccionFija(Guid? tenantIdSeleccionado) : IClienteActivoSeleccionado
+    private sealed class SeleccionFija(
+        Guid? tenantIdSeleccionado, Guid? asignacionOperacionId = null, Guid? sesionPrivilegiadaId = null)
+        : IClienteActivoSeleccionado
     {
         public Guid? TenantIdSeleccionado => tenantIdSeleccionado;
-        public Guid? AsignacionOperacionIdSeleccionada => null;
-        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+        public Guid? AsignacionOperacionIdSeleccionada => asignacionOperacionId;
+        public Guid? SesionPrivilegiadaIdSeleccionada => sesionPrivilegiadaId;
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual

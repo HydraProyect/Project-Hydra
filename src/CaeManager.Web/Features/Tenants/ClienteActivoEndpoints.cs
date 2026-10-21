@@ -67,14 +67,17 @@ public static class ClienteActivoEndpoints
         // (invariante I2): nunca una copia aquí.
         //
         // La operación por la que este usuario puede abrir ese Tenant. Se
-        // resuelve exigiendo cartera vigente, así que encontrarla ya es
+        // resuelve con su perfil de sesión en origen (decisión Chris 2026-10-20):
+        // sin cartera para Administrador, Dirección CAE, Coordinador CAE y
+        // Consulta; con cartera vigente para el Gestor CAE. Encontrarla ya es
         // autorización suficiente por sí sola, y se embebe en el token para
         // revalidar esa misma operación en cada petición. Determinista
         // (REC-136): la vigente más reciente y, a igualdad, la de menor Id.
         var asignacionOperacionId = tenantId == tenantOrigenId.Value
             ? null
             : await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-                operacionesContext, usuarioId.Value, tenantOrigenId.Value, tenantId, ahora, cancellationToken);
+                operacionesContext, usuarioId.Value, tenantOrigenId.Value, tenantId,
+                await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), ahora, cancellationToken);
 
         // El Tenant de origen del usuario siempre está autorizado sobre sí
         // mismo. La vía heredada se conserva porque es la del acceso de

@@ -146,12 +146,10 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
             _propietario.AsignacionesOperacion.Add(operacionDeCliente);
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacionDeCliente, _gestorDeCliente, Roles.GestorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
-            // Coordinador CAE con su propia cartera de rol Coordinador (el rol efectivo sale de ella) y
-            // un Gestor CAE a su cargo, los dos bajo la operación acotada al Cliente empresarial: su
-            // alcance de datos es ese Cliente empresarial, no el Tenant entero. Desde la enmienda de
-            // 2026-10-08 a ADR-011 § 2.7 la cartera propia del Coordinador CAE también da alcance, así
-            // que bajo la operación universal alcanzaría el Tenant entero (lo prueba
-            // AlcanceCarteraUniversalTenantCompletoTests).
+            // Coordinador CAE con su propia cartera y un Gestor CAE a su cargo, los dos bajo la operación
+            // acotada al Cliente empresarial. Desde la decisión Chris 2026-10-20 esa cartera ya no lo
+            // estrecha: entra por la operación del Tenant entero de su organización (_operacion) y alcanza
+            // el Tenant entero.
             _propietario.AsignacionesCartera.Add(AsignacionCartera.Externa(
                 operacionDeCliente, _coordinador, Roles.CoordinadorCae, AmbitoAsignacion.Universal, ayer, null, ahora));
             await _propietario.SaveChangesAsync();
@@ -214,11 +212,14 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Coordinador_con_equipo_acotado_a_un_Cliente_empresarial_Vision_de_cartera_e_Inicio_cuentan_los_mismos_vencidos()
+    public async Task Coordinador_por_la_operacion_del_Tenant_entero_Vision_de_cartera_e_Inicio_cuentan_los_mismos_vencidos()
     {
+        // Decisión Chris 2026-10-20: el Coordinador CAE entra sin cartera por la Asignación de Operación
+        // del Tenant entero de su organización y alcanza el Tenant entero; su cartera y su equipo bajo la
+        // operación acotada ya no lo estrechan.
         var (vision, inicio) = await MedirAmbasAsync(_coordinador, Roles.CoordinadorCae);
 
-        inicio.DocumentosVencidos.Should().Be(3, "control de la siembra: Documento de identidad y Certificado de aptitud médica ×2 de los asignados");
+        inicio.DocumentosVencidos.Should().Be(4, "control de la siembra: tres de los asignados y uno suelto, el Tenant entero");
         vision.DocumentosVencidos.Should().Be(inicio.DocumentosVencidos);
         vision.DocumentosUrgentes.Should().Be(inicio.DocumentosUrgentes);
         vision.TasaCumplimientoDocumental.Should().Be(inicio.TasaCumplimientoDocumental);
@@ -243,7 +244,9 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
         // Inicio llega con el Tenant beneficiario como Tenant de la petición; la Visión, con el de origen.
         var tenantDeLaPeticion = new TenantActualDeLaPeticion(seleccionado ? _beneficiario : _origen);
         IClienteActivoSeleccionado seleccion = seleccionado
-            ? new ClienteActivoSeleccionadoFijo(_beneficiario, usuario == _gestorDeCliente || usuario == _coordinador ? _operacionDeCliente : _operacion)
+            // La operación que embebería /cuenta/cliente-activo: la acotada solo para el Gestor CAE cuya
+            // cartera cuelga de ella; el Coordinador CAE entra por la del Tenant entero.
+            ? new ClienteActivoSeleccionadoFijo(_beneficiario, usuario == _gestorDeCliente ? _operacionDeCliente : _operacion)
             : new SinClienteActivo();
         var runtime = CrearRuntime(usuario, tenantDeLaPeticion);
         _desechables.Add(runtime);
@@ -288,15 +291,16 @@ public class VisionCarteraEInicioCuadranLosVencidosTests : IAsyncLifetime
     private CurrentUserService CrearCurrentUserService(
         CaeManagerDbContext contexto, Guid usuario, string rol, IClienteActivoSeleccionado seleccion)
     {
-        // El rol de la sesión en el Tenant de origen NO es el de la cartera (Consulta frente a Gestor/Coordinador
-        // CAE): lo que cuenta el fan-out tiene que salir de la cartera de cada Tenant (#571), no del claim. En
-        // Inicio, el middleware de Workspace operativo derivado sustituye el claim de rol por el de la cartera y
-        // conserva el de origen aparte.
+        // Decisión Chris 2026-10-20: el perfil de la sesión en el Tenant de origen es el rol en todos los Tenants
+        // beneficiarios delegados, así que el claim de origen es el del propio usuario (antes se sembraba Consulta
+        // para probar que el rol salía de la cartera, regla derogada). Lo que la cartera sigue decidiendo es el
+        // alcance del Gestor CAE (#571). En Inicio, el middleware de Workspace operativo derivado pone en el claim
+        // de rol el resuelto para el Tenant y conserva el de origen aparte.
         var identidad = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, usuario.ToString()),
-                new Claim(ClaimTypes.Role, seleccion.TenantIdSeleccionado is null ? Roles.Consulta : rol),
-                new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen, Roles.Consulta),
+                new Claim(ClaimTypes.Role, rol),
+                new Claim(RolEfectivoDelWorkspaceMiddleware.TipoClaimRolDeSesionOrigen, rol),
                 new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, _origen.ToString())
             ],
             "prueba");
