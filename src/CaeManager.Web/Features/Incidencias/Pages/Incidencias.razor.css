@@ -5,21 +5,7 @@
     gap: var(--space-3);
 }
 
-/* Recuento de la lista, junto a «Selección múltiple». */
-.recuento-incidencias {
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
-/* Recordatorio de los atajos de AtajosListaTeclado, a la derecha de la barra. */
-.atajos-incidencias {
-    margin-left: auto;
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
-}
-
-.atajos-incidencias kbd {
-    font: var(--font-body-sm);
-    font-weight: 700;
-    color: var(--color-text);
-}
+/* Primera columna: el tipo y debajo su código INC-xxxxxxxx (patrón de Gestiones). */
+.incidencia-tipo-codigo { display: flex; flex-direction: column; gap: var(--space-1); }
+.incidencia-nombre-tipo { font: var(--font-body-md); font-weight: 600; color: var(--color-text); }
+.incidencia-referencia { font: var(--font-caption); color: var(--color-text-muted); }

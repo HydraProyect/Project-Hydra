@@ -27,7 +27,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     /// </summary>
     private static readonly string[] AunSinFiltrosGuardados = [];
 
-    /// <summary>Los diez que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
+    /// <summary>Los once que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
     private static readonly string[] ListadosConocidos =
     [
         CarpetaDeFeatures + "Centros/Pages/Centros.razor",
@@ -35,6 +35,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Documentos/Pages/Documentos.razor",
         CarpetaDeFeatures + "Empresas/Pages/Empresas.razor",
         CarpetaDeFeatures + "Gestiones/Pages/Gestiones.razor",
+        CarpetaDeFeatures + "Incidencias/Pages/Incidencias.razor",
         CarpetaDeFeatures + "Proyectos/Pages/Proyectos.razor",
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Trabajadores/Pages/Trabajadores.razor",
@@ -42,12 +43,13 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Visitas/Pages/Visitas.razor",
     ];
 
-    /// <summary>Los siete que usan la pieza compartida.</summary>
+    /// <summary>Los ocho que usan la pieza compartida.</summary>
     private static readonly string[] ListadosConLaPiezaCompartida =
     [
         CarpetaDeFeatures + "Centros/Pages/Centros.razor",
         CarpetaDeFeatures + "Empresas/Pages/Empresas.razor",
         CarpetaDeFeatures + "Gestiones/Pages/Gestiones.razor",
+        CarpetaDeFeatures + "Incidencias/Pages/Incidencias.razor",
         CarpetaDeFeatures + "Proyectos/Pages/Proyectos.razor",
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Vehiculos/Pages/Vehiculos.razor",
@@ -120,7 +122,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     }
 
     [Fact]
-    public void Los_siete_listados_de_la_pieza_compartida_declaran_su_lista_blanca_y_se_la_pasan()
+    public void Los_ocho_listados_de_la_pieza_compartida_declaran_su_lista_blanca_y_se_la_pasan()
     {
         var piezas = Aperturas("FiltrosGuardadosDeListado");
 
