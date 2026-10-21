@@ -308,7 +308,10 @@ public class ObtenerClientesQueryHandler(
             .Select(g => new { ClienteId = g.Key, Cantidad = g.Count() })
             .ToDictionaryAsync(x => x.ClienteId, x => x.Cantidad, cancellationToken);
 
-        var clientesConBloqueo = await ClientesConBloqueoDePlataformaAsync(idsPagina, cancellationToken);
+        // Solo lo pinta la pantalla, que pide el desglose: la API y los recorridos masivos no pagan el cálculo de estado.
+        var clientesConBloqueo = request.ConDesgloseDocumental
+            ? await ClientesConBloqueoDePlataformaAsync(idsPagina, cancellationToken)
+            : [];
 
         var enriquecidos = elementos
             .Select(c => c with

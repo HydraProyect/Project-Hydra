@@ -650,7 +650,12 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     {
         get
         {
-            var documentos = _trabajadores.SelectMany(t => t.Documentos).ToList();
+            // Un documento por par Trabajador × Tipo, el mejor de los que trae el listado: el listado enseña también el vencido
+            // que ya tiene renovación, y contarlo aparte inflaría los vencidos frente a «exigidos», que cuenta pares.
+            var documentos = _trabajadores
+                .SelectMany(t => t.Documentos.GroupBy(d => d.TipoDocumentoId)
+                    .Select(g => g.MaxBy(d => SeveridadEstadoDocumento.Rango(d.Estado))!))
+                .ToList();
             // «Exigidos» y «al día» salen de CumplimientoDocumental (la porción de cada Trabajador del % del Centro): el
             // listado de documentos no trae los «Sin caducidad» y puede repetir un tipo (vencido y renovación).
             var cumplimiento = FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento));
