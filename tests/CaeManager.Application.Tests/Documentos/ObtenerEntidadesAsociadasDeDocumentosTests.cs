@@ -287,4 +287,32 @@ public class ObtenerEntidadesAsociadasDeDocumentosTests
         destinos.Single(x => x.CentroId == sinTolerancia.Id).EnToleranciaHasta.Should().BeNull();
         destinos.Should().OnlyContain(x => x.PlataformaNombre == "Sin portal");
     }
+
+    [Fact]
+    public async Task Las_acreditaciones_conservan_nombre_estado_y_canales_sin_proveedor_en_la_pagina()
+    {
+        var e = new Escenario();
+        e.ConEmpresa("Empresa");
+        var documento = e.Documentos.ListaDocumentos.Single();
+        var proveedor = new ProveedorPlataformaCae("nalanda", "Nalanda");
+        e.Proveedores.ListaProveedores.Add(proveedor);
+        var centroId = Guid.NewGuid();
+        var canales = new[]
+        {
+            CanalGestionDocumental.DePlataforma(centroId, "Portal", proveedor.Id, null, null, null),
+            CanalGestionDocumental.DePlataforma(centroId, "No visible", Guid.NewGuid(), null, null, null),
+            CanalGestionDocumental.PorEmail(centroId, "Correo", "cae@example.com", null)
+        };
+        e.Centros.ListaCanalesGestionDocumental.AddRange(canales);
+        foreach (var canal in canales)
+            e.Documentos.ListaAcreditacionesDocumentoPlataforma.Add(new(documento.Id, canal.Id));
+
+        var resultado = await e.Handler().Handle(new ObtenerDocumentosQuery(null, null, null), default);
+
+        var fila = resultado.Elementos.Should().ContainSingle().Which;
+        fila.Acreditaciones.Select(x => x.NombrePlataforma).Should().BeEquivalentTo("Nalanda", "Plataforma", "Plataforma");
+        fila.Acreditaciones.Select(x => x.Id).Should().BeEquivalentTo(
+            e.Documentos.ListaAcreditacionesDocumentoPlataforma.Select(x => x.Id));
+        fila.Acreditaciones.Should().OnlyContain(x => x.Estado == EstadoAcreditacion.PendienteDeSubir);
+    }
 }

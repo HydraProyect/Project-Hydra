@@ -206,9 +206,9 @@
                             <thead><tr>
                                 @if (_seleccionMultiple)
                                 {
-                                    <th scope="col"><input type="checkbox" aria-label="@Textos["SeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
+                                    <th scope="col" class="documentos-celda-seleccion"><input type="checkbox" aria-label="@Textos["SeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                                 }
-                                @if (HayDestinos) { <th scope="col"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
+                                @if (HayDestinos) { <th scope="col" class="documentos-celda-expandir"><span class="documentos-solo-lectores">@Textos["ListaDestino"]</span></th> }
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("tipo")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaTipo)">@Textos["ListaDocumento"]</button></th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("entidad", "ambito")">
                                     <button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEntidadAsociada)">@Textos[_ordenEntidadAsociadaPorAmbito ? "ListaEntidadAsociadaPorAmbito" : "ListaPropietario"]</button>
@@ -265,7 +265,7 @@
                                         <tr @key="clavesFilas.De((documento.Id, false))" class="@ObtenerClaseFila(documento)">
                                             @if (_seleccionMultiple)
                                             {
-                                                <td><input type="checkbox" aria-label="@Textos["SeleccionarDocumento", documento.TipoDocumentoNombre, documento.PropietarioNombre, documento.FechaEmision.ToString("dd/MM/yyyy")]" checked="@_seleccionados.Contains(documento.Id)" @onchange="e => AlternarSeleccion(documento.Id, (bool)e.Value!)" /></td>
+                                                <td class="documentos-celda-seleccion"><input type="checkbox" aria-label="@Textos["SeleccionarDocumento", documento.TipoDocumentoNombre, documento.PropietarioNombre, documento.FechaEmision.ToString("dd/MM/yyyy")]" checked="@_seleccionados.Contains(documento.Id)" @onchange="e => AlternarSeleccion(documento.Id, (bool)e.Value!)" /></td>
                                             }
                                             @if (HayDestinos)
                                             {
