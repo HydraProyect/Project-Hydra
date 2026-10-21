@@ -231,10 +231,12 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
         Preventivas(mediador).Last().DelegacionEmpresaId.Should().Be(Cataluna);
+        cut.WaitForAssertion(() => cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeFalse());
 
         cut.Find("select[aria-label='Oficio']").Change(Tecnico.ToString());
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(3));
         Preventivas(mediador).Last().Should().Be(new ObtenerReclamacionPreventivaEmpresaQuery(EmpresaId, Cataluna, Tecnico));
+        cut.WaitForAssertion(() => Boton(cut, "Quitar filtros").HasAttribute("disabled").Should().BeFalse());
 
         Boton(cut, "Quitar filtros").Click();
         cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(4));
@@ -299,18 +301,19 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario { Delegaciones = [] });
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
-        cut.Markup.Should().Contain("Esta Empresa no tiene Delegaciones");
+        cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones");
         cut.FindAll("select[aria-label='Delegación']").Should().BeEmpty();
         cut.FindAll(".reclamar-empresa-segmento button").Single(b => Texto(b) == "Delegación").HasAttribute("disabled").Should().BeTrue();
         cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto).Should().Contain("Jordi Ferrer Vidal");
     }
 
     [Fact]
-    public void Sin_nada_pendiente_dice_que_la_Empresa_esta_al_dia_y_no_ofrece_reclamar()
+    public void Sin_nada_que_reclamar_lo_dice_sin_afirmar_que_la_Empresa_este_al_dia_y_no_ofrece_reclamar()
     {
         var (cut, _) = Renderizar(new Escenario { Preventiva = _ => Task.FromResult(new ReclamacionPreventivaEmpresaDto([], [], [], [])) });
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa está al día"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada que reclamar a esta Empresa"));
+        cut.Markup.Should().NotContain("al día", "la consulta devuelve lo mismo para una Empresa fuera de la cartera: no se afirma que cumpla");
         cut.FindAll("button").Select(Texto).Should().NotContain(t => t.StartsWith("Reclamar", StringComparison.Ordinal));
     }
 
@@ -321,10 +324,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var (cut, _) = Renderizar(new Escenario { Preventiva = _ => puerta.Task });
 
         cut.FindComponents<EstadoCargando>().Should().ContainSingle();
-        cut.Markup.Should().NotContain("al día");
+        cut.Markup.Should().NotContain("Nada que reclamar");
 
         puerta.SetResult(new ReclamacionPreventivaEmpresaDto([], [], [], []));
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa está al día"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada que reclamar a esta Empresa"));
     }
 
     [Fact]
@@ -358,7 +361,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada con estos filtros"));
-        cut.Markup.Should().NotContain("al día", "con un filtro puesto, no tener nada no significa que la Empresa esté al día");
+        cut.Markup.Should().NotContain("Nada que reclamar a esta Empresa", "con un filtro puesto, el estado vacío es el de los filtros");
         cut.FindAll("button").First(b => Texto(b) == "Quitar filtros").Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
         Preventivas(mediador).Last().DelegacionEmpresaId.Should().BeNull();
@@ -449,6 +452,67 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         puerta.SetResult(escenario.Dto(LotesDeMuestra()));
         cut.WaitForAssertion(() => Boton(cut, "Reclamar lo visible").HasAttribute("disabled").Should().BeFalse());
+    }
+
+    [Fact]
+    public void Dos_Trabajadores_homonimos_son_dos_personas_en_el_recuento_y_en_los_grupos()
+    {
+        var otroJordi = Guid.Parse("a9a9a9a9-0000-0000-0000-000000000009");
+        var lote = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), Jordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Reconocimiento médico", Vence, EstadoDocumento.Vencido),
+                new DocumentoReclamableDto(Guid.NewGuid(), otroJordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Formación en altura", Vence, EstadoDocumento.Vencido),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Montse Puig Casals", "montse.puig@ebro.example", [])], null,
+            new DestinoEmpresaEmpleadoraDto(Cataluna, "Cataluña"));
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([lote]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reconocimiento médico"));
+
+        cut.FindAll(".reclamar-empresa-ficha")[1].TextContent.Should().Contain("2");
+        Boton(cut, "Trabajador").Click();
+
+        cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto).Should().Equal("Jordi Ferrer Vidal", "Jordi Ferrer Vidal");
+        cut.Markup.Should().Contain("2 Trabajadores");
+    }
+
+    [Fact]
+    public void Mientras_se_vuelve_a_pedir_los_filtros_que_piden_al_servidor_quedan_deshabilitados_y_despues_se_liberan()
+    {
+        var puerta = new TaskCompletionSource<ReclamacionPreventivaEmpresaDto>();
+        var llamadas = 0;
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => ++llamadas == 1 ? Task.FromResult(escenario.Dto(LotesDeMuestra())) : puerta.Task;
+        var (cut, mediador) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+
+        cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
+
+        cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
+        cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeTrue("mientras carga no se encadenan consultas sobre el mismo contexto de datos");
+        cut.Find("select[aria-label='Delegación']").HasAttribute("disabled").Should().BeTrue();
+        cut.Find("select[aria-label='Estado']").HasAttribute("disabled").Should().BeFalse("el estado se filtra en cliente");
+
+        puerta.SetResult(escenario.Dto(LotesDeMuestra()));
+        cut.WaitForAssertion(() => cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeFalse());
+    }
+
+    [Fact]
+    public void Mientras_se_vuelve_a_pedir_no_dice_que_ningun_documento_tiene_destinatario()
+    {
+        var puerta = new TaskCompletionSource<ReclamacionPreventivaEmpresaDto>();
+        var llamadas = 0;
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => ++llamadas == 1 ? Task.FromResult(escenario.Dto(LotesDeMuestra())) : puerta.Task;
+        var (cut, mediador) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+
+        cut.Find("select[aria-label='Delegación']").Change(Aragon.ToString());
+
+        cut.WaitForAssertion(() => Preventivas(mediador).Should().HaveCount(2));
+        cut.Markup.Should().NotContain("Ningún documento visible tiene destinatario");
     }
 
     [Fact]

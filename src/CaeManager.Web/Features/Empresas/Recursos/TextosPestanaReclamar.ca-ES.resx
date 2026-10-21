@@ -28,12 +28,12 @@
     <value>Reintenta</value>
     <comment>Botón del estado de error.</comment>
   </data>
-  <data name="AlDiaTitulo" xml:space="preserve">
-    <value>Aquesta Empresa està al dia</value>
+  <data name="NadaQueReclamarTitulo" xml:space="preserve">
+    <value>Res a reclamar a aquesta Empresa</value>
     <comment>Título del estado sin nada que reclamar.</comment>
   </data>
-  <data name="AlDiaDescripcion" xml:space="preserve">
-    <value>No hi ha documents vençuts, pendents ni a punt de vèncer, ni de l&apos;Empresa ni dels seus Treballadors.</value>
+  <data name="NadaQueReclamarDescripcion" xml:space="preserve">
+    <value>No hi ha documents vençuts, pendents ni a punt de vèncer que reclamar, ni de l&apos;Empresa ni dels seus Treballadors, dins de la teva cartera.</value>
     <comment>Descripción del estado sin nada que reclamar.</comment>
   </data>
   <data name="ResumenEmpresa" xml:space="preserve">
@@ -56,11 +56,11 @@
     <value>Pendents · Treballadors</value>
     <comment>Ficha de recuento que filtra por Pendiente.</comment>
   </data>
-  <data name="FiltroDelegacion" xml:space="preserve">
+  <data name="FiltroSede" xml:space="preserve">
     <value>Delegació</value>
     <comment>Nombre accesible del filtro de Delegación.</comment>
   </data>
-  <data name="TodasLasDelegaciones" xml:space="preserve">
+  <data name="TodasLasSedes" xml:space="preserve">
     <value>Totes les Delegacions</value>
     <comment>Opción sin filtrar del selector de Delegación.</comment>
   </data>
@@ -100,7 +100,7 @@
     <value>Agrupa per</value>
     <comment>Rótulo del selector de agrupación.</comment>
   </data>
-  <data name="AgruparDelegacion" xml:space="preserve">
+  <data name="AgruparSede" xml:space="preserve">
     <value>Delegació</value>
     <comment>Agrupar por Delegación.</comment>
   </data>
@@ -112,7 +112,7 @@
     <value>Tipus de document</value>
     <comment>Agrupar por Tipo de documento.</comment>
   </data>
-  <data name="SinDelegaciones" xml:space="preserve">
+  <data name="SinSedes" xml:space="preserve">
     <value>Aquesta Empresa no té Delegacions: tot es reclama als contactes de l&apos;Empresa.</value>
     <comment>Aviso cuando la Empresa no tiene Delegaciones.</comment>
   </data>

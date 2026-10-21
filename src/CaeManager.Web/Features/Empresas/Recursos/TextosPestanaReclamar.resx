@@ -28,12 +28,12 @@
     <value>Reintentar</value>
     <comment>Botón del estado de error.</comment>
   </data>
-  <data name="AlDiaTitulo" xml:space="preserve">
-    <value>Esta Empresa está al día</value>
+  <data name="NadaQueReclamarTitulo" xml:space="preserve">
+    <value>Nada que reclamar a esta Empresa</value>
     <comment>Título del estado sin nada que reclamar.</comment>
   </data>
-  <data name="AlDiaDescripcion" xml:space="preserve">
-    <value>No hay documentos vencidos, pendientes ni por vencer, ni de la Empresa ni de sus Trabajadores.</value>
+  <data name="NadaQueReclamarDescripcion" xml:space="preserve">
+    <value>No hay documentos vencidos, pendientes ni por vencer que reclamar, ni de la Empresa ni de sus Trabajadores, dentro de tu cartera.</value>
     <comment>Descripción del estado sin nada que reclamar.</comment>
   </data>
   <data name="ResumenEmpresa" xml:space="preserve">
@@ -56,12 +56,12 @@
     <value>Pendientes · Trabajadores</value>
     <comment>Ficha de recuento que filtra por Pendiente.</comment>
   </data>
-  <data name="FiltroDelegacion" xml:space="preserve">
+  <data name="FiltroSede" xml:space="preserve">
     <value>Delegación</value>
     <comment>Nombre accesible del filtro de Delegación.</comment>
   </data>
-  <data name="TodasLasDelegaciones" xml:space="preserve">
-    <value>Todas las Delegaciones</value>
+  <data name="TodasLasSedes" xml:space="preserve">
+    <value>Todas las delegaciones</value>
     <comment>Opción sin filtrar del selector de Delegación.</comment>
   </data>
   <data name="FiltroOficio" xml:space="preserve">
@@ -100,7 +100,7 @@
     <value>Agrupar por</value>
     <comment>Rótulo del selector de agrupación.</comment>
   </data>
-  <data name="AgruparDelegacion" xml:space="preserve">
+  <data name="AgruparSede" xml:space="preserve">
     <value>Delegación</value>
     <comment>Agrupar por Delegación.</comment>
   </data>
@@ -112,8 +112,8 @@
     <value>Tipo de documento</value>
     <comment>Agrupar por Tipo de documento.</comment>
   </data>
-  <data name="SinDelegaciones" xml:space="preserve">
-    <value>Esta Empresa no tiene Delegaciones: todo se reclama a los contactos de la Empresa.</value>
+  <data name="SinSedes" xml:space="preserve">
+    <value>Esta Empresa no tiene delegaciones: todo se reclama a los contactos de la Empresa.</value>
     <comment>Aviso cuando la Empresa no tiene Delegaciones.</comment>
   </data>
   <data name="RecuentoDocumentosUno" xml:space="preserve">

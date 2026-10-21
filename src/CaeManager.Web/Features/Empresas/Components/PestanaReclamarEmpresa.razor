@@ -25,173 +25,166 @@
     {
         <EstadoCargando Filas="4" />
     }
-    else if (_filas.Count == 0 && !HayFiltroDeServidor)
-    {
-        <EstadoVacio Titulo="@Textos["AlDiaTitulo"]" Descripcion="@Textos["AlDiaDescripcion"]"
-                     NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)" />
-        @SeccionPendienteDeSubir
-    }
     else
     {
-        <div class="reclamar-empresa-resumen" aria-busy="@(_recargando ? "true" : "false")" aria-live="polite">
-            <div class="reclamar-empresa-ficha">
-                <span class="reclamar-empresa-ficha-numero">@_vista.EmpresaVencidosOPendientes</span>
-                <span class="reclamar-empresa-ficha-rotulo">@Textos["ResumenEmpresa"]</span>
-            </div>
-            <div class="reclamar-empresa-ficha">
-                <span class="reclamar-empresa-ficha-numero">@_vista.TrabajadoresAfectados</span>
-                <span class="reclamar-empresa-ficha-rotulo">@Textos["ResumenTrabajadores"]</span>
-            </div>
-            @foreach (var ficha in _vista.Fichas)
-            {
-                <button type="button" class="reclamar-empresa-ficha reclamar-empresa-ficha-filtro" data-categoria="@ficha.Categoria"
-                        aria-pressed="@(_estado == ficha.Categoria ? "true" : "false")" @onclick="() => AlternarEstado(ficha.Categoria)" @key="ficha.Categoria">
-                    <span class="reclamar-empresa-ficha-numero">@ficha.Total</span>
-                    <span class="reclamar-empresa-ficha-rotulo">@ficha.Rotulo</span>
-                </button>
-            }
-        </div>
-
-        <div class="reclamar-empresa-barra">
-            @if (_dto.DelegacionesEmpresa.Count > 0)
-            {
-                <select class="reclamar-empresa-select" data-activo="@(_delegacionId is not null ? "true" : null)" aria-label="@Textos["FiltroDelegacion"]"
-                        @onchange="e => CambiarDelegacionAsync(e.Value?.ToString())">
-                    <option value="" selected="@(_delegacionId is null)">@Textos["TodasLasDelegaciones"]</option>
-                    @foreach (var delegacion in _dto.DelegacionesEmpresa)
-                    {
-                        <option value="@delegacion.Id" selected="@(_delegacionId == delegacion.Id)" @key="delegacion.Id">@delegacion.Nombre</option>
-                    }
-                </select>
-            }
-            @if (_dto.Oficios.Count > 0)
-            {
-                <select class="reclamar-empresa-select" data-activo="@(_oficioId is not null ? "true" : null)" aria-label="@Textos["FiltroOficio"]"
-                        @onchange="e => CambiarOficioAsync(e.Value?.ToString())">
-                    <option value="" selected="@(_oficioId is null)">@Textos["TodosLosOficios"]</option>
-                    @foreach (var oficio in _dto.Oficios)
-                    {
-                        <option value="@oficio.Id" selected="@(_oficioId == oficio.Id)" @key="oficio.Id">@oficio.Nombre</option>
-                    }
-                </select>
-            }
-            <select class="reclamar-empresa-select" data-activo="@(_estado is not null ? "true" : null)" aria-label="@Textos["FiltroEstado"]"
-                    @onchange="e => CambiarEstado(e.Value?.ToString())">
-                <option value="" selected="@(_estado is null)">@Textos["TodosLosEstados"]</option>
-                <option value="@Categoria.Vencido" selected="@(_estado == Categoria.Vencido)">@Textos["EstadoVencido"]</option>
-                <option value="@Categoria.Pendiente" selected="@(_estado == Categoria.Pendiente)">@Textos["EstadoPendiente"]</option>
-                <option value="@Categoria.PorVencer" selected="@(_estado == Categoria.PorVencer)">@Textos["EstadoPorVencer"]</option>
-            </select>
-            @if (HayFiltros)
-            {
-                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
-            }
-            <span class="reclamar-empresa-barra-derecha">
-                <span class="reclamar-empresa-etiqueta">@Textos["AgruparPor"]</span>
-                <span class="reclamar-empresa-segmento" role="group" aria-label="@Textos["AgruparPor"]">
-                    <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Delegacion ? "true" : "false")"
-                            disabled="@(!HayDelegaciones)" @onclick="() => Agrupar(Agrupacion.Delegacion)">@Textos["AgruparDelegacion"]</button>
-                    <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Trabajador ? "true" : "false")"
-                            @onclick="() => Agrupar(Agrupacion.Trabajador)">@Textos["AgruparTrabajador"]</button>
-                    <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Tipo ? "true" : "false")"
-                            @onclick="() => Agrupar(Agrupacion.Tipo)">@Textos["AgruparTipo"]</button>
-                </span>
-            </span>
-        </div>
-
-        @if (!HayDelegaciones)
+        @if (_filas.Count == 0 && !HayFiltroDeServidor)
         {
-            <p class="texto-descriptivo reclamar-empresa-nota">@Textos["SinDelegaciones"]</p>
-        }
-
-        @if (_vista.Grupos.Count == 0)
-        {
-            <EstadoVacio Titulo="@Textos["SinResultadosTitulo"]" Descripcion="@Textos["SinResultadosDescripcion"]">
-                <Accion>
-                    <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
-                </Accion>
-            </EstadoVacio>
+            @* Sin nada que reclamar no es «al día»: la consulta devuelve lo mismo para una Empresa fuera de la cartera, así que el texto habla
+               de lo que se puede reclamar y no afirma que la Empresa cumpla. *@
+            <EstadoVacio Titulo="@Textos["NadaQueReclamarTitulo"]" Descripcion="@Textos["NadaQueReclamarDescripcion"]"
+                         NombreIcono="exito-circulo" AcentoIcono="var(--color-success-500)" FondoIcono="var(--color-success-50)" />
         }
         else
         {
-            <div class="reclamar-empresa-cabecera-lista">
-                <span class="reclamar-empresa-recuento">@_vista.TextoRecuento</span>
-                <SoloConEscritura>
-                    <span class="reclamar-empresa-cta">
-                        @if (!PuedeReclamar)
-                        {
-                            <span class="texto-descriptivo">@Textos["SinDestinatario"]</span>
-                        }
-                        else
-                        {
-                            <span class="texto-descriptivo">@Textos["NadaSeEnvia"]</span>
-                        }
-                        <Boton Variante="VarianteBoton.Primario" Deshabilitado="!PuedeReclamar" OnClick="AbrirTodo">@Textos["ReclamarVisibles", _vista.TotalFilas]</Boton>
-                    </span>
-                </SoloConEscritura>
-            </div>
-
-            <div class="reclamar-empresa-grupos">
-                @{ var clavesGrupos = new ClavesDeHermanos(); }
-                @foreach (var grupo in _vista.Grupos)
+            <div class="reclamar-empresa-resumen" aria-busy="@(_recargando ? "true" : "false")" aria-live="polite">
+                <div class="reclamar-empresa-ficha">
+                    <span class="reclamar-empresa-ficha-numero">@_vista.EmpresaVencidosOPendientes</span>
+                    <span class="reclamar-empresa-ficha-rotulo">@Textos["ResumenEmpresa"]</span>
+                </div>
+                <div class="reclamar-empresa-ficha">
+                    <span class="reclamar-empresa-ficha-numero">@_vista.TrabajadoresAfectados</span>
+                    <span class="reclamar-empresa-ficha-rotulo">@Textos["ResumenTrabajadores"]</span>
+                </div>
+                @{ var clavesFichas = new ClavesDeHermanos(); }
+                @foreach (var ficha in _vista.Fichas)
                 {
-                    <section class="reclamar-empresa-grupo" @key="clavesGrupos.De(grupo.Clave)" aria-label="@grupo.Titulo">
-                        <header class="reclamar-empresa-grupo-cabecera">
-                            <span class="reclamar-empresa-grupo-titulo">
-                                <h3>@grupo.Titulo</h3>
-                                <span class="texto-descriptivo">@grupo.Subtitulo</span>
-                            </span>
-                            @if (grupo.Lote is { } lote)
-                            {
-                                <span class="reclamar-empresa-grupo-destino">
-                                    @if (lote.Destinatarios is { Count: > 0 } destinatarios)
-                                    {
-                                        <span>@Textos["DestinoA", string.Join(", ", destinatarios.Select(d => d.Nombre))]</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="reclamar-empresa-sin-contacto" role="alert">@TextoSinContacto(lote)</span>
-                                    }
-                                    <span class="texto-descriptivo">@TextoUltimaReclamacion(lote)</span>
-                                </span>
-                                <SoloConEscritura>
-                                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                           Deshabilitado="@(lote.Destinatarios is not { Count: > 0 })" OnClick="() => AbrirGrupo(lote.Clave)">@Textos["ReclamarGrupo"]</Boton>
-                                </SoloConEscritura>
-                            }
-                        </header>
-                        <ul class="reclamar-empresa-filas">
-                            @{ var clavesFilas = new ClavesDeHermanos(); }
-                            @foreach (var fila in grupo.Filas)
-                            {
-                                <li class="reclamar-empresa-fila" @key="clavesFilas.De(fila.Clave)">
-                                    <span class="reclamar-empresa-fila-nombre">
-                                        <span>@fila.Tipo</span>
-                                        <span class="texto-descriptivo">@DetalleDeFila(fila)</span>
-                                    </span>
-                                    <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
-                                </li>
-                            }
-                        </ul>
-                    </section>
+                    <button type="button" class="reclamar-empresa-ficha reclamar-empresa-ficha-filtro" data-categoria="@ficha.Categoria"
+                            aria-pressed="@(_estado == ficha.Categoria ? "true" : "false")" @onclick="() => AlternarEstado(ficha.Categoria)"
+                            @key="clavesFichas.De(ficha.Categoria)">
+                        <span class="reclamar-empresa-ficha-numero">@ficha.Total</span>
+                        <span class="reclamar-empresa-ficha-rotulo">@ficha.Rotulo</span>
+                    </button>
                 }
             </div>
+
+            <div class="reclamar-empresa-barra">
+                @if (Sedes.Count > 0)
+                {
+                    <select class="reclamar-empresa-select" data-activo="@(_sedeId is not null ? "true" : null)" aria-label="@Textos["FiltroSede"]"
+                            disabled="@_recargando" @onchange="e => CambiarSedeAsync(e.Value?.ToString())">
+                        <option value="" selected="@(_sedeId is null)">@Textos["TodasLasSedes"]</option>
+                        @foreach (var sede in Sedes)
+                        {
+                            <option value="@sede.Id" selected="@(_sedeId == sede.Id)" @key="sede.Id">@sede.Nombre</option>
+                        }
+                    </select>
+                }
+                @if (_dto.Oficios.Count > 0)
+                {
+                    <select class="reclamar-empresa-select" data-activo="@(_oficioId is not null ? "true" : null)" aria-label="@Textos["FiltroOficio"]"
+                            disabled="@_recargando" @onchange="e => CambiarOficioAsync(e.Value?.ToString())">
+                        <option value="" selected="@(_oficioId is null)">@Textos["TodosLosOficios"]</option>
+                        @foreach (var oficio in _dto.Oficios)
+                        {
+                            <option value="@oficio.Id" selected="@(_oficioId == oficio.Id)" @key="oficio.Id">@oficio.Nombre</option>
+                        }
+                    </select>
+                }
+                <select class="reclamar-empresa-select" data-activo="@(_estado is not null ? "true" : null)" aria-label="@Textos["FiltroEstado"]"
+                        @onchange="e => CambiarEstado(e.Value?.ToString())">
+                    <option value="" selected="@(_estado is null)">@Textos["TodosLosEstados"]</option>
+                    <option value="@Categoria.Vencido" selected="@(_estado == Categoria.Vencido)">@Textos["EstadoVencido"]</option>
+                    <option value="@Categoria.Pendiente" selected="@(_estado == Categoria.Pendiente)">@Textos["EstadoPendiente"]</option>
+                    <option value="@Categoria.PorVencer" selected="@(_estado == Categoria.PorVencer)">@Textos["EstadoPorVencer"]</option>
+                </select>
+                @if (HayFiltros)
+                {
+                    <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" Deshabilitado="_recargando" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
+                }
+                <span class="reclamar-empresa-barra-derecha">
+                    <span class="reclamar-empresa-etiqueta">@Textos["AgruparPor"]</span>
+                    <span class="reclamar-empresa-segmento" role="group" aria-label="@Textos["AgruparPor"]">
+                        <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Sede ? "true" : "false")"
+                                disabled="@(!HaySedes)" @onclick="() => Agrupar(Agrupacion.Sede)">@Textos["AgruparSede"]</button>
+                        <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Trabajador ? "true" : "false")"
+                                @onclick="() => Agrupar(Agrupacion.Trabajador)">@Textos["AgruparTrabajador"]</button>
+                        <button type="button" aria-pressed="@(AgrupacionActiva == Agrupacion.Tipo ? "true" : "false")"
+                                @onclick="() => Agrupar(Agrupacion.Tipo)">@Textos["AgruparTipo"]</button>
+                    </span>
+                </span>
+            </div>
+
+            @if (!HaySedes)
+            {
+                <p class="texto-descriptivo reclamar-empresa-nota">@Textos["SinSedes"]</p>
+            }
+
+            @if (_vista.Grupos.Count == 0)
+            {
+                <EstadoVacio Titulo="@Textos["SinResultadosTitulo"]" Descripcion="@Textos["SinResultadosDescripcion"]">
+                    <Accion>
+                        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_recargando" OnClick="QuitarFiltrosAsync">@Textos["QuitarFiltros"]</Boton>
+                    </Accion>
+                </EstadoVacio>
+            }
+            else
+            {
+                <div class="reclamar-empresa-cabecera-lista">
+                    <span class="reclamar-empresa-recuento">@_vista.TextoRecuento</span>
+                    <SoloConEscritura>
+                        <span class="reclamar-empresa-cta">
+                            @if (PuedeReclamar)
+                            {
+                                <span class="texto-descriptivo">@Textos["NadaSeEnvia"]</span>
+                            }
+                            else if (!_recargando)
+                            {
+                                <span class="texto-descriptivo">@Textos["SinDestinatario"]</span>
+                            }
+                            <Boton Variante="VarianteBoton.Primario" Deshabilitado="!PuedeReclamar" OnClick="AbrirTodo">@Textos["ReclamarVisibles", _vista.TotalFilas]</Boton>
+                        </span>
+                    </SoloConEscritura>
+                </div>
+
+                <div class="reclamar-empresa-grupos">
+                    @{ var clavesGrupos = new ClavesDeHermanos(); }
+                    @foreach (var grupo in _vista.Grupos)
+                    {
+                        <section class="reclamar-empresa-grupo" @key="clavesGrupos.De(grupo.Clave)" aria-label="@grupo.Titulo">
+                            <header class="reclamar-empresa-grupo-cabecera">
+                                <span class="reclamar-empresa-grupo-titulo">
+                                    <h3>@grupo.Titulo</h3>
+                                    <span class="texto-descriptivo">@grupo.Subtitulo</span>
+                                </span>
+                                @if (grupo.Lote is { } lote)
+                                {
+                                    <span class="reclamar-empresa-grupo-destino">
+                                        @if (lote.Destinatarios is { Count: > 0 })
+                                        {
+                                            <span>@TextoDestino(lote)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="reclamar-empresa-sin-contacto" role="alert">@TextoSinContacto(lote)</span>
+                                        }
+                                        <span class="texto-descriptivo">@TextoUltimaReclamacion(lote)</span>
+                                    </span>
+                                    <SoloConEscritura>
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                                               Deshabilitado="@(_recargando || lote.Destinatarios is not { Count: > 0 })" OnClick="() => AbrirGrupo(lote.Clave)">@Textos["ReclamarGrupo"]</Boton>
+                                    </SoloConEscritura>
+                                }
+                            </header>
+                            <ul class="reclamar-empresa-filas">
+                                @{ var clavesFilas = new ClavesDeHermanos(); }
+                                @foreach (var fila in grupo.Filas)
+                                {
+                                    <li class="reclamar-empresa-fila" @key="clavesFilas.De(fila.Clave)">
+                                        <span class="reclamar-empresa-fila-nombre">
+                                            <span>@fila.Tipo</span>
+                                            <span class="texto-descriptivo">@DetalleDeFila(fila)</span>
+                                        </span>
+                                        <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                    </li>
+                                }
+                            </ul>
+                        </section>
+                    }
+                </div>
+            }
         }
 
-        @SeccionPendienteDeSubir
-        <p class="texto-descriptivo reclamar-empresa-nota">@Textos["NotaPie"]</p>
-    }
-
-    @* El cajón de siempre, abierto ya en su revisión con lo que enseña esta pestaña. Cada tarjeta se envía con su comando, que vuelve a
-       validar documentos, cartera y destinatarios. *@
-    <DrawerReclamacionLote Visible="_cajonVisible" VisibleChanged="CambiarCajon"
-                           AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
-                           LotesIniciales="@(_cajonVisible ? _cajonLotes : null)" IncluirPendientesSinFecha="true"
-                           OnReclamacionEnviada="CargarAsync" />
-</section>
-
-@code {
-    private RenderFragment SeccionPendienteDeSubir => @<text>
+        @* Lo vigente en TALVEG que falta en la plataforma del Cliente empresarial no se reclama a la Empresa: aquí solo se enseña. *@
         @if (_errorSubir)
         {
             <p class="texto-descriptivo reclamar-empresa-nota">@Textos["SubirError"]</p>
@@ -220,5 +213,17 @@
                 </ul>
             </section>
         }
-    </text>;
-}
+
+        @if (_filas.Count > 0 || HayFiltroDeServidor)
+        {
+            <p class="texto-descriptivo reclamar-empresa-nota">@Textos["NotaPie"]</p>
+        }
+    }
+
+    @* El cajón de siempre, abierto ya en su revisión con lo que enseña esta pestaña. Cada tarjeta se envía con su comando, que vuelve a
+       validar documentos, cartera y destinatarios. *@
+    <DrawerReclamacionLote Visible="_cajonVisible" VisibleChanged="CambiarCajon"
+                           AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
+                           LotesIniciales="@(_cajonVisible ? _cajonLotes : null)" IncluirPendientesSinFecha="true"
+                           OnReclamacionEnviada="CargarAsync" />
+</section>
