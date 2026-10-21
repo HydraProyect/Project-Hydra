@@ -43,11 +43,24 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         return (page, razonSocial);
     }
 
+    /// <summary>
+    /// La fila del Cliente empresarial del test, identificada por el nombre accesible exacto de su botón
+    /// de vista rápida (<c>aria-label</c>), no por la posición ni por «la única que haya». La base es
+    /// compartida con otros E2E de la colección, que dan de alta sus propios Clientes en paralelo
+    /// («P0 Clientes …»): mientras el filtro del buscador no se ha aplicado, o si la lista se recarga entre
+    /// dos lecturas, hay más de una fila, y un localizador sin acotar rompe por «strict mode violation».
+    /// </summary>
+    private static ILocator FilaDe(IPage page, string razonSocial) =>
+        page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable").Filter(new LocatorFilterOptions
+        {
+            Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
+        });
+
     /// <summary>Acota la lista al Cliente empresarial del test y devuelve su fila, ya única.</summary>
     private static async Task<ILocator> FiltrarPorAsync(IPage page, string razonSocial)
     {
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(razonSocial);
-        var filas = page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable");
+        var filas = FilaDe(page, razonSocial);
         await Expect(filas).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         await Expect(filas.Locator(".nombre-abre-vista-rapida")).ToHaveTextAsync(razonSocial);
         return filas;
@@ -61,21 +74,27 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     /// hasta que la fila enfocada aguante. Mientras no haya fila enfocada, repetir «j» vuelve a la
     /// primera, así que el reintento no cambia qué fila se prueba.
     /// </summary>
-    private static async Task EnfocarLaFilaConJAsync(IPage page)
+    private static async Task EnfocarLaFilaConJAsync(IPage page, string razonSocial)
     {
         await page.Keyboard.PressAsync("Tab");
         await page.WaitForTimeoutAsync(400);
 
         var enfocada = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon.fila-enfocada");
-        for (var intento = 0; intento < 5; intento++)
+        // La fila enfocada ha de ser la del test: si el filtro aún no se aplicó, «j» puede enfocar la de otro
+        // E2E de la base compartida, y esa fila desaparece con la recarga filtrada (se vuelve a intentar).
+        var enfocadaPropia = enfocada.Filter(new LocatorFilterOptions
+        {
+            Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
+        });
+        for (var intento = 0; intento < 8; intento++)
         {
             if (await enfocada.CountAsync() == 0)
                 await page.Keyboard.PressAsync("j");
             await page.WaitForTimeoutAsync(400);
-            if (await enfocada.CountAsync() == 1)
+            if (await enfocadaPropia.CountAsync() == 1)
             {
                 await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1) return;
+                if (await enfocada.CountAsync() == 1 && await enfocadaPropia.CountAsync() == 1) return;
             }
         }
 
@@ -105,7 +124,9 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // (si el clic llegara a la fila, la URL de destino llevaría el «ctx» del panel). Con el
         // panel cerrado: abierto, a este ancho tapa el final de la fila.
         await fila.Locator("a.boton-360-pagina").ClickAsync();
-        await page.WaitForURLAsync(new Regex(@"/clientes/[0-9a-f-]{36}$"));
+        // Con la aserción de URL, no con WaitForURLAsync: la navegación mejorada de Blazor no es un documento
+        // nuevo y la espera de «load» de WaitForURLAsync caducaba a los 30 s aunque la página ya hubiera cambiado.
+        await Expect(page).ToHaveURLAsync(new Regex(@"/clientes/[0-9a-f-]{36}$"), new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
         await Expect(panel).ToHaveCountAsync(0);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
         fila = await FiltrarPorAsync(page, razonSocial);
@@ -158,7 +179,8 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         var filas = page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable")
             .Filter(new LocatorFilterOptions { Has = page.Locator(".ranura-centros-cliente .ventana-contexto") });
-        await Expect(filas).Not.ToHaveCountAsync(0);
+        // La cartera del Gestor CAE tarda en llegar en un runner cargado: 5 s (el plazo por defecto) no bastan.
+        await Expect(filas).Not.ToHaveCountAsync(0, new LocatorAssertionsToHaveCountOptions { Timeout = 20_000 });
         var fila = filas.First;
         var razonSocial = (await fila.Locator(".nombre-abre-vista-rapida").InnerTextAsync()).Trim();
         var titulo = fila.Locator(".ranura-centros-cliente .ventana-contexto-panel .ventana-contexto-titulo");
@@ -182,7 +204,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var panel = page.Locator(".workspace-panel");
 
         await FiltrarPorAsync(page, razonSocial);
-        await EnfocarLaFilaConJAsync(page);
+        await EnfocarLaFilaConJAsync(page, razonSocial);
         await page.Keyboard.PressAsync("Enter");
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
         await Expect(panel.Locator(".workspace-acciones-edicion")).ToHaveCountAsync(0);
@@ -191,7 +213,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
         await Expect(panel).ToHaveCountAsync(0);
         await FiltrarPorAsync(page, razonSocial);
-        await EnfocarLaFilaConJAsync(page);
+        await EnfocarLaFilaConJAsync(page, razonSocial);
         await page.Keyboard.PressAsync("e");
 
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
