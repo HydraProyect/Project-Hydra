@@ -248,6 +248,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Clientes.GuardarPlataformaCaeClienteCommandHandler", "IPlataformaCaeClienteEmpresarialRepository"),
         ("Clientes.ObtenerAccesosPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IEmpresasQueryContext"),
+        // Plataformas CAE de los Centros del Cliente empresarial, para que la caja no diga «sin plataforma» si sus Centros la tienen.
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "ICentrosQueryContext"),
+        ("Clientes.ObtenerPlataformaCaeClienteQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Clientes.RevelarContrasenaAccesoPlataformaCaeQueryHandler", "IEmpresasQueryContext"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "IConfiguracionIaDocumentoClienteRepository"),
         ("Clientes.ReasignarEjecutivoClienteCommandHandler", "INotificacionUsuarioRepository"),

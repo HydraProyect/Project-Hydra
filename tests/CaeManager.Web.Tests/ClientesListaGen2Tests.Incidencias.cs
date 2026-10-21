@@ -156,8 +156,8 @@ public partial class ClientesListaGen2Tests
         var vencida = AlertaDeDocumento("Aptitud médica", "Nora Vidal", EstadoDocumento.Vencido, -12);
         var faltante = AlertaDeFaltante("Formación Art. 19", "Javier Salas", "Planta de Zaragoza");
         var proxima = AlertaDeDocumento("Contrato", "Nora Vidal", EstadoDocumento.Proximo, 25);
-        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima)
-            with { Recuento = new RecuentoAlertasClienteDto(1, 1, 1) };
+        var recuento = new RecuentoAlertasClienteDto(1, 1, 1);
+        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima) with { Recuento = recuento };
         var cut = Renderizar(new MediatorFalso { Almacen = { alfa } });
 
         var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
