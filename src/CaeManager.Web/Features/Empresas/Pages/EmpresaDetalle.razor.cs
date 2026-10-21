@@ -1128,7 +1128,7 @@ public enum FiltroTrabajadores
 /// documento ya combinado). Los grupos parten el total: cada trabajador está en uno solo, en el orden de la lista
 /// ordenada por estado (Vencido, Pendiente, Urgente, Próximo y el resto).
 /// </summary>
-public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes = 0)
+public sealed record RecuentoTrabajadores(int Total, int Vencidos, int Urgentes, int Proximos, int Pendientes)
 {
     public int SinDocumentacionValida => Vencidos + Pendientes;
     public int PorVencer => Urgentes + Proximos;

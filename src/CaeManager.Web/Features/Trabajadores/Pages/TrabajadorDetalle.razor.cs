@@ -471,6 +471,8 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             _tiposGenerales = null;
             _cargandoDocumentos = true;
             _errorDocumentos = false;
+            // Igual con el estado de la cabecera: el de A no puede quedarse bajo los Centros de B.
+            _estadoTrabajador = null;
         }
 
         _cargando = true;

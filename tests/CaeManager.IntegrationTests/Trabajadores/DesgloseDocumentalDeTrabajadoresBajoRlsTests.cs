@@ -153,8 +153,10 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     /// desglose, y el estado de la fila ya llega combinado con ellos: es el mismo estado en el listado, Empresa 360 y
     /// Trabajador 360, pidan o no el desglose.
     /// </summary>
-    [Fact]
-    public async Task Los_tipos_exigidos_por_un_Centro_activo_y_sin_documento_salen_en_la_fila_con_o_sin_desglose()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Los_tipos_exigidos_por_un_Centro_activo_y_sin_documento_salen_en_la_fila_con_o_sin_desglose(bool conRecuentosPorEstado)
     {
         var conDesglose = await HandlerSinCartera().Handle(
             new ObtenerTrabajadoresQuery(null, ConDesgloseDocumental: true, ConRecuentosPorEstado: true), CancellationToken.None);
@@ -164,13 +166,16 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         conDesglose.Elementos.Single(t => t.Id == _nora).DocumentosFaltantes.Should().BeEmpty();
         conDesglose.Elementos.Single(t => t.Id == _ana).DocumentosFaltantes.Should().BeEmpty();
 
+        // Por los dos caminos del handler: con estado completo (filtro, orden o recuentos) y sin él (ConDesgloseAsync).
         var sinDesglose = await HandlerSinCartera().Handle(
-            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
+            new ObtenerTrabajadoresQuery(null, ConRecuentosPorEstado: conRecuentosPorEstado), CancellationToken.None);
         var ikerSinDesglose = sinDesglose.Elementos.Single(t => t.Id == _iker);
         ikerSinDesglose.DocumentosFaltantes.Should().Equal("Contrato de trabajo", "Entrega de EPI", "Formación Art. 19");
         ikerSinDesglose.EstadoDocumental.Should().Be(conDesglose.Elementos.Single(t => t.Id == _iker).EstadoDocumental,
             "el estado de la fila no depende de pedir el desglose");
-        ikerSinDesglose.EstadoDocumental.Should().BeOneOf(EstadoDocumento.Faltante, EstadoDocumento.Vencido);
+        // Iker tiene su aptitud vencida: lo vencido manda sobre lo que falta (la regla entera la fija
+        // CoherenciaDeLaSeveridadDelEstadoTests en el dominio).
+        ikerSinDesglose.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
         sinDesglose.Elementos.Single(t => t.Id == _nora).DocumentosFaltantes.Should().BeEmpty();
     }
 
