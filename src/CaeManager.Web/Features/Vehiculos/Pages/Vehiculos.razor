@@ -104,7 +104,7 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Vehiculos"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
+    @* Franja de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
 
@@ -125,7 +125,7 @@
         @if (_totalElementos > 0 || _cargando)
         {
         @TarjetaListado.Renderizar(@<text>
-                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+                <div>
                 <table class="tabla-datos quickgrid vehiculos-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
                     <thead><tr>
                         @if (_seleccionMultiple)
@@ -188,10 +188,6 @@
 
         </text>, PieDelListado)
         }
-        else
-        {
-            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
-        }
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
             @* Distinto de "aún no hay vehículos": hay cuatro filtros puestos
@@ -219,6 +215,10 @@
                     </Accion>
                 </EstadoVacio>
             </VacioSegunAlcance>
+        }
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
         }
     }
     }

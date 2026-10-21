@@ -260,6 +260,21 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
 
     [Fact]
+    public void Sin_vehiculos_el_vacio_va_antes_que_la_tarjeta_vacia_con_su_pie_y_no_hay_expandir_todo()
+    {
+        var (cut, _) = RenderizarConMediador();
+
+        cut.WaitForAssertion(() =>
+        {
+            cut.FindAll(".estado-vacio").Should().ContainSingle();
+            cut.Find(".estado-vacio").Closest(".tarjeta-listado").Should().BeNull("el estado vacío no vive dentro de la tarjeta");
+            var orden = cut.Markup.IndexOf("estado-vacio", StringComparison.Ordinal) < cut.Markup.IndexOf("tarjeta-listado-pie-separado", StringComparison.Ordinal);
+            orden.Should().BeTrue("el mensaje va primero, como en Subcontratas");
+            cut.FindAll(".barra-herramientas-lista button[data-keytip='E']").Should().BeEmpty();
+        });
+    }
+
+    [Fact]
     public void Es_el_listado_nuevo_con_chips_de_estado_y_pie_en_la_tarjeta()
     {
         var (cut, _) = RenderizarConMediador(vehiculos: [new VehiculoListaDto(Guid.NewGuid(), "Furgoneta 1", "Transit", "1234-ABC", "Montajes Ebro S.L.")]);
@@ -267,7 +282,9 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         cut.FindAll(".contenedor-pagina.lista-design").Should().ContainSingle();
         cut.FindAll(".franja-campo-desplegable").Should().BeEmpty("el estado va en chips, no en un desplegable");
         cut.FindAll(".barra-filtros-pastillas .franja-estado button[data-estado]").Should().NotBeEmpty();
+        cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").GetAttribute("aria-pressed").Should().Be("false");
         cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty("el conmutador vive en la cabecera");
+        cut.FindAll(".barra-herramientas-lista button[data-keytip='E']").Should().ContainSingle();
         cut.FindAll(".tarjeta-listado .tarjeta-listado-pie .paginador-pie-listado").Should().ContainSingle();
     }
 
