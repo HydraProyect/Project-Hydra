@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -714,4 +714,6 @@
   <data name="TotalesSinValidar" xml:space="preserve">
     <value>sin confirmar o sin validar en la plataforma: {0}</value>
   </data>
+  <data name="FechaPlaceholder360" xml:space="preserve"><value>dd/mm/aaaa</value></data>
+  <data name="ConfirmarVigencia360" xml:space="preserve"><value>Vigencia en la plataforma: confirmar o corregir</value></data>
 </root>

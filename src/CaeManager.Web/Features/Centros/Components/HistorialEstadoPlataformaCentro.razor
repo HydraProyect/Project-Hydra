@@ -11,6 +11,7 @@
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosCentros> Textos
+@inject ILogger<HistorialEstadoPlataformaCentro> Logger
 
 @if (_cambios.Count > 0)
 {
@@ -48,9 +49,11 @@
         {
             _cambios = await Mediator.Send(new ObtenerCambiosEstadoPlataformaDeCentroQuery(CentroId));
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Sección complementaria del Historial: si la lectura falla, el resto del Historial sigue a la vista.
+            // Sección complementaria del Historial: si la lectura falla, el resto del Historial sigue a la vista, pero el
+            // fallo queda registrado (un Historial vacío en silencio no se distingue de «sin cambios»).
+            Logger.LogError(ex, "No se pudieron leer los cambios de estado en la plataforma del Centro {CentroId}", CentroId);
             _cambios = [];
         }
     }

@@ -150,6 +150,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.RenovarDocumentoCommandHandler",
         "Documentos.ResolverRevisionIaDocumentoCommandHandler",
         "Documentos.RestaurarAnotacionAcreditacionCommandHandler",
+        "Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler",
+        "Documentos.DeshacerCambioEstadoAcreditacionCommandHandler",
         "Documentos.RestaurarDocumentoCommandHandler",
 
         // Empresas

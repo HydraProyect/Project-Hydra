@@ -89,8 +89,9 @@ public class SituacionDocumentosEnCentrosService(
 {
     // Quién lee el historial de reclamaciones: mismos roles que la pestaña Reclamaciones de Documentos
     // (Documentos.RolesDeGestionDocumental). A Consulta y al Usuario de Cliente esa pestaña les dice «sin permiso»;
-    // la segunda línea de una ficha no puede ser una puerta lateral al mismo dato.
-    private static readonly string[] RolesQueLeenReclamaciones =
+    // la segunda línea de una ficha no puede ser una puerta lateral al mismo dato. Con la misma regla se leen la nota, el
+    // motivo y el Gestor CAE de un cambio de estado anotado a mano en la plataforma (Centro 360, bloque 3 del 21-10).
+    internal static readonly string[] RolesQueLeenReclamaciones =
         ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
     public async Task<SituacionDocumentosEnCentros> CargarAsync(
@@ -125,7 +126,8 @@ public class SituacionDocumentosEnCentrosService(
                 acreditacion.Estado,
                 canal.CentroId,
                 canal.EsPrincipal,
-                canal.ProveedorPlataformaCaeId
+                canal.ProveedorPlataformaCaeId,
+                acreditacion.UltimoCambioEstadoAManoId
             })
             .ToListAsync(cancellationToken);
 
@@ -137,7 +139,9 @@ public class SituacionDocumentosEnCentrosService(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
 
-        var anotaciones = await CargarAnotacionesAsync(crudas.Select(c => (c.Id, c.Estado)).ToList(), cancellationToken);
+        var anotaciones = await CargarAnotacionesAsync(
+            crudas.Where(c => c.UltimoCambioEstadoAManoId is not null).Select(c => c.UltimoCambioEstadoAManoId!.Value).ToList(),
+            cancellationToken);
 
         return crudas
             .Select(c => new
@@ -163,28 +167,26 @@ public class SituacionDocumentosEnCentrosService(
     }
 
     /// <summary>
-    /// El último cambio anotado a mano que sigue en pie por acreditación, solo si describe su estado actual (si otra vía
-    /// lo cambió después, ese texto ya no es de este estado). El nombre del usuario se resuelve con el mismo acotado que
+    /// El cambio anotado a mano que dejó el estado actual de cada acreditación (<c>UltimoCambioEstadoAManoId</c>): si otra
+    /// vía tocó el estado después, o se renovó el Documento, la acreditación ya no lo apunta y no se anota nada, aunque
+    /// el estado haya vuelto a coincidir: ese texto sería de otro estado o de otra versión del documento. El nombre del usuario se resuelve con el mismo acotado que
     /// el resto de nombres: quien no es visible desde el Tenant operado sale sin nombre.
     /// </summary>
     private async Task<Dictionary<Guid, AnotacionEstadoPlataformaDto>> CargarAnotacionesAsync(
-        IReadOnlyList<(Guid Id, Domain.Documentos.EstadoAcreditacion Estado)> acreditaciones, CancellationToken cancellationToken)
+        IReadOnlyList<Guid> cambioIds, CancellationToken cancellationToken)
     {
-        var ids = acreditaciones.Select(a => a.Id).ToList();
-        var cambios = await documentosContext.CambiosEstadoAcreditacionPlataforma
-            .Where(c => ids.Contains(c.AcreditacionId) && c.DeshechoUtc == null)
-            .Select(c => new { c.Id, c.AcreditacionId, c.Estado, c.Fecha, c.Motivo, c.Nota, c.UsuarioId, c.MomentoUtc })
+        if (cambioIds.Count == 0) return [];
+
+        var vigentes = await documentosContext.CambiosEstadoAcreditacionPlataforma
+            .Where(c => cambioIds.Contains(c.Id) && c.DeshechoUtc == null)
+            .Select(c => new { c.Id, c.AcreditacionId, c.Fecha, c.Motivo, c.Nota, c.UsuarioId })
             .ToListAsync(cancellationToken);
-        if (cambios.Count == 0) return [];
+        if (vigentes.Count == 0) return [];
 
-        var estadoActual = acreditaciones.ToDictionary(a => a.Id, a => a.Estado);
-        var vigentes = cambios
-            .GroupBy(c => c.AcreditacionId)
-            .Select(g => g.OrderByDescending(c => c.MomentoUtc).ThenByDescending(c => c.Id).First())
-            .Where(c => estadoActual.GetValueOrDefault(c.AcreditacionId) == c.Estado)
-            .ToList();
-
-        var usuarioIds = vigentes.Where(c => c.UsuarioId is not null).Select(c => c.UsuarioId!.Value).Distinct().ToList();
+        // Fuera de los roles de gestión documental (Consulta, Usuario de Cliente) solo sale la fecha: la nota, el motivo y
+        // quién lo anotó son de gestión, no contenido de portal.
+        var leeDetalle = await currentUserService.ObtenerRolEfectivoAsync() is { } rol && RolesQueLeenReclamaciones.Contains(rol);
+        var usuarioIds = !leeDetalle ? [] : vigentes.Where(c => c.UsuarioId is not null).Select(c => c.UsuarioId!.Value).Distinct().ToList();
         var nombres = usuarioIds.Count == 0 || directorioUsuarios is null
             ? new Dictionary<Guid, string>()
             : await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
@@ -192,8 +194,8 @@ public class SituacionDocumentosEnCentrosService(
         return vigentes.ToDictionary(
             c => c.AcreditacionId,
             c => new AnotacionEstadoPlataformaDto(
-                c.Id, c.Fecha, c.Motivo, c.Nota,
-                c.UsuarioId is { } usuarioId ? nombres.GetValueOrDefault(usuarioId) : null));
+                c.Id, c.Fecha, leeDetalle ? c.Motivo : null, leeDetalle ? c.Nota : null,
+                leeDetalle && c.UsuarioId is { } usuarioId ? nombres.GetValueOrDefault(usuarioId) : null));
     }
 
     private async Task<(Dictionary<Guid, UltimaReclamacionDocumentoDto> PorDocumento,

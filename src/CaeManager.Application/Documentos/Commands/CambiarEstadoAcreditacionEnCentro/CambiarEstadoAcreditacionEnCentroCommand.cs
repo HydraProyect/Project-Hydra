@@ -13,18 +13,25 @@ namespace CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEn
 /// Centro 360 (bloque 3 de la sesión del 21-10): el Gestor CAE sube a mano el documento a la plataforma CAE del Cliente
 /// y anota aquí el estado que ve allí. Lo usan «Marcar subido», «Marcar validado» y el modal «Cambiar». Solo cambia
 /// la acreditación de ese documento en el canal de plataforma de ESE Centro (identidad: Centro, plataforma, titular y
-/// tipo de documento), nunca el Documento ni su vigencia en TALVEG. Devuelve el cambio, que es lo que deshace
-/// <see cref="DeshacerCambioEstadoAcreditacionCommand"/>.
+/// tipo de documento), nunca el Documento ni su vigencia en TALVEG. Devuelve el cambio y la versión de la acreditación
+/// tras guardarlo, que es lo que pide <see cref="DeshacerCambioEstadoAcreditacionCommand"/>.
 /// </summary>
 /// <param name="CentroId">El Centro desde el que se anota: la acreditación tiene que ser de un canal suyo.</param>
 /// <param name="Fecha">El día que dice el Gestor CAE (por defecto, hoy en la pantalla).</param>
 /// <param name="Motivo">Obligatorio con <see cref="EstadoAcreditacion.Rechazada"/>; en otro estado se ignora.</param>
 public record CambiarEstadoAcreditacionEnCentroCommand(
     Guid CentroId, Guid AcreditacionId, EstadoAcreditacion Estado, DateOnly Fecha, string? Motivo, string? Nota)
-    : ICommand<Guid>;
+    : ICommand<CambioEstadoAnotadoDto>;
 
-/// <summary>«Deshacer» del aviso que sigue a «Marcar subido» o «Marcar validado»: devuelve el estado anterior que guardó el cambio.</summary>
-public record DeshacerCambioEstadoAcreditacionCommand(Guid CentroId, Guid AcreditacionId, Guid CambioId) : ICommand;
+/// <summary>El cambio anotado y la versión de la acreditación justo después: lo que el «Deshacer» del aviso tiene que devolver.</summary>
+public record CambioEstadoAnotadoDto(Guid CambioId, Guid Version);
+
+/// <summary>
+/// «Deshacer» del aviso que sigue a «Marcar subido» o «Marcar validado»: devuelve el estado anterior que guardó el cambio.
+/// <paramref name="VersionEsperada"/> es la versión que devolvió el cambio: si la acreditación se tocó después, aunque
+/// haya vuelto al mismo estado (A → B → A), no se deshace (concurrencia optimista, como RestaurarAnotacionAcreditacionCommand).
+/// </summary>
+public record DeshacerCambioEstadoAcreditacionCommand(Guid CentroId, Guid AcreditacionId, Guid CambioId, Guid VersionEsperada) : ICommand;
 
 public class CambiarEstadoAcreditacionEnCentroCommandValidator : AbstractValidator<CambiarEstadoAcreditacionEnCentroCommand>
 {
@@ -51,6 +58,8 @@ public class DeshacerCambioEstadoAcreditacionCommandValidator : AbstractValidato
         RuleFor(c => c.CentroId).NotEmpty();
         RuleFor(c => c.AcreditacionId).NotEmpty();
         RuleFor(c => c.CambioId).NotEmpty();
+        // Guid.Empty en ConcurrenciaOptimista significa «sin comprobación»: aquí no vale.
+        RuleFor(c => c.VersionEsperada).NotEmpty();
     }
 }
 
@@ -95,22 +104,23 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
     ICentrosQueryContext centrosContext, IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
     ICurrentUserService currentUserService, IUnitOfWork unitOfWork)
-    : IRequestHandler<CambiarEstadoAcreditacionEnCentroCommand, Result<Guid>>
+    : IRequestHandler<CambiarEstadoAcreditacionEnCentroCommand, Result<CambioEstadoAnotadoDto>>
 {
-    public async Task<Result<Guid>> Handle(CambiarEstadoAcreditacionEnCentroCommand request, CancellationToken cancellationToken)
+    public async Task<Result<CambioEstadoAnotadoDto>> Handle(CambiarEstadoAcreditacionEnCentroCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionEnCentroGestionable.CargarAsync(
             request.CentroId, request.AcreditacionId, acreditacionRepositorio, documentoRepositorio,
             centrosContext, alcanceDatos, proyectosContext, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo<Guid>(AcreditacionEnCentroGestionable.NoEncontrada);
+            return Result.Fallo<CambioEstadoAnotadoDto>(AcreditacionEnCentroGestionable.NoEncontrada);
 
         var cambio = acreditacion.CambiarEstadoAMano(
             request.Estado, request.Fecha, request.Motivo, request.Nota,
             await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito(cambio.Id);
+        // La versión se lee DESPUÉS de guardar: el interceptor de concurrencia la renueva al escribir.
+        return Result.Exito(new CambioEstadoAnotadoDto(cambio.Id, acreditacion.Version));
     }
 }
 
@@ -129,6 +139,10 @@ public class DeshacerCambioEstadoAcreditacionCommandHandler(
             centrosContext, alcanceDatos, proyectosContext, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(AcreditacionEnCentroGestionable.NoEncontrada);
+
+        if (ConcurrenciaOptimista.Verificar(acreditacion, request.VersionEsperada, "esta acreditación") is not null)
+            return Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto,
+                "No se puede deshacer: el estado cambió después en esta plataforma. Usa «Cambiar» para corregirlo."));
 
         if (!acreditacion.PuedeDeshacerCambioEstado(request.CambioId))
             return Result.Fallo(Error.Crear(CodigoYaNoSePuedeDeshacer,

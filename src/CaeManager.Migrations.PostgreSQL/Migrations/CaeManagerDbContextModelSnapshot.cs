@@ -2162,59 +2162,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("AprobacionesDocumento");
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("AcreditacionId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("DeshechoUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Estado")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("EstadoAnterior")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("EstadoVigenciaAnterior")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("Fecha")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("FechaVencimientoAnterior")
-                        .HasColumnType("date");
-
-                    b.Property<DateTime>("MomentoUtc")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Motivo")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<string>("Nota")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("UsuarioId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AcreditacionId");
-
-                    b.HasIndex("TenantId", "AcreditacionId", "MomentoUtc");
-
-                    b.ToTable("CambiosEstadoAcreditacionPlataforma", (string)null);
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9127,15 +9074,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
-                {
-                    b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
-                        .WithMany("CambiosEstado")
-                        .HasForeignKey("AcreditacionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("CaeManager.Domain.Documentos.Documento", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9904,8 +9842,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
-                    b.Navigation("CambiosEstado");
-
                     b.Navigation("HistorialRechazos");
                 });
 

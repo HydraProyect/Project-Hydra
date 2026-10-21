@@ -70,7 +70,7 @@
             </div>
             <div class="campo-fecha-estado-plataforma">
                 <CampoTexto Etiqueta="@EtiquetaFecha" Valor="@_fecha" ValorChanged="v => { _fecha = v; _errorFecha = null; }"
-                            Placeholder="dd/mm/aaaa" inputmode="numeric" MensajeError="@_errorFecha" data-campo="fecha-estado" />
+                            Placeholder="@Textos["FechaPlaceholder360"]" inputmode="numeric" MensajeError="@_errorFecha" data-campo="fecha-estado" />
             </div>
             @if (_estadoElegido == EstadoAcreditacion.Rechazada)
             {
@@ -80,6 +80,15 @@
             <CampoTexto Etiqueta="@Textos["NotaOpcional360"]" Valor="@_nota" ValorChanged="v => _nota = v"
                         Placeholder="@Textos["NotaPlaceholder360"]" data-campo="nota-estado" />
             <p class="modal-estado-plataforma-pie">@Textos["ModalEstadoPie360"]</p>
+            @* Confirmar la vigencia en la plataforma (lo que hacía «Gestionar» en Centro 360 antes del bloque 3): la columna
+               «Acción» de la maqueta no tiene sitio para ello, y aquí no añade nada a la vista mientras el estado no sea Validado. *@
+            @if (OnConfirmarVigencia.HasDelegate && Acreditacion.Estado == EstadoAcreditacion.Aceptada)
+            {
+                <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+                       data-accion="confirmar-vigencia-plataforma" OnClick="ConfirmarVigenciaAsync">
+                    @Textos["ConfirmarVigencia360"]
+                </Boton>
+            }
         </div>
     </ModalFormulario>
     }
@@ -94,6 +103,12 @@
 
     /// <summary>Tras guardar o deshacer: quien pinta la tabla recarga para recalcular bloqueo, tinte, estado y contadores.</summary>
     [Parameter] public EventCallback OnCambio { get; set; }
+
+    /// <summary>
+    /// Abre el panel que confirma o corrige la vigencia en la plataforma (PanelGestionarAcreditacion). Sale en el modal
+    /// «Cambiar» solo si el documento ya está Validado allí, que es cuando la vigencia tiene sentido.
+    /// </summary>
+    [Parameter] public EventCallback OnConfirmarVigencia { get; set; }
 
     private static readonly EstadoAcreditacion[] EstadosDelModal =
     [
@@ -233,12 +248,12 @@
                 return;
             }
 
-            var cambioId = resultado.Valor;
+            var anotado = resultado.Valor;
             ToastService.Mostrar(
                 Textos["ToastEstadoPlataforma360", DocumentoNombre, TextoEstado(destino).ToLower(CultureInfo.CurrentCulture), Acreditacion.NombrePlataforma],
                 TonoToast.Exito,
                 Textos["ToastDeshacer360"],
-                () => DeshacerAsync(acreditacionId, cambioId));
+                () => DeshacerAsync(acreditacionId, anotado));
             await OnCambio.InvokeAsync();
         }
         finally
@@ -247,9 +262,16 @@
         }
     }
 
-    private async Task DeshacerAsync(Guid acreditacionId, Guid cambioId)
+    private async Task ConfirmarVigenciaAsync()
     {
-        var resultado = await Mediator.Send(new DeshacerCambioEstadoAcreditacionCommand(CentroId, acreditacionId, cambioId));
+        _modalVisible = false;
+        await OnConfirmarVigencia.InvokeAsync();
+    }
+
+    private async Task DeshacerAsync(Guid acreditacionId, CambioEstadoAnotadoDto anotado)
+    {
+        var resultado = await Mediator.Send(new DeshacerCambioEstadoAcreditacionCommand(
+            CentroId, acreditacionId, anotado.CambioId, anotado.Version));
         if (resultado.EsFallido)
         {
             ToastService.MostrarError(resultado.Error);

@@ -375,7 +375,8 @@ else
                                                         {
                                                             <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@CentroNombre"
                                                                                     Acreditacion="acreditacion" DocumentoNombre="@documento.TipoDocumentoNombre"
-                                                                                    TitularNombre="@trabajador.TrabajadorNombre" OnCambio="ManejarDocumentoGuardadoAsync" />
+                                                                                    TitularNombre="@trabajador.TrabajadorNombre" OnCambio="ManejarDocumentoGuardadoAsync"
+                                                                                    OnConfirmarVigencia="() => GestionarAcreditacion(trabajador, documento)" />
                                                         }
                                                     }
                                                 </span>

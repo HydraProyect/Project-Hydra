@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.TiposDocumento;
@@ -26,14 +27,17 @@ public record CambioEstadoPlataformaCentroDto(
 /// <summary>
 /// Mismo alcance que la tabla que los produce: el Centro tiene que ser visible para el usuario y, de cada cambio, solo
 /// sale el de un documento cuyo titular (Trabajador, Empresa o Vehículo) también lo es. Lo que no, no aparece. RLS
-/// acota además al Tenant operado.
+/// acota además al Tenant operado. El alcance se aplica en la consulta, ANTES de cortar en <c>Maximo</c>: si no, 50 cambios
+/// de titulares fuera de cartera dejarían el Historial vacío aunque hubiera otros visibles.
+/// <para>La nota, el motivo y quién lo anotó solo salen a los roles que leen las reclamaciones (mismo criterio que
+/// <c>SituacionDocumentosEnCentrosService</c>): el Usuario de Cliente del portal y Consulta ven el cambio sin ese detalle.</para>
 /// </summary>
 public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposContext, ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext, IVehiculosQueryContext vehiculosContext,
     IProveedoresPlataformaCaeQueryContext proveedoresContext, IAlcanceDatosService alcanceDatos,
-    IDirectorioUsuariosService directorioUsuarios)
+    IDirectorioUsuariosService directorioUsuarios, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerCambiosEstadoPlataformaDeCentroQuery, IReadOnlyList<CambioEstadoPlataformaCentroDto>>
 {
     public async Task<IReadOnlyList<CambioEstadoPlataformaCentroDto>> Handle(
@@ -43,12 +47,22 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
         if (centrosVisibles is not null && !centrosVisibles.Contains(request.CentroId))
             return [];
 
-        var crudos = await (
+        var trabajadoresVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
+        var vehiculosVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
+
+        var visibles = await (
             from cambio in documentosContext.CambiosEstadoAcreditacionPlataforma
             join acreditacion in documentosContext.AcreditacionesDocumentoPlataforma on cambio.AcreditacionId equals acreditacion.Id
             join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
             join documento in documentosContext.Documentos on acreditacion.DocumentoId equals documento.Id
             where canal.CentroId == request.CentroId
+                && ((documento.TrabajadorId != null
+                        && (trabajadoresVisibles == null || trabajadoresVisibles.Contains(documento.TrabajadorId!.Value)))
+                    || (documento.EmpresaId != null
+                        && (empresasVisibles == null || empresasVisibles.Contains(documento.EmpresaId!.Value)))
+                    || (documento.VehiculoId != null
+                        && (vehiculosVisibles == null || vehiculosVisibles.Contains(documento.VehiculoId!.Value))))
             orderby cambio.MomentoUtc descending
             select new
             {
@@ -58,16 +72,10 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
             })
             .Take(Math.Clamp(request.Maximo, 1, 200))
             .ToListAsync(cancellationToken);
-        if (crudos.Count == 0) return [];
-
-        var trabajadoresVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var vehiculosVisibles = await alcanceDatos.ObtenerVehiculoIdsVisiblesAsync(cancellationToken);
-        static bool Visible(Guid? id, IReadOnlyList<Guid>? visibles) => id is { } valor && (visibles is null || visibles.Contains(valor));
-        var visibles = crudos.Where(c =>
-            Visible(c.TrabajadorId, trabajadoresVisibles) || Visible(c.EmpresaId, empresasVisibles) || Visible(c.VehiculoId, vehiculosVisibles))
-            .ToList();
         if (visibles.Count == 0) return [];
+
+        var leeDetalle = await currentUserService.ObtenerRolEfectivoAsync() is { } rol
+            && SituacionDocumentosEnCentrosService.RolesQueLeenReclamaciones.Contains(rol);
 
         var tipoIds = visibles.Select(c => c.TipoDocumentoId).Distinct().ToList();
         var tipos = await tiposContext.TiposDocumento.Where(t => tipoIds.Contains(t.Id))
@@ -85,7 +93,7 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
         var proveedorIds = visibles.Where(c => c.ProveedorPlataformaCaeId is not null).Select(c => c.ProveedorPlataformaCaeId!.Value).Distinct().ToList();
         var proveedores = await proveedoresContext.ProveedoresPlataformaCae.Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
-        var usuarioIds = visibles.Where(c => c.UsuarioId is not null).Select(c => c.UsuarioId!.Value).Distinct().ToList();
+        var usuarioIds = !leeDetalle ? [] : visibles.Where(c => c.UsuarioId is not null).Select(c => c.UsuarioId!.Value).Distinct().ToList();
         var nombres = usuarioIds.Count == 0
             ? new Dictionary<Guid, string>()
             : await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
@@ -97,8 +105,8 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
                 : c.EmpresaId is { } e ? empresas.GetValueOrDefault(e)
                 : c.VehiculoId is { } v ? vehiculos.GetValueOrDefault(v) : null,
             c.ProveedorPlataformaCaeId is { } p ? proveedores.GetValueOrDefault(p, "Plataforma") : "Plataforma",
-            c.EstadoAnterior, c.Estado, c.Fecha, c.Motivo, c.Nota,
-            c.UsuarioId is { } u ? nombres.GetValueOrDefault(u) : null,
+            c.EstadoAnterior, c.Estado, c.Fecha, leeDetalle ? c.Motivo : null, leeDetalle ? c.Nota : null,
+            leeDetalle && c.UsuarioId is { } u ? nombres.GetValueOrDefault(u) : null,
             c.DeshechoUtc is not null)).ToList();
     }
 }
