@@ -10,10 +10,10 @@
     gap: var(--space-3);
     padding: var(--space-3) var(--space-4);
     border-radius: var(--radius-md);
-    background-color: var(--color-surface-hover);
+    background-color: var(--color-surface-subtle);
     color: var(--color-text);
     font: var(--font-body-md);
-    box-shadow: inset 3px 0 0 var(--color-primary-500);
+    box-shadow: inset 3px 0 0 var(--color-boton, var(--color-primary-500));
 }
 
 .plan-borrador {
@@ -25,8 +25,13 @@
 }
 
 .plan-cerrado {
-    box-shadow: none;
     gap: var(--space-1);
+}
+
+/* Vega (marco-talveg.js): azul mientras está pendiente o confirmado, gris cuando está anulado. */
+.plan-anulado {
+    box-shadow: inset 3px 0 0 var(--color-border-strong);
+    opacity: 0.75;
 }
 
 .plan:focus-visible {

@@ -77,6 +77,9 @@ public static class CoberturaDePaleta
         ("Ir a Mi trabajo", "/bandeja"),
         (TextosBusquedaGlobal.Texto("IrAMiTrabajoDeLaCartera"), "/mi-trabajo"),
 
+        // Pantalla completa de Vega, el asistente IA (marco-talveg.js, 2026-10-21).
+        ("Ir a Vega", "/asistente"),
+
         // HO-190-01 (REC-190, DEC-75) — las once de "destinos de trabajo".
         ("Ir a Alertas", "/alertas"),
         ("Ir a Cuadro de dirección", "/direccion"),

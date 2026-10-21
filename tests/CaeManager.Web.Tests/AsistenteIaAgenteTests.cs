@@ -6,6 +6,7 @@ using CaeManager.Application.AsistenteIa.Queries.ProponerPlan;
 using CaeManager.Application.AsistenteIa.Tareas.Commands;
 using CaeManager.Application.AsistenteIa.Tareas.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.AsistenteIa;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.AsistenteIa;
@@ -74,6 +75,8 @@ public class AsistenteIaAgenteTests : BunitContext
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
+        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba(TenantA));
+        AddAuthorization().SetAuthorized("laura.perez@consultora.es");
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -114,7 +117,13 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.Guion[typeof(ObtenerTareaAsistenteQuery)] = _ => Result.Exito(Tarea());
         _mediador.Guion[typeof(ConfirmarPlanTareaAsistenteCommand)] = _ => Result.Exito();
         _mediador.Guion[typeof(DescartarTareaAsistenteCommand)] = _ => Result.Exito();
+        GuionDeEmpresa();
     }
+
+    /// <summary>La Empresa gestionada que enseña el selector del menú: la pastilla «Trabajando en».</summary>
+    private void GuionDeEmpresa() =>
+        _mediador.Guion[typeof(ObtenerClientesAutorizadosQuery)] = _ => (IReadOnlyList<ClienteAutorizadoDto>)
+            [new ClienteAutorizadoDto(TenantA, "Hotel Mirador", EsOrigen: false, EsGestionadoPorOperacion: true), new ClienteAutorizadoDto(TenantB, "Industrias Norte", EsOrigen: true)];
 
     private IRenderedComponent<AsistenteIa> Abrir()
     {
@@ -141,7 +150,7 @@ public class AsistenteIaAgenteTests : BunitContext
         panel.Find(".asistente-nota").TextContent.Should().Be("Pedir gestiones al asistente no está disponible en este entorno.");
         panel.FindAll(".asistente-modos").Should().BeEmpty("sin agente no hay nada entre lo que elegir");
         panel.FindAll("button[aria-label='Borradores y conversaciones anteriores']").Should().BeEmpty();
-        panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Pregunta al asistente");
+        panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Mensaje para Vega");
     }
 
     [Fact]
@@ -154,7 +163,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Enviar(panel, "¿Qué es un plan de seguridad?");
 
         panel.Find(".asistente-mensaje-markdown").TextContent.Should().Contain("Respuesta normativa.");
-        _mediador.Recibidos.Should().ContainSingle().Which.Should().BeOfType<PreguntarAlAsistenteQuery>(
+        _mediador.Recibidos.Where(r => r is not ObtenerClientesAutorizadosQuery).Should().ContainSingle().Which.Should().BeOfType<PreguntarAlAsistenteQuery>(
             "con TypeSafe apagado no se crea ninguna Tarea ni se pide ningún plan");
     }
 
@@ -346,7 +355,8 @@ public class AsistenteIaAgenteTests : BunitContext
         var panel = Abrir();
         Enviar(panel, "qué tiempo hace");
 
-        panel.Find("[role=status]").TextContent.Should().Contain("No he reconocido una gestión");
+        panel.Find(".asistente-mensaje-aviso[role=status]").TextContent.Should().Be(
+            "No tengo una respuesta segura para eso en Hotel Mirador. Prueba a decirlo de otra forma o búscalo con Ctrl+K.");
         panel.FindAll(".plan").Should().BeEmpty();
         _mediador.De<DescartarTareaAsistenteCommand>().Should().ContainSingle();
     }
@@ -381,9 +391,138 @@ public class AsistenteIaAgenteTests : BunitContext
         var panel = Abrir();
         Enviar(panel, "reclama");
 
-        panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Gestión que quieres pedir al asistente");
+        panel.Find("textarea.asistente-textarea").GetAttribute("aria-label").Should().Be("Mensaje para Vega");
         foreach (var boton in panel.FindAll("button"))
             (boton.GetAttribute("aria-label") ?? boton.TextContent).Trim().Should().NotBeEmpty($"botón {boton.OuterHtml}");
         panel.FindAll(".plan-tenants[aria-label]").Should().NotBeEmpty();
+    }
+
+    // ---- Vega: panel, atajos, modos y contexto -------------------------------------------
+
+    [Fact]
+    public void El_panel_es_complementario_y_no_modal()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeEmpresa();
+
+        var panel = Abrir();
+
+        var aside = panel.Find("aside.vega-panel");
+        aside.GetAttribute("role").Should().Be("complementary");
+        aside.HasAttribute("aria-modal").Should().BeFalse("Vega acompaña a la pantalla, no la bloquea");
+        aside.GetAttribute("aria-labelledby").Should().Be("vega-titulo");
+        panel.FindAll("[role=dialog]").Should().BeEmpty();
+        panel.FindAll(".asistente-superposicion").Should().BeEmpty("sin velo: el contenido sigue usable");
+    }
+
+    [Fact]
+    public void Ctrl_I_abre_y_pliega_Vega_y_al_plegar_el_foco_vuelve_al_boton()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeEmpresa();
+        var panel = Render<AsistenteIa>();
+        panel.FindAll("aside.vega-panel").Should().BeEmpty("Vega empieza plegado");
+
+        panel.InvokeAsync(() => panel.Instance.AlternarDesdeJs());
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().ContainSingle());
+        JSInterop.VerifyInvoke("marcarAbierto");
+
+        panel.InvokeAsync(() => panel.Instance.AlternarDesdeJs());
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().BeEmpty());
+        JSInterop.VerifyInvoke("enfocarBoton");
+    }
+
+    [Fact]
+    public void Ctrl_I_queda_registrado_como_atajo_global()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+
+        Render<AsistenteIa>();
+
+        JSInterop.VerifyInvoke("registrarAtajo");
+    }
+
+    [Fact]
+    public void Esc_dentro_del_panel_pliega_Vega()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeEmpresa();
+        var panel = Abrir();
+
+        panel.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().BeEmpty());
+        Services.GetRequiredService<AsistenteIaService>().Abierto.Should().BeFalse();
+        JSInterop.VerifyInvoke("enfocarBoton");
+    }
+
+    [Fact]
+    public void En_la_pantalla_completa_Esc_y_Ctrl_I_no_pliegan_nada()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeEmpresa();
+
+        var pantalla = Render<AsistenteIa>(p => p.Add(c => c.PantallaCompleta, true));
+        pantalla.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+        pantalla.InvokeAsync(() => pantalla.Instance.AlternarDesdeJs());
+
+        pantalla.FindAll("aside.vega-panel").Should().ContainSingle();
+        pantalla.Find("aside.vega-panel").HasAttribute("data-vega-pantalla").Should().BeTrue();
+        pantalla.FindAll(".vega-plegar, .vega-pantalla-completa").Should().BeEmpty();
+        pantalla.Find(".vega-pista-campo").TextContent.Should().Be("Enter envía · Mayús+Enter nueva línea");
+    }
+
+    [Fact]
+    public void Cada_respuesta_lleva_la_etiqueta_de_su_modo_con_su_explicacion()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("La formación del art. 19.");
+        var panel = Abrir();
+
+        Enviar(panel, "reclama la documentación a Montajes Ebro");
+        panel.FindAll(".asistente-modo")[1].Click();
+        Enviar(panel, "¿Qué formación hace falta?");
+
+        var modos = panel.FindAll(".vega-a .vega-modo");
+        modos.Should().HaveCount(2);
+        modos[0].TextContent.Trim().Should().Be("Operativo");
+        modos[0].GetAttribute("data-tooltip").Should().Be("Prepara un plan con los pasos. No se ejecuta hasta que pulsas Confirmar.");
+        modos[1].TextContent.Trim().Should().Be("Consulta PRL");
+        modos[1].GetAttribute("data-tooltip").Should().Be("Responde sobre normativa de prevención. No usa datos de ninguna Empresa.");
+        modos[1].GetAttribute("tabindex").Should().Be("0", "el tooltip también se alcanza con el teclado");
+    }
+
+    [Fact]
+    public void La_pastilla_Trabajando_en_muestra_la_Empresa_gestionada_actual()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeEmpresa();
+
+        var panel = Abrir();
+
+        panel.WaitForAssertion(() => panel.Find(".vega-contexto").TextContent.Should().Contain("Trabajando en"));
+        var chip = panel.Find(".vega-chip");
+        chip.TextContent.Should().Contain("Hotel Mirador").And.Contain("HM");
+        chip.GetAttribute("data-tooltip").Should().Be("Vega solo usa los datos de Hotel Mirador");
+    }
+
+    [Fact]
+    public void Nueva_conversacion_vacia_el_hilo_y_la_conversacion_sobrevive_a_volver_a_montar_el_panel()
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta normativa.");
+        var panel = Abrir();
+        Enviar(panel, "¿Qué es un plan de seguridad?");
+        panel.FindAll(".vega-u").Should().ContainSingle();
+
+        // Otra pantalla del mismo circuito: el hilo vive en AsistenteIaService, no en el componente.
+        var otra = Render<AsistenteIa>(p => p.Add(c => c.PantallaCompleta, true));
+        otra.WaitForAssertion(() => otra.FindAll(".vega-u").Should().ContainSingle());
+
+        otra.Find(".vega-nueva").Click();
+        otra.FindAll(".vega-u").Should().BeEmpty();
+        otra.FindAll(".vega-bienvenida").Should().ContainSingle();
     }
 }

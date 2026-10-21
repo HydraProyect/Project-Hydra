@@ -78,6 +78,10 @@ public static class AdmisionDeDestinos
         // Páginas personales: las abre cualquier cuenta con sesión, sea cual sea su rol.
         ["mi-avatar"] = new(SoloAutenticado: true),
         ["mi-firma"] = new(SoloAutenticado: true),
+
+        // Vega a pantalla completa: la misma puerta que el botón flotante (cualquier cuenta con
+        // sesión). Lo que cada uno puede pedirle lo deciden los Commands, no la pantalla.
+        ["asistente"] = new(SoloAutenticado: true),
     };
 
     /// <summary>

@@ -1,0 +1,26 @@
+@page "/asistente"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@using CaeManager.Application.Common
+@using CaeManager.Web.Features.AsistenteIa.Recursos
+@using Microsoft.Extensions.Localization
+@inject DisponibilidadAsistente Disponibilidad
+@inject IStringLocalizer<TextosAsistenteIa> Textos
+
+@* Pantalla completa de Vega («Asistente TALVEG.dc.html», 2026-10-21): la misma conversación
+   que el panel flotante (AsistenteIaService vive en el circuito), sin botón flotante, sin
+   Plegar y sin Ctrl+I. Lo que cada persona puede pedir lo deciden los Commands, no esta
+   pantalla: aquí no hay autorización nueva. *@
+<LimiteDeErrores Pagina="this">
+    <PageTitle>@Vega.Nombre — @Marca.Nombre</PageTitle>
+
+    @if (Disponibilidad.Alguna)
+    {
+        <AsistenteIa PantallaCompleta="true" />
+    }
+    else
+    {
+        <p class="asistente-nota" role="note">@Textos["AgenteNoDisponible"]</p>
+    }
+</LimiteDeErrores>

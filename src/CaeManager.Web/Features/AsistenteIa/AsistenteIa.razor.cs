@@ -6,17 +6,27 @@ using CaeManager.Application.AsistenteIa.Tareas;
 using CaeManager.Application.AsistenteIa.Tareas.Commands;
 using CaeManager.Application.AsistenteIa.Tareas.Queries;
 using CaeManager.Application.Common;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Common;
 using CaeManager.Web.Features.AsistenteIa.Recursos;
 using FluentValidation;
 using Markdig;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Routing;
+using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.Localization;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.AsistenteIa;
 
-/// <summary>Qué hace el asistente con lo que se escribe: contestar una duda normativa o proponer una gestión.</summary>
+/// <summary>
+/// Qué hace Vega con lo que se escribe. Hoy hay dos caminos en el backend: el modo Operativo
+/// (<see cref="Gestion"/>: el agente propone un plan) y la Consulta PRL (<see cref="Preguntar"/>:
+/// normativa, sin datos de ninguna Empresa). El modo Soporte de la maqueta (leer datos de la
+/// Empresa gestionada) y el clasificador que elige el modo solo no existen todavía: la persona
+/// elige el modo.
+/// </summary>
 public enum ModoAsistente
 {
     Preguntar,
@@ -31,7 +41,8 @@ public enum TipoEntradaHilo
     Plan,
 }
 
-public sealed record EntradaHilo(TipoEntradaHilo Tipo, string Texto, VistaPlanAsistente? Plan = null);
+/// <summary>Una entrada del hilo. <see cref="Modo"/> es el modo que respondió (la etiqueta de cada respuesta de Vega).</summary>
+public sealed record EntradaHilo(TipoEntradaHilo Tipo, string Texto, VistaPlanAsistente? Plan = null, ModoAsistente? Modo = null);
 
 public partial class AsistenteIa : IDisposable
 {
@@ -54,8 +65,16 @@ public partial class AsistenteIa : IDisposable
     [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
     [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
+    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+    [Inject] private NavigationManager NavigationManager { get; set; } = default!;
+    [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
-    private bool _visible;
+    /// <summary>
+    /// true en /asistente: Vega es el contenido de la pantalla, siempre visible, sin
+    /// Plegar ni Pantalla completa, y sin el atajo Ctrl+I.
+    /// </summary>
+    [Parameter] public bool PantallaCompleta { get; set; }
+
     private string _pregunta = string.Empty;
 
     /// <summary>
@@ -72,37 +91,205 @@ public partial class AsistenteIa : IDisposable
     private bool _enviando;
     private string? _mensajeError;
 
-    /// <summary>Lo que se le manda al modelo de consultas (solo el modo Preguntar): sin planes ni avisos.</summary>
-    private readonly List<MensajeChatDto> _historial = [];
-
-    /// <summary>Lo que ve la persona: mensajes, avisos y planes, en orden.</summary>
-    private readonly List<EntradaHilo> _hilo = [];
-
     private ModoAsistente? _modoElegido;
     private bool _verBorradores;
     private IReadOnlyList<ResumenTareaAsistenteDto>? _borradores;
 
-    /// <summary>
-    /// Mismo guardia que Drawer.razor: true solo si el mousedown que originó
-    /// el clic en curso empezó en la superposición (no en el panel), para no
-    /// cerrar el panel cuando el usuario selecciona texto de una respuesta y
-    /// suelta el clic fuera del panel.
-    /// </summary>
-    private bool _mouseDownEnSuperposicion;
+    /// <summary>La Empresa gestionada con la que trabaja la persona: la pastilla «Trabajando en».</summary>
+    private ClienteAutorizadoDto? _empresa;
+    private bool _empresaCargada;
 
-    protected override void OnInitialized() => AsistenteIaService.SolicitudAbrir += Abrir;
+    private bool _enRutaPantallaCompleta;
+    private bool _abiertoReflejado;
+    private AccionTrasRender _accionPendiente;
+    private ElementReference _campo;
+    private string? _campoPreparado;
 
-    private void Abrir()
+    private IJSObjectReference? _modulo;
+    private IJSObjectReference? _suscripcionAtajo;
+    private IJSObjectReference? _campoJs;
+    private DotNetObjectReference<AsistenteIa>? _referenciaDotNet;
+    private bool _desechado;
+
+    private enum AccionTrasRender
     {
-        _visible = true;
-        StateHasChanged();
+        Ninguna,
+        MarcarAbiertoSinFoco,
+        MarcarAbiertoYEnfocarCampo,
+        MarcarPlegadoYEnfocarBoton,
     }
 
-    private void Cerrar() => _visible = false;
+    private List<EntradaHilo> Hilo => AsistenteIaService.Hilo;
 
-    private void ManejarClicSuperposicion()
+    private bool Visible => PantallaCompleta || (AsistenteIaService.Abierto && !_enRutaPantallaCompleta);
+
+    protected override void OnInitialized()
     {
-        if (_mouseDownEnSuperposicion) Cerrar();
+        _enRutaPantallaCompleta = Vega.EsPantallaCompleta(NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
+        _abiertoReflejado = AsistenteIaService.Abierto;
+        AsistenteIaService.Cambio += AlCambiarVega;
+        NavigationManager.LocationChanged += AlCambiarDeRuta;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (PantallaCompleta)
+            await CargarEmpresaAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_desechado) return;
+
+        if (firstRender)
+        {
+            _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/vega.js");
+            if (!PantallaCompleta)
+            {
+                _referenciaDotNet = DotNetObjectReference.Create(this);
+                _suscripcionAtajo = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajo", _referenciaDotNet);
+
+                // Abierto o plegado se recuerda por pestaña: si esta pestaña lo dejó abierto,
+                // se vuelve a abrir sin robar el foco a la pantalla que se acaba de cargar.
+                if (!_enRutaPantallaCompleta && await _modulo.InvokeAsync<bool>("estaAbierto"))
+                {
+                    _accionPendiente = AccionTrasRender.MarcarAbiertoSinFoco;
+                    AsistenteIaService.Abrir();
+                }
+                else if (_enRutaPantallaCompleta)
+                {
+                    await _modulo.InvokeVoidAsync("marcarAbierto", false);
+                }
+            }
+        }
+
+        if (_modulo is null) return;
+
+        await PrepararCampoAsync();
+
+        var accion = _accionPendiente;
+        _accionPendiente = AccionTrasRender.Ninguna;
+        switch (accion)
+        {
+            case AccionTrasRender.MarcarAbiertoSinFoco:
+                await _modulo.InvokeVoidAsync("marcarAbierto", true);
+                break;
+            case AccionTrasRender.MarcarAbiertoYEnfocarCampo:
+                await _modulo.InvokeVoidAsync("marcarAbierto", true);
+                await _modulo.InvokeVoidAsync("enfocar", _campo);
+                break;
+            case AccionTrasRender.MarcarPlegadoYEnfocarBoton:
+                await _modulo.InvokeVoidAsync("marcarAbierto", false);
+                await _modulo.InvokeVoidAsync("enfocarBoton");
+                break;
+        }
+    }
+
+    /// <summary>El textarea crece hasta 120 px y Enter no añade línea (vega.js). Se prepara cada vez que aparece uno nuevo.</summary>
+    private async Task PrepararCampoAsync()
+    {
+        if (_modulo is null || !Visible || _verBorradores || string.IsNullOrEmpty(_campo.Id) || _campo.Id == _campoPreparado)
+            return;
+
+        _campoPreparado = _campo.Id;
+        if (_campoJs is not null)
+            await _campoJs.InvokeVoidAsync("dispose");
+        _campoJs = await _modulo.InvokeAsync<IJSObjectReference>("prepararCampo", _campo);
+    }
+
+    /// <summary>Ctrl/Cmd+I con el foco en cualquier parte (vega.js): abre o pliega Vega.</summary>
+    [JSInvokable]
+    public Task AlternarDesdeJs()
+    {
+        if (!PantallaCompleta && !_enRutaPantallaCompleta)
+            AsistenteIaService.Alternar();
+        return Task.CompletedTask;
+    }
+
+    private void AlCambiarVega()
+    {
+        if (_desechado || PantallaCompleta)
+        {
+            _ = InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            var abierto = AsistenteIaService.Abierto;
+            if (abierto != _abiertoReflejado)
+            {
+                _abiertoReflejado = abierto;
+                if (_accionPendiente != AccionTrasRender.MarcarAbiertoSinFoco)
+                    _accionPendiente = abierto ? AccionTrasRender.MarcarAbiertoYEnfocarCampo : AccionTrasRender.MarcarPlegadoYEnfocarBoton;
+                StateHasChanged();
+                if (abierto && !_empresaCargada)
+                {
+                    await CargarEmpresaAsync();
+                    StateHasChanged();
+                }
+                return;
+            }
+            StateHasChanged();
+        });
+    }
+
+    private void AlCambiarDeRuta(object? sender, LocationChangedEventArgs e)
+    {
+        var enPantalla = Vega.EsPantallaCompleta(NavigationManager.ToBaseRelativePath(e.Location));
+        if (enPantalla == _enRutaPantallaCompleta) return;
+        _ = InvokeAsync(async () =>
+        {
+            _enRutaPantallaCompleta = enPantalla;
+            // En la pantalla completa no hay panel: el contenido no se estrecha por él.
+            if (enPantalla && _modulo is not null)
+                await _modulo.InvokeVoidAsync("marcarAbierto", false);
+            else if (!enPantalla && AsistenteIaService.Abierto)
+                _accionPendiente = AccionTrasRender.MarcarAbiertoSinFoco;
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// La Empresa gestionada actual, la misma que enseña el selector del menú. Cambiar de
+    /// Empresa es un POST con recarga completa, así que basta leerla al abrir. Si el
+    /// circuito habló en otro Tenant, ese hilo no se enseña aquí.
+    /// </summary>
+    private async Task CargarEmpresaAsync()
+    {
+        if (_empresaCargada) return;
+        _empresaCargada = true;
+
+        try
+        {
+            var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
+            _empresa = ClientesAutorizados.Activo(autorizados, ClienteActivoSeleccionado.TenantIdSeleccionado);
+        }
+        catch (Exception excepcion) when (excepcion is not OperationCanceledException)
+        {
+            // La pastilla solo informa: sin ella Vega sigue funcionando, y cada consulta y
+            // cada escritura resuelven el Tenant por su cuenta (nunca desde esta coordenada).
+            _empresa = null;
+        }
+        AsistenteIaService.AsegurarTenant(_empresa?.TenantId ?? ClienteActivoSeleccionado.TenantIdSeleccionado);
+    }
+
+    private void Plegar() => AsistenteIaService.Plegar();
+
+    private void NuevaConversacion()
+    {
+        _mensajeError = null;
+        _verBorradores = false;
+        AsistenteIaService.NuevaConversacion();
+        _accionPendiente = AccionTrasRender.Ninguna;
+    }
+
+    /// <summary>Esc pliega Vega si el foco está dentro del panel (no en la pantalla completa).</summary>
+    private Task ManejarTeclaPanelAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape" && !PantallaCompleta)
+            AsistenteIaService.Plegar();
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -117,17 +304,32 @@ public partial class AsistenteIa : IDisposable
 
     private bool EnModoGestion => Modo == ModoAsistente.Gestion;
 
-    private string TituloPanel => Disponibilidad.AgenteDisponible
-        ? Textos["TituloAgente", Marca.Nombre]
-        : Textos["Titulo", Marca.Nombre];
+    /// <summary>Los modos con backend en este entorno, en el orden de la bienvenida: un ejemplo por modo.</summary>
+    private IEnumerable<ModoAsistente> ModosDisponibles =>
+        new[] { ModoAsistente.Gestion, ModoAsistente.Preguntar }.Where(ModoPermitido);
 
-    private string TextoDescripcion => EnModoGestion ? Textos["DescripcionGestion"] : Textos["Descripcion"];
+    private string NombreModo(ModoAsistente modo) => Textos[$"Modo_{ClaveModo(modo)}"];
 
-    private string TextoMensajeVacio => EnModoGestion ? Textos["MensajeVacioGestion"] : Textos["MensajeVacio"];
+    private string TooltipModo(ModoAsistente modo) => Textos[$"ModoTooltip_{ClaveModo(modo)}"];
 
-    private string EtiquetaEntrada => EnModoGestion ? Textos["EtiquetaOrden"] : Textos["EtiquetaPregunta"];
+    private string ResumenModo(ModoAsistente modo) => Textos[$"ModoResumen_{ClaveModo(modo)}"];
 
-    private string PlaceholderEntrada => EnModoGestion ? Textos["PlaceholderOrden"] : Textos["PlaceholderPregunta"];
+    private string EjemploModo(ModoAsistente modo) => Textos[$"Ejemplo_{ClaveModo(modo)}"];
+
+    private static string IconoModo(ModoAsistente modo) => modo == ModoAsistente.Gestion ? "pulso" : "roles";
+
+    private static string ClaveModo(ModoAsistente modo) => modo == ModoAsistente.Gestion ? "Operativo" : "ConsultaPrl";
+
+    /// <summary>Iniciales de la Empresa para la pastilla: las dos primeras palabras con letra.</summary>
+    private static string Iniciales(string nombre) =>
+        string.Concat(nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(p => char.IsLetter(p[0]))
+            .Take(2)
+            .Select(p => char.ToUpperInvariant(p[0])));
+
+    private string TextoSinRespuestaSegura => _empresa is { } empresa
+        ? Textos["SinRespuestaSegura", empresa.Nombre]
+        : Textos["SinRespuestaSeguraSinEmpresa"];
 
     /// <summary>
     /// Día de negocio (Europe/Madrid) de la última actualización, con el formato único
@@ -146,17 +348,26 @@ public partial class AsistenteIa : IDisposable
         _mensajeError = null;
     }
 
+    private async Task EnviarEjemploAsync(ModoAsistente modo)
+    {
+        CambiarModo(modo);
+        _pregunta = EjemploModo(modo);
+        await EnviarAsync();
+    }
+
     private async Task EnviarAsync()
     {
         var texto = _pregunta.Trim();
         if (texto.Length == 0 || _enviando) return;
 
         _mensajeError = null;
-        _hilo.Add(new EntradaHilo(TipoEntradaHilo.Usuario, texto));
+        Hilo.Add(new EntradaHilo(TipoEntradaHilo.Usuario, texto));
         _pregunta = string.Empty;
         _valorMostrado = string.Empty;
         _enviando = true;
         StateHasChanged();
+        if (_modulo is not null)
+            await _modulo.InvokeVoidAsync("reajustarCampo", _campo);
 
         try
         {
@@ -177,14 +388,15 @@ public partial class AsistenteIa : IDisposable
 
     private async Task EnviarPreguntaAsync(string texto)
     {
-        _historial.Add(new MensajeChatDto(RolMensajeChat.Usuario, texto));
+        var historial = AsistenteIaService.Historial;
+        historial.Add(new MensajeChatDto(RolMensajeChat.Usuario, texto));
 
-        var resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(_historial.ToList()));
+        var resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(historial.ToList()));
 
         if (resultado.EsExitoso)
         {
-            _historial.Add(new MensajeChatDto(RolMensajeChat.Asistente, resultado.Valor));
-            _hilo.Add(new EntradaHilo(TipoEntradaHilo.Asistente, resultado.Valor));
+            historial.Add(new MensajeChatDto(RolMensajeChat.Asistente, resultado.Valor));
+            Hilo.Add(new EntradaHilo(TipoEntradaHilo.Asistente, resultado.Valor, Modo: ModoAsistente.Preguntar));
         }
         else
         {
@@ -224,7 +436,7 @@ public partial class AsistenteIa : IDisposable
         if (propuesta.Valor.Situacion != SituacionPlan.Propuesto)
         {
             await Mediator.Send(new DescartarTareaAsistenteCommand(tareaId));
-            _hilo.Add(new EntradaHilo(TipoEntradaHilo.Aviso, Textos["OrdenNoEntendida"]));
+            Hilo.Add(new EntradaHilo(TipoEntradaHilo.Aviso, TextoSinRespuestaSegura, Modo: ModoAsistente.Gestion));
             return;
         }
 
@@ -240,7 +452,7 @@ public partial class AsistenteIa : IDisposable
         }
 
         await GuardarPlanAsync(vista);
-        _hilo.Add(new EntradaHilo(TipoEntradaHilo.Plan, texto, vista));
+        Hilo.Add(new EntradaHilo(TipoEntradaHilo.Plan, texto, vista, ModoAsistente.Gestion));
     }
 
     /// <summary>Guarda (o sustituye) el plan en la Tarea y lee la versión que la persona tiene delante.</summary>
@@ -348,7 +560,7 @@ public partial class AsistenteIa : IDisposable
 
         // Con la caja vacía, Enter confirma el plan que espera al final del hilo.
         if (_pregunta.Trim().Length == 0
-            && _hilo.LastOrDefault() is { Tipo: TipoEntradaHilo.Plan, Plan: { } pendiente }
+            && Hilo.LastOrDefault() is { Tipo: TipoEntradaHilo.Plan, Plan: { } pendiente }
             && pendiente.PuedeConfirmar)
         {
             await ConfirmarAsync(pendiente);
@@ -398,5 +610,26 @@ public partial class AsistenteIa : IDisposable
     private MarkupString RenderizarMarkdown(string texto) =>
         new(Sanitizador.Sanear(Markdown.ToHtml(texto, PipelineMarkdown)));
 
-    public void Dispose() => AsistenteIaService.SolicitudAbrir -= Abrir;
+    public void Dispose()
+    {
+        _desechado = true;
+        AsistenteIaService.Cambio -= AlCambiarVega;
+        NavigationManager.LocationChanged -= AlCambiarDeRuta;
+        _ = DesecharJsAsync();
+    }
+
+    private async Task DesecharJsAsync()
+    {
+        try
+        {
+            if (_suscripcionAtajo is not null) await _suscripcionAtajo.InvokeVoidAsync("dispose");
+            if (_campoJs is not null) await _campoJs.InvokeVoidAsync("dispose");
+            if (_modulo is not null) await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuito cerrado: el navegador ya soltó los manejadores.
+        }
+        _referenciaDotNet?.Dispose();
+    }
 }

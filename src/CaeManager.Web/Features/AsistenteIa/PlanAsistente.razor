@@ -108,7 +108,7 @@
         }
 
         <div class="plan-acciones">
-            <button type="button" class="plan-confirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown:stopPropagation="true">
+            <button type="button" class="plan-confirmar" @ref="_botonConfirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown:stopPropagation="true">
                 @TextoBotonConfirmar<span class="plan-kbd" aria-hidden="true">@Textos["Plan_TeclaEnter"]</span>
             </button>
             <button type="button" class="plan-descartar" disabled="@(Ocupado || Vista.TareaId is null)" @onclick="DescartarAsync" @onkeydown:stopPropagation="true">
@@ -129,7 +129,7 @@ else if (Vista.Estado == EstadoVistaPlan.Confirmado)
 }
 else
 {
-    <div class="plan plan-cerrado" role="group" aria-label="@Titulo">
-        <p class="plan-nota" role="status">@Textos["Plan_Descartado", Titulo]</p>
+    <div class="plan plan-cerrado plan-anulado" role="group" aria-label="@Titulo">
+        <p class="plan-nota" role="status">@Textos["Plan_Descartado"]</p>
     </div>
 }
