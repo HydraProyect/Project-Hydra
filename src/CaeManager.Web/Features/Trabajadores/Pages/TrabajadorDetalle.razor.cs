@@ -241,6 +241,25 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     private string? NombreCompleto => _detalle is null ? null : $"{_detalle.Nombre} {_detalle.Apellidos}";
 
     /// <summary>
+    /// Rótulo del documento de identidad en la cabecera (maqueta del 20-10: «DNI», «NIE» o «Pasaporte», según el valor
+    /// guardado, no un «DNI» fijo). Un valor heredado que no es un documento válido (marcadores como «SIN DNI») se rotula
+    /// «DNI», igual que <see cref="CriterioExtranjeroCobrable"/> no lo cuenta como Pasaporte.
+    /// </summary>
+    internal string RotuloDocumentoIdentidad
+    {
+        get
+        {
+            var dni = _detalle?.Dni;
+            return CriterioDocumentoIdentidadTrabajador.TipoGuardado(dni) switch
+            {
+                TipoDocumentoTrabajador.Nie => Textos["FichaRotuloNie"],
+                TipoDocumentoTrabajador.Pasaporte when CriterioDocumentoIdentidadTrabajador.Clasificar(dni).EsValido => Textos["FichaRotuloPasaporte"],
+                _ => Textos["FichaRotuloDni"],
+            };
+        }
+    }
+
+    /// <summary>
     /// Página 360 del empleador, para el icono 360 junto a su nombre: Empresa 360 o Subcontrata 360.
     /// El nombre abre la consulta rápida (<see cref="AbrirEmpleador"/>); el icono, la página.
     /// </summary>

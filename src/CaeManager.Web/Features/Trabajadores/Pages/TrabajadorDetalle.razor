@@ -64,7 +64,7 @@
               <div class="trabajador360-datos">
                <div class="trabajador360-meta">
                 <span>
-                    @Textos["FichaRotuloDni"]
+                    @RotuloDocumentoIdentidad
                     @{ var dni = _detalle.Dni ?? string.Empty; }
                     <BotonCopiar EnLinea="true" ConfirmarConIcono="true" Valor="@dni" Texto="@dni" Etiqueta="@Textos["FichaCopiarDni"]" NombreAccesible="@Textos["FichaCopiarNombreAccesibleConValor", Textos["FichaCopiarDni"], dni]" />
                 </span>
