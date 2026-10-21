@@ -72,10 +72,14 @@
         <Pastillas>
             <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
-        <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
+        <Herramientas>
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
+                            ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
+            <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+        </Herramientas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
@@ -122,15 +126,22 @@
                             <th scope="col"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                         }
                         @CabeceraOrdenable(_campoOrdenVehiculo, TituloColumnaVehiculo)
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.EmpleadorNombre), Textos["EtiquetaEmpleador"])
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.NumeroPlaca), Textos["EtiquetaMatricula"])
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado")
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.EmpleadorNombre), Textos["ListaColumnaEmpresa"])
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.Modelo), Textos["EtiquetaModelo"])
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.EstadoDocumental), Textos["ListaColumnaDocumentacion"], "col-estado")
                         <th scope="col"></th>
                     </tr></thead>
                     <tbody>
-                    @{ var claves = new ClavesDeHermanos(); }
+                    @{ var claves = new ClavesDeHermanos(); string? grupoAnterior = null; }
                     @foreach (var context in _elementosPagina)
                     {
+                        @if (_agruparPorEmpresa && context.EmpleadorNombre != grupoAnterior)
+                        {
+                            grupoAnterior = context.EmpleadorNombre;
+                            var enGrupo = VehiculosDelGrupo(context.EmpleadorNombre);
+                            @* Título del grupo «Por Empresa» (maqueta de Vehículos): la Empresa y cuántos Vehículos suyos hay en esta página. *@
+                            <tr @key='claves.De((context.EmpleadorNombre, "grupo"))' class="vehiculo-grupo" data-grupo-empresa="@context.EmpleadorNombre"><td colspan="@(_seleccionMultiple ? 6 : 5)">@context.EmpleadorNombre<span class="vehiculo-grupo-recuento">@enGrupo</span></td></tr>
+                        }
                         <tr @key="claves.De(context.Id)" class="@ObtenerClaseFila(context)">
                             @if (_seleccionMultiple)
                             {
@@ -143,17 +154,17 @@
                                 }
                                 <span class="celda-vehiculo">
                                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" aria-label="@Textos["AbrirVistaRapidaDe", context.Nombre]" @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" /></button>
-                                    <span class="celda-vehiculo-modelo"><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></span>
+                                    @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
+                                    {
+                                        <span class="celda-vehiculo-modelo celda-vehiculo-matricula"><BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]" NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" /></span>
+                                    }
                                 </span>
                             </div></td>
                             <td>@context.EmpleadorNombre</td>
-                            <td>
-                                @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
-                                {
-                                    <span class="celda-vehiculo-matricula"><BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]" NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" /></span>
-                                }
-                            </td>
-                            <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
+                            <td><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></td>
+                            <td class="col-estado"><BarraCumplimiento Porcentaje="@PorcentajeDocumentacion(context)"
+                                                   Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                                   Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" /><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
                             <td><Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
                         </tr>
                         @if (context.Incidencias.Count > 0 && EstaExpandido(context))
@@ -297,7 +308,7 @@
                 <button type="button" class="col-options-button" aria-label="@Textos["OpcionesOrdenVehiculo"]" aria-expanded="@(_opcionesOrdenVehiculo ? "true" : "false")" @onclick="() => _opcionesOrdenVehiculo = !_opcionesOrdenVehiculo"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></button>
                 @if (_opcionesOrdenVehiculo)
                 {
-                    <div class="col-options" data-opciones-orden><CampoSelect Etiqueta="@Textos["ListaOrdenarPor"]" Valor="@_campoOrdenVehiculo" ValorChanged="CambiarCampoOrdenVehiculoAsync"><option value="@nameof(VehiculoListaDto.Nombre)">@Textos["EtiquetaNombre"]</option><option value="@nameof(VehiculoListaDto.Modelo)">@Textos["EtiquetaModelo"]</option></CampoSelect></div>
+                    <div class="col-options" data-opciones-orden><CampoSelect Etiqueta="@Textos["ListaOrdenarPor"]" Valor="@_campoOrdenVehiculo" ValorChanged="CambiarCampoOrdenVehiculoAsync"><option value="@nameof(VehiculoListaDto.Nombre)">@Textos["EtiquetaNombre"]</option><option value="@nameof(VehiculoListaDto.NumeroPlaca)">@Textos["EtiquetaMatricula"]</option></CampoSelect></div>
                 }
             }
         </div>
