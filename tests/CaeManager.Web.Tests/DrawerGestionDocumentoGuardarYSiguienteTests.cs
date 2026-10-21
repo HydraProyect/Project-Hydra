@@ -175,6 +175,49 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
             .Should().Be("2026-01-10");
     }
 
+    /// <summary>
+    /// Hallazgo de pruebas del 21-10, al renovar: con la subida rechazada, Guardar renovaba el
+    /// registro con el archivo anterior y decía «actualizado» junto al error de la subida.
+    /// </summary>
+    [Fact]
+    public async Task Una_subida_rechazada_no_deja_renovar_hasta_adjuntar_otro_archivo()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "rechazado.pdf", contentType: "application/pdf"));
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        Renovados.Should().BeEmpty("el archivo elegido no se adjuntó");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().NotContain(t => t.Tono == TonoToast.Exito);
+        cut.Markup.Should().Contain("No se ha guardado: el archivo que elegiste no se adjuntó.");
+
+        // Reabrir para editar empieza sin el bloqueo: corregir el mismo registro vuelve a guardar.
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        Renovados.Should().Equal(serie[0].DocumentoId!.Value);
+    }
+
+    /// <summary>Salida del bloqueo sin perder lo escrito: seguir con el archivo que el registro ya tenía.</summary>
+    [Fact]
+    public async Task Tras_una_subida_rechazada_se_puede_seguir_con_el_archivo_anterior()
+    {
+        var cut = Renderizar();
+        PasoSerieDocumento[] serie = [Documento("Ana Ruiz")];
+        await cut.InvokeAsync(() => cut.Instance.AbrirSerieAsync(serie, serie[0]));
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "rechazado.pdf", contentType: "application/pdf"));
+        await cut.Find(".boton-descartar-archivo-no-adjuntado").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        _mediador.Comandos.OfType<RenovarDocumentoCommand>().Should().ContainSingle()
+            .Which.Id.Should().Be(serie[0].DocumentoId!.Value);
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Subir_archivo_nuevo_vacia_ambas_fechas_y_exige_una_emision_nueva()
     {

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="TituloPestanaNavegador" xml:space="preserve"><value>Documento</value></data>
+  <data name="MigaDocumentos" xml:space="preserve"><value>Documentos</value></data>
+  <data name="MigaCargando" xml:space="preserve"><value>…</value></data>
+  <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Documento 360</value></data>
+  <data name="ErrorTitulo" xml:space="preserve"><value>No pudimos cargar este documento</value></data>
+  <data name="ErrorDescripcion" xml:space="preserve"><value>Puede que ya no exista o que no tengas acceso.</value></data>
+  <data name="Reintentar" xml:space="preserve"><value>Reintentar</value></data>
+  <data name="Kicker" xml:space="preserve"><value>Documento · Ámbito {0}</value></data>
+  <data name="MetaVence" xml:space="preserve"><value>vence el</value></data>
+  <data name="MetaVencio" xml:space="preserve"><value>venció el</value></data>
+  <data name="MetaSinCaducidad" xml:space="preserve"><value>no caduca</value></data>
+  <data name="MetaSinConfirmar" xml:space="preserve"><value>vencimiento sin confirmar</value></data>
+  <data name="MetaPropietario" xml:space="preserve"><value>Propietario:</value></data>
+  <data name="AnilloFraccion" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="AnilloEtiqueta" xml:space="preserve"><value>Válido en {0} de {1} Centros</value></data>
+  <data name="AnilloSinDato" xml:space="preserve"><value>Ningún Centro lo exige</value></data>
+  <data name="VerPdf" xml:space="preserve"><value>Ver PDF</value></data>
+  <data name="Renovar" xml:space="preserve"><value>Renovar</value></data>
+  <data name="MasAcciones" xml:space="preserve"><value>Más acciones</value></data>
+  <data name="DescargarPdf" xml:space="preserve"><value>Descargar PDF</value></data>
+  <data name="ReclamarEmpresa" xml:space="preserve"><value>Reclamar a la Empresa</value></data>
+  <data name="ReclamarTrabajador" xml:space="preserve"><value>Reclamar al Trabajador</value></data>
+  <data name="EtiquetaLateral" xml:space="preserve"><value>Resumen</value></data>
+  <data name="EtiquetaGrupoPestanas" xml:space="preserve"><value>Secciones del documento</value></data>
+  <data name="PestanaDondeSeExige" xml:space="preserve"><value>Dónde se exige</value></data>
+  <data name="GlosaDondeSeExige" xml:space="preserve"><value>Centros que exigen este documento</value></data>
+  <data name="PestanaVersiones" xml:space="preserve"><value>Versiones</value></data>
+  <data name="GlosaVersiones" xml:space="preserve"><value>Versiones del documento</value></data>
+  <data name="PestanaValidacion" xml:space="preserve"><value>Validación</value></data>
+  <data name="PestanaFirma" xml:space="preserve"><value>Firma</value></data>
+  <data name="PestanaFicha" xml:space="preserve"><value>Ficha</value></data>
+  <data name="PestanaHistorial" xml:space="preserve"><value>Historial</value></data>
+  <data name="DondeIntro" xml:space="preserve"><value>Centros en los que {0} trabaja y que piden este documento</value></data>
+  <data name="DondeMostrando" xml:space="preserve"><value>Mostrando {0} de {1} · del peor estado al mejor</value></data>
+  <data name="DondeEtiquetaLista" xml:space="preserve"><value>Centros que exigen este documento</value></data>
+  <data name="Todos" xml:space="preserve"><value>Todos</value></data>
+  <data name="EtiquetaFiltroEstado" xml:space="preserve"><value>Filtrar por estado</value></data>
+  <data name="SinCentrosTitulo" xml:space="preserve"><value>Ningún Centro exige este documento</value></data>
+  <data name="SinCentrosDescripcion" xml:space="preserve"><value>Ningún Centro visible se lo pide al propietario del documento.</value></data>
+  <data name="FiltroSinResultados" xml:space="preserve"><value>Ningún resultado con estos filtros</value></data>
+  <data name="QuitarFiltros" xml:space="preserve"><value>Quitar filtros</value></data>
+  <data name="CifraBloquea" xml:space="preserve"><value>Bloquea</value></data>
+  <data name="CifraBloqueaTexto" xml:space="preserve"><value>acceso</value></data>
+  <data name="CifraNoBloquea" xml:space="preserve"><value>No bloquea</value></data>
+  <data name="CifraTolerancia" xml:space="preserve"><value>{0} días</value></data>
+  <data name="CifraToleranciaUno" xml:space="preserve"><value>1 día</value></data>
+  <data name="CifraToleranciaTexto" xml:space="preserve"><value>de tolerancia</value></data>
+  <data name="RecomendacionLinea" xml:space="preserve"><value>Recomendación · {0}</value></data>
+  <data name="RecomendacionRenovar" xml:space="preserve"><value>Pide la renovación al contacto de la Empresa antes del próximo acceso.</value></data>
+  <data name="VersionesEtiquetaLista" xml:space="preserve"><value>Versiones del documento</value></data>
+  <data name="VersionActual" xml:space="preserve"><value>versión actual</value></data>
+  <data name="VersionCerrada" xml:space="preserve"><value>Cerrada</value></data>
+  <data name="VersionVer" xml:space="preserve"><value>Ver</value></data>
+  <data name="VersionVerAccesible" xml:space="preserve"><value>Ver {0}</value></data>
+  <data name="VersionRenovarAccesible" xml:space="preserve"><value>Renovar {0}</value></data>
+  <data name="InfoTitulo" xml:space="preserve"><value>Información</value></data>
+  <data name="InfoEditar" xml:space="preserve"><value>Editar →</value></data>
+  <data name="InfoTipo" xml:space="preserve"><value>Tipo</value></data>
+  <data name="InfoEmision" xml:space="preserve"><value>Emisión</value></data>
+  <data name="InfoVencimiento" xml:space="preserve"><value>Vencimiento</value></data>
+  <data name="InfoArchivo" xml:space="preserve"><value>Archivo</value></data>
+  <data name="InfoComentarios" xml:space="preserve"><value>Comentarios</value></data>
+  <data name="InfoSinArchivo" xml:space="preserve"><value>Sin adjunto</value></data>
+  <data name="InfoSinCaducidad" xml:space="preserve"><value>Sin caducidad</value></data>
+  <data name="InfoSinConfirmar" xml:space="preserve"><value>Sin confirmar</value></data>
+  <data name="InfoSinDato" xml:space="preserve"><value>—</value></data>
+  <data name="FichaPropietario" xml:space="preserve"><value>Propietario</value></data>
+  <data name="ValSinTitulo" xml:space="preserve"><value>Sin validación automática</value></data>
+  <data name="ValSinDescripcion" xml:space="preserve"><value>Su tipo no tiene perfil oficial asignado, o el análisis todavía no ha terminado.</value></data>
+  <data name="ValTitulo" xml:space="preserve"><value>Validación automática de documento oficial</value></data>
+  <data name="ValConfianza" xml:space="preserve"><value>Nivel de confianza</value></data>
+  <data name="ValDecision" xml:space="preserve"><value>Decisión</value></data>
+  <data name="ValDecisionRevision" xml:space="preserve"><value>Revisión requerida</value></data>
+  <data name="ValDecisionSinFirma" xml:space="preserve"><value>Sin firma válida</value></data>
+  <data name="ValMotivos" xml:space="preserve"><value>Motivos</value></data>
+  <data name="ValCodigo" xml:space="preserve"><value>Código de verificación (CSV)</value></data>
+  <data name="ValCif" xml:space="preserve"><value>CIF detectado</value></data>
+  <data name="ValEmision" xml:space="preserve"><value>Fecha de emisión detectada</value></data>
+  <data name="ValPeriodo" xml:space="preserve"><value>Periodo detectado</value></data>
+  <data name="ValVerificado" xml:space="preserve"><value>Validado el</value></data>
+  <data name="ValFirmas" xml:space="preserve"><value>Firmas del archivo</value></data>
+  <data name="ValFirmaN" xml:space="preserve"><value>Firma {0}</value></data>
+  <data name="ValFirmaIntegra" xml:space="preserve"><value>Íntegra</value></data>
+  <data name="ValFirmaInvalida" xml:space="preserve"><value>Inválida</value></data>
+  <data name="ValFirmaNoSoportada" xml:space="preserve"><value>No soportada</value></data>
+  <data name="ValFirmanteSinRegistrar" xml:space="preserve"><value>Firmante no registrado</value></data>
+  <data name="ValEmitidoPor" xml:space="preserve"><value>emitido por {0}</value></data>
+</root>
