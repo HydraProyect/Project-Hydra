@@ -202,7 +202,7 @@ public partial class PestanaReclamarEmpresa
             foreach (var documento in lote.Documentos)
             {
                 // Lo vigente no se reclama (la nota al pie lo dice): ni se lista ni cuenta, para que lo que se ve no contradiga los recuentos.
-                if (documento.Estado is EstadoDocumento.Vigente or EstadoDocumento.SinCaducidad)
+                if (documento.Estado is not (EstadoDocumento.Vencido or EstadoDocumento.Proximo or EstadoDocumento.Urgente))
                     continue;
 
                 var categoria = documento.Estado == EstadoDocumento.Vencido ? Categoria.Vencido : Categoria.PorVencer;
