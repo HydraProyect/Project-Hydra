@@ -98,7 +98,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             }
         }
 
-        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocadaPropia);
     }
 
     [Fact]
@@ -196,6 +196,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await fila.Locator(".celda-centros-cliente").DispatchEventAsync("click");
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync(razonSocial);
     }
+
     [Fact]
     public async Task Enter_abre_la_vista_rapida_de_la_fila_enfocada_y_la_tecla_e_la_abre_en_edicion()
     {
