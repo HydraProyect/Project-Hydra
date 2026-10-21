@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -84,7 +84,7 @@ public static class CoberturaPantallasSeeder
     public const string EmpresaPropiaAlfa = "Alfa Instalaciones S.L.";
     public const string ClienteNorte = "Cliente Norte S.A.";
     public const string ClienteSur = "Cliente Sur S.A.";
-    public const string SubcontrataConSedes = "Montajes Cobertura S.L.";
+    public const string SubcontrataPorEstado = "Montajes Cobertura S.L.";
     public const string SubcontrataSinContactos = "Servicios Sin Contacto S.L.";
 
     public const string CentroPrincipal = "Centro Principal (cobertura)";
@@ -183,6 +183,18 @@ public static class CoberturaPantallasSeeder
         await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, coordinador, Roles.CoordinadorCae, cancellationToken);
         await AsignarAlEquipoAsync(dbContext, operadorId, gestorConCartera, gestorSinCartera, Roles.GestorCae, cancellationToken);
 
+        // Los Gestores CAE del Operador CAE cuelgan de su Coordinador CAE: sin ese vínculo el Coordinador no vería nada.
+        using (AmbitoTenantExplicito.Establecer(operadorId))
+            foreach (var gestor in new[] { gestorConCartera, gestorSinCartera })
+            {
+                if (gestor.CoordinadorUsuarioId == coordinador.Id) continue;
+                gestor.CoordinadorUsuarioId = coordinador.Id;
+                var resultado = await userManager.UpdateAsync(gestor);
+                if (!resultado.Succeeded)
+                    throw new InvalidOperationException(
+                        $"No se pudo vincular a {gestor.Email} con su Coordinador CAE: {string.Join(", ", resultado.Errors.Select(e => e.Description))}");
+            }
+
         using (AmbitoTenantExplicito.Establecer(alfaId))
         {
             var writer = new AsignacionesOperativasWriter(
@@ -191,17 +203,26 @@ public static class CoberturaPantallasSeeder
             await dbContext.SaveChangesAsync(cancellationToken);
 
             if (!await dbContext.Empresas.AnyAsync(e => e.RazonSocial == EmpresaPropiaAlfa, cancellationToken))
-            {
-                var clienteNorteId = await new ConstructorAlfa(dbContext, hoy, administradorAlfa.Id).ConstruirAsync(cancellationToken);
-                clienteAlfa.ClienteId = clienteNorteId;
-            }
+                await new ConstructorAlfa(dbContext, hoy, administradorAlfa.Id).ConstruirAsync(cancellationToken);
 
             // Solo el Gestor CAE con cartera la recibe: el otro queda con operación abierta y sin cartera.
             await writer.AsegurarCarteraTenantEnteroAsync(alfaId, gestorConCartera.Id, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            if (clienteAlfa.ClienteId is not null)
-                await userManager.UpdateAsync(clienteAlfa);
+            // La cuenta de Usuario de Cliente queda ligada a su Cliente empresarial fuera de la rama de construcción, para que
+            // un arranque interrumpido se repare en el siguiente; y solo se escribe si cambia.
+            var clienteNorteId = await dbContext.Empresas
+                .Where(e => e.RazonSocial == ClienteNorte).Select(e => e.Id).SingleAsync(cancellationToken);
+            if (clienteAlfa.ClienteId != clienteNorteId)
+            {
+                clienteAlfa.ClienteId = clienteNorteId;
+                var resultado = await userManager.UpdateAsync(clienteAlfa);
+                if (!resultado.Succeeded)
+                    throw new InvalidOperationException(
+                        $"No se pudo ligar a {EmailClienteAlfa} con su Cliente empresarial: " +
+                        string.Join(", ", resultado.Errors.Select(e => e.Description)));
+            }
+
         }
 
         // ── Beta: el caso de volumen ──────────────────────────────────────────────────────────────────────────────
@@ -214,6 +235,8 @@ public static class CoberturaPantallasSeeder
         {
             if (!await dbContext.Empresas.AnyAsync(e => e.RazonSocial == EmpresaPropiaBeta, cancellationToken))
                 await new ConstructorBeta(dbContext, hoy).ConstruirAsync(cancellationToken);
+
+            dbContext.ChangeTracker.Clear();
         }
 
         logger.LogInformation("Siembra de cobertura de pantallas lista: {Alfa}, {Beta} y {Operador}.", NombreTenantAlfa, NombreTenantBeta, NombreTenantOperador);
@@ -398,7 +421,7 @@ public static class CoberturaPantallasSeeder
             var relacionNorte = Add(RelacionEmpresarial.Crear(_propia.Id, _norte.Id, ahora));
             Add(RelacionEmpresarial.Crear(_propia.Id, _sur.Id, ahora));
 
-            _montajes = Add(Empresa.CrearComoSubcontrata(SubcontrataConSedes, SiguienteCif(), NivelServicioSubcontrata.Gestionada.ToString()));
+            _montajes = Add(Empresa.CrearComoSubcontrata(SubcontrataPorEstado, SiguienteCif(), NivelServicioSubcontrata.Gestionada.ToString()));
             _sinContactos = Add(Empresa.CrearComoSubcontrata(SubcontrataSinContactos, SiguienteCif(), NivelServicioSubcontrata.Gestionada.ToString()));
             foreach (var subcontrata in new[] { _montajes, _sinContactos })
             {
@@ -521,21 +544,21 @@ public static class CoberturaPantallasSeeder
         }
 
         /// <summary>
-        /// Montajes Cobertura: tres Delegaciones (dos con contacto de reclamación y una sin él, que cae a los contactos de
-        /// la Empresa), dos Oficios y Trabajadores repartidos. Servicios Sin Contacto: sin Delegaciones ni contactos.
+        /// La Empresa propia: tres delegaciones (dos con contacto de reclamación y una sin él, que cae a los contactos de
+        /// la Empresa), dos Oficios y Trabajadores repartidos. Servicios Sin Contacto: sin delegaciones ni contactos.
         /// </summary>
         private void SedesOficiosYContactos()
         {
-            var madrid = Add(new DelegacionEmpresa(_montajes.Id, "Delegación Madrid"));
+            var madrid = Add(new DelegacionEmpresa(_propia.Id, "Delegación Madrid"));
             madrid.FijarContactoReclamacion("Lucía Reclama (Madrid)", "reclama.madrid@caemanager.local", "910000001");
-            var sevilla = Add(new DelegacionEmpresa(_montajes.Id, "Delegación Sevilla"));
+            var sevilla = Add(new DelegacionEmpresa(_propia.Id, "Delegación Sevilla"));
             sevilla.FijarContactoReclamacion("Raúl Reclama (Sevilla)", "reclama.sevilla@caemanager.local", "950000002");
-            var valencia = Add(new DelegacionEmpresa(_montajes.Id, "Delegación Valencia"));
-            var electricista = Add(new OficioEmpresa(_montajes.Id, "Electricista"));
-            var soldador = Add(new OficioEmpresa(_montajes.Id, "Soldador"));
+            var valencia = Add(new DelegacionEmpresa(_propia.Id, "Delegación Valencia"));
+            var electricista = Add(new OficioEmpresa(_propia.Id, "Electricista"));
+            var soldador = Add(new OficioEmpresa(_propia.Id, "Soldador"));
 
             var contacto = ContactoAgenda.DeEmpresa(
-                _montajes.Id, "Marcos Central (Montajes Cobertura)", "central@montajes-cobertura.caemanager.local",
+                _propia.Id, "Marcos Central (Alfa Instalaciones)", "central@alfa-instalaciones.caemanager.local",
                 cargo: "Responsable CAE", esPredeterminado: true);
             contacto.EstablecerRoles([RolContacto.ContactoCae]);
             Add(contacto);
@@ -548,13 +571,13 @@ public static class CoberturaPantallasSeeder
             ];
             foreach (var (nombre, apellidos, delegacion, oficio) in plantilla)
             {
-                var trabajador = NuevoTrabajador(_montajes, true, nombre, apellidos, SiguienteDni());
+                var trabajador = NuevoTrabajador(_propia, false, nombre, apellidos, SiguienteDni());
                 trabajador.FijarDelegacionEmpresaYOficio(delegacion, oficio);
                 Asignar(trabajador, _principal);
             }
 
-            var sin = NuevoTrabajador(_sinContactos, true, "Gael", "Sin Contacto", SiguienteDni());
-            Asignar(sin, _principal);
+            Asignar(NuevoTrabajador(_sinContactos, true, "Gael", "Sin Contacto", SiguienteDni()), _principal);
+            Asignar(NuevoTrabajador(_montajes, true, "Hugo", "Montajes Uno", SiguienteDni()), _principal);
         }
 
         /// <summary>El Centro con un documento rechazado y otro vencido en su plataforma CAE: la causa de «Bloqueado».</summary>

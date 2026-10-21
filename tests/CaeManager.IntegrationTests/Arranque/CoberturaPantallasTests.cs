@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Centros;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Centros;
@@ -97,6 +97,9 @@ public class CoberturaPantallasTests(CoberturaPantallasFixture fixture) : IClass
         var contactos = await bootstrap.ContactosAgenda.IgnoreQueryFilters().Where(c => tenants.Contains(c.TenantId)).Select(c => c.Email).ToListAsync();
         contactos.Should().OnlyContain(e => e != null && e.EndsWith(".caemanager.local"));
 
+        (await bootstrap.Mensajes.IgnoreQueryFilters().Where(m => tenants.Contains(m.TenantId)).Select(m => m.Remitente).ToListAsync())
+            .Should().NotBeEmpty().And.OnlyContain(e => e.EndsWith(".caemanager.local"));
+
         var reclamacion = await bootstrap.DelegacionesEmpresa.IgnoreQueryFilters()
             .Where(d => tenants.Contains(d.TenantId) && d.ContactoReclamacionCorreo != null).Select(d => d.ContactoReclamacionCorreo!).ToListAsync();
         reclamacion.Should().OnlyContain(e => e.EndsWith("@caemanager.local"));
@@ -188,7 +191,7 @@ public class CoberturaPantallasTests(CoberturaPantallasFixture fixture) : IClass
         // Empresas: la Empresa propia y las dos Subcontratas.
         var empresas = await contexto.Empresas
             .Where(e => e.RazonSocial == CoberturaPantallasSeeder.EmpresaPropiaAlfa
-                        || e.RazonSocial == CoberturaPantallasSeeder.SubcontrataConSedes
+                        || e.RazonSocial == CoberturaPantallasSeeder.SubcontrataPorEstado
                         || e.RazonSocial == CoberturaPantallasSeeder.SubcontrataSinContactos)
             .Select(e => e.Id).ToListAsync();
         foreach (var empresaId in empresas)
@@ -216,7 +219,8 @@ public class CoberturaPantallasTests(CoberturaPantallasFixture fixture) : IClass
         resultado[new CeldaDeCobertura("Centro", "Sin gestión CAE", 0).Clave] =
             estados[centros[CoberturaPantallasSeeder.CentroSinGestionCae].Id].Estado == EstadoCentro.SinGestionCae ? 1 : 0;
         resultado[new CeldaDeCobertura("Centro", "Sin requisitos", 0).Clave] =
-            ParesDe(CoberturaPantallasSeeder.CentroSinRequisitos) == 0 && asignados.Count > 0 ? 1 : 0;
+            ParesDe(CoberturaPantallasSeeder.CentroSinRequisitos) == 0
+            && await contexto.Asignaciones.AnyAsync(a => a.CentroId == centros[CoberturaPantallasSeeder.CentroSinRequisitos].Id && a.FechaBaja == null) ? 1 : 0;
 
         var trabajadoresDeLaEmpresa = await contexto.Trabajadores.CountAsync();
         var conRequisito = pares.Where(p => p.CentroId == centros[CoberturaPantallasSeeder.CentroRequisitosParaAlgunos].Id)
