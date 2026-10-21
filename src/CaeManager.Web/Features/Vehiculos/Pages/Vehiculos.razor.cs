@@ -996,7 +996,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         var tinte = item.EstadoDocumental switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => "fila-tintada-peligro",
-            EstadoDocumento.Urgente => "fila-tintada-aviso",
+            EstadoDocumento.Urgente or EstadoDocumento.Proximo => "fila-tintada-aviso",
             _ => null
         };
         var foco = item.Id == _idEnfocado ? "fila-enfocada" : null;

@@ -70,9 +70,9 @@
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Keytip="T" PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+            <PastillaFiltro Keytip="P" PresentacionCampo="true" Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
         <Herramientas>

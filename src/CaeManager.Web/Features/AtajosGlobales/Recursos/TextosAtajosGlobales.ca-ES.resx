@@ -175,8 +175,9 @@
     <value>Filtrar aquesta pantalla</value>
   </data>
   <data name="KeyTipFranjaEstado" xml:space="preserve">
-    <value>Franja d'estat</value>
+    <value>Filtre documental</value>
   </data>
+  <data name="KeyTipEmpresa" xml:space="preserve"><value>Filtre d’Empresa</value></data>
   <data name="KeyTipMasFiltros" xml:space="preserve">
     <value>Més filtres</value>
   </data>
