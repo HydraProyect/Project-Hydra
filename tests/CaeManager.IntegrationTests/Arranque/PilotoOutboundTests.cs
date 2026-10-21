@@ -1508,7 +1508,8 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         completa["Ficheros en el almacén"].Should().Be(porTenant.Values.Sum());
         var escenariosDelOperador = new[] { "Cuenta pendiente de activación",
             "Revisiones de IA", "Detecciones de Trabajador", "Sugerencias de Visita" };
-        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, 1, 1, 1], "control positivo: la siembra completa los tiene");
+        var conSenales = CatalogoPilotoOutbound.Tenants.Count(t => t.ConSenalesDeIa);
+        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, conSenales, conSenales, conSenales], "control positivo: la siembra completa los tiene (las señales, en C y en el escaparate)");
 
         // 3. La retirada no deja nada del piloto y no toca lo demás.
         (await arnes.RetirarAsync()).Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1);
