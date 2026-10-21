@@ -1,6 +1,7 @@
 using Bunit;
 using CaeManager.Application.Trabajadores.Commands.CrearTrabajador;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Trabajadores.Components;
 using CaeManager.Web.Features.Trabajadores.Pages;
@@ -122,6 +123,32 @@ public partial class TrabajadoresListaGen2Tests
         p => p is CrearTrabajadorCommand
             ? Task.FromException<object>(new ValidationException(errores.Select(e => new ValidationFailure(e.Campo, e.Mensaje))))
             : null;
+
+    /// <summary>
+    /// Empresa resuelta en silencio (ClienteDirecto con una sola Empresa, sin selector): ir a «Subcontrata» y volver a
+    /// «Empresa» no puede dejarla sin elegir, porque el usuario no tiene ningún control para volver a elegirla.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_Empresa_en_modo_silencioso_restaura_la_unica_Empresa_y_guarda()
+    {
+        var mediador = new MediatorFalso { Perfil = PerfilVocabularioTenant.ClienteDirecto };
+        mediador.Empresas.RemoveAll(e => e.Id != EmpresaEbro);
+        var cut = Renderizar(mediador);
+        await AbrirAltaAsync(cut);
+        cut.FindAll(".drawer-panel select").Should().BeEmpty("la Empresa única va fija, sin desplegable");
+
+        var radios = cut.FindAll(".drawer-panel input[name='tipo-empleador']");
+        await radios[1].ChangeAsync(new ChangeEventArgs { Value = "on" });
+        await cut.Find(".drawer-panel input[name='tipo-empleador']").ChangeAsync(new ChangeEventArgs { Value = "on" });
+        cut.FindAll(".drawer-panel select").Should().BeEmpty("de vuelta en Empresa sigue fija");
+
+        await EscribirDatosCompletosDelAltaAsync(cut);
+        await PulsarEnElPanelAsync(cut, "Guardar y terminar");
+
+        cut.FindAll(".drawer-panel .alerta-formulario").Should().BeEmpty();
+        mediador.Enviadas.OfType<CrearTrabajadorCommand>().Should().ContainSingle()
+            .Which.EmpresaId.Should().Be(EmpresaEbro);
+    }
 
     [Fact]
     public async Task Siguiente_sin_empleador_no_avanza_ni_marca_el_paso_como_visto()

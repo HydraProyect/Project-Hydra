@@ -496,6 +496,25 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
     }
 
     /// <summary>
+    /// Empresa resuelta en silencio (sin selector): ir a «Subcontrata» y volver a «Empresa» no puede dejarla
+    /// sin elegir, porque no hay ningún control para volver a elegirla.
+    /// </summary>
+    [Fact]
+    public async Task Volver_a_Empresa_en_modo_silencioso_restaura_la_unica_Empresa_y_guarda()
+    {
+        var mediador = new MediadorFalso { AltaSinElegirEmpleador = true, Almacen = { Vehiculo("Camión grúa") } };
+        var cut = Renderizar(mediador);
+        await cut.FindAll(".cabecera-pagina button").Single(b => b.TextContent.Trim() == "+ Nuevo vehículo").ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll("input[name='tipo-empleador']")[1].ChangeAsync(new ChangeEventArgs { Value = "on" });
+        await cut.FindAll("input[name='tipo-empleador']")[0].ChangeAsync(new ChangeEventArgs { Value = "on" });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<CrearVehiculoCommand>().Should().ContainSingle()
+            .Which.EmpresaId.Should().Be(EmpresaPropia);
+    }
+
+    /// <summary>
     /// Si la corrección saca la fila del filtro, se actualiza el total con una petición y se conserva
     /// la selección de las demás filas.
     /// </summary>
