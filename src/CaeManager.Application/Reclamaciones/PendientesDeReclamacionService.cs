@@ -1,4 +1,4 @@
-using CaeManager.Application.Alertas;
+﻿using CaeManager.Application.Alertas;
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
@@ -243,7 +243,8 @@ public class PendientesDeReclamacionService(
         // Ausentes: lo que algún Centro exige a la Empresa y no tiene ningún Documento operativo. Misma regla que los pares de
         // Empresa del Centro 360 (ObtenerParesDeEmpresaExigidosAsync: ResolucionTipoDocumentoCentro), bloquee o no el acceso;
         // un Centro que no marca nada «bloquea el acceso» sigue exigiendo. Solo cuentan los Centros donde la Empresa tiene un
-        // Trabajador visible con Asignación activa, con Centro y Cliente empresarial visibles: el alcance del lote de Trabajador.
+        // Trabajador visible con Asignación activa en un Centro visible (los Centros visibles ya son los de los Clientes empresariales
+        // visibles): el alcance del lote de Trabajador. Como en el % del Centro, un voluntario inactivo no hace exigible nada a su Empresa.
         var presencias = await PresenciasVisiblesDeEmpresasAsync(empresaId, empresaIdsVisibles, cancellationToken);
         var ausentes = presencias.Count == 0
             ? []
@@ -287,14 +288,13 @@ public class PendientesDeReclamacionService(
     /// <summary>
     /// Los pares Centro × Empresa en los que se le puede pedir algo a una Empresa: un Trabajador suyo (o de la Subcontrata, si el
     /// Trabajador no tiene Empresa, como en los pares de Empresa del Centro) con Asignación activa, todo dentro del alcance visible
-    /// (Trabajador, Centro y Cliente empresarial) y la Empresa en el alcance de gestión. Centros sin gestión CAE fuera.
+    /// (Trabajador y Centro) y la Empresa en el alcance de gestión. Centros sin gestión CAE fuera.
     /// </summary>
     private async Task<HashSet<(Guid CentroId, Guid EmpresaId)>> PresenciasVisiblesDeEmpresasAsync(
         Guid? empresaId, IReadOnlyList<Guid>? empresaIdsVisibles, CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
 
         var filas = await (
             from asignacion in asignacionesContext.Asignaciones
@@ -305,7 +305,6 @@ public class PendientesDeReclamacionService(
             where empresaId == null || trabajador.EmpresaId == empresaId || (trabajador.EmpresaId == null && trabajador.SubcontrataId == empresaId)
             join centro in centrosContext.Centros on asignacion.CentroId equals centro.Id
             where centro.GestionCae != ModalidadGestionCae.SinGestionCae
-            where clienteIdsVisibles == null || clienteIdsVisibles.Contains(centro.ClienteId)
             select new { asignacion.CentroId, trabajador.EmpresaId, trabajador.SubcontrataId })
             .Distinct()
             .ToListAsync(cancellationToken);

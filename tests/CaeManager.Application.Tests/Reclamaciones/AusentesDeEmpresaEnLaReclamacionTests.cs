@@ -149,7 +149,6 @@ public class AusentesDeEmpresaEnLaReclamacionTests
     [Theory]
     [InlineData("empresa")]
     [InlineData("centro")]
-    [InlineData("cliente")]
     [InlineData("trabajador")]
     public async Task Fuera_del_alcance_no_se_pide_nada_a_la_Empresa(string fuera)
     {
@@ -177,6 +176,45 @@ public class AusentesDeEmpresaEnLaReclamacionTests
 
         (await PendientesDeLaContratistaAsync(alcance)).Should().ContainSingle().Which.Should().Be(AusenteDe(_plan),
             "control positivo del caso anterior: lo que lo vacía es salir del alcance, no el alcance explícito");
+    }
+
+    [Fact]
+    public async Task En_un_Centro_compartido_la_Empresa_fuera_de_la_cartera_de_gestion_no_sale_en_el_lote_de_todas()
+    {
+        ElCentroExigeSinBloquear(_plan);
+        var ajena = new Empresa("Ajena SL");
+        var luis = Trabajador.DeEmpresa(ajena.Id, "Luis", "Gómez", "00000001R");
+        _empresas.ListaEmpresas.Add(ajena);
+        _trabajadores.ListaTrabajadores.Add(luis);
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(luis.Id, _centro.Id, new DateOnly(2026, 1, 1)));
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [_cliente.Id], trabajadorIdsVisibles: [_ana.Id, luis.Id],
+            empresaIdsVisibles: [_contratista.Id, ajena.Id, _cliente.Id], centroIdsVisibles: [_centro.Id],
+            empresaIdsParaGestion: [_contratista.Id], centroIdsParaGestion: [_centro.Id]);
+
+        var titulares = await Servicio(alcance).ListarParaEmpresasAsync(null, null, CancellationToken.None);
+
+        titulares.Should().ContainSingle("al Centro le falta el plan de las dos Empresas, pero la ajena no está en la cartera de gestión")
+            .Which.TitularId.Should().Be(_contratista.Id);
+    }
+
+    [Fact]
+    public async Task Lo_que_exige_un_Centro_fuera_del_alcance_no_se_pide_aunque_la_Empresa_este_tambien_en_uno_visible()
+    {
+        ElCentroExigeSinBloquear(_plan);
+        var centroOculto = new Centro(_cliente.Id, _contratista.Id, "Centro Sur");
+        var seguro = new TipoDocumento("Seguro de responsabilidad civil", null, false, 2, AmbitoAplicacion.Empresa);
+        _centros.ListaCentros.Add(centroOculto);
+        _tipos.ListaTiposDocumento.Add(seguro);
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(seguro.Id, centroOculto.Id, incluido: true, bloqueaAcceso: false));
+        _asignaciones.ListaAsignaciones.Add(new Asignacion(_ana.Id, centroOculto.Id, new DateOnly(2026, 1, 1)));
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, clienteIdsVisibles: [_cliente.Id], trabajadorIdsVisibles: [_ana.Id],
+            empresaIdsVisibles: [_contratista.Id, _cliente.Id], centroIdsVisibles: [_centro.Id],
+            empresaIdsParaGestion: [_contratista.Id], centroIdsParaGestion: [_centro.Id]);
+
+        (await PendientesDeLaContratistaAsync(alcance)).Should().ContainSingle().Which.Should().Be(AusenteDe(_plan),
+            "el seguro solo lo exige el Centro Sur, que no está en el alcance");
     }
 
     // ---- Flujo 1: el lote de reclamación de la Empresa ----
