@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using MediatR;
 
@@ -50,7 +50,7 @@ public class GenerarActivacionUsuarioCommandHandler(
         // quedarse con su cuenta: quien lo pide recibe el enlace.
         var destinoIntocable = CuentasConRolDePropiedad.VerificarDestino(
             cuenta.Roles, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
-            await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual));
+            await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));
         if (destinoIntocable.EsFallido)
             return Result.Fallo<string>(destinoIntocable.Error);
 

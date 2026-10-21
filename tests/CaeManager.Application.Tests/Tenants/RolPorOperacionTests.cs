@@ -43,7 +43,7 @@ public class RolPorOperacionTests
 
         var contexto = new Contexto([operacion], filas);
         var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
-            contexto, Usuario, Origen, Beneficiario, ahora, default);
+            contexto, Usuario, Origen, Beneficiario, TenantsBeneficiariosAutorizados.RolAcotadoPorCartera, ahora, default);
         operacionId.Should().Be(operacion.Id);
         return await TenantsBeneficiariosAutorizados.RolPorOperacionAsync(
             contexto, Usuario, Origen, Beneficiario, operacionId!.Value, ahora, default);

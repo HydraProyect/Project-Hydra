@@ -234,10 +234,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
 
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
+        await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro").ClickAsync();
         // Sin Exact/scope, GetByLabel("Centro") también resuelve el propio
         // <div role="dialog"> del modal: su nombre accesible viene de
-        // aria-labelledby → "Asignar 1 trabajador(es) a un centro", que
+        // aria-labelledby → "Asignar 1 trabajador a un centro", que
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
         //

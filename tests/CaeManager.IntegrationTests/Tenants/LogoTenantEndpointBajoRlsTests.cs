@@ -168,8 +168,10 @@ public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
     private async Task<Respuesta> ServirAsync(Guid usuario, Guid tenantId, string? version = null)
     {
         await using var runtime = CrearRuntime(usuario);
+        // Los dos usuarios son Gestores CAE en su Tenant de origen: desde la decisión Chris 2026-10-20 el
+        // perfil de origen decide si la cartera hace falta, y sin perfil no se abre nada (fallo cerrado).
         var handler = new ObtenerLogoTenantQueryHandler(
-            new SesionPrivilegiadaAusente(), new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen), runtime, runtime);
+            new SesionPrivilegiadaAusente(), new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _origen), runtime, runtime);
 
         var servicios = new ServiceCollection();
         servicios.AddLogging();
@@ -219,7 +221,7 @@ public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
             .AddInterceptors(
                 new TenantSelladoInterceptor(tenantDeLaPeticion),
                 new TenantRlsConnectionInterceptor(
-                    tenantDeLaPeticion, new SinClienteActivo(), new CurrentUserServiceFalso(usuario, tenantOrigenId: _origen),
+                    tenantDeLaPeticion, new SinClienteActivo(), new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _origen),
                     BaseDatosPostgresDePruebas.FirmanteContextoRls))
             .Options;
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), tenantDeLaPeticion);

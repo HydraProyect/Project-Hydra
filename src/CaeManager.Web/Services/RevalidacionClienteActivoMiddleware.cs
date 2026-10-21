@@ -296,7 +296,8 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
     /// concedió la selección en <c>/cuenta/cliente-activo</c> y que lista el
     /// selector (invariante I2): la operación del token tiene que seguir siendo
     /// vigente, no raíz, del Operador CAE de origen del usuario, del Tenant que
-    /// el token declara, y con la cartera del usuario vigente bajo ella. Antes
+    /// el token declara, y, si su perfil de origen es Gestor CAE, con la cartera
+    /// del usuario vigente bajo ella (decisión Chris 2026-10-20). Antes
     /// la revalidación no volvía a exigir las dos primeras (Codex C5).
     /// </summary>
     internal static async Task<bool> SigueAutorizadoAsync(
@@ -333,7 +334,8 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     ? await currentUserService.ObtenerTenantOrigenIdAsync() is { } tenantOrigenId
                       && await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(
                           operacionesContext, usuarioId.Value, tenantOrigenId, tenantSeleccionado,
-                          asignacionOperacionId, ahora, cancellationToken)
+                          asignacionOperacionId, await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(),
+                          ahora, cancellationToken)
                     : await TenantsBeneficiariosAutorizados.AutorizadoPorViaHeredadaAsync(
                         dbContext, usuarioId.Value, tenantSeleccionado, ahora, cancellationToken));
     }

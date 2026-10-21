@@ -17,17 +17,21 @@ public class CatalogoIncorporacionCartera(
     : ICatalogoIncorporacionCartera
 {
     /// <summary>
-    /// El rol con el que entra quien se incorpora. Fijo: la solicitud es de un
-    /// Gestor CAE y la decisión del propietario (contrato § 13) es que se sume
-    /// como Gestor CAE adicional, no con el rol que tenga en su propio Tenant.
+    /// El rol que se guarda en la cartera de quien se incorpora. Fijo: la solicitud es de un
+    /// Gestor CAE (contrato § 13). Desde la decisión Chris 2026-10-20 el rol guardado en la
+    /// cartera ya no es el rol efectivo en el Tenant beneficiario —lo es el perfil de origen—:
+    /// la cartera da acceso (al Gestor CAE) y alcance, no rol.
     /// </summary>
     private const string RolIncorporado = Roles.GestorCae;
 
     /// <summary>
-    /// El rol de la cartera que el relevo automático del principal emite al Coordinador CAE
-    /// (ADR-011 § 2.7, enmienda 2026-10-08, puntos 2 y 3). Fijo, como <see cref="RolIncorporado"/>:
-    /// ningún llamante elige el rol de una cartera emitida aquí, y la Operación nunca concede
-    /// roles de Propiedad (Administrador, Dirección CAE).
+    /// El rol que se guarda en la cartera que el relevo automático del principal emite al
+    /// Coordinador CAE (ADR-011 § 2.7, enmienda 2026-10-08, puntos 2 y 3). Fijo, como
+    /// <see cref="RolIncorporado"/>: ningún llamante elige el rol de una cartera emitida aquí.
+    /// Una cartera externa solo guarda roles de Operación; el rol efectivo en el Tenant
+    /// beneficiario es el perfil de origen de quien la recibe, con todos sus poderes, también
+    /// los de Propiedad (decisión Chris 2026-10-20, que deroga «la Operación nunca concede
+    /// roles de Propiedad»).
     /// </summary>
     private const string RolDeRelevo = Roles.CoordinadorCae;
 

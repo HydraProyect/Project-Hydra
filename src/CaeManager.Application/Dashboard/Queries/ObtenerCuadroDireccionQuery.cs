@@ -151,7 +151,9 @@ public record MedicionCuadroDireccion(
 /// (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>). Las cifras son del Tenant entero y las
 /// bajas cuentan filas eliminadas que ya no están en ninguna lista de alcance, así que no se pueden
 /// recortar a una cartera parcial: quien no alcanza el Tenant entero no las ve, y se dice cuántos Tenants
-/// quedaron fuera.
+/// quedaron fuera. Desde la decisión Chris 2026-10-20, Administrador, Dirección CAE, Coordinador CAE y
+/// Consulta del Operador CAE externo alcanzan entero, sin cartera, cada Tenant beneficiario de la Asignación
+/// de Operación de su organización; solo el Gestor CAE queda acotado por su cartera.
 /// </para>
 ///
 /// <para>

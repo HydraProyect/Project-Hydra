@@ -127,7 +127,7 @@
     <value>p. ej. Soldador</value>
   </data>
   <data name="BotonAsignarACentro" xml:space="preserve">
-    <value>Asignar a centro…</value>
+    <value>Assignar a un centre</value>
   </data>
   <data name="DialogoEliminarLoteMensaje" xml:space="preserve">
     <value>Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
@@ -166,7 +166,10 @@
     <value>¿Eliminar {0} trabajador(es)?</value>
   </data>
   <data name="ModalAsignarCentroTitulo" xml:space="preserve">
-    <value>Asignar {0} trabajador(es) a un centro</value>
+    <value>Assignar {0} treballadors a un centre</value>
+  </data>
+  <data name="ModalAsignarCentroTituloUno" xml:space="preserve">
+    <value>Assignar 1 treballador a un centre</value>
   </data>
   <data name="PreflightDocumentosQueSePiden" xml:space="preserve">
     <value>{0} documento(s) que se piden</value>
@@ -244,7 +247,7 @@
     <value>{0} asignación(es) creada(s), {1} ya estaban activas.</value>
   </data>
   <data name="ErrorAsignarLote" xml:space="preserve">
-    <value>No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.</value>
+    <value>No s'ha pogut assignar els treballadors. Torna-ho a provar.</value>
   </data>
   <data name="ToastFiltroGuardado" xml:space="preserve">
     <value>Filtro guardado.</value>

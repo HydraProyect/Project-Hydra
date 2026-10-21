@@ -1,4 +1,4 @@
-using CaeManager.Application.Common;
+﻿using CaeManager.Application.Common;
 using MediatR;
 
 namespace CaeManager.Application.Usuarios.Queries.ObtenerRolesNoAsignables;
@@ -25,7 +25,7 @@ public class ObtenerRolesNoAsignablesQueryHandler(ICurrentUserService currentUse
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
 
         return RolesReservadosAlTenantDeOrigen.EsContextoCruzado(tenantOrigenId, tenantActual.TenantId)
-               && !await RolesReservadosAlTenantDeOrigen.ActuaPorEncargoPlenoAsync(encargoActual)
+               && !await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual)
             ? RolesReservadosAlTenantDeOrigen.Roles
             : [];
     }
