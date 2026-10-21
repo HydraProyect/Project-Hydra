@@ -174,6 +174,7 @@ public static class ComunicacionesDatosPruebaSeeder
                     fechaMensaje);
             }
 
+            conversacion.AlinearFechaConLosMensajes();
             conversacion.AgregarParticipante(emailExterno, RolParticipante.De, TipoParticipanteOrigen.UsuarioCliente);
             conversacion.AgregarParticipante(RemitenteSimuladoTenant, RolParticipante.Para, TipoParticipanteOrigen.Desconocido);
 
@@ -529,6 +530,7 @@ public static class ComunicacionesDatosPruebaSeeder
             "<p>Ha sido seleccionado para un premio. Confirme sus credenciales en este enlace.</p>", ahora.AddHours(-5));
 
         conversacionPersonal.AgregarParticipante("companero@buzon-simulado.local", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
+        conversacionPersonal.AlinearFechaConLosMensajes();
         dbContext.Conversaciones.Add(conversacionPersonal);
 
         dbContext.ClasificacionesRuidoMensaje.Add(new ClasificacionRuidoMensaje(
@@ -589,6 +591,7 @@ public static class ComunicacionesDatosPruebaSeeder
         var seguimiento = abierta.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000001",
             "<p>Confirmado: todo en regla salvo un apto médico que vence esta semana.</p>", ahora.AddHours(-1));
         seguimiento.ActualizarEstadoEntrega(EstadoEntregaMensaje.Enviado);
+        abierta.AlinearFechaConLosMensajes();
         dbContext.Conversaciones.Add(abierta);
 
         var ventanaCerrada = Conversacion.CrearWhatsApp("+34600111002", conexionFija.Id, clientes[1].Id, gestorTitular.Id);
@@ -599,6 +602,7 @@ public static class ComunicacionesDatosPruebaSeeder
         fallido.ActualizarEstadoEntrega(EstadoEntregaMensaje.Fallido,
             "Message failed to send because more than 24 hours have passed since the customer last replied.");
         ventanaCerrada.CambiarEstado(EstadoConversacion.Pendiente);
+        ventanaCerrada.AlinearFechaConLosMensajes();
         dbContext.Conversaciones.Add(ventanaCerrada);
 
         var triage = Conversacion.CrearWhatsApp("+34600111003", conexionPool.Id, clienteId: null,
@@ -608,6 +612,7 @@ public static class ComunicacionesDatosPruebaSeeder
         var autoTriage = triage.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.WhatsApp, "+34600000002",
             "<p>Hola, soy el buzón CAE de demo. Indícanos por favor de qué cliente y consulta se trata.</p>", ahora.AddHours(-6));
         autoTriage.ActualizarEstadoEntrega(EstadoEntregaMensaje.Entregado);
+        triage.AlinearFechaConLosMensajes();
         dbContext.Conversaciones.Add(triage);
 
         await dbContext.SaveChangesAsync(cancellationToken);
