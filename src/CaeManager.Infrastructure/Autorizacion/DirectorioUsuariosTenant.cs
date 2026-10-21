@@ -327,29 +327,38 @@ public class DirectorioUsuariosTenant(
     /// <c>AspNetUserRoles</c> (P1-I2): la lista de <c>/usuarios</c> llamaba
     /// <c>UserManager.GetRolesAsync</c> una vez por fila, y la página ya no toca
     /// <c>UserManager</c>. Es el rol del Tenant de origen de cada cuenta; para un
-    /// Operador CAE externo delegado la página muestra el de su asignación. Una
+    /// Operador CAE externo delegado la página muestra el que ejerce aquí
+    /// (<see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>). Una
     /// cuenta sin rol no aparece en el diccionario.
     /// </summary>
     public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
         IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
-        {
-            if (usuarioIds.Count == 0) return new Dictionary<Guid, string>();
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(
+            async () => await LeerRolesDeCuentasAsync(usuarioIds, cancellationToken), cancellationToken);
 
-            var roles = await (
-                from usuarioRol in identidad.UserRoles
-                where usuarioIds.Contains(usuarioRol.UserId)
-                join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
-                select new { usuarioRol.UserId, rol.Name })
-                .ToListAsync(cancellationToken);
+    /// <summary>
+    /// El cuerpo de <see cref="ObtenerRolesDeCuentasAsync"/>, sin la puerta, para reutilizarlo
+    /// desde otra lectura que ya está dentro de ella.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> LeerRolesDeCuentasAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (usuarioIds.Count == 0) return new Dictionary<Guid, string>();
 
-            // La invariante es un rol por cuenta; si alguna tuviera dos, se
-            // muestra uno de forma estable en vez de fallar la lista entera.
-            return roles
-                .Where(r => r.Name is not null)
-                .GroupBy(r => r.UserId)
-                .ToDictionary(g => g.Key, g => g.Select(r => r.Name!).Min(StringComparer.Ordinal)!);
-        }, cancellationToken);
+        var roles = await (
+            from usuarioRol in identidad.UserRoles
+            where usuarioIds.Contains(usuarioRol.UserId)
+            join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+            select new { usuarioRol.UserId, rol.Name })
+            .ToListAsync(cancellationToken);
+
+        // La invariante es un rol por cuenta; si alguna tuviera dos, se
+        // muestra uno de forma estable en vez de fallar la lista entera.
+        return roles
+            .Where(r => r.Name is not null)
+            .GroupBy(r => r.UserId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.Name!).Min(StringComparer.Ordinal)!);
+    }
 
     public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
@@ -365,20 +374,64 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
-    /// Rol acotado (<c>AsignacionOperadorDelegado.Rol</c>) de cada Operador
-    /// Delegado visible en el tenant activo — nunca su rol de origen. Un
-    /// operador de soporte es <c>Administrador</c> en el tenant de plataforma,
-    /// pero <c>CurrentUserService.ObtenerRolEfectivoAsync</c> ya lo acota a
-    /// Consulta/GestorCae/CoordinadorCae al operar aquí; mostrar su rol de
-    /// origen en /usuarios contradice esa restricción y alarma sin motivo a
-    /// quien lo ve (un "Administrador" desconocido en su propia organización).
+    /// El rol que <b>ejerce</b> en el tenant activo cada Operador Delegado visible, para la
+    /// columna Rol de <c>/usuarios</c>. Es la misma regla, y la misma definición, que la lista de
+    /// personas de <c>/delegaciones</c>
+    /// (<see cref="TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario"/>, decisión
+    /// Chris 2026-10-20): la persona del Operador CAE externo tiene en la Empresa gestionada su
+    /// perfil de origen cuando hay una Asignación de Operación vigente del Tenant entero de su
+    /// organización sobre el tenant activo
+    /// (<see cref="TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero"/>); si no —operación
+    /// acotada, caducada o ausente, perfil desconocido— o si la delegación es de Soporte TALVEG, se
+    /// muestra el rol guardado (<c>AsignacionOperadorDelegado.Rol</c>). Un operador de soporte es
+    /// <c>Administrador</c> en el tenant de plataforma, pero aquí opera con el rol de su ventana:
+    /// pintar su rol de origen alarmaría sin motivo a quien lo ve.
+    ///
+    /// <para>
+    /// Es una etiqueta, no autoridad: ninguna puerta lee este diccionario, y la visibilidad de las
+    /// cuentas sigue saliendo de <see cref="OperadoresDelegadosVigentes"/> sin mirar el rol.
+    /// </para>
     /// </summary>
     public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return new Dictionary<Guid, string>();
 
-            return await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var delegados = await OperadoresDelegadosVigentes(tenantId)
+                .Select(o => new { o.UsuarioId, o.OperadorTenantId, o.EsSoporte, o.Rol })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (delegados.Count == 0) return new Dictionary<Guid, string>();
+
+            // Solo las organizaciones que ya tienen personas delegadas aquí: la consulta no
+            // enseña qué otros Operadores CAE operan el tenant activo.
+            var operadorIds = delegados.Select(d => d.OperadorTenantId).Distinct().ToList();
+            var operadoresDelTenantEntero = (await TenantsBeneficiariosAutorizados
+                    .OperacionesDelTenantEntero(identidad, DateTime.UtcNow)
+                    .Where(o => o.PropietarioTenantId == tenantId && operadorIds.Contains(o.OperadorTenantId))
+                    .Select(o => o.OperadorTenantId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
+
+            var rolesDeOrigen = await LeerRolesDeCuentasAsync(
+                delegados.Select(d => d.UsuarioId).Distinct().ToList(), cancellationToken);
+
+            // Un rol por persona; si dos asignaciones dieran dos, uno estable (mismo criterio
+            // que ObtenerRolesDeCuentasAsync) en vez de fallar la lista entera.
+            return delegados
+                .Select(d => new
+                {
+                    d.UsuarioId,
+                    Rol = TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario(
+                        d.EsSoporte,
+                        operadoresDelTenantEntero.Contains(d.OperadorTenantId),
+                        d.Rol,
+                        rolesDeOrigen.GetValueOrDefault(d.UsuarioId)),
+                })
+                .GroupBy(d => d.UsuarioId)
+                .ToDictionary(g => g.Key, g => g.Select(d => d.Rol).Min(StringComparer.Ordinal)!);
         }, cancellationToken);
 
     /// <summary>
@@ -822,6 +875,7 @@ public class DirectorioUsuariosTenant(
         {
             UsuarioId = asignacion.UsuarioId,
             OperadorTenantId = delegacion.TenantConsultoraId,
+            EsSoporte = delegacion.Proposito == CaeManager.Domain.Tenants.PropositoDelegacion.Soporte,
             Rol = asignacion.Rol,
         };
 
@@ -829,6 +883,7 @@ public class DirectorioUsuariosTenant(
     {
         public Guid UsuarioId { get; init; }
         public Guid OperadorTenantId { get; init; }
+        public bool EsSoporte { get; init; }
         public string Rol { get; init; } = string.Empty;
     }
 }
