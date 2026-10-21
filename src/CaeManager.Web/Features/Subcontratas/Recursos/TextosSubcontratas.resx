@@ -962,4 +962,6 @@
   <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Todo · {0}</value></data>
   <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Sin incidencias en plataformas</value></data>
   <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Todo lo exigido está validado en las plataformas de sus Clientes.</value></data>
+  <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360</value></data>
+  <data name="AriaIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360 de {0}</value></data>
 </root>

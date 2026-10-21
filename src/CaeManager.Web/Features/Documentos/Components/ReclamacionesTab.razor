@@ -40,13 +40,18 @@
 <Pestanas Definiciones="Subvistas" PestanaActiva="@_vista" PestanaActivaChanged="CambiarVistaAsync" EtiquetaGrupo="Reclamaciones">
 @if (_vista == "historial")
 {
+    @* Flujos 04 (maqueta 20-10): el historial se presenta con título y una línea que dice qué es. *@
+    <div class="reclamaciones-historial-cabecera">
+        <h3>@Textos["RecHistorialTitulo"]</h3>
+        <p class="texto-vacio-seccion">@Textos["RecHistorialSubtitulo"]</p>
+    </div>
     @if (_cargandoHistorial)
     {
         <EstadoCargando Filas="4" />
     }
     else if (_errorHistorial)
     {
-        <EstadoVacio Titulo="No pudimos cargar las reclamaciones enviadas" Descripcion="Intenta nuevamente en unos segundos.">
+        <EstadoVacio Titulo="@Textos["RecHistorialErrorTitulo"]" Descripcion="Intenta nuevamente en unos segundos.">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="CargarHistorialAsync">Reintentar</Boton>
             </Accion>
@@ -54,7 +59,7 @@
     }
     else if (_historial.Count == 0)
     {
-        <EstadoVacio Titulo="Todavía no se ha enviado ninguna reclamación" Descripcion='Los lotes que envíes desde la pestaña "+ Nueva reclamación" aparecerán aquí.' />
+        <EstadoVacio Titulo="@Textos["RecHistorialVacioTitulo"]" Descripcion="@Textos[_puedeEscribir ? "RecHistorialVacioDetalle" : "RecHistorialVacioDetalleLectura"]" />
     }
     else
     {
@@ -301,12 +306,18 @@ else
                 <dt>@Textos["RecRevisionTexto"]</dt>
                 <dd class="reclamacion-revision-cuerpo">@((MarkupString)previa.CuerpoHtml)</dd>
             </dl>
-            <p class="texto-vacio-seccion">@Textos["RecRevisionAviso", previa.Correos.Count]</p>
+            @* Flujos 04: aviso de irreversibilidad, ámbar y sin «Deshacer» al enviar. *@
+            <div class="aviso-irreversible" role="note">
+                <strong>@Textos["RecReenvioAvisoTitulo"]</strong>
+                @* Con el módulo apagado (Comunicaciones:Activo) no hay hilo donde quede: no se promete. *@
+                <span>@Textos[OpcionesComunicaciones.Value.Activo ? "RecReenvioAvisoTexto" : "RecReenvioAvisoTextoSinComunicaciones"]</span>
+            </div>
         }
     </ChildContent>
     <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reenviandoId is not null" OnClick="() => CerrarRevisionReenvio(false)">@Textos["RecVolver"]</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["RecConfirmarEnviar"]</Boton>
+        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_reenviandoId is not null" OnClick="() => CerrarRevisionReenvio(false)">@Textos["RecReenvioCancelar"]</Boton>
+        @* El diálogo solo se abre desde «Reclamar de nuevo» (SoloConEscritura); se envuelve también aquí para que el rol de Consulta nunca vea un «Enviar reclamación» habilitado. *@
+        <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Cargando="_reenviandoId is not null" OnClick="ConfirmarReenvioAsync">@Textos["RecReenvioEnviar"]</Boton></SoloConEscritura>
     </Pie>
 </Modal>
 
@@ -469,7 +480,7 @@ else
         return CargarHistorialAsync();
     }
 
-    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion, IReadOnlyList<Guid> contactoIds)
+    private async Task ReclamarDeNuevoAsync(ReclamacionEnviadaDto reclamacion, IReadOnlyList<Guid> contactoIds, string nombresDestinatarios)
     {
         // La guarda se comprueba AL ENTRAR, no al salir: el botón deshabilitado
         // no basta porque el segundo clic ya viajaba cuando se deshabilitó.
@@ -509,7 +520,8 @@ else
                 return;
             }
 
-            ToastService.Mostrar($"Reclamación reenviada a {reclamacion.TitularRazonSocial}.", TonoToast.Exito);
+            // Sin «Deshacer»: el correo ya ha salido. Dice a quién llegó (la persona de la agenda), no solo la Empresa.
+            ToastService.Mostrar(Textos["RecReenvioToast", nombresDestinatarios].Value, TonoToast.Exito);
             await CargarHistorialAsync();
         }
         finally
@@ -713,10 +725,13 @@ else
         // correo sin haberse mostrado, y uno que ya no resuelve hace fallar el envío
         // entero (ContactosDesactualizados), igual que en «Enviar reclamación».
         IReadOnlyList<Guid> contactoIds = [.. _vistaPreviaReenvio.Destinatarios.Select(d => d.ContactoId)];
+        var nombresDestinatarios = string.Join(", ", _vistaPreviaReenvio.Destinatarios.Select(d => d.Nombre).Where(n => !string.IsNullOrWhiteSpace(n)));
+        if (string.IsNullOrWhiteSpace(nombresDestinatarios))
+            nombresDestinatarios = reclamacion.TitularRazonSocial;
 
         try
         {
-            await ReclamarDeNuevoAsync(reclamacion, contactoIds);
+            await ReclamarDeNuevoAsync(reclamacion, contactoIds, nombresDestinatarios);
         }
         finally
         {
