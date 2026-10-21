@@ -5,11 +5,13 @@ using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Cumplimiento.Commands.ActivarTratamientoIaPorEncargo;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
@@ -552,6 +554,53 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             (enB.Estructura.VisitasConAvisoUrgente, enB.InicioVisitasUrgentes).Should().Be((urgenteDeB, urgenteDeB), $"MEDIDO el día {dia:yyyy-MM-dd}");
             eseDia.Tenants.Where(t => t.Clave is not ("D" or "B")).Should().OnlyContain(
                 t => t.Estructura.VisitasEnCurso == 0 && t.Estructura.VisitasConAvisoUrgente == 0, "ningún otro perfil tiene una Visita en curso ni a menos de 48 h");
+        }
+    }
+
+    /// <summary>
+    /// Prueba de flujos del 2026-10-21 (fila 19): en B, una Asignación nueva al Centro con plataforma hacía nacer de golpe
+    /// una acreditación PendienteDeSubir por cada documento de la Empresa propia, y Mi trabajo pasaba de cero a trece
+    /// propagaciones pendientes sin que nadie hubiera tocado un documento de Empresa. La regla de alta del producto es la
+    /// correcta (P0-7: una Asignación pone en juego los documentos del Trabajador y de su Empresa ante ese Centro); lo que
+    /// fallaba era la siembra, que no los había acreditado aunque la Empresa ya tenía Trabajadores allí. Se reproduce la
+    /// acción con el servicio real, sin guardar: ningún documento de Empresa queda por acreditar.
+    /// </summary>
+    [Fact]
+    public async Task Una_Asignacion_nueva_al_Centro_con_plataforma_no_acredita_ningun_documento_de_Empresa_que_la_siembra_no_hubiera_acreditado()
+    {
+        var conPlataforma = CatalogoPilotoOutbound.Tenants.Where(t => t.CentroConPlataforma is not null).ToList();
+        conPlataforma.Select(t => t.Clave).Should().Contain("B", "control: B es el Tenant de la prueba de flujos");
+
+        foreach (var tenant in conPlataforma)
+        {
+            var (deEmpresaYaAcreditados, deEmpresaNuevos) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, sp) =>
+            {
+                var canal = await db.CanalesGestionDocumental.AsNoTracking().SingleAsync(c => c.Tipo == TipoCanalGestion.Plataforma);
+                var propia = await db.Empresas.AsNoTracking().Where(e => e.EsPropia).Select(e => e.Id).SingleAsync();
+                var trabajadorId = await (
+                    from asignacion in db.Asignaciones.AsNoTracking()
+                    join trabajador in db.Trabajadores.AsNoTracking() on asignacion.TrabajadorId equals trabajador.Id
+                    where asignacion.CentroId == canal.CentroId && asignacion.FechaBaja == null && trabajador.EmpresaId == propia
+                    orderby trabajador.Id
+                    select trabajador.Id).FirstAsync();
+                var documentosDeEmpresa = await db.Documentos.AsNoTracking().Operativos()
+                    .Where(d => d.EmpresaId == propia && d.TrabajadorId == null).Select(d => d.Id).ToListAsync();
+                var yaAcreditados = await db.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                    .CountAsync(a => a.CanalGestionDocumentalId == canal.Id && documentosDeEmpresa.Contains(a.DocumentoId));
+
+                await sp.GetRequiredService<IAltaAcreditacionesPlataformaService>().AgregarPendientesAsync(
+                    new AltasConAcreditacion { Asignaciones = [new Asignacion(trabajadorId, canal.CentroId, DiaDeNegocio.Hoy())] });
+
+                // Sin SaveChanges: lo agregado se queda en el seguimiento de este ámbito y se descarta con él.
+                var nuevos = db.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+                    .Where(e => e.State == EntityState.Added && documentosDeEmpresa.Contains(e.Entity.DocumentoId))
+                    .Count();
+                return (yaAcreditados, nuevos);
+            });
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {deEmpresaYaAcreditados} documentos de Empresa acreditados en el Centro con plataforma; una Asignación nueva añade {deEmpresaNuevos}");
+            deEmpresaYaAcreditados.Should().BeGreaterThan(0, $"control {tenant.Clave}: la Empresa propia tiene documentos que acreditar allí");
+            deEmpresaNuevos.Should().Be(0, $"{tenant.Clave}: la siembra ya acreditó lo que la regla de alta exige para la Empresa en ese Centro");
         }
     }
 

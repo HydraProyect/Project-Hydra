@@ -745,7 +745,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private static string EtiquetaCumplimiento(int? porcentaje) =>
         porcentaje is { } p
-            ? $"{p}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad"
+            ? $"{p}% de los documentos exigidos a sus Trabajadores en sus Centros, al día"
             : "Sin actividad en ningún centro con requisitos aplicables";
 
     /// <summary>

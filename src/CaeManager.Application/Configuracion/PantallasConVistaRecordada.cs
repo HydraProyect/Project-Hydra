@@ -22,9 +22,10 @@ public static class PantallasConVistaRecordada
     public const string Proyectos = "Proyectos";
     public const string Visitas = "Visitas";
     public const string Gestiones = "Gestiones";
+    public const string Incidencias = "Incidencias";
 
     public static readonly string[] Admitidas =
-        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones];
+        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias];
 
     /// <summary>
     /// Tope de <c>ValoresJson</c> en caracteres. La vista se escribe sola, sin que

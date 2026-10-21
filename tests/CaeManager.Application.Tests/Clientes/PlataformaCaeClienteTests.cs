@@ -8,7 +8,10 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tests.Auditoria;
 using CaeManager.Application.Tests.Documentos;
+using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Centros;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Plataforma;
@@ -103,7 +106,10 @@ public class PlataformaCaeClienteTests
 
         public ObtenerPlataformaCaeClienteQueryHandler ObtenerPlataforma(
             IAlcanceDatosService alcance, string? rol = "GestorCae", CapacidadPrivilegio? capacidad = null) =>
-            new(Contexto, alcance, new UsuarioActualFalso(rol, Guid.NewGuid()), Sesion(capacidad));
+            new(Contexto, alcance, new UsuarioActualFalso(rol, Guid.NewGuid()), Sesion(capacidad), Centros, Proveedores);
+
+        public CentrosQueryContextFalso Centros { get; } = new();
+        public ProveedoresPlataformaCaeQueryContextFalso Proveedores { get; } = new();
 
         public ObtenerAccesosPlataformaCaeClienteQueryHandler ObtenerAccesos(IAlcanceDatosService alcance) =>
             new(Contexto, alcance, new DirectorioFalso(new Dictionary<Guid, string> { [UsuarioId] = "Marta Gestora" }), Registro);
@@ -346,6 +352,52 @@ public class PlataformaCaeClienteTests
         var dto = await e.ObtenerPlataforma(e.EnCartera()).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
 
         dto.Should().Be(new PlataformaCaeClienteDto(false, null, null, null));
+    }
+
+    /// <summary>
+    /// Revisión 1:1 del 2026-10-21: «Sin plataforma CAE registrada» convivía con un Centro bloqueado por la plataforma.
+    /// Sin plataforma registrada, la caja nombra las de los canales de sus Centros (sin repetir, por su proveedor o,
+    /// sin él, por la etiqueta) y nunca las de Centros de otro Cliente empresarial ni los canales por correo.
+    /// </summary>
+    [Fact]
+    public async Task Sin_plataforma_registrada_nombra_las_plataformas_en_las_que_se_acreditan_sus_Centros()
+    {
+        var e = new Escenario();
+        var dokify = new ProveedorPlataformaCae("dokify", "Dokify");
+        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
+        e.Proveedores.ListaProveedores.AddRange([dokify, nalanda]);
+        var norte = new Centro(e.Cliente.Id, e.Empresa.Id, "Planta Norte");
+        var sur = new Centro(e.Cliente.Id, e.Empresa.Id, "Planta Sur");
+        var ajeno = new Centro(Guid.NewGuid(), e.Empresa.Id, "Centro de otro Cliente");
+        e.Centros.ListaCentros.AddRange([norte, sur, ajeno]);
+        e.Centros.ListaCanalesGestionDocumental.AddRange([
+            CanalGestionDocumental.DePlataforma(norte.Id, "Acreditación", dokify.Id, null, "usuario", "secreta"),
+            CanalGestionDocumental.DePlataforma(sur.Id, "Acreditación", dokify.Id, null, null, null),
+            CanalGestionDocumental.DePlataforma(ajeno.Id, "Acreditación", nalanda.Id, null, null, null),
+            CanalGestionDocumental.PorEmail(sur.Id, "Correo", "cae@example.com", null)
+        ]);
+
+        var dto = await e.ObtenerPlataforma(e.EnCartera()).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
+
+        dto!.Registrada.Should().BeFalse();
+        dto.PlataformasDeSusCentros.Should().Equal("Dokify");
+    }
+
+    [Fact]
+    public async Task Con_plataforma_registrada_no_nombra_las_de_sus_Centros()
+    {
+        var e = new Escenario();
+        e.RegistrarPlataforma();
+        var dokify = new ProveedorPlataformaCae("dokify", "Dokify");
+        e.Proveedores.ListaProveedores.Add(dokify);
+        var norte = new Centro(e.Cliente.Id, e.Empresa.Id, "Planta Norte");
+        e.Centros.ListaCentros.Add(norte);
+        e.Centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.DePlataforma(norte.Id, "Acreditación", dokify.Id, null, null, null));
+
+        var dto = await e.ObtenerPlataforma(e.EnCartera()).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
+
+        dto!.Nombre.Should().Be("Nalanda");
+        dto.PlataformasDeSusCentros.Should().BeEmpty();
     }
 
     [Fact]

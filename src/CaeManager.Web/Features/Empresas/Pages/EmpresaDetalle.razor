@@ -408,7 +408,7 @@
                 <div class="empresa360-barra">
                     <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
                         @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
-                        @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
+                        @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.SinDocumentacionValida])
                         @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
                         @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
                     </div>
@@ -470,9 +470,9 @@
                                 </Detalle>
                                 <Derecha>
                                     @* Cifra de la maqueta: documentos al día / documentos registrados del trabajador. *@
-                                    @if (MotivoIncidenciasUi.RegistradosVigentes(trabajador.DocumentosVigentes, trabajador.DocumentosRegistrados) is { } cifra)
+                                    @if (MotivoIncidenciasUi.RegistradosVigentes(trabajador.DocumentosVigentes, trabajador.DocumentosEsperados) is { } cifra)
                                     {
-                                        <span class="empresa360-cifra-trabajador" aria-label="@MotivoIncidenciasUi.RegistradosVigentesAccesible(trabajador.DocumentosVigentes, trabajador.DocumentosRegistrados)">@cifra</span>
+                                        <span class="empresa360-cifra-trabajador" aria-label="@MotivoIncidenciasUi.RegistradosVigentesAccesible(trabajador.DocumentosVigentes, trabajador.DocumentosEsperados)">@cifra</span>
                                     }
                                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
                                         @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)

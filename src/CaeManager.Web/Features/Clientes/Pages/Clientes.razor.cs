@@ -748,11 +748,31 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>
-    /// Motivo bajo la pastilla: cuántas alertas hay en el peor estado («12 documentos»), sin repetir el estado,
-    /// que ya lo dice la pastilla.
+    /// Motivo bajo la pastilla: las alertas del Cliente empresarial por estado, con las palabras del motivo de cada
+    /// Centro («6 vencidos · 2 pendientes · 10 por vencer»; revisión 1:1 del 2026-10-21). Antes decía solo cuántas
+    /// había en el peor estado («6 documentos»), una cifra que no cuadraba con ninguna otra pantalla. Sin recuento
+    /// por estado (la fila no lo trae), cae a la cantidad del peor estado con su nombre.
     /// </summary>
-    private string MotivoEstadoDocumental(int cantidad) =>
-        cantidad == 1 ? Textos["MotivoUnDocumento"].Value : Textos["MotivoDocumentos", cantidad].Value;
+    private string MotivoEstadoDocumental(ClienteListaDto cliente)
+    {
+        var (vencidos, pendientes, porVencer) = cliente.Recuento is { Vencidos: 0, Pendientes: 0, PorVencer: 0 }
+            ? cliente.EstadoDocumentalPeor switch
+            {
+                EstadoDocumento.Vencido => (cliente.EstadoDocumentalCantidad, 0, 0),
+                EstadoDocumento.Faltante => (0, cliente.EstadoDocumentalCantidad, 0),
+                _ => (0, 0, cliente.EstadoDocumentalCantidad)
+            }
+            : (cliente.Recuento.Vencidos, cliente.Recuento.Pendientes, cliente.Recuento.PorVencer);
+
+        var partes = new List<string>(3);
+        if (vencidos > 0)
+            partes.Add(vencidos == 1 ? Textos["MotivoUnVencido"].Value : Textos["MotivoVencidos", vencidos].Value);
+        if (pendientes > 0)
+            partes.Add(pendientes == 1 ? Textos["MotivoUnPendiente"].Value : Textos["MotivoPendientes", pendientes].Value);
+        if (porVencer > 0)
+            partes.Add(porVencer == 1 ? Textos["MotivoUnPorVencer"].Value : Textos["MotivoPorVencer", porVencer].Value);
+        return string.Join(Textos["SeparadorMotivo"].Value, partes);
+    }
 
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes { get; set; } = default!;
 

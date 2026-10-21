@@ -123,9 +123,25 @@ public partial class DelegacionesGen2Tests : BunitContext
         public Task Publish<T>(T notification, CancellationToken cancellationToken = default) where T : INotification => Task.CompletedTask;
     }
 
-    private sealed class AlmacenUsuarios : IUserStore<ApplicationUser>
+    /// <summary>
+    /// Cuentas que el almacén conoce, con su rol de Identity (el del Tenant de origen); el
+    /// resto no se encuentra («Persona no encontrada»).
+    /// </summary>
+    private readonly Dictionary<Guid, (ApplicationUser Usuario, string Rol)> _cuentasConocidas = [];
+
+    private sealed class AlmacenUsuarios(IReadOnlyDictionary<Guid, (ApplicationUser Usuario, string Rol)> conocidas)
+        : IUserStore<ApplicationUser>, IUserRoleStore<ApplicationUser>
     {
-        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(null);
+        public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) =>
+            Task.FromResult(Guid.TryParse(userId, out var id) && conocidas.TryGetValue(id, out var cuenta) ? cuenta.Usuario : null);
+
+        public Task<IList<string>> GetRolesAsync(ApplicationUser user, CancellationToken cancellationToken) =>
+            Task.FromResult<IList<string>>(conocidas.TryGetValue(user.Id, out var cuenta) ? [cuenta.Rol] : []);
+
+        public Task AddToRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task RemoveFromRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<bool> IsInRoleAsync(ApplicationUser user, string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
+        public Task<IList<ApplicationUser>> GetUsersInRoleAsync(string roleName, CancellationToken cancellationToken) => throw NoPrevisto();
         private static Exception NoPrevisto() => new NotSupportedException();
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => throw NoPrevisto();
@@ -195,7 +211,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IClienteActivoSeleccionado>(_ => new Seleccion(_tenantSeleccionado));
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(), null!, null!, null!, null!, null!, null!, null!, null!));
+        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(_cuentasConocidas), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddLocalization();
         // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.
         JSInterop.SetupModule("./js/clipboard.js");

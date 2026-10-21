@@ -38,6 +38,9 @@ public class ObtenerEstadoTipoDocumentoQueryTests
             CentrosPedidos.Add(centroIds);
             return Task.FromResult<IReadOnlyList<ParDocumentalExigido>>(pares.Where(p => centroIds.Contains(p.CentroId)).ToList());
         }
+
+        public Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 
     private sealed class Escenario

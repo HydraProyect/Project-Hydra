@@ -196,8 +196,9 @@ public class SerieValoracionEnVigenciaTests
     {
         public List<(Guid? Tenant, IReadOnlyList<TramoDeVigencia> Tramos)> Pedidos { get; } = [];
 
-        public override Task<MedicionCuadroDireccion> MedirAsync(MesCuadroDireccion mes, DateTime corteUtc, CancellationToken cancellationToken, bool medirDocumental = true) =>
-            Task.FromResult(EnVivo);
+        public override Task<IReadOnlyList<MedicionCuadroDireccion>> MedirMesesAsync(
+            IReadOnlyList<MesAMedir> meses, CancellationToken cancellationToken, bool medirDocumental = true) =>
+            Task.FromResult<IReadOnlyList<MedicionCuadroDireccion>>(meses.Select(_ => EnVivo).ToList());
 
         public override Task<UnidadesOperadorCae> MedirUnidadesOperadorAsync(
             IReadOnlyList<TramoDeVigencia> tramos, DateTime corteUtc, CancellationToken cancellationToken)

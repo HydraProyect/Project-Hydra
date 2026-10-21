@@ -36,6 +36,31 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
             "lo vigente y, al final, lo que no caduca");
     }
 
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21): el estado del Trabajador es uno solo en el listado, Empresa 360 y Trabajador 360. Lo
+    /// exigido sin documento lo agrava a Pendiente salvo que ya sea más grave (Vencido); sin faltantes no cambia.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, true, EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Faltante, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.EnTolerancia, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Urgente, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.SinConfirmar, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Vigente, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.SinCaducidad, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Urgente, false, EstadoDocumento.Urgente)]
+    [InlineData(EstadoDocumento.Vigente, false, EstadoDocumento.Vigente)]
+    public void Lo_exigido_sin_documento_agrava_el_estado_a_Pendiente_salvo_si_ya_es_vencido(
+        EstadoDocumento estado, bool hayFaltantes, EstadoDocumento esperado) =>
+        SeveridadEstadoDocumento.ConFaltantes(estado, hayFaltantes).Should().Be(esperado);
+
+    [Fact]
+    public void Sin_documentos_registrados_lo_exigido_sin_documento_es_Pendiente_y_sin_exigir_nada_no_hay_estado()
+    {
+        SeveridadEstadoDocumento.ConFaltantes(null, hayFaltantes: true).Should().Be(EstadoDocumento.Faltante);
+        SeveridadEstadoDocumento.ConFaltantes(null, hayFaltantes: false).Should().BeNull();
+    }
+
     [Fact]
     public void Cada_valor_del_enum_tiene_un_rango_propio_y_la_tabla_los_cubre_todos()
     {

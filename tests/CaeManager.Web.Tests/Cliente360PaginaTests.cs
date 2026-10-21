@@ -855,7 +855,7 @@ public class Cliente360PaginaTests : BunitContext
 
         // Maqueta 17-10: una línea por cosa bajo el nombre (contratista; motivos).
         cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .cliente360-linea-detalle")).Should().Equal([
-            "Empresas: Montajes Ebro S.L.", "3 vencidos · 1 próximo",
+            "Empresas: Montajes Ebro S.L.", "3 vencidos · 1 por vencer",
             "Empresas: Ibertec GmbH"]));
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:"));
     }
@@ -1076,7 +1076,7 @@ public class Cliente360PaginaTests : BunitContext
         filas.Should().OnlyContain(f => f.QuerySelector("a.fila-relacion-nombre") == null);
         filas[0].GetAttribute("data-tono").Should().Be("peligro", "la fila con problema se tiñe, como .fila-tinte-rojo");
         filas[1].GetAttribute("data-tono").Should().BeNull();
-        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos · 1 próximo");
+        filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos · 1 por vencer");
         filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Ibertec GmbH");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");

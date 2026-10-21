@@ -131,13 +131,22 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                         .GroupBy(c => (c.Anyo, c.Mes))
                         .ToDictionary(g => g.Key, g => g.First());
 
+                CierreMensualTenantBeneficiario? CierreDe(MesCuadroDireccion mes) =>
+                    mes.FinUtc <= ahoraUtc && cierres.TryGetValue((mes.Anyo, mes.Mes), out var c) ? c : null;
+
+                // Los meses sin cierre vigente se miden en vivo de una sola pasada: las consultas por Tenant no crecen
+                // con los meses de la serie.
+                var mesesEnVivo = meses.Where(m => CierreDe(m) is null).Select(m => new MesAMedir(m, m.CorteA(ahoraUtc))).ToList();
+                var enVivo = await medicion.MedirMesesAsync(mesesEnVivo, cancellationToken, medirDocumental: false);
+                var medidaEnVivo = mesesEnVivo.Select((m, i) => (m.Mes, Medida: enVivo[i])).ToDictionary(p => p.Mes, p => p.Medida);
+
                 var medidos = new List<MesMedidoCuadro>();
                 foreach (var mes in meses)
                 {
                     var corteUtc = mes.CorteA(ahoraUtc);
-                    var cierre = mes.FinUtc <= ahoraUtc && cierres.TryGetValue((mes.Anyo, mes.Mes), out var c) ? c : null;
+                    var cierre = CierreDe(mes);
                     var medida = cierre is null
-                        ? await medicion.MedirAsync(mes, corteUtc, cancellationToken, medirDocumental: false)
+                        ? medidaEnVivo[mes]
                         : FotoCierreMensual.Leer(cierre.FotoJson).Medicion with
                         {
                             EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,

@@ -122,21 +122,50 @@ public partial class ClientesListaGen2Tests
 
     // --- Lo que se ve ----------------------------------------------------------------------------
 
+    /// <summary>Revisión 1:1 del 2026-10-21: el recuento del motivo sale de las mismas alertas que la ventana; «por vencer» junta Urgente y Próximo.</summary>
+    [Fact]
+    public void El_recuento_reparte_las_alertas_por_estado_y_junta_urgente_y_proximo_como_por_vencer()
+    {
+        static CaeManager.Application.Alertas.Queries.ObtenerAlertas.AlertaDto Alerta(EstadoDocumento estado) =>
+            new(null, Guid.NewGuid(), "Nora Vidal", Guid.NewGuid(), "Aptitud médica", null, estado, null, null);
+
+        var recuento = RecuentoAlertasClienteDto.De(
+        [
+            Alerta(EstadoDocumento.Vencido), Alerta(EstadoDocumento.Vencido), Alerta(EstadoDocumento.Faltante),
+            Alerta(EstadoDocumento.Urgente), Alerta(EstadoDocumento.Proximo)
+        ]);
+
+        recuento.Should().Be(new RecuentoAlertasClienteDto(Vencidos: 2, Pendientes: 1, PorVencer: 2));
+    }
+
+    [Fact]
+    public void Un_Cliente_con_un_Centro_bloqueado_por_la_plataforma_lo_dice_en_su_fila()
+    {
+        var bloqueado = Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1) with { BloqueoPlataformaCae = true };
+        var libre = Cliente("Beta Obras S.L.", peor: EstadoDocumento.Vencido, cantidad: 1);
+        var cut = Renderizar(new MediatorFalso { Almacen = { bloqueado, libre } });
+
+        CeldaDeEstado(cut, "Alfa Montajes S.L.").QuerySelector("[data-bloqueo-plataforma]")!.TextContent.Trim()
+            .Should().Be("Bloqueo de la plataforma CAE", "el listado dice lo mismo que la cabecera de Cliente 360");
+        CeldaDeEstado(cut, "Beta Obras S.L.").QuerySelector("[data-bloqueo-plataforma]").Should().BeNull();
+    }
+
     [Fact]
     public void El_motivo_abre_una_ventana_con_una_linea_por_alerta_que_nombra_el_documento_y_el_trabajador()
     {
         var vencida = AlertaDeDocumento("Aptitud médica", "Nora Vidal", EstadoDocumento.Vencido, -12);
         var faltante = AlertaDeFaltante("Formación Art. 19", "Javier Salas", "Planta de Zaragoza");
         var proxima = AlertaDeDocumento("Contrato", "Nora Vidal", EstadoDocumento.Proximo, 25);
-        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima);
+        var recuento = new RecuentoAlertasClienteDto(1, 1, 1);
+        var alfa = ConIncidencias(Cliente("Alfa Montajes S.L.", peor: EstadoDocumento.Vencido, cantidad: 1), null, vencida, faltante, proxima) with { Recuento = recuento };
         var cut = Renderizar(new MediatorFalso { Almacen = { alfa } });
 
         var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
         celda.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido", "la pastilla se pinta siempre");
         celda.QuerySelector(".estado-fila-motivo .ventana-contexto-disparador .motivo-incidencias-cliente")!.TextContent.Trim()
-            .Should().Be("1 documento", "el motivo sigue contando las alertas del peor estado");
+            .Should().Be("1 vencido · 1 pendiente · 1 por vencer", "el motivo reparte las alertas por estado, con las palabras del motivo de cada Centro (revisión 1:1 del 2026-10-21)");
         celda.QuerySelector(".ventana-contexto-disparador")!.GetAttribute("aria-label")
-            .Should().Be("Vencido: 1 documento. 3 documentos con incidencia entre sus trabajadores");
+            .Should().Be("Vencido: 1 vencido · 1 pendiente · 1 por vencer. 3 documentos con incidencia entre sus trabajadores");
         celda.QuerySelector(".ventana-contexto-titulo")!.TextContent.Trim()
             .Should().Be("3 documentos con incidencia entre sus trabajadores", "la ventana las lista todas, no solo las del peor estado");
 
@@ -228,7 +257,7 @@ public partial class ClientesListaGen2Tests
         var cut = Renderizar(new MediatorFalso { Almacen = { alfa, beta } });
 
         var celda = CeldaDeEstado(cut, "Alfa Montajes S.L.");
-        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("2 documentos");
+        celda.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("2 vencidos", "sin recuento por estado, la cantidad del peor estado con su nombre");
         celda.QuerySelectorAll(".ventana-contexto").Should().BeEmpty("sin líneas que enseñar no se abre una ventana vacía");
         CeldaDeEstado(cut, "Beta Talleres Coop.").QuerySelectorAll(".ventana-contexto").Should().ContainSingle(
             "control positivo: la fila que sí trae incidencias lleva su ventana");
