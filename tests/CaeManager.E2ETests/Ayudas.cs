@@ -771,6 +771,46 @@ public static class Ayudas
     private const int IntentosSeleccionarFilaBandeja = 4;
 
     /// <summary>
+    /// Abre una conversación desde la tabla de la bandeja plana de
+    /// <c>/comunicaciones</c> (<c>TablaConversaciones.razor</c>), que es lo que
+    /// el centro muestra mientras no hay ningún hilo abierto. Mismo modo de
+    /// fallo que <see cref="SeleccionarFilaBandejaAsync"/>: el botón tiene un
+    /// <c>@onclick</c> server-side en una página <c>InteractiveServer</c>, así
+    /// que un clic en la ventana del prerenderizado se pierde en silencio. La
+    /// señal fiable de que llegó es que el servidor pase a modo hilo: la tabla
+    /// desaparece y aparece la cabecera del detalle. Reclicar solo si el botón
+    /// sigue ahí es idempotente (abrir el mismo hilo dos veces no hace nada).
+    /// </summary>
+    public static async Task AbrirConversacionDeTablaAsync(IPage page, ILocator boton)
+    {
+        await boton.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 30_000 });
+
+        var cabeceraDetalle = page.Locator(".bandeja-centro-titulo-fila");
+        for (var intento = 1; intento <= IntentosSeleccionarFilaBandeja; intento++)
+        {
+            if (await boton.CountAsync() > 0)
+                await boton.ClickAsync(new LocatorClickOptions { Timeout = 15_000 });
+
+            try
+            {
+                await cabeceraDetalle.WaitForAsync(
+                    new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 5_000 });
+                return;
+            }
+            catch (TimeoutException)
+            {
+                // El clic no llegó al circuito: se reintenta.
+            }
+        }
+
+        throw new TimeoutException(
+            $"La conversación no se abrió tras {IntentosSeleccionarFilaBandeja} clics en la tabla: nunca apareció " +
+            "la cabecera del detalle (\".bandeja-centro-titulo-fila\"), así que ningún clic llegó al circuito " +
+            "(componente aún no interactivo tras el prerenderizado, o controlador @onclick invalidado por un " +
+            "re-render simultáneo).");
+    }
+
+    /// <summary>
     /// <c>bandeja-fila-activa</c> no es prefijo ni sufijo de ninguna otra clase
     /// de la fila (<c>bandeja-fila</c>, <c>bandeja-fila-esperando</c>), así que
     /// buscarla como subcadena del atributo no puede dar un falso positivo.
