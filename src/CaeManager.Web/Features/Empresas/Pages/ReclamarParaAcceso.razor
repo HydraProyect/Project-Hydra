@@ -86,7 +86,7 @@
                         {
                             <label class="campo-checkbox" @key="trabajador.Id">
                                 <input type="checkbox" checked="@_seleccion.Contains(trabajador.Id)"
-                                       @onchange="e => AlternarTrabajadorAsync(trabajador.Id, (bool)e.Value!)" />
+                                       @onchange="AlAlternarTrabajador(trabajador.Id)" />
                                 <span>@trabajador.Nombre</span>
                             </label>
                         }
@@ -132,7 +132,19 @@
                                     <h2 id="reclamar-acceso-empresa-titulo" class="reclamar-acceso-seccion-titulo">@Textos["SeccionEmpresa"]</h2>
                                     <span class="texto-descriptivo">@Recuento(_filasEmpresa.Count)</span>
                                 </div>
-                                @FilasDe(_filasEmpresa)
+                                <ul class="reclamar-acceso-filas">
+                                    @{ var clavesFilasEmpresa = new ClavesDeHermanos(); }
+                                    @foreach (var fila in _filasEmpresa)
+                                    {
+                                        <li class="reclamar-acceso-fila" @key="clavesFilasEmpresa.De(fila.Id)">
+                                            <span class="reclamar-acceso-fila-nombre">
+                                                <span>@fila.Nombre</span>
+                                                <span class="texto-descriptivo">@fila.Detalle</span>
+                                            </span>
+                                            <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                        </li>
+                                    }
+                                </ul>
                             </section>
                         }
                         @if (_gruposTrabajadores.Count > 0)
@@ -140,13 +152,25 @@
                             <section class="reclamar-acceso-seccion" aria-labelledby="reclamar-acceso-trabajadores-titulo">
                                 <div class="reclamar-acceso-seccion-cabecera">
                                     <h2 id="reclamar-acceso-trabajadores-titulo" class="reclamar-acceso-seccion-titulo">@Textos["SeccionTrabajadores"]</h2>
-                                    <span class="texto-descriptivo">@Recuento(_gruposTrabajadores.Sum(g => g.Filas.Count))</span>
+                                    <span class="texto-descriptivo">@Recuento(TotalDocumentosDeTrabajadores)</span>
                                 </div>
                                 @foreach (var grupo in _gruposTrabajadores)
                                 {
                                     <div class="reclamar-acceso-grupo" @key="grupo.TrabajadorId">
                                         <h3 class="reclamar-acceso-grupo-nombre">@grupo.Nombre</h3>
-                                        @FilasDe(grupo.Filas)
+                                        <ul class="reclamar-acceso-filas">
+                                            @{ var clavesFilasGrupo = new ClavesDeHermanos(); }
+                                            @foreach (var fila in grupo.Filas)
+                                            {
+                                                <li class="reclamar-acceso-fila" @key="clavesFilasGrupo.De(fila.Id)">
+                                                    <span class="reclamar-acceso-fila-nombre">
+                                                        <span>@fila.Nombre</span>
+                                                        <span class="texto-descriptivo">@fila.Detalle</span>
+                                                    </span>
+                                                    <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
+                                                </li>
+                                            }
+                                        </ul>
                                     </div>
                                 }
                             </section>
@@ -200,29 +224,10 @@
 
         @* El cajón de siempre, abierto ya en su revisión con lo que enseña esta pantalla. Cada tarjeta se envía con su comando, que
            vuelve a validar documentos, cartera y destinatarios. *@
-        <DrawerReclamacionLote Visible="_reclamacionVisible" VisibleChanged="v => _reclamacionVisible = v"
+        <DrawerReclamacionLote Visible="_reclamacionVisible" VisibleChanged="CambiarReclamacionVisible"
                                AmbitosDisponibles="@(new[] { AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa })"
                                LotesIniciales="@(_reclamacionVisible ? _lotes : null)" IncluirPendientesSinFecha="true"
                                OnReclamacionEnviada="RecalcularAsync" />
     }
 </div>
 </LimiteDeErrores>
-
-@code {
-    private RenderFragment FilasDe(IReadOnlyList<FilaReclamable> filas) => __builder =>
-    {
-        var clavesFilas = new ClavesDeHermanos();
-        <ul class="reclamar-acceso-filas">
-            @foreach (var fila in filas)
-            {
-                <li class="reclamar-acceso-fila" @key="clavesFilas.De(fila.Id)">
-                    <span class="reclamar-acceso-fila-nombre">
-                        <span>@fila.Nombre</span>
-                        <span class="texto-descriptivo">@fila.Detalle</span>
-                    </span>
-                    <Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Insignia</Badge>
-                </li>
-            }
-        </ul>
-    };
-}

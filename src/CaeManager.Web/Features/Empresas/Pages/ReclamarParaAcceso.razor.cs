@@ -69,6 +69,8 @@ public partial class ReclamarParaAcceso : CaeManager.Web.Components.PaginaIntera
 
     private string NombreCentro => _centros.FirstOrDefault(c => c.CentroId == _centroId)?.CentroNombre ?? string.Empty;
 
+    private int TotalDocumentosDeTrabajadores => _gruposTrabajadores.Sum(g => g.Filas.Count);
+
     private bool HayDestinatario => _lotes.Any(l => l.Destinatarios is { Count: > 0 });
 
     /// <summary>El cajón copia los lotes al abrirse: con una consulta en vuelo lo que se ve ya no es lo que se pidió, y no se ofrece reclamarlo.</summary>
@@ -199,6 +201,12 @@ public partial class ReclamarParaAcceso : CaeManager.Web.Components.PaginaIntera
         await RecalcularAsync();
     }
 
+    /// <summary>Un manejador por Trabajador, construido aquí para no meter una lambda en el marcado.</summary>
+    private EventCallback<ChangeEventArgs> AlAlternarTrabajador(Guid trabajadorId) =>
+        EventCallback.Factory.Create<ChangeEventArgs>(this, e => AlternarTrabajadorAsync(trabajadorId, (bool)e.Value!));
+
+    private void CambiarReclamacionVisible(bool visible) => _reclamacionVisible = visible;
+
     private Task SeleccionarTodosAsync()
     {
         _seleccion.UnionWith(TrabajadoresDelCentro.Select(t => t.Id));
@@ -310,16 +318,16 @@ public partial class ReclamarParaAcceso : CaeManager.Web.Components.PaginaIntera
     private string Recuento(int total) => total == 1 ? Textos["RecuentoUno"] : Textos["RecuentoVarios", total];
 
     /// <summary>La Delegación a cuyo contacto va el lote; null si va a la agenda de la Empresa.</summary>
-    private static string? DelegacionDe(LoteReclamacionAgrupadoDto lote) => lote.EmpresaEmpleadora?.DelegacionEmpresaNombre;
+    private static string? DelegacionEmpresaDe(LoteReclamacionAgrupadoDto lote) => lote.EmpresaEmpleadora?.DelegacionEmpresaNombre;
 
     private string TituloDestino(LoteReclamacionAgrupadoDto lote) =>
-        DelegacionDe(lote) is { } delegacion
+        DelegacionEmpresaDe(lote) is { } delegacion
             ? Textos["DestinoDelegacion", delegacion]
             : Textos["DestinoAgenda"];
 
     /// <summary>Un lote sin destinatario: sin contacto, o con un contacto de Delegación que el usuario no puede ver.</summary>
     private string TextoSinContacto(LoteReclamacionAgrupadoDto lote) =>
-        Textos[DelegacionDe(lote) is null ? "DestinoSinContacto" : "DestinoDelegacionSinContacto"];
+        Textos[DelegacionEmpresaDe(lote) is null ? "DestinoSinContacto" : "DestinoDelegacionSinContacto"];
 
     private void AbrirReclamacion()
     {
