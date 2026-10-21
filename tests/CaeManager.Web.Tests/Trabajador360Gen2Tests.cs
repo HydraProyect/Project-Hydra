@@ -956,6 +956,16 @@ public partial class Trabajador360Gen2Tests : BunitContext
         cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion").Should().BeEmpty();
         cut.Find("[aria-label='Gestiones pendientes']").TextContent.Should().Contain("Completar");
 
+        // Maqueta Trabajador 360: título en negrita sobre una tarjeta-lista (sin separador en mayúsculas ni cabecera de
+        // columnas), con el título de la Gestión y debajo «Centro · creada dd/mm/aaaa».
+        var bloqueGestiones = cut.Find(".trabajador360-gestiones");
+        bloqueGestiones.QuerySelector(".trabajador360-gestiones-titulo > strong")!.TextContent.Trim().Should().Be("Gestiones pendientes");
+        bloqueGestiones.QuerySelector(".lista-relaciones-tarjeta").Should().NotBeNull();
+        bloqueGestiones.QuerySelectorAll("[role=columnheader]").Should().BeEmpty();
+        bloqueGestiones.QuerySelector(".fila-relacion-nombre")!.TextContent.Trim().Should().Be("Reconocimiento médico");
+        bloqueGestiones.QuerySelector(".fila-relacion-detalle")!.TextContent.Trim().Should().StartWith("Centro Norte · creada ");
+        cut.FindAll(".separador-ambito").Should().NotContain(e => e.TextContent.Trim() == "Gestiones pendientes");
+
         foreach (var nombre in new[] { "Centros", "Documentación", "Historial" })
         {
             await AbrirPestanaAsync(cut, nombre);
