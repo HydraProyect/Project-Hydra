@@ -421,6 +421,10 @@
     <value>{0} de {1}</value>
     <comment>Contador de la cabecera de grupo cuando la página solo enseña parte del grupo: {0} filas en esta página de las {1} del grupo.</comment>
   </data>
+  <data name="VerRestantes" xml:space="preserve">
+    <value>Ver los {0} restantes</value>
+    <comment>Pie de una fila desplegada que enseña los primeros elementos; {0} es cuántos quedan por enseñar.</comment>
+  </data>
   <data name="GrupoContadorParcialTitulo" xml:space="preserve">
     <value>{0} de {1} en esta página</value>
   </data>
