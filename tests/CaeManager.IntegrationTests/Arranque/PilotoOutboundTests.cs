@@ -349,11 +349,14 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             var sender = sp.GetRequiredService<ISender>();
             var documentacion = await sender.Send(
                 new CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro.ObtenerAsignacionesDocumentacionPorCentroQuery(centroId));
-            var trabajadorIds = documentacion.Select(t => t.TrabajadorId).ToList();
-            var empresaId = await db.Trabajadores.Where(t => trabajadorIds.Contains(t.Id)).Select(t => t.EmpresaId!.Value).Distinct().SingleAsync();
+            // Los Trabajadores de la Empresa que más tiene en el Centro (una cedida por ETT sería de otra Empresa empleadora).
+            var porEmpresa = await db.Trabajadores.Where(t => documentacion.Select(d => d.TrabajadorId).Contains(t.Id) && t.EmpresaId != null)
+                .Select(t => new { t.Id, EmpresaId = t.EmpresaId!.Value }).ToListAsync();
+            var empresa = porEmpresa.GroupBy(t => t.EmpresaId).OrderByDescending(g => g.Count()).First();
+            var trabajadorIds = empresa.Select(t => t.Id).ToList();
             var lotes = await sender.Send(
-                new CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpresaEmpleadora.ObtenerReclamacionPorAccesoQuery(empresaId, centroId, trabajadorIds));
-            return (documentacion, lotes);
+                new CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpresaEmpleadora.ObtenerReclamacionPorAccesoQuery(empresa.Key, centroId, trabajadorIds));
+            return (documentacion.Where(d => trabajadorIds.Contains(d.TrabajadorId)).ToList(), lotes);
         });
 
         var vencidos = documentacion.SelectMany(t => t.Documentos.Where(x => x.Estado == EstadoDocumento.Vencido).Select(x => x.DocumentoId!.Value)).ToList();
@@ -361,6 +364,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         salida.WriteLine($"MEDIDO C «{centro}»: {vencidos.Count} vencidos y {ausentes.Count} ausentes en Centro 360; {lotes.Count} lotes por acceso");
 
         vencidos.Should().NotBeEmpty("control: la siembra deja vencidos en este Centro");
+        ausentes.Should().NotBeEmpty("control: la siembra deja documentos de Trabajador sin subir en este Centro");
         lotes.SelectMany(l => l.Documentos.Select(x => x.DocumentoId)).Should().Contain(vencidos);
         lotes.SelectMany(l => (l.PendientesSinFecha ?? []).Where(p => p.TrabajadorId != null).Select(p => (p.TrabajadorId!.Value, p.TipoDocumentoId)))
             .Should().Contain(ausentes);
