@@ -121,10 +121,10 @@
     <value>{0} vencidos</value>
   </data>
   <data name="DetalleProximosUno" xml:space="preserve">
-    <value>1 próximo</value>
+    <value>1 por vencer</value>
   </data>
   <data name="DetalleProximosVarios" xml:space="preserve">
-    <value>{0} próximos</value>
+    <value>{0} por vencer</value>
   </data>
   <data name="CentroSinRequisitos" xml:space="preserve">
     <value>Sin requisitos</value>
@@ -393,11 +393,26 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Este Cliente no tiene tipos de documento de Trabajador o de Empresa a los que fijar tolerancia, o no tienes acceso a él.</value>
   </data>
-  <data name="MotivoUnDocumento" xml:space="preserve">
-    <value>1 documento</value>
+  <data name="MotivoUnVencido" xml:space="preserve">
+    <value>1 vencido</value>
   </data>
-  <data name="MotivoDocumentos" xml:space="preserve">
-    <value>{0} documentos</value>
+  <data name="MotivoVencidos" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="MotivoUnPendiente" xml:space="preserve">
+    <value>1 pendiente</value>
+  </data>
+  <data name="MotivoPendientes" xml:space="preserve">
+    <value>{0} pendientes</value>
+  </data>
+  <data name="MotivoUnPorVencer" xml:space="preserve">
+    <value>1 por vencer</value>
+  </data>
+  <data name="MotivoPorVencer" xml:space="preserve">
+    <value>{0} por vencer</value>
+  </data>
+  <data name="SeparadorMotivo" xml:space="preserve">
+    <value> · </value>
   </data>
   <data name="IncidenciasTituloUna" xml:space="preserve">
     <value>1 documento con incidencia entre sus trabajadores</value>
@@ -519,6 +534,9 @@
   </data>
   <data name="PlataformaCaeSinRegistrar" xml:space="preserve">
     <value>Sin plataforma CAE registrada.</value>
+  </data>
+  <data name="PlataformaCaeDeSusCentros" xml:space="preserve">
+    <value>Sus Centros ya se acreditan en {0}.</value>
   </data>
   <data name="PlataformaCaeAlcance" xml:space="preserve">
     <value>La comparten todos sus Centros.</value>

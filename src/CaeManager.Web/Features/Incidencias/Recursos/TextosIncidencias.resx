@@ -249,4 +249,8 @@
   <data name="NombreHojaExportacion" xml:space="preserve">
     <value>Incidencias</value>
   </data>
+  <data name="ColumnaIncidencia" xml:space="preserve"><value>Incidencia</value></data>
+  <data name="CopiarReferenciaIncidencia" xml:space="preserve"><value>Copiar la referencia de la incidencia ({0})</value></data>
+  <data name="ChipBusqueda" xml:space="preserve"><value>Búsqueda: &quot;{0}&quot;</value></data>
+  <data name="AriaQuitarBusqueda" xml:space="preserve"><value>Quitar la búsqueda</value></data>
 </root>

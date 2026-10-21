@@ -91,6 +91,17 @@
 .acciones-cliente { display: flex; justify-content: flex-end; }
 .celda-centros-cliente, .celda-estado-cliente { min-width: 0; }
 
+/* Mismo trazo que .cliente360-bloqueo-plataforma de Cliente 360: un aviso, no una pastilla de estado. */
+.cliente-bloqueo-plataforma {
+    display: inline-block;
+    margin-top: 4px;
+    font: 500 11px/14px var(--font-family);
+    color: var(--color-danger-700);
+    border: 1px dashed var(--color-danger-500);
+    border-radius: var(--radius-sm);
+    padding: 0 5px;
+}
+
 /* Aviso de perfil incompleto en la fila del cliente: no es el semáforo de
    vigencia documental (que se reserva a Documento, 06 § 4) sino una
    configuración que falta. La maqueta lo pinta como pastilla ámbar; aquí además es un atajo

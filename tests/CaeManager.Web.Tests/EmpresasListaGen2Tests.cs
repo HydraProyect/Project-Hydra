@@ -724,7 +724,7 @@ public partial class EmpresasListaGen2Tests : BunitContext
             .Should().BeEmpty("en los listados el cumplimiento es barra con cifra, no anillo");
         cut.FindAll(".tarjeta-fila-acordeon-cabecera [data-pieza=barra-cumplimiento]").Select(a => a.GetAttribute("aria-label")).Should().Equal(
             [
-                "72% de cumplimiento acumulado en los centros donde esta empresa tiene actividad",
+                "72% de los documentos exigidos a sus Trabajadores en sus Centros, al día",
                 "Sin actividad en ningún centro con requisitos aplicables"
             ]);
     }

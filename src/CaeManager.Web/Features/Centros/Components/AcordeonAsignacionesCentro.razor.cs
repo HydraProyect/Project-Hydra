@@ -278,7 +278,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private readonly HashSet<Guid> _expandidosTrabajador = [];
 
-    /// <summary>Fila plegable de la Empresa: desplegada de entrada, porque el bloque solo existe cuando hay incidencias que resolver.</summary>
+    /// <summary>
+    /// Fila plegable de la Empresa. En Centro 360 va desplegada de entrada, porque el bloque solo existe cuando hay incidencias que
+    /// resolver. Dentro de la fila desplegada de /centros (ModoListado) nace contraída, como todo lo desplegable de los listados
+    /// (decisión 2026-10-21, #1530): se abre con su chevron.
+    /// </summary>
     private bool _empresaDesplegada = true;
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
@@ -291,7 +295,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        _empresaDesplegada = !ModoListado;
+    }
 
     /// <summary>
     /// Apagar "Selección múltiple" limpia la selección de trabajadores — mismo
@@ -655,19 +663,30 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// aquí, por eso el rótulo lo dice en vez de llamarlos «del centro».
     /// </para>
     /// </summary>
-    private (int Exigidos, int AlDia, int Vencidos, int Faltantes) TotalesDocumentales
+    private (int Exigidos, int AlDia, int PorVencer, int Vencidos, int Faltantes, int SinValidar) TotalesDocumentales
     {
         get
         {
-            var documentos = _trabajadores.SelectMany(t => t.Documentos).ToList();
+            // Un documento por par Trabajador × Tipo, el mejor de los que trae el listado: el listado enseña también el vencido
+            // que ya tiene renovación, y contarlo aparte inflaría los vencidos frente a «exigidos», que cuenta pares.
+            var documentos = _trabajadores
+                .SelectMany(t => t.Documentos.GroupBy(d => d.TipoDocumentoId)
+                    .Select(g => g.MaxBy(d => SeveridadEstadoDocumento.Rango(d.Estado))!))
+                .ToList();
             // «Exigidos» y «al día» salen de CumplimientoDocumental (la porción de cada Trabajador del % del Centro): el
             // listado de documentos no trae los «Sin caducidad» y puede repetir un tipo (vencido y renovación).
             var cumplimiento = FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento));
+            var vencidos = documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado));
+            var faltantes = documentos.Count(d => d.Estado == EstadoDocumento.Faltante);
+            // Revisión 1:1 del 2026-10-21: las partes no sumaban el total. «Al día» ya incluye los por vencer (siguen valiendo
+            // hoy) y deja fuera los «Sin confirmar» y los pendientes en la plataforma de un tipo bloqueante; el resto es eso.
             return (
                 cumplimiento.Requeridos,
                 cumplimiento.AlDia,
-                documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado)),
-                documentos.Count(d => d.Estado == EstadoDocumento.Faltante));
+                documentos.Count(d => d.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo),
+                vencidos,
+                faltantes,
+                Math.Max(0, cumplimiento.Requeridos - cumplimiento.AlDia - vencidos - faltantes));
         }
     }
 

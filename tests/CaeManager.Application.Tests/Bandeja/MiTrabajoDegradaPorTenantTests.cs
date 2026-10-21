@@ -139,5 +139,8 @@ public class MiTrabajoDegradaPorTenantTests
 
         public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
             IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

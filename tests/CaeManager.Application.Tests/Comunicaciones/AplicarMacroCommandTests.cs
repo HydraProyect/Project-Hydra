@@ -4,6 +4,8 @@ using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Integraciones;
 using CaeManager.Application.Tests.Plantillas;
+using CaeManager.Application.Tests.Reclamaciones;
+using CaeManager.Application.Tests.Reportes;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Reclamaciones;
@@ -104,6 +106,41 @@ public class AplicarMacroCommandTests
 
         resultado.Valor.Should().Be("Solicitamos Certificado A1");
         _pendientes.EmpresaConsultada.Should().Be(empresa.Id);
+    }
+
+    /// <summary>
+    /// Seguimiento de la PR #1528, con el servicio real de lo pendiente: un documento de la Empresa que el Centro exige sin marcarlo
+    /// «bloquea el acceso» y que falta entra en «documentos pendientes». Antes la macro lo callaba.
+    /// </summary>
+    [Fact]
+    public async Task El_documento_de_la_Empresa_que_el_Centro_exige_sin_bloquear_y_falta_entra_en_los_documentos_pendientes()
+    {
+        var cliente = new Empresa("Cliente Sur");
+        var empresa = new Empresa("Empresa Norte");
+        _empresas.ListaEmpresas.AddRange([cliente, empresa]);
+        var centro = new CaeManager.Domain.Centros.Centro(cliente.Id, empresa.Id, "Centro de trabajo");
+        _centros.ListaCentros.Add(centro);
+        var trabajador = CaeManager.Domain.Trabajadores.Trabajador.DeEmpresa(empresa.Id, "Ana", "Pérez", "12345678Z");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var asignaciones = new AsignacionesQueryContextFalso();
+        asignaciones.ListaAsignaciones.Add(new CaeManager.Domain.Asignaciones.Asignacion(trabajador.Id, centro.Id, new DateOnly(2026, 1, 1)));
+        var tipos = new TiposDocumentoQueryContextFalso();
+        var plan = new CaeManager.Domain.Documentos.TipoDocumento("Plan de prevención", null, false, 1, CaeManager.Domain.Documentos.AmbitoAplicacion.Empresa);
+        tipos.ListaTiposDocumento.Add(plan);
+        tipos.ListaTiposDocumentoCentros.Add(new CaeManager.Domain.Documentos.TipoDocumentoCentro(plan.Id, centro.Id, incluido: true, bloqueaAcceso: false));
+        var conversacion = new Conversacion("Documentación", empresaId: empresa.Id);
+        var macro = new MacroRespuesta("Pendientes", "Solicitamos {{documentos pendientes}}");
+        _comunicaciones.ListaConversaciones.Add(conversacion);
+        _comunicaciones.ListaMacrosRespuesta.Add(macro);
+        var alcance = new AlcanceDatosServiceFalso();
+        var pendientes = PendientesDeReclamacionPruebas.Crear(
+            new DocumentosQueryContextFalso(), tipos, _trabajadores, asignaciones, _centros, _empresas, alcance);
+        var handler = new AplicarMacroCommandHandler(
+            _comunicaciones, _empresas, _centros, _trabajadores, _visitas, pendientes, alcance, _eventos, _unidad);
+
+        var resultado = await handler.Handle(new(conversacion.Id, macro.Id), CancellationToken.None);
+
+        resultado.Valor.Should().Be("Solicitamos Plan de prevención");
     }
 
     [Fact]

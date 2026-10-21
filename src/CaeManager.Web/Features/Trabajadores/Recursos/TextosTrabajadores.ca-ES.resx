@@ -297,20 +297,11 @@
   <data name="ColumnaVigencia" xml:space="preserve">
     <value>Vigencia</value>
   </data>
-  <data name="ColumnaAccion" xml:space="preserve">
-    <value>Acción</value>
-  </data>
-  <data name="ColumnaCentro" xml:space="preserve">
-    <value>Centro</value>
-  </data>
   <data name="ColumnaDesde" xml:space="preserve">
     <value>Desde</value>
   </data>
-  <data name="ColumnaGestion" xml:space="preserve">
-    <value>Gestión</value>
-  </data>
-  <data name="ColumnaCreada" xml:space="preserve">
-    <value>Creada</value>
+  <data name="GestionPendienteSub" xml:space="preserve">
+    <value>{0} · creada {1}</value>
   </data>
   <data name="AccionDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>

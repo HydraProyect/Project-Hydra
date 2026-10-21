@@ -103,8 +103,8 @@ public class ObtenerReclamacionPorAccesoQueryHandler(
         // Lo que el Centro exige, no solo lo que bloquea el acceso: los pares exigidos del Centro 360 (ResolucionTipoDocumentoCentro,
         // con la serie por tipo de contratación y los requisitos de evento). Un Centro que no marca nada «bloquea el acceso» sigue
         // exigiendo su documentación, y reclamarla es justo lo que se pide aquí. Esto solo intersecta: lo que sale es lo que traen
-        // los lotes, así que un ausente que el lote no produce (el de un requisito de evento que el Centro no incluye, o el de la
-        // Empresa en un tipo que no bloquea, que PendientesDeReclamacionService saca aún de la evaluación de acceso) no aparece.
+        // los lotes, así que un ausente que el lote no produce (el de un requisito de evento que el Centro no incluye) no aparece.
+        // Los ausentes de la Empresa sí: PendientesDeReclamacionService los saca de los mismos pares de Empresa del Centro 360.
         var paresExigidos = (await calculoEstadoCentro.ObtenerParesExigidosAsync([request.CentroId], cancellationToken))
             .Where(p => p.CentroId == request.CentroId && trabajadores.Contains(p.TrabajadorId))
             .ToList();

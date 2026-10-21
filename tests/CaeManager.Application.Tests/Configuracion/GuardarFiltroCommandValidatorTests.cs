@@ -43,9 +43,9 @@ public class GuardarFiltroCommandValidatorTests
     }
 
     [Fact]
-    public void La_lista_de_admitidas_son_las_diez_y_no_se_repiten()
+    public void La_lista_de_admitidas_son_las_once_y_no_se_repiten()
     {
-        PantallasConFiltrosGuardados.Admitidas.Should().HaveCount(10).And.OnlyHaveUniqueItems();
+        PantallasConFiltrosGuardados.Admitidas.Should().HaveCount(11).And.OnlyHaveUniqueItems();
         // La columna Pantalla admite 50 caracteres (FiltroGuardadoConfiguration).
         PantallasConFiltrosGuardados.Admitidas.Should().OnlyContain(p => p.Length <= 50);
     }

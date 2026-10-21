@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -708,4 +708,10 @@
   <data name="HistorialPlataforma360" xml:space="preserve"><value>Estado en la plataforma</value></data>
   <data name="HistorialPlataformaFila360" xml:space="preserve"><value>{0}: {1} → {2} en {3}</value></data>
   <data name="HistorialPlataformaDeshecho360" xml:space="preserve"><value>Deshecho</value></data>
+  <data name="TotalesAlDiaPorVencer" xml:space="preserve">
+    <value>(de ellos, {0} por vencer)</value>
+  </data>
+  <data name="TotalesSinValidar" xml:space="preserve">
+    <value>sin confirmar o sin validar en la plataforma: {0}</value>
+  </data>
 </root>

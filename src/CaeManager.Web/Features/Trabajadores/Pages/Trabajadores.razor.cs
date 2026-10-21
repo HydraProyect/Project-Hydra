@@ -1552,9 +1552,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}";
 
-    /// <summary>Porcentaje de documentos registrados al día para la barra de «Registrados vigentes»; sin documentos no hay universo y la barra pinta la raya.</summary>
+    /// <summary>
+    /// Porcentaje al día para la barra de «Registrados vigentes», sobre los registrados más lo exigido que falta (el mismo
+    /// denominador que la cifra); sin ninguno de los dos no hay universo y la barra pinta la raya.
+    /// </summary>
     private static int? PorcentajeRegistradosVigentes(TrabajadorListaDto trabajador) =>
-        trabajador.DocumentosRegistrados <= 0 ? null : trabajador.DocumentosVigentes * 100 / trabajador.DocumentosRegistrados;
+        trabajador.DocumentosEsperados <= 0 ? null : trabajador.DocumentosVigentes * 100 / trabajador.DocumentosEsperados;
 
     // --- P3-31: selección múltiple ---
 
@@ -1770,7 +1773,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         // Mismo criterio que Empresas y la maqueta: rojo para lo que falta o vence, ámbar para lo que está por vencer o en
         // tolerancia; «Sin confirmar» no tiñe.
-        var tinte = EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) switch
+        var tinte = item.EstadoDocumental switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
             EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",

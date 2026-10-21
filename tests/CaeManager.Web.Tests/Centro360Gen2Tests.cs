@@ -1188,6 +1188,49 @@ public partial class Centro360Gen2Tests : BunitContext
             .And.Contain("trabajadores de este centro", "la documentación de la Empresa no entra en esta suma");
     }
 
+    /// <summary>
+    /// Revisión 1:1 del 2026-10-21 (Centro ILL-01): «40 exigidos · 10 al día · 0 vencidos · 28 pendientes» no sumaba. «Al día»
+    /// incluye los por vencer y deja fuera los sin confirmar: el pie dice las dos cosas para que las partes cuadren.
+    /// </summary>
+    [Fact]
+    public void Los_totales_suman_el_total_con_por_vencer_y_sin_confirmar()
+    {
+        var id = Guid.NewGuid();
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            Asignado("Juan Pérez", EstadoDocumento.Proximo,
+                Documento("Formación PRL", EstadoDocumento.Proximo, new DateOnly(2026, 11, 2)),
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar)),
+            Asignado("Nuria Salas", EstadoDocumento.Faltante,
+                Documento("Formación específica de centro", EstadoDocumento.Faltante))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        var totales = System.Text.RegularExpressions.Regex.Replace(cut.Find("[data-totales-documentales]").TextContent, @"\s+", " ");
+        totales.Should().Contain("3 exigidos · 1 al día (de ellos, 1 por vencer) · 0 vencidos · 1 pendiente")
+            .And.Contain("sin confirmar o sin validar en la plataforma: 1");
+    }
+
+    /// <summary>El listado enseña el vencido que ya tiene renovación; el pie cuenta pares, así que ese vencido no suma.</summary>
+    [Fact]
+    public void Un_vencido_con_renovacion_vigente_no_cuenta_como_vencido_en_los_totales()
+    {
+        var id = Guid.NewGuid();
+        var vencido = Documento("Formación PRL", EstadoDocumento.Vencido, new DateOnly(2026, 8, 2));
+        var renovacion = vencido with { DocumentoId = Guid.NewGuid(), Estado = EstadoDocumento.Vigente, FechaVencimiento = new DateOnly(2027, 8, 2) };
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            new(Guid.NewGuid(), Guid.NewGuid(), "Juan Pérez", new DateOnly(2026, 1, 9), EstadoDocumento.Vigente, [vencido, renovacion],
+                new FraccionCumplimiento(1, 1))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        System.Text.RegularExpressions.Regex.Replace(cut.Find("[data-totales-documentales]").TextContent, @"\s+", " ")
+            .Should().Contain("1 exigidos · 1 al día · 0 vencidos · 0 pendientes").And.NotContain("sin validar");
+    }
+
     // ── Contrato: concurrencia ────────────────────────────────────────────
 
     /// <summary>

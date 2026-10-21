@@ -1,6 +1,7 @@
 using CaeManager.Application.Alertas;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
@@ -286,7 +287,8 @@ public class DesgloseDocumentalDeClientesBajoAlcanceTests : IAsyncLifetime
             contexto, contexto, contexto, contexto, contexto, contexto, contexto,
             new ResolverClientePrincipalService(contexto, contexto, contexto), alcance,
             new DocumentosFaltantesService(contexto, contexto, contexto), contexto, contexto)),
-        alcance);
+        alcance,
+        new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 
