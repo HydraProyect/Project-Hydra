@@ -21,25 +21,27 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* Sin alta: las gestiones se crean desde los caminos ya existentes. *@
-    <CabeceraListado Grupo="Operacion" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)"
                          RutaExportar="/gestiones/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/gestiones/exportar.xlsx" />
             </Menu>
     </CabeceraListado>
 
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : (int?)_totalElementos)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
                   PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         @* Sin pastillas desde que el estado se filtra en la franja; el fragmento vacío mantiene la barra en modo pastillas. *@
-        <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
-                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" /></Pastillas>
+        <Pastillas></Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="OpcionesEstado" Valor="@_filtroEstado" ValorChanged="FiltrarPorEstadoAsync"
+                  Recuentos="_recuentosPorEstado" TextoTodos="@Textos["FiltroTodas"]" />
+        </Estados>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
@@ -51,7 +53,7 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Gestiones"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Viaja en la URL como «estado» y cada botón dice
+    @* Franja de estado: conserva la semántica de la franja para «Estado». Viaja en la URL como «estado» y cada botón dice
        cuántas Gestiones hay, con la búsqueda aplicada. Con los dos botones marcados se ven todas. *@
 
     <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
@@ -77,7 +79,17 @@
         @TarjetaListado.RenderizarMaqueta(@<text>
                 <div style="display:@(_totalElementos == 0 ? "none" : "block")">
                 <QuickGrid @key="_orden.Version" @ref="_grid" TGridItem="GestionListaDto" ItemsProvider="_proveedorElementos" Pagination="_paginacion" Class="tabla-datos" RowClass="ObtenerClaseFila">
-                    <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
+                    @* Primera columna del patrón de listados (maqueta de Gestiones): la Gestión, con el tipo de documento que
+                       gestiona y debajo su referencia GES-xxxxxxxx, derivada del Id como VIS- en Visitas (no es un dato guardado).
+                       Después Trabajador (con su Centro debajo) · Creada · Estado, y al final el hueco de acción rápida. «Tipo de
+                       documento» no es «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
+                    <TemplateColumn Title="@Textos["ColumnaGestion"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento"
+                                   IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
+                        <span class="gestion-tipo-codigo">
+                            <button type="button" class="gestion-nombre-tipo nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" /></button>
+                            <span class="gestion-centro"><BotonCopiar EnLinea="true" ConfirmarConIcono="true" Texto="@ReferenciaGestion(context.Id)" Valor="@context.Id.ToString()" NombreAccesible="@Textos["CopiarReferenciaGestion", context.TrabajadorNombre]" /></span>
+                        </span>
+                    </TemplateColumn>                    <TemplateColumn @ref="_columnaTrabajador" Title="@Textos[_ordenTrabajadorPorCentro ? "ListaTrabajadorPorCentro" : "ColumnaTrabajador"]"
                                     Sortable="true" SortBy="@(_ordenTrabajadorPorCentro ? OrdenCentroListado : OrdenTrabajadorListado)"
                                     IsDefaultSortColumn="@_orden.Es("trabajador", "centro")" InitialSortDirection="_orden.Direccion">
                         <ColumnOptions>
@@ -88,17 +100,10 @@
                         </ColumnOptions>
                         <ChildContent Context="context">
                             <span class="gestion-trabajador-centro">
-                                <button type="button" class="enlace-nombre-fila nombre-abre-vista-rapida" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
+                                <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.TrabajadorNombre" Termino="@_busqueda" /></button>
                                 <button type="button" class="enlace-nombre-fila gestion-centro" @onclick="() => AbrirVistaRapida(context)"><TextoResaltado Texto="@context.CentroNombre" Termino="@_busqueda" /></button>
                             </span>
                         </ChildContent>
-                    </TemplateColumn>
-                    @* Orden de columnas del patrón de listados: Trabajador (con su Centro debajo) · Tipo de documento ·
-                       Creada · Estado, y al final el hueco de acción rápida. La segunda columna dice «Tipo de documento»
-                       y no «Documento»: una Gestión referencia un Tipo de documento, no un Documento (Gestion.cs). *@
-                    <TemplateColumn Title="@Textos["ListaTipoDocumento"]" Sortable="true" SortBy="@(GridSort<GestionListaDto>.ByAscending(g => g.TipoDocumentoNombre))" Class="gestion-tipo-documento"
-                                   IsDefaultSortColumn="@_orden.Es("tipo")" InitialSortDirection="_orden.Direccion">
-                        <TextoResaltado Texto="@context.TipoDocumentoNombre" Termino="@_busqueda" />
                     </TemplateColumn>
                     @* La fecha es el día de negocio (hora peninsular) del instante de creación, el mismo día que
                        enseña la vista rápida y del que sale el motivo «Abierta hace N días»; se ordena por el instante. *@

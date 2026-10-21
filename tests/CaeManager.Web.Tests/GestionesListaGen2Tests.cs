@@ -227,9 +227,10 @@ public partial class GestionesListaGen2Tests : BunitContext
         var cut = Renderizar(m);
         m.Enviadas.OfType<ObtenerGestionesQuery>().Should().NotBeEmpty();
         cut.FindAll("tbody tr:has(.gestion-trabajador-centro)").Should().ContainSingle();
-        cut.Find("header.cabecera-pagina .cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación");
+        cut.FindAll("header.cabecera-pagina .cabecera-pagina-kicker").Should().BeEmpty("el listado nuevo no lleva antetítulo de grupo");
+        cut.FindAll(".contenedor-pagina.lista-design").Should().ContainSingle();
         cut.Find("header.cabecera-pagina h1").TextContent.Trim().Should().Be("Gestiones");
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("1");
         cut.FindAll("button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.Markup.Should().NotContain("Se crean solas");
         cut.Markup.Should().NotContain("Nueva gestión", "esta pantalla no da de alta");
@@ -1003,8 +1004,8 @@ public partial class GestionesListaGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("Tipo de documento", "TipoDocumentoNombre", false)]
-    [InlineData("Tipo de documento", "TipoDocumentoNombre", true)]
+    [InlineData("Gestión", "TipoDocumentoNombre", false)]
+    [InlineData("Gestión", "TipoDocumentoNombre", true)]
     [InlineData("Estado", "Estado", false)]
     [InlineData("Estado", "Estado", true)]
     [InlineData("Creada", "CreadoEnUtc", false)]
@@ -1229,20 +1230,21 @@ public partial class GestionesListaGen2Tests : BunitContext
     /// QuickGrid, pero afirmar las dos impide dar por bueno un rótulo movido sin su contenido.
     /// </summary>
     [Fact]
-    public void Las_columnas_van_Trabajador_Tipo_de_documento_Creada_Estado_y_al_final_la_accion_rapida()
+    public void Las_columnas_van_Gestion_Trabajador_Creada_Estado_y_al_final_la_accion_rapida()
     {
         using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
         var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra", centro: "Centro Norte", documento: "Formación PRL específica") } };
         var cut = Renderizar(m);
 
         cut.FindAll("thead th .col-title-text").Select(t => t.TextContent.Trim())
-            .Should().Equal("Trabajador", "Tipo de documento", "Creada", "Estado", "Acciones");
+            .Should().Equal("Gestión", "Trabajador", "Creada", "Estado", "Acciones");
 
         var celdas = FilaGestionFase1(cut, "Juan Pérez Ibarra").QuerySelectorAll("td");
         celdas.Should().HaveCount(5);
-        celdas[0].QuerySelectorAll(".gestion-trabajador-centro .enlace-nombre-fila").Select(b => b.TextContent.Trim())
+        celdas[1].QuerySelectorAll(".gestion-trabajador-centro .enlace-nombre-fila").Select(b => b.TextContent.Trim())
             .Should().Equal(["Juan Pérez Ibarra", "Centro Norte"], "el Centro va en la segunda línea de la celda del Trabajador");
-        celdas[1].TextContent.Trim().Should().Be("Formación PRL específica");
+        celdas[0].QuerySelector("button.nombre-abre-vista-rapida")!.TextContent.Trim().Should().Be("Formación PRL específica", "la primera columna es la Gestión: su tipo de documento");
+        celdas[0].TextContent.Should().MatchRegex(@"GES-[0-9A-F]{8}", "y debajo su referencia");
         celdas[2].TextContent.Trim().Should().Be("14/08/2026");
         celdas[3].ClassList.Should().Contain("col-estado");
         celdas[3].QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");

@@ -426,6 +426,8 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         StateHasChanged();
     }
 
+    private static string ReferenciaGestion(Guid id) => $"GES-{id.ToString("N")[..8].ToUpperInvariant()}";
+
     private static TonoBadge TonoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia;
 
