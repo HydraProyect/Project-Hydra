@@ -113,8 +113,10 @@ public class AlertasVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Ninguna alerta con este estado");
         cut.Markup.Should().Contain("Quitar el filtro");
-        cut.Markup.Should().NotContain("Todos los documentos están vigentes",
+        cut.Markup.Should().NotContain("Todo lo que piden tus Centros está en regla",
             "hay dos vencidos: decir que todo está vigente es exactamente lo contrario de la verdad");
+        cut.Markup.Should().NotContain("Sin alertas",
+            "hay dos vencidos: el vacío general no puede aparecer con el filtro puesto");
     }
 
     /// <summary>

@@ -148,7 +148,7 @@
     <value>Correo corregido</value>
   </data>
   <data name="EditarCorreoNoSeCambiaAqui" xml:space="preserve">
-    <value>El correo identifica la cuenta y no se cambia desde aquí. Mientras la cuenta esté pendiente de activación, se corrige con «Corregir correo» en el menú de su fila.</value>
+    <value>El correo identifica la cuenta y no se cambia desde aquí. Mientras la cuenta esté pendiente de activar, se corrige con «Corregir correo» en el menú de su fila.</value>
   </data>
   <data name="AltaCorreoAyudaActivacion" xml:space="preserve">
     <value>Recibirá el enlace de activación.</value>
