@@ -1,7 +1,7 @@
 @page "/direccion"
 @rendermode InteractiveServer
 @inherits CaeManager.Web.Components.PaginaInteractiva
-@attribute [Authorize(Roles = $"{CaeManager.Infrastructure.Identity.Roles.DireccionCae},{CaeManager.Infrastructure.Identity.Roles.CoordinadorCae}")]
+@attribute [Authorize(Policy = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre)]
 @using System.Globalization
 @using CaeManager.Application.Dashboard.Queries
 @using CaeManager.Domain.Comunicaciones
@@ -78,8 +78,12 @@
             <Boton Class="cuadro-presentar" Variante="VarianteBoton.Secundario" OnClick="AlternarPresentacionAsync" aria-pressed="@(_presentando ? "true" : "false")">@(_presentando ? Textos["SalirPresentacion"] : Textos["BotonPresentar"])</Boton>
             @* Exportación general de Trabajadores extranjeros del mes seleccionado, de todas las Empresas gestionadas que
                alcanza quien mira (decisión de Chris, 2026-10-20): con ella cobra el Operador CAE. Para un Operador CAE, solo las
-               Visitas dentro de la vigencia de su Asignación de Operación en cada Empresa gestionada (las que cuenta la cifra). No sigue el ámbito. *@
-            <Boton Class="cuadro-exportar-extranjeros" Variante="VarianteBoton.Secundario" Href="@RutaExtranjerosDelMes" download data-enhance-nav="false">@Textos["BotonExportarExtranjeros"]</Boton>
+               Visitas dentro de la vigencia de su Asignación de Operación en cada Empresa gestionada (las que cuenta la cifra). No sigue el ámbito.
+               No se ofrece en Sesión Privilegiada: su endpoint exige rol. *@
+            @if (_puedeExportarExtranjeros)
+            {
+                <Boton Class="cuadro-exportar-extranjeros" Variante="VarianteBoton.Secundario" Href="@RutaExtranjerosDelMes" download data-enhance-nav="false">@Textos["BotonExportarExtranjeros"]</Boton>
+            }
 
             @* Reabrir un mes cerrado: solo Dirección CAE (ReabrirMesCuadroDireccionCommand lo exige también en servidor). Vive en el menú de más acciones. *@
             @if (_puedeReabrir)

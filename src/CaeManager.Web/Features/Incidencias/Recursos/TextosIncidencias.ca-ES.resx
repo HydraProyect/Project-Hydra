@@ -139,7 +139,7 @@
     <value>Registra la primera incidencia operativa de un centro.</value>
   </data>
   <data name="DrawerTituloNueva" xml:space="preserve">
-    <value>Nueva incidencia</value>
+    <value>Registrar incidència</value>
   </data>
   <data name="DrawerTituloEditar" xml:space="preserve">
     <value>Editar incidencia</value>
@@ -214,7 +214,7 @@
     <value>Selecciona un centro.</value>
   </data>
   <data name="ToastCreada" xml:space="preserve">
-    <value>Incidencia creada correctamente.</value>
+    <value>Incidència registrada.</value>
   </data>
   <data name="ToastActualizada" xml:space="preserve">
     <value>Incidencia actualizada correctamente.</value>

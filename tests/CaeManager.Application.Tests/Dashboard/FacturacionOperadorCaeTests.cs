@@ -136,11 +136,11 @@ public class FacturacionOperadorCaeTests
         var mediator = new MediadorFalso(conteo, serie, tarifas);
         var handler = new ObtenerFacturacionOperadorCaeQueryHandler(
             mediator, new UsuarioFalso(rol, origen ?? Operador),
-            new OperacionesFalsas(asignaciones ?? [Externa(Ebro, Operador, Enero)]), new RelojFijo());
+            new OperacionesFalsas(asignaciones ?? [Externa(Ebro, Operador, Enero)]), new PoliticaAccesoTotalFalsa(false), new RelojFijo());
         return (handler, mediator);
     }
 
-    private sealed class UsuarioFalso(string rol, Guid origen) : ICurrentUserService
+    private sealed class UsuarioFalso(string? rol, Guid origen) : ICurrentUserService
     {
         public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
         public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(rol);
@@ -382,9 +382,9 @@ public class FacturacionOperadorCaeTests
         new(2026, mes, dia, hora, minuto, 0, DateTimeKind.Utc);
 
     private static (ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler Detalle, ContarExtranjerosCobrablesDelMesQueryHandler Conteo)
-        ArmarDetalle(ExtranjerosDelMesDto excel, IReadOnlyList<AsignacionOperacion> asignaciones, string rol = "DireccionCae")
+        ArmarDetalle(ExtranjerosDelMesDto excel, IReadOnlyList<AsignacionOperacion> asignaciones, string? rol = "DireccionCae", bool accesoTotal = false)
     {
-        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones));
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones), new PoliticaAccesoTotalFalsa(accesoTotal));
         var mediador = new MediadorPorFuncion(async request => request switch
         {
             ObtenerExtranjerosDelMesQuery => excel,
@@ -394,6 +394,24 @@ public class FacturacionOperadorCaeTests
         return (new ObtenerExtranjerosDeEmpresasGestionadasDelMesQueryHandler(mediador), new ContarExtranjerosCobrablesDelMesQueryHandler(mediador));
     }
 
+    /// <summary>
+    /// En Sesión Privilegiada no hay Empresas gestionadas, aunque el Tenant de origen del Actor de Plataforma operase
+    /// Empresas: el Excel por Empresa sale sin filas y el general es el listado sin acotar, que ObtenerExtranjerosDelMesQuery
+    /// ya limita al Tenant objetivo de la sesión. El endpoint, además, exige rol (la sesión no llega a él).
+    /// </summary>
+    [Fact]
+    public async Task En_Sesion_Privilegiada_no_hay_Empresas_gestionadas_que_acotar_ni_Excel_por_Empresa()
+    {
+        var excel = new ExtranjerosDelMesDto(2026, 10, [FilaExcel(Ebro, new DateOnly(2026, 10, 12))], 0);
+        var (detalle, _) = ArmarDetalle(excel, [Externa(Ebro, Operador, Enero)], rol: null, accesoTotal: true);
+
+        var porEmpresa = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None);
+        var general = await detalle.Handle(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, GeneralSiNoEsOperadorCae: true), CancellationToken.None);
+
+        porEmpresa.Filas.Should().BeEmpty("el Actor de Plataforma TALVEG no es Operador CAE");
+        general.Filas.Should().ContainSingle("sin Empresas gestionadas, el listado general es el de los Tenants de la sesión");
+    }
     [Fact]
     public async Task El_detalle_por_Empresa_y_su_Excel_se_acotan_a_la_vigencia_igual_que_el_conteo_con_una_Asignacion_que_empieza_el_dia_10()
     {
@@ -408,7 +426,7 @@ public class FacturacionOperadorCaeTests
 
         var delExcel = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10, Ebro), CancellationToken.None);
         var todas = await detalle.Handle(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
-        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Utc(10, 10))]))
+        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Utc(10, 10))]), new PoliticaAccesoTotalFalsa(false))
             .Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None)).Tramos;
         var cifra = await conteo.Handle(new ContarExtranjerosCobrablesDelMesQuery(2026, 10, tramos), CancellationToken.None);
 
@@ -435,7 +453,7 @@ public class FacturacionOperadorCaeTests
         ], 0);
         var asignaciones = new[] { Externa(Ebro, Operador, Utc(10, 10)), Externa(otraGestionada, Operador, Enero) };
         var (detalle, conteo) = ArmarDetalle(excel, asignaciones, rol);
-        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones))
+        var tramos = (await new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso(rol, Operador), new OperacionesFalsas(asignaciones), new PoliticaAccesoTotalFalsa(false))
             .Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None)).Tramos;
 
         var general = await detalle.Handle(
@@ -539,7 +557,7 @@ public class FacturacionOperadorCaeTests
     [Fact]
     public async Task Quien_no_es_de_un_Operador_CAE_no_recibe_filas_del_detalle_por_Empresa()
     {
-        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Guid.NewGuid()), new OperacionesFalsas([Externa(Ebro, Operador, Enero)]));
+        var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(new UsuarioFalso("DireccionCae", Guid.NewGuid()), new OperacionesFalsas([Externa(Ebro, Operador, Enero)]), new PoliticaAccesoTotalFalsa(false));
 
         var dto = await empresas.Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
 
@@ -551,7 +569,7 @@ public class FacturacionOperadorCaeTests
     public async Task Un_Operador_CAE_sin_Empresas_vigentes_en_el_mes_sigue_siendo_Operador_con_cero_tramos()
     {
         var empresas = new ObtenerEmpresasGestionadasDelMesQueryHandler(
-            new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Enero, hasta: Utc(9, 30))]));
+            new UsuarioFalso("DireccionCae", Operador), new OperacionesFalsas([Externa(Ebro, Operador, Enero, hasta: Utc(9, 30))]), new PoliticaAccesoTotalFalsa(false));
 
         var dto = await empresas.Handle(new ObtenerEmpresasGestionadasDelMesQuery(2026, 10), CancellationToken.None);
 

@@ -1,0 +1,117 @@
+.tabla-conversaciones {
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+    overflow: hidden;
+}
+
+.tabla-conversaciones-fila {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1.7fr) minmax(0, 1fr) 168px 116px;
+    align-items: center;
+    gap: 14px;
+    min-height: 60px;
+    padding: 10px 16px;
+    border-top: var(--border-default);
+    font: var(--font-body-md);
+    color: var(--color-text);
+}
+
+.tabla-conversaciones-cabecera {
+    min-height: 34px;
+    border-top: 0;
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    text-transform: uppercase;
+    letter-spacing: .05em;
+}
+
+.tabla-conversaciones-fila:has(button):hover,
+.tabla-conversaciones-fila:focus-within {
+    background: var(--color-primary-50);
+}
+
+.tabla-conversaciones-asunto {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+}
+
+.tabla-conversaciones-asunto button {
+    max-width: 100%;
+    border: 0;
+    padding: 0;
+    background: none;
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.tabla-conversaciones-asunto button:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 3px;
+    border-radius: var(--radius-sm);
+}
+
+.tabla-conversaciones-remitente {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.tabla-conversaciones-canal {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: var(--font-caption);
+}
+
+.tabla-prioridad {
+    color: var(--color-primary-700);
+    font: var(--font-label);
+}
+
+.tabla-prioridad-urgente,
+.tabla-prioridad-critica {
+    color: var(--color-danger-700);
+}
+
+@media (max-width: 1180px) {
+    .tabla-conversaciones-fila {
+        grid-template-columns: 76px minmax(0, 1.6fr) minmax(0, 1fr);
+    }
+
+    .tabla-conversaciones-fila > :nth-child(n+4) {
+        grid-column: 2 / -1;
+    }
+
+    .tabla-conversaciones-cabecera > :nth-child(n+4) {
+        display: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .tabla-conversaciones-fila {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+
+    .tabla-conversaciones-fila > :nth-child(n+4) {
+        grid-column: auto;
+    }
+
+    .tabla-conversaciones-cabecera {
+        display: none;
+    }
+}

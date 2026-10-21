@@ -85,7 +85,7 @@
     <value>Motiu</value>
   </data>
   <data name="MotivoPlaceholder" xml:space="preserve">
-    <value>Text literal del portal, si n&apos;hi ha</value>
+    <value>El que indica la plataforma, per exemple: «Il·legible pel revers»</value>
   </data>
   <data name="SinPlataformaTitulo" xml:space="preserve">
     <value>Sense plataforma</value>
@@ -127,7 +127,7 @@
     <value>Document</value>
   </data>
   <data name="Titular" xml:space="preserve">
-    <value>Qui n'és titular</value>
+    <value>Titular</value>
   </data>
   <data name="Centro" xml:space="preserve">
     <value>Centre</value>
@@ -160,9 +160,9 @@
     <value>Aquí només es registra l&apos;estat a la plataforma. El document es puja o s&apos;actualitza amb «Pujar» a la capçalera o a</value>
   </data>
   <data name="FichaEmpresa" xml:space="preserve">
-    <value>fitxa Empresa 360</value>
+    <value>Empresa 360</value>
   </data>
   <data name="FichaTrabajador" xml:space="preserve">
-    <value>fitxa Treballador 360</value>
+    <value>Treballador 360</value>
   </data>
 </root>

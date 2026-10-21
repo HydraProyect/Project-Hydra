@@ -187,6 +187,7 @@ public class CuadroDireccionExtranjerosEndpointTests
     [Theory]
     [InlineData(Roles.DireccionCae, true)]
     [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.Administrador, true)]
     [InlineData(Roles.GestorCae, false)]
     [InlineData(Roles.Consulta, false)]
     [InlineData(Roles.Cliente, false)]
@@ -208,6 +209,27 @@ public class CuadroDireccionExtranjerosEndpointTests
         var autorizacion = await app.Services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(usuario, politica);
 
         autorizacion.Succeeded.Should().Be(permitido);
+    }
+
+    [Fact]
+    public async Task El_endpoint_no_admite_la_Sesion_Privilegiada_porque_solo_mira_roles()
+    {
+        // Volcado masivo de DNI y pasaportes: sin decisión de producto, la Sesión Privilegiada (que llega sin claims de
+        // rol) no lo descarga. La política es solo de roles: no lleva RequisitoEquipoOSoporteConAccesoTotal.
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IMediator>(new MediatorDeExtranjeros(Mes()));
+        builder.Services.AddSingleton<IRegistroExportacionService>(new RegistroFalso());
+        builder.Services.AddLocalization();
+        builder.Services.AddAuthorizationCore();
+        builder.Services.AddLogging();
+        await using var app = builder.Build();
+        app.MapCuadroDireccionEndpoints();
+
+        var politica = Endpoint(app).Metadata.GetOrderedMetadata<AuthorizationPolicy>().Should().ContainSingle().Subject;
+
+        politica.Requirements.Should().NotContain(r => r is CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal);
+        var sinRol = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString())], "Prueba"));
+        (await app.Services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(sinRol, politica)).Succeeded.Should().BeFalse();
     }
 
     private sealed record LlamadaRegistro(string EntidadTipo, int Filas, IReadOnlyDictionary<string, string> Criterios);
