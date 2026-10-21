@@ -133,6 +133,30 @@
     margin-left: auto;
 }
 
+.subcontrata360-filtros {
+    display: flex;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.subcontrata360-filtro {
+    height: 30px;
+    padding: 0 10px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-caption);
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.subcontrata360-filtro[aria-pressed="true"] {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+    color: var(--color-primary-700);
+}
+
 .subcontrata360-botones {
     display: flex;
     flex-wrap: wrap;

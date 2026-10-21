@@ -912,6 +912,15 @@
     <value>Sense empresa contractant</value>
   </data>
   <data name="ChipContratadaPor" xml:space="preserve"><value>Contractada per: {0}</value></data>
+  <data name="TituloCadenaSubcontratacion" xml:space="preserve"><value>Cadena de subcontractació</value></data>
+  <data name="RotuloClientesDeLosCentros" xml:space="preserve"><value>Clients dels centres on treballa</value></data>
   <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Treu el filtre de contractant</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena per aquesta columna</value></data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
+  <data name="TextoPlataformasIntro" xml:space="preserve"><value>Compliment de la subcontracta a les plataformes del titular de cada centre, verificat a mà pel Gestor CAE. El semàfor es calcula amb l'última verificació i els llindars del sistema.</value></data>
+  <data name="AriaFiltrosPlataformas" xml:space="preserve"><value>Què mostrar</value></data>
+  <data name="FiltroPlataformasSoloIncidencias" xml:space="preserve"><value>Només incidències · {0}</value></data>
+  <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Tot · {0}</value></data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Cap incidència a les plataformes</value></data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Tot el que s'exigeix està validat a les plataformes dels seus Clients.</value></data>
 </root>
