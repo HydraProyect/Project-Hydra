@@ -79,6 +79,20 @@ public partial class DrawerGestionDocumento : ComponentBase
     /// </summary>
     private string? _archivoUrlSubidoSinAdoptar;
 
+    /// <summary>
+    /// El archivo que el Documento ya tenía al abrir el formulario (null al crear). Una
+    /// subida que descarta la anterior y luego falla vuelve aquí, no a la clave ya borrada.
+    /// </summary>
+    private string? _archivoUrlDelDocumento;
+
+    /// <summary>
+    /// El último archivo elegido no llegó a adjuntarse (formato, tamaño, firma, conversión
+    /// o almacenamiento). Mientras siga así no se guarda: guardar ahora crearía o renovaría
+    /// el Documento sin el archivo que el Gestor CAE cree haber subido (hallazgo de pruebas
+    /// del 21-10: el documento quedaba sin archivo y contaba como al día).
+    /// </summary>
+    private bool _archivoNoAdjuntado;
+
     private bool _subiendoArchivo;
     private bool _detectandoCampos;
     private string? _aliasSugerido;
@@ -165,6 +179,8 @@ public partial class DrawerGestionDocumento : ComponentBase
         _fechaVencimientoManual = string.Empty;
         _noCaduca = false;
         _archivoUrl = null;
+        _archivoUrlDelDocumento = null;
+        _archivoNoAdjuntado = false;
         _comentarios = string.Empty;
         _glosarioDescripcion = null;
         _glosarioCriteriosValidacion = null;
@@ -393,6 +409,8 @@ public partial class DrawerGestionDocumento : ComponentBase
         // «no caduca»: se precarga y viaja de vuelta en el comando.
         _noCaduca = documento.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca;
         _archivoUrl = documento.ArchivoUrl;
+        _archivoUrlDelDocumento = documento.ArchivoUrl;
+        _archivoNoAdjuntado = false;
         _comentarios = documento.Comentarios ?? string.Empty;
         _glosarioDescripcion = documento.TipoDocumentoDescripcion;
         _glosarioCriteriosValidacion = documento.TipoDocumentoCriteriosValidacion;
@@ -554,6 +572,19 @@ public partial class DrawerGestionDocumento : ComponentBase
         // documento de la serie: un archivo elegido ahora acabaría adjunto al documento equivocado.
         if (_guardando) return;
 
+        if (e.FileCount == 0) return;
+
+        // Hasta que el almacén confirme, lo elegido no está adjunto: cualquier salida
+        // anticipada o excepción de aquí abajo deja el formulario sin poder guardarse.
+        _archivoNoAdjuntado = true;
+
+        // GetMultipleFiles lanza por encima del máximo: se avisa en vez de dejar escapar la excepción.
+        if (e.FileCount > MaximoArchivosPorSubida)
+        {
+            ToastService.Mostrar(string.Format(System.Globalization.CultureInfo.CurrentCulture, TextosDrawerGestionDocumento.Texto("DemasiadosArchivos"), MaximoArchivosPorSubida), TonoToast.Error);
+            return;
+        }
+
         var archivos = e.GetMultipleFiles(MaximoArchivosPorSubida);
 
         foreach (var archivo in archivos)
@@ -607,10 +638,14 @@ public partial class DrawerGestionDocumento : ComponentBase
             // se descarta aquí, el primero se queda en almacenamiento sin que
             // nada vuelva a nombrarlo.
             await DescartarArchivoSinAdoptarAsync();
+            // La clave anterior ya no existe: si el almacén falla ahora, el formulario no
+            // puede seguir apuntando a ella.
+            _archivoUrl = _archivoUrlDelDocumento;
 
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
+            QuitarBloqueoArchivoNoAdjuntado();
             if (_editandoId is not null)
             {
                 _fechaEmision = string.Empty;
@@ -723,6 +758,8 @@ public partial class DrawerGestionDocumento : ComponentBase
     {
         _seguirTrasGuardar = seguir;
 
+        if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+
         if (_editandoId is not null
             && _fechaEmisionOriginal is not null
             && DateOnly.TryParse(_fechaEmision, out var nuevaFecha)
@@ -784,8 +821,46 @@ public partial class DrawerGestionDocumento : ComponentBase
         }
     }
 
+    /// <summary>
+    /// Con el último archivo elegido sin adjuntar, guardar persistiría el Documento sin el
+    /// archivo (o, al renovar, con el anterior y fechas nuevas) y diría «creado» junto al
+    /// error de la subida. Se para aquí y solo se enseña el error.
+    /// </summary>
+    private bool BloquearGuardadoSiArchivoNoAdjuntado()
+    {
+        if (!_archivoNoAdjuntado) return false;
+
+        _erroresCampo = new Dictionary<string, string>();
+        _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("GuardarSinArchivoAdjuntado");
+        return true;
+    }
+
+    /// <summary>Un archivo que sí entra, o descartar a propósito el que falló: el aviso del bloqueo deja de aplicar.</summary>
+    private void QuitarBloqueoArchivoNoAdjuntado()
+    {
+        _archivoNoAdjuntado = false;
+        if (_mensajeErrorFormulario == TextosDrawerGestionDocumento.Texto("GuardarSinArchivoAdjuntado"))
+            _mensajeErrorFormulario = null;
+    }
+
+    /// <summary>
+    /// Salida explícita del bloqueo sin perder lo escrito: se olvida el archivo que falló y el
+    /// formulario vuelve al archivo que el Documento tenía al abrirlo (ninguno, al crear). Es
+    /// una decisión visible del Gestor CAE, no el guardado silencioso de antes.
+    /// </summary>
+    private async Task DescartarArchivoNoAdjuntadoAsync()
+    {
+        // Un archivo anterior que sí se subió (y que el fallo no llegó a sustituir) tampoco se
+        // va a adoptar ya: si no se borra aquí, guardar lo dejaría huérfano.
+        await DescartarArchivoSinAdoptarAsync();
+        _archivoUrl = _archivoUrlDelDocumento;
+        QuitarBloqueoArchivoNoAdjuntado();
+    }
+
     private async Task GuardarInternoAsync()
     {
+        if (BloquearGuardadoSiArchivoNoAdjuntado()) return;
+
         _guardando = true;
         _mensajeErrorFormulario = null;
         _erroresCampo = new Dictionary<string, string>();

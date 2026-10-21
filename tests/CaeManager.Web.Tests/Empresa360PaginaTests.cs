@@ -148,11 +148,13 @@ public partial class Empresa360PaginaTests : BunitContext
 
         private static int Rango(EstadoDocumento? estado) => estado switch
         {
+            // El handler ordena con EstadoDocumentalFiltro.ClaveOrdenConFaltantes: lo Pendiente va justo detrás de lo vencido.
             EstadoDocumento.Vencido => 0,
-            EstadoDocumento.Urgente => 1,
-            EstadoDocumento.Proximo => 2,
-            EstadoDocumento.Vigente => 3,
-            _ => 4
+            EstadoDocumento.Faltante => 1,
+            EstadoDocumento.Urgente => 2,
+            EstadoDocumento.Proximo => 3,
+            EstadoDocumento.Vigente => 4,
+            _ => 5
         };
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -355,16 +357,33 @@ public partial class Empresa360PaginaTests : BunitContext
         Chips(cut).Should().Equal(["Todos · 25", "Sin documentación válida · 3", "Por vencer · 3", "Al día · 19"]);
     }
 
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21): Empresa 360 pintaba «Sin incidencias» y contaba «Al día» a quien el listado daba como
+    /// Pendiente (Andrés Blanco, Elena Cano…). La maqueta del 20-10 define «sin documentación válida» como Bloqueado +
+    /// Vencido + Pendiente: el Pendiente entra en ese chip, su fila dice «Pendiente» y ya no hay aclaración de lo que no cuenta.
+    /// </summary>
     [Fact]
-    public void El_chip_sin_documentacion_valida_lleva_la_aclaracion_de_lo_que_no_cuenta()
+    public async Task El_pendiente_cuenta_como_sin_documentacion_valida_y_su_fila_dice_Pendiente()
     {
-        Registrar(Empresa());
+        var mediador = Empresa(
+        [
+            Trabajador(EstadoDocumento.Vencido, "Vencido Uno"),
+            Trabajador(EstadoDocumento.Faltante, "Blanco"),
+            Trabajador(EstadoDocumento.Faltante, "Cano"),
+            Trabajador(EstadoDocumento.Urgente, "Urgente Uno"),
+            Trabajador(EstadoDocumento.Vigente, "Vigente Uno"),
+            Trabajador(EstadoDocumento.SinCaducidad, "Sin caducidad Uno")
+        ]);
+        Registrar(mediador);
 
         var cut = Renderizar();
 
-        cut.FindAll(".empresa360-chip")[1].GetAttribute("title")
-            .Should().Be("Los documentos obligatorios que faltan no entran en este recuento.");
-        cut.FindAll(".empresa360-chip")[2].HasAttribute("title").Should().BeFalse();
+        Chips(cut).Should().Equal(["Todos · 6", "Sin documentación válida · 3", "Por vencer · 1", "Al día · 2"]);
+        cut.FindAll(".empresa360-chip").Should().OnlyContain(c => !c.HasAttribute("title"));
+
+        await cut.FindAll(".empresa360-chip")[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().BeEquivalentTo(["Vencido", "Pendiente", "Pendiente"]));
     }
 
     [Fact]

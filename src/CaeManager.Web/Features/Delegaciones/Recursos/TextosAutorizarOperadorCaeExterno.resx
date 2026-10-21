@@ -114,4 +114,10 @@
   <data name="AltaHecho" xml:space="preserve">
     <value>Hecho</value>
   </data>
+  <data name="AvisoAjenaSoloLasQueLaAfectan" xml:space="preserve">
+    <value>Solo ves las que afectan a esta organización.</value>
+  </data>
+  <data name="VacioOtraOrganizacion" xml:space="preserve">
+    <value>Tu organización no tiene ninguna delegación con esta organización.</value>
+  </data>
 </root>

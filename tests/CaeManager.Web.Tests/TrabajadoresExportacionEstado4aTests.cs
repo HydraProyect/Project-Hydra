@@ -220,12 +220,16 @@ public class TrabajadoresExportacionEstado4aTests
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("sin rastro");
     }
 
+    /// <summary>
+    /// La consulta del listado entrega el estado ya combinado con lo exigido sin documento
+    /// (SeveridadEstadoDocumento.ConFaltantes): el libro lo copia tal cual, sin recombinarlo.
+    /// </summary>
     [Fact]
-    public void La_columna_Estado_del_libro_cuenta_el_requisito_exigido_sin_documento_como_el_listado()
+    public void La_columna_Estado_del_libro_es_la_misma_que_la_fila_del_listado()
     {
         var conFaltante = DosTrabajadores[0] with
         {
-            EstadoDocumental = EstadoDocumento.Vigente,
+            EstadoDocumental = EstadoDocumento.Faltante,
             DocumentosFaltantes = ["DNI"]
         };
         var conVencido = DosTrabajadores[0] with

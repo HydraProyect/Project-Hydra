@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 using CaeManager.Domain.Plataforma;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.AbrirAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CerrarAccesoSoporte;
 using CaeManager.Application.Tenants.Commands.CrearClienteDelegante;
@@ -39,6 +40,15 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private readonly CancellationTokenSource _cicloCarga = new();
     private readonly Dictionary<Guid, string> _nombresPorUsuarioId = [];
+
+    /// <summary>
+    /// Por Asignación listada, el rol que la persona ejerce en el Tenant beneficiario, no el
+    /// que guarda su cartera (decisión Chris 2026-10-20; hallazgo 16 del 2026-10-21, un
+    /// Administrador salía como «Gestor CAE»). Lo decide
+    /// <see cref="TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario"/>; sin
+    /// entrada, el rol guardado.
+    /// </summary>
+    private readonly Dictionary<Guid, string> _rolMostradoPorAsignacionId = [];
     private IReadOnlyList<DelegacionDto> _delegaciones = [];
     private bool _esAdministradorPlataforma;
 
@@ -115,7 +125,8 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool _autorizandoOperador;
     private string? _errorAutorizarOperador;
 
-    private bool OperandoWorkspaceAjeno => ClienteActivoSeleccionado.TenantIdSeleccionado is not null;
+    private Guid? TenantSeleccionado => ClienteActivoSeleccionado.TenantIdSeleccionado;
+    private bool OperandoWorkspaceAjeno => TenantSeleccionado is not null;
     private bool PuedeGestionar => _esAdministradorPlataforma && !OperandoWorkspaceAjeno;
 
     /// <summary>
@@ -218,8 +229,11 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             var esTenantOrigenPlataforma = await Mediator.Send(new EsTenantOrigenPlataformaQuery(), token);
             var tenantPropietarioAutorizante = await Mediator.Send(new ObtenerTenantPropietarioAutorizanteQuery(), token);
             var accesosSoporteTalveg = await Mediator.Send(new ObtenerAccesosSoporteTalvegQuery(), token);
-            var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(), token);
-            await CargarNombresDeOperadoresAsync(delegaciones.SelectMany(d => d.Operadores).Select(o => o.UsuarioId), token);
+            // Con un Tenant beneficiario seleccionado, solo las delegaciones que lo tienen en un
+            // extremo (hallazgo 16, 2026-10-21): la consulta sigue acotada al Tenant de origen.
+            var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(TenantSeleccionado), token);
+            await CargarNombresDeOperadoresAsync(
+                delegaciones.SelectMany(d => d.Operadores.Select(o => (o, d.EsSoporte, d.OperacionDelTenantEntero))), token);
             await CargarCriteriosDeReactivacionAsync(
                 delegaciones.Where(e => !e.EsSoporte && !e.Activa).Select(e => (e.Id, e.TenantClienteId)), token);
             if (_desechado || version != _versionCarga)
@@ -453,21 +467,36 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         }
     }
 
-    private Task CargarNombresDeOperadoresAsync(IEnumerable<Guid> usuarioIds, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// Nombre de cada persona listada y el rol que se le enseña
+    /// (<see cref="_rolMostradoPorAsignacionId"/>), que necesita su rol de Identity, el del
+    /// Tenant de origen: un rol por cuenta; si hubiera dos, uno estable (mismo criterio que
+    /// <c>DirectorioUsuariosTenant.ObtenerRolesDeCuentasAsync</c>).
+    /// </summary>
+    private Task CargarNombresDeOperadoresAsync(
+        IEnumerable<(OperadorDelegadoDto Persona, bool EsSoporte, bool OperacionDelTenantEntero)> personas,
+        CancellationToken cancellationToken) =>
         PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            foreach (var usuarioId in usuarioIds.Distinct())
+            var rolDeOrigenPorUsuarioId = new Dictionary<Guid, string?>();
+            foreach (var (persona, esSoporte, operacionDelTenantEntero) in personas)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (_nombresPorUsuarioId.ContainsKey(usuarioId))
+                var usuarioId = persona.UsuarioId;
+                if (!rolDeOrigenPorUsuarioId.TryGetValue(usuarioId, out var rolDeOrigen))
                 {
-                    continue;
+                    var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
+                    _nombresPorUsuarioId[usuarioId] = usuario is null
+                        ? "Persona no encontrada"
+                        : $"{usuario.NombreCompleto} ({usuario.Email})";
+                    rolDeOrigen = usuario is null
+                        ? null
+                        : (await UserManager.GetRolesAsync(usuario)).Order(StringComparer.Ordinal).FirstOrDefault();
+                    rolDeOrigenPorUsuarioId[usuarioId] = rolDeOrigen;
                 }
 
-                var usuario = await UserManager.FindByIdAsync(usuarioId.ToString());
-                _nombresPorUsuarioId[usuarioId] = usuario is null
-                    ? "Persona no encontrada"
-                    : $"{usuario.NombreCompleto} ({usuario.Email})";
+                _rolMostradoPorAsignacionId[persona.AsignacionId] = TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario(
+                    esSoporte, operacionDelTenantEntero, persona.Rol, rolDeOrigen);
             }
         });
 
@@ -502,6 +531,9 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         _nombresPorUsuarioId.TryGetValue(usuarioId, out var nombre) && nombre == "Persona no encontrada";
 
     private static string NombreRol(string rol) => Roles.NombreVisible(rol);
+
+    private string RolCaeMostrado(OperadorDelegadoDto persona) =>
+        NombreRol(_rolMostradoPorAsignacionId.GetValueOrDefault(persona.AsignacionId, persona.Rol));
     private static string TituloDe(bool somosLaConsultora, string clienteNombre, string consultoraNombre) =>
         somosLaConsultora ? $"Gestionamos a {clienteNombre}" : $"{consultoraNombre} nos gestiona";
 
