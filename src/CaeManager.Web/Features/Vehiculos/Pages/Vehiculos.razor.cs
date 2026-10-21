@@ -193,7 +193,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (!_orden.Leer(valor))
             return false;
 
-        if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.NumeroPlaca))
+        // Sin orden (de fábrica, p. ej. tras «Restablecer vista») la cabecera vuelve a «Vehículo · Nombre», como al abrir la pantalla.
+        if (_orden.Propiedad is null)
+            _campoOrdenVehiculo = nameof(VehiculoListaDto.Nombre);
+        else if (_orden.Propiedad is nameof(VehiculoListaDto.Nombre) or nameof(VehiculoListaDto.NumeroPlaca))
             _campoOrdenVehiculo = _orden.Propiedad;
         return true;
     }
