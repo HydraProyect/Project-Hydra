@@ -470,6 +470,28 @@ public static class IdentidadesPilotoOutbound
 
     private static int IndiceDe(TenantPilotoOutbound tenant) => CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
 
+    /// <summary>
+    /// El ordinal de la baja <paramref name="k"/> del Tenant (<see cref="TenantPilotoOutbound.BajasDelUltimoAno"/>): los
+    /// últimos de los <see cref="OrdinalesDeTrabajador"/> reservados, de arriba abajo, así que ni su nombre ni su documento de
+    /// identidad repiten los de un Trabajador del lote.
+    /// </summary>
+    private static int OrdinalDeLaBaja(TenantPilotoOutbound tenant, int k)
+    {
+        var ordinal = OrdinalesDeTrabajador - 1 - CatalogoPilotoOutbound.Tenants.Take(IndiceDe(tenant)).Sum(t => t.BajasDelUltimoAno) - k;
+        var delLote = CatalogoPilotoOutbound.Tenants.Sum(CatalogoPilotoOutbound.TrabajadoresSembrados);
+        if (k < 0 || k >= tenant.BajasDelUltimoAno || ordinal < delLote)
+            throw new InvalidOperationException(
+                $"{tenant.Clave}: la baja {k} no cabe entre los {OrdinalesDeTrabajador} ordinales reservados por encima de los {delLote} Trabajadores del lote.");
+        return ordinal;
+    }
+
+    /// <summary>El nombre de pila y los apellidos de la baja <paramref name="k"/> del Tenant.</summary>
+    public static (string Nombre, string Apellidos) TrabajadorDeBaja(TenantPilotoOutbound tenant, int k) => Persona(OrdinalDeLaBaja(tenant, k));
+
+    /// <summary>El documento de identidad de la baja <paramref name="k"/> del Tenant, con la misma regla que el de un Trabajador.</summary>
+    public static string DniDeBaja(TenantPilotoOutbound tenant, int k) =>
+        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalDeLaBaja(tenant, k) + 1L) * 37_139_213 % 80_000_000));
+
     // Códigos de provincia con que empieza un identificador fiscal de sociedad: es solo verosimilitud, no la sede de nadie.
     private static readonly int[] Provincias = [28, 8, 46, 41, 48, 50, 39, 15, 29, 33, 3, 47, 45];
 
@@ -540,6 +562,9 @@ public static class IdentidadesPilotoOutbound
             PerfilPilotoOutbound.ObrasYMaquinaria => ["Oficial de primera de estructuras", "Operador de maquinaria", "Gruista", "Encofrador", "Encargado de obra", "Peón especialista"],
             PerfilPilotoOutbound.Autonomo => ["Técnico de mantenimiento"],
             PerfilPilotoOutbound.ConSubcontratas => ["Montador", "Oficial electricista", "Técnico de puesta en marcha", "Encargado de montaje"],
+            PerfilPilotoOutbound.EscaparateAlDia => ["Técnico de mantenimiento", "Oficial electricista", "Técnico frigorista", "Mecánico de mantenimiento", "Encargado de turno", "Fontanero industrial"],
+            PerfilPilotoOutbound.EscaparatePorVencer => ["Instalador de climatización", "Técnico frigorista", "Oficial de calefacción", "Ayudante de instalaciones"],
+            PerfilPilotoOutbound.EscaparatePocosVencidos => ["Mecánico industrial", "Soldador de mantenimiento", "Electromecánico", "Encargado de mantenimiento"],
             _ => ["Solador", "Oficial de albañilería", "Peón de pavimentos", "Encargado de reformas"]
         };
 
