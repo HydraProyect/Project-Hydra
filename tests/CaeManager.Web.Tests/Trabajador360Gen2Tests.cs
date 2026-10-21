@@ -1,4 +1,5 @@
 ﻿using CaeManager.Web.Components.Layout;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentacionBaseTrabajadores;
 using CaeManager.Infrastructure.Identity;
@@ -21,6 +22,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroD
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Trabajadores.Commands.EditarFichaTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Gestiones;
@@ -92,6 +94,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
         public Dictionary<Guid, List<DocumentoListaDto>> Documentos { get; } = [];
         public Dictionary<Guid, DocumentacionBaseTrabajadorDto> BaseDocumental { get; } = [];
 
+        /// <summary>La fila del Trabajador en el listado (ObtenerTrabajadoresQuery): el estado único de la cabecera.</summary>
+        public Dictionary<Guid, TrabajadorListaDto> Filas { get; } = [];
+
         /// <summary>Si es true, ObtenerDocumentosQuery lanza: el resto de la página tiene que seguir en pie.</summary>
         public bool FallarDocumentos { get; set; }
         public bool FallarDocumentacionBase { get; set; }
@@ -149,6 +154,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
             ObtenerGestionesQuery q => Paginar(q),
             ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)Tipos,
             ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)Selector,
+            ObtenerTrabajadoresQuery q => q.TrabajadorId is { } filaId && Filas.TryGetValue(filaId, out var fila)
+                ? new ResultadoPaginado<TrabajadorListaDto>([fila], 1, q.Pagina, q.TamanoPagina)
+                : new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerAgendaContactosQuery => Contactos,
             CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.ObtenerDeteccionesPorEmpresaQuery =>
                 Result.Exito<IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto>>(Detecciones),
@@ -764,6 +772,9 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 Documento("Formación PRL — 20 h", EstadoDocumento.Vigente),
                 Documento("Formación específica de centro", EstadoDocumento.Vencido))
         ];
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Vencido, null,
+            IncidenciaDe("Formación específica de centro", EstadoDocumento.Vencido),
+            IncidenciaDe("Reconocimiento médico", EstadoDocumento.SinConfirmar));
 
         var cut = Renderizar(id);
 
@@ -1170,8 +1181,20 @@ public partial class Trabajador360Gen2Tests : BunitContext
         detalle.TextContent.Should().NotContain("Nave Berriz", "solo se despliega el centro sobre el que se pulsó");
     }
 
+    /// <summary>La fila del Trabajador tal como la entrega ObtenerTrabajadoresQuery: estado ya combinado, faltantes y desglose.</summary>
+    private static TrabajadorListaDto FilaDelListado(
+        Guid id, EstadoDocumento estado, IReadOnlyList<string>? faltan = null, params IncidenciaDocumentalDto[] incidencias) =>
+        new(id, "Javier", "Salas Moreno", "12345678Z", "Refrielectric S.L.", estado)
+        {
+            DocumentosFaltantes = faltan ?? [],
+            Incidencias = incidencias
+        };
+
+    private static IncidenciaDocumentalDto IncidenciaDe(string tipo, EstadoDocumento estado) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), tipo, estado, estado == EstadoDocumento.SinConfirmar ? null : new DateOnly(2026, 10, 1));
+
     [Fact]
-    public void La_cabecera_nombra_cada_tipo_exigido_sin_documento_una_sola_vez_aunque_dos_centros_lo_exijan()
+    public void La_cabecera_nombra_los_tipos_exigidos_sin_documento_de_la_fila_del_listado()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -1185,12 +1208,49 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 Documento("Formación Art. 19", EstadoDocumento.Faltante, existe: false),
                 Documento("Aptitud médica", EstadoDocumento.Faltante, existe: false))
         ];
+        // La consulta del listado ya los da sin repetir (un Tipo exigido en dos Centros cuenta una vez).
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Faltante, ["Aptitud médica", "Formación Art. 19"]);
 
         var cut = Renderizar(id);
 
         var cabecera = cut.Find(".cabecera-identidad").TextContent;
         cabecera.Should().Contain("Falta: Aptitud médica, Formación Art. 19");
         cabecera.Should().NotContain("Vigente");
+        cut.Find(".trabajador360-indicadores .badge").TextContent.Trim().Should().Be("Pendiente");
+    }
+
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21), Rubén Montero Medina: los Centros solo veían «Falta Información Art. 18» y la cabecera decía
+    /// «Pendiente», mientras el listado lo daba como Vencido por su Formación Art. 19. La cabecera pinta el estado de la fila del
+    /// listado (Vencido &gt; Pendiente &gt; Por vencer &gt; Sin incidencias), no el peor de los Centros, y cuenta los «sin confirmar»
+    /// de ese mismo desglose.
+    /// </summary>
+    [Fact]
+    public void La_cabecera_dice_el_mismo_estado_que_el_listado_aunque_ningun_Centro_vea_el_vencido()
+    {
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Rubén", "Montero Medina");
+        mediador.Centros[id] =
+        [
+            Centro("Centro Norte", "Refrielectric S.A.", EstadoDocumento.Faltante,
+                Documento("Información Art. 18", EstadoDocumento.Faltante, existe: false),
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar),
+                Documento("Contrato", EstadoDocumento.Vigente)),
+            Centro("Nave Berriz", "Talleres Berriz Coop.", EstadoDocumento.SinConfirmar,
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar))
+        ];
+        mediador.Filas[id] = FilaDelListado(id, EstadoDocumento.Vencido, ["Información Art. 18"],
+            IncidenciaDe("Formación Art. 19", EstadoDocumento.Vencido),
+            IncidenciaDe("Reconocimiento médico", EstadoDocumento.SinConfirmar));
+
+        var cut = Renderizar(id);
+
+        var indicadores = cut.Find(".trabajador360-indicadores");
+        indicadores.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Vencido", "es el estado del listado: el vencido manda sobre lo que falta");
+        indicadores.TextContent.Should().Contain("Falta: Información Art. 18");
+        // Un documento sin confirmar exigido en dos Centros es UN documento sin confirmar.
+        indicadores.TextContent.Should().Contain("Vigencia sin confirmar: 1").And.NotContain("Vigencia sin confirmar: 2");
     }
 
     [Fact]

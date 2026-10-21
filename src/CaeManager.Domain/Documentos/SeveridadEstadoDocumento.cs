@@ -36,4 +36,17 @@ public static class SeveridadEstadoDocumento
         EstadoDocumento.SinCaducidad => 7,
         _ => 8
     };
+
+    /// <summary>
+    /// El estado documental de un propietario al que un Centro le exige un Tipo de documento que no tiene. El peor
+    /// estado de sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo exigido se
+    /// leería como «Sin incidencias». Si ya hay algo más grave (un vencido), manda ese: Vencido, luego Pendiente
+    /// (<see cref="EstadoDocumento.Faltante"/>), luego lo que está por vencer y lo demás, por <see cref="Rango"/>.
+    /// Es la única combinación de los dos: el listado de Trabajadores, Empresa 360 y la cabecera de Trabajador 360
+    /// leen el resultado ya combinado de <c>ObtenerTrabajadoresQuery</c>.
+    /// </summary>
+    public static EstadoDocumento? ConFaltantes(EstadoDocumento? estado, bool hayFaltantes) =>
+        hayFaltantes && (estado is null || Rango(EstadoDocumento.Faltante) < Rango(estado.Value))
+            ? EstadoDocumento.Faltante
+            : estado;
 }
