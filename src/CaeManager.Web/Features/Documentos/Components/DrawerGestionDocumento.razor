@@ -193,6 +193,9 @@
             @if (_archivoNoAdjuntado && !_subiendoArchivo)
             {
                 <span class="campo-mensaje-error" role="alert">@TextosDrawerGestionDocumento.Texto("ArchivoNoAdjuntado")</span>
+                <Boton Variante="VarianteBoton.Fantasma" OnClick="DescartarArchivoNoAdjuntadoAsync" class="boton-descartar-archivo-no-adjuntado">
+                    @TextosDrawerGestionDocumento.Texto(_archivoUrlDelDocumento is null ? "SeguirSinArchivo" : "SeguirConArchivoAnterior")
+                </Boton>
             }
             <p class="texto-vacio-seccion">Puedes seleccionar varios archivos a la vez (p. ej. varias fotos) — se combinan automáticamente en un solo PDF.</p>
         </div>

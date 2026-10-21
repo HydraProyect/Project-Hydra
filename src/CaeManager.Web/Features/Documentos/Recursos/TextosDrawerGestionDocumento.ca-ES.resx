@@ -45,4 +45,10 @@
   <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
     <value>No s'ha desat: l'arxiu que has triat no s'ha adjuntat. Torna a adjuntar-lo abans de desar.</value>
   </data>
+  <data name="SeguirSinArchivo" xml:space="preserve">
+    <value>Continuar sense arxiu</value>
+  </data>
+  <data name="SeguirConArchivoAnterior" xml:space="preserve">
+    <value>Continuar amb l'arxiu anterior</value>
+  </data>
 </root>

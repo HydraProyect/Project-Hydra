@@ -45,4 +45,10 @@
   <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
     <value>No se ha guardado: el archivo que elegiste no se adjuntó. Vuelve a adjuntarlo antes de guardar.</value>
   </data>
+  <data name="SeguirSinArchivo" xml:space="preserve">
+    <value>Seguir sin archivo</value>
+  </data>
+  <data name="SeguirConArchivoAnterior" xml:space="preserve">
+    <value>Seguir con el archivo anterior</value>
+  </data>
 </root>

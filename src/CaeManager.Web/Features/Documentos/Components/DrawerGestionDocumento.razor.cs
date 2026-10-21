@@ -572,12 +572,20 @@ public partial class DrawerGestionDocumento : ComponentBase
         // documento de la serie: un archivo elegido ahora acabaría adjunto al documento equivocado.
         if (_guardando) return;
 
-        var archivos = e.GetMultipleFiles(MaximoArchivosPorSubida);
-        if (archivos.Count == 0) return;
+        if (e.FileCount == 0) return;
 
         // Hasta que el almacén confirme, lo elegido no está adjunto: cualquier salida
         // anticipada o excepción de aquí abajo deja el formulario sin poder guardarse.
         _archivoNoAdjuntado = true;
+
+        // GetMultipleFiles lanza por encima del máximo: se avisa en vez de dejar escapar la excepción.
+        if (e.FileCount > MaximoArchivosPorSubida)
+        {
+            ToastService.Mostrar($"Puedes subir hasta {MaximoArchivosPorSubida} archivos a la vez.", TonoToast.Error);
+            return;
+        }
+
+        var archivos = e.GetMultipleFiles(MaximoArchivosPorSubida);
 
         foreach (var archivo in archivos)
         {
@@ -637,7 +645,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
             _archivoUrlSubidoSinAdoptar = _archivoUrl;
-            _archivoNoAdjuntado = false;
+            QuitarBloqueoArchivoNoAdjuntado();
             if (_editandoId is not null)
             {
                 _fechaEmision = string.Empty;
@@ -825,6 +833,28 @@ public partial class DrawerGestionDocumento : ComponentBase
         _erroresCampo = new Dictionary<string, string>();
         _mensajeErrorFormulario = TextosDrawerGestionDocumento.Texto("GuardarSinArchivoAdjuntado");
         return true;
+    }
+
+    /// <summary>Un archivo que sí entra, o descartar a propósito el que falló: el aviso del bloqueo deja de aplicar.</summary>
+    private void QuitarBloqueoArchivoNoAdjuntado()
+    {
+        _archivoNoAdjuntado = false;
+        if (_mensajeErrorFormulario == TextosDrawerGestionDocumento.Texto("GuardarSinArchivoAdjuntado"))
+            _mensajeErrorFormulario = null;
+    }
+
+    /// <summary>
+    /// Salida explícita del bloqueo sin perder lo escrito: se olvida el archivo que falló y el
+    /// formulario vuelve al archivo que el Documento tenía al abrirlo (ninguno, al crear). Es
+    /// una decisión visible del Gestor CAE, no el guardado silencioso de antes.
+    /// </summary>
+    private async Task DescartarArchivoNoAdjuntadoAsync()
+    {
+        // Un archivo anterior que sí se subió (y que el fallo no llegó a sustituir) tampoco se
+        // va a adoptar ya: si no se borra aquí, guardar lo dejaría huérfano.
+        await DescartarArchivoSinAdoptarAsync();
+        _archivoUrl = _archivoUrlDelDocumento;
+        QuitarBloqueoArchivoNoAdjuntado();
     }
 
     private async Task GuardarInternoAsync()

@@ -200,6 +200,8 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         Subir(cut, CrearPdf());
 
         _almacen.Borrados.Should().Equal("blob-primero");
+        typeof(DrawerGestionDocumento).GetField("_archivoUrl", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .GetValue(cut.Instance).Should().BeNull("la clave del primero ya no existe en el almacén");
         await PulsarGuardarAsync(cut);
         _mediator.Creados.Should().BeEmpty();
     }
@@ -211,9 +213,13 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         _almacen.Respuestas.Enqueue("blob-bueno");
 
         Subir(cut, CrearPdfDanado());
+        await PulsarGuardarAsync(cut);
+        cut.Markup.Should().Contain("No se ha guardado:");
+
         Subir(cut, CrearPdf());
 
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        cut.Markup.Should().NotContain("No se ha guardado:", "con el archivo ya adjunto el aviso del bloqueo deja de aplicar");
         await PulsarGuardarAsync(cut);
 
         _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().Be("blob-bueno");
@@ -229,5 +235,27 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         await cut.InvokeAsync(() => cut.Instance.AbrirCrearAsync());
 
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty("cada apertura empieza sin archivo elegido");
+    }
+
+    /// <summary>
+    /// Salida explícita del bloqueo: seguir sin archivo es una decisión visible, no el guardado
+    /// silencioso de antes. Un archivo anterior que sí subió, y que ya no se va a adoptar, se borra.
+    /// </summary>
+    [Fact]
+    public async Task Seguir_sin_archivo_tras_un_rechazo_descarta_lo_subido_y_guarda_sin_archivo()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-anterior");
+
+        Subir(cut, CrearPdf());
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary([1, 2, 3], "notas.txt", contentType: "text/plain"));
+        await cut.Find(".boton-descartar-archivo-no-adjuntado").ClickAsync(new MouseEventArgs());
+
+        _almacen.Borrados.Should().Equal("blob-anterior");
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        await PulsarGuardarAsync(cut);
+
+        _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().BeNull();
     }
 }
