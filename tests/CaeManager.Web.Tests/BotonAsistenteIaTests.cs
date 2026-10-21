@@ -124,7 +124,12 @@ public class BotonAsistenteIaTests : BunitContext
 
         var cut = Render<BotonAsistenteIa>();
 
+        // Que la consulta se hizo y que, ya con su respuesta y un render más, la pista sigue sin
+        // salir: si el componente ignorara lo que dice vega.js, la pista aparecería aquí.
+        cut.WaitForAssertion(() => _modulo.VerifyInvoke("pistaVista"));
+        cut.Render();
         cut.FindAll(".vega-pista").Should().BeEmpty();
+        _modulo.VerifyNotInvoke("marcarPistaVista");
     }
 
     [Fact]

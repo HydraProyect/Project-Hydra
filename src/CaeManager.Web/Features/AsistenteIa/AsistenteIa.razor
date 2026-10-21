@@ -8,6 +8,8 @@
 <LimiteDeErrores Islote="this">
 @if (Visible)
 {
+    // Antes de pintar nada: un hilo de otro Tenant efectivo no llega al marcado.
+    var hilo = HiloDelTenantEfectivo();
     <aside class="vega-panel @(PantallaCompleta ? "vega-panel-pantalla" : "")" role="complementary"
            aria-labelledby="vega-titulo" @onkeydown="ManejarTeclaPanelAsync"
            data-vega-pantalla="@(PantallaCompleta ? "" : null)">
@@ -39,7 +41,7 @@
             <div class="vega-contexto" role="status">
                 <span>@Textos["TrabajandoEn"]</span>
                 <span class="vega-chip" data-tooltip="@Textos["TrabajandoEnTooltip", empresa.Nombre]"
-                      aria-label="@($"{empresa.Nombre}. {Textos["TrabajandoEnTooltip", empresa.Nombre]}")">
+                      aria-label="@Textos["TrabajandoEnTooltip", empresa.Nombre]">
                     <i aria-hidden="true">@Iniciales(empresa.Nombre)</i>@empresa.Nombre
                 </span>
             </div>
@@ -54,10 +56,12 @@
         {
             <div class="asistente-modos" role="group" aria-label="@Textos["ModoEtiqueta"]">
                 <button type="button" class="asistente-modo" aria-pressed="@(EnModoGestion ? "true" : "false")"
+                        aria-label="@($"{Textos["Modo_Operativo"]}. {Textos["ModoTooltip_Operativo"]}")"
                         data-tooltip="@Textos["ModoTooltip_Operativo"]" @onclick="() => CambiarModo(ModoAsistente.Gestion)">
                     <Icono Nombre="pulso" Tamano="TamanoIcono.Pequeno" />@Textos["Modo_Operativo"]
                 </button>
                 <button type="button" class="asistente-modo" aria-pressed="@(!EnModoGestion ? "true" : "false")"
+                        aria-label="@($"{Textos["Modo_ConsultaPrl"]}. {Textos["ModoTooltip_ConsultaPrl"]}")"
                         data-tooltip="@Textos["ModoTooltip_ConsultaPrl"]" @onclick="() => CambiarModo(ModoAsistente.Preguntar)">
                     <Icono Nombre="roles" Tamano="TamanoIcono.Pequeno" />@Textos["Modo_ConsultaPrl"]
                 </button>
@@ -104,7 +108,7 @@
         else
         {
             <div class="vega-hilo" aria-live="polite">
-                @if (Hilo.Count == 0 && !_enviando)
+                @if (hilo.Count == 0 && !_enviando)
                 {
                     <div class="vega-bienvenida">
                         <span class="vega-avatar" aria-hidden="true"><Icono Nombre="ia" /></span>
@@ -120,7 +124,7 @@
                     </div>
                 }
 
-                @foreach (var entrada in Hilo)
+                @foreach (var entrada in hilo)
                 {
                     @if (entrada.Tipo == TipoEntradaHilo.Usuario)
                     {
@@ -133,7 +137,8 @@
                             <div class="vega-a-cuerpo">
                                 @if (entrada.Modo is { } modo)
                                 {
-                                    <span class="vega-modo" tabindex="0" data-tooltip="@TooltipModo(modo)">
+                                    <span class="vega-modo" tabindex="0" data-tooltip="@TooltipModo(modo)"
+                                          aria-label="@($"{NombreModo(modo)}. {TooltipModo(modo)}")">
                                         <Icono Nombre="@IconoModo(modo)" Tamano="TamanoIcono.Pequeno" />@NombreModo(modo)
                                     </span>
                                 }
@@ -149,7 +154,8 @@
                                         <PlanAsistente Vista="entrada.Plan!" Ocupado="_enviando"
                                                        OnConfirmar="() => ConfirmarAsync(entrada.Plan!)"
                                                        OnDescartar="() => DescartarPlanAsync(entrada.Plan!)"
-                                                       OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)" />
+                                                       OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)"
+                                                       OnEscape="PlegarPorEscape" />
                                         break;
                                 }
                             </div>

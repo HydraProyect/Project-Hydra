@@ -65,7 +65,8 @@ public partial class AsistenteIa : IDisposable
     [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
     [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
-    [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
+    /// <summary>El Tenant efectivo del circuito (claim firmado más la Empresa gestionada elegida y vigente).</summary>
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
@@ -121,7 +122,35 @@ public partial class AsistenteIa : IDisposable
 
     private List<EntradaHilo> Hilo => AsistenteIaService.Hilo;
 
-    private bool Visible => PantallaCompleta || (AsistenteIaService.Abierto && !_enRutaPantallaCompleta);
+    /// <summary>Sin ningún proveedor configurado no hay Vega: ni panel, ni atajo, ni pantalla completa.</summary>
+    private bool Visible => Disponibilidad.Alguna
+        && (PantallaCompleta || (AsistenteIaService.Abierto && !_enRutaPantallaCompleta));
+
+    /// <summary>
+    /// Comprueba el Tenant efectivo frente al de la conversación. Si ha cambiado (revocación de
+    /// la delegación o retirada de la Empresa gestionada en mitad del circuito), el hilo ya está
+    /// vacío al volver de aquí, se avisa y la pastilla se vuelve a leer. Se llama al pintar y
+    /// antes de cada envío, y otra vez al volver de cada llamada que tarda: nada de lo dicho en
+    /// el Tenant anterior se enseña ni se reenvía al proveedor de IA.
+    /// </summary>
+    /// <returns>true si el Tenant efectivo ha cambiado: quien llama no debe enviar nada.</returns>
+    private bool TenantEfectivoCambiado()
+    {
+        if (!AsistenteIaService.AsegurarTenant(TenantActual.TenantId))
+            return false;
+
+        _empresa = null;
+        _empresaCargada = false;
+        _mensajeError = Textos["EmpresaCambiada"];
+        return true;
+    }
+
+    /// <summary>La comprobación del pintado: el marcado nunca enumera un hilo de otro Tenant.</summary>
+    private List<EntradaHilo> HiloDelTenantEfectivo()
+    {
+        TenantEfectivoCambiado();
+        return Hilo;
+    }
 
     protected override void OnInitialized()
     {
@@ -144,7 +173,7 @@ public partial class AsistenteIa : IDisposable
         if (firstRender)
         {
             _modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/vega.js");
-            if (!PantallaCompleta)
+            if (!PantallaCompleta && Disponibilidad.Alguna)
             {
                 _referenciaDotNet = DotNetObjectReference.Create(this);
                 _suscripcionAtajo = await _modulo.InvokeAsync<IJSObjectReference>("registrarAtajo", _referenciaDotNet);
@@ -164,6 +193,13 @@ public partial class AsistenteIa : IDisposable
         }
 
         if (_modulo is null) return;
+
+        // El Tenant efectivo cambió al pintar: la pastilla se lee de nuevo para la Empresa vigente.
+        if (Visible && !_empresaCargada)
+        {
+            await CargarEmpresaAsync();
+            StateHasChanged();
+        }
 
         await PrepararCampoAsync();
 
@@ -201,7 +237,7 @@ public partial class AsistenteIa : IDisposable
     [JSInvokable]
     public Task AlternarDesdeJs()
     {
-        if (!PantallaCompleta && !_enRutaPantallaCompleta)
+        if (Disponibilidad.Alguna && !PantallaCompleta && !_enRutaPantallaCompleta)
             AsistenteIaService.Alternar();
         return Task.CompletedTask;
     }
@@ -222,6 +258,10 @@ public partial class AsistenteIa : IDisposable
                 _abiertoReflejado = abierto;
                 if (_accionPendiente != AccionTrasRender.MarcarAbiertoSinFoco)
                     _accionPendiente = abierto ? AccionTrasRender.MarcarAbiertoYEnfocarCampo : AccionTrasRender.MarcarPlegadoYEnfocarBoton;
+                // El campo se vuelve a crear al abrir: enseña el borrador que quedó, para que
+                // Enter nunca envíe un texto que la persona no ve en la caja.
+                if (abierto)
+                    _valorMostrado = _pregunta;
                 StateHasChanged();
                 if (abierto && !_empresaCargada)
                 {
@@ -245,25 +285,30 @@ public partial class AsistenteIa : IDisposable
             if (enPantalla && _modulo is not null)
                 await _modulo.InvokeVoidAsync("marcarAbierto", false);
             else if (!enPantalla && AsistenteIaService.Abierto)
+            {
                 _accionPendiente = AccionTrasRender.MarcarAbiertoSinFoco;
+                _valorMostrado = _pregunta;
+            }
             StateHasChanged();
         });
     }
 
     /// <summary>
     /// La Empresa gestionada actual, la misma que enseña el selector del menú. Cambiar de
-    /// Empresa es un POST con recarga completa, así que basta leerla al abrir. Si el
-    /// circuito habló en otro Tenant, ese hilo no se enseña aquí.
+    /// Empresa es un POST con recarga completa; si el Tenant efectivo cambia dentro del
+    /// circuito (revocación), <see cref="TenantEfectivoCambiado"/> la manda leer de nuevo.
+    /// Si el circuito habló en otro Tenant, ese hilo no se enseña aquí.
     /// </summary>
     private async Task CargarEmpresaAsync()
     {
         if (_empresaCargada) return;
         _empresaCargada = true;
 
+        var tenantEfectivo = TenantActual.TenantId;
         try
         {
             var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-            _empresa = ClientesAutorizados.Activo(autorizados, ClienteActivoSeleccionado.TenantIdSeleccionado);
+            _empresa = ClientesAutorizados.Activo(autorizados, tenantEfectivo);
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
@@ -271,7 +316,8 @@ public partial class AsistenteIa : IDisposable
             // cada escritura resuelven el Tenant por su cuenta (nunca desde esta coordenada).
             _empresa = null;
         }
-        AsistenteIaService.AsegurarTenant(_empresa?.TenantId ?? ClienteActivoSeleccionado.TenantIdSeleccionado);
+        if (AsistenteIaService.AsegurarTenant(tenantEfectivo))
+            _mensajeError = Textos["EmpresaCambiada"];
     }
 
     private void Plegar() => AsistenteIaService.Plegar();
@@ -287,9 +333,19 @@ public partial class AsistenteIa : IDisposable
     /// <summary>Esc pliega Vega si el foco está dentro del panel (no en la pantalla completa).</summary>
     private Task ManejarTeclaPanelAsync(KeyboardEventArgs e)
     {
-        if (e.Key == "Escape" && !PantallaCompleta)
-            AsistenteIaService.Plegar();
+        if (e.Key == "Escape")
+            PlegarPorEscape();
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// También desde los botones del plan (Confirmar, Descartar, chips de Tenant), que detienen
+    /// la propagación del teclado para que su Enter no confirme dos veces: su Esc llega por aquí.
+    /// </summary>
+    private void PlegarPorEscape()
+    {
+        if (!PantallaCompleta)
+            AsistenteIaService.Plegar();
     }
 
     /// <summary>
@@ -308,17 +364,20 @@ public partial class AsistenteIa : IDisposable
     private IEnumerable<ModoAsistente> ModosDisponibles =>
         new[] { ModoAsistente.Gestion, ModoAsistente.Preguntar }.Where(ModoPermitido);
 
-    private string NombreModo(ModoAsistente modo) => Textos[$"Modo_{ClaveModo(modo)}"];
+    // Claves literales y completas: así las comprueba LocalizacionRecursosYRegistroTests.
+    private string NombreModo(ModoAsistente modo) =>
+        modo == ModoAsistente.Gestion ? Textos["Modo_Operativo"] : Textos["Modo_ConsultaPrl"];
 
-    private string TooltipModo(ModoAsistente modo) => Textos[$"ModoTooltip_{ClaveModo(modo)}"];
+    private string TooltipModo(ModoAsistente modo) =>
+        modo == ModoAsistente.Gestion ? Textos["ModoTooltip_Operativo"] : Textos["ModoTooltip_ConsultaPrl"];
 
-    private string ResumenModo(ModoAsistente modo) => Textos[$"ModoResumen_{ClaveModo(modo)}"];
+    private string ResumenModo(ModoAsistente modo) =>
+        modo == ModoAsistente.Gestion ? Textos["ModoResumen_Operativo"] : Textos["ModoResumen_ConsultaPrl"];
 
-    private string EjemploModo(ModoAsistente modo) => Textos[$"Ejemplo_{ClaveModo(modo)}"];
+    private string EjemploModo(ModoAsistente modo) =>
+        modo == ModoAsistente.Gestion ? Textos["Ejemplo_Operativo"] : Textos["Ejemplo_ConsultaPrl"];
 
     private static string IconoModo(ModoAsistente modo) => modo == ModoAsistente.Gestion ? "pulso" : "roles";
-
-    private static string ClaveModo(ModoAsistente modo) => modo == ModoAsistente.Gestion ? "Operativo" : "ConsultaPrl";
 
     /// <summary>Iniciales de la Empresa para la pastilla: las dos primeras palabras con letra.</summary>
     private static string Iniciales(string nombre) =>
@@ -360,6 +419,10 @@ public partial class AsistenteIa : IDisposable
         var texto = _pregunta.Trim();
         if (texto.Length == 0 || _enviando) return;
 
+        // Si el Tenant efectivo cambió, el hilo anterior ya se ha vaciado y este texto tampoco
+        // sale: se escribió viendo otra Empresa. Se queda en la caja para revisarlo.
+        if (TenantEfectivoCambiado()) return;
+
         _mensajeError = null;
         Hilo.Add(new EntradaHilo(TipoEntradaHilo.Usuario, texto));
         _pregunta = string.Empty;
@@ -393,6 +456,9 @@ public partial class AsistenteIa : IDisposable
 
         var resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(historial.ToList()));
 
+        // La respuesta es del Tenant en el que se preguntó: si cambió mientras tanto, no se pinta.
+        if (TenantEfectivoCambiado()) return;
+
         if (resultado.EsExitoso)
         {
             historial.Add(new MensajeChatDto(RolMensajeChat.Asistente, resultado.Valor));
@@ -423,8 +489,15 @@ public partial class AsistenteIa : IDisposable
             return;
         }
 
+        // Cada vuelta de una llamada que tarda puede encontrar otro Tenant efectivo: entonces no
+        // se pide el plan al proveedor ni se pinta nada (la Tarea, del Tenant anterior, queda
+        // como borrador de ese Tenant, donde el servidor la sigue protegiendo por RLS).
+        if (TenantEfectivoCambiado()) return;
+
         var tareaId = creada.Valor;
         var propuesta = await Mediator.Send(new ProponerPlanDeTareaAsistenteCommand(tareaId));
+
+        if (TenantEfectivoCambiado()) return;
 
         if (propuesta.EsFallido)
         {
@@ -452,6 +525,7 @@ public partial class AsistenteIa : IDisposable
         }
 
         await GuardarPlanAsync(vista);
+        if (TenantEfectivoCambiado()) return;
         Hilo.Add(new EntradaHilo(TipoEntradaHilo.Plan, texto, vista, ModoAsistente.Gestion));
     }
 
@@ -482,7 +556,7 @@ public partial class AsistenteIa : IDisposable
     /// </summary>
     private async Task ConfirmarAsync(VistaPlanAsistente vista)
     {
-        if (_enviando || !vista.PuedeConfirmar) return;
+        if (_enviando || !vista.PuedeConfirmar || TenantEfectivoCambiado()) return;
 
         _enviando = true;
         try
@@ -502,7 +576,7 @@ public partial class AsistenteIa : IDisposable
 
     private async Task DescartarPlanAsync(VistaPlanAsistente vista)
     {
-        if (_enviando || vista.TareaId is null) return;
+        if (_enviando || vista.TareaId is null || TenantEfectivoCambiado()) return;
 
         _enviando = true;
         try
@@ -527,7 +601,7 @@ public partial class AsistenteIa : IDisposable
     /// </summary>
     private async Task ElegirTenantAsync(VistaPlanAsistente vista, Guid tenantId)
     {
-        if (_enviando || vista.TareaId is null) return;
+        if (_enviando || vista.TareaId is null || TenantEfectivoCambiado()) return;
 
         _enviando = true;
         try
@@ -576,6 +650,8 @@ public partial class AsistenteIa : IDisposable
         _mensajeError = null;
         if (_verBorradores)
             await CargarBorradoresAsync();
+        else
+            _valorMostrado = _pregunta; // el campo vuelve a crearse: con el borrador a la vista
     }
 
     private async Task CargarBorradoresAsync()

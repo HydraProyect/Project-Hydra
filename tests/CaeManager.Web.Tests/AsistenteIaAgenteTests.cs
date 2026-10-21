@@ -19,6 +19,12 @@ using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Tests;
 
+/// <summary>El Tenant efectivo del circuito, que una prueba puede cambiar en mitad de la conversación (revocación).</summary>
+internal sealed class TenantEfectivoDePrueba(Guid? tenantId) : ITenantActual
+{
+    public Guid? TenantId { get; set; } = tenantId;
+}
+
 /// <summary>
 /// La interfaz del agente del asistente: propone, no ejecuta. Se prueba con un mediador
 /// de guion (no hay red ni proveedor de IA): lo que importa aquí es qué se manda, en qué
@@ -68,6 +74,7 @@ public class AsistenteIaAgenteTests : BunitContext
     private static readonly TenantDeCarteraDto B = new(TenantB, "Industrias Norte", false);
 
     private readonly MediadorDeGuion _mediador = new();
+    private readonly TenantEfectivoDePrueba _tenantEfectivo = new(TenantA);
 
     public AsistenteIaAgenteTests()
     {
@@ -76,6 +83,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba(TenantA));
+        Services.AddSingleton<ITenantActual>(_tenantEfectivo);
         AddAuthorization().SetAuthorized("laura.perez@consultora.es");
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
@@ -462,9 +470,17 @@ public class AsistenteIaAgenteTests : BunitContext
         Configurar(anthropic: true, typeSafeActivo: true);
         GuionDeEmpresa();
 
+        // Vega abierto antes de entrar: en la pantalla completa el panel se ve siempre, así que lo
+        // que prueba que Esc y Ctrl+I no pliegan nada es que el estado compartido siga abierto.
+        var servicio = Services.GetRequiredService<AsistenteIaService>();
+        servicio.Abrir();
+
         var pantalla = Render<AsistenteIa>(p => p.Add(c => c.PantallaCompleta, true));
         pantalla.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
         pantalla.InvokeAsync(() => pantalla.Instance.AlternarDesdeJs());
+
+        servicio.Abierto.Should().BeTrue("ni Esc ni Ctrl+I pliegan Vega en la pantalla completa");
+        JSInterop.VerifyNotInvoke("enfocarBoton");
 
         pantalla.FindAll("aside.vega-panel").Should().ContainSingle();
         pantalla.Find("aside.vega-panel").HasAttribute("data-vega-pantalla").Should().BeTrue();
@@ -504,7 +520,9 @@ public class AsistenteIaAgenteTests : BunitContext
         panel.WaitForAssertion(() => panel.Find(".vega-contexto").TextContent.Should().Contain("Trabajando en"));
         var chip = panel.Find(".vega-chip");
         chip.TextContent.Should().Contain("Hotel Mirador").And.Contain("HM");
-        chip.GetAttribute("data-tooltip").Should().Be("Vega solo usa los datos de Hotel Mirador");
+        // Veraz en los dos modos: en Operativo el plan puede ir a otra Empresa de la cartera.
+        chip.GetAttribute("data-tooltip").Should().StartWith("Empresa gestionada de esta sesión: Hotel Mirador.")
+            .And.NotContain("solo usa los datos");
     }
 
     [Fact]
@@ -524,5 +542,124 @@ public class AsistenteIaAgenteTests : BunitContext
         otra.Find(".vega-nueva").Click();
         otra.FindAll(".vega-u").Should().BeEmpty();
         otra.FindAll(".vega-bienvenida").Should().ContainSingle();
+    }
+
+    // ---- Tenant efectivo: la conversación no cruza de Tenant -------------------------------
+
+    [Fact]
+    public void Si_el_Tenant_efectivo_cambia_en_el_circuito_no_se_reenvia_nada_del_anterior_al_proveedor()
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta con datos del primer Tenant.");
+        var panel = Abrir();
+        Enviar(panel, "¿Qué le falta a la primera?");
+        panel.FindAll(".vega-u").Should().ContainSingle();
+
+        // El texto se escribe con el primer Tenant; entre la última tecla y el envío, la
+        // revalidación del circuito revoca la delegación y el Tenant efectivo pasa a ser otro
+        // sin recargar la página (sin un pintado de por medio: lo que prueba es la guarda del envío).
+        panel.Find("textarea.asistente-textarea").Input("¿Y la siguiente?");
+        _tenantEfectivo.TenantId = TenantB;
+        panel.Find("button.asistente-boton-enviar").Click();
+
+        _mediador.De<PreguntarAlAsistenteQuery>().Should().ContainSingle("con el Tenant cambiado no sale ningún envío");
+        panel.FindAll(".vega-u, .vega-a").Should().BeEmpty("el hilo del Tenant anterior ya no se enseña");
+        panel.Markup.Should().NotContain("la primera?").And.NotContain("Respuesta con datos del primer Tenant.");
+        panel.Find(".asistente-mensaje-error").TextContent.Should().Contain("La Empresa gestionada ha cambiado");
+        panel.WaitForAssertion(() => panel.Find(".vega-chip").TextContent.Should().Contain("Industrias Norte"));
+
+        // El texto sigue en la caja; al enviarlo de nuevo, al proveedor solo llega lo del Tenant nuevo.
+        panel.Find("button.asistente-boton-enviar").Click();
+
+        _mediador.De<PreguntarAlAsistenteQuery>().Should().HaveCount(2);
+        _mediador.De<PreguntarAlAsistenteQuery>().Last().Historial.Should().ContainSingle()
+            .Which.Should().Be(new MensajeChatDto(RolMensajeChat.Usuario, "¿Y la siguiente?"));
+    }
+
+    [Fact]
+    public void Si_el_Tenant_efectivo_cambia_el_plan_anterior_deja_de_pintarse_y_Enter_no_lo_confirma()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var panel = Abrir();
+        Enviar(panel, "reclama la documentación a Montajes Ebro");
+        panel.FindAll(".plan").Should().ContainSingle();
+
+        _tenantEfectivo.TenantId = TenantB;
+        panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Notificar());
+
+        panel.WaitForAssertion(() => panel.FindAll(".plan, .vega-u").Should().BeEmpty());
+        panel.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
+        _mediador.De<ConfirmarPlanTareaAsistenteCommand>().Should().BeEmpty();
+    }
+
+    // ---- Teclado, foco y borrador ------------------------------------------------------------
+
+    [Fact]
+    public void Sin_ningun_proveedor_configurado_ni_Ctrl_I_ni_el_estado_abren_Vega()
+    {
+        Configurar(anthropic: false, typeSafeActivo: false);
+        var panel = Render<AsistenteIa>();
+
+        panel.InvokeAsync(() => panel.Instance.AlternarDesdeJs());
+        Services.GetRequiredService<AsistenteIaService>().Abierto.Should().BeFalse("Ctrl+I no hace nada sin proveedor");
+
+        panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Abrir());
+        panel.FindAll("aside.vega-panel").Should().BeEmpty();
+        JSInterop.VerifyNotInvoke("registrarAtajo");
+    }
+
+    [Fact]
+    public void Al_reabrir_Vega_el_borrador_que_quedo_se_ve_en_la_caja()
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        var panel = Abrir();
+        panel.Find("textarea.asistente-textarea").Input("borrador a medias");
+        var servicio = Services.GetRequiredService<AsistenteIaService>();
+
+        panel.InvokeAsync(servicio.Plegar);
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().BeEmpty());
+        panel.InvokeAsync(servicio.Abrir);
+
+        panel.WaitForAssertion(() =>
+        {
+            var campo = panel.Find("textarea.asistente-textarea");
+            (campo.GetAttribute("value") ?? campo.TextContent).Should().Be("borrador a medias",
+                "Enter enviaría ese texto: tiene que verse en la caja");
+        });
+    }
+
+    [Fact]
+    public void Esc_con_el_foco_en_Confirmar_tambien_pliega_Vega_y_no_confirma()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var panel = Abrir();
+        Enviar(panel, "reclama la documentación a Montajes Ebro");
+
+        panel.Find(".plan-confirmar").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Escape" });
+
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().BeEmpty());
+        _mediador.De<ConfirmarPlanTareaAsistenteCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Un_plan_viejo_no_roba_el_foco_al_volver_a_montar_el_panel()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var panel = Abrir();
+        Enviar(panel, "reclama la documentación a Montajes Ebro");
+        JSInterop.VerifyFocusAsyncInvoke(1);
+
+        var servicio = Services.GetRequiredService<AsistenteIaService>();
+        panel.InvokeAsync(servicio.Plegar);
+        panel.WaitForAssertion(() => panel.FindAll("aside.vega-panel").Should().BeEmpty());
+        panel.InvokeAsync(servicio.Abrir);
+        panel.WaitForAssertion(() => panel.FindAll(".plan").Should().ContainSingle());
+
+        JSInterop.VerifyFocusAsyncInvoke(1);
     }
 }

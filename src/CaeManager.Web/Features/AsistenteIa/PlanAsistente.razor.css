@@ -13,7 +13,7 @@
     background-color: var(--color-surface-subtle);
     color: var(--color-text);
     font: var(--font-body-md);
-    box-shadow: inset 3px 0 0 var(--color-boton, var(--color-primary-500));
+    box-shadow: inset 3px 0 0 var(--color-primario-fondo);
 }
 
 .plan-borrador {

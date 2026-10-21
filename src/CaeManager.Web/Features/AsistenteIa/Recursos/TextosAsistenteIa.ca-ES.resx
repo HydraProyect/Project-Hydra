@@ -280,7 +280,7 @@
     <value>Treballant a</value>
   </data>
   <data name="TrabajandoEnTooltip" xml:space="preserve">
-    <value>Vega només fa servir les dades de {0}</value>
+    <value>Empresa gestionada d'aquesta sessió: {0}. A Operatiu, cada pla diu en quina Empresa de la teva cartera es faria abans de confirmar-lo; a Consulta de PRL no es fan servir dades de cap Empresa.</value>
   </data>
   <data name="AvisoIa" xml:space="preserve">
     <value>Vega és una intel·ligència artificial i es pot equivocar. No s'executa res sense la teva confirmació.</value>
@@ -338,5 +338,11 @@
   </data>
   <data name="PistaCampoPantalla" xml:space="preserve">
     <value>Enter envia · Maj+Enter línia nova</value>
+  </data>
+  <data name="OrdenNoEntendida" xml:space="preserve">
+    <value>No he reconegut cap gestió en el que has escrit, així que no he preparat cap pla. Si era un dubte normatiu, canvia a «Consulta de PRL».</value>
+  </data>
+  <data name="EmpresaCambiada" xml:space="preserve">
+    <value>L'Empresa gestionada ha canviat, així que he buidat la conversa anterior i no he enviat res. Revisa en quina Empresa treballes i torna a escriure.</value>
   </data>
 </root>

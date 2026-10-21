@@ -52,6 +52,7 @@ public class AsistenteIaTextosTests : BunitContext
         Services.AddScoped<IMediator, MediatorQueNoResponde>();
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 

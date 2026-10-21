@@ -29,10 +29,14 @@ public class AsistenteIaService
     public List<MensajeChatDto> Historial { get; } = [];
 
     /// <summary>
-    /// Tenant en el que se habló. Si el circuito pasa a otro Tenant (cambiar de Empresa
-    /// gestionada recarga la página, pero por si acaso), la conversación no viaja con él.
+    /// Tenant efectivo en el que se habló. Cambiar de Empresa gestionada recarga la página,
+    /// pero el Tenant efectivo también cambia dentro del mismo circuito: la revalidación
+    /// periódica invalida la selección cuando se revoca la delegación y el circuito vuelve a
+    /// su Tenant de origen. La conversación no viaja con él (ver <see cref="AsegurarTenant"/>).
     /// </summary>
     public Guid? TenantDeLaConversacion { get; private set; }
+
+    private bool _tenantFijado;
 
     public void Abrir()
     {
@@ -61,13 +65,22 @@ public class AsistenteIaService
         Cambio?.Invoke();
     }
 
-    /// <summary>Vacía el hilo si se habló en otro Tenant: lo dicho con los datos de una Empresa no se enseña en otra.</summary>
-    public void AsegurarTenant(Guid? tenantId)
+    /// <summary>
+    /// Ata la conversación al Tenant efectivo <paramref name="tenantId"/>. Si ya estaba atada a
+    /// otro, vacía el hilo y el historial: lo dicho con los datos de una Empresa no se enseña
+    /// en otra ni se reenvía al proveedor de IA.
+    /// </summary>
+    /// <returns>true si la conversación estaba atada a otro Tenant (el Tenant efectivo ha cambiado).</returns>
+    public bool AsegurarTenant(Guid? tenantId)
     {
-        if (TenantDeLaConversacion == tenantId) return;
+        if (_tenantFijado && TenantDeLaConversacion == tenantId) return false;
+
+        var cambio = _tenantFijado;
+        _tenantFijado = true;
         TenantDeLaConversacion = tenantId;
         Hilo.Clear();
         Historial.Clear();
+        return cambio;
     }
 
     public void Notificar() => Cambio?.Invoke();

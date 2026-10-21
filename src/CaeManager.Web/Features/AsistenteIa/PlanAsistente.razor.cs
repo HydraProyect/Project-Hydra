@@ -20,14 +20,19 @@ public partial class PlanAsistente
     /// <summary>El Tenant en el que se ejecutaría, elegido en el chip. Coordenada de contexto: el motor comprueba que sea de la cartera.</summary>
     [Parameter] public EventCallback<Guid> OnElegirTenant { get; set; }
 
-    private ElementReference _botonConfirmar;
-    private bool _focoDado;
+    /// <summary>Esc con el foco en un botón del plan, que detiene la propagación del teclado: el panel lo pliega.</summary>
+    [Parameter] public EventCallback OnEscape { get; set; }
 
-    /// <summary>Confirmar recibe el foco al aparecer un plan confirmable (marco-talveg.js): Enter lo confirma.</summary>
+    private ElementReference _botonConfirmar;
+
+    /// <summary>
+    /// Confirmar recibe el foco al aparecer un plan confirmable (marco-talveg.js): Enter lo confirma.
+    /// Solo la primera vez que aparece (<see cref="VistaPlanAsistente.FocoDado"/>), nunca al volver a montarlo.
+    /// </summary>
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_focoDado || !Vista.PuedeConfirmar || Vista.Estado != EstadoVistaPlan.Propuesto) return;
-        _focoDado = true;
+        if (Vista.FocoDado || !Vista.PuedeConfirmar || Vista.Estado != EstadoVistaPlan.Propuesto) return;
+        Vista.FocoDado = true;
         try
         {
             await _botonConfirmar.FocusAsync();
@@ -94,6 +99,12 @@ public partial class PlanAsistente
     /// Enter confirma el plan enfocado. Los demás botones del plan detienen la
     /// propagación del teclado: Enter sobre un chip de Tenant lo elige, no confirma.
     /// </summary>
+    private async Task TeclaEnBotonAsync(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+            await OnEscape.InvokeAsync();
+    }
+
     private async Task ManejarTeclaAsync(KeyboardEventArgs e)
     {
         if (e.Key == "Enter" && !e.ShiftKey && !e.CtrlKey && !e.AltKey && !e.MetaKey)
