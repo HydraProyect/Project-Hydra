@@ -329,9 +329,10 @@ else
         echo "AlmacenamientoArchivos__Ruta=/data/documentos"
         echo "DataProtection__RutaClaves=/data/dataprotection-keys"
         # P1-F3: la imagen arranca en Production, que se niega a un llavero sin
-        # cifrar salvo declaración. Con --certificado-dp se usa el certificado
-        # (y la bandera se ignora); sin él, solo se leen claves escritas en claro.
-        echo "DataProtection__PermitirClavesSinCifrar=true"
+        # cifrar salvo declaración. Con --certificado-dp, la misma configuración
+        # que los compose desplegados: certificado y sin bandera. Sin él, la
+        # bandera solo sirve para ensayar un backup anterior al certificado (claves
+        # en claro); con claves cifradas en el backup el arranque se niega igual.
         if [ -n "$CERTIFICADO_DP" ]; then
             echo "DataProtection__Certificado__CertificadoRuta=/run/secretos/dataprotection.crt"
             echo "DataProtection__Certificado__ClavePrivadaRuta=/run/secretos/dataprotection.key"
@@ -345,6 +346,8 @@ else
                 echo "DataProtection__Certificado__Anteriores__${n}__ClavePrivadaRuta=/run/secretos/$nombre.key"
                 n=$((n + 1))
             done
+        else
+            echo "DataProtection__PermitirClavesSinCifrar=true"
         fi
         echo "Migraciones__AlArrancar=false"
         echo "Siembra__AlArrancar=false"
