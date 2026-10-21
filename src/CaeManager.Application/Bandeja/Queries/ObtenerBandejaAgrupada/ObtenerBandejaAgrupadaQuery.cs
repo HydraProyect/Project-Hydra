@@ -135,7 +135,7 @@ public class ObtenerBandejaAgrupadaQueryHandler(IMediator mediator, ICalculoEsta
     /// <summary>
     /// Qué item de la cola cierra de verdad el acceso de un Trabajador a un Centro de Trabajo.
     /// Única fuente para la tarjeta del grupo (badge y banda), el recuento
-    /// «M bloquean acceso» y la pista «N trabajadores bloqueados» de Inicio.
+    /// «M bloquean acceso» y la pista «N centros con Trabajadores bloqueados» de Inicio.
     /// «Bloqueado» es un estado del Trabajador, nunca del Centro (corrección del propietario, 2026-10-03):
     /// <list type="bullet">
     ///   <item><description><see cref="TipoItemBandeja.RequisitoPendiente"/> — siempre: un requisito bloqueante ausente o que ya no vale en ese Centro bloquea, también al Trabajador recién dado de alta sin documentación (ya no hay excepción de «alta nueva»).</description></item>

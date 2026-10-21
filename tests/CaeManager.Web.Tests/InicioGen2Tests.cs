@@ -644,14 +644,14 @@ public class InicioGen2Tests : BunitContext
     public void La_pista_del_kpi_de_centros_cuenta_centros_bloqueados_no_trabajadores()
     {
         var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2, TrabajadoresBloqueados = 3 } });
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros bloqueados");
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros con trabajadores bloqueados");
     }
 
     [Fact]
     public void La_pista_del_kpi_de_centros_concuerda_en_singular()
     {
         var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 1 } });
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro bloqueado");
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro con trabajadores bloqueados");
     }
 
     [Fact]

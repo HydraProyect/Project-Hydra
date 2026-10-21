@@ -61,16 +61,16 @@
     <value>{0} Treballadors bloquejats: el percentatge compta documents, no accés.</value>
   </data>
   <data name="AnilloAlDiaDetalle" xml:space="preserve">
-    <value>{0} de {1} documents de Treballador al dia (vigents, per vencer i sense caducitat)</value>
+    <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat)</value>
   </data>
   <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
-    <value>1 centre bloquejat</value>
+    <value>1 centre amb treballadors bloquejats</value>
   </data>
   <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
-    <value>{0} centres bloquejats</value>
+    <value>{0} centres amb treballadors bloquejats</value>
   </data>
   <data name="KpiVigentesFuera" xml:space="preserve">
-    <value>{0} vençuts o per vencer</value>
+    <value>{0} vençuts o per vèncer</value>
   </data>
   <data name="KpiVigentesSinVencimiento" xml:space="preserve">
     <value>{0} sense confirmar o sense caducitat</value>

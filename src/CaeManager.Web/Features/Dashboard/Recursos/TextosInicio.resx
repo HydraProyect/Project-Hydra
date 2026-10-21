@@ -64,10 +64,10 @@
     <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad)</value>
   </data>
   <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
-    <value>1 centro bloqueado</value>
+    <value>1 centro con trabajadores bloqueados</value>
   </data>
   <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
-    <value>{0} centros bloqueados</value>
+    <value>{0} centros con trabajadores bloqueados</value>
   </data>
   <data name="KpiVigentesFuera" xml:space="preserve">
     <value>{0} vencidos o por vencer</value>

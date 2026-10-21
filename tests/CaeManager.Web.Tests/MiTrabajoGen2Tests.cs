@@ -556,6 +556,16 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
     }
 
+    /// <summary>Con una Empresa filtrada por la URL, la que se abre sola es esa, no la de más bloqueos que el filtro oculta.</summary>
+    [Fact]
+    public void Con_una_Empresa_filtrada_se_abre_esa_y_no_la_de_mas_bloqueos()
+    {
+        var cut = RenderizarPlegado(url: $"mi-trabajo?empresa={TenantDexter}");
+
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Where(c => c.GetAttribute("aria-expanded") == "true").Select(c => c.TextContent)
+            .Should().ContainSingle().Which.Should().Contain("Laboratorios Dexter");
+    }
+
     /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
     [Fact]
     public void El_modo_Severidad_carga_con_todas_las_cabeceras_plegadas_y_se_despliegan_una_a_una_o_todas()

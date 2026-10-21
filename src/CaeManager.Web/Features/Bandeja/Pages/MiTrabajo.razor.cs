@@ -90,7 +90,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     /// sin tareas era lo primero que veía la Gestora CAE); el resto sigue plegado.
     /// </summary>
     private readonly HashSet<Guid> _tenantsAbiertos = [];
-    private bool _aperturaInicialHecha;
 
     /// <summary>Lo mismo en modo Severidad: las severidades cuya cabecera se ha desplegado en esta visita. Parte vacío y no se persiste.</summary>
     private readonly HashSet<SeveridadMiTrabajo> _severidadesAbiertas = [];
@@ -299,11 +298,7 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
             _vista ??= new MiTrabajoVista(new MiTrabajoAgregadoDto([], []));
 
             // Primera carga: lo primero que ve el Gestor CAE es trabajo, no una lista de Empresas plegadas.
-            if (!_aperturaInicialHecha)
-            {
-                _aperturaInicialHecha = true;
-                if (_vista.TenantQueSeAbreAlCargar() is { } primero) _tenantsAbiertos.Add(primero);
-            }
+            if (_vista.TenantQueSeAbreAlCargar(_severidad, _tenantFiltro) is { } primero) _tenantsAbiertos.Add(primero);
         }
         catch (Exception) when (!EsVigente(carga))
         {

@@ -642,19 +642,13 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
-    /// La Asignación de Operación Outbound del Operador CAE externo sobre el Tenant
-    /// propietario, en sus dos capas y en este orden: la heredada, bajo el ámbito
-    /// del Operador CAE externo, y la del catálogo de asignaciones, bajo el del
-    /// Tenant propietario, con la Asignación de Cartera del Tenant entero de cada
-    /// Gestor CAE. Todo idempotente. Es el único método de esta siembra que nombra
-    /// los identificadores heredados de la delegación.
-    /// </summary>
-    /// <summary>
     /// Las tarifas que el Operador CAE externo aplica a un Tenant beneficiario (plano Comercial; sin ellas Facturación y el
     /// Cuadro de dirección enseñan «Sin tarifa» en todas las Empresas gestionadas). Una versión por concepto, vigente desde
     /// ahora y activa; el precio varía con el ordinal del Tenant para que las Empresas no salgan idénticas. Idempotente: si
-    /// el Operador ya tiene alguna tarifa para ese Tenant, no escribe; un Tenant ya sembrado sin tarifas las recibe en el
-    /// siguiente arranque con la siembra activa, sin tocar sus datos.
+    /// el Operador ya tiene alguna tarifa para ese Tenant, no escribe. Solo se alcanza si la siembra no se salta el lote
+    /// (fecha de demostración dentro de margen); los extranjeros y sus Visitas solo se escriben en Tenants nuevos, así que en
+    /// un entorno ya sembrado «Facturación concuerda» exige retirar y resembrar. Las tarifas nuevas rigen desde ahora: los
+    /// meses anteriores siguen en «Sin tarifa».
     /// </summary>
     private static async Task SembrarTarifasDelOperadorAsync(
         CaeManagerDbContext dbContext, Guid tenantOperadorId, Guid tenantPropietarioId, Guid registradaPorUsuarioId, int ordinal,
@@ -679,6 +673,14 @@ public static class PilotoOutboundSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// La Asignación de Operación Outbound del Operador CAE externo sobre el Tenant
+    /// propietario, en sus dos capas y en este orden: la heredada, bajo el ámbito
+    /// del Operador CAE externo, y la del catálogo de asignaciones, bajo el del
+    /// Tenant propietario, con la Asignación de Cartera del Tenant entero de cada
+    /// Gestor CAE. Todo idempotente. Es el único método de esta siembra que nombra
+    /// los identificadores heredados de la delegación.
+    /// </summary>
     private static async Task AbrirOperacionExternaAsync(
         CaeManagerDbContext dbContext, TenantPilotoOutbound tenant, Guid tenantPropietarioId, Guid tenantOperadorId,
         Equipo equipo, ILogger logger, CancellationToken cancellationToken)
@@ -1393,7 +1395,7 @@ public static class PilotoOutboundSeeder
         {
             var antesDeSembrar = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc);
 
-            // Los extranjeros del perfil cuentan como extranjeros cobrables (casilla a mano: su documento es un DNI de la
+            // Los extranjeros del perfil cuentan como extranjeros cobrables (casilla a mano: su documento es un NIE de la
             // siembra, no un Pasaporte) ANTES de asignarlos a ninguna Visita, porque la asignación guarda la foto del
             // Trabajador (VisitaTrabajador.EsExtranjeroCobrable) y Facturación y el Excel del mes leen esa foto.
             foreach (var extranjero in tenant.Extranjeros)
