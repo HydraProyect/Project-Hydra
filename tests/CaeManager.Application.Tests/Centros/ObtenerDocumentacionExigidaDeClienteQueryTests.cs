@@ -116,6 +116,20 @@ public class ObtenerDocumentacionExigidaDeClienteQueryTests
     }
 
     [Fact]
+    public async Task Marca_el_certificado_de_la_Seguridad_Social_por_su_perfil_oficial_y_no_por_el_nombre()
+    {
+        var tgss = Tipo("Certificado de estar al corriente con la Seguridad Social", 5, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+        tgss.EstablecerPerfilDocumentoOficial(PerfilDocumentoOficial.CorrienteTgss);
+        var homonimo = Tipo("Certificado de estar al corriente con la TGSS (copia)", 6, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+
+        var resultado = await Obtener(new AlcanceDatosServiceFalso());
+
+        resultado!.Requisitos.Single(r => r.TipoDocumentoId == tgss.Id).EsCertificadoTgss.Should().BeTrue();
+        resultado.Requisitos.Single(r => r.TipoDocumentoId == homonimo.Id).EsCertificadoTgss.Should().BeFalse();
+        resultado.Requisitos.Count(r => r.EsCertificadoTgss).Should().Be(1);
+    }
+
+    [Fact]
     public async Task Un_usuario_sin_el_Cliente_empresarial_en_cartera_no_recibe_nada()
     {
         var fueraDeCartera = new AlcanceDatosServiceFalso(

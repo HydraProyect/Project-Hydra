@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
@@ -684,7 +684,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             exigida = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(detalle.Id), _cancelacion);
             if (exigida is not null)
-                documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } ? 1 : 0);
+                // El certificado de la Seguridad Social ya es un requisito del catálogo: solo suma si ningún Centro lo exige.
+                documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } && !exigida.Requisitos.Any(r => r.EsCertificadoTgss) ? 1 : 0);
         }
         catch (Exception)
         {
