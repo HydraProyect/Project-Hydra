@@ -1258,8 +1258,9 @@ public static class PilotoOutboundSeeder
             }
 
             // Los de la Empresa propia, solo si tiene alguien asignado en ese Centro: es lo que pide la regla de alta. Van
-            // después de los de los Trabajadores para no consumir la receta de rechazos y subidas.
-            if (activas.Values.Any(centrosDelTrabajador => centrosDelTrabajador.Contains(c)))
+            // después de los de los Trabajadores para no consumir la receta de rechazos y subidas. Los Trabajadores propios son
+            // los primeros tenant.Trabajadores; los de detrás son de Subcontrata y no dan actividad a la Empresa propia.
+            if (activas.Any(a => a.Key < tenant.Trabajadores && a.Value.Contains(c)))
                 foreach (var documento in documentosDeEmpresa)
                 {
                     var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
