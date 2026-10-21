@@ -489,6 +489,23 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos;
 
     /// <summary>
+    /// Pista de «Vigentes»: reparte el resto de los Documentos de Trabajador medidos para que
+    /// vigentes + pista = el denominador del anillo (<see cref="KpisDashboardDto.Fraccion"/>), sin hueco sin explicar.
+    /// </summary>
+    private string? PistaVigentes
+    {
+        get
+        {
+            if (_kpis is null) return null;
+            var sinVencimientoFirme = _kpis.DocumentosSinConfirmar + _kpis.DocumentosSinCaducidad;
+            var partes = new List<string>();
+            if (DocumentosFueraDeVigencia > 0) partes.Add(Textos["KpiVigentesFuera", DocumentosFueraDeVigencia].Value);
+            if (sinVencimientoFirme > 0) partes.Add(Textos["KpiVigentesSinVencimiento", sinVencimientoFirme].Value);
+            return partes.Count == 0 ? null : string.Join(" · ", partes);
+        }
+    }
+
+    /// <summary>
     /// Todo lo que el panel resume está a cero <b>y</b> nada espera en las colas:
     /// ni trabajadores, centros, documentos ni visitas, ni cola de atención, ni
     /// plataformas pendientes, ni reclamaciones sin respuesta. Solo entonces se
@@ -509,23 +526,6 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         && _sinRespuesta.Count == 0 && _proximamente.Count == 0
         && (_bandejaAgrupada is null
             || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
-
-    /// <summary>
-    /// Trabajadores distintos con al menos un item que de verdad les cierra el
-    /// acceso a un Centro, en la cola ya cargada — sin query nueva, es el mismo dato que ya
-    /// pinta "Requiere atención". El criterio es
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>, el
-    /// mismo que usa <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> para
-    /// el badge «Bloquea acceso» de cada grupo. «Bloqueado» es un estado del Trabajador, no del
-    /// Centro (2026-10-03): se cuentan Trabajadores, no Centros. Una acreditación Rechazada de un
-    /// documento de Empresa (sin Trabajador) no se cuenta aquí.
-    /// </summary>
-    private int TrabajadoresBloqueados => _bandejaAgrupada is null ? 0
-        : _bandejaAgrupada.Grupos.SelectMany(g => g.Items).Concat(_bandejaAgrupada.SinGrupo)
-            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(i) && i.TrabajadorId is not null)
-            .Select(i => i.TrabajadorId!.Value)
-            .Distinct()
-            .Count();
 
     /// <summary>
     /// Aviso bajo el anillo cuando la consulta de KPI cuenta Trabajadores bloqueados

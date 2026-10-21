@@ -83,7 +83,7 @@ public class TextosSinLocalizarCongeladosTests
         ["Configuracion"] = 1,
         // 57 → 55 el 2026-09-24 al migrar el estado vacío «Sin cartera asignada» de Inicio a
         // TextosInicio.resx (aterrizaje en Mi trabajo, D-2). El resto de Inicio sigue sin migrar.
-        ["Dashboard"] = 55,
+        ["Dashboard"] = 53, // 55 → 53 el 2026-10-21 (revisión 1:1 del piloto): el detalle del anillo y las pistas de «Centros / plataformas» y «Vigentes» salen de TextosInicio.resx.
         // 89 → 1 el 2026-09-23 al migrar la Feature a TextosDashboardEjecutivo.resx. El 1 que
         // queda NO es texto: es un falso positivo del detector de markup, que toma por texto lo
         // que hay entre el «>» de <CampoSelect …> y el «<» del genérico de

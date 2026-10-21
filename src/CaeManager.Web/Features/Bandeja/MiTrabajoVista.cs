@@ -186,6 +186,17 @@ public sealed class MiTrabajoVista
             .ToList();
     }
 
+    /// <summary>
+    /// La Empresa (Tenant propietario) que la pantalla abre sola al cargar: la que más bloqueos tiene y, a igualdad,
+    /// la primera de la cartera. Sin ninguna fila, <c>null</c>.
+    /// </summary>
+    public Guid? TenantQueSeAbreAlCargar() => _cartera
+        .GroupBy(f => f.TenantId)
+        .Select(g => new { TenantId = g.Key, Orden = g.Min(f => f.OrdenTenant), Bloqueos = g.Count(f => f.Severidad == SeveridadMiTrabajo.Bloqueo) })
+        .OrderByDescending(t => t.Bloqueos).ThenBy(t => t.Orden)
+        .Select(t => (Guid?)t.TenantId)
+        .FirstOrDefault();
+
     public IReadOnlyList<GrupoMiTrabajo> Grupos(FiltroMiTrabajo filtro)
     {
         var abiertos = filtro.Abiertos ?? new HashSet<string>();

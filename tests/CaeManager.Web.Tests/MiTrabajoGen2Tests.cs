@@ -210,12 +210,23 @@ public partial class MiTrabajoGen2Tests : BunitContext
     /// <summary>La vuelta a Mi trabajo sin filtros que lleva todo destino (RetornoMiTrabajo).</summary>
     private static readonly string Vuelta = $"volver={Uri.EscapeDataString("/mi-trabajo")}";
 
-    /// <summary>La pantalla carga con todo plegado: los tests que miran filas parten de «Expandir todas», como haría el Gestor CAE.</summary>
+    /// <summary>
+    /// La pantalla carga con la Empresa de más bloqueos desplegada y el resto plegado: los tests que miran las filas de todas
+    /// parten de «Expandir todas», como haría el Gestor CAE (con una abierta y otras plegadas el botón pliega primero).
+    /// </summary>
     private static void ExpandirTodas(IRenderedComponent<MiTrabajoPagina> cut)
     {
+        var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-tenant");
+        if (cabeceras.Count > 0 && cabeceras.All(c => c.GetAttribute("aria-expanded") == "true")) return;
+
         var boton = cut.FindAll(".mi-trabajo-plegar-todas").FirstOrDefault();
-        if (boton is not null && cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").All(c => c.GetAttribute("aria-expanded") == "false"))
+        if (boton is null) return;
+        if (cabeceras.Any(c => c.GetAttribute("aria-expanded") == "true"))
+        {
             boton.Click();
+            boton = cut.Find(".mi-trabajo-plegar-todas");
+        }
+        boton.Click();
     }
 
     private static IReadOnlyList<string> TitulosVisibles(IRenderedComponent<MiTrabajoPagina> cut) =>
@@ -528,17 +539,21 @@ public partial class MiTrabajoGen2Tests : BunitContext
         cut.FindAll(".mi-trabajo-grupo-nombre").Select(e => e.TextContent).Should().Equal("Laboratorios Dexter");
     }
 
-    /// <summary>Decisión de producto (2026-10-16): Mi trabajo carga SIEMPRE con todos los grupos de Tenant plegados.</summary>
+    /// <summary>
+    /// Revisión 1:1 del piloto (2026-10-21, que corrige la decisión del 2026-10-16 de cargar todo plegado): lo primero que ve
+    /// la Gestora CAE es trabajo. Se abre sola la Empresa con más bloqueos; las demás cargan plegadas.
+    /// </summary>
     [Fact]
-    public void La_pantalla_carga_con_todos_los_Tenants_plegados_y_sin_filas()
+    public void La_pantalla_carga_con_la_Empresa_de_mas_bloqueos_desplegada_y_las_demas_plegadas()
     {
         var cut = RenderizarPlegado();
 
         var cabeceras = cut.FindAll(".mi-trabajo-grupo-cabecera-tenant");
-        cabeceras.Should().NotBeEmpty();
-        cabeceras.Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        cut.FindAll(".mi-trabajo-fila").Should().BeEmpty();
-        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
+        cabeceras.Should().HaveCountGreaterThan(1);
+        cabeceras.Where(c => c.GetAttribute("aria-expanded") == "true").Select(c => c.TextContent)
+            .Should().ContainSingle().Which.Should().Contain("Refrielectric", "tiene 2 bloqueos frente a 0 de la otra");
+        TitulosVisibles(cut).Should().NotBeEmpty();
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Plegar todas");
     }
 
     /// <summary>Decisión de la coordinadora (2026-10-16): el modo Severidad también carga plegado, con cabeceras plegables y «Expandir todas».</summary>
@@ -576,7 +591,11 @@ public partial class MiTrabajoGen2Tests : BunitContext
     public void Expandir_todas_despliega_todo_y_cambia_su_rotulo_y_Volver_a_plegar_deja_todo_plegado_otra_vez()
     {
         var cut = RenderizarPlegado();
-        cut.FindAll(".mi-trabajo-volver-plegar").Should().BeEmpty("no hay nada desplegado que volver a plegar");
+        cut.FindAll(".mi-trabajo-volver-plegar").Should().NotBeEmpty("la Empresa abierta al cargar se puede volver a plegar");
+
+        cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
+        cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas");
 
         cut.Find(".mi-trabajo-plegar-todas").Click();
 
@@ -593,23 +612,22 @@ public partial class MiTrabajoGen2Tests : BunitContext
 
     /// <summary>
     /// Lo que el Gestor CAE despliega vale para su visita a la pantalla y nada más: no se escribe ni se lee ningún
-    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir plegada aunque
-    /// la anterior terminara con un Tenant desplegado.
+    /// almacenamiento del navegador, y una instancia nueva de la pantalla (otra carga) vuelve a partir con solo la Empresa
+    /// de más bloqueos abierta aunque la anterior terminara con otro Tenant desplegado.
     /// </summary>
     [Fact]
     public void Lo_desplegado_en_una_visita_no_se_restaura_en_la_siguiente()
     {
         var cut = RenderizarPlegado();
-        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric")).Click();
-        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Refrielectric"))
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Dexter")).Click();
+        cut.FindAll(".mi-trabajo-grupo-cabecera-tenant").First(c => c.TextContent.Contains("Dexter"))
             .GetAttribute("aria-expanded").Should().Be("true", "durante la visita se puede desplegar");
-        TitulosVisibles(cut).Should().NotBeEmpty();
 
         cut.Dispose();
         var siguiente = Render<MiTrabajoPagina>();
 
-        siguiente.FindAll(".mi-trabajo-grupo-cabecera-tenant").Should().OnlyContain(c => c.GetAttribute("aria-expanded") == "false");
-        TitulosVisibles(siguiente).Should().BeEmpty();
+        siguiente.FindAll(".mi-trabajo-grupo-cabecera-tenant").Where(c => c.GetAttribute("aria-expanded") == "true")
+            .Select(c => c.TextContent).Should().ContainSingle().Which.Should().Contain("Refrielectric");
         JSInterop.Invocations.Where(i => i.Identifier.Contains("Storage", StringComparison.OrdinalIgnoreCase)).Should()
             .BeEmpty("la expansión no se guarda en localStorage ni en ninguna preferencia");
     }

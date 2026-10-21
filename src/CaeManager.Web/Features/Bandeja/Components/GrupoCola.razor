@@ -15,6 +15,8 @@
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada
 @using CaeManager.Application.Bandeja.Queries.ObtenerBandejaGestor
 @using CaeManager.Web.Components.DesignSystem
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<Recursos.TextosMiTrabajo> Textos
 @inject Microsoft.AspNetCore.Components.NavigationManager NavigationManager
 @inject CaeManager.Web.Components.Workspace.ContextWorkspaceService WorkspaceService
 
@@ -328,9 +330,15 @@
         {
             var trabajadores = Grupo.Items.Select(i => i.TrabajadorId).Where(id => id is not null).Distinct().Count();
             var pendientes = Grupo.Items.Count == 1 ? "1 pendiente" : $"{Grupo.Items.Count} pendientes";
-            return trabajadores > 0
+            var detalle = trabajadores > 0
                 ? $"{pendientes} · {(trabajadores == 1 ? "1 trabajador" : $"{trabajadores} trabajadores")}"
                 : pendientes;
+            // El grupo es un Cliente empresarial o la propia Empresa (sin Cliente): la clave lo dice
+            // (ObtenerBandejaAgrupadaQueryHandler.ClaveGrupo) y la tarjeta no puede mezclarlos sin rotularlos.
+            var tipo = Grupo.GrupoId.StartsWith("cliente-", StringComparison.Ordinal) ? Textos["GrupoDeCliente"].Value
+                : Grupo.GrupoId.StartsWith("empresa-", StringComparison.Ordinal) ? Textos["GrupoDeEmpresa"].Value
+                : null;
+            return tipo is null ? detalle : $"{tipo} · {detalle}";
         }
     }
 

@@ -60,4 +60,19 @@
   <data name="TrabajadoresBloqueadosKpiVarios" xml:space="preserve">
     <value>{0} Trabajadores bloqueados: el porcentaje cuenta documentos, no acceso.</value>
   </data>
+  <data name="AnilloAlDiaDetalle" xml:space="preserve">
+    <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad)</value>
+  </data>
+  <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
+    <value>1 centro bloqueado</value>
+  </data>
+  <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
+    <value>{0} centros bloqueados</value>
+  </data>
+  <data name="KpiVigentesFuera" xml:space="preserve">
+    <value>{0} vencidos o por vencer</value>
+  </data>
+  <data name="KpiVigentesSinVencimiento" xml:space="preserve">
+    <value>{0} sin confirmar o sin caducidad</value>
+  </data>
 </root>

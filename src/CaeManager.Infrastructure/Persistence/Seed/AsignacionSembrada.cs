@@ -1,3 +1,4 @@
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 
 namespace CaeManager.Infrastructure.Persistence.Seed;
@@ -9,6 +10,15 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </summary>
 internal static class AsignacionSembrada
 {
+    /// <summary>
+    /// Con la foto del Trabajador, como toda asignación de la aplicación: un extranjero cobrable
+    /// (<see cref="Trabajador.MarcaExtranjeroCobrable"/> o Pasaporte) entra en el Excel y en el conteo del mes.
+    /// </summary>
+    public static VisitaTrabajador De(Visita visita, Trabajador trabajador) =>
+        new(visita.Id, trabajador,
+            fechaAsignacionUtc: DateTime.SpecifyKind(
+                visita.FechaInicio.AddDays(-2).ToDateTime(new TimeOnly(9, 0)), DateTimeKind.Utc));
+
     public static VisitaTrabajador De(Visita visita, Guid trabajadorId) =>
         new(visita.Id, trabajadorId,
             fechaAsignacionUtc: DateTime.SpecifyKind(

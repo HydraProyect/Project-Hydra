@@ -447,6 +447,11 @@ public static class CatalogoPilotoOutbound
     ])
     {
         TrabajadoresPorCentro = [8, 7, 5],
+        Extranjeros =
+        [
+            new(1, "Peruana", "Autorización de residencia y trabajo por cuenta ajena", 210),
+            new(9, "Rumana", "Autorización de residencia y trabajo por cuenta ajena", 95)
+        ],
         Vehiculos =
         [
             new("Camión grúa", "Camión grúa articulada", "3412JKL", "Camión", "Propiedad", "Aseguradora Nortia", [0, 1],
@@ -501,6 +506,7 @@ public static class CatalogoPilotoOutbound
     {
         TrabajadoresPorCentro = [5, 5, 4],
         DeBaja = [13],
+        Extranjeros = [new(2, "Paraguaya", "Autorización de residencia y trabajo por cuenta ajena", 120)],
         Subcontratas =
         [
             new("Andamios Torrevia, S.L.", 6),

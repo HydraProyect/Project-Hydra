@@ -450,8 +450,21 @@ public static class IdentidadesPilotoOutbound
     /// comparte factor con los ochenta millones del módulo: dos Trabajadores del lote
     /// no reciben el mismo número, y los de dos Trabajadores seguidos distan millones.
     /// </summary>
-    public static string Dni(TenantPilotoOutbound tenant, int i) =>
-        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000));
+    public static string Dni(TenantPilotoOutbound tenant, int i)
+    {
+        var numero = 10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000);
+        return tenant.Extranjeros.Any(e => e.Trabajador == i) ? NieValido(numero) : DatosPruebaSeeder.GenerarDniValido(numero);
+    }
+
+    /// <summary>
+    /// Un NIE con su letra de control (X + 7 cifras) para los extranjeros del perfil: un Trabajador con permiso de trabajo no
+    /// tiene DNI. Las siete cifras salen del mismo número que el DNI que tendría, así que tampoco se repiten dentro del lote.
+    /// </summary>
+    private static string NieValido(int numero)
+    {
+        var cifras = 1_000_000 + numero % 9_000_000;
+        return $"X{cifras:D7}{"TRWAGMYFPDXBNJZSQVHLCKE"[cifras % 23]}";
+    }
 
     /// <summary>El documento de identidad de la persona que detecta la IA en un documento de Empresa: un ordinal por encima de los de Trabajador del lote, así que no repite ninguno.</summary>
     public static string DniDeLaDeteccion(TenantPilotoOutbound tenant) =>
