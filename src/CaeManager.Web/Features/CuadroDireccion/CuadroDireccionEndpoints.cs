@@ -12,8 +12,10 @@ namespace CaeManager.Web.Features.CuadroDireccion;
 
 /// <summary>
 /// «Exportar extranjeros del mes» del Cuadro de dirección (decisión de Chris, 2026-10-20): el Excel general, de todos
-/// los Tenants beneficiarios que alcanza quien mira, con una fila por Trabajador extranjero cobrable y Visita del mes.
-/// Lo que entra, el recorrido por Tenant y la autorización viven en <see cref="ObtenerExtranjerosDelMesQuery"/>; aquí
+/// los Tenants beneficiarios que alcanza quien mira, con una fila por Trabajador extranjero cobrable y Visita del mes;
+/// para un Operador CAE, solo las de la vigencia de su Asignación de Operación en cada Empresa gestionada (las de su cifra
+/// facturada). Lo que entra, el recorrido por Tenant y la autorización viven en <see cref="ObtenerExtranjerosDelMesQuery"/>
+/// (la acotación a la vigencia, en <see cref="ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery"/>); aquí
 /// solo se escribe el libro y se deja el rastro de la descarga, que lleva DNI y pasaportes.
 /// </summary>
 public static class CuadroDireccionEndpoints
@@ -37,10 +39,12 @@ public static class CuadroDireccionEndpoints
         // Con tenantId, solo las filas de esa Empresa gestionada y solo las de la vigencia de la Asignación de Operación externa
         // del Operador CAE: las mismas que cuenta la pestaña Facturación (ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery), para
         // que cifra y Excel no diverjan. Un Id que no es una Empresa gestionada en el mes (el propio Tenant del Operador, uno sin
-        // Asignación externa en vigor o ajeno) da un libro sin filas, nunca datos de otro Tenant. Sin tenantId, el Excel general.
-        var extranjeros = tenantId is { } empresa
-            ? await mediator.Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(anyo, mes, empresa), cancellationToken)
-            : await mediator.Send(new ObtenerExtranjerosDelMesQuery(anyo, mes), cancellationToken);
+        // Asignación externa en vigor o ajeno) da un libro sin filas, nunca datos de otro Tenant. Sin tenantId, el Excel general de
+        // todas las Empresas: para un Operador CAE, acotado igualmente a la vigencia de cada Empresa gestionada (nº de filas = cifra
+        // facturada de extranjeros, la que cuenta el KPI del Cuadro y /facturacion); quien no es de un Operador CAE lo recibe entero.
+        var extranjeros = await mediator.Send(
+            new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(anyo, mes, tenantId, GeneralSiNoEsOperadorCae: tenantId is null),
+            cancellationToken);
         var delMes = extranjeros.Filas;
         // Un mes futuro no tiene Visitas que cobrar todavía: se rechaza igual que uno inexistente.
         if (extranjeros.SinCifras is CuadroDireccionSinCifras.MesNoValido or CuadroDireccionSinCifras.MesFuturo)
