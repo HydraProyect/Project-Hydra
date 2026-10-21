@@ -834,7 +834,7 @@ a.bandeja-documento-citado-nombre:hover {
 
 .bandeja-modo-hilo .bandeja-centro ::deep .timeline-mensajes {
     flex: 1 1 0;
-    min-height: 240px;
+    min-height: 160px;
 }
 
 .bandeja-modo-hilo .bandeja-centro-cabecera {
@@ -845,10 +845,6 @@ a.bandeja-documento-citado-nombre:hover {
     height: 64px;
     min-height: 64px;
     resize: vertical;
-}
-
-.bandeja-modo-hilo .bandeja-centro-acciones {
-    flex-wrap: wrap;
 }
 
 .bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo {
