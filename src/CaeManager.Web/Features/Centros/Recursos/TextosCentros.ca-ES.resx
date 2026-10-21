@@ -650,13 +650,13 @@
     <value>Configurar requisit</value>
   </data>
   <data name="IncluidoAyudaRequisito" xml:space="preserve">
-    <value>Si el desactives, aquest Centre deixa de demanar-ho encara que el Client ho demani.</value>
+    <value>Si ho desactives, aquest Centre deixa de demanar-ho encara que el tipus es demani per defecte.</value>
   </data>
   <data name="ArchivoCentroEtiqueta" xml:space="preserve">
     <value>Arxiu del Centre (Word o PDF, opcional)</value>
   </data>
   <data name="ArchivoCentroAyuda" xml:space="preserve">
-    <value>Model o instruccions que el Centre lliura a les empreses. Opcional.</value>
+    <value>Model o instruccions que el Centre lliura a les Empreses. Opcional.</value>
   </data>
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>

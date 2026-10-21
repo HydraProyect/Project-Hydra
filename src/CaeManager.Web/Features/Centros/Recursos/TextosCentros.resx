@@ -656,7 +656,7 @@
     <value>Configurar requisito</value>
   </data>
   <data name="IncluidoAyudaRequisito" xml:space="preserve">
-    <value>Si lo desactivas, este Centro deja de pedirlo aunque el Cliente lo pida.</value>
+    <value>Si lo desactivas, este Centro deja de pedirlo aunque el tipo se pida por defecto.</value>
   </data>
   <data name="ArchivoCentroEtiqueta" xml:space="preserve">
     <value>Archivo del Centro (Word o PDF, opcional)</value>
