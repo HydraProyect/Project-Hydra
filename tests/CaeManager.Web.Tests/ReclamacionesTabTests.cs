@@ -876,16 +876,31 @@ public class ReclamacionesTabTests : BunitContext
     }
 
     [Fact]
-    public async Task La_revision_del_reenvio_avisa_de_que_no_se_puede_deshacer_y_usa_Cancelar_y_Enviar_reclamacion()
+    public void Un_rol_de_solo_lectura_sin_reclamaciones_no_ve_la_pestana_que_no_tiene()
     {
+        this.ConRolDeEscritura(CaeManager.Infrastructure.Identity.Roles.Consulta);
+        var (cut, _) = Renderizar();
+
+        cut.Find(".estado-vacio h3").TextContent.Should().Be("Nunca reclamado");
+        cut.Markup.Should().NotContain("+ Nueva reclamación", "esa pestaña no existe para el rol de Consulta");
+    }
+
+    [Theory]
+    [InlineData(true, "Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.")]
+    [InlineData(false, "Revisa destinatario y texto. Al enviar queda en el historial.")]
+    public async Task La_revision_del_reenvio_avisa_de_que_no_se_puede_deshacer_y_usa_Cancelar_y_Enviar_reclamacion(
+        bool comunicacionesActivo, string textoEsperado)
+    {
+        ConComunicaciones(comunicacionesActivo);
         var (cut, _) = Renderizar(ConHistorial(ReclamacionEnviada()));
 
         await BotonPorTexto(cut, "Reclamar de nuevo").ClickAsync(new MouseEventArgs());
 
         var aviso = cut.Find(".aviso-irreversible");
         aviso.GetAttribute("role").Should().Be("note");
-        aviso.TextContent.Should().Contain("Un correo enviado no se puede deshacer")
-            .And.Contain("Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.");
+        aviso.TextContent.Should().Contain("Un correo enviado no se puede deshacer").And.Contain(textoEsperado);
+        if (!comunicacionesActivo)
+            aviso.TextContent.Should().NotContain("Comunicaciones", "sin el módulo no hay hilo donde quede");
         BotonPorTexto(cut, "Cancelar").Should().NotBeNull();
         BotonPorTexto(cut, "Enviar reclamación").Should().NotBeNull();
         cut.Markup.Should().NotContain("Confirmar y enviar");

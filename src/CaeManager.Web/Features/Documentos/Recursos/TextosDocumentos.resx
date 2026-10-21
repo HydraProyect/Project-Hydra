@@ -103,6 +103,12 @@
   <data name="RecReenvioAvisoTexto" xml:space="preserve">
     <value>Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.</value>
   </data>
+  <data name="RecReenvioAvisoTextoSinComunicaciones" xml:space="preserve">
+    <value>Revisa destinatario y texto. Al enviar queda en el historial.</value>
+  </data>
+  <data name="RecHistorialVacioDetalleLectura" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG.</value>
+  </data>
   <data name="RecReenvioCancelar" xml:space="preserve">
     <value>Cancelar</value>
   </data>

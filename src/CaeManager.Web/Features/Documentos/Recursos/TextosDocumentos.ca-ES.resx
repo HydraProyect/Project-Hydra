@@ -103,6 +103,12 @@
   <data name="RecReenvioAvisoTexto" xml:space="preserve">
     <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial i a Comunicacions.</value>
   </data>
+  <data name="RecReenvioAvisoTextoSinComunicaciones" xml:space="preserve">
+    <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial.</value>
+  </data>
+  <data name="RecHistorialVacioDetalleLectura" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG.</value>
+  </data>
   <data name="RecReenvioCancelar" xml:space="preserve">
     <value>Cancel·la</value>
   </data>
@@ -116,7 +122,7 @@
     <value>Historial de reclamacions</value>
   </data>
   <data name="RecHistorialSubtitulo" xml:space="preserve">
-    <value>El que s'ha demanat i si ha contestat.</value>
+    <value>Allò que s'ha demanat i si ha contestat.</value>
   </data>
   <data name="RecHistorialVacioTitulo" xml:space="preserve">
     <value>Mai reclamat</value>

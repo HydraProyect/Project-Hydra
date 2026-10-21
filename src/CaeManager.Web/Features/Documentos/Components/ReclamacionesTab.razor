@@ -59,7 +59,7 @@
     }
     else if (_historial.Count == 0)
     {
-        <EstadoVacio Titulo="@Textos["RecHistorialVacioTitulo"]" Descripcion="@Textos["RecHistorialVacioDetalle"]" />
+        <EstadoVacio Titulo="@Textos["RecHistorialVacioTitulo"]" Descripcion="@Textos[_puedeEscribir ? "RecHistorialVacioDetalle" : "RecHistorialVacioDetalleLectura"]" />
     }
     else
     {
@@ -309,7 +309,8 @@ else
             @* Flujos 04: aviso de irreversibilidad, ámbar y sin «Deshacer» al enviar. *@
             <div class="aviso-irreversible" role="note">
                 <strong>@Textos["RecReenvioAvisoTitulo"]</strong>
-                <span>@Textos["RecReenvioAvisoTexto"]</span>
+                @* Con el módulo apagado (Comunicaciones:Activo) no hay hilo donde quede: no se promete. *@
+                <span>@Textos[OpcionesComunicaciones.Value.Activo ? "RecReenvioAvisoTexto" : "RecReenvioAvisoTextoSinComunicaciones"]</span>
             </div>
         }
     </ChildContent>
@@ -724,7 +725,9 @@ else
         // correo sin haberse mostrado, y uno que ya no resuelve hace fallar el envío
         // entero (ContactosDesactualizados), igual que en «Enviar reclamación».
         IReadOnlyList<Guid> contactoIds = [.. _vistaPreviaReenvio.Destinatarios.Select(d => d.ContactoId)];
-        var nombresDestinatarios = string.Join(", ", _vistaPreviaReenvio.Destinatarios.Select(d => d.Nombre));
+        var nombresDestinatarios = string.Join(", ", _vistaPreviaReenvio.Destinatarios.Select(d => d.Nombre).Where(n => !string.IsNullOrWhiteSpace(n)));
+        if (string.IsNullOrWhiteSpace(nombresDestinatarios))
+            nombresDestinatarios = reclamacion.TitularRazonSocial;
 
         try
         {
