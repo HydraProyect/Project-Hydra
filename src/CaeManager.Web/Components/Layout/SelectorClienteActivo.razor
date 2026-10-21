@@ -45,7 +45,7 @@
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
             <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
-                <span class="selector-tenant-sub">@Textos["SelectorTenantRotulo"]</span>
+                <span class="selector-tenant-sub">@Textos[_activo.EsOrigen ? "SelectorTenantOrigen" : "SelectorTenantRotulo"]</span>
                 <span class="selector-tenant-nombre" title="@_activo.Nombre">@_activo.Nombre</span>
             </span>
             <span class="selector-tenant-chevron @(_abierto ? "selector-tenant-chevron-abierto" : null)" aria-hidden="true">

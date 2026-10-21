@@ -542,13 +542,13 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     [
         new("general", Textos["PestanaGeneral"].Value)
         {
-            Contador = HayCifras && Alertas.Count > 0 ? new ContadorPestana(Alertas.Count, Textos["GlosaAlertas", Alertas.Count].Value, EnAlerta: true) : null,
+            Contador = HayCifras && Alertas.Count > 0 ? new ContadorPestana(Alertas.Count, (Alertas.Count == 1 ? Textos["GlosaAlertasUna"].Value : Textos["GlosaAlertas", Alertas.Count].Value), EnAlerta: true) : null,
         },
         new("facturacion", Textos["PestanaFacturacion"].Value),
         new("empresas", Textos["PestanaEmpresas"].Value),
         new("carga", Textos["PestanaCartera"].Value)
         {
-            Contador = HayCifras && EmpresasSinPrincipal > 0 ? new ContadorPestana(EmpresasSinPrincipal, Textos["GlosaSinPrincipal", EmpresasSinPrincipal].Value, EnAlerta: true) : null,
+            Contador = HayCifras && EmpresasSinPrincipal > 0 ? new ContadorPestana(EmpresasSinPrincipal, (EmpresasSinPrincipal == 1 ? Textos["GlosaSinPrincipalUna"].Value : Textos["GlosaSinPrincipal", EmpresasSinPrincipal].Value), EnAlerta: true) : null,
         },
         new("demanda", Textos["PestanaDemanda"].Value),
         new("vacaciones", Textos["PestanaVacaciones"].Value),
