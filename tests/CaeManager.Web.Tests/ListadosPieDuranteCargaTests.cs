@@ -4,6 +4,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Clientes.Queries.ObtenerClientes;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Gestiones.Queries.ObtenerGestiones;
+using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using FluentAssertions;
 using MediatR;
@@ -90,6 +91,21 @@ public partial class GestionesListaGen2Tests
         {
             await cut.InvokeAsync(() => respuesta.SetResult(new ResultadoPaginado<GestionListaDto>([], 0, 1, 20)));
         }
+        ComprobacionPieListado.Vacio(cut);
+    }
+}
+
+public partial class IncidenciasGen2Tests
+{
+    [Fact]
+    public async Task La_primera_carga_no_deja_una_franja_de_pie_vacia()
+    {
+        var mediador = new MediadorControlado { DiferirCarga = _ => true };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => mediador.CargasPendientes.Should().NotBeEmpty());
+        ComprobacionPieDuranteCarga.SinFranjaVacia(cut);
+        foreach (var carga in mediador.CargasPendientes.ToList())
+            await cut.InvokeAsync(() => carga.Respuesta.TrySetResult(new ResultadoPaginado<IncidenciaListaDto>([], 0, 1, 20)));
         ComprobacionPieListado.Vacio(cut);
     }
 }
