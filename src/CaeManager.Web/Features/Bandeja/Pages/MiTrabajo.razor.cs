@@ -85,9 +85,8 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
     private OrdenMiTrabajo _orden = OrdenMiTrabajo.Prioridad;
     private readonly HashSet<string> _abiertos = [];
     /// <summary>
-    /// Tenants cuya cabecera está desplegada en esta visita. No se persiste: al terminar la primera carga se abre la Empresa con
-    /// más bloqueos (revisión 1:1 del piloto, 2026-10-21, que corrige el «todo plegado» del 2026-10-16: la lista de Empresas
-    /// sin tareas era lo primero que veía la Gestora CAE); el resto sigue plegado.
+    /// Tenants cuya cabecera el Gestor CAE ha desplegado en esta visita. Parte vacío y no se persiste: la pantalla carga
+    /// siempre con todos los grupos plegados (decisión de producto 2026-10-16).
     /// </summary>
     private readonly HashSet<Guid> _tenantsAbiertos = [];
 
@@ -296,9 +295,6 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
 
             // Un recorrido sin Tenants no emite nada más que la apertura: la vista vacía es la de siempre.
             _vista ??= new MiTrabajoVista(new MiTrabajoAgregadoDto([], []));
-
-            // Primera carga: lo primero que ve el Gestor CAE es trabajo, no una lista de Empresas plegadas.
-            if (_vista.TenantQueSeAbreAlCargar(_severidad, _tenantFiltro) is { } primero) _tenantsAbiertos.Add(primero);
         }
         catch (Exception) when (!EsVigente(carga))
         {

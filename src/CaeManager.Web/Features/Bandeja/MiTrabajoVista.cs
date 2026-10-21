@@ -157,8 +157,8 @@ public sealed class MiTrabajoVista
     /// recorren j/k. Con «Todas», Próximo y Seguimiento quedan plegados tras el
     /// resumen de calendario hasta que el Gestor CAE lo abre (mockup:
     /// <c>abiertos</c>). En modo Tenant, además, solo se enseñan las filas de los Tenants
-    /// que el Gestor CAE ha desplegado (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>, al
-    /// cargar solo la Empresa de más bloqueos). Una búsqueda activa anula todo pliegue: el buscador
+    /// que el Gestor CAE ha desplegado (<see cref="FiltroMiTrabajo.TenantsAbiertos"/>, vacío
+    /// al cargar). Una búsqueda activa anula todo pliegue: el buscador
     /// tiene que alcanzar cada gestión de la cartera (contrato § 5, que corrige
     /// en esto al mockup, donde el pliegue se aplicaba después del filtro).
     /// </summary>
@@ -185,20 +185,6 @@ public sealed class MiTrabajoVista
                     : lista.OrderBy(f => f.Severidad).ThenBy(f => f.OrdenTenant).ThenBy(ClaveCliente).ThenBy(ClaveCentro)))
             .ToList();
     }
-
-    /// <summary>
-    /// La Empresa (Tenant propietario) que la pantalla abre sola al cargar: la que más bloqueos tiene y, a igualdad,
-    /// la primera de la cartera. Respeta los filtros de la URL: con una Empresa filtrada se abre esa y con una severidad
-    /// filtrada cuenta las filas de esa severidad. Sin ninguna fila, <c>null</c>.
-    /// </summary>
-    public Guid? TenantQueSeAbreAlCargar(SeveridadMiTrabajo? severidad = null, Guid? tenantFiltro = null) => _cartera
-        .Where(f => tenantFiltro is null || f.TenantId == tenantFiltro)
-        .Where(f => severidad is null || f.Severidad == severidad)
-        .GroupBy(f => f.TenantId)
-        .Select(g => new { TenantId = g.Key, Orden = g.Min(f => f.OrdenTenant), Bloqueos = g.Count(f => f.Severidad == SeveridadMiTrabajo.Bloqueo) })
-        .OrderByDescending(t => t.Bloqueos).ThenBy(t => t.Orden)
-        .Select(t => (Guid?)t.TenantId)
-        .FirstOrDefault();
 
     public IReadOnlyList<GrupoMiTrabajo> Grupos(FiltroMiTrabajo filtro)
     {

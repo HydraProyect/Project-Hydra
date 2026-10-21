@@ -92,12 +92,10 @@ public class MiTrabajoCargaPorPartesTests : BunitContext
 
     private static readonly TimeSpan Espera = TimeSpan.FromSeconds(5);
 
-    /// <summary>La pantalla carga con la Empresa de más bloqueos abierta y el resto plegado: para mirar todas las filas se pliega y se expande.</summary>
+    /// <summary>La pantalla carga con todo plegado (decisión de producto 2026-10-16): para mirar filas se parte de «Expandir todas».</summary>
     private static void DesplegarTodos(IRenderedComponent<MiTrabajoPagina> cut)
     {
-        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().BeOneOf("Expandir todas", "Plegar todas"), Espera);
-        if (cut.Find(".mi-trabajo-plegar-todas").TextContent == "Plegar todas")
-            cut.Find(".mi-trabajo-plegar-todas").Click();
+        cut.WaitForAssertion(() => cut.Find(".mi-trabajo-plegar-todas").TextContent.Should().Be("Expandir todas"), Espera);
         cut.Find(".mi-trabajo-plegar-todas").Click();
     }
 
