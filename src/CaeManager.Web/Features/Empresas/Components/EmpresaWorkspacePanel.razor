@@ -128,7 +128,7 @@ else
                         <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="Vacío = conserva la actual" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="@(_hayCredencialGuardada ? "Vacío = conserva la actual" : string.Empty)" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
                         <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="la contraseña" />
                     </div>
                     @if (_hayCredencialGuardada)
