@@ -130,7 +130,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private Task CambiarPaginaAsync(int pagina)
     {
         _pagina = pagina;
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         return CargarListaAsync();
     }
@@ -619,7 +619,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             {
                 _seleccionados.Clear();
                 _idEnfocado = null;
-                _expandidos.Clear();
+                _expandidos.Clear(); _incidenciasCompletas.Clear();
                 _cerradasAMano.Clear();
             }
             _expandidos.IntersectWith(_elementosPagina.Where(t => t.Incidencias.Count > 0).Select(t => t.Id));
@@ -761,7 +761,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var trabajador = _elementosPagina.FirstOrDefault(t => t.Id == id);
         if (trabajador is not null && EstaExpandido(trabajador))
         {
-            _expandidos.Remove(id);
+            _expandidos.Remove(id); _incidenciasCompletas.Remove(id);
             _cerradasAMano.Add(id);
         }
         else
@@ -773,7 +773,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private void AlternarTodosExpandidos(bool expandir)
     {
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         var conIncidencias = _elementosPagina.Where(t => t.Incidencias.Count > 0).Select(t => t.Id);
         if (expandir) _expandidos.UnionWith(conIncidencias);
@@ -782,6 +782,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private bool EstaExpandido(TrabajadorListaDto trabajador) => _expandidos.Contains(trabajador.Id)
         || (!_cerradasAMano.Contains(trabajador.Id) && trabajador.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda)));
+
+    /// <summary>Con una búsqueda que coincide con algún documento de la fila se enseñan todos: no se esconde lo que se busca tras «Ver los N restantes».</summary>
+    private bool IncidenciasCompletas(TrabajadorListaDto trabajador) => _incidenciasCompletas.Contains(trabajador.Id)
+        || (!string.IsNullOrWhiteSpace(_busqueda) && trabajador.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda)));
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
     private static string IdDesdeUrl(string? valor) =>
@@ -1117,7 +1121,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         _consultaQueConservaSeleccion = null;
         _pagina = 1;
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         await CargarListaAsync();
     }

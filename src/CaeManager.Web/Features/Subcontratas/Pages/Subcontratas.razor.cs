@@ -425,7 +425,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _elementosPagina = resultado.Elementos.ToList();
         _recuentosPorEstado = resultado.RecuentosPorEstado;
         _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         StateHasChanged();
     }
 
@@ -446,7 +446,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             _elementosPagina = resultado.Elementos.ToList();
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _seleccionados.Clear();
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
             _idEnfocado = null;
         }
         catch (Exception)
@@ -772,7 +772,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void AlternarExpansion(Guid id)
     {
         if (!_expandidos.Add(id))
-            _expandidos.Remove(id);
+            _expandidos.Remove(id); _incidenciasCompletas.Remove(id);
     }
 
     private void AlternarTodosExpandidos(bool expandir)
@@ -780,7 +780,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         if (expandir)
             foreach (var elemento in _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0)) _expandidos.Add(elemento.Id);
         else
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
     }
 
     private void AlternarSeleccionTodos(bool marcar)

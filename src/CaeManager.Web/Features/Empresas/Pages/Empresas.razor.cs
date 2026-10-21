@@ -495,7 +495,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             else
             {
                 _seleccionados.Clear();
-                _expandidos.Clear();
+                _expandidos.Clear(); _incidenciasCompletas.Clear();
                 _idEnfocado = null;
             }
         }
@@ -943,14 +943,14 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private void AlternarExpansion(Guid empresaId)
     {
         if (!_expandidos.Add(empresaId))
-            _expandidos.Remove(empresaId);
+            _expandidos.Remove(empresaId); _incidenciasCompletas.Remove(empresaId);
     }
 
     private void AlternarTodosExpandidos(bool expandir)
     {
         if (!expandir)
         {
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
             return;
         }
 

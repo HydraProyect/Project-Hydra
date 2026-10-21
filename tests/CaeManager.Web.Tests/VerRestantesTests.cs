@@ -45,4 +45,11 @@ public class VerRestantesTests : BunitContext
         VerRestantes.Recortar(elementos, completa: false).Should().Equal(Enumerable.Range(1, 10));
         VerRestantes.Recortar(elementos, completa: true).Should().HaveCount(300);
     }
+
+    [Fact]
+    public void Con_uno_solo_de_mas_se_enseñan_todos_y_no_hay_pie()
+    {
+        VerRestantes.Recortar(Enumerable.Range(1, 11).ToList(), completa: false).Should().HaveCount(11);
+        Render<VerRestantes>(p => p.Add(c => c.Total, 11)).FindAll("button").Should().BeEmpty();
+    }
 }

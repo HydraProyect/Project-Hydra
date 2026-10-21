@@ -13,7 +13,7 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-@if (!Completa && Total > Inicial)
+@if (!Completa && Total > Inicial + 1)
 {
     <button type="button" class="ver-restantes-fila" data-accion="ver-restantes" @onclick="OnVerRestantes" @onclick:stopPropagation="true">
         @Comunes["VerRestantes", Total - Inicial]
@@ -32,7 +32,10 @@
 
     [Parameter] public EventCallback OnVerRestantes { get; set; }
 
-    /// <summary>Los primeros <see cref="Inicial"/> elementos, o todos si <paramref name="completa"/>.</summary>
+    /// <summary>
+    /// Los primeros <see cref="Inicial"/> elementos, o todos si <paramref name="completa"/>. Con uno solo de más se
+    /// enseñan todos: «Ver el 1 restante» no ahorra nada.
+    /// </summary>
     public static IEnumerable<T> Recortar<T>(IReadOnlyList<T> elementos, bool completa) =>
-        completa ? elementos : elementos.Take(Inicial);
+        completa || elementos.Count <= Inicial + 1 ? elementos : elementos.Take(Inicial);
 }
