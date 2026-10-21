@@ -293,7 +293,7 @@ public partial class MiTrabajoGen2Tests : BunitContext
         pedir.QuerySelector("input[name='tenantId']")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
         pedir.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be($"/bandeja?pedir={TrabajadorQueFalta}&{Vuelta}");
         pedir.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
-        pedir.QuerySelector("button")!.TextContent.Trim().Should().Be("Pedir");
+        pedir.QuerySelector("button")!.TextContent.Trim().Should().Be("Reclamar");
 
         // La acción primaria sigue siendo la suya (un solo marcador data-accion-cross-tenant por fila) y no se pisa.
         fila.QuerySelectorAll("form[data-accion-cross-tenant]").Should().ContainSingle();
@@ -322,8 +322,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("es-ES", "Pedir")]
-    [InlineData("ca-ES", "Demanar")]
+    [InlineData("es-ES", "Reclamar")]
+    [InlineData("ca-ES", "Reclamar")]
     public void Pedir_sigue_la_cultura_de_la_interfaz(string cultura, string texto)
     {
         var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
@@ -341,8 +341,8 @@ public partial class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("es-ES", "Pide lo que falta de")]
-    [InlineData("ca-ES", "Demana el que falta de")]
+    [InlineData("es-ES", "Reclama lo que falta de")]
+    [InlineData("ca-ES", "Reclama el que falta de")]
     public void El_titulo_de_Pedir_dice_a_donde_lleva_en_la_cultura_de_la_interfaz(string cultura, string inicio)
     {
         var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
@@ -649,6 +649,26 @@ public partial class MiTrabajoGen2Tests : BunitContext
         detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente", "Plataforma CAE");
         detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
         Formulario(detalle).Tenant.Should().Be(TenantDexter.ToString());
+    }
+
+    [Fact]
+    public void El_detalle_muestra_el_Centro_de_la_tarea_tras_la_Empresa_solo_si_el_item_lo_trae()
+    {
+        // Maqueta Flujos 11, «Detalle de la tarea»: Empresa, Centro y después Cliente.
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false,
+        [
+            Item("c1", TipoItemBandeja.Vencido, "Aptitud con Centro", "Cervezas Duff Ibérica", documentoId: DocumentoVencido) with { CentroNombre = "Sede Sevilla" },
+            Item("c2", TipoItemBandeja.Vencido, "Aptitud sin Centro", "Cervezas Duff Ibérica", documentoId: DocumentoVencido),
+        ])]);
+        var cut = Renderizar(() => datos);
+
+        FilaDe(cut, "Aptitud con Centro").Click();
+        var detalle = cut.Find(".mi-trabajo-detalle");
+        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Centro", "Cliente");
+        detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Refrielectric", "Sede Sevilla", "Cervezas Duff Ibérica");
+
+        FilaDe(cut, "Aptitud sin Centro").Click();
+        cut.Find(".mi-trabajo-detalle").QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente");
     }
 
     [Fact]

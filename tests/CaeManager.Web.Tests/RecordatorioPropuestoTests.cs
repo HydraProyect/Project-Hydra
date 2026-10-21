@@ -53,6 +53,8 @@ public class RecordatorioPropuestoTests : BunitContext
 
         componente.Markup.Should().Contain("Recordatorio propuesto");
         componente.Find("textarea").TextContent.Should().Contain("Documentación de octubre");
+        componente.Find(".recordatorio-propuesto-explicacion").TextContent.Should().Contain("no se puede deshacer",
+            "maqueta Flujos 13: el aviso previo a aprobar dice que lo enviado no se recupera");
         componente.FindAll("button").Select(b => b.TextContent.Trim()).Should().Contain(["Aprobar y enviar", "Descartar"]);
         _mediator.Enviados.Should().BeEmpty("nada se envía solo");
     }
