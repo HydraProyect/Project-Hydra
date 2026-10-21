@@ -145,11 +145,10 @@ src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: BandejaAgrupadaDt
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ItemBandejaDto = 2
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupadaQuery = 1
-src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: RutaBandeja = 3
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: TipoItemBandejaUi = 1
-src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 9
+src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 6
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: bandeja = 9
 src/CaeManager.Web/Features/Documentos/Pages/DocumentoDetalle.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: Bandeja = 1

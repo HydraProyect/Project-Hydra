@@ -213,6 +213,12 @@
   <data name="MostradosVarios" xml:space="preserve">
     <value>{0} elements mostrats</value>
   </data>
+  <data name="GrupoDeCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="GrupoDeEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
   <data name="PlegadosUno" xml:space="preserve">
     <value>1 plegat</value>
   </data>

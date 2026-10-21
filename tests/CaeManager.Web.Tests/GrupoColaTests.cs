@@ -23,6 +23,7 @@ public class GrupoColaTests : BunitContext
     {
         Services.AddSingleton<ContextWorkspaceService>();
         Services.AddSingleton<ToastService>();
+        Services.AddLocalization();
         // TextoFechaCopiable (dentro de PanelResolverItem) importa clipboard.js
         // en OnAfterRenderAsync — no hay nada que copiar en este test, así que
         // basta con dejar pasar la importación en vez de mockear el módulo entero.
@@ -62,6 +63,19 @@ public class GrupoColaTests : BunitContext
         cut.Render(p => p.Add(c => c.IdEnfocado, "item-2"));
 
         cut.Find(".grupo-cola-cabecera").GetAttribute("aria-expanded").Should().Be("true");
+    }
+
+    /// <summary>Revisión 1:1 del 2026-10-21: el grupo de un Cliente empresarial y el de la propia Empresa no se confunden en «Requiere atención».</summary>
+    [Theory]
+    [InlineData("cliente-1", "Cliente · 1 pendiente · 1 trabajador")]
+    [InlineData("empresa-1", "Empresa · 1 pendiente · 1 trabajador")]
+    public void El_resumen_del_grupo_dice_si_es_un_Cliente_empresarial_o_la_propia_Empresa(string grupoId, string esperado)
+    {
+        var grupo = new GrupoColaDto(grupoId, "Servicios Técnicos Orvelta", false, [Item(1, Guid.NewGuid())]);
+
+        var cut = Render<GrupoCola>(p => p.Add(c => c.Grupo, grupo));
+
+        cut.Find(".grupo-cola-resumen").TextContent.Should().Be(esperado);
     }
 
     [Fact]

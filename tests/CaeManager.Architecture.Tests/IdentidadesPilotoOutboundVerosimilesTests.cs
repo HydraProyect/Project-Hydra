@@ -102,12 +102,13 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
         foreach (var t in trabajadores)
         {
             var analisis = ValidadorIdentificacion.Analizar(t.Dni);
-            (analisis.EsValido, analisis.Tipo).Should().Be((true, TipoIdentificacion.Dni), $"{t.Dni}, de {t.Tenant.Clave}[{t.Indice}], es un DNI con su letra de control");
+            var esExtranjero = t.Tenant.Extranjeros.Any(e => e.Trabajador == t.Indice);
+            (analisis.EsValido, analisis.Tipo).Should().Be((true, esExtranjero ? TipoIdentificacion.Nie : TipoIdentificacion.Dni), $"{t.Dni}, de {t.Tenant.Clave}[{t.Indice}], es un {(esExtranjero ? "NIE (extranjero con permiso de trabajo)" : "DNI")} con su letra de control");
         }
 
         trabajadores.Select(t => t.Dni).Should().OnlyHaveUniqueItems("ningún documento de identidad se repite en el lote");
 
-        var numeros = trabajadores.Select(t => long.Parse(t.Dni[..8])).ToList();
+        var numeros = trabajadores.Where(t => char.IsDigit(t.Dni[0])).Select(t => long.Parse(t.Dni[..8])).ToList();
         var distanciaMinimaEntreSeguidos = numeros.Zip(numeros.Skip(1), (a, b) => Math.Abs(a - b)).Min();
         var distanciaMinima = numeros.Order().Zip(numeros.Order().Skip(1), (a, b) => b - a).Min();
         salida.WriteLine($"MEDIDO: entre dos Trabajadores seguidos, los números distan al menos {distanciaMinimaEntreSeguidos:N0}; entre dos cualesquiera, {distanciaMinima:N0}");

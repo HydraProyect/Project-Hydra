@@ -687,13 +687,58 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador, no del Centro (corrección del propietario, 2026-10-03): la pista del KPI
-    /// cuenta Trabajadores bloqueados, no Centros. Un mismo Trabajador bloqueado en dos Centros (o por dos requisitos) es UN
-    /// Trabajador; dos Trabajadores bloqueados en el mismo Centro son dos. Un recién dado de alta sin documentación cuenta
-    /// igual que cualquier otro.
+    /// La pista del KPI «Centros / plataformas» habla de Centros (revisión 1:1 del 2026-10-21): dice los Centros de Trabajo con
+    /// bloqueo de la plataforma, nunca «N trabajadores bloqueados». Los Trabajadores bloqueados siguen diciéndose bajo el anillo
+    /// y en la cola («Bloquea acceso»), donde el propietario los quiere (2026-10-03).
     /// </summary>
     [Fact]
-    public void La_pista_del_kpi_cuenta_trabajadores_bloqueados_no_centros()
+    public void La_pista_del_kpi_de_centros_cuenta_centros_bloqueados_no_trabajadores()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void La_pista_del_kpi_de_centros_concuerda_en_singular()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 1 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void Sin_centros_bloqueados_el_kpi_de_centros_no_lleva_pista_aunque_haya_trabajadores_bloqueados()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 0, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Las cifras cuadran: el anillo mide 132 documentos de Trabajador y «Vigentes» (80) explica el resto con sus dos pistas
+    /// (25 vencidos o por vencer + 27 sin confirmar o sin caducidad), sin hueco entre ambos rótulos.
+    /// </summary>
+    [Fact]
+    public void La_pista_de_vigentes_reparte_el_resto_de_los_documentos_que_mide_el_anillo()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with
+            {
+                DocumentosVigentes = 80,
+                DocumentosVencidos = 10,
+                DocumentosUrgentes = 5,
+                DocumentosProximos = 10,
+                DocumentosSinConfirmar = 17,
+                DocumentosSinCaducidad = 10
+            }
+        });
+
+        PistaDelKpi(cut, "Vigentes").Should().Be("25 vencidos o por vencer · 27 sin confirmar o sin caducidad");
+        cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim().Should().StartWith("105 de 132 documentos de Trabajador al día");
+    }
+
+    /// <summary>La cola cuenta Trabajadores bloqueados: un mismo Trabajador en dos Centros es UN Trabajador (cabecera «M bloquean acceso»).</summary>
+    [Fact]
+    public void La_cabecera_de_la_cola_cuenta_trabajadores_bloqueados_no_centros()
     {
         var ana = Guid.NewGuid();
         var beto = Guid.NewGuid();
@@ -710,7 +755,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 trabajadores bloqueados");
     }
 
     /// <summary>
@@ -729,7 +773,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>
@@ -1018,7 +1061,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio());
 
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("3.983 de 4.383 documentos al día en cartera");
+            .Should().Be("3.983 de 4.383 documentos de Trabajador al día (vigentes, por vencer y sin caducidad)");
 
         DestinoDelKpi(cut, "Trabajadores activos").Should().Be("/trabajadores");
         DestinoDelKpi(cut, "Centros / plataformas").Should().Be("/centros");
