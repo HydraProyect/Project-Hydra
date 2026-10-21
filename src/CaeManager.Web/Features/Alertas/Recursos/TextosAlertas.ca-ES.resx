@@ -142,7 +142,7 @@
     <value>Motivo</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar las alertas</value>
+    <value>No s'han pogut carregar les alertes.</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Ninguna alerta con este estado</value>
@@ -154,10 +154,10 @@
     <value>Quitar el filtro</value>
   </data>
   <data name="VacioTitulo" xml:space="preserve">
-    <value>Nada que reclamar</value>
+    <value>Cap alerta</value>
   </data>
   <data name="VacioDetalle" xml:space="preserve">
-    <value>Todos los documentos están vigentes o fuera del umbral de aviso.</value>
+    <value>Tot el que demanen els teus Centres està en regla.</value>
   </data>
   <data name="EnlaceVerPdf" xml:space="preserve">
     <value>Ver PDF</value>

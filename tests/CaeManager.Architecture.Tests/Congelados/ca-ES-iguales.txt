@@ -14,7 +14,6 @@ src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: Destinatarios
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: EnlaceColaTrabajo = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: EnlaceVerEnComunicaciones = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: ErrorCargaDetalle = 1
-src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: ErrorCargaTitulo = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: ErrorLoteTitulo = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: InsigniaMotivoTitulo = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: InsigniaSeveridadTitulo = 1
@@ -34,10 +33,8 @@ src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: SeveridadUrge
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: SeveridadVencidoDescripcion = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: ToastErrorEnvio = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: ToastReclamacionEnviada = 1
-src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioDetalle = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroDetalle = 1
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroTitulo = 1
-src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioTitulo = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: ColumnaFechaAlta = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: NombreHoja = 1
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Descripcion = 1

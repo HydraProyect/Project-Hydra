@@ -150,6 +150,9 @@
   <data name="EditarCorreoNoSeCambiaAqui" xml:space="preserve">
     <value>El correo identifica la cuenta y no se cambia desde aquí. Mientras la cuenta esté pendiente de activación, se corrige con «Corregir correo» en el menú de su fila.</value>
   </data>
+  <data name="AltaCorreoAyudaActivacion" xml:space="preserve">
+    <value>Recibirá el enlace de activación.</value>
+  </data>
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No pudimos cargar las empresas para su cartera. Puedes guardar sin ninguna y asignárselas después.</value>
   </data>
