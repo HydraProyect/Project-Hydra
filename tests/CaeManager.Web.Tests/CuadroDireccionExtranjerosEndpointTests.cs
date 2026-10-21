@@ -180,12 +180,38 @@ public class CuadroDireccionExtranjerosEndpointTests
         llamada.Criterios.Should().Contain("tenantsSinAlcanceCompleto", "3");
     }
 
-    [Fact]
-    public async Task El_endpoint_usa_la_misma_politica_que_la_pagina_del_Cuadro()
+    [Theory]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.GestorCae, false)]
+    [InlineData(Roles.Consulta, false)]
+    [InlineData(Roles.Cliente, false)]
+    public async Task La_politica_del_endpoint_solo_deja_pasar_a_los_roles_de_lectura_del_Cuadro(string rol, bool permitido)
     {
         // El 403 de un Gestor CAE o de un Usuario de Cliente lo da esta política antes de llegar a la consulta: la
         // UnauthorizedAccessException de AutorizacionCuadroDireccion queda como segunda puerta y no se convierte en 500.
-        // Qué roles y qué Sesión Privilegiada deja pasar la política lo prueba RequisitoEquipoOSoporteConAccesoTotalHandlerTests.
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IMediator>(new MediatorDeExtranjeros(Mes()));
+        builder.Services.AddSingleton<IRegistroExportacionService>(new RegistroFalso());
+        builder.Services.AddLocalization();
+        builder.Services.AddAuthorizationCore();
+        builder.Services.AddLogging();
+        await using var app = builder.Build();
+        app.MapCuadroDireccionEndpoints();
+        var politica = Endpoint(app).Metadata.GetOrderedMetadata<AuthorizationPolicy>().Should().ContainSingle().Subject;
+
+        var usuario = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Role, rol)], "Prueba"));
+        var autorizacion = await app.Services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(usuario, politica);
+
+        autorizacion.Succeeded.Should().Be(permitido);
+    }
+
+    [Fact]
+    public async Task El_endpoint_no_admite_la_Sesion_Privilegiada_porque_solo_mira_roles()
+    {
+        // Volcado masivo de DNI y pasaportes: sin decisión de producto, la Sesión Privilegiada (que llega sin claims de
+        // rol) no lo descarga. La política es solo de roles: no lleva RequisitoEquipoOSoporteConAccesoTotal.
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton<IMediator>(new MediatorDeExtranjeros(Mes()));
         builder.Services.AddSingleton<IRegistroExportacionService>(new RegistroFalso());
@@ -195,15 +221,11 @@ public class CuadroDireccionExtranjerosEndpointTests
         await using var app = builder.Build();
         app.MapCuadroDireccionEndpoints();
 
-        var delEndpoint = Endpoint(app).Metadata.GetOrderedMetadata<Microsoft.AspNetCore.Authorization.IAuthorizeData>()
-            .Should().ContainSingle().Subject;
-        var dePagina = typeof(CaeManager.Web.Features.CuadroDireccion.Pages.CuadroDireccion)
-            .GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), inherit: true)
-            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Should().ContainSingle().Subject;
+        var politica = Endpoint(app).Metadata.GetOrderedMetadata<AuthorizationPolicy>().Should().ContainSingle().Subject;
 
-        delEndpoint.Policy.Should().Be(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre);
-        delEndpoint.Roles.Should().BeNull();
-        dePagina.Policy.Should().Be(delEndpoint.Policy);
+        politica.Requirements.Should().NotContain(r => r is CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal);
+        var sinRol = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString())], "Prueba"));
+        (await app.Services.GetRequiredService<IAuthorizationService>().AuthorizeAsync(sinRol, politica)).Succeeded.Should().BeFalse();
     }
 
     private sealed record LlamadaRegistro(string EntidadTipo, int Filas, IReadOnlyDictionary<string, string> Criterios);

@@ -253,7 +253,10 @@ public class ObtenerExtranjerosDelMesQueryHandler(
         if (Pendientes(filas, nombres).Count == 0)
             return;
 
-        if (await currentUserService.ObtenerTenantOrigenIdAsync() is not { } origen)
+        // Por Sesión Privilegiada no se consulta el Tenant de origen del Actor de Plataforma: la sesión solo abrió el
+        // Tenant objetivo, y un Gestor CAE que no se resuelva allí queda sin nombre.
+        if (!await AutorizacionCuadroDireccion.EntraPorRolAsync(currentUserService)
+            || await currentUserService.ObtenerTenantOrigenIdAsync() is not { } origen)
             return;
 
         using (AmbitoTenantExplicito.Establecer(origen))

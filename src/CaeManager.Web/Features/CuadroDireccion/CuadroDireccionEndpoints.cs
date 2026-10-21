@@ -22,12 +22,12 @@ public static class CuadroDireccionEndpoints
 
     public static IEndpointRouteBuilder MapCuadroDireccionEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        // La misma política que la página /direccion (su [Authorize]); la consulta vuelve a exigir
-        // AutorizacionCuadroDireccion, que es la regla, para que ninguna otra puerta la salte. Por Sesión Privilegiada
-        // el libro sale solo con el Tenant objetivo de la sesión (ObtenerTenantsCuadroDireccionQuery) y la descarga
-        // queda registrada como cualquier otra.
+        // Los mismos roles que leen la página /direccion, pero sin la Sesión Privilegiada: el libro es un volcado masivo de
+        // documentos de identidad (DNI y pasaportes) de un mes entero, y que la lectura de acceso total del Actor de
+        // Plataforma TALVEG incluya exportarlo no está decidido. La consulta vuelve a exigir AutorizacionCuadroDireccion,
+        // que es la regla, para que ninguna otra puerta la salte.
         endpoints.MapGet(RutaExtranjerosDelMes, ExportarExtranjerosDelMesAsync)
-            .RequireAuthorization(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre);
+            .RequireAuthorization(politica => politica.RequireRole(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles));
 
         return endpoints;
     }

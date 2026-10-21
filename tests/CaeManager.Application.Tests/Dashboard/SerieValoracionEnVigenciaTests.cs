@@ -224,7 +224,9 @@ public class SerieValoracionEnVigenciaTests
     private sealed class Autorizados(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery or ObtenerTenantsCuadroDireccionQuery
+            // Solo la query del Cuadro: si un handler volviera a ObtenerClientesAutorizadosQuery, una Sesión Privilegiada
+            // recorrería los Tenants autorizados del Actor de Plataforma en vez del Tenant objetivo. Aquí falla.
+            request is ObtenerTenantsCuadroDireccionQuery
                 ? Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 
