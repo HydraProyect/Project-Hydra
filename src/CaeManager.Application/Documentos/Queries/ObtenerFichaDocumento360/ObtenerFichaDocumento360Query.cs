@@ -101,7 +101,10 @@ public class ObtenerFichaDocumento360QueryHandler(
 
         var versiones = await CargarVersionesAsync(
             documento, detalle, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken);
-        var centros = await CargarDondeSeExigeAsync(documento, detalle.Ambito, estado, hoy, cancellationToken);
+        // Un documento sustituido es historial: el cumplimiento de los Centros lo mide el vigente, no este.
+        IReadOnlyList<CentroQueExigeDocumentoDto> centros = detalle.SustitutoId is not null
+            ? []
+            : await CargarDondeSeExigeAsync(documento, detalle.Ambito, estado, hoy, cancellationToken);
 
         return new FichaDocumento360Dto(detalle, estado, centros, versiones);
     }
