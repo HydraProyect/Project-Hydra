@@ -77,7 +77,7 @@
                        sigue siendo lo que ya autorizó el servidor, y elegir sigue siendo el mismo POST. *@
                     <input type="search" class="selector-tenant-busqueda" placeholder="@Textos["SelectorTenantBuscar"]"
                            aria-label="@Textos["SelectorTenantBuscarEtiqueta"]" @ref="_buscador"
-                           data-selector-tenant-buscador autocomplete="off"
+                           data-selector-tenant-buscador data-busqueda-pintada="@_busqueda" autocomplete="off"
                            @bind="Busqueda" @bind:event="oninput" />
                     <p class="selector-tenant-ayuda" role="status">@AyudaDelBuscador</p>
                 }
@@ -139,7 +139,7 @@
                     @if (_origen is not null)
                     {
                         <div class="selector-tenant-separador"></div>
-                        <div role="listbox" aria-label="@Textos["SelectorTenantOrigen"]">
+                        <div role="listbox" aria-label="@Textos["SelectorTenantOrigen"]" data-selector-tenant-origen>
                             @Opcion(_origen, true)
                         </div>
                     }

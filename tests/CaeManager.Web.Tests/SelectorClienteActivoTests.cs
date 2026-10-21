@@ -417,6 +417,17 @@ public class SelectorClienteActivoTests : BunitContext
         cut.FindAll(".selector-tenant-panel form button[type=submit][role=option]").Should().HaveCount(59,
             "las 58 Empresas gestionadas y «Tu organización»");
         cut.Find(".selector-tenant-panel form").GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+
+        // Guardas de Intro: «Tu organización» queda fuera de lo que Intro puede elegir, y el JS espera a que el
+        // servidor haya pintado el texto escrito (la carrera entre teclear e Intro).
+        var origen = cut.Find("[data-selector-tenant-origen]");
+        origen.QuerySelectorAll("button[type=submit][role=option]").Should().ContainSingle()
+            .Which.TextContent.Should().Contain("Tu organización");
+        buscador.GetAttribute("data-busqueda-pintada").Should().BeEmpty();
+
+        await cut.Find(".selector-tenant-busqueda").InputAsync(new ChangeEventArgs { Value = "empresa 5" });
+
+        cut.Find("[data-selector-tenant-buscador]").GetAttribute("data-busqueda-pintada").Should().Be("empresa 5");
     }
 
     [Fact]
