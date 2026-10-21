@@ -245,16 +245,31 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     /// guardado, no un «DNI» fijo). Un valor heredado que no es un documento válido (marcadores como «SIN DNI») se rotula
     /// «DNI», igual que <see cref="CriterioExtranjeroCobrable"/> no lo cuenta como Pasaporte.
     /// </summary>
-    internal string RotuloDocumentoIdentidad
+    internal string RotuloDocumentoIdentidad => TipoRotuladoDocumento switch
+    {
+        TipoDocumentoTrabajador.Nie => Textos["FichaRotuloNie"],
+        TipoDocumentoTrabajador.Pasaporte => Textos["FichaRotuloPasaporte"],
+        _ => Textos["FichaRotuloDni"],
+    };
+
+    /// <summary>Lo que dice el botón de copiar junto al rótulo («el NIE»…): nunca «el DNI» junto a un NIE.</summary>
+    internal string EtiquetaCopiarDocumentoIdentidad => TipoRotuladoDocumento switch
+    {
+        TipoDocumentoTrabajador.Nie => Textos["FichaCopiarNie"],
+        TipoDocumentoTrabajador.Pasaporte => Textos["FichaCopiarPasaporte"],
+        _ => Textos["FichaCopiarDni"],
+    };
+
+    private TipoDocumentoTrabajador TipoRotuladoDocumento
     {
         get
         {
             var dni = _detalle?.Dni;
             return CriterioDocumentoIdentidadTrabajador.TipoGuardado(dni) switch
             {
-                TipoDocumentoTrabajador.Nie => Textos["FichaRotuloNie"],
-                TipoDocumentoTrabajador.Pasaporte when CriterioDocumentoIdentidadTrabajador.Clasificar(dni).EsValido => Textos["FichaRotuloPasaporte"],
-                _ => Textos["FichaRotuloDni"],
+                TipoDocumentoTrabajador.Nie => TipoDocumentoTrabajador.Nie,
+                TipoDocumentoTrabajador.Pasaporte when CriterioDocumentoIdentidadTrabajador.Clasificar(dni).EsValido => TipoDocumentoTrabajador.Pasaporte,
+                _ => TipoDocumentoTrabajador.Dni,
             };
         }
     }

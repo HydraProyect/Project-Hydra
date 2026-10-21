@@ -717,6 +717,8 @@
   <data name="FichaRotuloNie" xml:space="preserve"><value>NIE</value></data>
   <data name="FichaRotuloPasaporte" xml:space="preserve"><value>Passaport</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarNie" xml:space="preserve"><value>el NIE</value></data>
+  <data name="FichaCopiarPasaporte" xml:space="preserve"><value>el passaport</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el telèfon</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacte d'emergència</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Telèfon d'emergència</value></data>
