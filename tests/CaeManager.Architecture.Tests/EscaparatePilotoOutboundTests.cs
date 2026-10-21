@@ -160,4 +160,46 @@ public class EscaparatePilotoOutboundTests
         bajas.Should().NotBeEmpty().And.OnlyHaveUniqueItems();
         bajas.Should().OnlyContain(dni => ValidadorIdentificacion.EsIdentificacionFiscalValida(dni) && !delLote.Contains(dni));
     }
+
+    [Fact]
+    public void Un_vencimiento_Urgente_fijo_lo_es_todos_los_dias_del_margen_de_siembra()
+    {
+        // De D−9 a D: a D+7 quedan dieciséis días el primer día del margen (todavía no es Urgente); D+0 vence el día D.
+        Enumerable.Range(-1, 10).Where(FechasPilotoOutbound.EsUrgenteEnTodoElMargen).Should().Equal(1, 2, 3, 4, 5, 6);
+
+        CatalogoPilotoOutbound.Tenants.Where(t => t.UrgentesVencenALosDias is not null)
+            .Should().NotBeEmpty()
+            .And.OnlyContain(t => FechasPilotoOutbound.EsUrgenteEnTodoElMargen(t.UrgentesVencenALosDias!.Value));
+    }
+
+    /// <summary>
+    /// «Centros nuevos» de la facturación del Cuadro de dirección cuenta las altas de Centro dentro de la vigencia de la
+    /// Asignación de Operación: todas las del lote caen dentro (la operación empieza doce meses antes de D, sea D cualquier
+    /// día del margen) y cada Tenant tiene la de su primer Centro en el mes de la siembra. Las fechas medidas en la base están
+    /// en <c>PilotoOutboundTests.Los_Centros_y_los_Clientes_empresariales_entran_dentro_de_la_Asignacion_de_Operacion</c>.
+    /// </summary>
+    [Fact]
+    public void Las_altas_de_Centro_caen_dentro_de_la_Asignacion_de_Operacion_y_hay_alguna_en_el_mes_de_la_siembra()
+    {
+        var ahora = DateTime.UtcNow;
+        var hoy = DateOnly.FromDateTime(ahora);
+        var inicioMasTardio = Enumerable.Range(0, OpcionesPilotoOutbound.MargenMaximoDias + 1)
+            .Max(k => PilotoOutboundSeeder.InicioDeLaOperacionExterna(hoy.AddDays(k)));
+
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var centros = tenant.ClientesEmpresariales.Sum(c => c.Centros.Count);
+            var altas = Enumerable.Range(1, centros).Select(n => PilotoOutboundSeeder.AltaDeCentro(n, ahora)).ToList();
+
+            altas.Should().NotBeEmpty($"{tenant.Clave} tiene Centros");
+            altas.Should().OnlyContain(a => a > inicioMasTardio && a <= ahora, $"las altas de Centro de {tenant.Clave} caen en la operación");
+            altas.Should().OnlyContain(a => (ahora - a).TotalDays <= PilotoOutboundSeeder.DiasMaximosDeAltaDeCentro);
+            altas[0].Should().Be(ahora, $"el primer Centro de {tenant.Clave} entra en el mes de la siembra");
+            if (centros > 2)
+                altas.Count(a => a.Year == ahora.Year && a.Month == ahora.Month).Should().BeLessThan(centros, $"en {tenant.Clave} no todas son de este mes");
+        }
+
+        // Un Cliente empresarial entra a 200 días o más (CrearClientesEmpresarialesYCentros): antes que cualquiera de sus Centros.
+        PilotoOutboundSeeder.DiasMaximosDeAltaDeCentro.Should().BeLessThan(200);
+    }
 }

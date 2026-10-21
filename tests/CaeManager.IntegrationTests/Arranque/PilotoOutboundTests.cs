@@ -229,6 +229,53 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         }
     }
 
+    /// <summary>
+    /// El retroceso de las fechas de vida de los Centros y los Clientes empresariales, y la vigencia de la Asignación de
+    /// Operación que hace que «Centros nuevos» del Cuadro de dirección los cuente: en cada Tenant del lote, todo Centro entra
+    /// dentro de la operación, después de su Cliente empresarial, y alguno entra en el mes de la siembra. Las bajas del
+    /// escaparate quedan eliminadas por una cuenta, como lo haría la pantalla.
+    /// </summary>
+    [Fact]
+    public async Task Los_Centros_y_los_Clientes_empresariales_entran_dentro_de_la_Asignacion_de_Operacion()
+    {
+        var ahora = DateTime.UtcNow;
+        var inicioDelMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var (centros, clientes, operaciones, eliminadoresDeBajas) = await fixture.Arnes.EnTenantAsync(
+                await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+                {
+                    var centros = await db.Centros.AsNoTracking().Select(c => new { c.ClienteId, c.CreadoEnUtc }).ToListAsync();
+                    var idsDeClientes = centros.Select(c => c.ClienteId).Distinct().ToList();
+                    var clientes = await db.Empresas.AsNoTracking().Where(e => idsDeClientes.Contains(e.Id))
+                        .ToDictionaryAsync(e => e.Id, e => e.CreadoEnUtc);
+                    var operaciones = await db.AsignacionesOperacion.AsNoTracking()
+                        .Where(o => !o.EsRaiz && o.OperadorTenantId != o.PropietarioTenantId).Select(o => o.VigenciaDesde).ToListAsync();
+                    var eliminadores = await db.Trabajadores.IgnoreQueryFilters().AsNoTracking()
+                        .Where(t => t.EstaEliminado).Select(t => t.EliminadoPorUsuarioId).ToListAsync();
+                    return (centros.Select(c => (c.ClienteId, c.CreadoEnUtc)).ToList(), clientes, operaciones, eliminadores);
+                });
+
+            centros.Should().HaveCount(tenant.ClientesEmpresariales.Sum(c => c.Centros.Count), $"control: {tenant.Clave} tiene sus Centros");
+            clientes.Should().HaveCount(tenant.ClientesEmpresariales.Count, $"control: {tenant.Clave} tiene sus Clientes empresariales");
+            var inicio = operaciones.Should().ContainSingle($"MEDIDO: {tenant.Clave} tiene una operación externa").Subject;
+
+            inicio.Should().Be(PilotoOutboundSeeder.InicioDeLaOperacionExterna(ArnesPilotoOutbound.FechaDemostracion()),
+                $"MEDIDO: la operación de {tenant.Clave} empieza doce meses antes de la demostración");
+            centros.Should().OnlyContain(c => c.CreadoEnUtc > inicio && c.CreadoEnUtc <= ahora,
+                $"MEDIDO: los Centros de {tenant.Clave} entran dentro de la operación");
+            centros.Should().OnlyContain(c => c.CreadoEnUtc > clientes[c.ClienteId],
+                $"MEDIDO: cada Centro de {tenant.Clave} entra después de su Cliente empresarial");
+            centros.Should().Contain(c => c.CreadoEnUtc >= inicioDelMes, $"MEDIDO: {tenant.Clave} tiene Centros nuevos en el mes de la siembra");
+            clientes.Values.Should().OnlyContain(a => a > ahora.AddDays(-366) && a < ahora.AddDays(-199),
+                $"MEDIDO: los Clientes empresariales de {tenant.Clave} entran en el último año, antes que sus Centros");
+            eliminadoresDeBajas.Should().OnlyContain(id => id != null,
+                $"MEDIDO: las bajas de {tenant.Clave} las elimina una cuenta");
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {centros.Count(c => c.CreadoEnUtc >= inicioDelMes)} Centros nuevos este mes de {centros.Count}");
+        }
+    }
+
     [Fact]
     public async Task Ningun_nombre_completo_de_Trabajador_se_repite_en_los_Tenants_del_piloto()
     {
@@ -281,7 +328,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
     /// <summary>
     /// La estructura que la autoverificación mide, escrita a mano aquí y no leída del catálogo: Trabajadores propios, de
-    /// Subcontrata, Centros, Vehículos, Proyectos y Subcontratas de cada uno de los ocho perfiles, y la invariante de que
+    /// Subcontrata, Centros, Vehículos, Proyectos y Subcontratas de cada uno de los Tenants del lote, y la invariante de que
     /// cada Tenant tiene exactamente una Empresa propia y todo Centro cuelga de un Cliente empresarial del mismo Tenant.
     /// </summary>
     [Fact]

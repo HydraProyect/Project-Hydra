@@ -80,7 +80,7 @@ public sealed record EventoPilotoOutbound(
 /// <summary>La plantilla de requisitos que comparten los eventos de un Cliente empresarial: nombres de Tipo de documento.</summary>
 public sealed record PlantillaEventoPilotoOutbound(string Nombre, IReadOnlyList<string> Tipos);
 
-/// <param name="Clave">Letra del perfil (A..G): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
+/// <param name="Clave">Letra del perfil (A..K): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
 /// <param name="Nombre">Nombre del Tenant propietario y razón social de su Empresa propia (la única con EsPropia).</param>
 /// <param name="Cartera">El Gestor CAE que lo lleva en su cartera, o los dos si es el compartido.</param>
 /// <param name="Trabajadores">Trabajadores de la Empresa propia; los de cada Subcontrata se suman a continuación.</param>
@@ -160,7 +160,8 @@ public sealed record TenantPilotoOutbound(
     /// <summary>
     /// Si se fija, todo lo «Urgente» del Tenant —los documentos de Trabajador de la receta, el del Vehículo, el de la
     /// Empresa propia y el de la Subcontrata— vence exactamente este número de días después de la demostración, en vez
-    /// de repartirse entre D+5 y D+6. Tiene que caer dentro del umbral rojo (quince días) o no sería «Urgente».
+    /// de repartirse entre D+5 y D+6. Tiene que ser «Urgente» cualquier día en que se pueda sembrar, de D−9 a D
+    /// (<see cref="FechasPilotoOutbound.EsUrgenteEnTodoElMargen"/>): de D+1 a D+6.
     /// </summary>
     public int? UrgentesVencenALosDias { get; init; }
 
@@ -286,7 +287,7 @@ public sealed record EsperadoPilotoOutbound(
 
 /// <summary>
 /// El catálogo declarativo de la siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de
-/// demostración y ocho Tenants beneficiarios (A..H), uno por perfil. Todos los nombres propios viven aquí; el
+/// demostración y once Tenants beneficiarios: A..H, uno por perfil, e I, J y K, el escaparate comercial. Todos los nombres propios viven aquí; el
 /// sembrador, la autoverificación y los tests los referencian por constante. Las razones sociales y las personas son
 /// inventadas y no coinciden con ninguna empresa ni persona real conocida.
 /// </summary>
