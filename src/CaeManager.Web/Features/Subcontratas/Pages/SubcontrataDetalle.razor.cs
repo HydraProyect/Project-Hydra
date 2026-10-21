@@ -158,6 +158,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private bool _confirmarEliminarVisible;
     private bool _eliminando;
     private Guid _verificacionAEliminarId;
+    private string _verificacionAEliminarTipo = string.Empty;
     private bool _confirmarEliminarVerificacionVisible;
     private bool _eliminandoVerificacion;
 
@@ -886,9 +887,16 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
     private Task VerificarAsync(Guid centroId, Guid tipoDocumentoId) =>
         _drawerVerificacion?.AbrirAsync(centroId, tipoDocumentoId) ?? Task.CompletedTask;
 
-    private void AbrirEliminarVerificacion(Guid verificacionId)
+    /// <summary>Subtítulo del formulario de verificación: la Subcontrata y su identificación fiscal, como en la maqueta (Flujos 09).</summary>
+    private string SubtituloVerificacion =>
+        _detalle is null ? string.Empty
+        : string.IsNullOrWhiteSpace(_detalle.Cif) ? _detalle.RazonSocial
+        : $"{_detalle.RazonSocial} · {_detalle.Cif}";
+
+    private void AbrirEliminarVerificacion(Guid verificacionId, string tipoDocumentoNombre)
     {
         _verificacionAEliminarId = verificacionId;
+        _verificacionAEliminarTipo = tipoDocumentoNombre;
         _confirmarEliminarVerificacionVisible = true;
     }
 
@@ -909,7 +917,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastVerificacionEliminada"], TonoToast.Exito);
+            ToastService.Mostrar(Textos["ToastVerificacionEliminadaDeTipo", _verificacionAEliminarTipo], TonoToast.Exito);
             if (generacion != _generacion) return;
             _confirmarEliminarVerificacionVisible = false;
             await CargarSupervisionAsync();

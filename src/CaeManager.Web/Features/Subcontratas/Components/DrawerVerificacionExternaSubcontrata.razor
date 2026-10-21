@@ -28,10 +28,11 @@
 @inject IStringLocalizer<TextosSubcontratas> Textos
 @inject ToastService ToastService
 
-<DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad" Titulo="@Textos["TituloDrawerVerificacion"]"
+<DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad" Titulo="@Textos["TituloDrawerVerificacionAlta"]"
+                 Subtitulo="@(string.IsNullOrWhiteSpace(Subtitulo) ? null : Subtitulo)"
                  HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_mensajeError"
                  OnGuardar="GuardarAsync"
-                 TextoGuardar="@Textos["BotonRegistrar"]" TextoCancelar="@Textos["BotonCancelar"]">
+                 TextoGuardar="@Textos["BotonGuardarVerificacion"]" TextoCancelar="@Textos["BotonCancelar"]">
     <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
         <option value="">@Textos["OpcionSeleccionaCentro"]</option>
         @foreach (var centro in CentrosSeleccionables)
@@ -59,7 +60,8 @@
     <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
 
     <div class="campo">
-        <label>@Textos["RotuloEvidencia"]</label>
+        <label>@Textos["RotuloEvidenciaVerificacion"]</label>
+        <p class="texto-ayuda-campo">@Textos["AyudaEvidenciaVerificacion"]</p>
         <ZonaSoltarArchivo
             OnChange="ManejarEvidenciaSeleccionadaAsync"
             Multiple="false"
@@ -78,6 +80,9 @@
 
     /// <summary>Centros donde se puede verificar: los que trae <c>SupervisionSubcontrataDto.CentrosSeleccionables</c>.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<CentroSeleccionableDto> CentrosSeleccionables { get; set; } = [];
+
+    /// <summary>Subtítulo del formulario: la Subcontrata y su identificación fiscal.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
 
     /// <summary>La verificación se registró: quien lo monta recarga la supervisión.</summary>
     [Parameter] public EventCallback OnRegistrada { get; set; }
@@ -223,7 +228,8 @@
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastVerificacionRegistrada"], TonoToast.Exito);
+            var nombreTipo = _tiposVerificables.FirstOrDefault(t => t.Id == tipoId)?.Nombre ?? string.Empty;
+            ToastService.Mostrar(Textos["ToastVerificacionGuardada", nombreTipo], TonoToast.Exito);
             // La página pudo pasar a otra subcontrata con el registro en vuelo: su supervisión no es la de esta.
             if (subcontrataId != SubcontrataId) return;
             _visible = false;
