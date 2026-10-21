@@ -59,6 +59,7 @@ public class Cliente360DocumentacionTests : BunitContext
         public ResumenClienteDto? Resumen { get; set; }
         public List<CentroListaDto> Centros { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
+        public List<EmpresaDeClienteDto> EmpresasDelCliente { get; } = [];
         public List<SolicitudCertificacionTgssDto> Historial { get; } = [];
         public DocumentacionExigidaClienteDto? Documentacion { get; set; } = new(0, []);
         public int FallosDeDocumentacion { get; set; }
@@ -80,7 +81,7 @@ public class Cliente360DocumentacionTests : BunitContext
             ObtenerClientePorIdQuery => Detalle,
             ObtenerResumenClienteQuery => Resumen,
             ObtenerCentrosQuery => new ResultadoPaginado<CentroListaDto>(Centros, Centros.Count, 1, MaximoCentros),
-            ObtenerEmpresasDeClienteQuery => new List<EmpresaDeClienteDto>(),
+            ObtenerEmpresasDeClienteQuery => EmpresasDelCliente.ToList(),
             ObtenerSubcontratasDeClienteQuery => new List<SubcontrataDeClienteDto>(),
             ObtenerSubcontratasConCentrosDeClienteQuery => new List<SubcontrataConCentrosDeClienteDto>(),
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
@@ -197,8 +198,22 @@ public class Cliente360DocumentacionTests : BunitContext
         mediador.Documentacion = new(1, [Requisito("Evaluación de riesgos", AmbitoAplicacion.Empresa, 1)]);
     }
 
+    private const string GrupoEmpresa = "Lo que exige a la Empresa empleadora";
+    private const string GrupoTrabajador = "Lo que exige a los Trabajadores";
+    private const string TituloTgss = "Certificado de estar al corriente con la Seguridad Social";
+
+    /// <summary>Los grupos nacen plegados: despliega todos los que sigan cerrados.</summary>
+    private static async Task AbrirGruposAsync(IRenderedComponent<ClienteDetalle> cut)
+    {
+        foreach (var _ in cut.FindAll(".cliente360-documentacion .fila-relacion-desplegar[aria-expanded=false]").ToList())
+            await cut.Find(".cliente360-documentacion .fila-relacion-desplegar[aria-expanded=false]").ClickAsync(new MouseEventArgs());
+    }
+
+    private static IReadOnlyList<AngleSharp.Dom.IElement> FilasDeDocumento(IRenderedComponent<ClienteDetalle> cut) =>
+        cut.FindAll(".cliente360-documentacion .fila-relacion-desplegado .fila-relacion").ToList();
+
     [Fact]
-    public void El_certificado_TGSS_es_la_primera_fila_con_su_estado_y_le_siguen_los_requisitos_de_los_Centros()
+    public async Task Dos_grupos_plegados_y_al_abrirlos_un_solo_formato_de_fila_con_estado_y_accion()
     {
         var (id, mediador) = Preparar();
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", EstadoBlindaje42.ExoneradaPorCertificacion, 2));
@@ -208,32 +223,148 @@ public class Cliente360DocumentacionTests : BunitContext
         // ObtenerDocumentacionExigidaDeClienteQueryTests. Aquí, cómo se pinta lo que devuelve.
         mediador.Documentacion = new(2, [
             Requisito("Seguro RC", AmbitoAplicacion.Empresa, 2, bloquea: true),
+            Requisito(TituloTgss, AmbitoAplicacion.Empresa, 2, bloquea: true) with { EsCertificadoTgss = true },
             Requisito("Formación PRL", AmbitoAplicacion.Trabajador, 1)]);
 
         var cut = Renderizar(id);
 
-        // TGSS primero; después, en el orden del servidor, lo que se exige a la Empresa y lo de sus Trabajadores.
-        Nombres(cut).Should().Equal("Certificado de estar al corriente con la Seguridad Social", "Seguro RC", "Formación PRL");
-        var filas = cut.FindAll(".cliente360-documentacion .fila-relacion");
-        var tgss = filas[0];
-        tgss.TextContent.Should().Contain("2 Empresas").And.Contain("2 solicitudes").And.Contain("Sin solicitar");
-        var seguroFila = filas[1];
-        seguroFila.TextContent.Should().Contain("Empresa empleadora").And.Contain("En 2 de 2 Centros").And.Contain("Bloquea el acceso");
-        filas[2].TextContent.Should().Contain("Trabajador").And.Contain("En 1 de 2 Centros").And.NotContain("Bloquea");
+        // Plegados por defecto: solo los dos grupos, con su recuento y su pastilla.
+        Nombres(cut).Should().Equal(GrupoEmpresa, GrupoTrabajador);
+        var grupos = cut.FindAll(".cliente360-documentacion .fila-relacion");
+        grupos.Should().HaveCount(2);
+        // Documentos, no filas: el certificado es uno aunque tenga una fila por Empresa.
+        grupos[0].TextContent.Should().Contain("2 documentos").And.Contain("2 bloquean el acceso");
+        grupos[1].TextContent.Should().Contain("1 documento").And.Contain("Sin bloqueos");
+
+        await AbrirGruposAsync(cut);
+
+        // El certificado va primero, una fila por Empresa con su estado real, y no sale además como requisito genérico.
+        Nombres(cut).Should().Equal(GrupoEmpresa, TituloTgss, TituloTgss, "Seguro RC", GrupoTrabajador, "Formación PRL");
+        var filas = FilasDeDocumento(cut);
+        filas.Should().HaveCount(4);
+        filas[0].TextContent.Should().Contain("Ibertec GmbH").And.Contain("2 solicitudes").And.Contain("En 2 de 2 Centros")
+            .And.Contain("Exonerada (certificación)");
+        filas[1].TextContent.Should().Contain("Grúas Aldapa S.L.").And.Contain("Sin solicitar");
+        filas[2].TextContent.Should().Contain("En 2 de 2 Centros").And.Contain("Bloquea el acceso");
+        filas[3].TextContent.Should().Contain("En 1 de 2 Centros").And.Contain("Se exige").And.NotContain("Bloquea");
+
+        // Mismo formato en todas: una pastilla de estado y una acción, sin celdas vacías.
+        foreach (var fila in filas)
+        {
+            fila.QuerySelector(".fila-relacion-estado")!.TextContent.Trim().Should().NotBeEmpty();
+            fila.QuerySelector(".fila-relacion-acciones button")!.TextContent.Trim().Should().NotBeEmpty();
+        }
+
         mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should()
             .ContainSingle(q => q.ClienteEmpresarialId == id, "una sola consulta de servidor, no una por Centro");
         mediador.Enviadas.OfType<ObtenerDocumentacionRequeridaDeCentroQuery>().Should().BeEmpty();
     }
 
     [Fact]
-    public void Con_un_unico_Centro_la_cifra_dice_en_su_Centro()
+    public void Con_un_grupo_plegado_los_descubiertos_de_una_Empresa_se_ven_en_su_cabecera()
+    {
+        var (id, mediador) = Preparar();
+        mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", EstadoBlindaje42.NoExonerada, 1));
+
+        var cut = Renderizar(id);
+
+        var grupo = cut.Find(".cliente360-documentacion .fila-relacion");
+        grupo.GetAttribute("data-tono").Should().Be("peligro");
+        grupo.QuerySelector(".fila-relacion-estado")!.TextContent.Trim().Should().Be("Con descubiertos");
+    }
+
+    [Fact]
+    public async Task Sin_escritura_el_historial_del_certificado_se_abre_con_Ver_historial()
+    {
+        var (id, mediador) = Preparar(Roles.Consulta);
+        var empresaId = Guid.NewGuid();
+        mediador.Certificaciones.Add(Empresa(empresaId, "Ibertec GmbH", EstadoBlindaje42.PendienteRespuesta, 1));
+        var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
+
+        await cut.FindAll(".cliente360-documentacion button").Single(b => b.TextContent.Trim() == "Ver historial")
+            .ClickAsync(new MouseEventArgs());
+
+        cut.FindComponent<DrawerBlindaje42>().Instance.EmpresaId.Should().Be(empresaId);
+        cut.FindAll(".cliente360-documentacion button").Select(b => b.TextContent.Trim()).Should().NotContain("Gestionar");
+    }
+
+    [Fact]
+    public void La_cifra_de_la_pestana_cuenta_el_certificado_una_sola_vez()
+    {
+        var (id, mediador) = Preparar();
+        mediador.EmpresasDelCliente.Add(new EmpresaDeClienteDto(Guid.NewGuid(), "Ibertec GmbH", null));
+        mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", null, 0));
+        mediador.Centros.Add(Centro("Planta Barakaldo"));
+        mediador.Documentacion = new(1, [
+            Requisito(TituloTgss, AmbitoAplicacion.Empresa, 1) with { EsCertificadoTgss = true },
+            Requisito("Seguro RC", AmbitoAplicacion.Empresa, 1)]);
+
+        var cut = Renderizar(id);
+
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Should().Contain("2").And.NotContain("3");
+    }
+
+    [Fact]
+    public async Task Sin_Empresas_el_certificado_sale_como_requisito_normal_y_una_sola_vez()
+    {
+        var (id, mediador) = Preparar();
+        mediador.Centros.Add(Centro("Planta Barakaldo"));
+        mediador.Documentacion = new(1, [Requisito(TituloTgss, AmbitoAplicacion.Empresa, 1) with { EsCertificadoTgss = true }]);
+
+        var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
+
+        Nombres(cut).Should().Equal(GrupoEmpresa, TituloTgss);
+    }
+
+    [Fact]
+    public async Task Con_mas_de_diez_filas_el_grupo_enseña_diez_y_ver_los_restantes_despliega_el_resto()
+    {
+        var (id, mediador) = Preparar();
+        mediador.Centros.Add(Centro("Planta Barakaldo"));
+        mediador.Documentacion = new(1, Enumerable.Range(1, 13)
+            .Select(n => Requisito($"Formación {n:00}", AmbitoAplicacion.Trabajador, 1)).ToList());
+
+        var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
+
+        FilasDeDocumento(cut).Should().HaveCount(10);
+        var boton = cut.Find(".cliente360-documentacion [data-accion=ver-restantes]");
+        boton.TextContent.Trim().Should().Be("Ver los 3 restantes");
+
+        await boton.ClickAsync(new MouseEventArgs());
+
+        FilasDeDocumento(cut).Should().HaveCount(13);
+        cut.FindAll(".cliente360-documentacion [data-accion=ver-restantes]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Con_un_unico_Centro_la_cifra_dice_en_su_Centro_y_la_fila_trae_su_pastilla()
     {
         var (id, mediador) = Preparar();
         Preparar_centro_con_requisitos(mediador);
 
         var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
 
-        cut.Find(".cliente360-documentacion .fila-relacion").TextContent.Should().Contain("En su Centro");
+        var fila = FilasDeDocumento(cut).Single();
+        fila.QuerySelector(".fila-relacion-cifra")!.TextContent.Should().Contain("En su Centro");
+        fila.QuerySelector(".fila-relacion-estado")!.TextContent.Trim().Should().Be("Se exige");
+    }
+
+    [Fact]
+    public async Task Ver_Centros_lleva_a_la_pestana_Centros_del_Cliente()
+    {
+        var (id, mediador) = Preparar(Roles.Consulta);
+        Preparar_centro_con_requisitos(mediador);
+        var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
+
+        await cut.FindAll(".cliente360-documentacion button").Single(b => b.TextContent.Trim() == "Ver Centros")
+            .ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith($"clientes/{id}?pestana=centros");
     }
 
     [Fact]
@@ -313,17 +444,20 @@ public class Cliente360DocumentacionTests : BunitContext
     }
 
     [Fact]
-    public void El_estado_del_certificado_es_el_peor_de_las_Empresas()
+    public async Task Cada_Empresa_lleva_su_propio_estado_del_certificado_y_solo_los_descubiertos_llevan_tono_de_peligro()
     {
         var (id, mediador) = Preparar();
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", EstadoBlindaje42.NoExonerada, 1));
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Grúas Aldapa S.L.", EstadoBlindaje42.ExoneradaPorCertificacion, 1));
+        mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Obras del Ebro S.L.", null, 0));
 
         var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
 
-        var tgss = cut.Find(".cliente360-documentacion .fila-relacion");
-        tgss.QuerySelector(".fila-relacion-estado")!.TextContent.Trim().Should().Be("Con descubiertos");
-        tgss.GetAttribute("data-tono").Should().Be("peligro");
+        var filas = FilasDeDocumento(cut);
+        filas.Select(f => f.QuerySelector(".fila-relacion-estado")!.TextContent.Trim()).Should()
+            .Equal("Con descubiertos", "Exonerada (certificación)", "Sin solicitar");
+        filas.Select(f => f.GetAttribute("data-tono")).Should().Equal("peligro", null, null);
     }
 
     [Fact]
@@ -340,14 +474,15 @@ public class Cliente360DocumentacionTests : BunitContext
     }
 
     [Fact]
-    public void Con_Empresas_y_sin_requisitos_solo_queda_la_fila_del_certificado_y_no_el_vacio()
+    public async Task Con_Empresas_y_sin_requisitos_solo_queda_la_fila_del_certificado_y_no_el_vacio()
     {
         var (id, mediador) = Preparar();
         mediador.Certificaciones.Add(Empresa(Guid.NewGuid(), "Ibertec GmbH", null, 0));
 
         var cut = Renderizar(id);
+        await AbrirGruposAsync(cut);
 
-        Nombres(cut).Should().Equal("Certificado de estar al corriente con la Seguridad Social");
+        Nombres(cut).Should().Equal(GrupoEmpresa, TituloTgss);
         cut.FindAll(".cliente360-documentacion .estado-vacio").Should().BeEmpty();
     }
 
@@ -379,7 +514,9 @@ public class Cliente360DocumentacionTests : BunitContext
         await cut.FindAll(".cliente360-documentacion button").Single(b => b.TextContent.Trim() == "Reintentar")
             .ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => Nombres(cut).Should().Equal("Evaluación de riesgos"));
+        cut.WaitForAssertion(() => Nombres(cut).Should().Equal(GrupoEmpresa));
+        await AbrirGruposAsync(cut);
+        Nombres(cut).Should().Equal(GrupoEmpresa, "Evaluación de riesgos");
         mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should().HaveCount(3);
     }
 
@@ -394,7 +531,7 @@ public class Cliente360DocumentacionTests : BunitContext
             EstadoBlindaje42.PendienteRespuesta, null, false, null));
         var cut = Renderizar(id);
 
-        await cut.Find(".cliente360-documentacion .fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        await AbrirGruposAsync(cut);
         await cut.Find(".cliente360-documentacion .fila-relacion-desplegado .fila-relacion-nombre-boton").ClickAsync(new MouseEventArgs());
 
         var drawer = cut.FindComponent<DrawerBlindaje42>();
@@ -418,16 +555,18 @@ public class Cliente360DocumentacionTests : BunitContext
         Preparar_centro_con_requisitos(mediador);
         var cut = Renderizar(id);
 
-        // La fila del certificado se despliega y deja ver una por Empresa con su estado (lectura).
-        await cut.Find(".cliente360-documentacion .fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
+        // El grupo de la Empresa se abre y deja ver el certificado de cada Empresa con su estado (lectura).
+        await AbrirGruposAsync(cut);
         cut.Find(".cliente360-documentacion .fila-relacion-desplegado").TextContent
             .Should().Contain("Ibertec GmbH").And.Contain("Pendiente TGSS");
 
-        // Sin contar el chevron y el nombre de la Empresa (abre el historial, ver la prueba de Consulta).
+        // Sin contar el chevron y el nombre del certificado (abre el historial, ver la prueba de Consulta): «Gestionar»
+        // solo con escritura y «Ver Centros» (navegación) para cualquier rol.
         var botones = cut.FindAll(".cliente360-documentacion button")
             .Where(b => !b.ClassList.Contains("fila-relacion-desplegar") && !b.ClassList.Contains("fila-relacion-nombre-boton"))
             .Select(b => b.TextContent.Trim()).ToList();
-        botones.Should().Equal(puedeEscribir ? ["Gestionar"] : []);
+        botones.Should().Equal(puedeEscribir ? ["Gestionar", "Ver Centros"] : ["Ver historial", "Ver Centros"],
+            "sin escritura la fila del certificado abre el mismo drawer en lectura");
 
         if (!puedeEscribir)
             return;

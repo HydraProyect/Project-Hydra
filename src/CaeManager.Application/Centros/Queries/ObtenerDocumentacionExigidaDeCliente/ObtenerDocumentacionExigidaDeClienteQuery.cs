@@ -28,8 +28,13 @@ public record DocumentacionExigidaClienteDto(int CentrosConGestionCae, IReadOnly
 
 /// <param name="Centros">En cuántos de esos Centros aplica hoy.</param>
 /// <param name="BloqueaAcceso">Si al menos uno de esos Centros bloquea el acceso por este tipo.</param>
+/// <param name="EsCertificadoTgss">
+/// Si es el certificado de estar al corriente con la Seguridad Social (perfil oficial de la TGSS): la pestaña lo pinta
+/// con el estado de cada Empresa en vez de como un requisito más, para no mostrarlo dos veces.
+/// </param>
 public record RequisitoExigidoClienteDto(
-    Guid TipoDocumentoId, string Nombre, AmbitoAplicacion AmbitoAplicacion, int Centros, bool BloqueaAcceso);
+    Guid TipoDocumentoId, string Nombre, AmbitoAplicacion AmbitoAplicacion, int Centros, bool BloqueaAcceso,
+    bool EsCertificadoTgss = false);
 
 public class ObtenerDocumentacionExigidaDeClienteQueryHandler(
     ICentrosQueryContext centrosContext,
@@ -64,7 +69,8 @@ public class ObtenerDocumentacionExigidaDeClienteQueryHandler(
                 var exigentes = centroIds.Where(centroId => DocumentacionRequeridaDeCentros.Aplica(filas, tipo, centroId)).ToList();
                 return new RequisitoExigidoClienteDto(
                     tipo.Id, tipo.Nombre, tipo.AmbitoAplicacion, exigentes.Count,
-                    exigentes.Any(centroId => DocumentacionRequeridaDeCentros.BloqueaAcceso(filas, tipo.Id, centroId)));
+                    exigentes.Any(centroId => DocumentacionRequeridaDeCentros.BloqueaAcceso(filas, tipo.Id, centroId)),
+                    tipo.EsCertificadoTgss);
             })
             .Where(r => r.Centros > 0)
             // Estable: dentro de cada ámbito se conserva el orden del catálogo.
