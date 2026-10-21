@@ -161,6 +161,33 @@
     gap: var(--space-3);
 }
 
+.reclamar-empresa-grupo-alternar {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-1);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+}
+
+.reclamar-empresa-grupo-alternar:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}
+
+.reclamar-empresa-chevron {
+    display: inline-flex;
+    transition: transform var(--motion-transition) var(--ease-fluid);
+}
+
+.reclamar-empresa-chevron-cerrado {
+    transform: rotate(-90deg);
+}
+
 .reclamar-empresa-grupo-titulo {
     display: flex;
     flex: 1;
