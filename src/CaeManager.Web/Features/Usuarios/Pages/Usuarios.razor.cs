@@ -662,7 +662,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             var porSuCartera = TextosUsuarios["AlcanceCoordinadorCarteraPropia"].Value;
             var explicacion = !tienePropia ? porSuEquipo : gestores.Count == 0 ? porSuCartera : string.Join(' ', porSuCartera, porSuEquipo);
             if (porOperacion.Count > 0)
-                explicacion = string.Join(' ', explicacion, TextosUsuarios["AlcanceCoordinadorPorOperacion"].Value);
+                // Sin equipo ni cartera propia, la frase del equipo sería un «0 Gestores CAE» y el «Además» no tendría antecedente.
+                explicacion = gestores.Count == 0 && !tienePropia
+                    ? TextosUsuarios["AlcanceCoordinadorSoloPorOperacion"].Value
+                    : string.Join(' ', explicacion, TextosUsuarios["AlcanceCoordinadorPorOperacion"].Value);
             return DesdeCarteras(
                 gestores.Prepend(usuario.Id).Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
                 porOperacion,
@@ -694,8 +697,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         else if (carteras.SelectMany(c => c.ClienteIds).Distinct().Count() is > 0 and var clientes)
             partes.Add(DescribirCantidad(clientes, "cliente", "clientes"));
 
-        // Las Empresas gestionadas (Tenants beneficiarios): el mismo recuento que «Mi cartera · N empresas»
-        // de Mi trabajo, y sus nombres en la explicación, con tope para un Gestor CAE con decenas.
+        // Las Empresas gestionadas (Tenants beneficiarios): el recuento de «Mi cartera · N empresas» de
+        // Mi trabajo, salvo las carteras con dimensiones diferidas, que no conceden alcance (ver
+        // DirectorioUsuariosTenant.ObtenerEmpresasGestionadasAsync), y sus nombres en la explicación,
+        // con tope para un Gestor CAE con decenas.
         var empresas = empresasGestionadas
             .GroupBy(e => e.TenantBeneficiarioId)
             .Select(g => g.First() with { Parcial = g.All(e => e.Parcial) })

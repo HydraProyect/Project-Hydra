@@ -31,7 +31,8 @@ namespace CaeManager.IntegrationTests.Usuarios;
 /// Escenario: el Operador CAE A opera enteras las Empresas X e Y, y la Empresa W acotada a un Cliente
 /// empresarial. Su Gestora CAE tiene cartera vigente en X y W, y una cerrada en Y. Una persona del Tenant C
 /// tiene una cartera mal formada bajo la operación de A sobre X. El Operador CAE B opera a la Empresa Z y su
-/// Gestor CAE tiene cartera en ella.
+/// Gestor CAE tiene cartera en ella. La Empresa V la opera A acotada en Outbound y entera en Inbound, con
+/// cartera de la Gestora en las dos.
 /// </para>
 /// </summary>
 public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
@@ -42,7 +43,7 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
     private readonly Guid _gestoraDeA = Guid.NewGuid();
     private readonly Guid _gestorDeB = Guid.NewGuid();
     private readonly Guid _personaDeC = Guid.NewGuid();
-    private Guid _operadorA, _operadorB, _tenantC, _empresaX, _empresaY, _empresaZ, _empresaW;
+    private Guid _operadorA, _operadorB, _tenantC, _empresaX, _empresaY, _empresaZ, _empresaW, _empresaV;
 
     public async Task InitializeAsync()
     {
@@ -63,10 +64,11 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var y = new Tenant("Empresa Y");
         var z = new Tenant("Empresa Z");
         var w = new Tenant("Empresa W");
-        propietario.Tenants.AddRange(a, b, c, x, y, z, w);
+        var v = new Tenant("Empresa V");
+        propietario.Tenants.AddRange(a, b, c, x, y, z, w, v);
         await propietario.SaveChangesAsync();
         (_operadorA, _operadorB, _tenantC) = (a.Id, b.Id, c.Id);
-        (_empresaX, _empresaY, _empresaZ, _empresaW) = (x.Id, y.Id, z.Id, w.Id);
+        (_empresaX, _empresaY, _empresaZ, _empresaW, _empresaV) = (x.Id, y.Id, z.Id, w.Id, v.Id);
 
         propietario.Users.AddRange(
             CrearUsuario(_gestoraDeA, _operadorA, "gestora.a"),
@@ -74,13 +76,20 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
             CrearUsuario(_personaDeC, _tenantC, "persona.c"));
         await propietario.SaveChangesAsync();
 
-        Guid clienteDeW;
+        Guid clienteDeW, clienteDeV;
         using (AmbitoTenantExplicito.Establecer(_empresaW))
         {
             var cliente = Empresa.CrearComoCliente("Cliente de W S.A.", "B12345674", false, null, null);
             propietario.Empresas.Add(cliente);
             await propietario.SaveChangesAsync();
             clienteDeW = cliente.Id;
+        }
+        using (AmbitoTenantExplicito.Establecer(_empresaV))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente de V S.A.", "B12345674", false, null, null);
+            propietario.Empresas.Add(cliente);
+            await propietario.SaveChangesAsync();
+            clienteDeV = cliente.Id;
         }
 
         var ahora = DateTime.UtcNow;
@@ -90,8 +99,12 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         var sobreW = AsignacionOperacion.Externa(
             _empresaW, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeW), desde, null, ahora);
         var sobreZ = AsignacionOperacion.Externa(_empresaZ, _operadorB, ServicioCae.Outbound, AmbitoAsignacion.Universal, desde, null, ahora);
+        // V: la misma Empresa, acotada a un Cliente empresarial en Outbound y entera en Inbound.
+        var sobreVAcotada = AsignacionOperacion.Externa(
+            _empresaV, _operadorA, ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeV), desde, null, ahora);
+        var sobreVEntera = AsignacionOperacion.Externa(_empresaV, _operadorA, ServicioCae.Inbound, AmbitoAsignacion.Universal, desde, null, ahora);
         using (AmbitoTenantExplicito.Establecer(_operadorA))
-            propietario.AsignacionesOperacion.AddRange(sobreX, sobreY, sobreW, sobreZ);
+            propietario.AsignacionesOperacion.AddRange(sobreX, sobreY, sobreW, sobreZ, sobreVAcotada, sobreVEntera);
         await propietario.SaveChangesAsync();
 
         var cerradaEnY = AsignacionCartera.Externa(sobreY, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora);
@@ -99,6 +112,8 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
         propietario.AsignacionesCartera.AddRange(
             AsignacionCartera.Externa(sobreX, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora),
             AsignacionCartera.Externa(sobreW, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora),
+            AsignacionCartera.Externa(sobreVAcotada, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora),
+            AsignacionCartera.Externa(sobreVEntera, _gestoraDeA, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora),
             cerradaEnY,
             AsignacionCartera.Externa(sobreX, _personaDeC, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora),
             AsignacionCartera.Externa(sobreZ, _gestorDeB, "GestorCae", AmbitoAsignacion.Universal, desde, null, ahora));
@@ -116,9 +131,11 @@ public class EmpresasGestionadasDelAmbitoEfectivoBajoRlsTests : IAsyncLifetime
             "el Gestor CAE del Operador B no es de esta organización, y la persona del Tenant C tampoco aunque su " +
             "cartera cuelgue de una operación de A");
         deA.PorCartera[_gestoraDeA].Should().BeEquivalentTo(
-            [new EmpresaGestionada(_empresaX, "Empresa X", Parcial: false), new EmpresaGestionada(_empresaW, "Empresa W", Parcial: true)],
-            "la cartera cerrada en Y no concede nada, y la de W cuelga de una operación acotada a un Cliente empresarial");
-        deA.DelTenantEntero.Select(e => e.TenantBeneficiarioId).Should().BeEquivalentTo([_empresaX, _empresaY],
+            [new EmpresaGestionada(_empresaX, "Empresa X", Parcial: false), new EmpresaGestionada(_empresaW, "Empresa W", Parcial: true),
+             new EmpresaGestionada(_empresaV, "Empresa V", Parcial: false)],
+            "la cartera cerrada en Y no concede nada, la de W cuelga de una operación acotada a un Cliente empresarial, " +
+            "y V cuenta una vez y entera porque una de sus dos operaciones lo es");
+        deA.DelTenantEntero.Select(e => e.TenantBeneficiarioId).Should().BeEquivalentTo([_empresaX, _empresaY, _empresaV],
             "un Coordinador CAE entra sin cartera solo en las Empresas gestionadas que su organización opera enteras");
 
         var deB = await LeerAsync(sesion: Guid.NewGuid(), tenantOrigen: _operadorB, tenantActivo: _operadorB);

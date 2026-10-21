@@ -2598,14 +2598,23 @@ public partial class UsuariosGen2Tests : BunitContext
             (iker, RolesIdentidad.CoordinadorCae));
         var montajes = new EmpresaGestionada(Guid.NewGuid(), "Montajes Ejemplo S.L.", Parcial: false);
         _fuente.Carteras = _ => new Dictionary<Guid, CarteraDeUsuario> { [AnderId] = new(true, []) };
+        // Montajes llega dos veces: por una operación acotada a un Cliente y por otra entera. Gana la entera.
         _fuente.EmpresasGestionadas = () => new EmpresasGestionadasDeLaOrganizacion(
-            [montajes], new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>> { [AnderId] = [montajes] });
+            [montajes], new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>>
+            {
+                [AnderId] = [montajes with { Parcial = true }, montajes],
+            });
 
         var cut = Renderizar(actorId: MartaId);
 
-        Fila(cut, "a.beitia@talveg.es").QuerySelector("td[title]")!.TextContent.Trim()
-            .Should().Be("Toda la operación · 1 Empresa gestionada");
-        Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!.TextContent.Trim()
-            .Should().Be("1 Empresa gestionada");
+        var deAnder = Fila(cut, "a.beitia@talveg.es").QuerySelector("td[title]")!;
+        deAnder.TextContent.Trim().Should().Be("Toda la operación · 1 Empresa gestionada");
+        deAnder.GetAttribute("title").Should().Contain("Montajes Ejemplo S.L.")
+            .And.NotContain("solo un Cliente", "basta una operación entera para que la Empresa gestionada no sea parcial");
+
+        var deIker = Fila(cut, "i.larra@talveg.es").QuerySelector("td[title]")!;
+        deIker.TextContent.Trim().Should().Be("1 Empresa gestionada");
+        deIker.GetAttribute("title").Should().StartWith("Entra sin Asignación de Cartera")
+            .And.NotContain("0 Gestores CAE", "sin equipo ni cartera propia, la explicación no habla de un equipo vacío");
     }
 }

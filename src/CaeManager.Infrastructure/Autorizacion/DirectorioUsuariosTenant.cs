@@ -668,8 +668,9 @@ public class DirectorioUsuariosTenant(
     /// Mi trabajo decía «Mi cartera · 5 empresas».
     ///
     /// <para>
-    /// Mismo predicado que Mi trabajo y el selector
-    /// (<see cref="TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion"/>),
+    /// Parte del mismo predicado que Mi trabajo y el selector
+    /// (<see cref="TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion"/>), con la
+    /// única diferencia de las exclusiones del párrafo siguiente,
     /// en la posición de operador de <see cref="CaeManager.Application.Operaciones.IOperacionesQueryContext"/>
     /// y de la RLS de los dos catálogos: <c>OperadorTenantId</c> = Tenant de origen de quien
     /// mira. Solo responde cuando el Tenant activo ES ese origen —quien mira está en su
