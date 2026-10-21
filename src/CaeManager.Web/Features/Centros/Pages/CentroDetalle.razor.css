@@ -83,7 +83,7 @@
 .centro-documentacion-cabecera,
 .centro-documentacion-fila {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 100px 64px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
     gap: var(--space-3);
     align-items: center;
     color: var(--color-text-muted);
@@ -152,12 +152,25 @@
     font-variant-numeric: tabular-nums;
 }
 
+/* Maqueta del 21-10: el tinte entra suave desde la izquierda, sin borde recto. */
 .centro-documentacion-bloquea {
-    background: linear-gradient(90deg, var(--color-danger-50), transparent 70%);
+    background: linear-gradient(90deg, transparent 0, var(--color-danger-50) 28px, transparent 72%);
 }
 
 .centro-documentacion-pendiente {
-    background: linear-gradient(90deg, var(--color-warning-50), transparent 70%);
+    background: linear-gradient(90deg, transparent 0, var(--color-warning-50) 28px, transparent 72%);
+}
+
+.centro-documentacion-cabecera .cabecera-accion-plataforma {
+    text-align: right;
+}
+
+.centro-documentacion-fila .celda-accion-plataforma {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+    min-width: 0;
 }
 
 .centro-documentacion-plataforma {
@@ -221,7 +234,13 @@
     }
 
     .centro-documentacion-fila > :first-child,
-    .centro-documentacion-fila > :nth-child(2) {
+    .centro-documentacion-fila > :nth-child(2),
+    .centro-documentacion-fila > .celda-accion-plataforma {
         grid-column: 1 / -1;
+    }
+
+    /* En la rejilla estrecha la acción ocupa toda la fila, alineada a la izquierda. */
+    .centro-documentacion-fila .celda-accion-plataforma {
+        align-items: flex-start;
     }
 }

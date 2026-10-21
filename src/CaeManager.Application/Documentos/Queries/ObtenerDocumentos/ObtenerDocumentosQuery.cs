@@ -63,7 +63,15 @@ public record ObtenerDocumentosQuery(
 }
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
-public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
+/// <param name="Anotacion">
+/// Lo último que se anotó a mano desde Centro 360 para este estado (fecha, motivo, nota y usuario), que se pinta bajo la
+/// pastilla. Solo lo carga la lectura por Centro (<c>SituacionDocumentosEnCentrosService</c>), y solo si sigue
+/// describiendo el estado actual: si otra vía cambió el estado después, la anotación ya no es de este estado y va null.
+/// </param>
+public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado, AnotacionEstadoPlataformaDto? Anotacion = null);
+
+/// <summary>Un cambio de estado anotado a mano en Centro 360; <see cref="CambioId"/> es lo que «Deshacer» identifica.</summary>
+public record AnotacionEstadoPlataformaDto(Guid CambioId, DateOnly Fecha, string? Motivo, string? Nota, string? UsuarioNombre);
 
 public record DocumentoListaDto(
     Guid Id,

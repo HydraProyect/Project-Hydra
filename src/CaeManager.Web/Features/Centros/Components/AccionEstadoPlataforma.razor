@@ -1,0 +1,262 @@
+@*
+    Columna «Acción» de las tablas de documentos de Centro 360 (bloque 3 de la sesión del 21-10, maqueta «Centro 360 TALVEG»):
+    el Gestor CAE sube a mano el documento a la plataforma CAE del Cliente y anota aquí lo que ve allí.
+      - Botón rápido según el estado: Pendiente de subir o Rechazado → «Marcar subido»; Pendiente de validación →
+        «Marcar validado»; Validado, ninguno. Tras usarlo sale un aviso con «Deshacer», que devuelve el estado anterior.
+      - «Cambiar», siempre: un modal (ModalFormulario del kit) con los cuatro estados en tarjetas, la fecha (hoy por defecto),
+        el motivo si es un rechazo (obligatorio) y una nota opcional.
+    Solo cambia la acreditación de ESTE Centro. La autorización la decide el comando (CambiarEstadoAcreditacionEnCentroCommand);
+    aquí, SoloConEscritura solo esconde lo que Consulta no puede usar.
+*@
+@using System.Globalization
+@using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Centros.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosCentros> Textos
+
+<SoloConEscritura>
+    <span class="accion-estado-plataforma" data-acciones-plataforma>
+        @if (DestinoRapido(Acreditacion.Estado) is { } destinoRapido)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" class="accion-rapida-plataforma"
+                   data-accion="marcar-rapido-plataforma" Deshabilitado="_enCurso"
+                   title="@TituloRapido(destinoRapido)" OnClick="() => MarcarRapidoAsync(destinoRapido)">
+                @Textos[destinoRapido == EstadoAcreditacion.Aceptada ? "MarcarValidado360" : "MarcarSubido360"]
+            </Boton>
+        }
+        <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" class="accion-fila-enlace"
+               data-accion="cambiar-estado-plataforma" Deshabilitado="_enCurso"
+               aria-label="@Textos["CambiarEstadoAria360", DocumentoNombre, Acreditacion.NombrePlataforma]"
+               title="@Textos["CambiarEstadoAria360", DocumentoNombre, Acreditacion.NombrePlataforma]"
+               OnClick="AbrirModal">
+            @Textos["CambiarEstado360"]
+        </Boton>
+    </span>
+
+    @* Solo existe mientras está abierto: hay uno por documento, y cada ModalFormulario cerrado seguiría vigilando la navegación. *@
+    @if (_modalVisible)
+    {
+    <ModalFormulario Visible="_modalVisible" VisibleChanged="v => _modalVisible = v"
+                     Titulo="@DocumentoNombre"
+                     Sobretitulo="@Textos["ModalEstadoSobretitulo360", Acreditacion.NombrePlataforma, CentroNombre]"
+                     Subtitulo="@Textos["ModalEstadoSubtitulo360", TitularNombre, TextoEstado(Acreditacion.Estado)]"
+                     HayCambios="HayCambios" Guardando="_guardando" MensajeError="@_errorServidor"
+                     HayErroresDeCampo="@(_errorMotivo is not null || _errorFecha is not null)"
+                     TextoGuardar="@Textos["GuardarEstado360"]" TextoCancelar="@Textos["CancelarEstado360"]"
+                     OnGuardar="GuardarModalAsync">
+        <div class="modal-estado-plataforma" data-modal-estado-plataforma>
+            <div role="radiogroup" aria-label="@Textos["ModalEstadoGrupo360"]" class="estados-plataforma-tarjetas">
+                @foreach (var estado in EstadosDelModal)
+                {
+                    var elegido = estado == _estadoElegido;
+                    <label class="tarjeta-estado-plataforma @(elegido ? "tarjeta-estado-plataforma-elegida" : null)" data-estado-plataforma="@estado">
+                        <input type="radio" name="@($"estado-plataforma-{Acreditacion.Id}")" checked="@elegido"
+                               @onchange="() => ElegirEstado(estado)" />
+                        <span class="tarjeta-estado-plataforma-texto">
+                            <span class="tarjeta-estado-plataforma-titulo">
+                                <span class="punto-estado-plataforma" data-tono="@TonoPunto(estado)" aria-hidden="true"></span>
+                                @TextoEstado(estado)
+                            </span>
+                            <span class="tarjeta-estado-plataforma-descripcion">@DescripcionEstado(estado)</span>
+                        </span>
+                    </label>
+                }
+            </div>
+            <div class="campo-fecha-estado-plataforma">
+                <CampoTexto Etiqueta="@EtiquetaFecha" Valor="@_fecha" ValorChanged="v => { _fecha = v; _errorFecha = null; }"
+                            Placeholder="dd/mm/aaaa" inputmode="numeric" MensajeError="@_errorFecha" data-campo="fecha-estado" />
+            </div>
+            @if (_estadoElegido == EstadoAcreditacion.Rechazada)
+            {
+                <CampoTexto Etiqueta="@Textos["MotivoRechazo360"]" Valor="@_motivo" ValorChanged="v => { _motivo = v; _errorMotivo = null; }"
+                            Placeholder="@Textos["MotivoRechazoPlaceholder360"]" MensajeError="@_errorMotivo" data-campo="motivo-rechazo" />
+            }
+            <CampoTexto Etiqueta="@Textos["NotaOpcional360"]" Valor="@_nota" ValorChanged="v => _nota = v"
+                        Placeholder="@Textos["NotaPlaceholder360"]" data-campo="nota-estado" />
+            <p class="modal-estado-plataforma-pie">@Textos["ModalEstadoPie360"]</p>
+        </div>
+    </ModalFormulario>
+    }
+</SoloConEscritura>
+
+@code {
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+    [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public AcreditacionResumenDto Acreditacion { get; set; } = default!;
+    [Parameter, EditorRequired] public string DocumentoNombre { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string TitularNombre { get; set; } = string.Empty;
+
+    /// <summary>Tras guardar o deshacer: quien pinta la tabla recarga para recalcular bloqueo, tinte, estado y contadores.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private static readonly EstadoAcreditacion[] EstadosDelModal =
+    [
+        EstadoAcreditacion.PendienteDeSubir, EstadoAcreditacion.Subida, EstadoAcreditacion.Aceptada, EstadoAcreditacion.Rechazada
+    ];
+
+    private bool _enCurso;
+    private bool _modalVisible;
+    private bool _guardando;
+    private EstadoAcreditacion _estadoElegido;
+    private string _fecha = string.Empty;
+    private string _motivo = string.Empty;
+    private string _nota = string.Empty;
+    private string? _errorMotivo;
+    private string? _errorFecha;
+    private string? _errorServidor;
+
+    /// <summary>A qué estado lleva el botón rápido; null si no hay botón (Validado, No requerida).</summary>
+    public static EstadoAcreditacion? DestinoRapido(EstadoAcreditacion actual) => actual switch
+    {
+        EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Rechazada => EstadoAcreditacion.Subida,
+        EstadoAcreditacion.Subida => EstadoAcreditacion.Aceptada,
+        _ => null
+    };
+
+    private static string Hoy => DiaDeNegocio.Hoy().ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    private string TituloRapido(EstadoAcreditacion destino) => destino == EstadoAcreditacion.Aceptada
+        ? Textos["MarcarValidadoTitulo360", Acreditacion.NombrePlataforma]
+        : Textos["MarcarSubidoTitulo360", Acreditacion.NombrePlataforma];
+
+    private string TextoEstado(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+
+    private string DescripcionEstado(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.PendienteDeSubir => "EstadoDescPendienteSubir360",
+        EstadoAcreditacion.Subida => "EstadoDescPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "EstadoDescValidado360",
+        _ => "EstadoDescRechazado360"
+    }];
+
+    private static string TonoPunto(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Aceptada => "exito",
+        EstadoAcreditacion.Subida => "advertencia",
+        _ => "peligro"
+    };
+
+    private string EtiquetaFecha => Textos[_estadoElegido switch
+    {
+        EstadoAcreditacion.Subida => "FechaSubido360",
+        EstadoAcreditacion.Aceptada => "FechaValidado360",
+        EstadoAcreditacion.Rechazada => "FechaRechazado360",
+        _ => "FechaMarcado360"
+    }];
+
+    private bool HayCambios() =>
+        _estadoElegido != Acreditacion.Estado || _fecha != Hoy
+        || !string.IsNullOrWhiteSpace(_motivo) || !string.IsNullOrWhiteSpace(_nota);
+
+    private void AbrirModal()
+    {
+        // Como la maqueta: el estado actual marcado y hoy por defecto; lo de otra apertura no se arrastra.
+        _estadoElegido = AcreditacionDocumentoPlataforma.EsEstadoAnotableAMano(Acreditacion.Estado)
+            ? Acreditacion.Estado : EstadoAcreditacion.Subida;
+        _fecha = Hoy;
+        _motivo = string.Empty;
+        _nota = string.Empty;
+        _errorMotivo = null;
+        _errorFecha = null;
+        _errorServidor = null;
+        _modalVisible = true;
+    }
+
+    private void ElegirEstado(EstadoAcreditacion estado)
+    {
+        _estadoElegido = estado;
+        _errorMotivo = null;
+        _errorServidor = null;
+    }
+
+    private async Task GuardarModalAsync()
+    {
+        _errorServidor = null;
+        _errorFecha = DateOnly.TryParseExact(_fecha.Trim(), "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fecha)
+            ? null : Textos["FechaInvalida360"].Value;
+        _errorMotivo = _estadoElegido == EstadoAcreditacion.Rechazada && string.IsNullOrWhiteSpace(_motivo)
+            ? Textos["MotivoRechazoObligatorio360"].Value : null;
+        if (_errorFecha is not null || _errorMotivo is not null)
+            return;
+
+        _guardando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new CambiarEstadoAcreditacionEnCentroCommand(
+                CentroId, Acreditacion.Id, _estadoElegido, fecha,
+                _estadoElegido == EstadoAcreditacion.Rechazada ? _motivo : null,
+                string.IsNullOrWhiteSpace(_nota) ? null : _nota));
+            if (resultado.EsFallido)
+            {
+                _errorServidor = resultado.Error.Mensaje;
+                return;
+            }
+
+            _modalVisible = false;
+            ToastService.Mostrar(
+                Textos["ToastEstadoPlataforma360", DocumentoNombre, TextoEstado(_estadoElegido).ToLower(CultureInfo.CurrentCulture), Acreditacion.NombrePlataforma],
+                TonoToast.Exito);
+            await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    private async Task MarcarRapidoAsync(EstadoAcreditacion destino)
+    {
+        if (_enCurso) return;
+        _enCurso = true;
+        try
+        {
+            var acreditacionId = Acreditacion.Id;
+            var resultado = await Mediator.Send(new CambiarEstadoAcreditacionEnCentroCommand(
+                CentroId, acreditacionId, destino, DiaDeNegocio.Hoy(), null, null));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            var cambioId = resultado.Valor;
+            ToastService.Mostrar(
+                Textos["ToastEstadoPlataforma360", DocumentoNombre, TextoEstado(destino).ToLower(CultureInfo.CurrentCulture), Acreditacion.NombrePlataforma],
+                TonoToast.Exito,
+                Textos["ToastDeshacer360"],
+                () => DeshacerAsync(acreditacionId, cambioId));
+            await OnCambio.InvokeAsync();
+        }
+        finally
+        {
+            _enCurso = false;
+        }
+    }
+
+    private async Task DeshacerAsync(Guid acreditacionId, Guid cambioId)
+    {
+        var resultado = await Mediator.Send(new DeshacerCambioEstadoAcreditacionCommand(CentroId, acreditacionId, cambioId));
+        if (resultado.EsFallido)
+        {
+            ToastService.MostrarError(resultado.Error);
+            return;
+        }
+
+        ToastService.Mostrar(Textos["ToastEstadoDeshecho360", DocumentoNombre, Acreditacion.NombrePlataforma], TonoToast.Info);
+        await OnCambio.InvokeAsync();
+    }
+}

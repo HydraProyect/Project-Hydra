@@ -664,4 +664,42 @@
   <data name="RequisitoGuardadoToast" xml:space="preserve">
     <value>Requisit desat en aquest centre.</value>
   </data>
+  <data name="AccionColumna360" xml:space="preserve"><value>Acció</value></data>
+  <data name="MarcarSubido360" xml:space="preserve"><value>Marcar pujat</value></data>
+  <data name="MarcarValidado360" xml:space="preserve"><value>Marcar validat</value></data>
+  <data name="MarcarSubidoTitulo360" xml:space="preserve"><value>L&apos;has pujat a {0}: passa a Pendent de validació</value></data>
+  <data name="MarcarValidadoTitulo360" xml:space="preserve"><value>{0} l&apos;ha acceptat: passa a Validat</value></data>
+  <data name="CambiarEstado360" xml:space="preserve"><value>Canviar</value></data>
+  <data name="CambiarEstadoAria360" xml:space="preserve"><value>Canviar l&apos;estat de {0} a {1}</value></data>
+  <data name="ModalEstadoSobretitulo360" xml:space="preserve"><value>Estat a {0} · {1}</value></data>
+  <data name="ModalEstadoSubtitulo360" xml:space="preserve"><value>{0} · ara: {1}</value></data>
+  <data name="ModalEstadoGrupo360" xml:space="preserve"><value>Nou estat a la plataforma</value></data>
+  <data name="EstadoDescPendienteSubir360" xml:space="preserve"><value>Encara no és a la plataforma</value></data>
+  <data name="EstadoDescPendienteValidacion360" xml:space="preserve"><value>Pujat; la plataforma encara no l&apos;ha revisat</value></data>
+  <data name="EstadoDescValidado360" xml:space="preserve"><value>La plataforma l&apos;ha acceptat</value></data>
+  <data name="EstadoDescRechazado360" xml:space="preserve"><value>La plataforma l&apos;ha retornat</value></data>
+  <data name="FechaSubido360" xml:space="preserve"><value>Data (pujat)</value></data>
+  <data name="FechaValidado360" xml:space="preserve"><value>Data (validat)</value></data>
+  <data name="FechaRechazado360" xml:space="preserve"><value>Data (rebutjat)</value></data>
+  <data name="FechaMarcado360" xml:space="preserve"><value>Data (marcat)</value></data>
+  <data name="FechaInvalida360" xml:space="preserve"><value>Escriu la data com a dd/mm/aaaa.</value></data>
+  <data name="MotivoRechazo360" xml:space="preserve"><value>Motiu del rebuig</value></data>
+  <data name="MotivoRechazoPlaceholder360" xml:space="preserve"><value>El que indica la plataforma, p. ex. falta la signatura</value></data>
+  <data name="MotivoRechazoObligatorio360" xml:space="preserve"><value>Escriu el motiu: és el que veurà qui hagi de corregir el document.</value></data>
+  <data name="NotaOpcional360" xml:space="preserve"><value>Nota (opcional)</value></data>
+  <data name="NotaPlaceholder360" xml:space="preserve"><value>P. ex. ID de la sol·licitud a la plataforma</value></data>
+  <data name="ModalEstadoPie360" xml:space="preserve"><value>Només canvia l&apos;estat en aquest Centre. Queda a l&apos;Historial amb el teu nom i es recalcula si bloqueja l&apos;accés.</value></data>
+  <data name="GuardarEstado360" xml:space="preserve"><value>Desar estat</value></data>
+  <data name="CancelarEstado360" xml:space="preserve"><value>Cancel·lar</value></data>
+  <data name="VerboSubido360" xml:space="preserve"><value>pujat</value></data>
+  <data name="VerboValidado360" xml:space="preserve"><value>validat</value></data>
+  <data name="VerboRechazado360" xml:space="preserve"><value>rebutjat</value></data>
+  <data name="VerboMarcado360" xml:space="preserve"><value>marcat</value></data>
+  <data name="AnotacionVerboFecha360" xml:space="preserve"><value>{0} el {1}</value></data>
+  <data name="ToastEstadoPlataforma360" xml:space="preserve"><value>{0}: {1} a {2}</value></data>
+  <data name="ToastDeshacer360" xml:space="preserve"><value>Desfés</value></data>
+  <data name="ToastEstadoDeshecho360" xml:space="preserve"><value>{0}: estat anterior restaurat a {1}</value></data>
+  <data name="HistorialPlataforma360" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="HistorialPlataformaFila360" xml:space="preserve"><value>{0}: {1} → {2} a {3}</value></data>
+  <data name="HistorialPlataformaDeshecho360" xml:space="preserve"><value>Desfet</value></data>
 </root>

@@ -84,7 +84,8 @@ public class SituacionDocumentosEnCentrosService(
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
     IAlcanceDatosService alcanceDatos,
-    ICurrentUserService currentUserService) : ISituacionDocumentosEnCentrosService
+    ICurrentUserService currentUserService,
+    IDirectorioUsuariosService? directorioUsuarios = null) : ISituacionDocumentosEnCentrosService
 {
     // Quién lee el historial de reclamaciones: mismos roles que la pestaña Reclamaciones de Documentos
     // (Documentos.RolesDeGestionDocumental). A Consulta y al Usuario de Cliente esa pestaña les dice «sin permiso»;
@@ -136,6 +137,8 @@ public class SituacionDocumentosEnCentrosService(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
 
+        var anotaciones = await CargarAnotacionesAsync(crudas.Select(c => (c.Id, c.Estado)).ToList(), cancellationToken);
+
         return crudas
             .Select(c => new
             {
@@ -145,7 +148,8 @@ public class SituacionDocumentosEnCentrosService(
                 Resumen = new AcreditacionResumenDto(
                     c.Id,
                     c.ProveedorPlataformaCaeId is { } id ? nombresProveedor.GetValueOrDefault(id, "Plataforma") : "Plataforma",
-                    c.Estado)
+                    c.Estado,
+                    anotaciones.GetValueOrDefault(c.Id))
             })
             .GroupBy(c => (c.CentroId, c.DocumentoId))
             .ToDictionary(
@@ -156,6 +160,40 @@ public class SituacionDocumentosEnCentrosService(
                     .ThenBy(c => c.Resumen.Id)
                     .Select(c => c.Resumen)
                     .ToList());
+    }
+
+    /// <summary>
+    /// El último cambio anotado a mano que sigue en pie por acreditación, solo si describe su estado actual (si otra vía
+    /// lo cambió después, ese texto ya no es de este estado). El nombre del usuario se resuelve con el mismo acotado que
+    /// el resto de nombres: quien no es visible desde el Tenant operado sale sin nombre.
+    /// </summary>
+    private async Task<Dictionary<Guid, AnotacionEstadoPlataformaDto>> CargarAnotacionesAsync(
+        IReadOnlyList<(Guid Id, Domain.Documentos.EstadoAcreditacion Estado)> acreditaciones, CancellationToken cancellationToken)
+    {
+        var ids = acreditaciones.Select(a => a.Id).ToList();
+        var cambios = await documentosContext.CambiosEstadoAcreditacionPlataforma
+            .Where(c => ids.Contains(c.AcreditacionId) && c.DeshechoUtc == null)
+            .Select(c => new { c.Id, c.AcreditacionId, c.Estado, c.Fecha, c.Motivo, c.Nota, c.UsuarioId, c.MomentoUtc })
+            .ToListAsync(cancellationToken);
+        if (cambios.Count == 0) return [];
+
+        var estadoActual = acreditaciones.ToDictionary(a => a.Id, a => a.Estado);
+        var vigentes = cambios
+            .GroupBy(c => c.AcreditacionId)
+            .Select(g => g.OrderByDescending(c => c.MomentoUtc).ThenByDescending(c => c.Id).First())
+            .Where(c => estadoActual.GetValueOrDefault(c.AcreditacionId) == c.Estado)
+            .ToList();
+
+        var usuarioIds = vigentes.Where(c => c.UsuarioId is not null).Select(c => c.UsuarioId!.Value).Distinct().ToList();
+        var nombres = usuarioIds.Count == 0 || directorioUsuarios is null
+            ? new Dictionary<Guid, string>()
+            : await directorioUsuarios.ObtenerNombresVisiblesAsync(usuarioIds, cancellationToken);
+
+        return vigentes.ToDictionary(
+            c => c.AcreditacionId,
+            c => new AnotacionEstadoPlataformaDto(
+                c.Id, c.Fecha, c.Motivo, c.Nota,
+                c.UsuarioId is { } usuarioId ? nombres.GetValueOrDefault(usuarioId) : null));
     }
 
     private async Task<(Dictionary<Guid, UltimaReclamacionDocumentoDto> PorDocumento,

@@ -212,10 +212,12 @@
 .cabecera-plataforma-centro,
 .fila-plataforma-centro {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 100px 64px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 96px 56px minmax(150px, auto);
     gap: var(--space-3);
     align-items: center;
 }
+.cabecera-plataforma-centro .cabecera-accion-plataforma { text-align: right; }
+.fila-plataforma-centro .celda-accion-plataforma { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 0; }
 .cabecera-plataforma-centro {
     padding: 8px 0 6px;
     font: var(--font-caption);
@@ -229,8 +231,9 @@
     border-top: var(--border-default);
     font: var(--font-caption);
 }
-.fila-plataforma-bloquea { background: linear-gradient(90deg, var(--color-danger-50), transparent 70%); }
-.fila-plataforma-pendiente { background: linear-gradient(90deg, var(--color-warning-50), transparent 70%); }
+/* Maqueta del 21-10: el tinte entra suave desde la izquierda, sin borde recto. */
+.fila-plataforma-bloquea { background: linear-gradient(90deg, transparent 0, var(--color-danger-50) 28px, transparent 72%); }
+.fila-plataforma-pendiente { background: linear-gradient(90deg, transparent 0, var(--color-warning-50) 28px, transparent 72%); }
 .identidad-documento-plataforma { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
 .indicador-talveg { flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 1px solid var(--color-text-muted); border-radius: 50%; text-align: center; font: 700 10px/16px var(--font-family); color: var(--color-text-muted); cursor: help; }
 .estado-documento-plataforma { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
@@ -244,7 +247,10 @@
     .cabecera-plataforma-centro { display: none; }
     .fila-plataforma-centro { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 6px; }
     .fila-plataforma-centro > :first-child,
-    .fila-plataforma-centro > :nth-child(2) { grid-column: 1 / -1; }
+    .fila-plataforma-centro > :nth-child(2),
+    .fila-plataforma-centro > .celda-accion-plataforma { grid-column: 1 / -1; }
+    /* En la rejilla estrecha la acción ocupa toda la fila, alineada a la izquierda. */
+    .fila-plataforma-centro .celda-accion-plataforma { align-items: flex-start; }
 }
 
 .lista-trabajadores-acordeon {

@@ -1,0 +1,80 @@
+@*
+    Historial de Centro 360, sección de cambios: cada cambio de estado en la plataforma CAE del Cliente anotado a mano en
+    este Centro (bloque 3 del 21-10), con quién, cuándo, la fecha anotada, el motivo y la nota. Un cambio deshecho sigue
+    aquí, marcado. Si no hay ninguno, la sección no se pinta.
+*@
+@using System.Globalization
+@using CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Centros.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosCentros> Textos
+
+@if (_cambios.Count > 0)
+{
+    <section class="historial-estado-plataforma" aria-label="@Textos["HistorialPlataforma360"]" data-historial-plataforma>
+        <h4 class="historial-estado-plataforma-titulo">@Textos["HistorialPlataforma360"]</h4>
+        <ul class="historial-estado-plataforma-lista">
+            @foreach (var cambio in _cambios)
+            {
+                <li @key="cambio.Id" class="historial-estado-plataforma-fila @(cambio.Deshecho ? "historial-estado-plataforma-deshecho" : null)" data-cambio-plataforma>
+                    <span class="historial-estado-plataforma-que">
+                        @Textos["HistorialPlataformaFila360", Documento(cambio), TextoEstado(cambio.EstadoAnterior), TextoEstado(cambio.Estado), cambio.NombrePlataforma]
+                        @if (cambio.Deshecho)
+                        {
+                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["HistorialPlataformaDeshecho360"]</Badge>
+                        }
+                    </span>
+                    <span class="historial-estado-plataforma-detalle">@Detalle(cambio)</span>
+                </li>
+            }
+        </ul>
+    </section>
+}
+
+@code {
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+
+    private IReadOnlyList<CambioEstadoPlataformaCentroDto> _cambios = [];
+    private Guid _cargado;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_cargado == CentroId) return;
+        _cargado = CentroId;
+        try
+        {
+            _cambios = await Mediator.Send(new ObtenerCambiosEstadoPlataformaDeCentroQuery(CentroId));
+        }
+        catch (Exception)
+        {
+            // Sección complementaria del Historial: si la lectura falla, el resto del Historial sigue a la vista.
+            _cambios = [];
+        }
+    }
+
+    private static string Documento(CambioEstadoPlataformaCentroDto cambio) =>
+        cambio.TitularNombre is { Length: > 0 } titular ? $"{cambio.DocumentoNombre} · {titular}" : cambio.DocumentoNombre;
+
+    private string TextoEstado(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+
+    private string Detalle(CambioEstadoPlataformaCentroDto cambio)
+    {
+        var partes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(cambio.Motivo)) partes.Add(cambio.Motivo);
+        partes.Add(cambio.Fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture));
+        if (!string.IsNullOrWhiteSpace(cambio.UsuarioNombre)) partes.Add(cambio.UsuarioNombre);
+        if (!string.IsNullOrWhiteSpace(cambio.Nota)) partes.Add(cambio.Nota);
+        return string.Join(" · ", partes);
+    }
+}
