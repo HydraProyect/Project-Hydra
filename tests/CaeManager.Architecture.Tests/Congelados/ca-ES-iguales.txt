@@ -328,7 +328,6 @@ src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx 
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: FranjaTitulo = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiCentros = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiCentrosSub = 1
-src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiCumplimiento = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiCumplimientoSub = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiExtranjeros = 1
 src/CaeManager.Web/Features/CuadroDireccion/Recursos/TextosCuadroDireccion.resx :: KpiExtranjerosSub = 1

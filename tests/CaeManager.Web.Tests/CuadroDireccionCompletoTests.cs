@@ -119,11 +119,16 @@ public partial class CuadroDireccionTests
         grafico.QuerySelectorAll("svg text").Length.Should().Be(0, "el texto va en HTML para que no se escale con el SVG");
     }
 
+    /// <summary>
+    /// Pruebas de flujos del 2026-10-21 (Tarnaval: 83 % en el Cuadro, 25 % en /empresas): la alerta y la columna miden el
+    /// contexto Empresa (pares exigidos, los que faltan en contra), no los documentos de Trabajador guardados de Inicio.
+    /// Aquí los documentos guardados están al 90 % y los pares exigidos al 62 %: avisa por el 62.
+    /// </summary>
     [Fact]
     public void Una_Empresa_con_cumplimiento_bajo_sale_en_Que_requiere_una_decision()
     {
         var cuadro = Cuadro(EstadoCifraMensual.Parcial);
-        var baja = cuadro.Tenants[1] with { Cifras = cuadro.Tenants[1].Cifras with { Cumplimiento = new CumplimientoActualDto(1, 0, 0, 5, 0, 0, 0, 62, false, DateTime.UtcNow) } };
+        var baja = cuadro.Tenants[1] with { Cifras = cuadro.Tenants[1].Cifras with { Cumplimiento = new CumplimientoActualDto(9, 0, 0, 1, 0, 0, 0, 90, false, DateTime.UtcNow, Exigido: new(62, 100)) } };
         cuadro = cuadro with { Tenants = [cuadro.Tenants[0], baja] };
 
         var cut = Pintar(cuadro, Roles.DireccionCae, out _);

@@ -356,6 +356,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // se hizo visible en el constructor en vez de estar un salto de
         // Mediator más lejos.
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IAsignacionesQueryContext"),
+        // Cumplimiento del Tenant beneficiario en contexto Empresa, medido como /empresas: Empresas propias, Centros de sus Asignaciones activas.
+        ("Dashboard.ObtenerCumplimientoExigidoTenantQueryHandler", "IAsignacionesQueryContext"),
+        ("Dashboard.ObtenerCumplimientoExigidoTenantQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerCumplimientoExigidoTenantQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "ICentrosQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IConfiguracionQueryContext"),
         ("Dashboard.ObtenerCatalogoKpisQueryHandler", "IDocumentosIaQueryContext"),

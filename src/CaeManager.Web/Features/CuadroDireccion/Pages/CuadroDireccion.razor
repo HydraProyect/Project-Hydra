@@ -357,7 +357,7 @@
                                                     <th scope="col" aria-sort="@AriaOrden("rotacion")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("rotacion")'>@Textos["ColumnaRotacion"]</button></th>
                                                     <th scope="col" aria-sort="@AriaOrden("facturacion")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("facturacion")'>@Textos["ColumnaFacturaMes"]</button></th>
                                                     <th scope="col" aria-sort="@AriaOrden("ingreso")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("ingreso")'>@Textos["ColumnaIngresoGestion"]</button></th>
-                                                    <th scope="col" aria-sort="@AriaOrden("cumplimiento")"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("cumplimiento")'>@Textos["ColumnaCumplimiento"]</button></th>
+                                                    <th scope="col" aria-sort="@AriaOrden("cumplimiento")" title="@Textos["TituloColumnaCumplimiento"]"><button type="button" class="cuadro-orden" @onclick='() => Ordenar("cumplimiento")'>@Textos["ColumnaCumplimiento"]</button></th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -386,13 +386,13 @@
                                                         <td>@(HayTarifas ? Importe(fila.Facturacion) : Textos["SinDato"].Value)</td>
                                                         <td>@(fila.IngresoPorGestion is { } ingreso ? Importe((decimal)ingreso) : Textos["SinDato"].Value)</td>
                                                         <td>
-                                                            @if (e.Cumplimiento.SinDatos)
+                                                            @if (CumplimientoEmpresa(e.Cumplimiento) is not { } cumplimientoEmpresa)
                                                             {
                                                                 <span class="cuadro-chip cuadro-chip-neutro">—</span>
                                                             }
                                                             else
                                                             {
-                                                                <span class="cuadro-chip @ClaseCumplimiento(e.Cumplimiento.Porcentaje)">@(e.Cumplimiento.Porcentaje + " %")</span>
+                                                                <span class="cuadro-chip @ClaseCumplimiento(cumplimientoEmpresa)">@(cumplimientoEmpresa + " %")</span>
                                                             }
                                                         </td>
                                                     </tr>
