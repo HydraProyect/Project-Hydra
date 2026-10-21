@@ -374,7 +374,7 @@ public partial class VisitasGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Norte"));
         var consultasAntes = mediator.ConsultasVisitas;
 
-        await cut.Find(".pie-lista-opciones select").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "50" });
+        await cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent.Trim() == "50").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => mediator.ConsultasVisitas.Should().BeGreaterThan(consultasAntes));
         (mediator.ConsultasVisitas - consultasAntes).Should().Be(1,
