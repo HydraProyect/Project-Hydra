@@ -127,8 +127,12 @@ src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocum
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: clienteId = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: clienteIdDeProyecto = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: proyectoClienteId = 2
-src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: ClienteId = 5
+# Destinos en Centros de la lista de Documentos: JOIN inevitable con la FK legacy Centro.ClienteId (Empresa en
+# posición cliente empresarial) y la lista local clienteIds de las tolerancias por cliente; sin entidad nueva
+# ni cambio de propiedad o autorización.
+src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: ClienteId = 6
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: clienteIdsVisibles = 5
 src/CaeManager.Application/Documentos/Queries/ObtenerRevisionesIaPendientes/ObtenerRevisionesIaPendientesQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/SituacionEnCentro/SituacionDocumentosEnCentrosService.cs :: ClienteId = 2
