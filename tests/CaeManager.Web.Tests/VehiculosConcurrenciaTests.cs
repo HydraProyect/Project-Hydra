@@ -403,7 +403,7 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         // La identidad lleva el nombre y, debajo, la matrícula; el modelo tiene su propia columna.
         filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.Nombre))
             .TextContent.Should().Contain(vencido.NumeroPlaca);
