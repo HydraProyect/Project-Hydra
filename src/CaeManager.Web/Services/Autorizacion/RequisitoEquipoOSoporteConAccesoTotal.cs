@@ -27,6 +27,18 @@ public static class PoliticasFichas360
 }
 
 /// <summary>
+/// Política de página del Cuadro de dirección: Dirección CAE, Coordinador CAE y Administrador del Tenant por rol, o el
+/// administrador de TALVEG con Sesión Privilegiada de acceso total (decisión de Chris del 2026-10-19). Las cifras las vuelve
+/// a exigir cada query en <c>AutorizacionCuadroDireccion</c>; reabrir sigue siendo solo de Dirección CAE.
+/// </summary>
+public static class PoliticaCuadroDireccion
+{
+    public const string Nombre = "CuadroDireccion";
+
+    public static readonly string[] Roles = [Infrastructure.Identity.Roles.DireccionCae, Infrastructure.Identity.Roles.CoordinadorCae, Infrastructure.Identity.Roles.Administrador];
+}
+
+/// <summary>
 /// Puerta de página de una ficha 360 con «Nota interna». Entra quien tiene uno de los roles de equipo, o quien abre el
 /// Tenant con una Sesión Privilegiada de acceso total (<see cref="IPoliticaNotaInterna.TieneAccesoTotalAlTenantAsync"/>).
 /// Sustituye a <c>[Authorize(Roles = …)]</c>, que no puede admitir la sesión: el middleware

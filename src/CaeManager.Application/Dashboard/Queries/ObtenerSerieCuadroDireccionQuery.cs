@@ -83,16 +83,18 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
     ITarifasOperadorCaeContext tarifasContext,
     CaeManager.Application.Operaciones.IOperacionesQueryContext operacionesContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     TimeProvider reloj,
     ICierresCuadroDireccion? cierresContext = null)
     : IRequestHandler<ObtenerSerieCuadroDireccionQuery, SerieCuadroDireccionDto>
 {
     public async Task<SerieCuadroDireccionDto> Handle(ObtenerSerieCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
 
         // Leer el Cuadro no da derecho a ver importes: las tarifas son plano Comercial del Operador CAE y las guarda
-        // AutorizacionTarifasOperadorCae. Sin ese rol efectivo (Coordinador CAE) la facturación sale a null.
+        // AutorizacionTarifasOperadorCae. Sin ese rol efectivo en el Tenant de origen (Coordinador CAE, o una Sesión
+        // Privilegiada, que no trae rol de negocio) la facturación sale a null, aunque pase la lectura del Cuadro.
         IReadOnlyList<TarifaOperadorCaeDto>? tarifas = null;
         ILookup<Guid, VigenciaAsignacionOperacion> vigencias = Array.Empty<VigenciaAsignacionOperacion>().ToLookup(_ => Guid.Empty);
         if (request.ConFacturacion && await AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync(currentUserService) is { } operador)
@@ -109,7 +111,7 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
         if (meses.Count == 0)
             return Construir(meses, ahoraUtc, [], 0);
 
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var porTenant = new List<(ClienteAutorizadoDto Cliente, IReadOnlyList<MesMedidoCuadro> Meses)>();
         var sinAlcance = 0;
 
@@ -128,7 +130,6 @@ public class ObtenerSerieCuadroDireccionQueryHandler(
                     : (await cierresContext.CierresMensuales.Where(c => c.ReabiertoEnUtc == null).ToListAsync(cancellationToken))
                         .GroupBy(c => (c.Anyo, c.Mes))
                         .ToDictionary(g => g.Key, g => g.First());
-
 
                 var medidos = new List<MesMedidoCuadro>();
                 foreach (var mes in meses)

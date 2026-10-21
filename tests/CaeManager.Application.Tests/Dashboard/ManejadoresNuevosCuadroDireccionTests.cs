@@ -24,14 +24,23 @@ public class ManejadoresNuevosCuadroDireccionTests
 
     // ---------------------------------------------------------------- Serie
 
-    private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, new MedicionFalsa(), null!, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+    private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance, bool accesoTotal = false) =>
+        new(Autorizados(), alcance, new MedicionFalsa(), null!, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(accesoTotal), new RelojFijo(Ahora));
+
+    /// <summary>La Sesión Privilegiada lee la serie, pero sin rol de negocio no pasa el guard de tarifas: sin importes.</summary>
+    [Fact]
+    public async Task La_serie_en_Sesion_Privilegiada_se_lee_sin_facturacion()
+    {
+        var resultado = await Serie(null, ConAlcance, accesoTotal: true).Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true), default);
+
+        resultado.Tenants.Should().ContainSingle().Which.Meses.Should().OnlyContain(m => m.Facturacion == null);
+    }
 
     [Theory]
     [InlineData("GestorCae")]
     [InlineData("Consulta")]
     [InlineData(null)]
-    public async Task La_serie_rechaza_un_rol_que_no_es_Direccion_ni_Coordinador_CAE(string? rol)
+    public async Task La_serie_rechaza_un_rol_que_no_es_Direccion_Coordinador_ni_Administrador(string? rol)
     {
         var accion = () => Serie(rol, ConAlcance).Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, 1, ConFacturacion: true), default);
 
@@ -60,7 +69,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Comunicaciones
 
     private static ObtenerComunicacionesCuadroDireccionQueryHandler Comunicaciones(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]
@@ -84,7 +93,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Gestiones por día
 
     private static ObtenerGestionesPorDiaCuadroDireccionQueryHandler Gestiones(string? rol, IAlcanceDatosService alcance) =>
-        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora));
 
     [Theory]
     [InlineData("GestorCae")]
@@ -131,7 +140,9 @@ public class ManejadoresNuevosCuadroDireccionTests
     private sealed class AutorizadosFalsos(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
+            // Solo la query del Cuadro: si un handler volviera a ObtenerClientesAutorizadosQuery, una Sesión Privilegiada
+            // recorrería los Tenants autorizados del Actor de Plataforma en vez del Tenant objetivo. Aquí falla.
+            request is ObtenerTenantsCuadroDireccionQuery
                 ? Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 

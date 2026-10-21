@@ -37,19 +37,20 @@ public class ObtenerGestionesPorDiaCuadroDireccionQueryHandler(
     IAlcanceDatosService alcanceDatos,
     IGestionesQueryContext gestionesContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     TimeProvider reloj)
     : IRequestHandler<ObtenerGestionesPorDiaCuadroDireccionQuery, GestionesPorDiaCuadroDireccionDto>
 {
     public async Task<GestionesPorDiaCuadroDireccionDto> Handle(ObtenerGestionesPorDiaCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
         var meses = ObtenerSerieCuadroDireccionQueryHandler.MesesDeLaSerie(request.Anyo, request.Mes, request.Meses, reloj.GetUtcNow().UtcDateTime);
         if (meses.Count == 0)
             return new GestionesPorDiaCuadroDireccionDto([], 0);
 
         var desde = meses[0].InicioUtc;
         var hasta = meses[^1].FinUtc;
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var porTenant = new List<GestionesPorDiaTenantDto>();
         var sinAlcance = 0;
 

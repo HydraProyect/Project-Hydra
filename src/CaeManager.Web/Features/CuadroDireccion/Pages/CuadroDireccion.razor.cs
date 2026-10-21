@@ -97,6 +97,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private string _pestana = "general";
     private bool _error;
     private bool _puedeReabrir;
+    private bool _puedeExportarExtranjeros = true;
 
     private SerieCuadroDireccionDto? _serie;
     private bool _cargandoSerie;
@@ -171,6 +172,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         {
             var usuario = (await EstadoAutenticacion).User;
             _puedeReabrir = usuario.IsInRole(Roles.DireccionCae);
+            // En Sesión Privilegiada el middleware quita los roles: el Excel de extranjeros no se ofrece (su endpoint
+            // exige rol, ver CuadroDireccionEndpoints).
+            _puedeExportarExtranjeros = CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles.Any(usuario.IsInRole);
             if (usuario.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value is { Length: > 0 } usuarioId)
                 _clavePreferencias = $"{PrefijoClavePreferencias}:{usuarioId}";
         }

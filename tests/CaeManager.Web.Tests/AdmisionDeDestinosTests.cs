@@ -169,8 +169,8 @@ public class AdmisionDeDestinosTests
 
         var ocultos = RutasDeLaPaleta.Where(r => !admite(r)).ToList();
 
-        // Solo lo que las páginas niegan al Administrador: el Cuadro de dirección es de Dirección y Coordinación CAE.
-        ocultos.Should().BeEquivalentTo(["/direccion"]);
+        // Las páginas no niegan nada al Administrador: desde el 2026-10-19 también lee el Cuadro de dirección.
+        ocultos.Should().BeEmpty();
     }
 
     [Fact]

@@ -112,7 +112,7 @@ public class SerieValoracionEnVigenciaTests
                 new ClienteAutorizadoDto(E, "E", EsOrigen: false),
             ]),
             new AlcanceDatosServiceFalso(tieneAccesoTotal: true), medicion, new TarifasFalsas(), new OperacionesFalsas(),
-            new DireccionDelOperador(), new RelojFijo(Ahora), new CierreDeSeptiembre());
+            new DireccionDelOperador(), new PoliticaAccesoTotalFalsa(false), new RelojFijo(Ahora), new CierreDeSeptiembre());
 
         var serie = await handler.Handle(new ObtenerSerieCuadroDireccionQuery(2026, 10, 2, ConFacturacion: true), default);
         return (serie, medicion.Pedidos);
@@ -224,7 +224,9 @@ public class SerieValoracionEnVigenciaTests
     private sealed class Autorizados(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
+            // Solo la query del Cuadro: si un handler volviera a ObtenerClientesAutorizadosQuery, una Sesión Privilegiada
+            // recorrería los Tenants autorizados del Actor de Plataforma en vez del Tenant objetivo. Aquí falla.
+            request is ObtenerTenantsCuadroDireccionQuery
                 ? Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 

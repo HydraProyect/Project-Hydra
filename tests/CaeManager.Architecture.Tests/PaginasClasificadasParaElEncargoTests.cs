@@ -70,6 +70,10 @@ public class PaginasClasificadasParaElEncargoTests
             "lectura con IA por Cliente empresarial: permitida por § 9.7 del diseño",
         ["src/CaeManager.Web/Features/DashboardEjecutivo/Pages/DashboardEjecutivo.razor"] =
             "cuadro de mando: lectura agregada del Tenant propietario, permitida por § 9.7 del diseño",
+        ["src/CaeManager.Web/Features/CuadroDireccion/Pages/CuadroDireccion.razor"] =
+            "Cuadro de dirección: lectura agregada del Tenant propietario como el cuadro de mando (§ 9.7); ya lo abría "
+            + "Dirección CAE por encargo y desde el 2026-10-19 también el Administrador (política PoliticaCuadroDireccion); "
+            + "reabrir un mes sigue siendo solo de Dirección CAE",
     };
 
     private static readonly Regex AtributoAuthorize = new(@"@attribute\s+\[Authorize\((?<args>[^\]]*)\)\]", RegexOptions.Compiled);
