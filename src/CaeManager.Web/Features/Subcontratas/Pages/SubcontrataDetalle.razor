@@ -185,7 +185,11 @@
                                         @{ var claves = new ClavesDeHermanos(); }
                                         @foreach (var centro in CentrosPlataformas)
                                         {
-                                            <li class="subcontrata360-grupo" @key="centro.CentroId">@centro.CentroNombre <span>· @centro.ClienteRazonSocial</span></li>
+                                            @* Cabecera del grupo como la maqueta: «Cliente ›» sobre el Centro y, a la derecha, el paso a su Centro 360. *@
+                                            <li class="subcontrata360-grupo" @key="centro.CentroId">
+                                                <span class="subcontrata360-grupo-titulo"><span class="subcontrata360-grupo-cliente">@centro.ClienteRazonSocial ›</span><strong>@centro.CentroNombre</strong></span>
+                                                <a class="subcontrata360-grupo-enlace" href="@($"/centros/{centro.CentroId}")" aria-label="@Textos["AriaIrAlCentro360", centro.CentroNombre]">@Textos["EnlaceIrAlCentro360"]</a>
+                                            </li>
                                             @foreach (var tipo in centro.Tipos)
                                             {
                                                 <FilaRelacion @key="claves.De((centro.CentroId, tipo.TipoDocumentoId))" Nombre="@tipo.TipoDocumentoNombre"

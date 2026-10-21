@@ -750,6 +750,25 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     [Fact]
+    public void Plataformas_cabecera_de_grupo_pone_Cliente_antes_del_Centro_y_enlaza_a_su_Centro_360()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+
+        var grupo = cut.Find("li.subcontrata360-grupo");
+        // Orden de la maqueta: «Cliente ›» y debajo el Centro.
+        grupo.Children[0].TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›Almacén Vigo");
+        grupo.QuerySelector(".subcontrata360-grupo-cliente")!.TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›");
+        grupo.QuerySelector("strong")!.TextContent.Trim().Should().Be("Almacén Vigo");
+
+        var enlace = grupo.QuerySelector("a")!;
+        enlace.GetAttribute("href").Should().Be($"/centros/{CentroId}");
+        enlace.TextContent.Trim().Should().Be("Ir al Centro 360");
+        // El nombre accesible empieza por el texto visible y dice de qué Centro habla.
+        enlace.GetAttribute("aria-label").Should().Be("Ir al Centro 360 de Almacén Vigo");
+    }
+
+    [Fact]
     public void Plataformas_sin_incidencias_muestra_el_estado_vacio_con_el_filtro_en_cero()
     {
         Montar(ajustar: m => m.Supervision = new SupervisionSubcontrataDto(

@@ -923,4 +923,6 @@
   <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Tot · {0}</value></data>
   <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Cap incidència a les plataformes</value></data>
   <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Tot el que s'exigeix està validat a les plataformes dels seus Clients.</value></data>
+  <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360</value></data>
+  <data name="AriaIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360 de {0}</value></data>
 </root>

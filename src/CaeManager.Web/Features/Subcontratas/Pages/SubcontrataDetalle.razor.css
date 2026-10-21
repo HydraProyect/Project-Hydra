@@ -29,20 +29,51 @@
     min-width: 0;
 }
 
-/* .grupo del mockup: rótulo del Centro sobre sus tipos de documento. */
+/* .grupo del mockup: «Cliente ›» sobre el Centro, y a la derecha el paso a su Centro 360. */
 .subcontrata360-grupo {
     list-style: none;
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-wrap: wrap;
     padding: var(--space-3) 0 var(--space-1);
-    font: var(--font-label);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+}
+
+.subcontrata360-grupo-titulo {
+    flex: 1;
+    min-width: 200px;
+    display: flex;
+    flex-direction: column;
+}
+
+.subcontrata360-grupo-cliente {
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
-.subcontrata360-grupo span {
-    letter-spacing: 0;
-    text-transform: none;
-    font-weight: 400;
+.subcontrata360-grupo-titulo strong {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.subcontrata360-grupo-enlace {
+    height: 32px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-label);
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.subcontrata360-grupo-enlace:hover {
+    border-color: var(--color-primary-500);
+    color: var(--color-primary-500);
 }
 
 /* .sub .fila del mockup: documento | pastilla en columna fija | acción. */
