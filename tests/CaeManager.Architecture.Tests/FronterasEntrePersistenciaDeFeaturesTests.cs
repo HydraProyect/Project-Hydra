@@ -68,6 +68,9 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // El endpoint del logo del Tenant (lote 1) autoriza con ese mismo predicado
         // antes de leer la fila del Tenant pedido (invariante I2 e I11).
         ("Tenants.ObtenerLogoTenantQueryHandler", "IOperacionesQueryContext"),
+        // /delegaciones rotula el rol que se ejerce (hallazgo 16, 2026-10-21) con el mismo
+        // predicado de operación del Tenant entero que da el acceso (TenantsBeneficiariosAutorizados).
+        ("Tenants.ObtenerDelegacionesQueryHandler", "IOperacionesQueryContext"),
         // Ficha de Vehículo: valida la selección de Trabajadores del mismo Tenant propietario.
         ("Vehiculos.EditarFichaVehiculoCommandHandler", "ITrabajadoresQueryContext"),
         ("Alertas.ObtenerAlertasQueryHandler", "IAsignacionesQueryContext"),

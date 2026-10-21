@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Bunit;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
 using CaeManager.Infrastructure.Identity;
 using FluentAssertions;
@@ -45,9 +46,22 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
+    public void Sin_operacion_del_Tenant_entero_se_pinta_el_rol_guardado()
+    {
+        // Operación acotada, caducada o ausente: decide la vía heredada, con el rol guardado.
+        var delegacion = Delegacion(rol: Roles.CoordinadorCae);
+        ConocerCuenta(delegacion.Operadores[0].UsuarioId, Roles.Administrador);
+
+        var (cut, _, _) = Renderizar(delegacion);
+
+        cut.Find(".delegaciones-tabla tbody td:nth-child(2)").TextContent.Trim()
+            .Should().Be(Roles.NombreVisible(Roles.CoordinadorCae));
+    }
+
+    [Fact]
     public void Un_Administrador_del_Operador_CAE_externo_figura_como_Administrador_aunque_su_cartera_guarde_Gestor_CAE()
     {
-        var delegacion = Delegacion(rol: Roles.GestorCae);
+        var delegacion = Delegacion(rol: Roles.GestorCae) with { OperacionDelTenantEntero = true };
         ConocerCuenta(delegacion.Operadores[0].UsuarioId, Roles.Administrador);
 
         var (cut, _, _) = Renderizar(delegacion);
@@ -60,7 +74,7 @@ public partial class DelegacionesGen2Tests
     [Fact]
     public void En_una_delegacion_de_Soporte_TALVEG_se_pinta_el_rol_de_la_delegacion()
     {
-        var delegacion = Delegacion(soporte: true, rol: Roles.Consulta);
+        var delegacion = Delegacion(soporte: true, rol: Roles.Consulta) with { OperacionDelTenantEntero = true };
         ConocerCuenta(delegacion.Operadores[0].UsuarioId, Roles.Administrador);
 
         var (cut, _, _) = Renderizar(delegacion);

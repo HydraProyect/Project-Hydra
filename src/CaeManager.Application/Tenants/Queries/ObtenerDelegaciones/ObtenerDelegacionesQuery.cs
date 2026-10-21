@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Tenants;
 using MediatR;
@@ -53,8 +54,15 @@ public record DelegacionDto(
     IReadOnlyList<OperadorDelegadoDto> Operadores,
     PropositoDelegacion Proposito,
     string? MotivoActivacion,
-    DateTime? ExpiraEnUtc)
+    DateTime? ExpiraEnUtc,
+    bool OperacionDelTenantEntero = false)
 {
+    // OperacionDelTenantEntero: hay hoy una Asignación de Operación vigente del Tenant entero
+    // del Operador CAE externo sobre el Tenant beneficiario (TenantsBeneficiariosAutorizados.
+    // OperacionesDelTenantEnteroDeLaOrganizacion). Solo entonces el perfil de origen es el rol
+    // que se ejerce; si no, la pantalla enseña el rol guardado (TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario).
+    // Etiqueta, no autoridad: ninguna puerta lo lee.
+
     /// <summary>
     /// Una delegación de soporte apagada no está "revocada": está
     /// aprovisionada y sin abrir, que es su estado normal en reposo.
@@ -67,7 +75,8 @@ public record DelegacionDto(
     public bool AccesoVigente => Activa && !VentanaCaducada;
 }
 
-public class ObtenerDelegacionesQueryHandler(ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
+public class ObtenerDelegacionesQueryHandler(
+    ITenantsQueryContext dbContext, ICurrentUserService currentUserService, IOperacionesQueryContext operaciones)
     : IRequestHandler<ObtenerDelegacionesQuery, IReadOnlyList<DelegacionDto>>
 {
     public async Task<IReadOnlyList<DelegacionDto>> Handle(
@@ -91,6 +100,7 @@ public class ObtenerDelegacionesQueryHandler(ITenantsQueryContext dbContext, ICu
                 ConsultoraNombre = consultora.Nombre,
                 delegacion.TenantClienteId,
                 ClienteNombre = cliente.Nombre,
+                BeneficiarioId = cliente.Id,
                 delegacion.Activa,
                 delegacion.CreadoEnUtc,
                 delegacion.Proposito,
@@ -116,10 +126,22 @@ public class ObtenerDelegacionesQueryHandler(ITenantsQueryContext dbContext, ICu
                     .Select(a => new OperadorDelegadoDto(a.Id, a.UsuarioId, a.Rol))
                     .ToList());
 
+        // Pares (Operador CAE, Tenant beneficiario) con operación vigente del Tenant entero: el
+        // mismo predicado que da acceso sin cartera (RolEnTenantDelegadoAsync).
+        var origen = tenantOrigenId.Value;
+        var operacionesDelTenantEntero = (await TenantsBeneficiariosAutorizados
+                .OperacionesDelTenantEntero(operaciones, DateTime.UtcNow)
+                .Where(o => o.OperadorTenantId == origen || o.PropietarioTenantId == origen)
+                .Select(o => new { o.OperadorTenantId, o.PropietarioTenantId })
+                .ToListAsync(cancellationToken))
+            .Select(o => (o.OperadorTenantId, o.PropietarioTenantId))
+            .ToHashSet();
+
         return delegaciones.Select(d => new DelegacionDto(
             d.Id, d.TenantConsultoraId, d.ConsultoraNombre, d.TenantClienteId, d.ClienteNombre,
             d.Activa, d.TenantConsultoraId == tenantOrigenId.Value, d.CreadoEnUtc,
             operadoresPorDelegacion.GetValueOrDefault(d.Id, []),
-            d.Proposito, d.MotivoActivacion, d.ExpiraEnUtc)).ToList();
+            d.Proposito, d.MotivoActivacion, d.ExpiraEnUtc,
+            operacionesDelTenantEntero.Contains((d.TenantConsultoraId, d.BeneficiarioId)))).ToList();
     }
 }

@@ -211,7 +211,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddScoped<IClienteActivoSeleccionado>(_ => new Seleccion(_tenantSeleccionado));
-        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(_cuentasConocidas),null!, null!, null!, null!, null!, null!, null!, null!));
+        Services.AddScoped(_ => new UserManager<ApplicationUser>(new AlmacenUsuarios(_cuentasConocidas), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddLocalization();
         // BotonCopiar («Copiar enlace de autorización») importa clipboard.js al pintarse.
         JSInterop.SetupModule("./js/clipboard.js");

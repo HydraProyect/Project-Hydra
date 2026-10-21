@@ -131,10 +131,20 @@ public static class TenantsBeneficiariosAutorizados
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEnteroDeLaOrganizacion(
         IOperacionesQueryContext operaciones, Guid tenantOrigenId, DateTime ahora) =>
+        OperacionesDelTenantEntero(operaciones, ahora).Where(operacion => operacion.OperadorTenantId == tenantOrigenId);
+
+    /// <summary>
+    /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la
+    /// organización: vigentes, externas, no raíz y sin ninguna dimensión de ámbito. Lo usa
+    /// también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se ejerce, en los dos
+    /// sentidos de la delegación; una sola definición para que la etiqueta y el acceso no
+    /// diverjan.
+    /// </summary>
+    public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
+        IOperacionesQueryContext operaciones, DateTime ahora) =>
         operaciones.AsignacionesOperacion.Where(operacion =>
             !operacion.EsRaiz
-            && operacion.OperadorTenantId == tenantOrigenId
-            && operacion.PropietarioTenantId != tenantOrigenId
+            && operacion.PropietarioTenantId != operacion.OperadorTenantId
             && operacion.Estado == EstadoAsignacion.Vigente
             && operacion.VigenciaDesde <= ahora
             && (operacion.VigenciaHasta == null || ahora < operacion.VigenciaHasta)
@@ -218,23 +228,31 @@ public static class TenantsBeneficiariosAutorizados
     /// <summary>
     /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
     /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c>: el mismo
-    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20). Con un
-    /// perfil de origen que da acceso por Operación (<see cref="RolesConAccesoPorOperacion"/> o
-    /// <see cref="RolAcotadoPorCartera"/>), ese perfil: un Administrador del Operador CAE externo
-    /// es Administrador en la Empresa gestionada aunque su cartera guarde «GestorCae».
-    ///
-    /// <para>
-    /// El rol guardado (<paramref name="rolGuardado"/>) solo se enseña donde todavía decide o
-    /// donde no hay nada mejor que decir: en una delegación de Soporte TALVEG (vía heredada,
-    /// <c>CurrentUserService.ResolverRolViaHeredadaAsync</c>) y cuando el perfil de origen no se
-    /// conoce o no da acceso por Operación. Es una etiqueta, no autoridad: ninguna puerta lo lee.
-    /// </para>
+    /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20):
+    /// <list type="bullet">
+    /// <item>Perfil de origen en <see cref="RolesConAccesoPorOperacion"/> y operación vigente del
+    /// Tenant entero (<paramref name="operacionDelTenantEntero"/>,
+    /// <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/>): ese perfil. Un Administrador
+    /// del Operador CAE externo es Administrador en la Empresa gestionada aunque su cartera
+    /// guarde «GestorCae».</item>
+    /// <item>Perfil de origen <see cref="RolAcotadoPorCartera"/>: Gestor CAE (la fila listada
+    /// nace de su cartera).</item>
+    /// <item>Si no, el rol guardado (<paramref name="rolGuardado"/>), que es el que decide por la
+    /// vía heredada (<c>CurrentUserService.ResolverRolViaHeredadaAsync</c>): siempre en Soporte
+    /// TALVEG, con una operación acotada, caducada o ausente, o con el perfil de origen
+    /// desconocido.</item>
+    /// </list>
+    /// Es una etiqueta, no autoridad: ninguna puerta lo lee.
     /// </summary>
-    public static string RolEjercidoEnDelegacion(bool esSoporte, string rolGuardado, string? rolDeOrigen) =>
-        !esSoporte && rolDeOrigen is not null
-            && (RolesConAccesoPorOperacion.Contains(rolDeOrigen) || rolDeOrigen == RolAcotadoPorCartera)
-            ? rolDeOrigen
-            : rolGuardado;
+    public static string RolEjercidoEnTenantBeneficiario(
+        bool esSoporte, bool operacionDelTenantEntero, string rolGuardado, string? rolDeOrigen) =>
+        esSoporte || rolDeOrigen is null
+            ? rolGuardado
+            : rolDeOrigen == RolAcotadoPorCartera
+                ? rolDeOrigen
+                : operacionDelTenantEntero && RolesConAccesoPorOperacion.Contains(rolDeOrigen)
+                    ? rolDeOrigen
+                    : rolGuardado;
 
     /// <summary>Roles que una cartera EXTERNA puede guardar (ya no deciden el rol efectivo).</summary>
     public static readonly IReadOnlyList<string> RolesDelegablesPorOperacion = ["CoordinadorCae", "GestorCae", "Consulta"];
