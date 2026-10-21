@@ -1,5 +1,7 @@
 ﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
 using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
@@ -195,6 +197,14 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private int _cargaCentros;
     private int _cargaEmpresas;
     private int _cargaSubcontratas;
+
+    /// <summary>
+    /// Cifras de las pestañas «Documentación» y «Agenda» (maqueta Cliente 360): se leen en la cadena de la página, no al abrir
+    /// la pestaña, para que el rótulo las lleve desde el principio. <c>null</c> = sin leer o con la lectura fallida: sin cifra.
+    /// </summary>
+    private DocumentacionExigidaClienteDto? _documentacionExigida;
+    private int? _contadorDocumentacion;
+    private int? _contadorAgenda;
 
     /// <summary>
     /// Los contadores impiden que una respuesta tardía escriba; esto corta la
@@ -427,6 +437,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         _errorEmpresas = false;
         _cargandoEmpresas = false;
         _subcontratas = null;
+        _documentacionExigida = null;
+        _contadorDocumentacion = null;
+        _contadorAgenda = null;
         _gestorCaeHabilitado = false;
         _documentacionHabilitada = false;
         _plataformaCaeHabilitada = false;
@@ -471,6 +484,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         await CargarEmpresasAsync();
         if (generacion != _generacion) return;
         await CargarSubcontratasAsync();
+        if (generacion != _generacion) return;
+        await CargarContadoresAsync(generacion);
         if (generacion != _generacion) return;
         await CargarToleranciasSiProcedeAsync();
         if (generacion != _generacion) return;
@@ -655,6 +670,45 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     }
 
     /// <summary>
+    /// Cifras de «Documentación» (los requisitos que exige el Cliente empresarial, más la fila del certificado de la Seguridad
+    /// Social si tiene Empresas) y de «Agenda» (sus contactos). Informativas: si una lectura falla la pestaña se queda sin cifra.
+    /// Los requisitos se pasan a la lista, que no los repite al abrir la pestaña.
+    /// </summary>
+    private async Task CargarContadoresAsync(int generacion)
+    {
+        if (_detalle is not { } detalle) return;
+        DocumentacionExigidaClienteDto? exigida = null;
+        int? documentacion = null;
+        int? agenda = null;
+        try
+        {
+            exigida = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(detalle.Id), _cancelacion);
+            if (exigida is not null)
+                documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } ? 1 : 0);
+        }
+        catch (Exception)
+        {
+            exigida = null;
+            documentacion = null;
+        }
+
+        try
+        {
+            agenda = (await Mediator.Send(new ObtenerAgendaContactosQuery(TipoPropietarioAgenda.Cliente, detalle.Id), _cancelacion)).Count;
+        }
+        catch (Exception)
+        {
+            agenda = null;
+        }
+
+        if (generacion != _generacion) return;
+        _documentacionExigida = exigida;
+        _contadorDocumentacion = documentacion;
+        _contadorAgenda = agenda;
+        StateHasChanged();
+    }
+
+    /// <summary>
     /// Al navegar fuera se invalida lo que estuviera en vuelo y se cancela la
     /// consulta emitida; la cancelación llega como una excepción que el catch
     /// de cada carga descarta, porque su contador dejó de ser el vigente.
@@ -811,6 +865,10 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                     definicion with { Contador = new ContadorPestana(_empresas.Count, Plural(_empresas.Count, "GlosaEmpresaUno", "GlosaEmpresaVarios")) },
                 "subcontratas" when _subcontratas is not null =>
                     definicion with { Contador = new ContadorPestana(_subcontratas.Count, Plural(_subcontratas.Count, "GlosaSubcontrataUno", "GlosaSubcontrataVarios")) },
+                "documentacion" when _contadorDocumentacion is > 0 and var documentos =>
+                    definicion with { Contador = new ContadorPestana(documentos, Plural(documentos, "GlosaDocumentoUno", "GlosaDocumentoVarios")) },
+                "agenda" when _contadorAgenda is > 0 and var contactos =>
+                    definicion with { Contador = new ContadorPestana(contactos, Plural(contactos, "GlosaContactoUno", "GlosaContactoVarios")) },
                 _ => definicion
             };
         }).ToList();

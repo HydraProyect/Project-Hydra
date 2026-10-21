@@ -98,6 +98,18 @@
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontratas</value>
   </data>
+  <data name="GlosaDocumentoUno" xml:space="preserve">
+    <value>documento exigido</value>
+  </data>
+  <data name="GlosaDocumentoVarios" xml:space="preserve">
+    <value>documentos exigidos</value>
+  </data>
+  <data name="GlosaContactoUno" xml:space="preserve">
+    <value>contacto</value>
+  </data>
+  <data name="GlosaContactoVarios" xml:space="preserve">
+    <value>contactos</value>
+  </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra como contratista: {0}</value>
     <comment>Empresa contratista del Tenant propietario que trabaja en el Centro del Cliente empresarial, su titular. En las filas se nombra solo si hay varias Empresas contratistas visibles; en la cabecera, solo si hay una.</comment>

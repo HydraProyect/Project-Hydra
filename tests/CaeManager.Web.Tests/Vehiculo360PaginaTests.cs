@@ -906,7 +906,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         var tarjeta = TarjetaNota(cut);
         tarjeta.Should().NotBeNull();
         tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
-        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el Cliente.");
         tarjeta.TextContent.Should().NotContain("Sin nota interna.");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
             .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información»");
@@ -920,7 +920,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el Cliente.");
     }
 
     /// <summary>
@@ -936,7 +936,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         TarjetaNota(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

@@ -120,11 +120,20 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
                 Textos[TrabajadoresConIncidencias == 1 ? "GlosaTrabajadorConIncidencias" : "GlosaTrabajadoresConIncidencias"],
                 EnAlerta: TrabajadoresConIncidencias > 0)
         },
-        new(PestanaDocumentacionCentro, Textos["PestanaDocumentacionCentro360"]),
+        // Maqueta del 20-10: el contador de «Documentación Empresa» son los documentos de la Empresa con incidencia, que antes
+        // iban en un bloque al abrir «Trabajadores». Una pestaña sin nada que contar no enseña «0».
+        new(PestanaDocumentacionCentro, Textos["PestanaDocumentacionCentro360"])
+        {
+            Contador = IncidenciasEmpresaHeader.Count > 0
+                ? new ContadorPestana(IncidenciasEmpresaHeader.Count,
+                    Textos[IncidenciasEmpresaHeader.Count == 1 ? "GlosaDocumentoEmpresaConIncidencia" : "GlosaDocumentosEmpresaConIncidencia"],
+                    EnAlerta: true)
+                : null
+        },
         new(PestanaRequisitos, Textos["PestanaRequisitos360"]),
         new(PestanaVisitas, Textos["PestanaVisitas"])
         {
-            Contador = new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"])
+            Contador = _visitas.Count > 0 ? new ContadorPestana(_visitas.Count, Textos["VisitasProgramadas360"]) : null
         },
         new(PestanaFicha, Textos["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorial"])
