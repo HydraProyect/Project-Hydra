@@ -273,17 +273,21 @@ public class CoberturaPantallasTests(CoberturaPantallasFixture fixture) : IClass
     private async Task<Dictionary<string, int>> MedirBetaAsync(CaeManagerDbContext contexto)
     {
         var centro = await contexto.Centros.SingleAsync(c => c.Nombre == CoberturaPantallasSeeder.CentroMasivo);
-        var servicio = new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto);
-        var pares = await servicio.ObtenerParesExigidosAsync([centro.Id], CancellationToken.None);
+        // Los pares exigidos del servicio son de Trabajador; lo de Empresa se mide por lo que el Centro incluye como
+        // requisito y la Empresa propia no ha entregado.
+        var propia = await contexto.Empresas.SingleAsync(e => e.RazonSocial == CoberturaPantallasSeeder.EmpresaPropiaBeta);
         var tiposDeVolumen = await contexto.TiposDocumento
             .Where(t => t.Nombre.StartsWith(CoberturaPantallasSeeder.PrefijoTipoDeVolumen)).Select(t => t.Id).ToListAsync();
-
+        var exigidos = await contexto.TiposDocumentoCentros
+            .Where(f => f.CentroId == centro.Id && f.Incluido && tiposDeVolumen.Contains(f.TipoDocumentoId)).Select(f => f.TipoDocumentoId).ToListAsync();
+        var entregados = (await contexto.Documentos.Operativos()
+            .Where(d => d.EmpresaId == propia.Id).Select(d => d.TipoDocumentoId).ToListAsync()).ToHashSet();
         return new Dictionary<string, int>
         {
             [new CeldaDeCobertura("Volumen", "Trabajadores en un Centro", 0).Clave] =
                 await contexto.Asignaciones.CountAsync(a => a.CentroId == centro.Id && a.FechaBaja == null),
             [new CeldaDeCobertura("Volumen", "Documentos pendientes de una Empresa", 0).Clave] =
-                pares.Count(p => tiposDeVolumen.Contains(p.TipoDocumentoId) && p.Estado == EstadoDocumento.Faltante)
+                exigidos.Count(id => !entregados.Contains(id))
         };
     }
 
