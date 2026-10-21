@@ -488,7 +488,7 @@
     <value>Sense nota interna.</value>
   </data>
   <data name="NotaInternaNoLaVeCliente" xml:space="preserve">
-    <value>No la veu el client.</value>
+    <value>No la veu el Client.</value>
     <comment>Peu de la targeta NotaInterna: la nota no la veu l'usuari d'un Client. La veuen l'equip i el Gestor CAE d'un Operador CAE extern.</comment>
   </data>
   <data name="NotaInternaEditar" xml:space="preserve">

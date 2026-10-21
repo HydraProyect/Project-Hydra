@@ -34,7 +34,8 @@ public record CentroDetalleDto(
     bool? AtmosferasExplosivas = null,
     bool FichaVisible = false,
     string? Notas = null,
-    bool NotaInternaVisible = false);
+    bool NotaInternaVisible = false,
+    DateTime? CreadoEnUtc = null);
 
 public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos, IPoliticaNotaInterna politicaNotaInterna)
     : IRequestHandler<ObtenerCentroPorIdQuery, CentroDetalleDto?>
@@ -73,7 +74,7 @@ public class ObtenerCentroPorIdQueryHandler(ICentrosQueryContext centrosContext,
                 conFicha ? centro.TrabajosEnAltura : null,
                 conFicha ? centro.EspaciosConfinados : null,
                 conFicha ? centro.AtmosferasExplosivas : null, conFicha,
-                conNotaInterna ? centro.Notas : null, conNotaInterna))
+                conNotaInterna ? centro.Notas : null, conNotaInterna, centro.CreadoEnUtc))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
