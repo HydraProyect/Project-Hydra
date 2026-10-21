@@ -134,6 +134,7 @@ src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumento
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs :: clienteIdsVisibles = 5
+src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs :: ClienteId = 5
 src/CaeManager.Application/Documentos/Queries/ObtenerRevisionesIaPendientes/ObtenerRevisionesIaPendientesQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/SituacionEnCentro/SituacionDocumentosEnCentrosService.cs :: ClienteId = 2
 src/CaeManager.Application/Documentos/SituacionEnCentro/SituacionDocumentosEnCentrosService.cs :: ObtenerClienteIdsVisiblesAsync = 1
