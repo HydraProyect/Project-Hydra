@@ -162,3 +162,5 @@ src/CaeManager.Web/Services/ContadorPendientesSelectorTenant.cs :: Bandeja = 1
 
 # Calendario reutiliza el Drawer de reclamaciones existente: referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
 src/CaeManager.Web/Features/Calendario/Pages/Calendario.razor :: Bandeja = 1
+# Reclamar para acceso reutiliza el Drawer de reclamaciones existente (DrawerReclamacionLote): referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
+src/CaeManager.Web/Features/Empresas/Pages/ReclamarParaAcceso.razor :: Bandeja = 1

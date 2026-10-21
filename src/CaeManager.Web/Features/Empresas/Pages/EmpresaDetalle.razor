@@ -88,6 +88,7 @@
             </Datos>
             <Acciones>
                 <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
                 <SoloConEscritura>
                     <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["AccionSubirDocumento"]</Boton>
                 </SoloConEscritura>
