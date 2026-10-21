@@ -69,9 +69,9 @@ public class GestionarUnicoFichas360Tests : BunitContext
 
         var filas = cut.FindAll(".panel-doc-base-fila");
         filas.Select(Botones).Should().Equal(
-            new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"], ["Gestionar"] },
+            new List<string>[] { ["Gestionar"], ["Gestionar"], ["Gestionar"], [] },
             (a, b) => a.SequenceEqual(b),
-            "Vencido, Sin confirmar, Por vencer y Vigente llevan «Gestionar» (regla del 2026-10-18)");
+            "Vencido, Sin confirmar y Por vencer llevan «Gestionar»; lo vigente no (maqueta Trabajador 360, 2026-10-21)");
 
         var total = cut.FindAll(".panel-doc-base-fila button").Count;
         for (var i = 0; i < total; i++)
@@ -84,24 +84,20 @@ public class GestionarUnicoFichas360Tests : BunitContext
         }
 
         corregidos.Should().Equal(
-            [Vencido, SinConfirmar, Proximo, Vigente],
-            "«Gestionar» abre el mismo editor que abría el verbo de antes, para el documento de su fila; también el del Vigente");
+            [Vencido, SinConfirmar, Proximo],
+            "«Gestionar» abre el mismo editor que abría el verbo de antes, para el documento de su fila");
     }
 
     [Fact]
-    public void Gestionar_del_documento_Vigente_va_en_tono_secundario_y_el_resto_en_tono_normal()
+    public void El_documento_Vigente_no_lleva_Gestionar_y_los_demas_conservan_la_accion_comun_de_la_fila()
     {
         this.ConRolDeEscritura(Roles.GestorCae);
         var cut = Panel([]);
 
-        var clases = cut.FindAll(".panel-doc-base-fila")
-            .Select(f => f.QuerySelector("button")!.ClassList.Contains(EstadoDocumentoFicha360.ClaseGestionarDiscreto))
-            .ToList();
-
-        // Solo el documento Vigente (la cuarta fila) lleva la clase gestionar-discreto.
-        clases.Should().Equal(new[] { false, false, false, true });
-        cut.FindAll(".panel-doc-base-fila button").Should().OnlyContain(b => b.ClassList.Contains("accion-fila-enlace"),
-            "el discreto conserva la acción común de la fila; solo cambia el tono");
+        var filas = cut.FindAll(".panel-doc-base-fila");
+        filas[3].QuerySelectorAll("button").Should().BeEmpty("lo vigente no pide trabajo");
+        cut.FindAll(".panel-doc-base-fila button").Should().HaveCount(3)
+            .And.OnlyContain(b => b.ClassList.Contains("accion-fila-enlace"));
     }
 
     [Theory]
@@ -138,7 +134,7 @@ public class GestionarUnicoFichas360Tests : BunitContext
         var cut = PanelConFaltante(llamadas);
 
         cut.FindAll(".panel-doc-base-fila").Select(Botones).Should().Equal(
-            new List<string>[] { ["Gestionar"], ["Gestionar"] }, (a, b) => a.SequenceEqual(b), "Falta pide trabajo; Vigente también lleva «Gestionar», en tono secundario");
+            new List<string>[] { ["Gestionar"], [] }, (a, b) => a.SequenceEqual(b), "Falta pide trabajo; lo vigente no lleva «Gestionar»");
 
         await cut.Find(".panel-doc-base-fila button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 

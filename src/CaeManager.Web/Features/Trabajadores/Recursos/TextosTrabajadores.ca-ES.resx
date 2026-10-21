@@ -600,6 +600,96 @@
   <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
     <value>Vigència sense confirmar</value>
   </data>
+  <data name="DocBaseSubVigente" xml:space="preserve">
+    <value>Vigent fins al {0}</value>
+  </data>
+  <data name="DocBaseSubVigenteSinFecha" xml:space="preserve">
+    <value>Al dia</value>
+  </data>
+  <data name="DocBaseSubPresente" xml:space="preserve">
+    <value>Document present</value>
+  </data>
+  <data name="DocBaseSubProximoAVencer" xml:space="preserve">
+    <value>Venç el {0}</value>
+  </data>
+  <data name="DocBaseSubVencido" xml:space="preserve">
+    <value>Va vèncer el {0}</value>
+  </data>
+  <data name="DocBaseSubFalta" xml:space="preserve">
+    <value>Sense document pujat</value>
+  </data>
+  <data name="DocBaseSubSinConfirmar" xml:space="preserve">
+    <value>Falta confirmar la data de caducitat</value>
+  </data>
+  <data name="SeparadorExigidosEnTodos" xml:space="preserve">
+    <value>Exigits a tots els seus Centres</value>
+  </data>
+  <data name="SeparadorExigidosEnAlgunos" xml:space="preserve">
+    <value>Exigits només en alguns Centres</value>
+  </data>
+  <data name="SeparadorOtrosDocumentos" xml:space="preserve">
+    <value>Altres documents del treballador</value>
+  </data>
+  <data name="AlcanceTodosCentros" xml:space="preserve">
+    <value>Als seus {0} Centres</value>
+  </data>
+  <data name="AlcanceUnicoCentro" xml:space="preserve">
+    <value>Al seu únic Centre</value>
+  </data>
+  <data name="AlcanceSoloEn" xml:space="preserve">
+    <value>Només a {0}</value>
+  </data>
+  <data name="AlcanceEnDos" xml:space="preserve">
+    <value>A {0} i {1}</value>
+  </data>
+  <data name="AlcanceEnVarios" xml:space="preserve">
+    <value>A {0}, {1} i {2} més</value>
+  </data>
+  <data name="AlcanceNingunCentro" xml:space="preserve">
+    <value>Cap Centre l'exigeix avui</value>
+  </data>
+  <data name="ContadorDocumentosUno" xml:space="preserve">
+    <value>document</value>
+  </data>
+  <data name="ContadorDocumentosVarios" xml:space="preserve">
+    <value>documents</value>
+  </data>
+  <data name="SeparadorSinConfirmar" xml:space="preserve">
+    <value>Vigència sense confirmar</value>
+  </data>
+  <data name="BajaDeteccionTitulo" xml:space="preserve">
+    <value>Podria estar de baixa a {0}</value>
+  </data>
+  <data name="BajaDeteccionMotivo" xml:space="preserve">
+    <value>No apareix a l'últim document de personal de l'Empresa</value>
+  </data>
+  <data name="BajaDeteccionAyuda" xml:space="preserve">
+    <value>Confirmar la baixa el dona de baixa i tanca les seves assignacions. Si el document que van pujar estava incomplet, ignora-la.</value>
+  </data>
+  <data name="BajaDeteccionConfirmar" xml:space="preserve">
+    <value>Confirma la baixa</value>
+  </data>
+  <data name="BajaDeteccionIgnorar" xml:space="preserve">
+    <value>Ignora</value>
+  </data>
+  <data name="BajaDeteccionVerComparacion" xml:space="preserve">
+    <value>Veure la comparació →</value>
+  </data>
+  <data name="BajaDeteccionDialogoTitulo" xml:space="preserve">
+    <value>Vols donar de baixa aquest treballador?</value>
+  </data>
+  <data name="BajaDeteccionDialogoMensaje" xml:space="preserve">
+    <value>{0} deixarà d'estar actiu i es tancaran les seves assignacions a Centres. Ho pots veure a la comparació abans de confirmar.</value>
+  </data>
+  <data name="ToastBajaDeteccionConfirmada" xml:space="preserve">
+    <value>Treballador donat de baixa.</value>
+  </data>
+  <data name="ToastBajaDeteccionIgnorada" xml:space="preserve">
+    <value>Avís ignorat: el treballador continua d'alta.</value>
+  </data>
+  <data name="DatosTrabajadorSinDato" xml:space="preserve">
+    <value>Sense informar</value>
+  </data>
   <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
     <value>Documentació base: al dia</value>
   </data>

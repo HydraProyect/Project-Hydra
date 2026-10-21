@@ -600,6 +600,96 @@
   <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
     <value>Vigencia sin confirmar</value>
   </data>
+  <data name="DocBaseSubVigente" xml:space="preserve">
+    <value>Vigente hasta el {0}</value>
+  </data>
+  <data name="DocBaseSubVigenteSinFecha" xml:space="preserve">
+    <value>Al día</value>
+  </data>
+  <data name="DocBaseSubPresente" xml:space="preserve">
+    <value>Documento presente</value>
+  </data>
+  <data name="DocBaseSubProximoAVencer" xml:space="preserve">
+    <value>Vence el {0}</value>
+  </data>
+  <data name="DocBaseSubVencido" xml:space="preserve">
+    <value>Venció el {0}</value>
+  </data>
+  <data name="DocBaseSubFalta" xml:space="preserve">
+    <value>Sin documento subido</value>
+  </data>
+  <data name="DocBaseSubSinConfirmar" xml:space="preserve">
+    <value>Falta confirmar la fecha de caducidad</value>
+  </data>
+  <data name="SeparadorExigidosEnTodos" xml:space="preserve">
+    <value>Exigidos en todos sus Centros</value>
+  </data>
+  <data name="SeparadorExigidosEnAlgunos" xml:space="preserve">
+    <value>Exigidos solo en algunos Centros</value>
+  </data>
+  <data name="SeparadorOtrosDocumentos" xml:space="preserve">
+    <value>Otros documentos del trabajador</value>
+  </data>
+  <data name="AlcanceTodosCentros" xml:space="preserve">
+    <value>En sus {0} Centros</value>
+  </data>
+  <data name="AlcanceUnicoCentro" xml:space="preserve">
+    <value>En su único Centro</value>
+  </data>
+  <data name="AlcanceSoloEn" xml:space="preserve">
+    <value>Solo en {0}</value>
+  </data>
+  <data name="AlcanceEnDos" xml:space="preserve">
+    <value>En {0} y {1}</value>
+  </data>
+  <data name="AlcanceEnVarios" xml:space="preserve">
+    <value>En {0}, {1} y {2} más</value>
+  </data>
+  <data name="AlcanceNingunCentro" xml:space="preserve">
+    <value>Ningún Centro lo exige hoy</value>
+  </data>
+  <data name="ContadorDocumentosUno" xml:space="preserve">
+    <value>documento</value>
+  </data>
+  <data name="ContadorDocumentosVarios" xml:space="preserve">
+    <value>documentos</value>
+  </data>
+  <data name="SeparadorSinConfirmar" xml:space="preserve">
+    <value>Vigencia sin confirmar</value>
+  </data>
+  <data name="BajaDeteccionTitulo" xml:space="preserve">
+    <value>Podría estar de baja en {0}</value>
+  </data>
+  <data name="BajaDeteccionMotivo" xml:space="preserve">
+    <value>No aparece en el último documento de personal de la Empresa</value>
+  </data>
+  <data name="BajaDeteccionAyuda" xml:space="preserve">
+    <value>Confirmar la baja le da de baja y cierra sus asignaciones. Si el documento que subieron estaba incompleto, ignórala.</value>
+  </data>
+  <data name="BajaDeteccionConfirmar" xml:space="preserve">
+    <value>Confirmar baja</value>
+  </data>
+  <data name="BajaDeteccionIgnorar" xml:space="preserve">
+    <value>Ignorar</value>
+  </data>
+  <data name="BajaDeteccionVerComparacion" xml:space="preserve">
+    <value>Ver la comparación →</value>
+  </data>
+  <data name="BajaDeteccionDialogoTitulo" xml:space="preserve">
+    <value>¿Dar de baja a este trabajador?</value>
+  </data>
+  <data name="BajaDeteccionDialogoMensaje" xml:space="preserve">
+    <value>{0} dejará de estar activo y se cerrarán sus asignaciones a Centros. Lo puedes ver en la comparación antes de confirmar.</value>
+  </data>
+  <data name="ToastBajaDeteccionConfirmada" xml:space="preserve">
+    <value>Trabajador dado de baja.</value>
+  </data>
+  <data name="ToastBajaDeteccionIgnorada" xml:space="preserve">
+    <value>Aviso ignorado: el trabajador sigue de alta.</value>
+  </data>
+  <data name="DatosTrabajadorSinDato" xml:space="preserve">
+    <value>Sin informar</value>
+  </data>
   <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
     <value>Documentación base: al día</value>
   </data>
