@@ -102,25 +102,22 @@
   <data name="TotalMes" xml:space="preserve">
     <value>Total del mes</value>
   </data>
-  <data name="SubEmpresa" xml:space="preserve">
-    <value>{0} · {1} · {2}</value>
-  </data>
   <data name="SubExtranjerosUno" xml:space="preserve">
     <value>{0} extranjero</value>
   </data>
   <data name="SubExtranjerosVarios" xml:space="preserve">
     <value>{0} extranjeros</value>
   </data>
-  <data name="SubCentrosNuevosUno" xml:space="preserve">
+  <data name="SubCentrosUno" xml:space="preserve">
     <value>{0} Centro nuevo</value>
   </data>
-  <data name="SubCentrosNuevosVarios" xml:space="preserve">
+  <data name="SubCentrosVarios" xml:space="preserve">
     <value>{0} Centros nuevos</value>
   </data>
-  <data name="SubObrasNuevasUno" xml:space="preserve">
+  <data name="SubObrasUno" xml:space="preserve">
     <value>{0} Obra nueva</value>
   </data>
-  <data name="SubObrasNuevasVarios" xml:space="preserve">
+  <data name="SubObrasVarios" xml:space="preserve">
     <value>{0} Obras nuevas</value>
   </data>
   <data name="SinTarifa" xml:space="preserve">

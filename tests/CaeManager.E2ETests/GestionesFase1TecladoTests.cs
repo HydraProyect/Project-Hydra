@@ -52,8 +52,8 @@ public class GestionesFase1TecladoTests(WebAppFixtureListados fixture)
         var nombre2 = (await segundaFila.Locator(".gestion-trabajador-centro button:not(.gestion-centro)").InnerTextAsync()).Trim();
         var centro2 = (await segundaFila.Locator(".gestion-centro").InnerTextAsync()).Trim();
         var centro1 = (await primeraFila.Locator(".gestion-centro").InnerTextAsync()).Trim();
-        var tipo1 = (await primeraFila.Locator(".gestion-tipo-documento").InnerTextAsync()).Trim();
-        var tipo2 = (await segundaFila.Locator(".gestion-tipo-documento").InnerTextAsync()).Trim();
+        var tipo1 = (await primeraFila.Locator(".gestion-tipo-documento button.nombre-abre-vista-rapida").InnerTextAsync()).Trim();
+        var tipo2 = (await segundaFila.Locator(".gestion-tipo-documento button.nombre-abre-vista-rapida").InnerTextAsync()).Trim();
         Assert.False(string.IsNullOrWhiteSpace(nombre1) || string.IsNullOrWhiteSpace(nombre2)
             || string.IsNullOrWhiteSpace(centro1) || string.IsNullOrWhiteSpace(centro2)
             || string.IsNullOrWhiteSpace(tipo1) || string.IsNullOrWhiteSpace(tipo2),

@@ -681,8 +681,14 @@
   <data name="GlosaAlertas" xml:space="preserve">
     <value>{0} alertas que requieren una decisión</value>
   </data>
+  <data name="GlosaAlertasUna" xml:space="preserve">
+    <value>1 alerta que requiere una decisión</value>
+  </data>
   <data name="GlosaSinPrincipal" xml:space="preserve">
     <value>{0} Empresas sin Gestor CAE principal</value>
+  </data>
+  <data name="GlosaSinPrincipalUna" xml:space="preserve">
+    <value>1 Empresa sin Gestor CAE principal</value>
   </data>
   <data name="CarteraTitulo" xml:space="preserve">
     <value>Cartera por Gestor CAE</value>

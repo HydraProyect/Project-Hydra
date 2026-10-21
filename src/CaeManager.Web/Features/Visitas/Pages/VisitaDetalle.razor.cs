@@ -134,6 +134,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         return recomendacion.Tipo switch
         {
             TipoRecomendacionVisita.DocumentacionPendiente => Textos["RecomendacionDocumentacionPendiente", recomendacion.Sujeto, tipos],
+            TipoRecomendacionVisita.DocumentacionVencida => Textos["RecomendacionDocumentacionVencida", recomendacion.Sujeto, tipos],
             TipoRecomendacionVisita.VenceAntesDeLaEntrada => Textos["RecomendacionVenceAntesDeLaEntrada", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.VencidoEnTolerancia => Textos["RecomendacionVencidoEnTolerancia", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.YaVencido => Textos["RecomendacionYaVencido", recomendacion.Sujeto, tipos, fecha],

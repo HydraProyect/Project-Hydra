@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
@@ -189,6 +189,13 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
     private static string Texto(IElement elemento) => System.Text.RegularExpressions.Regex.Replace(elemento.TextContent, @"\s+", " ").Trim();
 
+    /// <summary>Los grupos salen plegados: abre todos los que lo estén para poder leer sus filas.</summary>
+    private static void Desplegar(IRenderedComponent<PestanaReclamarEmpresa> cut)
+    {
+        while (cut.FindAll("[data-alternar-grupo][aria-expanded=false]").FirstOrDefault() is { } cerrado)
+            cerrado.Click();
+    }
+
     private static IElement Boton(IRenderedComponent<PestanaReclamarEmpresa> cut, string texto) =>
         cut.FindAll("button").Single(b => Texto(b).StartsWith(texto, StringComparison.Ordinal));
 
@@ -197,13 +204,14 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, mediador) = Renderizar(new Escenario());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         var consulta = Preventivas(mediador).Single();
         consulta.EmpresaId.Should().Be(EmpresaId);
         consulta.DelegacionEmpresaId.Should().BeNull();
         consulta.OficioEmpresaId.Should().BeNull();
         cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto)
             .Should().Equal("Documentos de Empresa", "Delegación Cataluña", "Contactos de la Empresa");
+        Desplegar(cut);
         cut.Markup.Should().Contain("Reconocimiento médico").And.Contain("Formación PRL").And.Contain("Información de riesgos");
         cut.Markup.Should().Contain("Se reclama a Montse Puig Casals").And.Contain("Reclamado hace 3 días").And.Contain("Sin reclamar");
         cut.FindAll(".reclamar-empresa-sin-contacto").Should().ContainSingle("la agenda sin contacto avisa de que no hay a quién reclamar");
@@ -214,9 +222,9 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario());
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         var fichas = cut.FindAll(".reclamar-empresa-ficha").Select(Texto).ToList();
-        fichas[0].Should().Contain("1").And.Contain("Documentos de Empresa vencidos o pendientes");
+        fichas[0].Should().Contain("1").And.Contain("Documentos de Empresa por reclamar");
         fichas[1].Should().Contain("3").And.Contain("Trabajadores afectados");
         cut.FindAll(".reclamar-empresa-ficha-filtro").Select(Texto)
             .Should().Equal("1 Vencidos · Trabajadores", "1 Por vencer · Trabajadores", "1 Pendientes · Trabajadores");
@@ -247,9 +255,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void El_filtro_de_estado_se_aplica_en_cliente_sin_volver_a_pedir()
     {
         var (cut, mediador) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.Find("select[aria-label='Estado']").Change("PorVencer");
+        Desplegar(cut);
 
         cut.Markup.Should().Contain("Formación PRL").And.NotContain("Reconocimiento médico").And.NotContain("Certificado TGSS");
         Preventivas(mediador).Should().HaveCount(1, "el estado no es un filtro de la consulta");
@@ -260,12 +269,14 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Una_ficha_de_estado_alterna_el_filtro()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.Find(".reclamar-empresa-ficha-filtro[data-categoria=Vencido]").Click();
+        Desplegar(cut);
         cut.Markup.Should().Contain("Reconocimiento médico").And.NotContain("Formación PRL");
 
         cut.Find(".reclamar-empresa-ficha-filtro[data-categoria=Vencido]").Click();
+        Desplegar(cut);
         cut.Markup.Should().Contain("Formación PRL");
     }
 
@@ -273,7 +284,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Agrupar_por_Trabajador_pone_primero_lo_de_la_Empresa_y_despues_cada_Trabajador()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         Boton(cut, "Trabajador").Click();
 
@@ -286,9 +297,10 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Agrupar_por_Tipo_de_documento_nombra_el_titular_en_cada_fila()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         Boton(cut, "Tipo de documento").Click();
+        Desplegar(cut);
 
         cut.FindAll(".reclamar-empresa-grupo-titulo h3").Select(Texto)
             .Should().BeEquivalentTo("Certificado TGSS", "Reconocimiento médico", "Formación PRL", "Información de riesgos");
@@ -300,7 +312,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario { Delegaciones = [] });
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones"));
         cut.Markup.Should().Contain("Esta Empresa no tiene delegaciones");
         cut.FindAll("select[aria-label='Delegación']").Should().BeEmpty();
         cut.FindAll(".reclamar-empresa-segmento button").Single(b => Texto(b) == "Delegación").HasAttribute("disabled").Should().BeTrue();
@@ -344,7 +356,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
 
         Boton(cut, "Reintentar").Click();
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         Preventivas(mediador).Should().HaveCount(2);
     }
 
@@ -356,14 +368,14 @@ public class PestanaReclamarEmpresaTests : BunitContext
             Preventiva = q => Task.FromResult(new ReclamacionPreventivaEmpresaDto(
                 q.DelegacionEmpresaId is null ? LotesDeMuestra() : [], [new(Cataluna, "Cataluña")], [], []))
         });
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada con estos filtros"));
         cut.Markup.Should().NotContain("Nada que reclamar a esta Empresa", "con un filtro puesto, el estado vacío es el de los filtros");
         cut.FindAll("button").First(b => Texto(b) == "Quitar filtros").Click();
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         Preventivas(mediador).Last().DelegacionEmpresaId.Should().BeNull();
     }
 
@@ -387,7 +399,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario { PendientesDeSubir = () => throw new InvalidOperationException("fallo de prueba") });
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         cut.Markup.Should().Contain("No se pudo cargar lo pendiente de subir a plataformas.").And.NotContain("fallo de prueba");
     }
 
@@ -395,7 +407,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Reclamar_lo_visible_abre_el_cajon_de_siempre_en_su_revision_y_no_envia_nada()
     {
         var (cut, mediador) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         Boton(cut, "Reclamar lo visible (4)").Click();
 
@@ -410,7 +422,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Reclamar_un_grupo_abre_el_cajon_solo_con_ese_lote_y_con_el_filtro_de_estado_aplicado()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         cut.Find("select[aria-label='Estado']").Change("Vencido");
 
         var cabecera = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Delegación Cataluña");
@@ -426,7 +438,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     public void Un_lote_sin_destinatario_deja_su_boton_deshabilitado()
     {
         var (cut, _) = Renderizar(new Escenario());
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         var agenda = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Contactos de la Empresa");
         agenda.QuerySelectorAll("button").Single(b => Texto(b) == "Reclamar").HasAttribute("disabled").Should().BeTrue();
@@ -440,7 +452,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var escenario = new Escenario();
         escenario.Preventiva = _ => ++llamadas == 1 ? Task.FromResult(escenario.Dto(LotesDeMuestra())) : puerta.Task;
         var (cut, mediador) = Renderizar(escenario);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         Boton(cut, "Reclamar lo visible").HasAttribute("disabled").Should().BeFalse();
 
         cut.Find("select[aria-label='Delegación']").Change(Aragon.ToString());
@@ -469,7 +481,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var escenario = new Escenario();
         escenario.Preventiva = _ => Task.FromResult(escenario.Dto([lote]));
         var (cut, _) = Renderizar(escenario);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reconocimiento médico"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.FindAll(".reclamar-empresa-ficha")[1].TextContent.Should().Contain("2");
         Boton(cut, "Trabajador").Click();
@@ -486,7 +498,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var escenario = new Escenario();
         escenario.Preventiva = _ => ++llamadas == 1 ? Task.FromResult(escenario.Dto(LotesDeMuestra())) : puerta.Task;
         var (cut, mediador) = Renderizar(escenario);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.Find("select[aria-label='Delegación']").Change(Cataluna.ToString());
 
@@ -507,7 +519,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         var escenario = new Escenario();
         escenario.Preventiva = _ => ++llamadas == 1 ? Task.FromResult(escenario.Dto(LotesDeMuestra())) : puerta.Task;
         var (cut, mediador) = Renderizar(escenario);
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
 
         cut.Find("select[aria-label='Delegación']").Change(Aragon.ToString());
 
@@ -520,8 +532,109 @@ public class PestanaReclamarEmpresaTests : BunitContext
     {
         var (cut, _) = Renderizar(new Escenario(), Roles.Consulta);
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Certificado TGSS"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
         cut.Markup.Should().Contain("Montse Puig Casals");
         cut.FindAll("button").Select(Texto).Should().NotContain(t => t.StartsWith("Reclamar", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Los_grupos_salen_plegados_con_el_recuento_en_la_cabecera_y_se_despliegan_uno_a_uno()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        cut.FindAll(".reclamar-empresa-fila").Should().BeEmpty("con cientos de documentos la lista no se acaba: todo sale plegado");
+        cut.FindAll("[data-alternar-grupo]").Should().OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
+        var cataluna = cut.FindAll(".reclamar-empresa-grupo").Single(g => Texto(g.QuerySelector("h3")!) == "Delegación Cataluña");
+        Texto(cataluna.QuerySelector(".reclamar-empresa-grupo-titulo")!).Should().Contain("2 documentos").And.Contain("1 vencidos").And.Contain("1 por vencer");
+
+        cataluna.QuerySelector("[data-alternar-grupo]")!.Click();
+
+        cut.FindAll(".reclamar-empresa-fila").Should().HaveCount(2).And.OnlyContain(f => Texto(f).Contains("Vencimiento"));
+        cut.FindAll("[data-alternar-grupo][aria-expanded=true]").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void El_KPI_de_documentos_de_Empresa_cuenta_tambien_lo_que_vence_pronto_porque_la_lista_lo_enseña()
+    {
+        var empresa = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Empresa, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "Certificado TGSS", Vence, EstadoDocumento.Proximo),
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "Póliza de responsabilidad civil", Vence, EstadoDocumento.Proximo),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Jon Arregi Lasa", "jon.arregi@ebro.example", [])]);
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([empresa]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Documentos de Empresa por reclamar"));
+
+        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("2");
+        Desplegar(cut);
+        cut.FindAll(".reclamar-empresa-fila").Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void El_documento_exigido_sin_subir_se_rotula_Pendiente_como_en_el_resto_de_la_aplicacion()
+    {
+        var (cut, _) = Renderizar(new Escenario());
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        Desplegar(cut);
+
+        var fila = cut.FindAll(".reclamar-empresa-fila").Single(f => Texto(f).Contains("Información de riesgos"));
+        Texto(fila).Should().Contain("Pendiente").And.NotContain("Falta");
+    }
+
+    [Fact]
+    public void Lo_vigente_no_se_lista_ni_cuenta_porque_no_se_reclama()
+    {
+        var empresa = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Empresa, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "Certificado TGSS", Vence, EstadoDocumento.Proximo),
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "Plan de Prevención", Vence, EstadoDocumento.Vigente),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Jon Arregi Lasa", "jon.arregi@ebro.example", [])]);
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([empresa]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Documentos de Empresa por reclamar"));
+
+        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("1");
+        Desplegar(cut);
+        cut.Markup.Should().Contain("Certificado TGSS").And.NotContain("Plan de Prevención");
+    }
+
+    [Fact]
+    public void Reclamar_lo_visible_no_lleva_al_cajon_los_documentos_vigentes()
+    {
+        var empresa = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Empresa, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "RNT", Vence, EstadoDocumento.Vigente),
+                new DocumentoReclamableDto(Guid.NewGuid(), null, null, Guid.NewGuid(), "RLC", Vence, EstadoDocumento.Vigente),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Jon Arregi Lasa", "jon.arregi@ebro.example", [])]);
+        var trabajador = new LoteReclamacionAgrupadoDto(
+            EmpresaId, "Obras y Estructuras del Ebro S.L.", AmbitoAplicacion.Trabajador, null,
+            [
+                new DocumentoReclamableDto(Guid.NewGuid(), Jordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Formación Art. 19", Vence, EstadoDocumento.Vigente),
+                new DocumentoReclamableDto(Guid.NewGuid(), Jordi, "Jordi Ferrer Vidal", Guid.NewGuid(), "Reconocimiento médico", Vence, EstadoDocumento.Vencido),
+            ],
+            null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Montse Puig Casals", "montse.puig@ebro.example", [])], null,
+            new DestinoEmpresaEmpleadoraDto(Cataluna, "Cataluña"));
+        var escenario = new Escenario();
+        escenario.Preventiva = _ => Task.FromResult(escenario.Dto([empresa, trabajador]));
+        var (cut, _) = Renderizar(escenario);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Delegación Cataluña"));
+
+        Texto(cut.FindAll(".reclamar-empresa-ficha")[0]).Should().StartWith("0");
+        Boton(cut, "Reclamar lo visible (1)").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Reclamar en lote"));
+        var cajon = cut.Markup[cut.Markup.IndexOf("Reclamar en lote", StringComparison.Ordinal)..];
+        cajon.Should().Contain("Reconocimiento médico")
+            .And.NotContain("RNT").And.NotContain("RLC").And.NotContain("Formación Art. 19");
     }
 }

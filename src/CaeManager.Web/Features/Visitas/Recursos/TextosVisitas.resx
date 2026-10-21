@@ -723,6 +723,9 @@
   <data name="RecomendacionDocumentacionPendiente" xml:space="preserve">
     <value>{0} tiene documentación pendiente: {1}.</value>
   </data>
+  <data name="RecomendacionDocumentacionVencida" xml:space="preserve">
+    <value>{0} tiene documentación vencida: {1}.</value>
+  </data>
   <data name="RecomendacionVenceAntesDeLaEntrada" xml:space="preserve">
     <value>{1} de {0} vence el {2}, antes del día de entrada.</value>
   </data>

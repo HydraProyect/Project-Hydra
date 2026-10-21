@@ -172,15 +172,14 @@ public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 
     private void ElegirEmpresa(Guid tenantId) => _empresaId = tenantId;
 
-    private string SubEmpresa(EmpresaFacturada e) =>
-        Textos["SubEmpresa",
-            Concordado("SubExtranjeros", e.Extranjeros),
-            Concordado("SubCentrosNuevos", e.CentrosNuevos),
-            Concordado("SubObrasNuevas", e.ObrasNuevas)].Value;
+    /// <summary>«14 extranjeros · 1 Centro nuevo · 2 Obras nuevas»: cada concepto en singular con 1 y en plural con el resto.</summary>
+    private string SubEmpresa(EmpresaFacturada e) => string.Join(" · ",
+        Cantidad(e.Extranjeros, "SubExtranjerosUno", "SubExtranjerosVarios"),
+        Cantidad(e.CentrosNuevos, "SubCentrosUno", "SubCentrosVarios"),
+        Cantidad(e.ObrasNuevas, "SubObrasUno", "SubObrasVarios"));
 
-    /// <summary>«1 Centro nuevo» / «2 Centros nuevos»: singular solo con exactamente una unidad; sin dato, plural.</summary>
-    private string Concordado(string clave, int? unidades) =>
-        Textos[unidades == 1 ? clave + "Uno" : clave + "Varios", Unidades(unidades)].Value;
+    private string Cantidad(int? unidades, string claveUno, string claveVarios) =>
+        Textos[unidades == 1 ? claveUno : claveVarios, Unidades(unidades)].Value;
 
     private string Unidades(int? unidades) => unidades?.ToString(CultureInfo.CurrentCulture) ?? Textos["SinDato"].Value;
 
