@@ -48,10 +48,10 @@
     «empresa titular», nunca «cliente» a secas; los nombres de código son
     deuda terminológica y no se renombran aquí.
 *@
-<div class="contenedor-pagina">
-    @* Cabecera y barra de filtros comunes de los listados. El recuento va junto al título y el
-       conmutador de selección múltiple en la barra, como en las otras nueve pantallas. *@
-    <CabeceraListado Grupo="Operacion" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
+<div class="contenedor-pagina lista-design">
+    @* Cabecera y barra de filtros del listado nuevo (el de Subcontratas, Empresas y Documentos): el recuento va junto al
+       título y el conmutador ☑ de selección múltiple en la cabecera. *@
+    <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_errorCarga || _cargando ? null : _totalElementos)"
                      SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple"
                          RutaExportar="/visitas/exportar.xlsx" CriteriosExportar="CriteriosExportar">
             <Menu>
@@ -66,7 +66,7 @@
     @* Los mismos filtros que tenía la barra antigua, uno por pastilla: «Solo activas» (marcado de
        fábrica), «Solo urgentes» y «Notificada…». El orden no es un filtro (no recorta la lista: por
        eso no cuenta en HayFiltrosActivos ni lleva chip) y vive en «Más filtros». Todos viajan en la URL. *@
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_errorCarga || _cargando ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["PlaceholderBusqueda"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
@@ -77,13 +77,17 @@
             <FiltroMultipleVisitas Etiqueta="@Textos["DetalleEmpresa"]" Valor="@_empresaFiltro" ValorChanged='v => CambiarFiltroDisenoAsync("empresa", v)' Opciones="OpcionesEmpresa" />
             <FiltroMultipleVisitas Etiqueta="@Textos["FiltroVentana"]" Valor="@_ventanaFiltro" ValorChanged='v => CambiarFiltroDisenoAsync("ventana", v)' Opciones="OpcionesVentana" />
         </Pastillas>
-        <Estados>            <FranjaEstado PresentacionCampo="true" Opciones="OpcionesEstadoDocumentacion" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+        <Estados>
+            <FranjaEstado Opciones="OpcionesEstadoDocumentacion" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" TextoTodos="@Textos["OpcionTodas"]" EtiquetaAccesible="@Textos["ColumnaDocumentacion"]" />
         </Estados>
 
         <Herramientas>
             <DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacionAsync" />
-            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="ExpandirTodoAsync" disabled="@_expandiendoTodas">@Comunes[TodasExpandidas ? "ContraerTodo" : "ExpandirTodo"]</Boton>
+            @if (_elementosPagina.Count > 0)
+            {
+                <BarraHerramientasLista TodosExpandidos="TodasExpandidas" OnAlternarTodos="ExpandirTodoAsync" />
+            }
         </Herramientas>
         <MasFiltros>
 
@@ -155,9 +159,9 @@
         <div style="display:@(_cargando ? "none" : "block")">
         @* La llamada va dentro de un bloque de código para que tras el argumento «PieDelListado)» siga una llave: suelto
            entre etiquetas, Razor lo trataría como texto. Mismo patrón que Centros.razor y Clientes.razor. *@
-        @if (true)
+        @if (_totalElementos > 0 || _cargando)
         {
-        @TarjetaListado.RenderizarMaqueta(@<text>
+        @TarjetaListado.Renderizar(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <div class="visitas-lista-desplazable">
                 <table class="@("tabla-datos visitas-lista" + (_seleccionMultiple ? " visitas-con-seleccion" : string.Empty))" aria-label="@Textos["TituloPagina"]" aria-busy="@_cargando">
@@ -350,6 +354,10 @@
 
                 </div>
 </text>, PieDelListado)
+        }
+        else if (!_errorCarga)
+        {
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
         }
         </div>
 
@@ -901,10 +909,16 @@
 @code {
     private static Guid EmpresaTitularDe(VisitaListaDto visita) => visita.ClienteId;
 
-    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
+    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : PieSegun(false);
+
+    // Sin visitas el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_pagina + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="@(_pagina + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

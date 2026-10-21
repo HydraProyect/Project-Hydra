@@ -1,0 +1,18 @@
+.ver-restantes-fila {
+    border: 0;
+    background: none;
+    padding: var(--space-2, 0.5rem) 0 0;
+    color: var(--color-primary-500);
+    font: var(--font-label);
+    cursor: pointer;
+}
+
+.ver-restantes-fila:hover {
+    text-decoration: underline;
+}
+
+.ver-restantes-fila:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+}

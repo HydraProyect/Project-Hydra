@@ -385,7 +385,7 @@ public partial class Visita360PaginaTests : BunitContext
         lateral.QuerySelectorAll(".tarjeta-titulo").Select(t => t.TextContent.Trim())
             .Should().Equal("Información", "Nota interna");
         var nota = cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]");
-        nota.TextContent.Should().Contain("Puerta de servicio.").And.Contain("No la ve el cliente.");
+        nota.TextContent.Should().Contain("Puerta de servicio.").And.Contain("No la ve el Cliente.");
         nota.QuerySelectorAll("button").Should().HaveCount(puedeEditar ? 1 : 0);
         if (puedeEditar)
         {

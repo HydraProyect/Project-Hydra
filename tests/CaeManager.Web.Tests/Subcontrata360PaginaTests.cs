@@ -524,7 +524,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll(".cabecera-identidad .menu-acciones-disparador").Should().BeEmpty();
-        HayBoton(cut, "Añadir verificación").Should().BeFalse();
+        HayBoton(cut, "Registrar verificación").Should().BeFalse();
         cut.Markup.Should().NotContain("Acceso al portal");
         mediador.Enviadas.Should().NotContain(p => p is ObtenerCredencialAccesoSubcontrataQuery);
     }
@@ -716,7 +716,7 @@ public class Subcontrata360PaginaTests : BunitContext
         if (gestionada)
         {
             var seccion = cut.Find("[data-gestion-documental]");
-            cut.FindAll(".cabecera-identidad-acciones button").Select(b => b.TextContent).Should().NotContain(t => t.Contains("Añadir verificación"));
+            cut.FindAll(".cabecera-identidad-acciones button").Select(b => b.TextContent).Should().NotContain(t => t.Contains("Registrar verificación"));
             seccion.TextContent.Should().Contain("Gestionada: tu equipo guarda y renueva").And.Contain("RNT gestionado").And.Contain("Seguro gestionado");
             seccion.QuerySelectorAll(".fila-relacion .badge").Select(b => b.TextContent.Trim()).Should().Equal("Vencido", "Vigente");
             seccion.QuerySelectorAll(".fila-relacion").First().GetAttribute("data-tono").Should().Be("peligro");
@@ -900,8 +900,8 @@ public class Subcontrata360PaginaTests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (Chris, 2026-10-18): «Gestionar» en una fila de supervisión no registra nada con un clic: abre
-    /// el formulario «Añadir verificación» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
-    /// se registra al confirmar con «Guardar»; cancelar no deja rastro.
+    /// el formulario «Registrar verificación» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
+    /// se registra al confirmar con «Guardar verificación»; cancelar no deja rastro.
     /// </summary>
     [Fact]
     public async Task Gestionar_en_una_fila_de_supervision_abre_el_formulario_y_solo_registra_al_confirmar()
@@ -923,7 +923,7 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
         mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "un clic solo abre el formulario");
 
-        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
 
         var comando = mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
         comando.SubcontrataId.Should().Be(SubcontrataId);
@@ -976,7 +976,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var vacio = cut.Find("section[aria-label=Plataformas]").TextContent;
         vacio.Should().Contain("Sin verificaciones externas")
             .And.Contain("Con nivel Gestionada, TALVEG las hace por la Empresa; con Supervisada, las registra el Gestor CAE.");
-        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().Contain("Añadir verificación");
+        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().Contain("Registrar verificación");
     }
 
     [Fact]
@@ -987,7 +987,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar("?pestana=supervision");
 
         cut.Find("section[aria-label=Plataformas]").TextContent.Should().Contain("Sin verificaciones externas");
-        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().NotContain("Añadir verificación");
+        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().NotContain("Registrar verificación");
     }
 
     [Fact]
@@ -1008,14 +1008,14 @@ public class Subcontrata360PaginaTests : BunitContext
         Montar();
         var cut = Renderizar("?pestana=supervision");
 
-        await cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Añadir verificación").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Registrar verificación").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
         var panel = cut.Find(".drawer-panel");
-        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Añadir verificación");
+        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Registrar verificación");
         panel.TextContent.Should().Contain("Transportes Terminator S.L. · B70005204")
             .And.Contain("Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Opcional.");
-        cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Guardar").And.NotContain("Registrar");
+        cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Guardar verificación").And.NotContain("Registrar");
     }
 
     [Fact]
@@ -1082,7 +1082,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var tarjeta = TarjetaNota(cut);
         tarjeta.Should().NotBeNull();
         tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
-        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el Cliente.");
         tarjeta.TextContent.Should().NotContain("Sin nota interna.");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
             .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información» y «Acceso al portal»");
@@ -1095,7 +1095,7 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el Cliente.");
     }
 
     /// <summary>
@@ -1110,7 +1110,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar();
 
         TarjetaNota(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

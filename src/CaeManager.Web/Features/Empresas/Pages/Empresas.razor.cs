@@ -146,6 +146,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private readonly HashSet<Guid> _expandidos = [];
 
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
+
     private List<EmpresaListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
@@ -492,7 +495,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             else
             {
                 _seleccionados.Clear();
-                _expandidos.Clear();
+                _expandidos.Clear(); _incidenciasCompletas.Clear();
                 _idEnfocado = null;
             }
         }
@@ -940,14 +943,14 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private void AlternarExpansion(Guid empresaId)
     {
         if (!_expandidos.Add(empresaId))
-            _expandidos.Remove(empresaId);
+            _expandidos.Remove(empresaId); _incidenciasCompletas.Remove(empresaId);
     }
 
     private void AlternarTodosExpandidos(bool expandir)
     {
         if (!expandir)
         {
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
             return;
         }
 

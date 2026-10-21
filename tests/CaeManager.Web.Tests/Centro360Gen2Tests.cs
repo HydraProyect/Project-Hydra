@@ -15,6 +15,7 @@ using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
+using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
@@ -84,6 +85,9 @@ public partial class Centro360Gen2Tests : BunitContext
         public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
         public Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> Asignaciones { get; } = [];
         public Dictionary<Guid, List<TrabajadorSinAsignacionDto>> SinAsignacion { get; } = [];
+
+        /// <summary>Empresa empleadora por Trabajador asignado (la fila de Centro 360 la enseña junto al nombre).</summary>
+        public Dictionary<Guid, List<TrabajadorAsignadoDto>> Empleadores { get; } = [];
         public Dictionary<Guid, List<DocumentoReclamableDto>> PorReclamar { get; } = [];
 
         /// <summary>Los bloqueos de acceso por Centro: responde a la consulta con SU Centro, como la real.</summary>
@@ -138,6 +142,7 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerDocumentacionBloqueantePendienteQuery q => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)
                 (q.CentroId is { } id ? Bloqueos.GetValueOrDefault(id) ?? [] : Bloqueos.Values.SelectMany(b => b).ToList()),
             ObtenerTrabajadoresVisitaSinAsignacionQuery q => SinAsignacion.GetValueOrDefault(q.CentroId) ?? [],
+            ObtenerTrabajadoresAsignadosDeCentroQuery q => (IReadOnlyList<TrabajadorAsignadoDto>)(Empleadores.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
             DarDeBajaAsignacionesCommand => ResultadoBaja,
             CrearAsignacionCommand => ResultadoCrearAsignacion,
@@ -551,12 +556,37 @@ public partial class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Sin las pastillas de motivos, el bloque «Empresa» del acordeón es el único camino de Centro 360 para ver las causas de
-    /// ámbito Empresa, también la de plataforma con Estado null (rechazo en la plataforma). Si la página dejara de pasarle
-    /// <c>IncidenciasEmpresa</c>, esas causas desaparecerían de la pantalla sin aviso.
+    /// Maqueta del 20-10, lista de Trabajadores: la Empresa empleadora acompaña al nombre, los filtros son «Todos» y «Bloquea acceso»
+    /// y la baja en lote no se ofrece. El lateral lleva «Alta» y ya no «Empresa»; «Visitas» sin visitas no enseña un «0».
     /// </summary>
     [Fact]
-    public void Las_causas_de_ambito_Empresa_se_ven_en_el_acordeon_tambien_la_de_plataforma_sin_estado()
+    public void La_ficha_sigue_la_maqueta_del_20_10_empleadora_filtros_alta_y_sin_cero_en_Visitas()
+    {
+        this.ConRolDeEscritura();
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte") with { CreadoEnUtc = new DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc) };
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        var juan = Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido));
+        mediador.Asignaciones[id] = [juan];
+        mediador.Empleadores[id] = [new(juan.TrabajadorId, "Juan Pérez", "Montajes Orvelta S.L.", juan.FechaAlta)];
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find("[data-empleador]").TextContent.Should().Be("Montajes Orvelta S.L."));
+        cut.FindAll(".franja-estado [data-estado]").Select(e => e.GetAttribute("data-estado")).Should().Equal("Bloqueado");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Dar de baja seleccionados");
+        var lateral = cut.Find(".centro360-lateral, aside").TextContent;
+        lateral.Should().Contain("Alta").And.Contain("05/03/2026").And.NotContain("Ibertec GmbH");
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.StartsWith("Visitas")).TextContent.Trim().Should().Be("Visitas");
+    }
+
+    /// <summary>
+    /// Maqueta del 20-10: los documentos de Empresa con incidencia no abren «Trabajadores» en un bloque «Empresa»; su cifra va en la
+    /// pestaña «Documentación Empresa» (también la causa de plataforma con Estado null) y las causas de Trabajador no cuentan.
+    /// </summary>
+    [Fact]
+    public void Las_causas_de_ambito_Empresa_van_en_el_contador_de_Documentacion_Empresa_y_no_en_el_acordeon()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -570,9 +600,9 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var bloque = cut.WaitForElement("[data-bloque-empresa]");
-        bloque.TextContent.Should().Contain("Seguro de responsabilidad civil").And.Contain("Rechazo en plataforma: falta la firma")
-            .And.Contain("2 doc.").And.NotContain("Formación de Juan", "las causas de Trabajador van en la fila de su Trabajador");
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        pestana.TextContent.Should().Contain("2", "los dos documentos de Empresa con incidencia, no el de Trabajador");
+        cut.FindAll("[data-bloque-empresa]").Should().BeEmpty("el bloque «Empresa» ya no abre la pestaña Trabajadores");
     }
 
     [Fact]
@@ -914,7 +944,7 @@ public partial class Centro360Gen2Tests : BunitContext
         var esperados = seOfrecen ? 1 : 0;
         botones.Count(b => b == "Programar visita").Should().Be(esperados);
         botones.Count(b => b == "+ Asignar trabajador").Should().Be(esperados);
-        botones.Count(b => b == "Dar de baja seleccionados").Should().Be(esperados);
+        botones.Should().NotContain("Dar de baja seleccionados", "la maqueta del 20-10 lo quita en Centro 360 («no decidido»), también al rol con escritura");
         menu.Count(i => i == "Reclamar documentación (1)").Should().Be(esperados);
         cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Gestionar» (antes «Pedir») abre el flujo que acaba en un envío de reclamación");
         cut.FindAll(".identidad-documento-plataforma button").Should().BeEmpty("el desglose de plataforma es de lectura");
@@ -1281,7 +1311,9 @@ public partial class Centro360Gen2Tests : BunitContext
                 nameof(ObtenerCanalesGestionDeCentroQuery), nameof(ObtenerDocumentacionBloqueantePendienteQuery),
                 // Las del acordeón: es hijo de la página y su token es el suyo propio.
                 nameof(ObtenerAsignacionesDocumentacionPorCentroQuery),
-                nameof(ObtenerTrabajadoresVisitaSinAsignacionQuery)
+                nameof(ObtenerTrabajadoresVisitaSinAsignacionQuery),
+                // La Empresa empleadora de cada fila (Centro 360 del 20-10).
+                nameof(ObtenerTrabajadoresAsignadosDeCentroQuery)
             ],
             "el recorrido tiene que haber pasado por todas las consultas que lanza la pantalla, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
@@ -1611,13 +1643,18 @@ public partial class Centro360Gen2Tests : BunitContext
             Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido)),
             Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente))
         ];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", mediador.Asignaciones[id][0].TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL")
+        ];
 
         var cut = Renderizar(id);
         var navegador = Services.GetRequiredService<NavigationManager>();
 
-        await cut.Find(".franja-estado [data-estado=Vencido]").ClickAsync(new MouseEventArgs());
+        // Maqueta del 20-10: «Todos» y «Bloquea acceso» (el estado «Bloqueado» del Trabajador).
+        await cut.Find(".franja-estado [data-estado=Bloqueado]").ClickAsync(new MouseEventArgs());
 
-        navegador.Uri.Should().Contain($"estado={nameof(EstadoDocumento.Vencido)}",
+        navegador.Uri.Should().Contain("estado=Bloqueado",
             "un centro filtrado tiene que poder enlazarse");
 
         await Boton(cut, "Limpiar filtros").ClickAsync(new MouseEventArgs());

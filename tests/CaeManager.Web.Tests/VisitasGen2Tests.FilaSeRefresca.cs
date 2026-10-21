@@ -58,7 +58,7 @@ public partial class VisitasGen2Tests
 
     private static async Task IrALaPaginaDosDeVisitasAsync(IRenderedComponent<Visitas> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => CentrosDeLasFilas(cut).Should().HaveCount(5));
     }
 

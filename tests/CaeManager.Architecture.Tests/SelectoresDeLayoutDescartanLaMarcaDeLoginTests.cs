@@ -9,9 +9,9 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// Esos selectores toman como <c>returnUrl</c> la URL con la que se creó el circuito; tras iniciar
-/// sesión es <c>/?desde=login</c>, la marca de un solo uso del aterrizaje D-2. Con <c>Sanear</c> (que
-/// conserva la consulta) cambiar de idioma o de vista devolvería al usuario a esa URL y reactivaría el
-/// aterrizaje. El comportamiento HTTP lo cubre el test de cada endpoint; esto solo evita que alguien
+/// sesión es <c>/?desde=login</c>, la marca de un solo uso del inicio de sesión. Con <c>Sanear</c> (que
+/// conserva la consulta) cambiar de idioma o de vista devolvería al usuario a esa URL (Inicio)
+/// en vez de dejarle donde estaba. El comportamiento HTTP lo cubre el test de cada endpoint; esto solo evita que alguien
 /// vuelva a <c>Sanear</c> sin que el test del endpoint exista todavía.
 /// </para>
 ///
@@ -47,7 +47,7 @@ public class SelectoresDeLayoutDescartanLaMarcaDeLoginTests
             LlamaASanearParaVolver.Matches(texto).Count.Should().Be(1,
                 $"{fichero} recibe el returnUrl de un selector de MainLayout y debe volver sin la marca ?desde=login");
             LlamaASanear.IsMatch(texto).Should().BeFalse(
-                $"{fichero} no puede volver a RedireccionLocal.Sanear: conserva ?desde=login y reactiva el aterrizaje D-2");
+                $"{fichero} no puede volver a RedireccionLocal.Sanear: conserva ?desde=login y devuelve a Inicio en vez de a donde estaba");
         }
     }
 

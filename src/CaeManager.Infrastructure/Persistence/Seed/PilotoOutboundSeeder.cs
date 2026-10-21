@@ -1340,6 +1340,7 @@ public static class PilotoOutboundSeeder
                 $"<p>Mañana pasa una inspección por {centro.Nombre} y entrará personal de otra contrata. Avisadnos de quién viene.</p>",
                 recibido);
             conversacion.AgregarParticipante(remitente, RolParticipante.De, TipoParticipanteOrigen.Empresa, centro.ClienteId);
+            conversacion.AlinearFechaConLosMensajes();
             dbContext.Conversaciones.Add(conversacion);
 
             dbContext.SugerenciasVisitaCorreo.Add(new SugerenciaVisitaCorreo(
@@ -1437,12 +1438,15 @@ public static class PilotoOutboundSeeder
                     $"<p>El documento «{caso.Tipo}» de {trabajador.Nombre} {trabajador.Apellidos}, que trabaja en {centro.Nombre}, ha vencido. " +
                     "Por favor, enviadnos el renovado.</p>",
                     enviada);
+                conversacion.AgregarParticipante(
+                    $"gestion-cae@{ContactosPilotoOutbound.DominioPorDefecto}", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
                 conversacion.AgregarParticipante(destinatario, RolParticipante.Para, TipoParticipanteOrigen.Empresa, centro.ClienteId);
                 if (respuesta is { } respondida)
                     conversacion.AgregarMensaje(
                         DireccionMensaje.Entrante, CanalConversacion.Correo, destinatario,
                         "<p>Recibido. El reconocimiento está pedido y os enviamos el certificado en cuanto lo tengamos.</p>",
                         respondida);
+                conversacion.AlinearFechaConLosMensajes();
                 dbContext.Conversaciones.Add(conversacion);
 
                 var reclamacion = ReclamacionDocumental.ParaCliente(

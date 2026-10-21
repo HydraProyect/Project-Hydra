@@ -6,8 +6,9 @@ namespace CaeManager.Infrastructure.DataProtection;
 
 /// <summary>
 /// Solo se registra cuando Production arranca con el llavero de Data Protection
-/// SIN CIFRAR porque así lo permite la bandera transitoria
-/// <see cref="RegistroDataProtection.ClavePermitirClavesSinCifrar"/> (P1-F3).
+/// SIN CIFRAR porque así lo permite la bandera
+/// <see cref="RegistroDataProtection.ClavePermitirClavesSinCifrar"/> (P1-F3), que
+/// ningún compose desplegado declara desde el 2026-10-21.
 /// En cada arranque deja un aviso en el log y una alerta operativa que nombra
 /// la bandera: mientras siga activa no puede quedarse en silencio, o la
 /// transición se vuelve permanente sin que nadie lo decida.
@@ -18,7 +19,7 @@ public class AvisoLlaveroSinCifrarHostedService(
 {
     internal const string Mensaje =
         "Production arranca con las claves de Data Protection SIN CIFRAR porque " +
-        RegistroDataProtection.ClavePermitirClavesSinCifrar + "=true. Es una bandera de transición (P1-F3): " +
+        RegistroDataProtection.ClavePermitirClavesSinCifrar + "=true. La transición P1-F3 está cerrada: " +
         "monta el certificado en /run/secretos, informa DataProtection:Certificado:CertificadoRuta y " +
         "ClavePrivadaRuta, y retira la bandera.";
 

@@ -19,7 +19,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
     /// <summary>
     /// Causa del rojo intermitente de la prueba de abajo en CI (dos veces: «Timeout 5000ms
     /// exceeded» esperando <c>.selector-tenant-panel</c>): la landing del Coordinador CAE
-    /// (Mi trabajo) mataba su circuito de Blazor ~1 s después de cargar. Su cola traía dos filas
+    /// (entonces Mi trabajo; desde 2026-10-21, Inicio) mataba su circuito de Blazor ~1 s después de cargar. Su cola traía dos filas
     /// hermanas con el mismo Id (el mismo Trabajador, asignado a dos Centros, sin el mismo Tipo
     /// de documento) y Blazor lanza «Attempting to return wrong pooled instance» al repintar con
     /// claves repetidas. Con el circuito muerto la pantalla queda inerte y el aviso de error
@@ -36,6 +36,10 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
         var page = await contexto.NewPageAsync();
 
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
+
+        // Desde 2026-10-21 la pantalla al entrar es Inicio (ya no Mi trabajo): se abre Mi trabajo a mano,
+        // que es la pantalla cuyo repintado mataba el circuito.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
 
         // Barrera: la cola ya se pintó (las dos consultas de la página terminaron).
         await page.Locator(".mi-trabajo-chips").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
