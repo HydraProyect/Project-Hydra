@@ -267,7 +267,7 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else
                                     {
@@ -486,7 +486,7 @@
                                     }
                                     else if (PuntosSerie.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else if (!UmbralAnonimatoCuadro.Cumple(null, SolicitudesPeriodo))
                                     {
@@ -543,7 +543,7 @@
                                     }
                                     @if (semanas.Count == 0)
                                     {
-                                        <p class="cuadro-vacio">@Textos["SerieCargando"]</p>
+                                        <p class="cuadro-vacio">@TextoSerieSinPuntos</p>
                                     }
                                     else if (maximoDia == 0)
                                     {

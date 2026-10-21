@@ -72,8 +72,21 @@ public partial class CuadroDireccionTests : BunitContext
             return Task.FromResult(q.TenantId is { } t ? todo with { Filas = todo.Filas.Where(f => f.TenantId == t).ToList() } : todo);
         }
 
+        /// <summary>Si se fijan, la serie y las conversaciones responden cuando el test complete su tarea, no al pedirlas.</summary>
+        public TaskCompletionSource<SerieCuadroDireccionDto>? SeriePendiente { get; init; }
+        public TaskCompletionSource<ComunicacionesCuadroDireccionDto>? ComunicacionesPendientes { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerSerieCuadroDireccionQuery serieEnVuelo && SeriePendiente is { } seriePendiente)
+            {
+                SeriesPedidas.Add(serieEnVuelo);
+                return (Task<TResponse>)(object)seriePendiente.Task;
+            }
+
+            if (request is ObtenerComunicacionesCuadroDireccionQuery && ComunicacionesPendientes is { } comunicacionesPendientes)
+                return (Task<TResponse>)(object)comunicacionesPendientes.Task;
+
             if (request is ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery gestionados)
                 return (Task<TResponse>)(object)ExtranjerosGestionados(gestionados);
 

@@ -298,6 +298,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             _cargandoSerie = false;
         }
 
+        // La serie se pinta en cuanto llega o falla: las piezas que siguen (extranjeros, conversaciones, gestiones por
+        // día) son consultas propias y no retienen las tarjetas de la serie en «Calculando…» hasta que terminen.
+        if (!EsVigente(version)) return;
+        StateHasChanged();
+
         try
         {
             // Para quien es de un Operador CAE, la misma cifra que la pestaña Facturación: solo sus Empresas gestionadas y solo
@@ -328,6 +333,9 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         {
             _cargandoComunicaciones = false;
         }
+
+        if (!EsVigente(version)) return;
+        StateHasChanged();
 
         try
         {
@@ -751,6 +759,13 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     // ---------------------------------------------------------------- serie (últimos meses, facturación estimada)
 
     private IReadOnlyList<PuntoSerieCuadroDto> PuntosSerie => SinMesesVaciosAlPrincipio(PuntosDe(_serie));
+
+    /// <summary>
+    /// Lo que dice una tarjeta de la serie sin puntos: «Calculando…» solo mientras la consulta sigue en marcha; si falló,
+    /// el error, y si terminó sin meses en el ámbito elegido, que no hay datos. Nunca un «Calculando…» sin consulta.
+    /// </summary>
+    private string TextoSerieSinPuntos =>
+        _cargandoSerie ? Textos["SerieCargando"].Value : _errorSerie ? Textos["SerieError"].Value : Textos["FranjaSinDatos"].Value;
 
     /// <summary>
     /// La serie pide 36 meses; los gráficos enseñan desde el primer mes con actividad (o los últimos

@@ -119,6 +119,34 @@ public class VisitasTrabajadorExtranjeroMedicionTests : IAsyncLifetime
         (medida.AltasCentros, medida.ObrasNuevas).Should().Be((1, 1), "control: el mes entero da lo mismo por las dos vías");
     }
 
+    /// <summary>
+    /// La serie mide varios meses de una pasada (prueba de flujos 2026-10-21, fila 16): cada mes recibe solo lo suyo
+    /// —los límites civiles de las Visitas y las altas por instante— y coincide con su medición suelta.
+    /// </summary>
+    [Fact]
+    public async Task Varios_meses_de_una_pasada_reparten_cada_cifra_en_su_mes()
+    {
+        await using var contexto = CrearContexto();
+        var medicion = Medicion(contexto);
+        var corte = DateTime.UtcNow.AddMinutes(1);
+        MesCuadroDireccion[] meses = [new(2025, 9), Octubre, new(2025, 11)];
+
+        var deUnaPasada = await medicion.MedirMesesAsync(
+            meses.Select(m => new MesAMedir(m, corte)).ToList(), CancellationToken.None, medirDocumental: false);
+
+        deUnaPasada.Select(m => m.VisitasTrabajadorExtranjero).Should().Equal(1, 3, 1);
+        deUnaPasada.Select(m => m.AltasCentros).Should().Equal(0, 1, 0);
+        deUnaPasada.Select(m => m.ObrasNuevas).Should().Equal(0, 1, 0);
+        for (var i = 0; i < meses.Length; i++)
+        {
+            var suelta = await medicion.MedirAsync(meses[i], corte, CancellationToken.None, medirDocumental: false);
+            (deUnaPasada[i].TrabajadoresActivos, deUnaPasada[i].ExtranjerosActivos, deUnaPasada[i].CentrosActivos,
+                    deUnaPasada[i].AltasTrabajadores, deUnaPasada[i].DocumentosGestionados)
+                .Should().Be((suelta.TrabajadoresActivos, suelta.ExtranjerosActivos, suelta.CentrosActivos,
+                    suelta.AltasTrabajadores, suelta.DocumentosGestionados), "el mes {0} mide lo mismo suelto", meses[i]);
+        }
+    }
+
     private MedicionMensualCuadroDireccion Medicion(CaeManagerDbContext contexto) =>
         new(new TenantActualAmbiental { TenantId = _tenant }, contexto, contexto, contexto, contexto, contexto, mediator: null!,
             proyectosContext: contexto, visitasContext: contexto);
