@@ -178,8 +178,9 @@
 
 /*
   Celda de estado: no desborda su pista. El motivo de EstadoFila recorta lo que no cabe (una línea con puntos
-  suspensivos); aquí contiene las ventanas de contexto de las incidencias, cuyo panel sale de la caja:
-  recortado no se vería.
+  suspensivos); aquí contiene las ventanas de contexto de las incidencias, cuyo panel sale de la caja: recortado
+  no se vería. Como no puede recortar, parte por sus piezas («24 pendientes · 2 bloqueos de plataforma · 2 por
+  vencer» ocupa dos o tres líneas en la pista de 170 px) en vez de salirse por el borde y pisar el icono 360.
 */
 .celda-estado-centro {
     min-width: 0;
