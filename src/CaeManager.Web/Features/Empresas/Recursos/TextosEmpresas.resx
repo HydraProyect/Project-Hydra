@@ -109,6 +109,10 @@
     <value>Documentación</value>
     <comment>Pestaña.</comment>
   </data>
+  <data name="PestanaReclamar" xml:space="preserve">
+    <value>Reclamar</value>
+    <comment>Pestaña de la reclamación preventiva de la Empresa (maqueta «Reclamacion preventiva TALVEG»).</comment>
+  </data>
   <data name="PestanaAgenda" xml:space="preserve">
     <value>Agenda</value>
     <comment>Pestaña.</comment>

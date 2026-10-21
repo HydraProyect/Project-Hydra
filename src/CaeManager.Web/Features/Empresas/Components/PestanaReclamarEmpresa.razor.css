@@ -1,0 +1,219 @@
+/* Pestaña «Reclamar» de Empresa 360 («Reclamacion preventiva TALVEG.dc.html»). Solo tokens de tokens.css. */
+.reclamar-empresa {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.reclamar-empresa-resumen {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: var(--space-3);
+}
+
+.reclamar-empresa-ficha {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    text-align: left;
+    font: inherit;
+    color: var(--color-text);
+}
+
+.reclamar-empresa-ficha-filtro {
+    cursor: pointer;
+}
+
+.reclamar-empresa-ficha-filtro[aria-pressed="true"] {
+    border-color: var(--color-primary-500);
+    background-color: var(--color-primary-50);
+}
+
+.reclamar-empresa-ficha-filtro[data-categoria="Vencido"] .reclamar-empresa-ficha-numero,
+.reclamar-empresa-ficha-filtro[data-categoria="Pendiente"] .reclamar-empresa-ficha-numero {
+    color: var(--color-danger-700);
+}
+
+.reclamar-empresa-ficha-filtro[data-categoria="PorVencer"] .reclamar-empresa-ficha-numero {
+    color: var(--color-warning-700);
+}
+
+.reclamar-empresa-ficha-numero {
+    font: var(--font-h4);
+}
+
+.reclamar-empresa-ficha-rotulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.reclamar-empresa-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.reclamar-empresa-barra-derecha {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.reclamar-empresa-etiqueta {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
+.reclamar-empresa-select {
+    height: 32px;
+    max-width: 220px;
+    padding: 0 8px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-caption);
+    cursor: pointer;
+}
+
+.reclamar-empresa-select[data-activo="true"] {
+    border-color: var(--color-primary-500);
+    background: var(--color-primary-50);
+}
+
+.reclamar-empresa-segmento {
+    display: inline-flex;
+    padding: 2px;
+    gap: 2px;
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+    border: 1px solid var(--color-border);
+}
+
+.reclamar-empresa-segmento button {
+    height: 26px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    cursor: pointer;
+}
+
+.reclamar-empresa-segmento button[aria-pressed="true"] {
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 0 0 1px var(--color-border);
+}
+
+.reclamar-empresa-segmento button:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+.reclamar-empresa-nota {
+    margin: 0;
+}
+
+.reclamar-empresa-cabecera-lista {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.reclamar-empresa-recuento {
+    font: var(--font-label);
+}
+
+.reclamar-empresa-cta {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.reclamar-empresa-grupos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.reclamar-empresa-grupo,
+.reclamar-empresa-subir {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.reclamar-empresa-grupo-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.reclamar-empresa-grupo-titulo {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.reclamar-empresa-grupo-titulo h3 {
+    margin: 0;
+    font: var(--font-label);
+}
+
+.reclamar-empresa-grupo-destino {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font: var(--font-caption);
+}
+
+.reclamar-empresa-sin-contacto {
+    color: var(--color-danger-700);
+}
+
+.reclamar-empresa-enlace {
+    font: var(--font-caption);
+    font-weight: 600;
+}
+
+.reclamar-empresa-filas {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.reclamar-empresa-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+}
+
+.reclamar-empresa-fila + .reclamar-empresa-fila {
+    border-top: 1px solid var(--color-border);
+}
+
+.reclamar-empresa-fila-nombre {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-weight: 500;
+}
