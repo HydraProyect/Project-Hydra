@@ -19,7 +19,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// La pantalla de acceso contra el artefacto aprobado «Luz de agua»: lo que el
-/// artefacto fija (lockup, lema, «Entrar», escena con interruptor de movimiento)
+/// artefacto fija (lockup, lema, «Iniciar sesión», escena con interruptor de movimiento)
 /// y lo que el código ya hacía y el artefacto no pinta (SSO condicional, sus
 /// errores, el enlace de olvido). Los selectores #email, #password y el único
 /// botón de envío son los que usa Ayudas.IniciarSesionAsync en todos los E2E.
@@ -68,10 +68,10 @@ public class AccesoLuzDeAguaTests : BunitContext
 
         var envios = cut.FindAll("button[type=submit]");
         envios.Should().ContainSingle("Ayudas.IniciarSesionAsync pulsa el único botón de envío");
-        envios[0].TextContent.Should().Be("Entrar");
+        envios[0].TextContent.Should().Be("Iniciar sesión");
 
         var olvido = cut.Find(".acceso-olvido a");
-        olvido.TextContent.Should().Be("¿Has olvidado la contraseña?");
+        olvido.TextContent.Should().Be("¿Olvidaste tu contraseña?");
         olvido.GetAttribute("href").Should().Be("/cuenta/olvide-contrasena");
     }
 

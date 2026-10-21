@@ -215,6 +215,14 @@ public class PaginaEstadoSistemaTests : BunitContext
         cut.Markup.Should().NotContain("onclick=");
     }
 
+    [Fact]
+    public void NoEncontrado_manda_a_Inicio_y_no_nombra_el_Dashboard()
+    {
+        var cut = Renderizar(TipoEstadoSistema.NoEncontrado, rol: Roles.GestorCae);
+
+        cut.Markup.Should().Contain("vuelve a Inicio.").And.NotContain("Dashboard");
+    }
+
     [Theory]
     [InlineData(null)]
     [InlineData("/not-found")]

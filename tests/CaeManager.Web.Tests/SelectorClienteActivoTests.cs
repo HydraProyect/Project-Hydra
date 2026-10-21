@@ -177,6 +177,16 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Fact]
+    public void En_el_propio_Tenant_del_Operador_CAE_el_boton_dice_Tu_organizacion_y_no_Empresa_gestionada()
+    {
+        _lista = [Propio(gestionado: true), Gestionado(Norte, "Empresa Norte")];
+
+        var disparador = Renderizar().Find(".selector-tenant-disparador");
+
+        disparador.TextContent.Should().Contain("Tu organización").And.NotContain("Empresa gestionada");
+    }
+
+    [Fact]
     public void Quien_solo_alcanza_un_Tenant_por_la_via_heredada_conserva_el_selector()
     {
         _lista = [Propio(), new ClienteAutorizadoDto(Sur, "Delegante", EsOrigen: false)];
