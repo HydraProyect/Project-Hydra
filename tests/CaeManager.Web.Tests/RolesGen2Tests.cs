@@ -287,7 +287,7 @@ public class RolesGen2Tests : BunitContext
 
         return new DirectorioUsuariosTenant(
             new UserManagerFalso(), new TenantsQueryContextQueNadieDebeTocar(), tenantActual,
-            new PuertaAccesoDatos(), identidad);
+            new PuertaAccesoDatos(), identidad, null!);
     }
 
     // ---------------------------------------------------------------- arnés

@@ -237,7 +237,7 @@ public class ClientesVacioPorFiltroTests : BunitContext
 
         return new DirectorioUsuariosTenant(
             userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual,
-            new PuertaAccesoDatos(), identidad);
+            new PuertaAccesoDatos(), identidad, null!);
     }
 
     [Fact]

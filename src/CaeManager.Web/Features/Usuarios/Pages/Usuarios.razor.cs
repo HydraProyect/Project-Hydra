@@ -477,6 +477,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 var carteras = await ObtenerCarterasVigentesAsync(token);
                 var visibles = await ObtenerUsuariosVisiblesAsync(token);
 
+                // Y las Empresas gestionadas de cada persona del Operador CAE: sin ellas,
+                // mirada desde el Operador CAE externo, toda su plantilla salía «Sin cartera».
+                var empresasGestionadas = await ObtenerEmpresasGestionadasAsync(token);
+
                 // Tercera consulta de lote (revisión de Codex, 2026-09-18): qué
                 // cuentas de este lote inician sesión por SSO, para no repetir
                 // GetLoginsAsync una vez por fila — ver
@@ -506,7 +510,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     usuarios.Add(new UsuarioListaDto(
                         usuario.Id, usuario.Email ?? string.Empty, usuario.NombreCompleto, rol, activo, esOperadorDelegado,
                         EsPendienteActivacion(usuario, idsConLoginExterno),
-                        CalcularAlcance(usuario, rol, carteras, gestoresPorCoordinador),
+                        CalcularAlcance(usuario, rol, carteras, empresasGestionadas, gestoresPorCoordinador),
                         usuario.TwoFactorEnabled,
                         usuario.Avatar));
                 }
@@ -576,6 +580,10 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         DirectorioUsuarios.ObtenerCarterasVigentesAsync(cancellationToken);
 
     /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
+    protected virtual Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(CancellationToken cancellationToken) =>
+        DirectorioUsuarios.ObtenerEmpresasGestionadasAsync(cancellationToken);
+
+    /// <inheritdoc cref="ObtenerRolesDelegadosAsync"/>
     protected virtual Task<IReadOnlyList<ApplicationUser>> ObtenerUsuariosVisiblesAsync(CancellationToken cancellationToken) =>
         DirectorioUsuarios.ObtenerVisiblesAsync(cancellationToken);
 
@@ -616,6 +624,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         ApplicationUser usuario,
         string rol,
         IReadOnlyDictionary<Guid, CarteraDeUsuario> carteras,
+        EmpresasGestionadasDeLaOrganizacion empresasGestionadas,
         ILookup<Guid, Guid> gestoresPorCoordinador)
     {
         // El mismo predicado que usa AlcanceDatosService para decidirlo de
@@ -638,43 +647,76 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // que tiene asignados más la suya propia, si la tiene (ver
             // AlcanceDatosService.ObtenerCarteraParaCoordinadorAsync y ADR-011 § 2.7,
             // enmienda 2026-10-08, punto 2).
+            //
+            // En las Empresas gestionadas que su organización opera enteras entra sin cartera
+            // (decisión Chris 2026-10-20; AlcanceDatosService le da alcance universal en ellas):
+            // es lo que cuentan su selector y su Mi trabajo, no la cartera de su equipo.
             var gestores = gestoresPorCoordinador[usuario.Id].ToList();
             var tienePropia = carteras.ContainsKey(usuario.Id);
-            if (gestores.Count == 0 && !tienePropia)
+            var porOperacion = empresasGestionadas.DelTenantEntero;
+            if (gestores.Count == 0 && !tienePropia && porOperacion.Count == 0)
                 return new("Sin gestores asignados", true,
                     "Un Coordinador CAE alcanza lo que alcanzan los Gestores CAE que tiene asignados y su propia Asignación de Cartera. Sin ninguna de las dos, no ve nada.");
 
             var porSuEquipo = $"A través de {DescribirCantidad(gestores.Count, "Gestor CAE", "Gestores CAE")} que tiene asignados.";
             var porSuCartera = TextosUsuarios["AlcanceCoordinadorCarteraPropia"].Value;
+            var explicacion = !tienePropia ? porSuEquipo : gestores.Count == 0 ? porSuCartera : string.Join(' ', porSuCartera, porSuEquipo);
+            if (porOperacion.Count > 0)
+                explicacion = string.Join(' ', explicacion,
+                    "Además entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.");
             return DesdeCarteras(
                 gestores.Prepend(usuario.Id).Where(carteras.ContainsKey).Select(id => carteras[id]).ToList(),
-                explicacion: !tienePropia ? porSuEquipo : gestores.Count == 0 ? porSuCartera : string.Join(' ', porSuCartera, porSuEquipo),
+                porOperacion,
+                explicacion,
                 explicacionSinAlcance: "Sus Gestores CAE no tienen ninguna cartera vigente, así que tampoco él alcanza nada.");
         }
 
         if (rol == Roles.GestorCae)
             return DesdeCarteras(
                 carteras.TryGetValue(usuario.Id, out var propia) ? [propia] : [],
-                explicacion: "Por sus Asignaciones de Cartera vigentes en esta organización.",
+                empresasGestionadas.PorCartera.GetValueOrDefault(usuario.Id) ?? [],
+                // «en esta organización» ya no es cierto: las Empresas gestionadas son Tenants beneficiarios.
+                explicacion: "Por sus Asignaciones de Cartera vigentes.",
                 explicacionSinAlcance: "Sin Asignación de Cartera vigente no ve ningún Cliente, y toda lista le sale vacía.");
 
         return new("—", false, "Esta cuenta todavía no tiene rol, así que no alcanza nada.");
     }
 
     private static AlcanceUsuarioDto DesdeCarteras(
-        IReadOnlyList<CarteraDeUsuario> carteras, string explicacion, string explicacionSinAlcance)
+        IReadOnlyList<CarteraDeUsuario> carteras, IReadOnlyList<EmpresaGestionada> empresasGestionadas,
+        string explicacion, string explicacionSinAlcance)
     {
+        var partes = new List<string>();
+
         // Universal es "toda la operación de este tenant", no "todos los
         // tenants" — el ámbito nunca se lee fuera de su propietario.
         if (carteras.Any(c => c.EsUniversal))
-            return new("Toda la operación", false, explicacion);
+            partes.Add("Toda la operación");
+        else if (carteras.SelectMany(c => c.ClienteIds).Distinct().Count() is > 0 and var clientes)
+            partes.Add(DescribirCantidad(clientes, "cliente", "clientes"));
 
-        var clientes = carteras.SelectMany(c => c.ClienteIds).Distinct().Count();
+        // Las Empresas gestionadas (Tenants beneficiarios): el mismo recuento que «Mi cartera · N empresas»
+        // de Mi trabajo, y sus nombres en la explicación, con tope para un Gestor CAE con decenas.
+        var empresas = empresasGestionadas
+            .GroupBy(e => e.TenantBeneficiarioId)
+            .Select(g => g.First() with { Parcial = g.All(e => e.Parcial) })
+            .OrderBy(e => e.Nombre, StringComparer.CurrentCulture)
+            .ToList();
+        if (empresas.Count > 0)
+        {
+            partes.Add(DescribirCantidad(empresas.Count, "Empresa gestionada", "Empresas gestionadas"));
+            var nombres = empresas.Take(MaxNombresEnExplicacion)
+                .Select(e => e.Parcial ? $"{e.Nombre} (solo un Cliente empresarial)" : e.Nombre);
+            var resto = empresas.Count > MaxNombresEnExplicacion ? $" y {empresas.Count - MaxNombresEnExplicacion} más" : string.Empty;
+            explicacion = $"{explicacion} Empresas gestionadas: {string.Join(", ", nombres)}{resto}.";
+        }
 
-        return clientes == 0
+        return partes.Count == 0
             ? new("Sin cartera", true, explicacionSinAlcance)
-            : new(DescribirCantidad(clientes, "cliente", "clientes"), false, explicacion);
+            : new(string.Join(" · ", partes), false, explicacion);
     }
+
+    private const int MaxNombresEnExplicacion = 8;
 
     private static string DescribirCantidad(int cantidad, string singular, string plural) =>
         $"{cantidad} {(cantidad == 1 ? singular : plural)}";

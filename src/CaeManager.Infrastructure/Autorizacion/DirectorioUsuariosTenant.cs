@@ -40,7 +40,8 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </summary>
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
-    PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
+    PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad,
+    ICurrentUserService usuarioActual)
     : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
       CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador,
       CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae
@@ -658,6 +659,94 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
+    /// Las Empresas gestionadas (Tenants beneficiarios) que cada persona del Operador CAE
+    /// alcanza por sus Asignaciones de Cartera vigentes bajo Asignaciones de Operación
+    /// vigentes de su organización: la otra mitad del «Ámbito efectivo» de
+    /// <c>/usuarios</c>. <see cref="ObtenerCarterasVigentesAsync"/> solo mira las carteras
+    /// cuyo propietario es el Tenant activo, así que, mirada desde el Operador CAE externo,
+    /// una Gestora CAE con cinco Empresas gestionadas salía «Sin cartera» mientras su
+    /// Mi trabajo decía «Mi cartera · 5 empresas».
+    ///
+    /// <para>
+    /// Mismo predicado que Mi trabajo y el selector
+    /// (<see cref="TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion"/>),
+    /// en la posición de operador de <see cref="CaeManager.Application.Operaciones.IOperacionesQueryContext"/>
+    /// y de la RLS de los dos catálogos: <c>OperadorTenantId</c> = Tenant de origen de quien
+    /// mira. Solo responde cuando el Tenant activo ES ese origen —quien mira está en su
+    /// propia organización y las personas listadas son de ella—; dentro de un Tenant
+    /// beneficiario devuelve vacío, para no revelar a su propietario qué otras Empresas
+    /// opera el Operador CAE. Solo cuenta personas cuyo Tenant es ese origen.
+    /// </para>
+    ///
+    /// <para>
+    /// Es el ámbito <b>efectivo</b>, no solo el acceso: como en <see cref="ObtenerCarterasVigentesAsync"/> y
+    /// <c>AlcanceDatosService</c>, una cartera cerrada por Cliente empresarial o con una dimensión diferida
+    /// (Centro, Trabajador, Proyecto, en la cartera o en su operación) no concede nada y no se cuenta; una
+    /// operación acotada a un Cliente empresarial se cuenta marcada como <c>Parcial</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Devuelve también las Empresas gestionadas que la organización opera <b>enteras</b>
+    /// (<see cref="TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion"/>): es lo que
+    /// alcanza sin cartera un Coordinador CAE (decisión Chris 2026-10-20, <c>AlcanceDatosService</c> le da
+    /// alcance universal en ellas) y lo que cuentan su selector y su Mi trabajo.
+    /// </para>
+    /// </summary>
+    public Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(
+        CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId
+                || await usuarioActual.ObtenerTenantOrigenIdAsync() != tenantId)
+                return EmpresasGestionadasDeLaOrganizacion.Ninguna;
+
+            var ahora = DateTime.UtcNow;
+
+            var porCartera = await (
+                from v in TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(identidad, tenantId, ahora)
+                where v.Cartera.AmbitoRelacionClienteId == null
+                      && v.Cartera.AmbitoCentroId == null && v.Cartera.AmbitoTrabajadorId == null
+                      && v.Cartera.AmbitoProyectoId == null
+                      && v.Operacion.AmbitoCentroId == null && v.Operacion.AmbitoTrabajadorId == null
+                      && v.Operacion.AmbitoProyectoId == null
+                join usuario in identidad.Users on v.Cartera.UsuarioId equals usuario.Id
+                where usuario.TenantId == tenantId
+                join tenant in identidad.Tenants on v.Operacion.PropietarioTenantId equals tenant.Id
+                select new
+                {
+                    v.Cartera.UsuarioId,
+                    TenantId = tenant.Id,
+                    tenant.Nombre,
+                    Parcial = v.Operacion.AmbitoRelacionClienteId != null,
+                })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var delTenantEntero = await (
+                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, tenantId, ahora)
+                join tenant in identidad.Tenants on operacion.PropietarioTenantId equals tenant.Id
+                select new { TenantId = tenant.Id, tenant.Nombre })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            return new EmpresasGestionadasDeLaOrganizacion(
+                delTenantEntero
+                    .Select(t => new EmpresaGestionada(t.TenantId, t.Nombre, Parcial: false))
+                    .OrderBy(e => e.Nombre, StringComparer.CurrentCulture)
+                    .ToList(),
+                porCartera
+                    .GroupBy(f => f.UsuarioId)
+                    .ToDictionary(
+                        grupo => grupo.Key,
+                        grupo => (IReadOnlyList<EmpresaGestionada>)grupo
+                            // Una Empresa gestionada con una cartera entera y otra acotada es entera.
+                            .GroupBy(f => new { f.TenantId, f.Nombre })
+                            .Select(t => new EmpresaGestionada(t.Key.TenantId, t.Key.Nombre, Parcial: t.All(f => f.Parcial)))
+                            .OrderBy(e => e.Nombre, StringComparer.CurrentCulture)
+                            .ToList()));
+        }, cancellationToken);
+
+    /// <summary>
     /// Lectura sin rastreo, a propósito: el <c>DbContext</c> del circuito puede tener
     /// la cuenta rastreada desde que <c>/usuarios</c> pintó la lista, y el mapa de
     /// identidad devolvería su <c>LockoutEnd</c> de entonces — una cuenta desactivada
@@ -750,3 +839,20 @@ public class DirectorioUsuariosTenant(
 /// servicio, asignación) — ver <c>AmbitoAsignacion</c>.
 /// </summary>
 public record CarteraDeUsuario(bool EsUniversal, IReadOnlyList<Guid> ClienteIds);
+
+/// <summary>
+/// Una Empresa gestionada (Tenant beneficiario) que alcanza una persona del Operador CAE. <c>Parcial</c>: solo
+/// por una operación acotada a un Cliente empresarial, no el Tenant beneficiario entero.
+/// </summary>
+public record EmpresaGestionada(Guid TenantBeneficiarioId, string Nombre, bool Parcial);
+
+/// <summary>
+/// Las Empresas gestionadas del Operador CAE que se mira en <c>/usuarios</c>: las que opera enteras (lo que
+/// alcanza un Coordinador CAE sin cartera) y las de la Asignación de Cartera vigente de cada persona.
+/// </summary>
+public record EmpresasGestionadasDeLaOrganizacion(
+    IReadOnlyList<EmpresaGestionada> DelTenantEntero,
+    IReadOnlyDictionary<Guid, IReadOnlyList<EmpresaGestionada>> PorCartera)
+{
+    public static readonly EmpresasGestionadasDeLaOrganizacion Ninguna = new([], new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>>());
+}

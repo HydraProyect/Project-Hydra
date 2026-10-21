@@ -194,7 +194,7 @@ public class ComunicacionesGen2Tests : BunitContext
             new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!);
 
         return new DirectorioUsuariosTenant(
-            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad);
+            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad, null!);
     }
 
     // ---------------------------------------------------------------- escenario
