@@ -824,6 +824,34 @@ a.bandeja-documento-citado-nombre:hover {
     flex-shrink: 0;
 }
 
+/* El hilo manda sobre el alto: cabecera y editor conservan el suyo y la cronología se queda con el resto, con un
+   suelo para que nunca quede aplastada. Los tres selectores de la cabecera comparten una sola fila en vez de
+   apilarse (en la columna central de ~450 px cada uno ocupaba su propia línea y se comían ~280 px). */
+.bandeja-modo-hilo .bandeja-centro-cabecera,
+.bandeja-modo-hilo .bandeja-editor-tabs {
+    flex-shrink: 0;
+}
+
+.bandeja-modo-hilo .bandeja-centro ::deep .timeline-mensajes {
+    flex: 1 1 0;
+    min-height: 160px;
+}
+
+.bandeja-modo-hilo .bandeja-centro-cabecera {
+    padding: var(--space-3) var(--space-5);
+}
+
+.bandeja-modo-hilo .bandeja-editor-publico ::deep textarea {
+    height: 64px;
+    min-height: 64px;
+    resize: vertical;
+}
+
+.bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo {
+    flex: 1 1 0;
+    min-width: 0;
+}
+
 @media (max-width: 1180px) {
     .bandeja-modo-hilo:has(.bandeja-cliente) {
         grid-template-columns: var(--bandeja-ancho-lista) minmax(0, 1fr);

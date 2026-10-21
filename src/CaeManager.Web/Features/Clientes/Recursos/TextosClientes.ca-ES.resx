@@ -90,6 +90,18 @@
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontractes</value>
   </data>
+  <data name="GlosaDocumentoUno" xml:space="preserve">
+    <value>document exigit</value>
+  </data>
+  <data name="GlosaDocumentoVarios" xml:space="preserve">
+    <value>documents exigits</value>
+  </data>
+  <data name="GlosaContactoUno" xml:space="preserve">
+    <value>contacte</value>
+  </data>
+  <data name="GlosaContactoVarios" xml:space="preserve">
+    <value>contactes</value>
+  </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra com a contractista: {0}</value>
   </data>

@@ -363,7 +363,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         var cut = Renderizar(id, "notas");
 
         cut.FindAll("textarea").Should().BeEmpty();
-        cut.Markup.Should().NotContain("Guardar nota").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Guardar nota").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

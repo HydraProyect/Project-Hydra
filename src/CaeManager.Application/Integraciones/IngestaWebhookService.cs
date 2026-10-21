@@ -128,6 +128,7 @@ public class IngestaWebhookService(
         var esCorreoAutomatico = DeteccionCorreoAutomatico.EsAutomatico(mensaje) || candidatos.Count > 0;
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
+        var conversacionNueva = false;
         if (conversacion is null)
         {
             var anterior = await conversacionRepositorio.ObtenerUltimaCerradaPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
@@ -143,11 +144,16 @@ public class IngestaWebhookService(
                 if (anterior is null)
                     conversacion.AsociarConexion(conexion.Id, mensaje.HiloExternoId);
                 conversacionRepositorio.Agregar(conversacion);
+                conversacionNueva = true;
             }
         }
         var mensajeCreado = conversacion.AgregarMensaje(
             DireccionMensaje.Entrante, conversacion.Canal, mensaje.Remitente, mensaje.CuerpoHtml, mensaje.FechaUtc, mensaje.MensajeExternoId,
             esAutomatico: esCorreoAutomatico);
+        // Un correo que llega con retraso trae la fecha de su envío, anterior a la creación del hilo: la lista debe
+        // enseñar la del mensaje, no la de la ingesta.
+        if (conversacionNueva)
+            conversacion.AlinearFechaConLosMensajes();
 
         await intenciones.ProcesarAsync(conversacion, cancellationToken);
 

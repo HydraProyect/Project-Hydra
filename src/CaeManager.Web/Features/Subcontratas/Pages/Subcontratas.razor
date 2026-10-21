@@ -279,7 +279,7 @@
                                denegar. *@
                             <div class="@("tarjeta-fila-acordeon-contenido" + (_seleccionMultiple ? " contenido-con-seleccion" : string.Empty))">
                                 <ul class="documentos-pendientes-subcontrata" data-pieza="documentos-pendientes">
-                                    @foreach (var incidencia in incidencias)
+                                    @foreach (var incidencia in VerRestantes.Recortar(incidencias, _incidenciasCompletas.Contains(subcontrata.Id)))
                                     {
                                         <li class="documento-pendiente-subcontrata">
                                             <span class="documento-pendiente-nombre">@incidencia.Descripcion</span>
@@ -294,6 +294,8 @@
                                         </li>
                                     }
                                 </ul>
+                                <VerRestantes Total="incidencias.Count" Completa="_incidenciasCompletas.Contains(subcontrata.Id)"
+                                              OnVerRestantes="() => _incidenciasCompletas.Add(subcontrata.Id)" />
                             </div>
                         }
                     </div>

@@ -5,14 +5,14 @@ namespace CaeManager.Architecture.Tests;
 
 /// <summary>
 /// <b>Todo camino que termina el inicio de sesión aterriza con la marca de un
-/// solo uso</b> (D-2: Mi trabajo es el aterrizaje TRAS INICIAR SESIÓN, no lo que
-/// responde cada clic en «Inicio»).
+/// solo uso</b> (la que Inicio consume y quita de la URL; desde 2026-10-21 ya no
+/// decide el destino: D-2, el salto a Mi trabajo, está retirado).
 ///
 /// <para>
-/// Inicio solo redirige a Mi trabajo con <c>?desde=login</c>; si un paso final del
-/// login (contraseña, 2FA, cambio obligatorio de contraseña, callback externo)
-/// navega a «/» sin la marca, el Gestor CAE de un Operador CAE externo aterriza en
-/// un estado vacío en vez de en su bandeja.
+/// Mientras la marca exista, todos los pasos finales del login (contraseña, 2FA,
+/// cambio obligatorio de contraseña, callback externo) salen por la misma puerta,
+/// <c>RedireccionLocal.DestinoTrasLogin</c>, para que retirarla o volver a darle
+/// un uso sea un cambio en un solo sitio.
 /// </para>
 ///
 /// <para>
@@ -56,7 +56,7 @@ public class AterrizajeTrasLoginLlevaLaMarcaTests
 
             LlamaADestinoTrasLogin.Matches(texto).Count.Should().Be(llamadas,
                 $"{fichero} termina el inicio de sesión y debe aterrizar con ?desde=login " +
-                "(RedireccionLocal.DestinoTrasLogin): sin la marca, Inicio no lleva a Mi trabajo (D-2)");
+                "(RedireccionLocal.DestinoTrasLogin): una sola puerta de salida del inicio de sesión");
             UsaSanearComoDestino.IsMatch(texto).Should().BeFalse(
                 $"{fichero} no puede volver a RedireccionLocal.Sanear como destino: pierde la marca de aterrizaje");
         }

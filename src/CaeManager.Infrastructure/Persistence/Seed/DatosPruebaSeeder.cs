@@ -1720,6 +1720,8 @@ public static class DatosPruebaSeeder
                     "<p>Adjuntamos la documentación que vence próximamente. Por favor, gestiona su renovación.</p>",
                     fechaEnvio);
                 conversacion.AgregarParticipante(
+                    "cae@buzon-simulado.local", RolParticipante.De, TipoParticipanteOrigen.Desconocido);
+                conversacion.AgregarParticipante(
                     destinatario, RolParticipante.Para, TipoParticipanteOrigen.UsuarioCliente);
 
                 // Variante 1: el cliente contesta en el MISMO hilo. Variante 2:
@@ -1733,6 +1735,7 @@ public static class DatosPruebaSeeder
                         fechaEnvio.AddDays(1));
                 }
 
+                conversacion.AlinearFechaConLosMensajes();
                 dbContext.Conversaciones.Add(conversacion);
                 conversacionId = conversacion.Id;
             }

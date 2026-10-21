@@ -87,7 +87,17 @@ public class AlertasVacioPorFiltroTests : BunitContext
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(estado is null ? "alertas" : "alertas?Estado=" + Uri.EscapeDataString(estado));
 
-        return Render<Features.Alertas.Pages.Alertas>();
+        var cut = Render<Features.Alertas.Pages.Alertas>();
+        AbrirGrupos(cut);
+        return cut;
+    }
+
+    /// <summary>Los bloques llegan plegados: se despliegan para leer sus filas.</summary>
+    private static void AbrirGrupos(IRenderedComponent<Features.Alertas.Pages.Alertas> cut)
+    {
+        // Cada pulsación repinta: se vuelve a buscar la cabecera en vez de reutilizar elementos viejos.
+        for (var i = 0; i < cut.FindAll(".alertas-grupo-cabecera").Count; i++)
+            cut.FindAll(".alertas-grupo-cabecera")[i].Click();
     }
 
     [Fact]
@@ -165,6 +175,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Ninguna alerta con este estado", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
+        AbrirGrupos(cut);
 
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Reconocimiento médico");

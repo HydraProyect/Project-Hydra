@@ -470,7 +470,7 @@
                         }
                     </div>
                     <dl class="bandeja-cliente-datos">
-                        <dt>Ejecutivo asignado</dt>
+                        <dt>Gestor CAE</dt>
                         <dd>@(_ejecutivosDisponibles.FirstOrDefault(e => e.Id == _clienteActivo.EjecutivoUsuarioId)?.NombreCompleto ?? "Sin asignar")</dd>
                     </dl>
                     @if (!string.IsNullOrWhiteSpace(_clienteActivo.Notas))

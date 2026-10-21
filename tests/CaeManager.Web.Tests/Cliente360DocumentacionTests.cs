@@ -183,7 +183,7 @@ public class Cliente360DocumentacionTests : BunitContext
 
         var cut = Renderizar(id, pestana);
 
-        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().Be("Documentación");
+        cut.Find("[role=tab][aria-selected=true]").TextContent.Trim().Should().StartWith("Documentación", "con su cifra detrás, como en la maqueta");
         cut.FindAll("[role=tab]").Should().HaveCount(7);
         var texto = cut.Find(".cliente360-documentacion").TextContent;
         texto.Should().NotContain("42.1").And.NotContain("42.2").And.NotContain("certificación negativa")
@@ -370,7 +370,8 @@ public class Cliente360DocumentacionTests : BunitContext
     {
         var (id, mediador) = Preparar();
         Preparar_centro_con_requisitos(mediador);
-        mediador.FallosDeDocumentacion = 1;
+        // Dos fallos: la lectura de la cifra de la pestaña (la página) y la de la propia lista, que sin precarga pregunta de nuevo.
+        mediador.FallosDeDocumentacion = 2;
 
         var cut = Renderizar(id);
 
@@ -379,7 +380,7 @@ public class Cliente360DocumentacionTests : BunitContext
             .ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => Nombres(cut).Should().Equal("Evaluación de riesgos"));
-        mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should().HaveCount(2);
+        mediador.Enviadas.OfType<ObtenerDocumentacionExigidaDeClienteQuery>().Should().HaveCount(3);
     }
 
     [Fact]
