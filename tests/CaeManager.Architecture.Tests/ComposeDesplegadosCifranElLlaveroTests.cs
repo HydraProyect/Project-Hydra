@@ -20,6 +20,7 @@ public class ComposeDesplegadosCifranElLlaveroTests
     [InlineData("docker-compose.staging.yml")]
     [InlineData(".env.example")]
     [InlineData(".env.staging.example")]
+    [InlineData("docker-compose.rec196-override.yml")]
     public void Ningun_fichero_desplegado_permite_claves_sin_cifrar(string fichero)
     {
         var lineasActivas = File.ReadAllLines(RutaDeDespliegue(fichero))
