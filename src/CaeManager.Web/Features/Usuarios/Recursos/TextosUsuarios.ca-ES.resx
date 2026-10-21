@@ -48,6 +48,12 @@
   <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
     <value>L'enllaç queda a sota perquè el lliuris tu mateix.</value>
   </data>
+  <data name="EnvioCorreoEnCursoTitulo" xml:space="preserve">
+    <value>Enviant el correu…</value>
+  </data>
+  <data name="EnvioCorreoEnCursoCuerpo" xml:space="preserve">
+    <value>Li estem enviant per correu un enllaç perquè estableixi la seva contrasenya. Caduca aviat i només es pot fer servir una vegada. Mentrestant, pots fer-li arribar tu aquest enllaç:</value>
+  </data>
   <data name="CarteraAltaEtiqueta" xml:space="preserve">
     <value>Empreses de la seva cartera (opcional)</value>
   </data>

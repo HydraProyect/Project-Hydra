@@ -59,6 +59,70 @@ public class SmtpEmailServiceTests
     }
 
     /// <summary>
+    /// Defecto de staging: un servidor que acepta la conexión y no dice nada dejaba
+    /// el envío esperando los 120 s por operación de MailKit (el alta de usuario
+    /// se quedaba en «Guardando…» más de un minuto). Con el tope configurado el
+    /// envío termina como error de red, sin excepción, en segundos. Servidor
+    /// local en 127.0.0.1 que acepta y calla: sin red externa.
+    /// </summary>
+    [Fact]
+    public async Task Con_servidor_SMTP_que_acepta_y_no_contesta_el_envio_vence_como_error_de_red()
+    {
+        using var servidor = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        servidor.Start();
+        var puerto = ((System.Net.IPEndPoint)servidor.LocalEndpoint).Port;
+        _ = servidor.AcceptTcpClientAsync();
+
+        var logger = new LoggerEspia();
+        var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions
+        {
+            Host = "127.0.0.1",
+            Puerto = puerto,
+            Usuario = "usuario",
+            Contrasena = "contrasena",
+            BuzonRemitente = "info@talveg.es",
+            TiempoMaximoSegundos = 1,
+        }), logger);
+
+        var reloj = System.Diagnostics.Stopwatch.StartNew();
+        var resultado = await servicio.EnviarAsync("destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional);
+        reloj.Stop();
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Email.ErrorRed");
+        reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "el tope configurado manda, no los 120 s de MailKit");
+        logger.Errores.Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Si cancela quien llama, la cancelación no se disfraza de error de red: el
+    /// tope propio solo cubre su propio vencimiento.
+    /// </summary>
+    [Fact]
+    public async Task Si_cancela_quien_llama_la_cancelacion_se_propaga()
+    {
+        using var servidor = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
+        servidor.Start();
+        var puerto = ((System.Net.IPEndPoint)servidor.LocalEndpoint).Port;
+        _ = servidor.AcceptTcpClientAsync();
+
+        var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions
+        {
+            Host = "127.0.0.1",
+            Puerto = puerto,
+            Usuario = "usuario",
+            Contrasena = "contrasena",
+            BuzonRemitente = "info@talveg.es",
+        }), new LoggerEspia());
+        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+
+        var envio = () => servicio.EnviarAsync(
+            "destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional, cancellationToken: cancelacion.Token);
+
+        await envio.Should().ThrowAsync<OperationCanceledException>();
+    }
+
+    /// <summary>
     /// Reproduce en aislado el certificado REAL de dinahosting (dos SAN: el
     /// comodín compartido <c>*.correoseguro.dinaserver.com</c> y, además, el
     /// nombre exacto sin comodín — confirmado con <c>openssl x509 -text</c> el
