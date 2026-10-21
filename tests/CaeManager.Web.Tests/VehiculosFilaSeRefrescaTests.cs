@@ -153,7 +153,7 @@ public partial class VehiculosFilaSeRefrescaTests : BunitContext
 
     private static async Task IrALaPagina2Async(IRenderedComponent<Vehiculos> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => Nombres(cut).Should().HaveCount(5).And.StartWith("Vehículo 21"));
     }
 

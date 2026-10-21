@@ -27,12 +27,12 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* La empresa gestionada activa sigue resolviendo qué lista se carga; el rediseño oculta
        su rótulo en la cabecera y conserva el estado vacío cuando todavía no hay selección. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
                          SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
                          RutaExportar="@(_alcanceCero ? null : "/vehiculos/exportar.xlsx")" CriteriosExportar="CriteriosExportar" Menu="@(!_alcanceCero ? MenuExportarTodo : null)">
@@ -46,7 +46,7 @@
     }
     else
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" />
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" />
     }
 
     @if (_resolviendoEmpresa)
@@ -64,21 +64,26 @@
     {
     @if (!_alcanceCero)
     {
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+            <PastillaFiltro Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+        </Estados>
         <Herramientas>
             <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
                             ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
-            <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            @if (_elementosPagina.Count > 0)
+            {
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            }
         </Herramientas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
@@ -117,7 +122,9 @@
     }
     else
     {
-        @TarjetaListado.RenderizarMaqueta(@<text>
+        @if (_totalElementos > 0 || _cargando)
+        {
+        @TarjetaListado.Renderizar(@<text>
                 <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
                 <table class="tabla-datos quickgrid vehiculos-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
                     <thead><tr>
@@ -179,6 +186,12 @@
 
                 </div>
 
+        </text>, PieDelListado)
+        }
+        else
+        {
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
+        }
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
             @* Distinto de "aún no hay vehículos": hay cuatro filtros puestos
@@ -207,7 +220,6 @@
                 </EstadoVacio>
             </VacioSegunAlcance>
         }
-        </text>, PieDelListado)
     }
     }
 </div>
@@ -283,10 +295,16 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
+    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : PieSegun(false);
+
+    // Sin vehículos el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
                                   TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
                     <Centro><LeyendaAtajosLista /></Centro>

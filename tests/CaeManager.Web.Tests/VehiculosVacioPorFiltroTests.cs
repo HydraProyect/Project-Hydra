@@ -259,6 +259,18 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
     private static IRenderedComponent<CampoTexto> CajaDeBusqueda(IRenderedComponent<Vehiculos> cut) =>
         cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
 
+    [Fact]
+    public void Es_el_listado_nuevo_con_chips_de_estado_y_pie_en_la_tarjeta()
+    {
+        var (cut, _) = RenderizarConMediador(vehiculos: [new VehiculoListaDto(Guid.NewGuid(), "Furgoneta 1", "Transit", "1234-ABC", "Montajes Ebro S.L.")]);
+
+        cut.FindAll(".contenedor-pagina.lista-design").Should().ContainSingle();
+        cut.FindAll(".franja-campo-desplegable").Should().BeEmpty("el estado va en chips, no en un desplegable");
+        cut.FindAll(".barra-filtros-pastillas .franja-estado button[data-estado]").Should().NotBeEmpty();
+        cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty("el conmutador vive en la cabecera");
+        cut.FindAll(".tarjeta-listado .tarjeta-listado-pie .paginador-pie-listado").Should().ContainSingle();
+    }
+
     /// <summary>
     /// Cambiar el tamaño de página pide la página 1 del tamaño nuevo UNA vez.
     /// <c>SetCurrentPageIndexAsync</c> ya avisa a QuickGrid aunque la página no
@@ -273,7 +285,7 @@ public partial class VehiculosVacioPorFiltroTests : BunitContext
         var (cut, mediador) = RenderizarConMediador(vehiculos: Enumerable.Range(1, 21)
             .Select(i => new VehiculoListaDto(Guid.NewGuid(), "Vehículo " + i, "Transit", "Placa " + i, "Montajes Ebro S.L.")).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-        cut.Find(".pie-lista-opciones select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent.Trim() == "50").Click();
         mediador.Enviadas.OfType<ObtenerVehiculosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");
