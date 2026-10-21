@@ -171,7 +171,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
 
         return new DirectorioUsuariosTenant(
             userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual,
-            new PuertaAccesoDatos(), identidad);
+            new PuertaAccesoDatos(), identidad, null!);
     }
 
     private IRenderedComponent<Clientes> Renderizar(string accion, bool guardarFiltroDevuelveFallo = false)

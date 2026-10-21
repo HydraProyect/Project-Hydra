@@ -78,6 +78,7 @@ public class Cliente360PaginaTests : BunitContext
         public Dictionary<Guid, List<EmpresaDeClienteDto>> EmpresasPorCliente { get; } = [];
         public Dictionary<Guid, List<CentroListaDto>> CentrosPorCliente { get; } = [];
         public List<SubcontrataDeClienteDto> Subcontratas { get; } = [];
+        public List<ContactoAgendaDto> Contactos { get; } = [];
         public List<BlindajeEmpresaDto> Certificaciones { get; } = [];
         public List<SolicitudCertificacionTgssDto> HistorialCertificaciones { get; } = [];
 
@@ -116,6 +117,7 @@ public class Cliente360PaginaTests : BunitContext
             ObtenerEmpresasDeClienteQuery q when EmpresasPorCliente.TryGetValue(q.ClienteId, out var propias) => propias,
             ObtenerEmpresasDeClienteQuery => Empresas,
             ObtenerSubcontratasDeClienteQuery => Subcontratas,
+            ObtenerAgendaContactosQuery => (IReadOnlyList<ContactoAgendaDto>)Contactos.ToList(),
             ObtenerBlindajeEmpresasDeClienteQuery => Certificaciones,
             ObtenerHistorialCertificacionesTgssQuery => HistorialCertificaciones,
             SolicitarCertificacionTgssCommand => Result.Exito(Guid.NewGuid()),
@@ -760,6 +762,32 @@ public class Cliente360PaginaTests : BunitContext
         mediador.Enviadas.OfType<ObtenerHistorialCertificacionesTgssQuery>().Should().BeEmpty();
     }
 
+    /// <summary>Maqueta del 20-10: «Agenda» lleva la cifra de sus contactos.</summary>
+    [Fact]
+    public void La_pestana_Agenda_lleva_la_cifra_de_sus_contactos()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Contactos.AddRange(Enumerable.Range(0, 3).Select(i => new ContactoAgendaDto(
+            Guid.NewGuid(), $"Contacto {i}", $"c{i}@ejemplo.test", null, null, null, i == 0, false, false, [], [], [])));
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => Textos(cut.FindAll("[role=tab]")).Should().Contain("Agenda3 contactos"));
+    }
+
+    [Fact]
+    public void La_pestana_Agenda_sin_contactos_no_enseña_cero()
+    {
+        var (id, mediador) = ClienteBase();
+        Registrar(mediador);
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerAgendaContactosQuery>().Should().ContainSingle());
+        Textos(cut.FindAll("[role=tab]")).Should().Contain("Agenda");
+    }
+
     [Fact]
     public void La_pestana_activa_se_lee_de_la_URL_y_se_escribe_en_ella()
     {
@@ -1160,7 +1188,7 @@ public class Cliente360PaginaTests : BunitContext
 
         cut.Find("[data-pieza=lateral] [data-pieza=nota-interna]").TextContent.Should().Contain("Nota interna");
         cut.Find(".nota-interna-texto").TextContent.Should().Be("Llamar antes de ir.");
-        cut.Find(".nota-interna-pie").TextContent.Should().Be("No la ve el cliente.");
+        cut.Find(".nota-interna-pie").TextContent.Should().Be("No la ve el Cliente.");
 
         await cut.Find(".cabecera-identidad-acciones button.boton-primario").ClickAsync(new MouseEventArgs());
         workspace.FrameActual.Should().Be(new WorkspaceFrame(EntidadWorkspace.Cliente, id, "Refrielectric S.A.", "informacion"));

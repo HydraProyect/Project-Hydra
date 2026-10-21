@@ -567,7 +567,10 @@
   <data name="InformacionCliente360" xml:space="preserve"><value>Cliente</value></data>
   <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
   <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta rápida</value></data>
-  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
+  <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
+  <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>documento de Empresa con incidencia</value></data>
+  <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documentos de Empresa con incidencia</value></data>
+  <data name="BloqueaAccesoEtiqueta" xml:space="preserve"><value>Bloquea acceso</value></data>
   <data name="EtiquetaAgrupar" xml:space="preserve">
     <value>Agrupar</value>
   </data>

@@ -193,7 +193,7 @@ public class RetiraRepartoPorClienteDeLasCarterasTests : IAsyncLifetime
         clientesRepartida.Should().BeEmpty("la cartera repartida por Cliente que burló el CHECK no concede nada, ni el Tenant entero de la raíz");
 
         var directorio = new DirectorioUsuariosTenant(
-            null!, null!, new TenantActualAmbiental { TenantId = _tenant.Id }, new PuertaAccesoDatos(), lectura);
+            null!, null!, new TenantActualAmbiental { TenantId = _tenant.Id }, new PuertaAccesoDatos(), lectura, null!);
         var carteras = await directorio.ObtenerCarterasVigentesAsync();
         carteras.Should().ContainKey(universal, "control positivo del directorio");
         carteras[universal].EsUniversal.Should().BeTrue();

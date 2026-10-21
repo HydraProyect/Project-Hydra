@@ -154,9 +154,19 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // mira, así que sale del tenant de ORIGEN de cada usuario listado
         // (OperadorTenantId == usuario.TenantId, join contra AspNetUsers). El
         // propietario sí es el tenant activo, y quien llama ocupa esa posición:
-        // la pantalla es [Authorize(Administrador, DireccionCae)]. No expone
-        // ninguna fila de otro propietario ni de una posición ajena; ni
-        // siquiera devuelve las asignaciones, solo un recuento por usuario.
+        // la pantalla es [Authorize(Administrador, DireccionCae, CoordinadorCae)],
+        // y el Coordinador CAE sin los otros dos va por la rama de equipo, que no
+        // lee carteras. No expone ninguna fila de otro propietario ni de una
+        // posición ajena; ni siquiera devuelve las asignaciones, solo su ámbito
+        // por usuario.
+        //
+        // Segunda pregunta (ObtenerEmpresasGestionadasAsync, 2026-10-21): las
+        // Empresas gestionadas (Tenants beneficiarios: Id y nombre) de cada
+        // persona del Operador CAE, en la posición de OPERADOR: solo si el
+        // tenant activo es el de origen de quien mira (claim de sesión), con
+        // OperadorTenantId == ese origen y personas de ese mismo Tenant. Es lo
+        // que la RLS posicion_en_la_asignacion ya entrega a esa sesión y lo que
+        // el selector de la persona listada le muestra a ella.
         "src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs",
 
         // Configuraciones EF de las dos tablas.

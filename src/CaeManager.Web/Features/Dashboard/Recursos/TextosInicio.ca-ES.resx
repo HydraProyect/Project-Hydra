@@ -60,6 +60,60 @@
   <data name="TrabajadoresBloqueadosKpiVarios" xml:space="preserve">
     <value>{0} Treballadors bloquejats: el percentatge compta documents, no accés.</value>
   </data>
+  <data name="CarteraTitulo" xml:space="preserve">
+    <value>La teva cartera</value>
+  </data>
+  <data name="CarteraMetaUna" xml:space="preserve">
+    <value>1 empresa gestionada</value>
+  </data>
+  <data name="CarteraMetaVarias" xml:space="preserve">
+    <value>{0} Empreses gestionades</value>
+  </data>
+  <data name="CarteraDescripcion" xml:space="preserve">
+    <value>Ets en el context de la teva pròpia organització. La teva feina és a les Empreses gestionades de la teva cartera: entra en una per veure-la en detall, o ves a La meva feina per a la cua de totes.</value>
+  </data>
+  <data name="CarteraCifraTrabajadoresBloqueados" xml:space="preserve">
+    <value>Treballadors bloquejats</value>
+  </data>
+  <data name="CarteraCifraCentrosBloqueados" xml:space="preserve">
+    <value>Centres de Treball amb bloqueig</value>
+  </data>
+  <data name="CarteraCifraVencidos" xml:space="preserve">
+    <value>Documents vençuts</value>
+  </data>
+  <data name="CarteraCifraUrgentes" xml:space="preserve">
+    <value>Documents urgents</value>
+  </data>
+  <data name="CarteraColumnaEmpresa" xml:space="preserve">
+    <value>Empresa que gestiones</value>
+  </data>
+  <data name="CarteraColumnaVencidos" xml:space="preserve">
+    <value>Vençuts</value>
+  </data>
+  <data name="CarteraColumnaUrgentes" xml:space="preserve">
+    <value>Urgents</value>
+  </data>
+  <data name="CarteraColumnaCumplimiento" xml:space="preserve">
+    <value>Compliment documental</value>
+  </data>
+  <data name="CarteraColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="CarteraCeldaSinDatos" xml:space="preserve">
+    <value>Sense dades</value>
+  </data>
+  <data name="CarteraBotonEntrar" xml:space="preserve">
+    <value>Accedir</value>
+  </data>
+  <data name="CarteraBotonEntrarTitulo" xml:space="preserve">
+    <value>Canviar el context a {0}</value>
+  </data>
+  <data name="CarteraColumnaTrabajadoresBloqueados" xml:space="preserve">
+    <value>Treballadors bloquejats</value>
+  </data>
+  <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
+    <value>Centres amb bloqueig</value>
+  </data>
   <data name="AnilloAlDiaDetalle" xml:space="preserve">
     <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat)</value>
   </data>

@@ -378,7 +378,7 @@ src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: ObtenerClie
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: _clienteIds = 5
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteId = 2
 src/CaeManager.Infrastructure/Autorizacion/AlcanceDatosService.cs :: clienteIds = 24
-src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 2
+src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: AmbitoRelacionClienteId = 4
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: ClienteIds = 2
 src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs :: TenantClienteId = 1
 src/CaeManager.Infrastructure/Comunicaciones/AvisosConversacionesCriticasHostedService.cs :: ClienteId = 1

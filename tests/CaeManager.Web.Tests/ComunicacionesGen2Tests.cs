@@ -194,7 +194,7 @@ public class ComunicacionesGen2Tests : BunitContext
             new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!);
 
         return new DirectorioUsuariosTenant(
-            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad);
+            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad, null!);
     }
 
     // ---------------------------------------------------------------- escenario
@@ -1231,7 +1231,7 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Conversaciones.Add(conversacion);
         var (cut, _) = Renderizar(escenario);
         cut.FindAll(".tabla-conversaciones [role=columnheader]").Select(e => e.TextContent.Trim())
-            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Empresa", "Estado", "Asignada a");
+            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente", "Estado", "Asignada a");
         await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
         await Escribir(cut, "Recibido.");
         cut.FindAll(".composer-macro-campo").Should().BeEmpty();

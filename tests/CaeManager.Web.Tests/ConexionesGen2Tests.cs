@@ -110,7 +110,7 @@ public class ConexionesGen2Tests : BunitContext
         var identidad = new CaeManagerDbContext(new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
             DataProtectionProvider.Create(nameof(ConexionesGen2Tests)), tenant);
         return new DirectorioUsuariosTenant(new UserManager<ApplicationUser>(new AlmacenUsuariosFalso(), null!, null!, null!, null!, null!, null!, null!, null!),
-            new ContextoTenantsFalso(), tenant, new PuertaAccesoDatos(), identidad);
+            new ContextoTenantsFalso(), tenant, new PuertaAccesoDatos(), identidad, null!);
     }
 
     private IRenderedComponent<Conexiones> Renderizar(MediadorFalso? mediador = null)

@@ -117,7 +117,6 @@
                                                       VisitaId="_visitas.Count > 0 ? _visitas[0].VisitaId : null"
                                                       VisitaFechaFin="_visitas.Count > 0 ? _visitas[0].FechaFin : null"
                                                       EmpresaId="_detalle.EmpresaId" EmpresaNombre="@_detalle.EmpresaRazonSocial"
-                                                      IncidenciasEmpresa="IncidenciasEmpresaHeader"
                                                       SoloIncidencias="false"
                                                       FiltroTexto="@_busqueda" FiltroEstado="@_estadoFiltro" FiltroEstadoChanged="CambiarEstado"
                                                       OnResumenCargado="ActualizarResumenTrabajadores"
@@ -291,8 +290,11 @@
                             {
                                 <DatoRejilla Etiqueta="@Textos["FichaHorarioAcceso"]" Valor="@_detalle.HorarioAcceso" />
                             }
-                            @* Empresa del Centro: la cabecera ya no la nombra (Centro 360 del 17-10); aquí queda, al final y solo lectura, para todo rol y para Centros sin gestión CAE. *@
-                            <DatoRejilla Etiqueta="@Textos["InformacionEmpresa360"]" Valor="@_detalle.EmpresaRazonSocial" />
+                            @* Maqueta del 20-10: Código · Cliente · Dirección · Horario de acceso · Alta; la Empresa del Centro ya no va en esta tarjeta. *@
+                            @if (_detalle.CreadoEnUtc is { } alta)
+                            {
+                                <DatoRejilla Etiqueta="@Textos["InformacionAlta360"]" Valor="@alta.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
+                            }
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>

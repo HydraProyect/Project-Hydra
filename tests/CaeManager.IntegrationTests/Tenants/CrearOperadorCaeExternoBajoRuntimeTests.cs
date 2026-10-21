@@ -65,6 +65,8 @@ public class CrearOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             {
                 servicios.AddScoped<PuertaAccesoDatos>();
                 servicios.AddScoped<DirectorioUsuariosTenant>();
+                // El directorio exige la sesión (Ámbito efectivo); el arnés que no la registra recibe la de por defecto.
+                Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton<CaeManager.Application.Common.ICurrentUserService>(servicios, new CurrentUserServiceFalso());
                 // El arranque no genera tokens; el alta de una cuenta sí.
                 new IdentityBuilder(typeof(ApplicationUser), typeof(IdentityRole<Guid>), servicios).AddDefaultTokenProviders();
             });

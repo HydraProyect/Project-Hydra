@@ -198,7 +198,7 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     }
 
     /// <summary>
-    /// D-2: quien llega forzado por la 2FA obligatoria (Administrador) termina aquí
+    /// Quien llega forzado por la 2FA obligatoria (Administrador) termina aquí
     /// su inicio de sesión, y aterriza con la marca de un solo uso; el alta
     /// voluntaria (no Administrador) no es un login y sigue saliendo a «/».
     /// </summary>

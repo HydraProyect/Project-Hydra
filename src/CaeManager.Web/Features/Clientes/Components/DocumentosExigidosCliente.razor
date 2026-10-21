@@ -112,6 +112,14 @@ else
     /// </summary>
     [Parameter] public SerieDeLecturas? Serie { get; set; }
 
+    /// <summary>
+    /// Los requisitos que la página ya leyó para la cifra de su pestaña: la primera lectura los usa en vez de repetir la consulta
+    /// (sigue siendo una sola consulta de servidor); «Reintentar» y las siguientes lecturas preguntan de nuevo.
+    /// </summary>
+    [Parameter] public DocumentacionExigidaClienteDto? Precargada { get; set; }
+
+    private bool _precargadaUsada;
+
     private readonly CancellationTokenSource _ciclo = new();
 
     /// <summary>Copia de <c>_ciclo.Token</c>: se lee sin tocar la fuente, que puede estar ya liberada al desmontarse.</summary>
@@ -146,6 +154,7 @@ else
             _cliente = ClienteId;
             _generacion++;
             _leido = false;
+            _precargadaUsada = false;
             _cargando = true;
             _error = false;
             _empresas = [];
@@ -175,7 +184,10 @@ else
             // Una tras otra y con el turno de la página: comparten el DbContext del circuito.
             using var turno = await SerieDeLecturas.TomarSiHayAsync(Serie, token);
             var empresas = await Mediator.Send(new ObtenerBlindajeEmpresasDeClienteQuery(_cliente), token);
-            var documentacion = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(_cliente), token);
+            var documentacion = Precargada is not null && !_precargadaUsada
+                ? Precargada
+                : await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(_cliente), token);
+            _precargadaUsada = true;
             if (generacion != _generacion) return;
             _empresas = empresas;
             _documentacion = documentacion ?? SinDocumentacion;
