@@ -289,7 +289,10 @@
     <value>(sin marcar, cada centro sigue «¿Se pide?»)</value>
   </data>
   <data name="SinCentrosCreados" xml:space="preserve">
-    <value>Todavía no hay centros creados.</value>
+    <value>Encara no hi ha Centres. Dona d'alta un Centre per triar on es demana aquest tipus de document.</value>
+  </data>
+  <data name="BotonGuardarCambiosTipo" xml:space="preserve">
+    <value>Desa els canvis</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
     <value>Cancelar</value>

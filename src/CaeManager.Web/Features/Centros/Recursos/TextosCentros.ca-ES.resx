@@ -646,4 +646,19 @@
   <data name="VisitaPasada360" xml:space="preserve"><value>Passada</value></data>
   <data name="VisitaNombre360" xml:space="preserve"><value>Visita {0} – {1}</value></data>
   <data name="VisitaTrabajadoresDe360" xml:space="preserve"><value>Treballadors de la visita: {0}</value></data>
+  <data name="ConfigurarRequisitoTitulo" xml:space="preserve">
+    <value>Configurar requisit</value>
+  </data>
+  <data name="IncluidoAyudaRequisito" xml:space="preserve">
+    <value>Si ho desactives, aquest Centre deixa de demanar-ho encara que el tipus es demani per defecte.</value>
+  </data>
+  <data name="ArchivoCentroEtiqueta" xml:space="preserve">
+    <value>Arxiu del Centre (Word o PDF, opcional)</value>
+  </data>
+  <data name="ArchivoCentroAyuda" xml:space="preserve">
+    <value>Model o instruccions que el Centre lliura a les Empreses. Opcional.</value>
+  </data>
+  <data name="RequisitoGuardadoToast" xml:space="preserve">
+    <value>Requisit desat en aquest centre.</value>
+  </data>
 </root>
