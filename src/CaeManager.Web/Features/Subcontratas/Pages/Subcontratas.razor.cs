@@ -51,7 +51,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private int _totalElementos;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>
+    /// Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos
+    /// (bloque 1 de CAMBIOS-SESION 2026-10-21).
+    /// </summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    /// <summary>Con qué agrupación se cargaron las filas de pantalla: al cambiarla hay que volver a pedirlas.</summary>
+    private bool _cargadoAgrupado;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -168,6 +177,12 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
 
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>Fila en rojo: su peor documento es faltante o vencido (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(SubcontrataListaDto fila) => ClaseTinte(fila.Recuentos).Contains("peligro", StringComparison.Ordinal);
+
     private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
         ? [new(string.Empty, string.Empty, _elementosPagina)]
         : _elementosPagina.SelectMany(s => s.Contratantes.Count == 0
@@ -272,6 +287,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarContratantesParaFiltroAsync();
         _contratadaPorFiltro = ContratadaPorValida(ContratadaPorInicial);
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -291,7 +307,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         var contratadaPorDeLaUrl = ContratadaPorValida(ContratadaPorInicial);
         var cambiaElOrden = _orden.Leer(OrdenInicial);
         if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro
-            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden)
+            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden
+            && (_agruparPor is not null) == _cargadoAgrupado)
             return;
 
         _busqueda = deLaUrl;
@@ -321,7 +338,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private ObtenerSubcontratasQuery ConsultaDePaginaActual() => new(
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         Pagina: _pagina,
-        TamanoPagina: _tamanoPagina,
+        TamanoPagina: TamanoPedido,
         NivelServicio: NivelSeleccionado,
         OrdenarPor: _orden.Propiedad,
         Descendente: _orden.Direccion == SortDirection.Descending,
@@ -409,7 +426,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             // retrocede a la última página que existe en vez de enseñar «ninguna coincide».
             if (resultado.Elementos.Count == 0 && resultado.TotalElementos > 0 && _pagina > 1)
             {
-                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)_tamanoPagina));
+                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)TamanoPedido));
                 resultado = await Mediator.Send(ConsultaDePaginaActual());
             }
         }
@@ -440,6 +457,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
+            _cargadoAgrupado = _agruparPor is not null;
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;

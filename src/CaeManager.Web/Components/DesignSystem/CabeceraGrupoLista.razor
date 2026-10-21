@@ -10,6 +10,11 @@
       contador lo dice: «3 de 12», con «3 de 12 en esta página» de título.
     - Con Termino (lo escrito en el buscador de la pantalla), la parte del nombre que casa sale marcada con
       TextoResaltado, igual que en las filas. Solo tiene sentido si la consulta busca por ese nombre.
+    - Comportamiento de «Agrupar» (CAMBIOS-SESION 2026-10-21, bloque 1): todos los grupos nacen plegados
+      (GruposAbiertos recuerda los abiertos mientras dure la vista), la cabecera dice «· N» y, plegado y con
+      filas en rojo, la pastilla «N con incidencias» (Incidencias). Los grupos se calculan sobre todas las filas
+      visibles tras filtrar: con agrupación, la pantalla pide todas, el tamaño de página no los corta
+      (AgrupacionDeLista.TamanoPaginaAgrupada, GruposDeLista.Agrupar).
     - Es un botón con aria-expanded que abre y contrae el grupo. Si algo ajeno al grupo lo mantiene abierto
       (búsqueda, selección múltiple…), Fijo: no es un botón ni lleva aria-expanded, porque no podría contraerlo.
 
@@ -61,6 +66,12 @@
     /// <summary>Resumen por estado, ya redactado y en el orden en que se pinta. Vacío: sin resumen.</summary>
     [Parameter] public IReadOnlyList<ResumenEstadoGrupo> Resumen { get; set; } = [];
 
+    /// <summary>
+    /// Filas del grupo en rojo (Bloqueo CAE, Vencido o Pendiente), calculadas sobre todas las filas visibles tras
+    /// filtrar. Con el grupo plegado y más de cero, la cabecera lo dice en una pastilla roja («2 con incidencias»).
+    /// </summary>
+    [Parameter] public int Incidencias { get; set; }
+
     [Parameter] public TinteGrupoLista Tinte { get; set; }
 
     /// <summary>Rejilla de tres columnas con recuento azul junto al nombre, como en la maqueta de Centros.</summary>
@@ -92,7 +103,12 @@
         }
         else
         {
-            <span class="grupo-lista-contador" title="@TituloContador">@Total</span>
+            <span class="grupo-lista-contador" title="@TituloContador">· @Total</span>
+        }
+        @if (Incidencias > 0 && !Abierto && !Fijo)
+        {
+            @* Solo plegado: abierto, las filas rojas ya se ven. «Rojo» es Bloqueo CAE, Vencido o Pendiente, lo cuenta la pantalla. *@
+            <span class="grupo-lista-incidencias">@(Incidencias == 1 ? Comunes["GrupoConIncidencia", Incidencias] : Comunes["GrupoConIncidencias", Incidencias])</span>
         }
         </span>
         @if (Resumen.Count > 0)

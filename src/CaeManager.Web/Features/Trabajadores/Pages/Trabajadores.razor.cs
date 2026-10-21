@@ -117,7 +117,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private int _pagina = 1;
     private int _tamanoPagina = TamanoPaginaMinimo;
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
     private bool _cargaPendiente = true;
     private bool _parametrosInicializados;
     private CancellationTokenSource? _peticionActiva;
@@ -583,7 +583,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
             Pagina: _pagina,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
             DelegacionEmpresaId: Guid.TryParse(_filtroDelegacionEmpresaId, out var delegacionId) ? delegacionId : null,
             OficioEmpresaId: Guid.TryParse(_filtroOficioId, out var oficioId) ? oficioId : null,
@@ -691,27 +691,18 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// tienen Delegación u Oficio, al final, bajo «Sin delegación» / «Sin oficio»). <c>Cantidad</c> es cuántas filas
     /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
-    private IEnumerable<(TrabajadorListaDto Trabajador, string? Grupo, int Cantidad)> FilasConGrupo()
-    {
-        if (!Agrupado)
-        {
-            foreach (var trabajador in _elementosPagina)
-                yield return (trabajador, null, 0);
-            yield break;
-        }
+    private IEnumerable<FilaDeGrupo<TrabajadorListaDto>> FilasConGrupo() =>
+        GruposDeLista.Agrupar(_elementosPagina, Agrupado, ClaveDeGrupo, (_, trabajador) => TituloDeGrupo(trabajador), EsFilaRoja, _gruposAbiertos);
 
-        var cantidades = _elementosPagina.GroupBy(ClaveDeGrupo).ToDictionary(g => g.Key, g => g.Count());
-        string? anterior = null;
-        foreach (var trabajador in _elementosPagina)
-        {
-            var clave = ClaveDeGrupo(trabajador);
-            var empiezaGrupo = anterior is null || clave != anterior;
-            anterior = clave;
-            yield return empiezaGrupo
-                ? (trabajador, TituloDeGrupo(trabajador), cantidades[clave])
-                : (trabajador, null, 0);
-        }
-    }
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila). «Sin confirmar» no cuenta.</summary>
+    private static bool EsFilaRoja(TrabajadorListaDto item) =>
+        EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
 
     /// <summary>Lo que identifica el grupo de una fila en la agrupación vigente (el Id del catálogo, no el nombre: dos Empresas pueden llamar igual a una Delegación).</summary>
     private string ClaveDeGrupo(TrabajadorListaDto t) => _agrupar switch

@@ -153,7 +153,8 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
         Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
         Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         var cut = Render<Vehiculos>();
-        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
+        // Agrupada, los grupos nacen plegados y sus filas no se pintan: basta con que haya cargado la cabecera de un grupo.
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina, tbody button.grupo-lista-cabecera").Count > 0);
         return cut;
     }
 
@@ -243,9 +244,17 @@ public partial class VehiculosEstadoDocumentalTests : BunitContext
 
         var cut = Renderizar(mediador, "vehiculos?agrupar=empresa");
 
-        var titulos = cut.FindAll("tr.vehiculo-grupo").Select(t => t.TextContent.Trim()).ToList();
-        titulos.Should().Equal("Montajes Ebro S.L.2", "Pinturas Lauburu S.A.1");
+        cut.FindAll("tr.vehiculo-grupo .grupo-lista-nombre").Select(t => t.TextContent.Trim()).Should()
+            .Equal("Montajes Ebro S.L.", "Pinturas Lauburu S.A.");
+        cut.FindAll("tr.vehiculo-grupo .grupo-lista-contador").Select(t => t.TextContent.Trim()).Should().Equal("· 2", "· 1");
         UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(VehiculoListaDto.EmpleadorNombre));
+        UltimaConsulta(mediador).TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "agrupada, la pantalla pide todas las filas filtradas: el tamaño de página no corta los grupos");
+
+        // Los grupos nacen plegados: sus Vehículos no se pintan hasta abrirlos.
+        Filas(cut).Should().BeEmpty();
+        cut.FindAll("tr.vehiculo-grupo button.grupo-lista-cabecera")[0].Click();
+        Filas(cut).Should().HaveCount(2);
     }
 
     [Fact]
