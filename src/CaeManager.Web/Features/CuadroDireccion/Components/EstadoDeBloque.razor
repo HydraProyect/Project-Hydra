@@ -1,0 +1,22 @@
+@*
+    Lo que enseña un bloque del Cuadro de dirección mientras su consulta sigue en vuelo: el hueco de la gráfica (el esqueleto del
+    kit, con el alto de la gráfica real) y debajo el texto de su fase. Así cada bloque se pinta en cuanto llega lo suyo y los
+    que siguen esperando mantienen su hueco, sin saltos de maquetación. Cuando la consulta ya terminó (sin datos o con error),
+    la página pinta su recuadro de siempre (cuadro-vacio), no este componente.
+*@
+@using CaeManager.Web.Components.DesignSystem
+
+<div class="cuadro-carga-bloque" data-carga="bloque" aria-busy="true">
+    <div aria-hidden="true">
+        <Esqueleto Forma="FormaEsqueleto.Grafica" Cantidad="1" Alto="Alto" />
+    </div>
+    <p class="cuadro-carga-texto">@Texto</p>
+</div>
+
+@code {
+    /// <summary>El texto de la fase, ya localizado.</summary>
+    [Parameter, EditorRequired] public string Texto { get; set; } = string.Empty;
+
+    /// <summary>El alto del hueco: el de la gráfica que va a llegar.</summary>
+    [Parameter] public int Alto { get; set; } = 200;
+}

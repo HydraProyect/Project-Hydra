@@ -30,6 +30,11 @@
                     }
                 </div>
                 break;
+            case FormaEsqueleto.Grafica:
+                <div class="esqueleto-tarjeta">
+                    <span class="esqueleto-bloque esqueleto-lienzo" style="--esqueleto-alto:@(Alto)px"></span>
+                </div>
+                break;
             default:
                 <div class="esqueleto-tarjeta">
                     <span class="esqueleto-bloque esqueleto-linea-detalle"></span>
@@ -48,4 +53,7 @@
 
     /// <summary>Solo <see cref="FormaEsqueleto.Tabla"/>: cuántas celdas por fila, las columnas de la tabla real.</summary>
     [Parameter] public int Columnas { get; set; } = 4;
+
+    /// <summary>Solo <see cref="FormaEsqueleto.Grafica"/>: el alto en píxeles del hueco, el de la gráfica que va a llegar.</summary>
+    [Parameter] public int Alto { get; set; } = 240;
 }
