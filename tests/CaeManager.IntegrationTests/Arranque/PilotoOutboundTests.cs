@@ -567,8 +567,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             return [.. idPorClave.Where(p => vistos.Contains(p.Value)).Select(p => p.Key).Order()];
         }
 
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F", "H");
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("B", "C", "D", "E", "G");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F", "H", "J");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("B", "C", "D", "E", "G", "I", "K");
     }
 
     /// <summary>
@@ -620,8 +620,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task C_lleva_una_revision_de_IA_una_deteccion_de_alta_y_una_sugerencia_de_Visita_pendientes()
     {
         var recuento = await fixture.Arnes.RecuentoAsync();
+        var conSenales = CatalogoPilotoOutbound.Tenants.Count(t => t.ConSenalesDeIa);
+        CatalogoPilotoOutbound.Tenants.Where(t => t.ConSenalesDeIa).Select(t => t.Clave).Should().Equal(["C", "I", "J", "K"], "control: C y el escaparate");
         new[] { "Revisiones de IA", "Detecciones de Trabajador", "Sugerencias de Visita" }.Select(k => recuento[k])
-            .Should().Equal([1, 1, 1], "MEDIDO: una de cada, en C");
+            .Should().Equal([conSenales, conSenales, conSenales], "MEDIDO: una de cada en C y en cada Tenant del escaparate");
     }
 
     /// <summary>Las Visitas de cada estado: futuras, en curso, realizadas, vencidas (pasaron sin gestionar) y canceladas.</summary>
@@ -662,7 +664,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             // Empieza en D+1: dentro de las 48 h de aviso el día D−1 (empieza a dos días) y el propio D, no antes.
             var urgenteDeB = dia >= fecha.AddDays(-1) ? 1 : 0;
             (enB.Estructura.VisitasConAvisoUrgente, enB.InicioVisitasUrgentes).Should().Be((urgenteDeB, urgenteDeB), $"MEDIDO el día {dia:yyyy-MM-dd}");
-            eseDia.Tenants.Where(t => t.Clave is not ("D" or "B")).Should().OnlyContain(
+            // I, el escaparate grande, lleva su propia Visita en curso desde D−10, como la de D.
+            var enI = eseDia.Tenants.Single(t => t.Clave == CatalogoPilotoOutbound.I.Clave);
+            (enI.Estructura.VisitasEnCurso, enI.Estructura.VisitasConAvisoUrgente).Should().Be((1, 0), $"MEDIDO el día {dia:yyyy-MM-dd}: la Visita en curso de I");
+            eseDia.Tenants.Where(t => t.Clave is not ("D" or "B" or "I")).Should().OnlyContain(
                 t => t.Estructura.VisitasEnCurso == 0 && t.Estructura.VisitasConAvisoUrgente == 0, "ningún otro perfil tiene una Visita en curso ni a menos de 48 h");
         }
     }
@@ -758,7 +763,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             }, $"MEDIDO {tenant.Clave}: los Centros que piden el REA o el recibo de RETA");
             (enUso.GetValueOrDefault("Certificado de inscripción en el REA"), enUso.GetValueOrDefault("Libro de Subcontratación"),
                 enUso.GetValueOrDefault("Recibo de cuota de autónomos (RETA)"))
-                .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, 0, 0) }, $"MEDIDO {tenant.Clave}: dónde se usan");
+                .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, tenant.Obras.Count, 0) },
+                    $"MEDIDO {tenant.Clave}: dónde se usan (un Libro de Subcontratación por obra: D y el escaparate tienen obras)");
         }
     }
 
@@ -1494,7 +1500,8 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var reanudada = await arnes.SembrarAsync(configuracion);
         reanudada!.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantH,
-            CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC);
+            CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantK, CatalogoPilotoOutbound.NombreTenantJ,
+            CatalogoPilotoOutbound.NombreTenantC, CatalogoPilotoOutbound.NombreTenantI);
         await arnes.BackfillAsync();
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
         var completa = await arnes.RecuentoAsync();
