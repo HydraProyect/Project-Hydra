@@ -1013,6 +1013,7 @@ using (var scope = app.Services.CreateScope())
         GestorCaeCarteraMultiTenantSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+        CoberturaPantallasSeeder.RechazarFueraDeDevelopment(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -1063,6 +1064,11 @@ using (var scope = app.Services.CreateScope())
             dbContext, userManager, userStore,
             scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
             app.Configuration, app.Environment, logger);
+
+        // Siembra de cobertura para la revisión visual 1:1: un ejemplar de cada estado de pantalla en dos
+        // Tenants propietarios nuevos — inerte salvo DatosPrueba:Cobertura:Activo (con DatosPrueba:Activo),
+        // y lanza fuera de Development (ver CoberturaPantallasSeeder).
+        await CoberturaPantallasSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
