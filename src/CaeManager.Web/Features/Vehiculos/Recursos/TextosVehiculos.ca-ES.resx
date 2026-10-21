@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -382,6 +382,11 @@
   <data name="FichaErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar la fitxa del vehicle.</value>
   </data>
+  <data name="ListaColumnaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaColumnaDocumentacion" xml:space="preserve"><value>Documentació</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Per Empresa</value></data>
   <data name="PestanaPlataformas360" xml:space="preserve"><value>Plataformes</value></data>
   <data name="FichaAlta" xml:space="preserve"><value>Alta</value></data>
   <data name="PlataformasIntroduccion" xml:space="preserve"><value>Estat de la documentació del vehicle a la plataforma CAE de cada Client, per Centre.</value></data>

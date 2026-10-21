@@ -40,7 +40,7 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
     [Fact]
     public async Task Vehiculos_recuerda_el_orden_y_no_la_busqueda_la_URL_manda_y_Restablecer_vista_la_olvida()
     {
-        const string pastilla = "Empleador";
+        const string pastilla = "Empresa";
         const string placeholder = "Filtrar esta pantalla: nombre, modelo o matrícula";
         var listado = $"{fixture.BaseUrl}/vehiculos";
         var conUnaVista = $"{listado}?orden=matricula-desc";
@@ -65,9 +65,13 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await Expect(nombres).ToHaveCountAsync(2);
 
             // El botón de orden es el nativo de QuickGrid; la dirección vigente la dice la clase de su cabecera.
-            var ordenarPorMatricula = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Matrícula", Exact = true });
-            var cabeceraMatricula = page.Locator("thead th").Filter(new LocatorFilterOptions { Has = ordenarPorMatricula });
-            await ordenarPorMatricula.ClickAsync();
+            // La maqueta junta Vehículo y Matrícula en una sola columna: la matrícula se elige en las opciones de su cabecera.
+            var cabeceraMatricula = page.Locator("thead th").Filter(new LocatorFilterOptions { HasTextRegex = new Regex("^Vehículo") });
+            var ordenarPorMatricula = cabeceraMatricula.Locator("button.col-title");
+            await cabeceraMatricula.Locator(".col-options-button").ClickAsync();
+            await cabeceraMatricula.Locator(".col-options").GetByLabel("Ordenar por", new LocatorGetByLabelOptions { Exact = true })
+                .SelectOptionAsync("Matrícula");
+            await cabeceraMatricula.Locator(".col-options").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
             await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-asc\b"));
             await ordenarPorMatricula.ClickAsync();
             await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-desc\b"));

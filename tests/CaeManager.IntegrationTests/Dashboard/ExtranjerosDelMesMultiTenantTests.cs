@@ -7,6 +7,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
@@ -188,6 +189,71 @@ public class ExtranjerosDelMesMultiTenantTests : IAsyncLifetime
         ibertec.Asignaciones.Should().Be(4, "Amina en dos Centros, Yusuf y Oleg");
         ibertec.TrabajadoresDistintos.Should().Be(3);
         conteo.PorTenant.Single(t => t.TenantId == _tenantConsultora).Asignaciones.Should().Be(1);
+    }
+
+    /// <summary>
+    /// El Excel general sin Empresa pedida (el botón de /facturacion y del Cuadro de dirección): para un Operador CAE solo lleva
+    /// las Visitas dentro de la vigencia de la Asignación de Operación externa de cada Empresa gestionada, y su número de filas es
+    /// la cifra facturada (<see cref="ContarExtranjerosCobrablesDelMesQuery"/> con los tramos). Aquí la Consultora opera a Ibertec
+    /// desde el día 13 del mes: las Visitas del día 10 (Amina y Oleg) quedan fuera, las del 16 (Amina y Yusuf) dentro, y la
+    /// Consultora (que no se gestiona a sí misma) no sale. Un Coordinador CAE recibe lo mismo: el Excel no lleva importes.
+    /// </summary>
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    public async Task El_Excel_general_del_Operador_CAE_solo_lleva_las_Visitas_dentro_de_la_vigencia_y_cuadra_con_la_cifra(string rol)
+    {
+        await SembrarAsignacionExternaDeIbertecAsync(desdeUtc: new DateTime(_mes.Year, _mes.Month, 13, 12, 0, 0, DateTimeKind.Utc));
+        using var servicios = ConstruirServicios(rol: rol);
+        var mediator = servicios.GetRequiredService<IMediator>();
+
+        var excel = await mediator.Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(
+            _mes.Year, _mes.Month, GeneralSiNoEsOperadorCae: true));
+        var tramos = (await mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(_mes.Year, _mes.Month))).Tramos;
+        var cifra = await mediator.Send(new ContarExtranjerosCobrablesDelMesQuery(_mes.Year, _mes.Month, tramos));
+
+        excel.SinCifras.Should().BeNull();
+        excel.Filas.Select(f => (f.TenantId, f.NombreYApellidos, f.FechaIngreso)).Should().BeEquivalentTo(
+        [
+            (_tenantIbertec, "Amina El Idrissi", _mes.AddDays(15)),
+            (_tenantIbertec, "Yusuf Demir", _mes.AddDays(15)),
+        ], "las Visitas anteriores a la Asignación y las de un Tenant que el Operador no gestiona quedan fuera del Excel");
+        excel.Filas.Count.Should().Be(cifra.PorTenant.Sum(t => t.Asignaciones), "nº de filas del Excel = cifra facturada de extranjeros");
+    }
+
+    [Fact]
+    public async Task Un_Operador_CAE_con_la_Asignacion_ya_cerrada_antes_del_mes_recibe_el_Excel_general_vacio()
+    {
+        await SembrarAsignacionExternaDeIbertecAsync(
+            desdeUtc: new DateTime(_mes.Year, _mes.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-3),
+            hastaUtc: new DateTime(_mes.Year, _mes.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(-1));
+        using var servicios = ConstruirServicios();
+
+        var excel = await servicios.GetRequiredService<IMediator>().Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(
+            _mes.Year, _mes.Month, GeneralSiNoEsOperadorCae: true));
+
+        excel.Filas.Should().BeEmpty("es Operador CAE y en ese mes no gestiona a ninguna Empresa: cifra cero, Excel vacío");
+    }
+
+    [Fact]
+    public async Task Un_Tenant_que_no_es_Operador_CAE_conserva_el_Excel_general_entero()
+    {
+        using var servicios = ConstruirServicios();
+        var mediator = servicios.GetRequiredService<IMediator>();
+
+        var general = await mediator.Send(new ObtenerExtranjerosDeEmpresasGestionadasDelMesQuery(
+            _mes.Year, _mes.Month, GeneralSiNoEsOperadorCae: true));
+        var completo = await mediator.Send(new ObtenerExtranjerosDelMesQuery(_mes.Year, _mes.Month));
+
+        general.Filas.Should().HaveCount(5).And.BeEquivalentTo(completo.Filas);
+    }
+
+    private async Task SembrarAsignacionExternaDeIbertecAsync(DateTime desdeUtc, DateTime? hastaUtc = null)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(_tenantConsultora);
+        _dbContext.AsignacionesOperacion.Add(AsignacionOperacion.Externa(
+            _tenantIbertec, _tenantConsultora, ServicioCae.Outbound, AmbitoAsignacion.Universal, desdeUtc, hastaUtc, desdeUtc));
+        await _dbContext.SaveChangesAsync();
     }
 
     [Fact]

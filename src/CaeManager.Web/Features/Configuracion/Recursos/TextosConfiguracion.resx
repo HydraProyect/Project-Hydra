@@ -340,10 +340,10 @@
     <value>Ordena los grupos del menú lateral y los enlaces de cada grupo. El orden es el mismo para todos los usuarios de todos los Tenants.</value>
   </data>
   <data name="OrdenMenuSinAccesoTitulo" xml:space="preserve">
-    <value>Solo el Actor de Plataforma TALVEG ordena el menú</value>
+    <value>Solo el equipo de TALVEG puede cambiar el orden del menú.</value>
   </data>
   <data name="OrdenMenuSinAccesoTexto" xml:space="preserve">
-    <value>El orden del menú es global: lo ven todos los usuarios de todos los Tenants. Solo puede cambiarlo un Actor de Plataforma TALVEG con concesión global, y tu cuenta no la tiene.</value>
+    <value>El orden del menú es el mismo para todas las personas que usan TALVEG. Si necesitas cambiarlo, contacta con el equipo de TALVEG.</value>
   </data>
   <data name="OrdenMenuGlobalTitulo" xml:space="preserve">
     <value>El cambio es global</value>

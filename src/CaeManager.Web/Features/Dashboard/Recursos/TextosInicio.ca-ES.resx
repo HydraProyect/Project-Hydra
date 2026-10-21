@@ -30,6 +30,9 @@
   <data name="EnlaceMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>
   </data>
+  <data name="SinReclamacionesTexto" xml:space="preserve">
+    <value>Cap reclamació no porta més de 7 dies sense resposta.</value>
+  </data>
   <data name="AnilloConPendientes" xml:space="preserve">
     <value>Hi ha pendents</value>
   </data>

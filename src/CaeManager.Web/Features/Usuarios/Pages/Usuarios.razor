@@ -165,7 +165,7 @@
                                    ver PendienteActivacion. *@
                                 <Badge Tono="TonoBadge.Advertencia"
                                        title="Nunca se estableció una contraseña. Puede que el correo de activación no haya llegado.">
-                                    Pendiente de activación
+                                    Pendiente de activar
                                 </Badge>
                             }
                             else if (usuario.Activo)
@@ -263,6 +263,10 @@
         @if (_editandoId is not null)
         {
             <p class="texto-ayuda-campo">@TextosUsuarios["EditarCorreoNoSeCambiaAqui"]</p>
+        }
+        else
+        {
+            <p class="texto-ayuda-campo">@TextosUsuarios["AltaCorreoAyudaActivacion"]</p>
         }
 
         <CampoTexto Etiqueta="Nombre completo" Valor="@_nombreCompleto" ValorChanged="v => _nombreCompleto = v" />
@@ -398,7 +402,7 @@
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
        VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Usuario creado")">
+       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Enlace de activación")">
     <ChildContent>
         @if (_reenvioEnCurso && _reenvioFallido)
         {

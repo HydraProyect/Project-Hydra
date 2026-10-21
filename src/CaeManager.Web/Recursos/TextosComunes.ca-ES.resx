@@ -627,6 +627,48 @@
   <data name="IrATuPantallaPrincipal" xml:space="preserve">
     <value>Ves a la teva pantalla principal</value>
   </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Codi per a suport</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si es repeteix, envia aquest codi a suport.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el codi per a suport</value>
+  </data>
+  <data name="VolverListaTrabajadores" xml:space="preserve">
+    <value>Tornar a la llista de treballadors</value>
+  </data>
+  <data name="VolverListaEmpresas" xml:space="preserve">
+    <value>Tornar a la llista d'empreses</value>
+  </data>
+  <data name="VolverListaCentros" xml:space="preserve">
+    <value>Tornar a la llista de centres de treball</value>
+  </data>
+  <data name="VolverListaClientes" xml:space="preserve">
+    <value>Tornar a la llista de clients</value>
+  </data>
+  <data name="VolverListaSubcontratas" xml:space="preserve">
+    <value>Tornar a la llista de subcontractes</value>
+  </data>
+  <data name="VolverListaVehiculos" xml:space="preserve">
+    <value>Tornar a la llista de vehicles</value>
+  </data>
+  <data name="VolverListaProyectos" xml:space="preserve">
+    <value>Tornar a la llista de projectes</value>
+  </data>
+  <data name="VolverListaDocumentos" xml:space="preserve">
+    <value>Tornar a la llista de documents</value>
+  </data>
+  <data name="VolverListaVisitas" xml:space="preserve">
+    <value>Tornar a la llista de visites</value>
+  </data>
+  <data name="VolverListaGestiones" xml:space="preserve">
+    <value>Tornar a la llista de gestions</value>
+  </data>
+  <data name="VolverListaAlertas" xml:space="preserve">
+    <value>Tornar a la llista d'alertes</value>
+  </data>
   <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablir ordre</value></data>
   <data name="TarjetasMover" xml:space="preserve"><value>Moure la targeta {0}. Utilitza les fletxes amunt i avall.</value></data>
   <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrossega ⠿ per reordenar les targetes</value></data>

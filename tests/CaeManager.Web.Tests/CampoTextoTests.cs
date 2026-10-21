@@ -43,7 +43,10 @@ public class CampoTextoTests : BunitContext
         await input.InputAsync("nuevo valor");
         valoresRecibidos.Should().ContainSingle().Which.Should().Be("nuevo valor");
         instanteNotificacion.Should().NotBeNull();
-        instanteNotificacion!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(300),
+        // Margen de 20 ms: Task.Delay(300) puede despertar unas décimas de milisegundo antes
+        // según la resolución del temporizador del sistema (CI midió 299,7 ms). Una notificación
+        // prematura de verdad, sin debounce, llegaría en pocos milisegundos.
+        instanteNotificacion!.Value.Should().BeGreaterThanOrEqualTo(TimeSpan.FromMilliseconds(280),
             "ValorChanged no debe notificarse antes de los 300 ms del debounce");
     }
 
