@@ -107,11 +107,8 @@ public class ReclamacionEmpresaEmpleadoraTests
     private EnviarReclamacionEmpresaEmpleadoraCommandHandler Handler(AlcanceDatosServiceFalso? alcance = null, string rol = "GestorCae")
     {
         alcance ??= new AlcanceDatosServiceFalso();
-        var pendientes = new PendientesDeReclamacionService(
-            _documentos, _tipos, _trabajadores, _asignaciones, _centros, _empresas,
-            new DocumentosFaltantesService(_tipos, _documentos, _centros),
-            new EvaluacionDeAccesoPorCentroService(_centros, _tipos, _trabajadores, _asignaciones, _documentos, alcance),
-            alcance);
+        var pendientes = PendientesDeReclamacionPruebas.Crear(
+            _documentos, _tipos, _trabajadores, _asignaciones, _centros, _empresas, alcance);
         return new(_empresas, _documentos, _trabajadores, _tipos, _asignaciones, _centros, alcance, Servicio(alcance, rol), _registro, pendientes);
     }
 
@@ -285,6 +282,30 @@ public class ReclamacionEmpresaEmpleadoraTests
         resultado.EsFallido.Should().BeTrue("lo de la Empresa sola va por EnviarReclamacionEmpresaCommand");
         resultado.Error.Codigo.Should().Be("Reclamacion.DocumentosDesactualizados");
         _registro.VecesLlamado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Seguimiento de la PR #1528: la reclamación preventiva o por acceso pide también el documento de la Empresa que el Centro
+    /// exige sin marcarlo «bloquea el acceso» y que falta. Antes el envío lo rechazaba por desactualizado: la regla solo conocía
+    /// los ausentes de Empresa que bloquean.
+    /// </summary>
+    [Fact]
+    public async Task Por_acceso_el_documento_de_la_Empresa_que_el_Centro_exige_sin_bloquear_y_falta_sale_junto_a_lo_del_Trabajador()
+    {
+        var deAna = DocumentoQueVence(_anaSevilla);
+        var plan = new TipoDocumento("Plan de prevención", null, false, 2, AmbitoAplicacion.Empresa);
+        _tipos.ListaTiposDocumento.Add(plan);
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(plan.Id, _centro.Id, incluido: true, bloqueaAcceso: false));
+
+        var resultado = await Handler().Handle(
+            new EnviarReclamacionEmpresaEmpleadoraCommand(_contratista.Id, _sevilla.Id, [deAna.Id], Pendientes: [PendienteSinFecha.Ausente(null, plan.Id)]),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeFalse(resultado.EsFallido ? resultado.Error.Mensaje : null);
+        _registro.VecesLlamado.Should().Be(1, "un solo borrador");
+        _registro.UltimosDestinatarios.Should().Equal(CorreoSevilla);
+        _registro.UltimoCuerpoHtml.Should().Contain(System.Net.WebUtility.HtmlEncode(plan.Nombre))
+            .And.Contain(EnviarReclamacionEmpresaEmpleadoraCommandHandler.RotuloEmpresa);
     }
 
     // ---- Lo pendiente sin fecha: de la Empresa, del Trabajador y lo que no es de este envío ----
