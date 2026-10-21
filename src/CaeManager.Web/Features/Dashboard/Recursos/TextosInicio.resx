@@ -87,9 +87,6 @@
   <data name="CarteraColumnaEmpresa" xml:space="preserve">
     <value>Empresa gestionada</value>
   </data>
-  <data name="CarteraColumnaBloqueos" xml:space="preserve">
-    <value>Bloqueos</value>
-  </data>
   <data name="CarteraColumnaVencidos" xml:space="preserve">
     <value>Vencidos</value>
   </data>
@@ -105,13 +102,16 @@
   <data name="CarteraCeldaSinDatos" xml:space="preserve">
     <value>Sin datos</value>
   </data>
-  <data name="CarteraBloqueosTitulo" xml:space="preserve">
-    <value>{0} Trabajadores bloqueados y {1} Centros de Trabajo con bloqueo de la plataforma CAE</value>
-  </data>
   <data name="CarteraBotonEntrar" xml:space="preserve">
     <value>Entrar</value>
   </data>
   <data name="CarteraBotonEntrarTitulo" xml:space="preserve">
     <value>Cambiar el contexto a {0}</value>
+  </data>
+  <data name="CarteraColumnaTrabajadoresBloqueados" xml:space="preserve">
+    <value>Trabajadores bloqueados</value>
+  </data>
+  <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
+    <value>Centros con bloqueo</value>
   </data>
 </root>

@@ -64,7 +64,7 @@
     <value>La teva cartera</value>
   </data>
   <data name="CarteraMetaUna" xml:space="preserve">
-    <value>1 Empresa gestionada</value>
+    <value>1 empresa gestionada</value>
   </data>
   <data name="CarteraMetaVarias" xml:space="preserve">
     <value>{0} Empreses gestionades</value>
@@ -85,10 +85,7 @@
     <value>Documents urgents</value>
   </data>
   <data name="CarteraColumnaEmpresa" xml:space="preserve">
-    <value>Empresa gestionada</value>
-  </data>
-  <data name="CarteraColumnaBloqueos" xml:space="preserve">
-    <value>Bloquejos</value>
+    <value>Empresa que gestiones</value>
   </data>
   <data name="CarteraColumnaVencidos" xml:space="preserve">
     <value>Vençuts</value>
@@ -105,13 +102,16 @@
   <data name="CarteraCeldaSinDatos" xml:space="preserve">
     <value>Sense dades</value>
   </data>
-  <data name="CarteraBloqueosTitulo" xml:space="preserve">
-    <value>{0} Treballadors bloquejats i {1} Centres de Treball amb bloqueig de la plataforma CAE</value>
-  </data>
   <data name="CarteraBotonEntrar" xml:space="preserve">
-    <value>Entrar</value>
+    <value>Accedir</value>
   </data>
   <data name="CarteraBotonEntrarTitulo" xml:space="preserve">
     <value>Canviar el context a {0}</value>
+  </data>
+  <data name="CarteraColumnaTrabajadoresBloqueados" xml:space="preserve">
+    <value>Treballadors bloquejats</value>
+  </data>
+  <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
+    <value>Centres amb bloqueig</value>
   </data>
 </root>

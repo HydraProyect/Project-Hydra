@@ -33,7 +33,7 @@ public class RedireccionLocalTests
         => RedireccionLocal.Sanear(entrada).Should().Be("/");
 
     /// <summary>
-    /// Aterrizaje D-2 tras iniciar sesión: sin returnUrl a otra ruta (o con uno
+    /// Aterrizaje tras iniciar sesión: sin returnUrl a otra ruta (o con uno
     /// saneado a la raíz), el destino es Inicio con la marca de un solo uso.
     /// </summary>
     [Theory]
@@ -78,7 +78,7 @@ public class RedireccionLocalTests
 
     /// <summary>
     /// Los selectores de MainLayout reciben como returnUrl la URL con la que se creó el circuito,
-    /// que tras iniciar sesión es "/?desde=login": volver ahí reactivaría el aterrizaje D-2. Solo se
+    /// que tras iniciar sesión es "/?desde=login": volver ahí sacaría al usuario de donde estaba. Solo se
     /// quita el parámetro exacto (todas sus apariciones); el resto de la consulta y su orden se
     /// conservan, y un fragmento se mantiene tras la consulta.
     /// </summary>

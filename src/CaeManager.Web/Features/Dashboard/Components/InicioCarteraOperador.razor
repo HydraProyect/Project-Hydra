@@ -49,26 +49,31 @@
 
     <Tarjeta Class="inicio-cartera-tarjeta">
         <div class="inicio-cartera-tabla-contenedor">
-            <table class="tabla-datos">
+            <table class="tabla-datos" aria-labelledby="inicio-cartera-titulo">
                 <thead>
                     <tr>
-                        <th>@Textos["CarteraColumnaEmpresa"]</th>
-                        <th>@Textos["CarteraColumnaBloqueos"]</th>
-                        <th>@Textos["CarteraColumnaVencidos"]</th>
-                        <th>@Textos["CarteraColumnaUrgentes"]</th>
-                        <th>@Textos["CarteraColumnaCumplimiento"]</th>
-                        <th aria-label="@Textos["CarteraColumnaAcciones"]"></th>
+                        <th scope="col">@Textos["CarteraColumnaEmpresa"]</th>
+                        <th scope="col">@Textos["CarteraColumnaTrabajadoresBloqueados"]</th>
+                        <th scope="col">@Textos["CarteraColumnaCentrosBloqueados"]</th>
+                        <th scope="col">@Textos["CarteraColumnaVencidos"]</th>
+                        <th scope="col">@Textos["CarteraColumnaUrgentes"]</th>
+                        <th scope="col">@Textos["CarteraColumnaCumplimiento"]</th>
+                        <th scope="col"><span class="inicio-cartera-oculto">@Textos["CarteraColumnaAcciones"]</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (var empresa in Ordenadas)
                     {
-                        var bloqueos = empresa.TrabajadoresBloqueados + empresa.CentrosBloqueados;
                         <tr data-empresa-gestionada="@empresa.TenantId">
                             <td class="inicio-cartera-nombre">@empresa.Nombre</td>
+                            @* El bloqueo es del Trabajador (regla de acceso por Centro) o de la plataforma CAE
+                               del Centro de Trabajo (D-7): dos cosas distintas, en dos columnas, como en la
+                               visión de cartera. *@
                             <td>
-                                <Badge Tono="@(bloqueos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)"
-                                       title="@Textos["CarteraBloqueosTitulo", empresa.TrabajadoresBloqueados, empresa.CentrosBloqueados]">@bloqueos</Badge>
+                                <Badge Tono="@(empresa.TrabajadoresBloqueados > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.TrabajadoresBloqueados</Badge>
+                            </td>
+                            <td>
+                                <Badge Tono="@(empresa.CentrosBloqueados > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.CentrosBloqueados</Badge>
                             </td>
                             <td>
                                 <Badge Tono="@(empresa.DocumentosVencidos > 0 ? TonoBadge.Peligro : TonoBadge.Neutro)">@empresa.DocumentosVencidos</Badge>
@@ -83,7 +88,7 @@
                                 }
                                 else
                                 {
-                                    @($"{Math.Clamp(empresa.TasaCumplimientoDocumental, 0, 100)} %")
+                                    @($"{Math.Clamp(empresa.TasaCumplimientoDocumental, 0, 100)}%")
                                 }
                             </td>
                             <td class="inicio-cartera-accion">
@@ -96,7 +101,8 @@
                                     <input type="hidden" name="returnUrl" value="/" />
                                     <input type="hidden" name="tenantId" value="@empresa.TenantId" />
                                     <Boton Type="submit" Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                           title="@Textos["CarteraBotonEntrarTitulo", empresa.Nombre]">@Textos["CarteraBotonEntrar"]</Boton>
+                                           title="@Textos["CarteraBotonEntrarTitulo", empresa.Nombre]"
+                                           aria-label="@Textos["CarteraBotonEntrarTitulo", empresa.Nombre]">@Textos["CarteraBotonEntrar"]</Boton>
                                 </form>
                             </td>
                         </tr>
@@ -121,9 +127,10 @@
 
     protected override void OnInitialized() => _token = AntiforgeryStateProvider.GetAntiforgeryToken();
 
-    /// <summary>Primero lo que impide el acceso, luego lo vencido y lo urgente; a igualdad, por nombre.</summary>
+    /// <summary>Primero lo que impide el acceso (Trabajadores, luego Centros de Trabajo), luego lo vencido y lo urgente; a igualdad, por nombre.</summary>
     private IEnumerable<ClienteRiesgoDto> Ordenadas => Empresas
-        .OrderByDescending(e => e.TrabajadoresBloqueados + e.CentrosBloqueados)
+        .OrderByDescending(e => e.TrabajadoresBloqueados)
+        .ThenByDescending(e => e.CentrosBloqueados)
         .ThenByDescending(e => e.DocumentosVencidos)
         .ThenByDescending(e => e.DocumentosUrgentes)
         .ThenBy(e => e.Nombre, StringComparer.CurrentCulture);

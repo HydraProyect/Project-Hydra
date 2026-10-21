@@ -337,11 +337,25 @@ public class InicioGen2Tests : BunitContext
         formulario.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Be("/");
         formulario.QuerySelector("input[name=__RequestVerificationToken]").Should().NotBeNull();
         formulario.QuerySelector("button")!.TextContent.Trim().Should().Be("Entrar");
+        formulario.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Cambiar el contexto a Laboratorios Dexter",
+            "con varias filas, «Entrar» a secas no dice a qué Empresa gestionada se entra");
+    }
+
+    /// <summary>El Coordinador CAE de un Operador CAE externo también entra a Inicio y ve ahí la cartera.</summary>
+    [Fact]
+    public void El_Coordinador_CAE_en_el_Tenant_de_origen_tambien_ve_la_cartera()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), rol: Roles.CoordinadorCae, ruta: "/?desde=login");
+
+        cut.FindAll("[data-empresa-gestionada]").Should().ContainSingle();
+        cut.FindAll(".estado-vacio").Should().BeEmpty();
+        VerificarMarcaQuitadaSinNavegar(cut);
     }
 
     /// <summary>
     /// Las cifras de cabecera suman las Empresas gestionadas de la fila, y las filas
-    /// empiezan por lo que impide el acceso (bloqueos), luego lo vencido.
+    /// empiezan por lo que impide el acceso (Trabajadores bloqueados, luego Centros de
+    /// Trabajo con bloqueo, en columnas separadas), luego lo vencido.
     /// </summary>
     [Fact]
     public void La_cartera_suma_sus_Empresas_gestionadas_y_ordena_primero_las_que_tienen_bloqueos()
@@ -366,6 +380,8 @@ public class InicioGen2Tests : BunitContext
             .Should().Equal("Cervezas Duff Ibérica", "Laboratorios Dexter");
         cut.Find(".inicio-cartera-meta").TextContent.Should().Be("2 Empresas gestionadas");
         cut.FindAll(".inicio-cartera-cifra dd").Select(c => c.TextContent).Should().Equal("2", "1", "6", "2");
+        cut.FindAll($"[data-empresa-gestionada='{PropietarioSinCartera}'] td").Select(c => c.TextContent.Trim()).Take(6)
+            .Should().Equal("Cervezas Duff Ibérica", "2", "1", "1", "0", "60%");
     }
 
     [Fact]
@@ -1278,18 +1294,19 @@ public class InicioGen2Tests : BunitContext
             Task.FromResult((true, (DateTime?)desdeUtc));
     }
 
-    /// <summary>
-    /// Doble de <see cref="IMediator"/> para Inicio: responde a las ocho
-    /// consultas que hace la pantalla y revienta con cualquier otra. Es a
-    /// propósito: si mañana la pantalla añade una novena, estos tests tienen que
-    /// enterarse en vez de seguir en verde sobre un <c>default</c> silencioso.
-    /// </summary>
+    /// <summary>Token fijo para el POST de «Entrar» del Inicio de cartera.</summary>
     private sealed class AntiforgeryDePrueba : Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider
     {
         public override Microsoft.AspNetCore.Components.Forms.AntiforgeryRequestToken? GetAntiforgeryToken() =>
             new("token-de-prueba", "__RequestVerificationToken");
     }
 
+    /// <summary>
+    /// Doble de <see cref="IMediator"/> para Inicio: responde a las ocho
+    /// consultas que hace la pantalla y revienta con cualquier otra. Es a
+    /// propósito: si mañana la pantalla añade una novena, estos tests tienen que
+    /// enterarse en vez de seguir en verde sobre un <c>default</c> silencioso.
+    /// </summary>
     private sealed class MediadorDeInicio(params ItemBandejaDto[] items) : IMediator
     {
         /// <summary>

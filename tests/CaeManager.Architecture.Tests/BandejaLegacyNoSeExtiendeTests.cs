@@ -8,7 +8,7 @@ namespace CaeManager.Architecture.Tests;
 /// staging (2026-10-01).
 ///
 /// <para>
-/// <b>Qué es.</b> La pantalla de aterrizaje del Gestor CAE se llama <b>Mi trabajo</b>; «Bandeja» es el
+/// <b>Qué es.</b> La cola de trabajo del Gestor CAE se llama <b>Mi trabajo</b>; «Bandeja» es el
 /// nombre histórico que sobrevive en el espacio de nombres <c>Application.Bandeja</c>, en la ruta
 /// <c>/bandeja</c>, en los DTO (<c>ItemBandejaDto</c>, <c>TipoItemBandeja</c>) y en algún rótulo. El
 /// recorrido encontró «Bandeja del gestor» y «desde la Bandeja» en pantalla (D-27) y fue una de las
@@ -49,7 +49,7 @@ public class BandejaLegacyNoSeExtiendeTests
     public void Las_ubicaciones_de_Bandeja_solo_decrecen()
     {
         var fallo = ListaCongelada.Verificar("Bandeja-ubicaciones", Medir(FuentesDeSrc.Analisis),
-            "«Bandeja» es el nombre histórico de Mi trabajo (la pantalla de aterrizaje del Gestor CAE); el " +
+            "«Bandeja» es el nombre histórico de Mi trabajo (la cola de trabajo del Gestor CAE); el " +
             "contrato de terminología y D-27 del recorrido en vivo piden «Mi trabajo». No añadas usos nuevos con " +
             "ese sentido. Si el sentido es el buzón de correo (bandeja de entrada), añade la línea en el mismo commit " +
             "y dilo en la PR; si has RETIRADO usos, baja o borra su línea.");
