@@ -1,3 +1,5 @@
+using CriterioDocumentoIdentidadTrabajador = CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador;
+using TipoDocumentoTrabajador = CaeManager.Domain.Trabajadores.TipoDocumentoTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
 using System.Text.Json;
 using CaeManager.Application.Alertas;
@@ -1513,14 +1515,17 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         {
             if (string.IsNullOrWhiteSpace(_dni)) return null;
 
-            var resultado = ValidadorIdentificacion.Analizar(_dni);
-            return resultado.Tipo switch
+            // Criterio único del documento del Trabajador (decisión de Chris, 2026-10-20): DNI, NIE o Pasaporte. Lo que no
+            // es DNI ni NIE se avisa antes de guardar; un marcador («PENDIENTE», «SIN DNI») lo rechaza la validación.
+            var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(_dni);
+            return (resultado.EsValido, resultado.Tipo ?? CriterioDocumentoIdentidadTrabajador.TipoGuardado(_dni)) switch
             {
-                TipoIdentificacion.Dni => resultado.EsValido ? Textos["PistaDniValido"] : Textos["PistaDniInvalido"],
-                TipoIdentificacion.Nie => resultado.EsValido ? Textos["PistaNieValido"] : Textos["PistaNieInvalido"],
-                TipoIdentificacion.NifEmpresa => resultado.EsValido ? Textos["PistaCifValido"] : Textos["PistaCifInvalido"],
-                TipoIdentificacion.TieSoporte => Textos["PistaTieSoporte"],
-                _ => Textos["PistaDocumentoExtranjero"]
+                (true, TipoDocumentoTrabajador.Dni) => Textos["PistaDniValido"].Value,
+                (true, TipoDocumentoTrabajador.Nie) => Textos["PistaNieValido"].Value,
+                (true, _) => Textos["PistaDocumentoExtranjero"].Value,
+                (false, TipoDocumentoTrabajador.Dni) when resultado.Error!.Contains("letra") => Textos["PistaDniInvalido"].Value,
+                (false, TipoDocumentoTrabajador.Nie) when resultado.Error!.Contains("letra") => Textos["PistaNieInvalido"].Value,
+                _ => null,
             };
         }
     }
@@ -1529,9 +1534,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         get
         {
-            var resultado = ValidadorIdentificacion.Analizar(_dni);
-            if (resultado.Tipo is TipoIdentificacion.TieSoporte or TipoIdentificacion.Otros) return "info";
-            return resultado.EsValido ? "exito" : "error";
+            var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(_dni);
+            if (!resultado.EsValido) return "error";
+            return resultado.SeGuardaComoPasaporte ? "info" : "exito";
         }
     }
 

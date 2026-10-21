@@ -24,9 +24,15 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
     {
-        @* No encontrado y sin acceso se ven igual: la página no revela si el registro existe. *@
+        @* No encontrado y sin acceso se ven igual: la página no revela si el registro existe (§ 4.5). *@
+        <Tarjeta>
+            <FichaNoEncontrada RutaLista="/documentos" />
+        </Tarjeta>
+    }
+    else if (_error)
+    {
         <Tarjeta>
             <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
                          NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">

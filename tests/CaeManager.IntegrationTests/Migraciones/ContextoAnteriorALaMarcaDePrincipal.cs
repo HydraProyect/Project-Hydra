@@ -3,6 +3,7 @@ using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Trabajadores;
+using CaeManager.Domain.Visitas;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +47,11 @@ internal sealed class ContextoAnteriorALaMarcaDePrincipal(
         builder.Ignore<OficioEmpresa>();
         builder.Entity<Trabajador>().Ignore(t => t.DelegacionEmpresaId);
         builder.Entity<Trabajador>().Ignore(t => t.OficioEmpresaId);
+        // AnadeExtranjeroCobrableYAsignacionVisita también: ni la marca del Trabajador ni las dos columnas
+        // de la asignación a la Visita existen en los esquemas históricos que siembran estas clases.
+        builder.Entity<Trabajador>().Ignore(t => t.MarcaExtranjeroCobrable);
+        builder.Entity<VisitaTrabajador>().Ignore(vt => vt.FechaAsignacionUtc);
+        builder.Entity<VisitaTrabajador>().Ignore(vt => vt.GestionadoPorUsuarioId);
     }
 
     private static readonly string[] CamposDeLaFichaDeCentro =

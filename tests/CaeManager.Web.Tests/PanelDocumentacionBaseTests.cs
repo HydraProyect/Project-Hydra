@@ -48,7 +48,8 @@ public class PanelDocumentacionBaseTests : BunitContext
         var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(
             EstadoIndicadorBase.Vigente, EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
 
-        cut.Markup.Should().Contain("Al día en lo básico");
+        // Maqueta Trabajador 360: la pastilla del título es el peor estado de las cuatro filas.
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be("Por vencer");
         cut.FindAll(".panel-doc-base-fila").Should().HaveCount(4);
         cut.Markup.Should().Contain("Aptitud médica").And.Contain("Formación Art. 19")
             .And.Contain("Información Art. 18").And.Contain("Entrega de EPI");
@@ -57,13 +58,27 @@ public class PanelDocumentacionBaseTests : BunitContext
         cut.Markup.Should().NotContain("Próximo a vencer");
     }
 
+    [Theory]
+    [InlineData(EstadoIndicadorBase.Falta, EstadoIndicadorBase.ProximoAVencer, "Pendiente")]
+    [InlineData(EstadoIndicadorBase.ProximoAVencer, EstadoIndicadorBase.SinConfirmar, "Por vencer")]
+    [InlineData(EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente, "Vigencia sin confirmar")]
+    public void La_pastilla_del_titulo_es_el_peor_estado_y_las_filas_se_tiñen(EstadoIndicadorBase peor, EstadoIndicadorBase otro, string texto)
+    {
+        var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(otro, peor, otro, otro)));
+
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be(texto);
+        cut.FindAll(".panel-doc-base-fecha").Should().OnlyContain(f => f.TextContent.Trim() == "—");
+        cut.FindAll(".panel-doc-base-fila-mal, .panel-doc-base-fila-aviso").Should().NotBeEmpty();
+    }
+
     [Fact]
     public void Un_indicador_vencido_o_ausente_no_es_al_dia_y_se_nombra()
     {
         var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(
             EstadoIndicadorBase.Vencido, EstadoIndicadorBase.Falta, EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente)));
 
-        cut.Markup.Should().Contain("Falta algo en lo básico").And.NotContain("Al día en lo básico");
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be("Vencido");
+        cut.Markup.Should().NotContain("Al día en lo básico");
         var filas = cut.FindAll(".panel-doc-base-fila").Select(f => f.TextContent).ToList();
         filas[0].Should().Contain("Vencido");
         filas[1].Should().Contain("Pendiente").And.NotContain("Falta");
@@ -76,7 +91,7 @@ public class PanelDocumentacionBaseTests : BunitContext
         var cut = Render<PanelDocumentacionBase>(p => p.Add(c => c.Datos, Dto(
             EstadoIndicadorBase.Vigente, EstadoIndicadorBase.SinConfirmar, EstadoIndicadorBase.Vigente, EstadoIndicadorBase.Vigente)));
 
-        cut.Markup.Should().Contain("Al día en lo básico").And.NotContain("Falta algo en lo básico");
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be("Vigencia sin confirmar");
         cut.FindAll(".panel-doc-base-fila")[1].TextContent.Should().Contain("Vigencia sin confirmar");
         cut.Find(".panel-doc-base-aviso").TextContent.Should().Contain("vigencia sin confirmar");
     }
@@ -163,7 +178,7 @@ public class PanelDocumentacionBaseTests : BunitContext
 
         pedido.Should().Equal(TrabajadorId);
         mediador.Consultas.Should().Be(1);
-        cut.Markup.Should().Contain("Al día en lo básico");
+        cut.Find(".panel-doc-base-cabecera .badge").TextContent.Trim().Should().Be("Vigente");
     }
 
     [Fact]

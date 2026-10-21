@@ -1,4 +1,4 @@
-using AngleSharp.Dom;
+﻿using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -18,44 +18,51 @@ public partial class Vehiculo360PaginaTests
     private static async Task AbrirFicha(IRenderedComponent<VehiculoDetalle> cut) =>
         await cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Ficha").ClickAsync(new());
 
-    [Fact]
-    public async Task Ficha_pinta_los_campos_exactos_de_la_maqueta_sin_vencimiento_en_seguro()
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Consulta)]
+    public async Task Ficha_muestra_la_tarjeta_del_empleador_primero_y_las_cajas_existentes(string rol)
     {
-        var (id, m) = CamionGrua(); var trabajadorId = Guid.NewGuid();
-        m.Detalles[id] = m.Detalles[id] with
+        var (id, m) = CamionGrua(); Registrar(m, rol);
+        var cut = Renderizar(id); await AbrirFicha(cut);
+        cut.FindComponent<CajasFicha>().Instance.Cajas.Select(c => c.Clave).Should().Equal("empleador", "tipo-titularidad", "seguro");
+        var ficha = cut.Find("[data-caja='empleador']");
+        ficha.TextContent.Should().Contain(m.Detalles[id].EmpleadorNombre);
+        ficha.QuerySelector("a[href]")!.GetAttribute("href").Should().Be($"/empresas/{m.Detalles[id].EmpresaId}");
+        cut.Find("[data-caja='tipo-titularidad']").Should().NotBeNull();
+        cut.Find("[data-caja='seguro']").Should().NotBeNull();
+        cut.Markup.Should().Contain("Conductores y operadores autorizados");
+        if (rol == Roles.GestorCae)
         {
-            Tipo = "Camión con grúa autocargante",
-            Titularidad = "Renting · contrato hasta 30/06/2027",
-            RevisionGrua = "Última el 11/11/2025",
-            DeclaracionCe = "Registrada",
-            Aseguradora = "Nostromo",
-            Poliza = "AU-2026-118822",
-            Recibo = "Pagado hasta el 31/12/2026",
-            Conductores = [new(trabajadorId, "Raúl Ortega Lima")]
-        };
-        Registrar(m); var cut = Renderizar(id); await AbrirFicha(cut);
-
-        var cajas = cut.FindComponent<CajasFicha>().Instance.Cajas;
-        cajas.Select(c => c.Clave).Should().Equal("tipo-titularidad", "seguro");
-        var tipo = cut.Find("[data-caja='tipo-titularidad']");
-        Textos(tipo.QuerySelectorAll("dt")).Should().Equal("Tipo", "Titularidad", "Revisión de la grúa", "Declaración CE");
-        tipo.TextContent.Should().Contain("Camión con grúa autocargante").And.Contain("30/06/2027").And.Contain("11/11/2025");
-        var seguro = cut.Find("[data-caja='seguro']");
-        Textos(seguro.QuerySelectorAll("dt")).Should().Equal("Aseguradora", "Póliza", "Recibo");
-        seguro.TextContent.Should().Contain("Nostromo").And.Contain("AU-2026-118822").And.Contain("31/12/2026").And.NotContain("Vencimiento");
-        cut.FindAll(".tarjeta-titulo").Select(t => t.TextContent).Should().Contain("Conductores y operadores autorizados");
-        cut.Find($"a[href='/trabajadores/{trabajadorId}']").TextContent.Should().Be("Raúl Ortega Lima");
+            cut.FindComponents<EditarFichaVehiculoDrawer>().Should().ContainSingle()
+                .Which.Instance.Visible.Should().BeFalse();
+        }
+        else
+        {
+            cut.FindComponents<EditarFichaVehiculoDrawer>().Should().BeEmpty();
+        }
     }
 
     [Fact]
-    public async Task Consulta_lee_la_ficha_vacia_sin_acciones_de_escritura()
+    public async Task Editar_en_una_caja_de_la_ficha_abre_el_drawer_de_la_ficha()
     {
-        var (id, m) = RecienCreado(); Registrar(m, Roles.Consulta);
+        var (id, m) = CamionGrua(); Registrar(m, Roles.GestorCae);
         var cut = Renderizar(id); await AbrirFicha(cut);
-        cut.FindAll("[data-caja] dd").Should().HaveCount(7).And.OnlyContain(d => d.TextContent.Trim() == "—");
-        cut.Markup.Should().Contain("Sin conductores ni operadores autorizados.");
-        cut.FindAll("[data-caja] button").Should().BeEmpty();
-        cut.FindComponents<EditarFichaVehiculoDrawer>().Should().BeEmpty();
+        cut.FindComponent<EditarFichaVehiculoDrawer>().Instance.Visible.Should().BeFalse();
+        await cut.Find("[data-caja='seguro']").QuerySelectorAll("button").Single(b => b.TextContent.Contains("Editar")).ClickAsync(new());
+        cut.FindComponent<EditarFichaVehiculoDrawer>().Instance.Visible.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Plataformas_respeta_el_orden_y_no_presenta_la_falta_de_lector_como_todo_validado()
+    {
+        var (id, m) = CamionGrua(); Registrar(m);
+        var cut = Renderizar(id, "?pestana=plataformas");
+        cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).Should().ContainInOrder("Plataformas", "Ficha", "Historial");
+        cut.Find(".pestanas-boton-activa").TextContent.Should().Be("Plataformas");
+        cut.Markup.Should().Contain("Estado en plataformas no disponible");
+        cut.Markup.Should().NotContain("Sin incidencias en plataformas").And.NotContain("Todo lo exigido está validado");
+        cut.Find(".pestanas-boton-activa").QuerySelectorAll(".pestanas-contador").Should().BeEmpty();
     }
 
     [Fact]
@@ -64,9 +71,10 @@ public partial class Vehiculo360PaginaTests
         var (id, m) = CamionGrua(); var persona = Guid.NewGuid(); var version = m.Detalles[id].Version;
         m.Detalles[id] = m.Detalles[id] with { Tipo = "Grúa", Recibo = "Pagado", Conductores = [new(persona, "Raúl Ortega")] };
         m.TrabajadoresFicha = [new(persona, "Raúl Ortega", null, "Montajes")];
-        Registrar(m); var cut = Renderizar(id); await AbrirFicha(cut);
-        await cut.Find("[data-caja='seguro'] button").ClickAsync(new());
-        var drawer = cut.FindComponent<EditarFichaVehiculoDrawer>();
+        Registrar(m);
+        var cerrado = false;
+        var drawer = Render<EditarFichaVehiculoDrawer>(p => p.Add(x => x.VehiculoId, id)
+            .Add(x => x.Visible, true).Add(x => x.VisibleChanged, _ => cerrado = true));
         var control = drawer.FindAll("label").Single(l => l.TextContent.Trim() == "Recibo").GetAttribute("for");
         await drawer.Find($"#{control}").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "Pagado hasta el 31/12/2026" });
         await drawer.Find($"#{control}").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());
@@ -76,7 +84,7 @@ public partial class Vehiculo360PaginaTests
         enviado.Version.Should().Be(version); enviado.Tipo.Should().Be("Grúa");
         enviado.Recibo.Should().Be("Pagado hasta el 31/12/2026"); enviado.TrabajadorIds.Should().Equal(persona);
         m.Enviadas.OfType<ObtenerTrabajadoresParaSelectorQuery>().Should().ContainSingle().Which.Alcance.Should().Be(AlcanceSelectorTrabajadores.Cartera);
-        cut.FindAll("[role=dialog]").Should().BeEmpty();
+        cerrado.Should().BeTrue();
     }
 
     [Fact]
@@ -84,9 +92,8 @@ public partial class Vehiculo360PaginaTests
     {
         var (id, m) = CamionGrua(); var version = m.Detalles[id].Version;
         m.ResultadoFicha = Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona ha guardado cambios."));
-        Registrar(m); var cut = Renderizar(id); await AbrirFicha(cut);
-        await cut.Find("[data-caja='seguro'] button").ClickAsync(new());
-        var drawer = cut.FindComponent<EditarFichaVehiculoDrawer>();
+        Registrar(m);
+        var drawer = Render<EditarFichaVehiculoDrawer>(p => p.Add(x => x.VehiculoId, id).Add(x => x.Visible, true));
         var control = drawer.FindAll("label").Single(l => l.TextContent.Trim() == "Póliza").GetAttribute("for");
         await drawer.Find($"#{control}").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "Mi póliza" });
         await drawer.Find($"#{control}").BlurAsync(new Microsoft.AspNetCore.Components.Web.FocusEventArgs());

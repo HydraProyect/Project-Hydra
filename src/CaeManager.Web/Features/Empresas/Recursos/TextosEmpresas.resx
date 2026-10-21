@@ -208,6 +208,14 @@
     <value>Editar →</value>
     <comment>Acción de cabecera de tarjeta: abre el panel en Información.</comment>
   </data>
+  <data name="DatoIdentificacionFiscal" xml:space="preserve">
+    <value>Identificación fiscal</value>
+    <comment>Dato de Información: CIF, copiable.</comment>
+  </data>
+  <data name="SelloApoyo" xml:space="preserve">
+    <value>El sello de la empresa se estampa en las firmas en campo de sus documentos. Sube una foto nítida sobre fondo claro.</value>
+    <comment>Texto bajo el título de la sección Sello de la pestaña Ficha.</comment>
+  </data>
   <data name="DatoCnae" xml:space="preserve">
     <value>CNAE</value>
     <comment>Dato de Información.</comment>
@@ -221,7 +229,7 @@
     <comment>Dato de Información.</comment>
   </data>
   <data name="DatoAnexoI" xml:space="preserve">
-    <value>Actividad del Anexo I del RSP</value>
+    <value>Actividad de Anexo I</value>
     <comment>Dato de Información.</comment>
   </data>
   <data name="Si" xml:space="preserve">
@@ -527,4 +535,264 @@
   <data name="CatalogoEliminarMensaje" xml:space="preserve"><value>Se quitará del catálogo de la empresa.</value></data>
   <data name="CatalogoGuardado" xml:space="preserve"><value>Guardado.</value></data>
   <data name="CatalogoEliminado" xml:space="preserve"><value>Eliminado.</value></data>
+  <data name="TarjetaSePideDocumentacion" xml:space="preserve">
+    <value>Se pide la documentación a</value>
+    <comment>Título de la tarjeta lateral de Empresa 360: a quién se pide la documentación.</comment>
+  </data>
+  <data name="IrAAgendaFlecha" xml:space="preserve">
+    <value>Agenda →</value>
+    <comment>Enlace de la tarjeta lateral que abre la pestaña Agenda.</comment>
+  </data>
+  <data name="ContactoPrincipal" xml:space="preserve">
+    <value>Contacto principal</value>
+    <comment>Rótulo del contacto predeterminado de la Agenda.</comment>
+  </data>
+  <data name="CopiarCorreoContacto" xml:space="preserve">
+    <value>Copiar correo</value>
+    <comment>Botón que copia el correo del contacto principal.</comment>
+  </data>
+  <data name="CopiarTelefonoContacto" xml:space="preserve">
+    <value>Copiar teléfono</value>
+    <comment>Botón que copia el teléfono del contacto principal.</comment>
+  </data>
+  <data name="PestanaVigencia" xml:space="preserve">
+    <value>Vigencia</value>
+  </data>
+  <data name="PestanaPlataformas" xml:space="preserve">
+    <value>Plataformas</value>
+  </data>
+  <data name="VigenciaErrorTitulo" xml:space="preserve">
+    <value>No se pudo cargar la vigencia</value>
+  </data>
+  <data name="VigenciaSinTrabajadoresTitulo" xml:space="preserve">
+    <value>Sin Trabajadores</value>
+  </data>
+  <data name="VigenciaSinTrabajadoresDescripcion" xml:space="preserve">
+    <value>Esta Empresa aún no tiene Trabajadores; la vigencia de su documentación sale de ellos.</value>
+  </data>
+  <data name="VigenciaFiltroCentro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
+  <data name="VigenciaTodosLosCentros" xml:space="preserve">
+    <value>Todos los Centros</value>
+  </data>
+  <data name="VigenciaFiltroDelegacionEmpresa" xml:space="preserve">
+    <value>Delegación</value>
+  </data>
+  <data name="VigenciaTodasLasDelegacionesEmpresa" xml:space="preserve">
+    <value>Todas las delegaciones</value>
+  </data>
+  <data name="VigenciaFiltroPuesto" xml:space="preserve">
+    <value>Puesto de trabajo</value>
+  </data>
+  <data name="VigenciaTodosLosPuestos" xml:space="preserve">
+    <value>Todos los puestos</value>
+  </data>
+  <data name="VigenciaSoloProblemas" xml:space="preserve">
+    <value>Solo con problemas · {0}</value>
+  </data>
+  <data name="VigenciaVenceEnDias" xml:space="preserve">
+    <value>Vence en {0} días · {1}</value>
+  </data>
+  <data name="VigenciaOrdenarPor" xml:space="preserve">
+    <value>Ordenar por</value>
+  </data>
+  <data name="VigenciaOrdenNombre" xml:space="preserve">
+    <value>Nombre</value>
+  </data>
+  <data name="VigenciaOrdenDelegacionEmpresa" xml:space="preserve">
+    <value>Delegación</value>
+  </data>
+  <data name="VigenciaOrdenPuesto" xml:space="preserve">
+    <value>Puesto</value>
+  </data>
+  <data name="VigenciaFechaMostrada" xml:space="preserve">
+    <value>Fecha mostrada</value>
+  </data>
+  <data name="VigenciaFechaVencimiento" xml:space="preserve">
+    <value>Vencimiento</value>
+  </data>
+  <data name="VigenciaFechaEmision" xml:space="preserve">
+    <value>Emisión</value>
+  </data>
+  <data name="VigenciaLeyendaVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="VigenciaLeyendaPorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="VigenciaLeyendaVencidoOFalta" xml:space="preserve">
+    <value>Vencido o falta</value>
+  </data>
+  <data name="VigenciaLeyendaOpcional" xml:space="preserve">
+    <value>Opcional</value>
+  </data>
+  <data name="VigenciaPulsaUnaCelda" xml:space="preserve">
+    <value>Pulsa una celda para ver los documentos del Trabajador</value>
+  </data>
+  <data name="VigenciaSinFilasTitulo" xml:space="preserve">
+    <value>Ningún Trabajador con estos filtros</value>
+  </data>
+  <data name="VigenciaQuitarFiltros" xml:space="preserve">
+    <value>Quitar filtros</value>
+  </data>
+  <data name="VigenciaGrupoBasicos" xml:space="preserve">
+    <value>Básicos</value>
+  </data>
+  <data name="VigenciaGrupoFormacion" xml:space="preserve">
+    <value>Formación exigida</value>
+  </data>
+  <data name="VigenciaGrupoOpcional" xml:space="preserve">
+    <value>Opcional</value>
+  </data>
+  <data name="VigenciaColumnaTrabajador" xml:space="preserve">
+    <value>Trabajador · {0}</value>
+  </data>
+  <data name="VigenciaAliasAptitud" xml:space="preserve">
+    <value>Reco. médico</value>
+  </data>
+  <data name="VigenciaAliasEpi" xml:space="preserve">
+    <value>EPIs</value>
+  </data>
+  <data name="VigenciaAliasArt18" xml:space="preserve">
+    <value>Art. 18</value>
+  </data>
+  <data name="VigenciaAliasArt19" xml:space="preserve">
+    <value>Art. 19</value>
+  </data>
+  <data name="VigenciaMinima" xml:space="preserve">
+    <value>Vigencia mínima: {0}</value>
+  </data>
+  <data name="VigenciaLaPide" xml:space="preserve">
+    <value>La pide {0}</value>
+  </data>
+  <data name="VigenciaLaPiden" xml:space="preserve">
+    <value>La piden {0}</value>
+  </data>
+  <data name="VigenciaPropia" xml:space="preserve">
+    <value>Vigencia propia del documento. Ningún Centro lo exige</value>
+  </data>
+  <data name="VigenciaUnAnio" xml:space="preserve">
+    <value>1 año</value>
+  </data>
+  <data name="VigenciaAnios" xml:space="preserve">
+    <value>{0} años</value>
+  </data>
+  <data name="VigenciaMeses" xml:space="preserve">
+    <value>{0} meses</value>
+  </data>
+  <data name="VigenciaCeldaFalta" xml:space="preserve">
+    <value>Falta</value>
+  </data>
+  <data name="VigenciaCeldaVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="VigenciaCeldaNoAplica" xml:space="preserve">
+    <value>No lo exige ninguno de sus Centros</value>
+  </data>
+  <data name="VigenciaEstadoVigente" xml:space="preserve">
+    <value>Vigente</value>
+  </data>
+  <data name="VigenciaEstadoPorVencer" xml:space="preserve">
+    <value>Por vencer</value>
+  </data>
+  <data name="VigenciaEstadoVencido" xml:space="preserve">
+    <value>Vencido</value>
+  </data>
+  <data name="VigenciaEstadoFalta" xml:space="preserve">
+    <value>Exigido y sin registrar</value>
+  </data>
+  <data name="VigenciaEstadoSinConfirmar" xml:space="preserve">
+    <value>Sin confirmar</value>
+  </data>
+  <data name="VigenciaEmitidoCaduca" xml:space="preserve">
+    <value>emitido el {0}, caduca el {1}</value>
+  </data>
+  <data name="VigenciaPie" xml:space="preserve">
+    <value>Mostrando {0}–{1} de {2}</value>
+  </data>
+  <data name="VigenciaAnterior" xml:space="preserve">
+    <value>‹ Anterior</value>
+  </data>
+  <data name="VigenciaSiguiente" xml:space="preserve">
+    <value>Siguiente ›</value>
+  </data>
+  <data name="VigenciaPagina" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="VigenciaFilasPorPagina" xml:space="preserve">
+    <value>Filas por página:</value>
+  </data>
+  <data name="PlataformasApoyo" xml:space="preserve">
+    <value>Estado de la documentación de la Empresa en la plataforma CAE de cada Cliente, por Centro. Las credenciales de acceso están en cada Cliente 360.</value>
+  </data>
+  <data name="PlataformasQueMostrar" xml:space="preserve">
+    <value>Qué mostrar</value>
+  </data>
+  <data name="PlataformasSoloIncidencias" xml:space="preserve">
+    <value>Solo incidencias · {0}</value>
+  </data>
+  <data name="PlataformasTodo" xml:space="preserve">
+    <value>Todo · {0}</value>
+  </data>
+  <data name="PlataformasErrorTitulo" xml:space="preserve">
+    <value>No se pudieron cargar las plataformas</value>
+  </data>
+  <data name="PlataformasSinDatosTitulo" xml:space="preserve">
+    <value>Sin documentación en plataformas</value>
+  </data>
+  <data name="PlataformasSinDatosDescripcion" xml:space="preserve">
+    <value>La Empresa aún no tiene documentos acreditables en la plataforma de ningún Cliente.</value>
+  </data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve">
+    <value>Sin incidencias en plataformas</value>
+  </data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve">
+    <value>Todo lo exigido está validado en las plataformas de sus Clientes.</value>
+  </data>
+  <data name="PlataformasPlataforma" xml:space="preserve">
+    <value>Plataforma {0} · {1}</value>
+  </data>
+  <data name="PlataformasTodoValidado" xml:space="preserve">
+    <value>todo validado</value>
+  </data>
+  <data name="PlataformasUnaIncidencia" xml:space="preserve">
+    <value>1 incidencia</value>
+  </data>
+  <data name="PlataformasVariasIncidencias" xml:space="preserve">
+    <value>{0} incidencias</value>
+  </data>
+  <data name="PlataformasIrAlCentro" xml:space="preserve">
+    <value>Ir al Centro 360</value>
+  </data>
+  <data name="PlataformasEstadoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
+  <data name="PlataformasEstadoPendienteValidacion" xml:space="preserve">
+    <value>Pendiente de validación</value>
+  </data>
+  <data name="PlataformasEstadoRechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="PlataformasEstadoPendienteSubir" xml:space="preserve">
+    <value>Pendiente de subir</value>
+  </data>
+  <data name="PlataformasEstadoVencidoEnPlataforma" xml:space="preserve">
+    <value>Vencido en plataforma</value>
+  </data>
+  <data name="PlataformasSinAlcanceNota" xml:space="preserve">
+    <value>Aquí solo aparecen las plataformas de los Centros que gestionas. Si no ves ninguna, puede deberse a tus permisos de acceso y no a que la Empresa no tenga documentación.</value>
+  </data>
+  <data name="PlataformasVencidoEl" xml:space="preserve">
+    <value>Vencido el {0}</value>
+  </data>
+  <data name="VigenciaSinColumnasDescripcion" xml:space="preserve">
+    <value>Ningún Centro con gestión CAE exige documentación a los Trabajadores de la Empresa, y todavía no hay documentos cargados.</value>
+  </data>
+  <data name="VigenciaSinColumnasTitulo" xml:space="preserve">
+    <value>Sin documentación exigida</value>
+  </data>
+  <data name="VigenciaUnMes" xml:space="preserve">
+    <value>1 mes</value>
+  </data>
 </root>

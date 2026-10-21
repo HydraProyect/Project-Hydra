@@ -64,6 +64,11 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private DetalleVisitaDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
     private DrawerGestionDocumento? _drawerGestion;
 
     private Task CorregirDocumentoAsync(DocumentoVisitaItemDto item) =>
@@ -254,6 +259,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         ++_cargaDocumentacion;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
         _detalle = null;
         _documentacion = null;
         _errorDocumentacion = false;
@@ -276,7 +282,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             // no revela si la Visita existe en otra organización.
             if (detalle is null)
             {
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 

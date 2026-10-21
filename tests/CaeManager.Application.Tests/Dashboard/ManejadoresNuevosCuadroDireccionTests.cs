@@ -25,7 +25,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     // ---------------------------------------------------------------- Serie
 
     private static ObtenerSerieCuadroDireccionQueryHandler Serie(string? rol, IAlcanceDatosService alcance, bool accesoTotal = false) =>
-        new(Autorizados(), alcance, new MedicionFalsa(), null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(accesoTotal), new RelojFijo(Ahora));
+        new(Autorizados(), alcance, new MedicionFalsa(), null!, null!, new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(accesoTotal), new RelojFijo(Ahora));
 
     /// <summary>La Sesión Privilegiada lee la serie, pero sin rol de negocio no pasa el guard de tarifas: sin importes.</summary>
     [Fact]
@@ -141,7 +141,7 @@ public class ManejadoresNuevosCuadroDireccionTests
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
             request is ObtenerClientesAutorizadosQuery or ObtenerTenantsCuadroDireccionQuery
-                ?Task.FromResult((TResponse)(object)autorizados)
+                ? Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>

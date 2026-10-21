@@ -14,6 +14,7 @@
 @using MediatR
 @inject IMediator Mediator
 @inject ToastService Toasts
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> Comunes
 
 @* ModalFormulario: guardián, «Cancelar» como la X (D-05), primario único con su estado, aviso del formulario (el error del servidor) y aviso de
    navegación vienen del kit; los errores de campo (nombre, email) los pintan los campos. Con 13 controles se sale del «uno a tres campos» para el
@@ -29,7 +30,9 @@
                 Placeholder="+34 600 00 00 00" />
     <CampoTexto Etiqueta="Cargo" Valor="@_cargo" ValorChanged="v => { _cargo = v; _errorGuardar = null; }"
                 Placeholder="Finanzas, PRL, Vigilancia de la Salud…" />
-    <CampoTextarea Etiqueta="Notas" Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
+    <CampoTextarea Etiqueta="@Comunes["AgendaNotaComunicaciones"]" Placeholder="@Comunes["AgendaNotaPlaceholder"]"
+                   Valor="@_notas" ValorChanged="v => { _notas = v; _errorGuardar = null; }" />
+    <p class="agenda-nota-ayuda">@Comunes["AgendaNotaAyuda"]</p>
 
     <label class="campo-checkbox" for="@($"{_idBase}-predeterminado")">
         <input type="checkbox" id="@($"{_idBase}-predeterminado")" checked="@_esPredeterminado"

@@ -25,7 +25,7 @@ public class ObtenerTenantsCuadroDireccionQueryHandler(IMediator mediator, ICurr
     public async Task<IReadOnlyList<ClienteAutorizadoDto>> Handle(
         ObtenerTenantsCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        if (await currentUserService.ObtenerRolEfectivoAsync() is { } rol && AutorizacionCuadroDireccion.RolesQueLeen.Contains(rol))
+        if (await AutorizacionCuadroDireccion.EntraPorRolAsync(currentUserService))
             return await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
 
         return await mediator.Send(new ObtenerTenantObjetivoSesionQuery(), cancellationToken) is { } objetivo ? [objetivo] : [];

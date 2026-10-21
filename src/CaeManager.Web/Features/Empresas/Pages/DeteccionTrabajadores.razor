@@ -135,9 +135,13 @@
         </ul>
     </section>
 
-    @if (_errorCarga)
+    @if (_noEncontrada)
     {
-        <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos, o puede que no tengas acceso a esta empresa."
+        <FichaNoEncontrada RutaLista="/empresas" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio Titulo="No pudimos cargar las detecciones" Descripcion="Intenta nuevamente en unos segundos."
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="ReintentarAsync">Reintentar</Boton>

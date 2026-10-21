@@ -145,7 +145,7 @@ public class AutorizacionCuadroDireccionTests
             request switch
             {
                 ObtenerClientesAutorizadosQuery => (TResponse)(object)autorizados,
-                ObtenerTenantObjetivoSesionQuery q => (TResponse)(object?)await objetivoSesion.Handle(q, cancellationToken)!,
+                ObtenerTenantObjetivoSesionQuery q => (TResponse)(object)(await objetivoSesion.Handle(q, cancellationToken))!,
                 _ => throw new NotSupportedException(request.GetType().Name),
             };
 

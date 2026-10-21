@@ -2036,6 +2036,51 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("CierresMensualesTenantBeneficiario", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Dashboard.TarifaOperadorCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Concepto")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MonedaIso")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RegistradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("VigenteDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PropietarioTenantId", "Concepto", "VigenteDesdeUtc");
+
+                    b.ToTable("TarifasOperadorCae", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_OperadorNoEsElTenantBeneficiario", "\"PropietarioTenantId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_PrecioNoNegativo", "\"PrecioUnitario\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8087,6 +8132,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool?>("MarcaExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MotivoPermisoTrabajo")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -8478,6 +8526,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("DocumentoIdentidad")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("EsExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FechaAsignacionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GestionadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NombreMostrado")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");

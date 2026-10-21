@@ -16,6 +16,12 @@ public partial class ConfiguracionIaCliente : CaeManager.Web.Components.PaginaIn
     private IReadOnlyList<ConfiguracionIaTipoDocumentoDto> _configuracion = [];
     private bool _cargando = true;
     private bool _errorCarga;
+
+    /// <summary>
+    /// El Cliente no está en el Tenant activo (o no existe; es el mismo estado, § 4.5). No es un fallo
+    /// transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
     private Guid? _actualizandoId;
     private Guid _entidadCargada;
     private bool _entidadInicializada;
@@ -61,10 +67,12 @@ public partial class ConfiguracionIaCliente : CaeManager.Web.Components.PaginaIn
         var token = cicloCarga.Token;
         _cargando = true;
         _errorCarga = false;
+        _noEncontrada = false;
         StateHasChanged();
+        Task<ClienteDetalleDto?>? cliente = null;
         try
         {
-            var cliente = Mediator.Send(new ObtenerClientePorIdQuery(clienteId), token);
+            cliente = Mediator.Send(new ObtenerClientePorIdQuery(clienteId), token);
             var configuracion = Mediator.Send(new ObtenerConfiguracionIaPorClienteQuery(clienteId), token);
             var tratamientoIa = Mediator.Send(new ObtenerEstadoTratamientoIaActualQuery(), token);
             await Task.WhenAll(cliente, configuracion, tratamientoIa);
@@ -73,12 +81,20 @@ public partial class ConfiguracionIaCliente : CaeManager.Web.Components.PaginaIn
             _configuracion = await configuracion;
             _idEnfocado = null;
             _tratamientoIa = await tratamientoIa;
-            _errorCarga = _cliente is null;
+            _noEncontrada = _cliente is null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception)
         {
-            if (EsVigente(version, clienteId)) _errorCarga = true;
+            // Con el Cliente ausente, las consultas que cuelgan de él pueden fallar: manda la ausencia,
+            // que se pinta igual que en la ficha del Cliente; cualquier otro fallo conserva «Reintentar».
+            if (EsVigente(version, clienteId))
+            {
+                if (cliente is { IsCompletedSuccessfully: true, Result: null })
+                    _noEncontrada = true;
+                else
+                    _errorCarga = true;
+            }
         }
         finally
         {
