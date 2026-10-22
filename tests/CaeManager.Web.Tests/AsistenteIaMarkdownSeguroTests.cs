@@ -65,6 +65,8 @@ public class AsistenteIaMarkdownSeguroTests : BunitContext
         Services.AddScoped<DisponibilidadAsistente>();
         Services.AddScoped<IMediator>(_ => new MediatorConRespuesta(respuesta));
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
+        Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var panel = Render<AsistenteIa>();

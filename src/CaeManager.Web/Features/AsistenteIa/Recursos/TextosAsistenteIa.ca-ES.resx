@@ -12,32 +12,11 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="Titulo" xml:space="preserve">
-    <value>Pregúntale a {0}</value>
-  </data>
-  <data name="CerrarEtiqueta" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
-  <data name="Descripcion" xml:space="preserve">
-    <value>Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.</value>
-  </data>
-  <data name="MensajeVacio" xml:space="preserve">
-    <value>Escribe tu pregunta sobre PRL para empezar.</value>
-  </data>
   <data name="IndicadorPensando" xml:space="preserve">
     <value>Pensando…</value>
   </data>
-  <data name="EtiquetaPregunta" xml:space="preserve">
-    <value>Pregunta a l'assistent</value>
-  </data>
-  <data name="PlaceholderPregunta" xml:space="preserve">
-    <value>Escribe tu pregunta…</value>
-  </data>
   <data name="BotonEnviar" xml:space="preserve">
     <value>Enviar</value>
-  </data>
-  <data name="TituloAgente" xml:space="preserve">
-    <value>Assistent {0}</value>
   </data>
   <data name="BorradoresEtiqueta" xml:space="preserve">
     <value>Esborranys i converses anteriors</value>
@@ -51,29 +30,8 @@
   <data name="ModoEtiqueta" xml:space="preserve">
     <value>Què vols fer</value>
   </data>
-  <data name="ModoGestion" xml:space="preserve">
-    <value>Demanar una gestió</value>
-  </data>
-  <data name="ModoPreguntar" xml:space="preserve">
-    <value>Consultar la normativa</value>
-  </data>
-  <data name="DescripcionGestion" xml:space="preserve">
-    <value>Escriu una gestió i et proposo un pla. No s'executa res sense la teva confirmació, i sempre dins del que la teva Assignació de Cartera et permet. Per al que nomenis, només consulto les dades de la teva cartera.</value>
-  </data>
   <data name="AgenteNoDisponible" xml:space="preserve">
     <value>Demanar gestions a l'assistent no està disponible en aquest entorn.</value>
-  </data>
-  <data name="MensajeVacioGestion" xml:space="preserve">
-    <value>Escriu què vols fer, per exemple: «reclama la documentació pendent d'un Centre».</value>
-  </data>
-  <data name="EtiquetaOrden" xml:space="preserve">
-    <value>Gestió que vols demanar a l'assistent</value>
-  </data>
-  <data name="PlaceholderOrden" xml:space="preserve">
-    <value>Escriu la gestió…</value>
-  </data>
-  <data name="OrdenNoEntendida" xml:space="preserve">
-    <value>No he reconegut cap gestió en el que has escrit, així que no he preparat cap pla. Si era un dubte normatiu, canvia a «Consultar la normativa».</value>
   </data>
   <data name="TareaEstado_Conversando" xml:space="preserve">
     <value>Sense pla</value>
@@ -139,7 +97,7 @@
     <value>El que he entès</value>
   </data>
   <data name="Plan_QueHare" xml:space="preserve">
-    <value>El que faria</value>
+    <value>Passos</value>
   </data>
   <data name="Plan_UnoDeEstos" xml:space="preserve">
     <value>Es faria només un d'aquests passos, segons el cas:</value>
@@ -169,10 +127,10 @@
     <value>↵ Enter</value>
   </data>
   <data name="Plan_Descartar" xml:space="preserve">
-    <value>Descartar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="Plan_Descartado" xml:space="preserve">
-    <value>Pla descartat: {0}. No s'ha fet res.</value>
+    <value>Cancel·lat. No s'ha fet res.</value>
   </data>
   <data name="Plan_Cerrado" xml:space="preserve">
     <value>Pla · {0}</value>
@@ -287,5 +245,104 @@
   </data>
   <data name="Paso_ObtenerEstadoCentroQuery" xml:space="preserve">
     <value>Consultar l'estat del Centre</value>
+  </data>
+  <data name="SubtituloVega" xml:space="preserve">
+    <value>Assistent IA de {0}</value>
+  </data>
+  <data name="BotonAbrirEtiqueta" xml:space="preserve">
+    <value>Obre Vega, l'assistent de {0} (Ctrl+I)</value>
+  </data>
+  <data name="BotonTooltip" xml:space="preserve">
+    <value>Obre Vega · Ctrl+I</value>
+  </data>
+  <data name="PistaTitulo" xml:space="preserve">
+    <value>Soc Vega, l'assistent de {0}.</value>
+  </data>
+  <data name="PistaTexto" xml:space="preserve">
+    <value>Pregunta'm una dada o demana'm que prepari una tasca: sempre t'ensenyo el pla abans de fer res.</value>
+  </data>
+  <data name="PistaEntendido" xml:space="preserve">
+    <value>Entesos</value>
+  </data>
+  <data name="PanelEtiqueta" xml:space="preserve">
+    <value>Vega, assistent de {0}</value>
+  </data>
+  <data name="NuevaConversacion" xml:space="preserve">
+    <value>Conversa nova</value>
+  </data>
+  <data name="PantallaCompleta" xml:space="preserve">
+    <value>Obre a pantalla completa</value>
+  </data>
+  <data name="Plegar" xml:space="preserve">
+    <value>Plega (Ctrl+I)</value>
+  </data>
+  <data name="TrabajandoEn" xml:space="preserve">
+    <value>Treballant a</value>
+  </data>
+  <data name="TrabajandoEnTooltip" xml:space="preserve">
+    <value>Empresa gestionada d'aquesta sessió: {0}. A Operatiu, cada pla diu en quina Empresa de la teva cartera es faria abans de confirmar-lo; a Consulta de PRL no es fan servir dades de cap Empresa.</value>
+  </data>
+  <data name="AvisoIa" xml:space="preserve">
+    <value>Vega és una intel·ligència artificial i es pot equivocar. No s'executa res sense la teva confirmació.</value>
+  </data>
+  <data name="Bienvenida" xml:space="preserve">
+    <value>Hola, {0}. Soc Vega.</value>
+  </data>
+  <data name="BienvenidaSinNombre" xml:space="preserve">
+    <value>Hola. Soc Vega.</value>
+  </data>
+  <data name="BienvenidaTexto" xml:space="preserve">
+    <value>Escriu-me com a un company. T'ajudo d'aquestes maneres:</value>
+  </data>
+  <data name="Modo_Operativo" xml:space="preserve">
+    <value>Operatiu</value>
+  </data>
+  <data name="Modo_ConsultaPrl" xml:space="preserve">
+    <value>Consulta de PRL</value>
+  </data>
+  <data name="ModoTooltip_Operativo" xml:space="preserve">
+    <value>Prepara un pla amb els passos. No s'executa fins que prems Confirmar.</value>
+  </data>
+  <data name="ModoTooltip_ConsultaPrl" xml:space="preserve">
+    <value>Respon sobre normativa de prevenció. No fa servir dades de cap Empresa.</value>
+  </data>
+  <data name="ModoResumen_Operativo" xml:space="preserve">
+    <value>prepara un pla amb els passos</value>
+  </data>
+  <data name="ModoResumen_ConsultaPrl" xml:space="preserve">
+    <value>respon sobre normativa de prevenció</value>
+  </data>
+  <data name="Ejemplo_Operativo" xml:space="preserve">
+    <value>Reclama la documentació pendent d'un Centre</value>
+  </data>
+  <data name="Ejemplo_ConsultaPrl" xml:space="preserve">
+    <value>Quina formació cal per a treballs en alçada?</value>
+  </data>
+  <data name="Pensando" xml:space="preserve">
+    <value>Vega està pensant</value>
+  </data>
+  <data name="SinRespuestaSegura" xml:space="preserve">
+    <value>No tinc una resposta segura per a això a {0}. Prova de dir-ho d'una altra manera o cerca-ho amb Ctrl+K.</value>
+  </data>
+  <data name="SinRespuestaSeguraSinEmpresa" xml:space="preserve">
+    <value>No tinc una resposta segura per a això. Prova de dir-ho d'una altra manera o cerca-ho amb Ctrl+K.</value>
+  </data>
+  <data name="PlaceholderMensaje" xml:space="preserve">
+    <value>Pregunta o demana alguna cosa a Vega…</value>
+  </data>
+  <data name="EtiquetaMensaje" xml:space="preserve">
+    <value>Missatge per a Vega</value>
+  </data>
+  <data name="PistaCampo" xml:space="preserve">
+    <value>Enter envia · Maj+Enter línia nova · Ctrl+I plega</value>
+  </data>
+  <data name="PistaCampoPantalla" xml:space="preserve">
+    <value>Enter envia · Maj+Enter línia nova</value>
+  </data>
+  <data name="OrdenNoEntendida" xml:space="preserve">
+    <value>No he reconegut cap gestió en el que has escrit, així que no he preparat cap pla. Si era un dubte normatiu, canvia a «Consulta de PRL».</value>
+  </data>
+  <data name="EmpresaCambiada" xml:space="preserve">
+    <value>L'Empresa gestionada ha canviat, així que he buidat la conversa anterior i no he enviat res. Revisa en quina Empresa treballes i torna a escriure.</value>
   </data>
 </root>

@@ -39,6 +39,12 @@ public sealed class VistaPlanAsistente
     /// <summary>Por qué el plan no está guardado (y, por tanto, no se puede confirmar), si es el caso.</summary>
     public string? ErrorGuardado { get; set; }
 
+    /// <summary>
+    /// Confirmar ya recibió el foco una vez. Vive en la vista (en el hilo) y no en el componente:
+    /// al volver a montar el panel, un plan viejo no roba el foco a la pantalla.
+    /// </summary>
+    public bool FocoDado { get; set; }
+
     public bool PuedeConfirmar =>
         Estado == EstadoVistaPlan.Propuesto && Plan.Confirmable && TareaId is not null && Version is not null;
 }
