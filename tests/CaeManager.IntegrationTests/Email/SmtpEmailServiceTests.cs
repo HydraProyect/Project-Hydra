@@ -104,7 +104,10 @@ public class SmtpEmailServiceTests
         using var servidor = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
         servidor.Start();
         var puerto = ((System.Net.IPEndPoint)servidor.LocalEndpoint).Port;
-        _ = servidor.AcceptTcpClientAsync();
+        // Se guarda la conexión aceptada: si se descartara, el GC podría finalizar el
+        // TcpClient y cerrar el socket antes de la cancelación (visto en Linux), y el
+        // envío acabaría como error de red con el token aún sin cancelar.
+        var aceptacion = servidor.AcceptTcpClientAsync();
 
         var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions
         {
@@ -120,6 +123,8 @@ public class SmtpEmailServiceTests
             "destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional, cancellationToken: cancelacion.Token);
 
         await envio.Should().ThrowAsync<OperationCanceledException>();
+
+        using var aceptado = await aceptacion;
     }
 
     /// <summary>
