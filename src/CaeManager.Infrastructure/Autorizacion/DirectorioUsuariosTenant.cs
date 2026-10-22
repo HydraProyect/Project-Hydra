@@ -40,7 +40,8 @@ namespace CaeManager.Infrastructure.Autorizacion;
 /// </summary>
 public class DirectorioUsuariosTenant(
     UserManager<ApplicationUser> userManager, ITenantsQueryContext dbContext, ITenantActual tenantActual,
-    PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad)
+    PuertaAccesoDatos puertaAccesoDatos, Persistence.CaeManagerDbContext identidad,
+    ICurrentUserService usuarioActual)
     : IDirectorioUsuariosService, CaeManager.Application.Clientes.IDirectorioDestinosCartera,
       CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador,
       CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae
@@ -326,29 +327,38 @@ public class DirectorioUsuariosTenant(
     /// <c>AspNetUserRoles</c> (P1-I2): la lista de <c>/usuarios</c> llamaba
     /// <c>UserManager.GetRolesAsync</c> una vez por fila, y la página ya no toca
     /// <c>UserManager</c>. Es el rol del Tenant de origen de cada cuenta; para un
-    /// Operador CAE externo delegado la página muestra el de su asignación. Una
+    /// Operador CAE externo delegado la página muestra el que ejerce aquí
+    /// (<see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>). Una
     /// cuenta sin rol no aparece en el diccionario.
     /// </summary>
     public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
         IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken = default) =>
-        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
-        {
-            if (usuarioIds.Count == 0) return new Dictionary<Guid, string>();
+        puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(
+            async () => await LeerRolesDeCuentasAsync(usuarioIds, cancellationToken), cancellationToken);
 
-            var roles = await (
-                from usuarioRol in identidad.UserRoles
-                where usuarioIds.Contains(usuarioRol.UserId)
-                join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
-                select new { usuarioRol.UserId, rol.Name })
-                .ToListAsync(cancellationToken);
+    /// <summary>
+    /// El cuerpo de <see cref="ObtenerRolesDeCuentasAsync"/>, sin la puerta, para reutilizarlo
+    /// desde otra lectura que ya está dentro de ella.
+    /// </summary>
+    private async Task<Dictionary<Guid, string>> LeerRolesDeCuentasAsync(
+        IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken)
+    {
+        if (usuarioIds.Count == 0) return new Dictionary<Guid, string>();
 
-            // La invariante es un rol por cuenta; si alguna tuviera dos, se
-            // muestra uno de forma estable en vez de fallar la lista entera.
-            return roles
-                .Where(r => r.Name is not null)
-                .GroupBy(r => r.UserId)
-                .ToDictionary(g => g.Key, g => g.Select(r => r.Name!).Min(StringComparer.Ordinal)!);
-        }, cancellationToken);
+        var roles = await (
+            from usuarioRol in identidad.UserRoles
+            where usuarioIds.Contains(usuarioRol.UserId)
+            join rol in identidad.Roles on usuarioRol.RoleId equals rol.Id
+            select new { usuarioRol.UserId, rol.Name })
+            .ToListAsync(cancellationToken);
+
+        // La invariante es un rol por cuenta; si alguna tuviera dos, se
+        // muestra uno de forma estable en vez de fallar la lista entera.
+        return roles
+            .Where(r => r.Name is not null)
+            .GroupBy(r => r.UserId)
+            .ToDictionary(g => g.Key, g => g.Select(r => r.Name!).Min(StringComparer.Ordinal)!);
+    }
 
     public Task<IReadOnlyList<ApplicationUser>> ObtenerVisiblesAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ApplicationUser>>(async () =>
@@ -364,20 +374,64 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
-    /// Rol acotado (<c>AsignacionOperadorDelegado.Rol</c>) de cada Operador
-    /// Delegado visible en el tenant activo — nunca su rol de origen. Un
-    /// operador de soporte es <c>Administrador</c> en el tenant de plataforma,
-    /// pero <c>CurrentUserService.ObtenerRolEfectivoAsync</c> ya lo acota a
-    /// Consulta/GestorCae/CoordinadorCae al operar aquí; mostrar su rol de
-    /// origen en /usuarios contradice esa restricción y alarma sin motivo a
-    /// quien lo ve (un "Administrador" desconocido en su propia organización).
+    /// El rol que <b>ejerce</b> en el tenant activo cada Operador Delegado visible, para la
+    /// columna Rol de <c>/usuarios</c>. Es la misma regla, y la misma definición, que la lista de
+    /// personas de <c>/delegaciones</c>
+    /// (<see cref="TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario"/>, decisión
+    /// Chris 2026-10-20): la persona del Operador CAE externo tiene en la Empresa gestionada su
+    /// perfil de origen cuando hay una Asignación de Operación vigente del Tenant entero de su
+    /// organización sobre el tenant activo
+    /// (<see cref="TenantsBeneficiariosAutorizados.OperacionesDelTenantEntero"/>); si no —operación
+    /// acotada, caducada o ausente, perfil desconocido— o si la delegación es de Soporte TALVEG, se
+    /// muestra el rol guardado (<c>AsignacionOperadorDelegado.Rol</c>). Un operador de soporte es
+    /// <c>Administrador</c> en el tenant de plataforma, pero aquí opera con el rol de su ventana:
+    /// pintar su rol de origen alarmaría sin motivo a quien lo ve.
+    ///
+    /// <para>
+    /// Es una etiqueta, no autoridad: ninguna puerta lee este diccionario, y la visibilidad de las
+    /// cuentas sigue saliendo de <see cref="OperadoresDelegadosVigentes"/> sin mirar el rol.
+    /// </para>
     /// </summary>
     public Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, string>>(async () =>
         {
             if (tenantActual.TenantId is not { } tenantId) return new Dictionary<Guid, string>();
 
-            return await ObtenerRolesDeOperadoresDelegadosAsync(tenantId, cancellationToken);
+            var delegados = await OperadoresDelegadosVigentes(tenantId)
+                .Select(o => new { o.UsuarioId, o.OperadorTenantId, o.EsSoporte, o.Rol })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            if (delegados.Count == 0) return new Dictionary<Guid, string>();
+
+            // Solo las organizaciones que ya tienen personas delegadas aquí: la consulta no
+            // enseña qué otros Operadores CAE operan el tenant activo.
+            var operadorIds = delegados.Select(d => d.OperadorTenantId).Distinct().ToList();
+            var operadoresDelTenantEntero = (await TenantsBeneficiariosAutorizados
+                    .OperacionesDelTenantEntero(identidad, DateTime.UtcNow)
+                    .Where(o => o.PropietarioTenantId == tenantId && operadorIds.Contains(o.OperadorTenantId))
+                    .Select(o => o.OperadorTenantId)
+                    .Distinct()
+                    .ToListAsync(cancellationToken))
+                .ToHashSet();
+
+            var rolesDeOrigen = await LeerRolesDeCuentasAsync(
+                delegados.Select(d => d.UsuarioId).Distinct().ToList(), cancellationToken);
+
+            // Un rol por persona; si dos asignaciones dieran dos, uno estable (mismo criterio
+            // que ObtenerRolesDeCuentasAsync) en vez de fallar la lista entera.
+            return delegados
+                .Select(d => new
+                {
+                    d.UsuarioId,
+                    Rol = TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario(
+                        d.EsSoporte,
+                        operadoresDelTenantEntero.Contains(d.OperadorTenantId),
+                        d.Rol,
+                        rolesDeOrigen.GetValueOrDefault(d.UsuarioId)),
+                })
+                .GroupBy(d => d.UsuarioId)
+                .ToDictionary(g => g.Key, g => g.Select(d => d.Rol).Min(StringComparer.Ordinal)!);
         }, cancellationToken);
 
     /// <summary>
@@ -658,17 +712,110 @@ public class DirectorioUsuariosTenant(
         }, cancellationToken);
 
     /// <summary>
+    /// Las Empresas gestionadas (Tenants beneficiarios) que cada persona del Operador CAE
+    /// alcanza por sus Asignaciones de Cartera vigentes bajo Asignaciones de Operación
+    /// vigentes de su organización: la otra mitad del «Ámbito efectivo» de
+    /// <c>/usuarios</c>. <see cref="ObtenerCarterasVigentesAsync"/> solo mira las carteras
+    /// cuyo propietario es el Tenant activo, así que, mirada desde el Operador CAE externo,
+    /// una Gestora CAE con cinco Empresas gestionadas salía «Sin cartera» mientras su
+    /// Mi trabajo decía «Mi cartera · 5 empresas».
+    ///
+    /// <para>
+    /// Parte del mismo predicado que Mi trabajo y el selector
+    /// (<see cref="TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion"/>), con la
+    /// única diferencia de las exclusiones del párrafo siguiente,
+    /// en la posición de operador de <see cref="CaeManager.Application.Operaciones.IOperacionesQueryContext"/>
+    /// y de la RLS de los dos catálogos: <c>OperadorTenantId</c> = Tenant de origen de quien
+    /// mira. Solo responde cuando el Tenant activo ES ese origen —quien mira está en su
+    /// propia organización y las personas listadas son de ella—; dentro de un Tenant
+    /// beneficiario devuelve vacío, para no revelar a su propietario qué otras Empresas
+    /// opera el Operador CAE. Solo cuenta personas cuyo Tenant es ese origen.
+    /// </para>
+    ///
+    /// <para>
+    /// Es el ámbito <b>efectivo</b>, no solo el acceso: como en <see cref="ObtenerCarterasVigentesAsync"/> y
+    /// <c>AlcanceDatosService</c>, una cartera cerrada por Cliente empresarial o con una dimensión diferida
+    /// (Centro, Trabajador, Proyecto, en la cartera o en su operación) no concede nada y no se cuenta; una
+    /// operación acotada a un Cliente empresarial se cuenta marcada como <c>Parcial</c>.
+    /// </para>
+    ///
+    /// <para>
+    /// Devuelve también las Empresas gestionadas que la organización opera <b>enteras</b>
+    /// (<see cref="TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion"/>): es lo que
+    /// alcanza sin cartera un Coordinador CAE (decisión Chris 2026-10-20, <c>AlcanceDatosService</c> le da
+    /// alcance universal en ellas) y lo que cuentan su selector y su Mi trabajo.
+    /// </para>
+    /// </summary>
+    public Task<EmpresasGestionadasDeLaOrganizacion> ObtenerEmpresasGestionadasAsync(
+        CancellationToken cancellationToken = default) =>
+        puertaAccesoDatos.EjecutarAsync(async () =>
+        {
+            if (tenantActual.TenantId is not { } tenantId
+                || await usuarioActual.ObtenerTenantOrigenIdAsync() != tenantId)
+                return EmpresasGestionadasDeLaOrganizacion.Ninguna;
+
+            var ahora = DateTime.UtcNow;
+
+            var porCartera = await (
+                from v in TenantsBeneficiariosAutorizados.CarterasPorOperacionDeLaOrganizacion(identidad, tenantId, ahora)
+                where v.Cartera.AmbitoRelacionClienteId == null
+                      && v.Cartera.AmbitoCentroId == null && v.Cartera.AmbitoTrabajadorId == null
+                      && v.Cartera.AmbitoProyectoId == null
+                      && v.Operacion.AmbitoCentroId == null && v.Operacion.AmbitoTrabajadorId == null
+                      && v.Operacion.AmbitoProyectoId == null
+                join usuario in identidad.Users on v.Cartera.UsuarioId equals usuario.Id
+                where usuario.TenantId == tenantId
+                join tenant in identidad.Tenants on v.Operacion.PropietarioTenantId equals tenant.Id
+                select new
+                {
+                    v.Cartera.UsuarioId,
+                    TenantId = tenant.Id,
+                    tenant.Nombre,
+                    Parcial = v.Operacion.AmbitoRelacionClienteId != null,
+                })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            var delTenantEntero = await (
+                from operacion in TenantsBeneficiariosAutorizados.OperacionesDelTenantEnteroDeLaOrganizacion(identidad, tenantId, ahora)
+                join tenant in identidad.Tenants on operacion.PropietarioTenantId equals tenant.Id
+                select new { TenantId = tenant.Id, tenant.Nombre })
+                .Distinct()
+                .ToListAsync(cancellationToken);
+
+            return new EmpresasGestionadasDeLaOrganizacion(
+                delTenantEntero
+                    .Select(t => new EmpresaGestionada(t.TenantId, t.Nombre, Parcial: false))
+                    .OrderBy(e => e.Nombre, StringComparer.CurrentCulture)
+                    .ToList(),
+                porCartera
+                    .GroupBy(f => f.UsuarioId)
+                    .ToDictionary(
+                        grupo => grupo.Key,
+                        grupo => (IReadOnlyList<EmpresaGestionada>)grupo
+                            // Una Empresa gestionada con una cartera entera y otra acotada es entera.
+                            .GroupBy(f => new { f.TenantId, f.Nombre })
+                            .Select(t => new EmpresaGestionada(t.Key.TenantId, t.Key.Nombre, Parcial: t.All(f => f.Parcial)))
+                            .OrderBy(e => e.Nombre, StringComparer.CurrentCulture)
+                            .ToList()));
+        }, cancellationToken);
+
+    /// <summary>
     /// Lectura sin rastreo, a propósito: el <c>DbContext</c> del circuito puede tener
     /// la cuenta rastreada desde que <c>/usuarios</c> pintó la lista, y el mapa de
     /// identidad devolvería su <c>LockoutEnd</c> de entonces — una cuenta desactivada
     /// después seguiría pareciendo activa (ver <c>GestionCuentasUsuarioIdentity.CargarEnFrescoAsync</c>).
     ///
     /// <para>
-    /// El rol efectivo de un Operador CAE externo es el de su Asignación de Operador
-    /// Delegado desde SU Tenant sobre el activo, no el de Identity —que es el de su
-    /// organización—, con el mismo filtro de vigencia que
+    /// El rol que este destino devuelve para un Operador CAE externo es el guardado en su
+    /// Asignación de Operador Delegado desde SU Tenant sobre el activo, no el de Identity
+    /// —que es el de su organización—, con el mismo filtro de vigencia que
     /// <see cref="ObtenerRolesDeOperadoresDelegadosAsync(Guid, CancellationToken)"/> y la misma
     /// terna que exige <c>AsignacionesOperativasWriter</c>: propietario, operador y usuario.
+    /// No es el rol que ejerce y enseña la columna Rol de <c>/usuarios</c>
+    /// (<see cref="ObtenerRolesDeOperadoresDelegadosAsync(CancellationToken)"/>, decisión Chris
+    /// 2026-10-20): ese solo cambió la etiqueta; alinear aquí la validación del destino de una
+    /// cartera sería un cambio de permisos y queda fuera.
     /// </para>
     /// </summary>
     public Task<CaeManager.Application.Clientes.DestinoCartera?> ObtenerAsync(
@@ -732,6 +879,7 @@ public class DirectorioUsuariosTenant(
         {
             UsuarioId = asignacion.UsuarioId,
             OperadorTenantId = delegacion.TenantConsultoraId,
+            EsSoporte = delegacion.Proposito == CaeManager.Domain.Tenants.PropositoDelegacion.Soporte,
             Rol = asignacion.Rol,
         };
 
@@ -739,6 +887,7 @@ public class DirectorioUsuariosTenant(
     {
         public Guid UsuarioId { get; init; }
         public Guid OperadorTenantId { get; init; }
+        public bool EsSoporte { get; init; }
         public string Rol { get; init; } = string.Empty;
     }
 }
@@ -750,3 +899,20 @@ public class DirectorioUsuariosTenant(
 /// servicio, asignación) — ver <c>AmbitoAsignacion</c>.
 /// </summary>
 public record CarteraDeUsuario(bool EsUniversal, IReadOnlyList<Guid> ClienteIds);
+
+/// <summary>
+/// Una Empresa gestionada (Tenant beneficiario) que alcanza una persona del Operador CAE. <c>Parcial</c>: solo
+/// por una operación acotada a un Cliente empresarial, no el Tenant beneficiario entero.
+/// </summary>
+public record EmpresaGestionada(Guid TenantBeneficiarioId, string Nombre, bool Parcial);
+
+/// <summary>
+/// Las Empresas gestionadas del Operador CAE que se mira en <c>/usuarios</c>: las que opera enteras (lo que
+/// alcanza un Coordinador CAE sin cartera) y las de la Asignación de Cartera vigente de cada persona.
+/// </summary>
+public record EmpresasGestionadasDeLaOrganizacion(
+    IReadOnlyList<EmpresaGestionada> DelTenantEntero,
+    IReadOnlyDictionary<Guid, IReadOnlyList<EmpresaGestionada>> PorCartera)
+{
+    public static readonly EmpresasGestionadasDeLaOrganizacion Ninguna = new([], new Dictionary<Guid, IReadOnlyList<EmpresaGestionada>>());
+}

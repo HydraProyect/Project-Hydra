@@ -3,34 +3,26 @@ using Microsoft.Playwright;
 namespace CaeManager.E2ETests;
 
 /// <summary>
-/// Encargo de administración (decisión D-8, 2026-10-08) con un navegador real. El protagonista es
-/// el Administrador del Operador CAE externo de demo, con Asignación de Cartera vigente (rol
-/// Gestor CAE, del Tenant entero) sobre dos Tenants propietarios: uno le ha encargado su
-/// administración (<see cref="WebAppFixtureEncargoAdministracion.TenantConEncargo"/>) y el otro no
-/// (<see cref="WebAppFixtureEncargoAdministracion.TenantSinEncargo"/>). La misma cuenta, la misma
-/// cartera y el mismo rol en su Tenant de origen: lo único que cambia entre los dos es la fila del
-/// encargo. Las dos carteras y el encargo los siembra la fixture: la siembra de demo solo le da la
-/// vía heredada de Operador Delegado, que no se eleva.
+/// El Administrador del Operador CAE externo de demo en los Tenants beneficiarios que opera, con un
+/// navegador real. Regla de Chris del 2026-10-20 (opción A, PR #1488): el usuario del Operador CAE
+/// externo tiene su rol de origen, con todos sus poderes y también los de Propiedad, en cada Tenant
+/// beneficiario que cubre una Asignación de Operación vigente, externa y del Tenant entero de su
+/// organización, haya o no Encargo de administración. Deroga en ese punto la decisión del
+/// 2026-10-15 («sin encargo no administra») y el techo por encargo de la decisión D-8 (2026-10-08).
+///
+/// <para>
+/// La fixture sigue sembrando el encargo de <see cref="WebAppFixtureEncargoAdministracion.TenantConEncargo"/>
+/// y deja <see cref="WebAppFixtureEncargoAdministracion.TenantSinEncargo"/> sin él: los dos se
+/// administran igual, y eso es lo que se mide. También le siembra una Asignación de Cartera de
+/// Gestor CAE en los dos, que ya no decide su rol en ellos.
+/// </para>
 ///
 /// <list type="number">
-/// <item>Sin encargo no abre la configuración del Tenant propietario: opera con el techo de su
-/// cartera.</item>
-/// <item>Con encargo la abre, la cambia, y la pantalla le dice que administra por encargo.</item>
-/// <item>Con encargo sigue sin poder crear una cuenta con rol Administrador de ese Tenant
-/// propietario ni autorizar otro Operador CAE externo.</item>
+/// <item>Con encargo y sin él cambia la configuración del Tenant beneficiario, y solo la de ese.</item>
+/// <item>Sin encargo da de alta una cuenta con rol Administrador del Tenant beneficiario.</item>
+/// <item>Sin Asignación de Operación sobre un Tenant no entra en él: la frontera de Tenant sigue
+/// cerrada.</item>
 /// </list>
-///
-/// <para>
-/// Los tres recorridos aseguran el encargo antes de empezar, también el primero: que el Tenant
-/// propietario sin encargo siga cerrado con el encargo del otro ya registrado es parte de lo que
-/// se comprueba (el encargo no se contagia entre Tenants propietarios).
-/// </para>
-///
-/// <para>
-/// Los dos Tenants propietarios son de la siembra de demo y tienen Administrador propio. El
-/// encargo está pensado para el que nace sin él, pero nada de lo que aquí se mide depende de eso:
-/// el techo de rol mira la cartera, el encargo y el perfil de la cuenta en su Tenant de origen.
-/// </para>
 /// </summary>
 [Collection("AppCollectionEncargoAdministracion")]
 public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fixture)
@@ -38,62 +30,38 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
     private const string TenantConEncargo = WebAppFixtureEncargoAdministracion.TenantConEncargo;
     private const string TenantSinEncargo = WebAppFixtureEncargoAdministracion.TenantSinEncargo;
 
+    /// <summary>Tenant que la organización del Operador CAE externo de demo no opera.</summary>
+    private const string TenantNoOperado = Ayudas.NombreTenantOrigenPorDefecto;
+
     private const string RotuloUmbralProximo = "Umbral próximo (días)";
-    private const string AccionAutorizarOperador = "Autorizar un Operador CAE externo";
 
-    [Fact]
-    public async Task Sin_encargo_el_Administrador_del_Operador_CAE_externo_no_abre_la_configuracion_del_Tenant_propietario()
+    [Theory]
+    [InlineData(TenantSinEncargo, TenantConEncargo)]
+    [InlineData(TenantConEncargo, TenantSinEncargo)]
+    public async Task El_Administrador_del_Operador_CAE_externo_cambia_la_configuracion_del_Tenant_beneficiario_con_o_sin_encargo(
+        string tenant, string otroTenant)
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await EntrarComoAdministradorDelOperadorAsync(contexto);
 
-        await OperarAsync(page, TenantSinEncargo);
-
-        // El servidor deniega la página (Forbid) y el navegador sigue la redirección. La URL y el
-        // título de la página de acceso denegado son la evidencia positiva: no «no se ve el panel».
-        foreach (var ruta in new[] { "/configuracion/params", "/tipos-documento" })
-        {
-            await page.GotoAsync($"{fixture.BaseUrl}{ruta}");
-            await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            Assert.Contains("/acceso-denegado", page.Url);
-            await Expect(page.GetByRole(AriaRole.Heading,
-                    new PageGetByRoleOptions { Name = "No tienes permiso para ver esta sección", Exact = true }))
-                .ToBeVisibleAsync();
-        }
-
-        // Sigue operando el Tenant propietario sin encargo: la denegación no lo devolvió a su origen.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
-        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
-            "data-tenant-id", await IdDeTenantAsync(TenantSinEncargo));
-    }
-
-    [Fact]
-    public async Task Con_encargo_cambia_la_configuracion_del_Tenant_propietario_y_la_pantalla_dice_que_administra_por_encargo()
-    {
-        await using var contexto = await fixture.Browser.NewContextAsync();
-        var page = await EntrarComoAdministradorDelOperadorAsync(contexto);
-
-        var umbralAntes = int.Parse(await LeerUmbralProximoAsync(TenantConEncargo));
-        var umbralSinEncargoAntes = await LeerUmbralProximoAsync(TenantSinEncargo);
+        var umbralAntes = int.Parse(await LeerUmbralProximoAsync(tenant));
+        var umbralOtroAntes = await LeerUmbralProximoAsync(otroTenant);
         var umbralOperadorAntes = await LeerUmbralProximoAsync(Ayudas.NombreTenantConsultora);
         var umbralNuevo = umbralAntes + 7;
 
-        await OperarAsync(page, TenantConEncargo);
+        await OperarAsync(page, tenant);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/configuracion/params");
         Assert.DoesNotContain("/acceso-denegado", page.Url);
 
-        // La pantalla lo dice: su perfil de Administrador aquí es prestado.
-        var aviso = page.GetByTestId("aviso-por-encargo");
-        await Expect(aviso).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Expect(aviso).ToContainTextAsync("Administras esta organización por encargo");
-
-        // El panel cargó con el valor del Tenant propietario, no con el de su Tenant de origen.
+        // El panel cargó con el valor del Tenant beneficiario, no con el de su Tenant de origen.
         var campo = page.GetByLabel(RotuloUmbralProximo, new PageGetByLabelOptions { Exact = true });
         await Expect(campo).ToHaveValueAsync(
             umbralAntes.ToString(), new LocatorAssertionsToHaveValueOptions { Timeout = 15_000 });
 
-        // El presupuesto de IA es de los actos que el encargo no abre: no se le ofrece.
-        await Expect(page.GetByTestId("presupuesto-ia-reservado")).ToBeVisibleAsync();
+        // Con el panel ya cargado: las exclusiones de los encargos no plenos ya no rigen, y el
+        // presupuesto de IA se ofrece en vez de salir como reservado.
+        await Expect(page.GetByLabel("Presupuesto mensual (USD)", new PageGetByLabelOptions { Exact = true })).ToBeVisibleAsync();
+        await Expect(page.GetByTestId("presupuesto-ia-reservado")).ToHaveCountAsync(0);
 
         await campo.FillAsync(umbralNuevo.ToString());
         await campo.BlurAsync();
@@ -101,11 +69,11 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
             .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar cambios", Exact = true })
             .ClickAsync();
 
-        // El cambio llegó a la base, en la fila del Tenant propietario.
-        await EsperarUmbralProximoAsync(TenantConEncargo, umbralNuevo.ToString());
+        // El cambio llegó a la base, en la fila del Tenant beneficiario.
+        await EsperarUmbralProximoAsync(tenant, umbralNuevo.ToString());
 
-        // Y solo en esa: ni el otro Tenant propietario ni el Tenant de origen del Operador CAE.
-        Assert.Equal(umbralSinEncargoAntes, await LeerUmbralProximoAsync(TenantSinEncargo));
+        // Y solo en esa: ni el otro Tenant beneficiario ni el Tenant de origen del Operador CAE.
+        Assert.Equal(umbralOtroAntes, await LeerUmbralProximoAsync(otroTenant));
         Assert.Equal(umbralOperadorAntes, await LeerUmbralProximoAsync(Ayudas.NombreTenantConsultora));
 
         // Tras recargar, la pantalla lo lee de vuelta.
@@ -115,66 +83,128 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
     }
 
     [Fact]
-    public async Task Con_encargo_no_crea_una_cuenta_Administrador_ni_autoriza_otro_Operador_CAE_externo()
+    public async Task Sin_encargo_el_Administrador_del_Operador_CAE_externo_da_de_alta_un_Administrador_del_Tenant_propietario_que_opera()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await EntrarComoAdministradorDelOperadorAsync(contexto);
 
-        // Control positivo, en su propia organización: ahí autorizar un Operador CAE externo sí
-        // existe. Sin esto, «el botón no está» bajo encargo no distinguiría la regla de un rótulo
-        // mal escrito en el test.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
-        await EsperarDelegacionesCargadasAsync(page);
-        await Expect(BotonAutorizarOperador(page)).ToBeVisibleAsync();
+        await OperarAsync(page, TenantSinEncargo);
 
-        await OperarAsync(page, TenantConEncargo);
-
-        // --- Cuentas con rol de Propiedad ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/usuarios");
         Assert.DoesNotContain("/acceso-denegado", page.Url);
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo usuario", Exact = true }).ClickAsync();
         var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo usuario", Exact = true });
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
-        // Barrera positiva: el selector ya ofrece los roles de Operación. Solo entonces cuenta que
-        // no ofrezca los de Propiedad.
+        // El selector ofrece los roles de Propiedad del Tenant beneficiario.
         var rol = drawer.GetByLabel("Rol", new LocatorGetByLabelOptions { Exact = true });
-        await Expect(rol.Locator("option[value='GestorCae']")).ToHaveCountAsync(1);
-        await Expect(rol.Locator("option[value='Administrador']")).ToHaveCountAsync(0);
-        await Expect(rol.Locator("option[value='DireccionCae']")).ToHaveCountAsync(0);
+        await Expect(rol.Locator("option[value='Administrador']")).ToHaveCountAsync(1);
+        await Expect(rol.Locator("option[value='DireccionCae']")).ToHaveCountAsync(1);
 
-        // No ofrecerlo es comodidad; la autoridad está en Application. Se fuerza el valor en el
-        // navegador, como haría quien manipulara la página, y el alta tiene que fallar.
-        var correo = $"administrador.forzado.{Guid.NewGuid().ToString("N")[..8]}@caemanager.local";
+        var correo = $"administrador.operador.{Guid.NewGuid().ToString("N")[..8]}@caemanager.local";
         await drawer.GetByLabel("Correo", new LocatorGetByLabelOptions { Exact = true }).FillAsync(correo);
         var nombre = drawer.GetByLabel("Nombre completo", new LocatorGetByLabelOptions { Exact = true });
-        await nombre.FillAsync("Administrador forzado (E2E)");
+        await nombre.FillAsync("Administrador dado de alta por el Operador CAE externo (E2E)");
         await nombre.BlurAsync();
-        await rol.EvaluateAsync(
-            """
-            selector => {
-                const opcion = document.createElement("option");
-                opcion.value = "Administrador";
-                opcion.textContent = "Administrador";
-                selector.appendChild(opcion);
-            }
-            """);
         await rol.SelectOptionAsync(new SelectOptionValue { Value = "Administrador" });
         await Expect(rol).ToHaveValueAsync("Administrador");
 
         await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
-        await Expect(drawer.Locator(".drawer-aviso")).ToContainTextAsync(
-            "Administrador y Dirección CAE solo se asignan desde tu propia organización",
-            new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
-        Assert.Equal("0", await fixture.LeerValorSqlAsync(
-            """SELECT count(*)::text FROM "AspNetUsers" WHERE "NormalizedEmail" = upper(@correo)""", ("correo", correo)));
 
-        // --- Operadores CAE externos ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
-        await EsperarDelegacionesCargadasAsync(page);
-        await Expect(page.GetByTestId("aviso-por-encargo")).ToBeVisibleAsync();
-        await Expect(page.Locator(".delegaciones-aviso-ajeno")).ToBeVisibleAsync();
-        await Expect(BotonAutorizarOperador(page)).ToHaveCountAsync(0);
+        // La cuenta existe en el Tenant beneficiario, no en el de origen del Operador CAE externo, y
+        // con el rol Administrador.
+        var tenantId = await IdDeTenantAsync(TenantSinEncargo);
+        await EsperarValorSqlAsync(
+            "1",
+            """
+            SELECT count(*)::text
+            FROM "AspNetUsers" u
+            JOIN "AspNetUserRoles" ur ON ur."UserId" = u."Id"
+            JOIN "AspNetRoles" r ON r."Id" = ur."RoleId"
+            WHERE u."NormalizedEmail" = upper(@correo)
+              AND u."TenantId"::text = @tenant
+              AND r."Name" = 'Administrador'
+            """,
+            ("correo", correo), ("tenant", tenantId));
+    }
+
+    /// <summary>
+    /// La regla del 2026-10-20 abre los poderes del rol de origen, no la frontera de Tenant: sin una
+    /// Asignación de Operación (ni la vía heredada) sobre un Tenant, el Administrador del Operador
+    /// CAE externo no entra. Las precondiciones se comprueban en la base para que el «no entra» no
+    /// sea vacío, y el selector tiene que ofrecer antes los Tenants que sí opera.
+    /// </summary>
+    [Fact]
+    public async Task Sin_Asignacion_de_Operacion_el_Administrador_del_Operador_CAE_externo_no_entra_en_el_Tenant()
+    {
+        await using var contexto = await fixture.Browser.NewContextAsync();
+        var page = await EntrarComoAdministradorDelOperadorAsync(contexto);
+
+        var tenantNoOperado = await IdDeTenantAsync(TenantNoOperado);
+        Assert.False(string.IsNullOrEmpty(tenantNoOperado), $"La siembra no tiene el Tenant «{TenantNoOperado}».");
+        Assert.Equal("0", await fixture.LeerValorSqlAsync(
+            """
+            SELECT count(*)::text
+            FROM "AsignacionesOperacion" o
+            JOIN "Tenants" operador ON operador."Id" = o."OperadorTenantId"
+            WHERE operador."Nombre" = @operador AND o."PropietarioTenantId"::text = @tenant
+            """,
+            ("operador", Ayudas.NombreTenantConsultora), ("tenant", tenantNoOperado)));
+        Assert.Equal("0", await fixture.LeerValorSqlAsync(
+            """
+            SELECT count(*)::text
+            FROM "AsignacionesOperadorDelegado" f
+            JOIN "DelegacionesTenant" d ON d."Id" = f."DelegacionTenantId"
+            JOIN "AspNetUsers" u ON u."Id" = f."UsuarioId"
+            WHERE u."NormalizedEmail" = upper(@correo) AND d."TenantClienteId"::text = @tenant
+            """,
+            ("correo", Ayudas.EmailAdministradorConsultora), ("tenant", tenantNoOperado)));
+
+        // El selector ofrece los Tenants que opera y no el otro.
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        var panel = page.Locator(".selector-tenant-panel");
+        await Expect(panel.GetByRole(AriaRole.Option, new LocatorGetByRoleOptions { Name = TenantSinEncargo })).ToHaveCountAsync(1);
+        await Expect(panel.GetByRole(AriaRole.Option, new LocatorGetByRoleOptions { Name = TenantNoOperado })).ToHaveCountAsync(0);
+        await page.Keyboard.PressAsync("Escape");
+
+        // Forzar la selección, como haría quien manipulara la página: el servidor la deniega.
+        var token = await Ayudas.TokenAntiforgeryAsync(page);
+        Assert.False(string.IsNullOrEmpty(token), "La página no tiene token antiforgery.");
+        var respuesta = await page.RunAndWaitForResponseAsync(
+            () => page.EvaluateAsync(
+                """
+                ([tenant, token]) => {
+                    const form = document.createElement("form");
+                    form.method = "post";
+                    form.action = "/cuenta/cliente-activo";
+                    for (const [nombre, valor] of [["__RequestVerificationToken", token], ["tenantId", tenant], ["returnUrl", "/"]]) {
+                        const campo = document.createElement("input");
+                        campo.type = "hidden";
+                        campo.name = nombre;
+                        campo.value = valor;
+                        form.appendChild(campo);
+                    }
+                    document.body.appendChild(form);
+                    form.submit();
+                }
+                """, new[] { tenantNoOperado, token! }),
+            r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
+
+        Assert.True(respuesta.Status is >= 300 and < 400,
+            $"POST a /cuenta/cliente-activo devolvió {respuesta.Status}: se esperaba la redirección de Forbid.");
+        Assert.Contains("acceso-denegado", respuesta.Headers.GetValueOrDefault("location") ?? string.Empty);
+
+        // Se espera a que el navegador aterrice en la redirección antes de navegar otra vez: sin
+        // esto, el Goto siguiente interrumpe esa navegación (mismo caso que GestorCaeCarteraMultiTenantTests).
+        await page.WaitForURLAsync("**/acceso-denegado**", new PageWaitForURLOptions { Timeout = 15_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        // Y la sesión no quedó en ese Tenant: el selector sigue mostrando uno de los que opera.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
+            "data-tenant-id", new System.Text.RegularExpressions.Regex(".+"), new() { Timeout = 15_000 });
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).Not.ToHaveAttributeAsync(
+            "data-tenant-id", tenantNoOperado, new() { Timeout = 15_000 });
     }
 
     private async Task<IPage> EntrarComoAdministradorDelOperadorAsync(IBrowserContext contexto)
@@ -187,26 +217,13 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
         return page;
     }
 
-    /// <summary>Cambia al Tenant propietario y comprueba que el selector lo refleja como activo.</summary>
+    /// <summary>Cambia al Tenant beneficiario y comprueba que el selector lo refleja como activo.</summary>
     private async Task OperarAsync(IPage page, string nombreTenant)
     {
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, nombreTenant);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
             "data-tenant-id", await IdDeTenantAsync(nombreTenant));
     }
-
-    /// <summary>
-    /// La página decide qué acciones ofrece con las mismas consultas que cargan la lista, y las
-    /// asigna antes de retirar el esqueleto de carga: con la lista (o su vacío) a la vista, la
-    /// presencia o la ausencia de un botón ya es definitiva.
-    /// </summary>
-    private static async Task EsperarDelegacionesCargadasAsync(IPage page) =>
-        await page.Locator(".delegaciones-lista")
-            .Or(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "No hay ninguna delegación", Exact = true }))
-            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-
-    private static ILocator BotonAutorizarOperador(IPage page) =>
-        page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = AccionAutorizarOperador, Exact = true });
 
     private Task<string> IdDeTenantAsync(string nombreTenant) =>
         fixture.LeerValorSqlAsync("""SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @nombre""", ("nombre", nombreTenant));
@@ -221,18 +238,29 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
             """,
             ("nombre", nombreTenant));
 
+    private Task EsperarUmbralProximoAsync(string nombreTenant, string esperado) =>
+        EsperarValorSqlAsync(
+            esperado,
+            """
+            SELECT parametros."UmbralAmbarDias"::text
+            FROM "ParametrosSistema" parametros
+            JOIN "Tenants" tenant ON tenant."Id" = parametros."TenantId"
+            WHERE tenant."Nombre" = @nombre
+            """,
+            ("nombre", nombreTenant));
+
     /// <summary>
     /// El guardado es una ida y vuelta por el circuito: se espera a la fila, con plazo. Agotar el
     /// plazo es un fallo con el último valor leído, no un «dejé de mirar».
     /// </summary>
-    private async Task EsperarUmbralProximoAsync(string nombreTenant, string esperado)
+    private async Task EsperarValorSqlAsync(string esperado, string sql, params (string Nombre, string Valor)[] parametros)
     {
         var limite = DateTime.UtcNow.AddSeconds(15);
-        var leido = await LeerUmbralProximoAsync(nombreTenant);
+        var leido = await fixture.LeerValorSqlAsync(sql, parametros);
         while (leido != esperado && DateTime.UtcNow < limite)
         {
             await Task.Delay(250);
-            leido = await LeerUmbralProximoAsync(nombreTenant);
+            leido = await fixture.LeerValorSqlAsync(sql, parametros);
         }
 
         Assert.Equal(esperado, leido);

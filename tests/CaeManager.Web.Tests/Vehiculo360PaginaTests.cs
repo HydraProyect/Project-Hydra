@@ -1,3 +1,4 @@
+﻿using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
 using Bunit.TestDoubles;
@@ -243,11 +244,11 @@ public partial class Vehiculo360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id, "?extra=conservar");
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Sin actividad en Centros visibles de su Empresa empleadora"));
         new Uri(Services.GetRequiredService<NavigationManager>().Uri).Query.Should().Contain("pestana=centros").And.Contain("extra=conservar");
         cut.FindAll("[role=tab]").Single(t => t.TextContent.StartsWith("Documentación")).Click();
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().ContainSingle();
     }
 
@@ -259,7 +260,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         mediador.DocumentosPendientes = documentos;
         Registrar(mediador);
         var cut = Renderizar(id);
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su Empresa empleadora")).Click();
+        cut.FindAll("[role=tab]").Single(t => t.TextContent.Contains("Centros de su empleador")).Click();
         mediador.Enviadas.OfType<ObtenerCentrosConActividadDeEmpresaQuery>().Should().BeEmpty();
         documentos.SetResult();
         await cut.InvokeAsync(() => Task.CompletedTask);
@@ -529,7 +530,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id, "?pestana=historial");
 
-        cut.FindAll(".pestanas-boton").Should().HaveCount(4);
+        cut.FindAll(".pestanas-boton").Should().HaveCount(5);
         cut.Find(".pestanas-boton-activa").TextContent.Should().Contain("Historial");
         var historial = cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters;
         historial.Get(x => x.EntidadTipo).Should().Be("Vehiculo");
@@ -559,7 +560,8 @@ public partial class Vehiculo360PaginaTests : BunitContext
         lateral.TextContent.Should().Contain("Información")
             .And.Contain("Camión grúa").And.Contain("9012 GHI").And.Contain("Iveco Daily").And.Contain("Montajes Skynet S.L.")
             .And.Contain("El empleador no se puede cambiar.");
-        lateral.TextContent.Should().NotContain("Alta", "la fecha de alta no viaja en el detalle: es un dato nuevo, fuera del primer incremento");
+        lateral.QuerySelectorAll("dt").Select(t => t.TextContent.Trim()).Should().ContainInOrder("Nombre", "Matrícula", "Modelo", "Alta", "Empleador");
+        lateral.QuerySelectorAll("dd")[3].TextContent.Trim().Should().Be("—", "la fecha de alta aún no viaja en el detalle");
     }
 
     [Fact]
@@ -584,9 +586,9 @@ public partial class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public async Task Si_al_cerrar_el_panel_el_Vehiculo_ya_no_existe_la_ficha_pasa_a_su_estado_de_error()
+    public async Task Si_al_cerrar_el_panel_el_Vehiculo_ya_no_existe_la_ficha_pinta_FichaNoEncontrada()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var (id, mediador) = CamionGrua();
         Registrar(mediador);
         var cut = Renderizar(id);
@@ -597,7 +599,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         mediador.Detalles.Remove(id);
         await cut.InvokeAsync(panel.CerrarAsync);
 
-        cut.WaitForAssertion(() => cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo"));
+        cut.WaitForAssertion(() => cut.RutaListaDeFichaNoEncontrada().Should().Be("/vehiculos"));
         cut.FindAll(".cabecera-identidad, [data-pieza='lateral'] button.boton").Should().BeEmpty(
             "una ficha vieja con «Editar» abriría el panel de un Vehículo que ya no se puede ver");
     }
@@ -727,19 +729,17 @@ public partial class Vehiculo360PaginaTests : BunitContext
     }
 
     [Fact]
-    public async Task La_fila_del_empleador_abre_su_Empresa_sin_un_porcentaje_inventado()
+    public async Task La_fila_del_empleador_en_Ficha_enlaza_su_Empresa_sin_un_porcentaje_inventado()
     {
         var empresaId = Guid.NewGuid();
         var (id, mediador) = CamionGrua(empresaId);
         Registrar(mediador);
         var cut = Renderizar(id);
-        var lateral = cut.Find("[data-pieza=lateral]");
-        var fila = lateral.QuerySelector(".fila-relacion")!;
-        fila.TextContent.Should().Contain("Montajes Skynet S.L.").And.NotContain("%");
+        await AbrirFicha(cut);
+        var fila = cut.Find("[data-caja='empleador'] .fila-relacion");
+        fila.TextContent.Should().Contain("Montajes Skynet S.L.").And.Contain("Empresa").And.NotContain("%");
         fila.QuerySelector(".fila-relacion-nombre")!.GetAttribute("href").Should().Be($"/empresas/{empresaId}");
-        await fila.QuerySelector(".boton-360")!.ClickAsync(new());
-        Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should()
-            .Be(new WorkspaceFrame(EntidadWorkspace.Empresa, empresaId, "Montajes Skynet S.L.", "informacion"));
+        fila.QuerySelector(".boton-360")!.GetAttribute("href").Should().Be($"/empresas/{empresaId}");
     }
 
     // ── Carreras y ciclo de vida ──────────────────────────────────────────
@@ -854,12 +854,14 @@ public partial class Vehiculo360PaginaTests : BunitContext
     [Fact]
     public void Fuera_de_alcance_o_inexistente_se_ven_igual_y_no_se_piden_sus_documentos()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
 
-        var cut = Renderizar(Guid.NewGuid());
-
-        cut.Find(".estado-vacio").TextContent.Should().Contain("No pudimos cargar el vehículo");
+        var id = Guid.NewGuid();
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"vehiculos/{id}");
+        var cut = Render<VehiculoDetalle>(p => p.Add(x => x.VehiculoId, id));
+        cut.WaitForAssertion(() => cut.RutaListaDeFichaNoEncontrada().Should().Be("/vehiculos"));
+        cut.Markup.Should().NotContain("Reintentar");
         cut.FindAll(".cabecera-identidad, [data-pieza='banda'], .pestanas").Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty(
             "sin detalle no hay ficha: pedir los documentos sería preguntar por un vehículo que no se puede ver");
@@ -904,7 +906,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         var tarjeta = TarjetaNota(cut);
         tarjeta.Should().NotBeNull();
         tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
-        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el Cliente.");
         tarjeta.TextContent.Should().NotContain("Sin nota interna.");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
             .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información»");
@@ -918,7 +920,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
 
         var cut = Renderizar(id);
 
-        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el Cliente.");
     }
 
     /// <summary>
@@ -934,7 +936,7 @@ public partial class Vehiculo360PaginaTests : BunitContext
         var cut = Renderizar(id);
 
         TarjetaNota(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

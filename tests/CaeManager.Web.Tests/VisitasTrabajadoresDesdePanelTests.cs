@@ -46,6 +46,7 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         public bool Cancelada { get; set; }
         public List<TrabajadorVisitaDto> Entran { get; } = [];
         public List<TrabajadorSelectorDto> Candidatos { get; } = [];
+        public List<TrabajadorVisitaDto> Quitados { get; } = [];
         public List<object> Comandos { get; } = [];
         public int ConsultasCandidatos { get; private set; }
 
@@ -84,6 +85,15 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
                 case AnadirTrabajadorAVisitaCommand anadir:
                     {
                         Comandos.Add(anadir);
+                        if (Quitados.FirstOrDefault(t => t.Id == anadir.TrabajadorId) is { } devuelto)
+                        {
+                            // Deshacer de «quitar»: vuelve el mismo Trabajador y la Visita cambia de versión.
+                            Quitados.Remove(devuelto);
+                            Entran.Add(devuelto);
+                            Version = Guid.NewGuid();
+                            return Respuesta<TResponse>(Result.Exito());
+                        }
+
                         var candidato = Candidatos.Single(c => c.Id == anadir.TrabajadorId);
                         Candidatos.Remove(candidato);
                         Entran.Add(new TrabajadorVisitaDto(candidato.Id, candidato.NombreCompleto));
@@ -93,6 +103,7 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
 
                 case QuitarTrabajadorDeVisitaCommand quitar:
                     Comandos.Add(quitar);
+                    Quitados.AddRange(Entran.Where(t => t.Id == quitar.TrabajadorId));
                     Entran.RemoveAll(t => t.Id == quitar.TrabajadorId);
                     Version = Guid.NewGuid();
                     return Respuesta<TResponse>(Result.Exito());
@@ -201,6 +212,17 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
         mediator.Comandos.Should().ContainSingle().Which.Should().Be(
             new QuitarTrabajadorDeVisitaCommand(mediator.VisitaId, oscar.Id, versionAlAbrir));
         PestanaActiva(cut).Should().Be("Trabajadores", "tras quitar se sigue donde se estaba, no se vuelve a «Información»");
+        // Flujos 06 (maqueta 20-10): el aviso dice «quitado», no «sale».
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Óscar Bravo Nieto quitado de la visita.");
+
+        // Maqueta «Éxito · quitado»: el aviso ofrece Deshacer, que lo devuelve con la versión que dejó la baja.
+        var versionTrasQuitar = mediator.Version;
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediator.Comandos.OfType<AnadirTrabajadorAVisitaCommand>().Should().ContainSingle().Which.Should().Be(
+            new AnadirTrabajadorAVisitaCommand(mediator.VisitaId, oscar.Id, versionTrasQuitar));
+        cut.WaitForAssertion(() => NombresQueEntran(cut).Should().Equal(["Ana García Ruiz", "Óscar Bravo Nieto"]));
     }
 
     [Fact]
@@ -224,7 +246,7 @@ public class VisitasTrabajadoresDesdePanelTests : BunitContext
 
         var boton = BotonesQuitar(cut).Single();
         boton.HasAttribute("disabled").Should().BeTrue();
-        boton.GetAttribute("title").Should().Be("La visita debe incluir al menos un trabajador");
+        boton.GetAttribute("title").Should().Be("No se puede quitar al último: para eso está «Cancelar visita»");
     }
 
     [Fact]

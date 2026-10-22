@@ -3,6 +3,7 @@ using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Domain.Documentos;
 using CaeManager.Web.Components;
@@ -65,7 +66,9 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
         AmbitoAplicacion Ambito,
         IReadOnlyList<Guid> DocumentoIds,
         IReadOnlyList<Guid> ContactoIds,
-        IReadOnlyList<string> NombresContactos);
+        IReadOnlyList<string> NombresContactos,
+        string ClaveLote,
+        DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null);
 
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -84,16 +87,17 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     private int _versionCarga;
 
     private ModoAgrupacion _agrupacion = ModoAgrupacion.Severidad;
-    private readonly HashSet<string> _gruposCerrados = [];
+    /// <summary>Los grupos salen contraídos: con cientos de alertas, un grupo abierto se vuelve interminable.</summary>
+    private readonly HashSet<string> _gruposAbiertos = [];
 
     private FiltroLoteDocumental? _filtroLote;
     private bool _cargandoLote;
     private bool _errorLote;
     private int _versionLote;
     private IReadOnlyList<LoteReclamacionAgrupadoDto> _lotes = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _seleccionPorTitular = [];
-    private readonly Dictionary<Guid, HashSet<Guid>> _contactosPorTitular = [];
-    private Guid? _enviandoTitularId;
+    private readonly Dictionary<string, HashSet<Guid>> _seleccionPorLote = [];
+    private readonly Dictionary<string, HashSet<Guid>> _contactosPorLote = [];
+    private string? _enviandoLote;
     private EnvioPendiente? _envioPendiente;
     private bool _altaContactoVisible;
     private Guid _titularAltaContacto;
@@ -264,14 +268,14 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     {
         if (_agrupacion == modo) return;
         _agrupacion = modo;
-        _gruposCerrados.Clear();
+        _gruposAbiertos.Clear();
         _pagina = 1;
     }
 
     private void AlternarGrupo(string clave)
     {
-        if (!_gruposCerrados.Remove(clave))
-            _gruposCerrados.Add(clave);
+        if (!_gruposAbiertos.Remove(clave))
+            _gruposAbiertos.Add(clave);
     }
 
     /// <summary>
@@ -334,8 +338,8 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
         _cargandoLote = false;
         _errorLote = false;
         _lotes = [];
-        _seleccionPorTitular.Clear();
-        _contactosPorTitular.Clear();
+        _seleccionPorLote.Clear();
+        _contactosPorLote.Clear();
     }
 
     /// <summary>
@@ -356,16 +360,18 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
 
         try
         {
-            var lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro));
+            // Los documentos de un Trabajador de Empresa se reclaman a su Empresa empleadora (decisión de Chris,
+            // 2026-10-18), igual que en «Gestionar»; los de Subcontrata siguen yendo al Cliente.
+            var lotes = await Mediator.Send(new ObtenerLoteReclamacionPorFiltroQuery(filtro, PorEmpresaEmpleadora: true));
             if (version != _versionLote) return;
 
             _lotes = lotes;
-            _seleccionPorTitular.Clear();
-            _contactosPorTitular.Clear();
+            _seleccionPorLote.Clear();
+            _contactosPorLote.Clear();
             foreach (var lote in _lotes)
             {
-                _seleccionPorTitular[lote.TitularId] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
-                _contactosPorTitular[lote.TitularId] =
+                _seleccionPorLote[lote.Clave] = lote.Documentos.Select(d => d.DocumentoId).ToHashSet();
+                _contactosPorLote[lote.Clave] =
                     (lote.Destinatarios ?? []).Select(d => d.ContactoId).ToHashSet();
             }
         }
@@ -381,33 +387,41 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    private void AlternarSeleccion(Guid titularId, Guid documentoId, bool seleccionado)
+    private void AlternarSeleccion(string claveLote, Guid documentoId, bool seleccionado)
     {
-        var seleccionados = _seleccionPorTitular[titularId];
+        var seleccionados = _seleccionPorLote[claveLote];
         if (seleccionado) seleccionados.Add(documentoId);
         else seleccionados.Remove(documentoId);
     }
 
-    private HashSet<Guid> ContactosMarcados(Guid titularId) =>
-        _contactosPorTitular.TryGetValue(titularId, out var marcados) ? marcados : [];
+    private HashSet<Guid> ContactosMarcados(string claveLote) =>
+        _contactosPorLote.TryGetValue(claveLote, out var marcados) ? marcados : [];
 
-    private void AlternarContacto(Guid titularId, Guid contactoId, bool marcado)
+    private void AlternarContacto(string claveLote, Guid contactoId, bool marcado)
     {
-        if (!_contactosPorTitular.TryGetValue(titularId, out var marcados))
-            _contactosPorTitular[titularId] = marcados = [];
+        if (!_contactosPorLote.TryGetValue(claveLote, out var marcados))
+            _contactosPorLote[claveLote] = marcados = [];
 
         if (marcado) marcados.Add(contactoId);
         else marcados.Remove(contactoId);
     }
 
+    /// <summary>
+    /// El contacto nace en la agenda de quien recibe el lote: la Empresa titular de un lote de Empresa o de la Empresa
+    /// empleadora; el Cliente en el resto. Un lote a una Delegación no admite alta aquí: su contacto es el de la Delegación.
+    /// </summary>
     private void AbrirAltaContacto(LoteReclamacionAgrupadoDto lote)
     {
         _titularAltaContacto = lote.TitularId;
-        _tipoAgendaAltaContacto = lote.Ambito == AmbitoAplicacion.Empresa
+        _tipoAgendaAltaContacto = lote.Ambito == AmbitoAplicacion.Empresa || lote.EmpresaEmpleadora is not null
             ? TipoPropietarioAgenda.Empresa
             : TipoPropietarioAgenda.Cliente;
         _altaContactoVisible = true;
     }
+
+    /// <summary>Un lote a una Delegación se rige por el contacto de reclamación de la Delegación, no por la agenda: sin alta de contacto.</summary>
+    private static bool EsLoteDeDelegacionEmpresa(LoteReclamacionAgrupadoDto lote) =>
+        lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null;
 
     /// <summary>
     /// Reclamar envía un mensaje a terceros: el botón de la tarjeta no envía,
@@ -417,8 +431,8 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private void PedirConfirmacionEnvio(LoteReclamacionAgrupadoDto lote)
     {
-        var documentoIds = _seleccionPorTitular[lote.TitularId].ToList();
-        var contactoIds = ContactosMarcados(lote.TitularId).ToList();
+        var documentoIds = _seleccionPorLote[lote.Clave].ToList();
+        var contactoIds = ContactosMarcados(lote.Clave).ToList();
         if (documentoIds.Count == 0 || contactoIds.Count == 0) return;
 
         var nombres = (lote.Destinatarios ?? [])
@@ -427,7 +441,7 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
             .ToList();
 
         _envioPendiente = new EnvioPendiente(
-            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, contactoIds, nombres);
+            lote.TitularId, lote.TitularNombre, lote.Ambito, documentoIds, contactoIds, nombres, lote.Clave, lote.EmpresaEmpleadora);
     }
 
     private string MensajeConfirmacionEnvio => _envioPendiente is not { } envio
@@ -436,7 +450,7 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
 
     private void CerrarConfirmacionEnvio(bool visible)
     {
-        if (!visible && _enviandoTitularId is null)
+        if (!visible && _enviandoLote is null)
             _envioPendiente = null;
     }
 
@@ -448,17 +462,20 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
     {
         if (_envioPendiente is not { } envio) return;
 
-        _enviandoTitularId = envio.TitularId;
+        _enviandoLote = envio.ClaveLote;
         try
         {
-            // Un comando por ámbito: el titular de un lote de Empresa no es un
-            // Cliente y su camino de documentos reclamables es otro (ver
-            // ObtenerLoteReclamacionPorFiltroQuery.LoteReclamacionAgrupadoDto).
-            var resultado = envio.Ambito == AmbitoAplicacion.Empresa
-                ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
-                    envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds))
-                : await Mediator.Send(new EnviarReclamacionCommand(
-                    envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds));
+            // Un comando por destino: el titular de un lote de Empresa no es un Cliente y su camino de documentos
+            // reclamables es otro (ver ObtenerLoteReclamacionPorFiltroQuery.LoteReclamacionAgrupadoDto), y lo de un
+            // Trabajador de Empresa va a su Empresa empleadora y no al Cliente.
+            var resultado = envio.EmpresaEmpleadora is { } destino
+                ? await Mediator.Send(new EnviarReclamacionEmpresaEmpleadoraCommand(
+                    envio.TitularId, destino.DelegacionEmpresaId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds))
+                : envio.Ambito == AmbitoAplicacion.Empresa
+                    ? await Mediator.Send(new EnviarReclamacionEmpresaCommand(
+                        envio.TitularId, envio.DocumentoIds, ContactoIdsSeleccionados: envio.ContactoIds))
+                    : await Mediator.Send(new EnviarReclamacionCommand(
+                        envio.TitularId, envio.DocumentoIds, CentroId: null, ContactoIdsSeleccionados: envio.ContactoIds));
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
@@ -483,7 +500,7 @@ public partial class Alertas : CaeManager.Web.Components.PaginaInteractiva
         }
         finally
         {
-            _enviandoTitularId = null;
+            _enviandoLote = null;
         }
 
         await CargarLoteAsync();

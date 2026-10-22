@@ -26,13 +26,13 @@ namespace CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPor
 /// <param name="PorEmpresaEmpleadora">
 /// Solo para Ambito=Trabajador: «Gestionar» reclama los documentos de un Trabajador de Empresa a la Empresa que lo emplea,
 /// por Delegación (<see cref="ReclamacionEmpresaEmpleadoraService"/>), en vez de al Cliente del Centro. Lo de un Trabajador de
-/// Subcontrata sigue yendo al Cliente. Falso por defecto: Alertas sigue viendo lo de siempre.
+/// Subcontrata sigue yendo al Cliente. Falso por defecto: quien no lo pide ve lo de siempre (lotes por Cliente). «Gestionar», Alertas, la pestaña Reclamaciones y el Calendario lo piden.
 /// </param>
 public record ObtenerLoteReclamacionPorFiltroQuery(FiltroLoteDocumental Filtro, bool IncluirPendientesSinFecha = false, bool PorEmpresaEmpleadora = false)
     : IRequest<IReadOnlyList<LoteReclamacionAgrupadoDto>>;
 
 /// <param name="TitularId">
-/// A quién se le envía la reclamación — para Ambito=Trabajador es el Cliente
+/// A quién se le envía la reclamación — para Ambito=Trabajador sin EmpresaEmpleadora es el Cliente
 /// dueño del Centro donde está asignado cada Trabajador (mismo criterio que
 /// ObtenerLoteReclamacionQuery hoy), NO el Trabajador mismo: un lote agrupa
 /// varios documentos de varios trabajadores en un único correo por Cliente.
@@ -61,7 +61,19 @@ public record LoteReclamacionAgrupadoDto(
     Guid? UltimaReclamacionConversacionId,
     IReadOnlyList<DestinatarioAgendaDto>? Destinatarios,
     IReadOnlyList<DocumentoPendienteDto>? PendientesSinFecha = null,
-    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null);
+    DestinoEmpresaEmpleadoraDto? EmpresaEmpleadora = null)
+{
+    /// <summary>
+    /// Identifica el lote en pantalla. El titular no basta: la Empresa empleadora puede tener un lote por Delegación y otro
+    /// para su agenda, y un Cliente y una Empresa distintos nunca comparten Id pero sí el ámbito del DTO.
+    /// </summary>
+    /// <summary>Lo que se pinta como título de la tarjeta: la Empresa y, si el lote va a una Delegación, cuál (dos tarjetas de una misma Empresa no deben llamarse igual).</summary>
+    public string TituloVisible => EmpresaEmpleadora?.DelegacionEmpresaNombre is { } delegacion ? $"{TitularNombre} · {delegacion}" : TitularNombre;
+
+    public string Clave => EmpresaEmpleadora is { } destino
+        ? $"empleadora:{TitularId:N}:{destino.DelegacionEmpresaId?.ToString("N") ?? "agenda"}"
+        : $"{Ambito}:{TitularId:N}";
+}
 
 public class ObtenerLoteReclamacionPorFiltroQueryHandler(IMediator mediator, ReclamacionEmpresaEmpleadoraService empresaEmpleadora)
     : IRequestHandler<ObtenerLoteReclamacionPorFiltroQuery, IReadOnlyList<LoteReclamacionAgrupadoDto>>

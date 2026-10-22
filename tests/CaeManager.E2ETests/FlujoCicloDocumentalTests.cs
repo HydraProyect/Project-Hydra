@@ -173,7 +173,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // --- Paso 4 (Vencimiento, primera lectura): semáforo "Urgente" a 10 días ---
         // Mismo umbral que FlujoCriticoTests (rojo = 15 días) — se reutiliza
         // el patrón ya establecido en vez de reinventar el cálculo aquí.
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
@@ -234,10 +234,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
 
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a centro…").ClickAsync();
+        await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro").ClickAsync();
         // Sin Exact/scope, GetByLabel("Centro") también resuelve el propio
         // <div role="dialog"> del modal: su nombre accesible viene de
-        // aria-labelledby → "Asignar 1 trabajador(es) a un centro", que
+        // aria-labelledby → "Asignar 1 trabajador a un centro", que
         // contiene "centro" como subcadena (visto en CI —
         // "strict mode violation... resolved to 2 elements").
         //
@@ -270,7 +270,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // del historial vacío menciona "+ Nueva reclamación" entre comillas,
         // así que GetByText a secas es ambiguo entre la pestaña y ese párrafo.
         await page.GetByRole(AriaRole.Tab, new PageGetByRoleOptions { Name = "+ Nueva reclamación" }).ClickAsync();
-        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialCliente });
+        var tarjetaCliente = page.Locator(".tarjeta-reclamacion", new PageLocatorOptions { HasText = razonSocialEmpresa });
         await tarjetaCliente.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // Sin contacto en la agenda todavía — ReclamacionesTab ofrece darlo de
@@ -324,7 +324,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         // --- Paso 7 (Renovación): nueva fecha de vencimiento, el semáforo pasa a "Vigente" ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // La fila ya no lleva menú «⋯»: «Renovar» es su acción rápida, que abre el mismo drawer.
@@ -342,7 +342,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        await page.GetByPlaceholder("Filtrar esta pantalla: propietario o tipo de documento").FillAsync(apellidosTrabajador);
+        await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Lo correcto ya no lleva pastilla de color (2026-10-08): punto verde y texto gris.
         var insigniaVigente = filaDocumento.Locator("[data-pieza=estado-correcto]");

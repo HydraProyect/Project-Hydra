@@ -128,6 +128,9 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
         _ => TonoBadge.Neutro
     };
 
+    /// <summary>Código INC-xxxxxxxx para la primera columna: sale de los últimos 8 caracteres del Id (no es un dato guardado).</summary>
+    private static string ReferenciaIncidencia(Guid id) => $"INC-{id.ToString("N")[^8..].ToUpperInvariant()}";
+
     private string ObtenerEtiquetaTipo(TipoIncidencia tipo) => tipo switch
     {
         TipoIncidencia.Accidente => Textos["TipoAccidente"].Value,
@@ -150,32 +153,11 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
     /// Esto sustituye al antiguo checkbox "Solo sin resolver", que solo dejaba
     /// filtrar en un sentido — no había forma de ver únicamente las resueltas.
     /// </summary>
-    private IReadOnlyList<OpcionEstado> OpcionesEstado =>
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesEstado =>
     [
-        new("SinResolver", Textos["EstadoSinResolver"].Value),
-        new("Resuelta", Textos["EstadoResuelta"].Value)
+        new(Textos["EstadoSinResolver"].Value, TonoBadge.Advertencia, "SinResolver"),
+        new(Textos["EstadoResuelta"].Value, TonoBadge.Exito, "Resuelta")
     ];
-
-    private string EtiquetaFiltroEstado => _estadoFiltro == "Resuelta" ? Textos["ChipEstadoResueltas"].Value : Textos["ChipEstadoSinResolver"].Value;
-
-    /// <summary>
-    /// El recuento solo se pinta con la carga terminada: durante una recarga el
-    /// total todavía es el del filtro anterior, y «con el filtro actual» sería
-    /// falso justo en ese instante. Con cero lo dicen ya los estados vacíos.
-    /// </summary>
-    private bool MostrarRecuento => !_cargando && _totalElementos > 0;
-
-    /// <summary>
-    /// Es el total de servidor YA filtrado: la pantalla no sabe cuántas hay sin
-    /// filtro, así que «con el filtro actual» solo se añade cuando lo hay.
-    /// </summary>
-    private string TextoRecuento => (_totalElementos == 1, HayFiltrosActivos) switch
-    {
-        (true, false) => Textos["RecuentoUno", _totalElementos].Value,
-        (false, false) => Textos["RecuentoVarios", _totalElementos].Value,
-        (true, true) => Textos["RecuentoUnoConFiltro", _totalElementos].Value,
-        (false, true) => Textos["RecuentoVariosConFiltro", _totalElementos].Value
-    };
 
     /// <summary>
     /// Esqueleto solo cuando no hay nada que enseñar todavía (primera carga, o
@@ -191,26 +173,32 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>La búsqueda viaja en la URL (<c>?q=</c>) para que la vista recordada y los filtros guardados la restauren.</summary>
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? TerminoBusquedaInicial { get; set; }
+
     // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
     protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
 
     /// <summary>La URL es la fuente de verdad del filtro (P1-18) — ver el resto de listados.</summary>
     protected override void OnParametersSet()
     {
-        var deLaUrl = OpcionesEstado.Any(o => o.Valor == EstadoInicial) ? EstadoInicial! : string.Empty;
+        var deLaUrl = OpcionesEstado.Any(o => o.Valores.Contains(EstadoInicial)) ? EstadoInicial! : string.Empty;
         if (deLaUrl != _estadoFiltro)
             _estadoFiltro = deLaUrl;
+
+        var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
+        if (busquedaDeLaUrl != _busqueda)
+            _busqueda = busquedaDeLaUrl;
     }
 
-    private async Task CambiarEstadoAsync(string valor)
+    private async Task CambiarEstadoAsync(string? valor)
     {
-        _estadoFiltro = valor;
-        NavigationManager.ActualizarFiltroEnUrl("estado", valor);
+        // La franja admite varios botones marcados («SinResolver,Resuelta»): con los dos, ve todas, como «Todas».
+        _estadoFiltro = valor is null || valor.Contains(',') ? string.Empty : valor;
+        NavigationManager.ActualizarFiltroEnUrl("estado", _estadoFiltro);
         await RecargarAsync();
     }
-
-    /// <summary>El chip quita solo el estado; la búsqueda se queda como está.</summary>
-    private Task QuitarFiltroEstadoAsync() => CambiarEstadoAsync(string.Empty);
 
     private async ValueTask<GridItemsProviderResult<IncidenciaListaDto>> ProveerElementosAsync(
         GridItemsProviderRequest<IncidenciaListaDto> request)
@@ -265,9 +253,37 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    // ---- Filtros guardados y vista recordada (piezas compartidas FiltrosGuardadosDeListado y VistaRecordadaDeListado) ----
+
+    private const string PantallaDeFiltrosGuardados =
+        CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Incidencias;
+
+    /// <summary>
+    /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado, y lo que
+    /// recuerda la vista recordada, junto con la búsqueda libre (<c>q</c>).
+    /// </summary>
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado"];
+
+    private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
+    private readonly ConexionVistaRecordada _vistaRecordada = new();
+
+    /// <summary>
+    /// Un filtro guardado define la vista entera: lo que no trae se quita. El estado pasa por la misma
+    /// validación que el de la URL (<see cref="OnParametersSet"/>) y la URL se escribe en una sola navegación.
+    /// </summary>
+    private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
+    {
+        _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
+        var estado = vista.GetValueOrDefault("estado");
+        _estadoFiltro = OpcionesEstado.Any(o => o.Valores.Contains(estado)) ? estado! : string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = _busqueda, ["estado"] = _estadoFiltro });
+        await RecargarAsync();
+    }
+
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
 
@@ -288,7 +304,7 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
     {
         _busqueda = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
 
@@ -492,7 +508,7 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
-    private async Task CambiarResueltaAsync(Guid id, bool resuelta)
+    private async Task CambiarResueltaAsync(Guid id, bool resuelta, bool ofrecerDeshacer = true)
     {
         try
         {
@@ -504,7 +520,14 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                ToastService.Mostrar(resuelta ? Textos["ToastMarcadaResuelta"].Value : Textos["ToastReabierta"].Value, TonoToast.Exito);
+                // Maqueta «Flujos 10 Incidencias y Gestiones»: resolver y reabrir ofrecen Deshacer (la acción contraria).
+                // El propio Deshacer no encadena otro aviso con Deshacer.
+                var aviso = resuelta ? Textos["ToastMarcadaResuelta"].Value : Textos["ToastReabierta"].Value;
+                if (ofrecerDeshacer)
+                    ToastService.Mostrar(aviso, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value,
+                        () => CambiarResueltaAsync(id, !resuelta, ofrecerDeshacer: false));
+                else
+                    ToastService.Mostrar(aviso, TonoToast.Exito);
                 await RecargarAsync();
             }
         }

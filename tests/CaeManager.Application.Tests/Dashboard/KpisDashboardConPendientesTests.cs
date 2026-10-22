@@ -97,7 +97,7 @@ public class KpisDashboardConPendientesTests
             mundo.TrabajadoresContexto, mundo.AsignacionesContexto, mundo.DocumentosContexto, alcance);
         return new ObtenerKpisDashboardQueryHandler(mundo.CentrosContexto, configuracion,
             mundo.DocumentosContexto, mundo.TrabajadoresContexto, new VisitasVacias(), alcance, calculo, acceso,
-            empresas, mundo.TiposDocumentoContexto);
+            empresas, mundo.TiposDocumentoContexto, proyectos);
     }
 
     private sealed class VisitasVacias : IVisitasQueryContext

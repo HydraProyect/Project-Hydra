@@ -97,6 +97,12 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private bool _errorCarga;
 
     /// <summary>
+    /// La versión o su plantilla no están en el Tenant activo (o no existen; es el mismo estado, § 4.5). No es un
+    /// fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
+
+    /// <summary>
     /// Versión que la ruta pidió cargar. Se fija ANTES del primer await de la
     /// carga —a diferencia de <see cref="_versionIdActual"/>, que solo existe
     /// cuando el editor ya está montado—: así un repintado con la misma ruta
@@ -140,7 +146,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     private bool EsAlta => PlantillaDocumentoVersionId is null && _versionIdActual is null;
 
     /// <summary>Hay una versión montada en el editor (ni alta, ni cargando, ni en error).</summary>
-    private bool EnEditor => !EsAlta && _versionIdActual is not null && !_cargandoEditor && !_errorCarga;
+    private bool EnEditor => !EsAlta && _versionIdActual is not null && !_cargandoEditor && !_errorCarga && !_noEncontrada;
 
     private string TituloPagina => EsAlta
         ? "Nueva plantilla"
@@ -257,6 +263,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
             _cargaVigente++;
             _cargandoEditor = false;
             _errorCarga = false;
+            _noEncontrada = false;
             FijarInstantaneaFormulario();
             return;
         }
@@ -276,6 +283,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
         _versionSolicitada = versionId;
         _cargandoEditor = true;
         _errorCarga = false;
+        _noEncontrada = false;
         StateHasChanged();
 
         try
@@ -286,7 +294,10 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
             if (resultado.EsFallido)
             {
-                _errorCarga = true;
+                if (resultado.Error.Codigo is "Plantilla.VersionNoEncontrada" or "Plantilla.NoEncontrada")
+                    _noEncontrada = true;
+                else
+                    _errorCarga = true;
                 return;
             }
 
@@ -940,7 +951,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
     /// AvisoCambiosSinGuardar al navegar. Guardar, confirmar y generar refijan la
     /// instantánea antes de su propia navegación.
     /// </summary>
-    private bool HayCambiosSinGuardar => !_cargandoEditor && !_errorCarga && _instantanea.Difiere(ValoresFormulario());
+    private bool HayCambiosSinGuardar => !_cargandoEditor && !_errorCarga && !_noEncontrada && _instantanea.Difiere(ValoresFormulario());
 
     private object?[] ValoresFormulario() =>
     [

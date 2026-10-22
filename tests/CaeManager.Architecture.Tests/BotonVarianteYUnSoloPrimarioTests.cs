@@ -56,6 +56,8 @@ public class BotonVarianteYUnSoloPrimarioTests
     private static readonly IReadOnlyDictionary<string, int> PrimariosPermitidosPorSuperficie = new Dictionary<string, int>(StringComparer.Ordinal)
     {
         ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 4,
+        // 2 el 2026-10-21 (404 con volver a la lista): el primario de «Volver a la lista de…» (línea 53) y el de la pantalla principal (línea 56) son ramas excluyentes: la línea 56 pasa a Secundario cuando hay lista, así que siempre hay un solo primario pintado.
+        ["src/CaeManager.Web/Components/Pages/PaginaEstadoSistema.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaAgendaContactos.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaDocumentacion.razor"] = 2,
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor"] = 3,
@@ -74,7 +76,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Comunicaciones/Components/AccionCenter.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Components/ComposerBar.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Components/RevisionSugerenciaModal.razor#Modal1"] = 2,
-        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 4,
+        ["src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Buzon.razor"] = 3,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor"] = 4,
         ["src/CaeManager.Web/Features/Comunicaciones/Pages/Macros.razor#Drawer1"] = 2,
@@ -95,7 +97,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Empresas/Pages/DeteccionTrabajadores.razor"] = 2,
         ["src/CaeManager.Web/Features/Empresas/Pages/EmpresaDetalle.razor"] = 4,
         ["src/CaeManager.Web/Features/Empresas/Pages/Empresas.razor"] = 3,
-        ["src/CaeManager.Web/Features/Facturacion/Pages/Facturacion.razor"] = 4,
+        ["src/CaeManager.Web/Features/Facturacion/Pages/FacturacionPorClienteEmpresarial.razor"] = 4,
         ["src/CaeManager.Web/Features/GestionRoles/Pages/Roles.razor"] = 2,
         ["src/CaeManager.Web/Features/Gestiones/Pages/Gestiones.razor"] = 2,
         ["src/CaeManager.Web/Features/Importacion/Pages/Importacion.razor"] = 5,
@@ -117,6 +119,8 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor"] = 2,
         ["src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor"] = 2,
         ["src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor"] = 2,
+        // 2 el 2026-10-22 (Visitas según Flujos 06): «Reactivar» (rama EsCancelada) y «Enviar paquete por correo» (rama EsPorCorreo) son ramas excluyentes del mismo @if / else if de <Acciones>, así que la cabecera pinta siempre un solo primario; el test las cuenta como si convivieran.
+        ["src/CaeManager.Web/Features/Visitas/Pages/VisitaDetalle.razor"] = 2,
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor"] = 2,
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#Drawer1"] = 3,
     };
@@ -523,7 +527,7 @@ public class BotonVarianteYUnSoloPrimarioTests
     private sealed record Analisis(List<BotonAnalizado> Botones, List<ContenedorAnalizado> Contenedores);
 
     /// <summary>Los contenedores donde se escribe un primario: los de siempre y los kits de formulario (que ponen el suyo).</summary>
-    private static readonly string[] NombresDeKit = ["DrawerFormulario", "ModalFormulario"];
+    private static readonly string[] NombresDeKit = ["DrawerFormulario", "ModalFormulario", "DrawerLectura"];
 
     private static readonly string Contenedores = "Drawer|Modal|DialogoConfirmacion|" + string.Join('|', NombresDeKit);
 

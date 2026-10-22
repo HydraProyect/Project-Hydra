@@ -6,10 +6,20 @@
 <div class="esqueleto-lista" aria-busy="true" aria-label="@Comunes["Cargando"]">
     @for (var i = 0; i < Filas; i++)
     {
-        <div class="esqueleto-fila"></div>
+        if (ConEtiqueta)
+        {
+            <div class="esqueleto-campo"><div class="esqueleto-etiqueta"></div><div class="esqueleto-fila"></div></div>
+        }
+        else
+        {
+            <div class="esqueleto-fila"></div>
+        }
     }
 </div>
 
 @code {
     [Parameter] public int Filas { get; set; } = 5;
+
+    /// <summary>Esqueleto de campo del panel lateral («Panel Formulario TALVEG»): una barra de etiqueta de 12 px y un bloque de 48 px.</summary>
+    [Parameter] public bool ConEtiqueta { get; set; }
 }

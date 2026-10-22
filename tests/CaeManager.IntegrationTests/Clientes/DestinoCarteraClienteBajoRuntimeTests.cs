@@ -365,7 +365,7 @@ public class DestinoCarteraClienteBajoRuntimeTests : IAsyncLifetime
     /// no lo toca. Si algún día lo hiciera, el test estalla con un NRE, no da un verde silencioso.
     /// </summary>
     private DirectorioUsuariosTenant Directorio(CaeManagerDbContext contexto) =>
-        new(null!, contexto, new TenantActualAmbiental { TenantId = _propietario.Id }, new PuertaAccesoDatos(), contexto);
+        new(null!, contexto, new TenantActualAmbiental { TenantId = _propietario.Id }, new PuertaAccesoDatos(), contexto, null!);
 
     private CurrentUserServiceFalso Usuario(Guid usuarioId, string rol, Guid? tenantOrigen = null) =>
         new(usuarioId, rol, tenantOrigenId: tenantOrigen ?? _propietario.Id);

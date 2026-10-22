@@ -1,0 +1,170 @@
+/* Reclamar para acceso, Gen 2 («Reclamacion por acceso TALVEG.dc.html»). Solo tokens de tokens.css. */
+
+.reclamar-acceso-empresa {
+    font-weight: 600;
+}
+
+.reclamar-acceso-seleccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-5);
+    padding: var(--space-4) var(--space-5);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.reclamar-acceso-trabajadores {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
+}
+
+.reclamar-acceso-trabajadores legend {
+    padding: 0;
+    font: var(--font-label);
+}
+
+.reclamar-acceso-trabajadores-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.reclamar-acceso-resumen {
+    font: var(--font-label);
+}
+
+.reclamar-acceso-trabajadores-lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: var(--space-2) var(--space-4);
+}
+
+.reclamar-acceso-cuerpo {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: var(--space-5);
+    align-items: start;
+}
+
+.reclamar-acceso-documentos {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-5);
+    min-width: 0;
+}
+
+.reclamar-acceso-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.reclamar-acceso-seccion-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-2);
+}
+
+.reclamar-acceso-seccion-titulo {
+    margin: 0;
+    font: var(--font-h4);
+}
+
+.reclamar-acceso-grupo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.reclamar-acceso-grupo-nombre {
+    margin: 0;
+    font: var(--font-label);
+}
+
+.reclamar-acceso-filas {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.reclamar-acceso-fila {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+}
+
+.reclamar-acceso-fila + .reclamar-acceso-fila {
+    border-top: 1px solid var(--color-border);
+}
+
+.reclamar-acceso-fila-nombre {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-weight: 500;
+}
+
+.reclamar-acceso-nota {
+    margin: 0;
+}
+
+.reclamar-acceso-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+}
+
+.reclamar-acceso-destino {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+}
+
+.reclamar-acceso-destino-cabecera {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.reclamar-acceso-destino-titulo {
+    flex: 1;
+    font: var(--font-label);
+}
+
+.reclamar-acceso-contacto {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.reclamar-acceso-cta {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+@media (max-width: 900px) {
+    .reclamar-acceso-cuerpo {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}

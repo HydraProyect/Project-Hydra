@@ -274,13 +274,22 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para leer el catálogo de carteras de su organización (mismo criterio que ObtenerOperacionesSinPrincipalQuery)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
-                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y el Tenant de origen del Operador CAE que devuelve AutorizacionTarifasOperadorCae.OperadorQueGestionaAsync (Administrador o Dirección CAE ahí) para leer sus tarifas y las vigencias de sus Asignaciones de Operación"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "el Tenant de origen del propio usuario (ObtenerTenantOrigenIdAsync), que es el Operador CAE: lee las vigencias de sus Asignaciones de Operación externas (AutorizacionTarifasOperadorCae.VigenciasPorTenantBeneficiarioAsync) tras AutorizacionCuadroDireccion.ExigirLecturaAsync (la Facturación, el detalle y el Excel por Empresa y el KPI de extranjeros leen la vigencia de aquí); el filtro de RLS sigue acotando a ese Tenant"),
+        ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "ObtenerTenantOrigenIdAsync() del propio usuario: las tarifas del Operador CAE son filas de su Tenant de origen, y solo se leen o escriben si el rol efectivo ahí es Administrador o Dirección CAE (AutorizacionTarifasOperadorCae)"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerComunicacionesCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerGestionesPorDiaCuadroDireccionQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado,
                 "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync"),
+        ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado,
+                "cliente.TenantId, mismo fan-out que ObtenerCuadroDireccionQuery: ObtenerClientesAutorizadosQuery y solo si AlcanzaElTenantEnteroAsync; y ObtenerTenantOrigenIdAsync() del propio usuario para los nombres de los Gestores CAE de su organización"),
         ["src/CaeManager.Application/Dashboard/Queries/ObtenerKpisGlobalesQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "cliente.TenantId, mismo fan-out que ObtenerDashboardEjecutivoQuery"),
         ["src/CaeManager.Application/Bandeja/Queries/ObtenerMiTrabajoAgregado/ObtenerMiTrabajoAgregadoQuery.cs"] =
@@ -414,8 +423,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.BootstrapOSiembra, "3 llamadas — tenantId del segundo tenant que el propio seeder crea"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas — el Tenant del Operador CAE externo y cada Tenant beneficiario, que la propia siembra aprovisiona o localiza por nombre (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:GestorCaeCarteraMultiTenant y rechazada en Producción"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] =
+            new(Categoria.BootstrapOSiembra, "4 llamadas — el Tenant del Operador CAE externo de la cobertura (asignar a su equipo a la operación y vincular a sus Gestores CAE con su Coordinador CAE) y cada Tenant propietario (Alfa y Beta), todos aprovisionados o localizados por nombre por la propia siembra (DelegacionDemoSeeder.AprovisionarTenantAsync); inerte salvo DatosPrueba:Cobertura:Activo y rechazada fuera de Development"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "7 llamadas — el Tenant del Operador CAE externo del piloto (tres: vincular a los Gestores CAE con su Coordinadora CAE, el segundo factor de siembra de su Administrador —la misma llamada, sobre el Tenant de la propia cuenta, da el suyo al Administrador de T1 y lee el Cliente empresarial al que queda ligada la cuenta de Usuario de Cliente de T1— y la operación heredada) y cada Tenant propietario del piloto (tres: su Asignación de Operación con sus Asignaciones de Cartera —también la del Administrador del Operador CAE externo— y su Encargo de administración de la siembra de demostración, sus datos, y —solo lectura, cuando la fecha de la demostración queda fuera de margen— si su Empresa propia ya existe, para decidir si queda algo por sembrar), más una que comparten los siete: la instrucción de tratamiento de IA de cada uno, borrador de demostración (lee si ya tiene una vigente y, si no, la registra); los Ids los devuelve DelegacionDemoSeeder.AprovisionarTenantAsync al aprovisionar o localizar por nombre del catálogo, o salen de la tabla de Tenants por ese mismo nombre en la lectura, y la siembra se niega antes si uno de esos nombres lo ocupa un Tenant sin marcador de demo; inerte salvo DatosPrueba:PilotoOutbound:Activo y rechazada en Producción"),
+            new(Categoria.BootstrapOSiembra, "8 llamadas — el Tenant del Operador CAE externo del piloto (cuatro: las tarifas que aplica a cada Tenant propietario del piloto —plano Comercial; se leen y, solo si el Operador aún no tiene ninguna para ese Tenant, se registran—, vincular a los Gestores CAE con su Coordinadora CAE, el segundo factor de siembra de su Administrador —la misma llamada, sobre el Tenant de la propia cuenta, da el suyo al Administrador de T1 y lee el Cliente empresarial al que queda ligada la cuenta de Usuario de Cliente de T1— y la operación heredada) y cada Tenant propietario del piloto (tres: su Asignación de Operación con sus Asignaciones de Cartera —también la del Administrador del Operador CAE externo— y su Encargo de administración de la siembra de demostración, sus datos, y —solo lectura, cuando la fecha de la demostración queda fuera de margen— si su Empresa propia ya existe, para decidir si queda algo por sembrar), más una que comparten los siete: la instrucción de tratamiento de IA de cada uno, borrador de demostración (lee si ya tiene una vigente y, si no, la registra); los Ids los devuelve DelegacionDemoSeeder.AprovisionarTenantAsync al aprovisionar o localizar por nombre del catálogo, o salen de la tabla de Tenants por ese mismo nombre en la lectura, y la siembra se niega antes si uno de esos nombres lo ocupa un Tenant sin marcador de demo; inerte salvo DatosPrueba:PilotoOutbound:Activo y rechazada en Producción"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] =
             new(Categoria.BootstrapOSiembra, "2 llamadas, las dos de solo lectura — el Tenant del Operador CAE externo del piloto, localizado por su nombre del catálogo y comprobado su marcador de demo, para leer la cuenta sembrada con la que se mide; y cada Tenant propietario del piloto, localizado por nombre, ya con la identidad de esa cuenta publicada, de modo que las consultas de pantalla aplican su alcance de cartera igual que en una sesión"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundRetirada.cs"] =
@@ -548,13 +559,19 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Integraciones/IngestaWebhookWhatsAppHostedService.cs"] = 4,
             ["src/CaeManager.Infrastructure/Retencion/RetencionHostedService.cs"] = 3,
+            // Las tres con el Tenant de origen de quien pide: rol efectivo, lectura y escritura de sus tarifas.
+            ["src/CaeManager.Application/Dashboard/TarifasOperadorCae/TarifasOperadorCae.cs"] = 3,
+            // Una por Tenant beneficiario (fan-out) y otra con el Tenant de origen del Operador CAE que pasó la guarda.
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,
             ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] = 3,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 7,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 8,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
@@ -567,6 +584,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/IncorporacionCartera/ContextoOperadorCae.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerCuadroDireccionQuery.cs"] = 2,
+            ["src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs"] = 2,
         };
 
         foreach (var fichero in conocidos)

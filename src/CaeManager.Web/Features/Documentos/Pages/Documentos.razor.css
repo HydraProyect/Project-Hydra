@@ -15,6 +15,14 @@
     color: var(--color-text-muted);
 }
 
+.documentos-opciones-boton {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+
 .documentos-opciones-orden {
     display: flex;
     flex-direction: column;
@@ -36,7 +44,7 @@
     background: var(--color-surface-hover);
 }
 
-/* Última celda de la fila: la acción rápida («Renovar» / «Subir») y el icono 360 del tipo. */
+/* Última celda de la fila: «Gestionar» y el icono 360 del tipo. */
 .documentos-acciones-fila {
     display: inline-flex;
     align-items: center;
@@ -91,3 +99,156 @@
     outline: var(--border-focus);
     outline-offset: -2px;
 }
+
+.documentos-tabla-desplazable {
+    overflow-x: auto;
+}
+
+.documentos-tabla-desplazable ::deep .tabla-datos {
+    display: table;
+    min-width: 860px;
+    width: 100%;
+}
+
+.documentos-tabla-desplazable ::deep .tabla-datos th {
+    padding: 14px var(--space-4) 10px;
+    border-bottom: 1.5px solid var(--color-text);
+    font: var(--font-caption);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+.documentos-tabla-desplazable ::deep .tabla-datos td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-fila-divisor);
+    white-space: normal;
+}
+
+.documentos-tabla-desplazable ::deep .documentos-accion-rapida {
+    color: var(--color-primary-500);
+}
+
+.documentos-tabla-desplazable ::deep .documentos-accion-correcta {
+    color: var(--color-text-muted);
+}
+
+.documentos-grupo {
+    width: 100%;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 10px var(--space-4);
+    border: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: var(--font-caption);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    text-align: left;
+}
+
+.documentos-expandir ::deep .icono {
+    flex-shrink: 0;
+    transition: transform var(--motion-transition) var(--ease-fluid);
+}
+
+.documentos-expandir[aria-expanded="false"] ::deep .icono {
+    transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .documentos-expandir ::deep .icono {
+        transition: none;
+    }
+}
+
+.documentos-tabla-desplazable ::deep .documentos-cabecera-grupo > th {
+    padding: 0;
+    border-bottom: 1px solid var(--color-fila-divisor);
+}
+
+.documentos-grupo:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: -2px;
+}
+
+.documentos-orden-grupo {
+    display: inline-flex;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    text-align: inherit;
+    cursor: pointer;
+}
+
+.documentos-orden-grupo:focus-visible {
+    outline: var(--border-focus);
+    outline-offset: 2px;
+}
+
+.documentos-grupo-total {
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+/* La regla global de relleno de QuickGrid oculta las filas sin td; estos th son encabezados reales. */
+.documentos-tabla-desplazable ::deep .tabla-datos tbody tr.documentos-cabecera-grupo {
+    display: table-row;
+}
+
+.documentos-tabla-desplazable ::deep th[aria-sort="ascending"] .documentos-orden-grupo::after {
+    content: "↑";
+    margin-left: var(--space-1);
+}
+
+.documentos-tabla-desplazable ::deep th[aria-sort="descending"] .documentos-orden-grupo::after {
+    content: "↓";
+    margin-left: var(--space-1);
+}
+
+.documentos-tabla-visible thead th { position: relative; }
+/* Por debajo de la cabecera pegajosa (z-index 1 en list-page.css), que abre su propio contexto de apilado: con 19 la superposición tapaba el menú de opciones y no se podía pulsar. */
+.documentos-orden-superposicion { position: fixed; inset: 0; z-index: 0; }
+.documentos-tabla-visible .documentos-opciones-orden { position: absolute; top: 100%; left: 0; z-index: 20; min-width: 200px; padding: var(--space-2); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface); box-shadow: var(--shadow-overlay); text-transform: none; letter-spacing: normal; }
+.documentos-celda-expandir { width: 24px; }
+.documentos-expandir { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--color-text-muted); cursor: pointer; }
+.documentos-expandir:hover { background: var(--color-surface-hover); }
+.documentos-expandir:focus-visible { outline: var(--border-focus); outline-offset: 2px; }
+.documentos-tabla-desplazable ::deep .documentos-fila-hijos > td { padding: 4px var(--space-4); background: color-mix(in srgb, var(--color-surface-subtle) 60%, var(--color-surface)); }
+.documentos-hijos { padding-left: 40px; }
+.documentos-hijo { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; padding: 10px 0; }
+.documentos-hijo + .documentos-hijo { border-top: 1px solid var(--color-fila-divisor); }
+.documentos-hijo-centro { flex: 0 1 220px; font: var(--font-body-sm); font-weight: 600; color: var(--color-text); text-decoration: none; }
+.documentos-hijo-centro:hover { color: var(--color-primary-500); text-decoration: underline; }
+.documentos-hijo-contexto { flex: 1; min-width: 120px; font: var(--font-caption); color: var(--color-text-muted); }
+.documentos-proveedor { display: none; }
+.documentos-solo-lectores { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* El texto puede partirse; las acciones conservan su espacio a 1440 px. */
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible {
+    table-layout: fixed;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible tr > :last-child:not([colspan]) {
+    width: 176px;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible tr > :nth-last-child(2):not([colspan]) {
+    width: 112px;
+}
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible th,
+.documentos-tabla-desplazable ::deep .documentos-tabla-visible td {
+    overflow-wrap: anywhere;
+}
+.documentos-propietario { max-width: 100%; min-width: 0; }
+.documentos-vigencia { white-space: normal; }
+.documentos-tabla-desplazable ::deep .documentos-celda-expandir,
+.documentos-tabla-desplazable ::deep .documentos-celda-seleccion { width: 40px; }

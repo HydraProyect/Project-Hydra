@@ -339,6 +339,47 @@ public class SemanaPorEmpresaTests : BunitContext
             .Single(q => q.Filtro.Ambito == AmbitoAplicacion.Empresa).Filtro.EntidadId.Should().Be(gargamel.EmpresaId);
     }
 
+    /// <summary>
+    /// Decisión de Chris, 2026-10-18: el documento de un Trabajador de Empresa se reclama a la Empresa empleadora. Desde su
+    /// fila el cajón ofrece el lote de la Delegación (titular: la Empresa de la fila) y deja fuera lo de Subcontrata, que va al Cliente.
+    /// </summary>
+    [Fact]
+    public void Reclamar_desde_la_fila_ofrece_el_documento_del_Trabajador_a_la_Delegacion_de_su_Empresa_empleadora()
+    {
+        var deTrabajador = new DocumentoSemanaDto(Guid.NewGuid(), Lunes, false, "Ficha de riesgos", "Ana Gil", DeTrabajador: true, Reclamable: true);
+        var deSubcontrata = Guid.NewGuid();
+        var fila = new SemanaEmpresaDto(Guid.NewGuid(), "Contratista SL", [deTrabajador], false);
+        var delegacion = Guid.NewGuid();
+        var contacto = new DestinatarioAgendaDto(delegacion, "Marta Sevilla", "sevilla@contratista.example", ["Contacto de reclamación"]);
+        _mediador.Responder = r => r switch
+        {
+            ObtenerVencimientosMesQuery => Array.Empty<VencimientoCalendarioDto>(),
+            ObtenerVisitasParaCalendarioQuery => Array.Empty<VisitaCalendarioDto>(),
+            ObtenerSemanaPorEmpresaQuery => new[] { fila },
+            ObtenerLoteReclamacionPorFiltroQuery { Filtro.Ambito: AmbitoAplicacion.Empresa } => Array.Empty<LoteReclamacionAgrupadoDto>(),
+            ObtenerLoteReclamacionPorFiltroQuery { PorEmpresaEmpleadora: true } => new[]
+            {
+                new LoteReclamacionAgrupadoDto(fila.EmpresaId, fila.EmpresaNombre, AmbitoAplicacion.Trabajador, null,
+                    [new(deTrabajador.DocumentoId, Guid.NewGuid(), "Ana Gil", Guid.NewGuid(), "Ficha de riesgos", Lunes, EstadoDocumento.Proximo)],
+                    null, [contacto], EmpresaEmpleadora: new CaeManager.Application.Reclamaciones.DestinoEmpresaEmpleadoraDto(delegacion, "Sevilla")),
+                new LoteReclamacionAgrupadoDto(Guid.NewGuid(), "Cliente del Centro SA", AmbitoAplicacion.Trabajador, null,
+                    [new(deSubcontrata, Guid.NewGuid(), "Sara Ruiz", Guid.NewGuid(), "Ficha de riesgos", Lunes, EstadoDocumento.Proximo)],
+                    null, [new DestinatarioAgendaDto(Guid.NewGuid(), "Compras", "compras@cliente.example", [])])
+            },
+            _ => throw new NotSupportedException()
+        };
+        var cut = Render<Calendario>(p => p.Add(c => c.Hoy, Lunes));
+        cut.FindAll("[role=tab]")[1].Click();
+        cut.Find(".semana-reclamar").TextContent.Should().Contain("Reclamar todos (1)");
+        cut.Find(".semana-reclamar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".tarjeta-reclamacion").Should().ContainSingle());
+        cut.Markup.Should().Contain("Se reclama a la Delegación Sevilla").And.Contain("sevilla@contratista.example");
+        cut.Markup.Should().NotContain("compras@cliente.example", "lo de Subcontrata va al Cliente, no desde la fila de la Empresa");
+        _mediador.Recibidas.OfType<ObtenerLoteReclamacionPorFiltroQuery>()
+            .Single(q => q.Filtro.Ambito == AmbitoAplicacion.Trabajador).PorEmpresaEmpleadora.Should().BeTrue();
+    }
+
     [Fact]
     public void Una_fila_sin_nada_reclamable_no_ofrece_Reclamar()
     {
@@ -377,7 +418,7 @@ public class SemanaPorEmpresaTests : BunitContext
 
         cut.FindAll(".tarjeta-reclamacion").Should().ContainSingle();
         var notas = cut.FindAll("[role=note]").Select(n => n.TextContent).ToArray();
-        notas.Should().Contain("1 de 3 documentos son de Trabajadores y no entran en este lote de documentos de la Empresa: se reclaman desde «Gestionar» en la ficha de cada Trabajador.");
+        notas.Should().Contain("1 de 3 documentos son de Trabajadores de Subcontrata y se reclaman al Cliente, no a esta Empresa: usa «Gestionar» en la ficha de cada Trabajador.");
         notas.Should().Contain("1 de 3 documentos están fuera de la ventana de reclamación o ya no son reclamables.");
         cut.Markup.Should().NotContain("LexCorp");
     }
@@ -399,7 +440,7 @@ public class SemanaPorEmpresaTests : BunitContext
 
         cut.FindAll(".tarjeta-reclamacion").Should().BeEmpty();
         cut.Markup.Should().NotContain("compras@lexcorp.example").And.NotContain("LexCorp");
-        cut.Find("[role=note]").TextContent.Should().Contain("1 de 1 documentos son de Trabajadores");
+        cut.Find("[role=note]").TextContent.Should().Contain("1 de 1 documentos son de Trabajadores de Subcontrata");
         cut.Markup.Should().Contain("Nada que reclamar a esta Empresa").And.NotContain("Prueba con otro tipo de documento o ámbito");
     }
 

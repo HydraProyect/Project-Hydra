@@ -214,7 +214,7 @@
     <value>¿Cancelar la visita a {0}?</value>
   </data>
   <data name="ConfirmarCancelarMensaje" xml:space="preserve">
-    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después.</value>
+    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después. El motivo queda en el historial.</value>
   </data>
   <data name="ConfirmarCancelarLoteTitulo" xml:space="preserve">
     <value>¿Cancelar {0} visita(s)?</value>
@@ -330,6 +330,12 @@
   <data name="BadgeCancelada" xml:space="preserve">
     <value>Cancelada</value>
   </data>
+  <data name="EtiquetaMotivo" xml:space="preserve">
+    <value>Motiu (obligatori)</value>
+  </data>
+  <data name="ToastTrabajadorDevuelto" xml:space="preserve">
+    <value>Treballador tornat a la visita.</value>
+  </data>
   <data name="EtiquetaMotivoOpcional" xml:space="preserve">
     <value>Motivo (opcional)</value>
   </data>
@@ -385,7 +391,7 @@
     <value>Enviar per correu</value>
   </data>
   <data name="PaqueteDemasiadoGrandeParaCorreo" xml:space="preserve">
-    <value>El ZIP pesa {0} MB i un correu admet fins a {1} MB d'adjunts. Descarrega'l amb el botó del costat i envia'l des del teu correu.</value>
+    <value>El ZIP pesa {0} MB i el màxim per correu és {1} MB. Descarrega'l amb el botó del costat i envia'l des del teu correu.</value>
   </data>
   <data name="ErrorEnviarPaquetePorCorreo" xml:space="preserve">
     <value>No hem pogut preparar el correu amb el paquet. Pots descarregar el ZIP i enviar-lo des del teu correu.</value>
@@ -433,7 +439,7 @@
     <value>Treure de la visita</value>
   </data>
   <data name="AyudaQuitarUltimoTrabajador" xml:space="preserve">
-    <value>La visita ha d'incloure almenys un treballador</value>
+    <value>No es pot treure l'últim: per a això hi ha «Cancel·lar visita»</value>
   </data>
   <data name="BotonAnadirTrabajador" xml:space="preserve">
     <value>Afegir treballador</value>
@@ -457,7 +463,7 @@
     <value>{0} entra a la visita.</value>
   </data>
   <data name="ToastTrabajadorQuitado" xml:space="preserve">
-    <value>{0} surt de la visita.</value>
+    <value>{0} tret de la visita.</value>
   </data>
   <data name="ToastErrorCambiarTrabajadores" xml:space="preserve">
     <value>No hem pogut canviar els treballadors de la visita. Torna-ho a provar.</value>
@@ -564,6 +570,9 @@
   <data name="Visita360PestanaPaquete" xml:space="preserve">
     <value>Paquet d'acreditació</value>
   </data>
+  <data name="Visita360PestanaHistorial" xml:space="preserve">
+    <value>Historial</value>
+  </data>
   <data name="Visita360FilaSinDocumento" xml:space="preserve">
     <value>No hi ha document</value>
   </data>
@@ -631,7 +640,7 @@
     <value>No hem pogut treure la marca de documentació gestionada. Torna-ho a provar.</value>
   </data>
   <data name="ToastDocumentacionGestionada" xml:space="preserve">
-    <value>Documentació marcada com a gestionada.</value>
+    <value>Documentació de la visita marcada com a gestionada.</value>
   </data>
   <data name="ToastErrorDocumentacionGestionada" xml:space="preserve">
     <value>No hem pogut marcar la documentació com a gestionada. Torna-ho a provar.</value>
@@ -723,6 +732,9 @@
   <data name="RecomendacionDocumentacionPendiente" xml:space="preserve">
     <value>{0} té documentació pendent: {1}.</value>
   </data>
+  <data name="RecomendacionDocumentacionVencida" xml:space="preserve">
+    <value>{0} té documentació vençuda: {1}.</value>
+  </data>
   <data name="RecomendacionVenceAntesDeLaEntrada" xml:space="preserve">
     <value>{1} de {0} venç el {2}, abans del dia d'entrada.</value>
   </data>
@@ -734,5 +746,74 @@
   </data>
   <data name="RecomendacionYaVencido" xml:space="preserve">
     <value>{1} de {0} va vèncer el {2}.</value>
+  </data>
+  <data name="FiltroCliente" xml:space="preserve">
+    <value>Client</value>
+  </data>
+  <data name="FiltroVentana" xml:space="preserve">
+    <value>Finestra</value>
+  </data>
+  <data name="OpcionTodos" xml:space="preserve">
+    <value>Tots</value>
+  </data>
+  <data name="ColumnaClienteEmpresa" xml:space="preserve">
+    <value>Client · Empresa</value>
+  </data>
+  <data name="ColumnaPreparacion" xml:space="preserve">
+    <value>Preparació</value>
+  </data>
+  <data name="DesplegarPreparacion" xml:space="preserve">
+    <value>Desplegar la preparació de {0}</value>
+  </data>
+  <data name="PreparacionCargando" xml:space="preserve">
+    <value>Carregant…</value>
+  </data>
+  <data name="PreparacionError" xml:space="preserve">
+    <value>No hem pogut carregar la preparació.</value>
+  </data>
+  <data name="PreparacionSinTrabajadores" xml:space="preserve">
+    <value>No hi ha treballadors en aquesta visita.</value>
+  </data>
+  <data name="BotonGestionar" xml:space="preserve">
+    <value>Gestionar</value>
+  </data>
+  <data name="VerCalendario" xml:space="preserve">
+    <value>Veure al calendari</value>
+  </data>
+  <data name="VentanaHoy" xml:space="preserve">
+    <value>Avui</value>
+  </data>
+  <data name="VentanaSieteDias" xml:space="preserve">
+    <value>Pròxims 7 dies</value>
+  </data>
+  <data name="VentanaCatorceDias" xml:space="preserve">
+    <value>Pròxims 14 dies</value>
+  </data>
+  <data name="PreparacionResumen" xml:space="preserve">
+    <value>{0} de {1} treballadors preparats</value>
+  </data>
+  <data name="QuitarFiltroEmpresa" xml:space="preserve">
+    <value>Treure el filtre de Empresa</value>
+  </data>
+  <data name="QuitarFiltroCliente" xml:space="preserve">
+    <value>Treure el filtre de Client</value>
+  </data>
+  <data name="QuitarFiltroVentana" xml:space="preserve">
+    <value>Treure el filtre de Finestra</value>
+  </data>
+  <data name="ColumnaEstadoDocumental" xml:space="preserve">
+    <value>Estat documental</value>
+  </data>
+  <data name="EntradaA" xml:space="preserve">
+    <value>Entrada {0}</value>
+  </data>
+  <data name="CopiarReferenciaVisita" xml:space="preserve">
+    <value>Copiar la referència de la visita a {0}</value>
+  </data>
+  <data name="OrdenPorAvisada" xml:space="preserve">
+    <value>Per avís al titular del Centre</value>
+  </data>
+  <data name="OrdenPorOrigen" xml:space="preserve">
+    <value>Per origen</value>
   </data>
 </root>

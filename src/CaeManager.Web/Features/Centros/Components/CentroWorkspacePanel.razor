@@ -59,6 +59,11 @@
 {
     <EstadoCargando Filas="4" />
 }
+else if (!_error && _detalle is null)
+{
+    @* La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; mismo estado, § 4.5). Se cierra el panel con un toast; sin «Reintentar». *@
+    <PanelNoEncontrado />
+}
 else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar el centro" Descripcion="Intenta nuevamente en unos segundos.">
@@ -114,13 +119,13 @@ else
     @if (_ultimaReclamacion is { } reclamacion)
     {
         <p class="workspace-nota-contextual">
-            Última reclamación a este Cliente: @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
+            @(reclamacion.EmpresaEmpleadoraNombre is { } empleadora ? Textos["UltimaReclamacionEmpresaEmpleadora", empleadora].Value : Textos["UltimaReclamacionCliente"].Value): @reclamacion.FechaEnvioUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
             (@reclamacion.TotalDocumentos documento@(reclamacion.TotalDocumentos == 1 ? "" : "s")).
             @* Al cliente, no al hilo: el deep-link a una conversación concreta
                no existe todavía (Project-Hydra-Negocio/tecnico/05_WORKSPACE_PATTERNS.md § 3.6).
                Con el módulo apagado (Comunicaciones:Activo) no se ofrece: /comunicaciones
                redirige a «no encontrado», y el menú tampoco muestra su entrada. *@
-            @if (reclamacion.ConversacionId is not null && OpcionesComunicaciones.Value.Activo)
+            @if (reclamacion.ConversacionId is not null && reclamacion.EmpresaEmpleadoraNombre is null && OpcionesComunicaciones.Value.Activo)
             {
                 <a href="@($"/comunicaciones?cliente={clienteIdDelCentro}")">Ver en Comunicaciones</a>
             }
@@ -463,7 +468,7 @@ else
     </Pestanas>
 
     <Drawer @ref="_drawerDoc" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
-            Titulo="@($"Configurar «{_nombreTipoDocumentoEditando}» en este centro")"
+            Titulo="@Textos["ConfigurarRequisitoTitulo"]"
             CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
         <ChildContent>
             @if (_mensajeErrorDocumentacion is not null)
@@ -474,9 +479,11 @@ else
                llegar marcado sin que este centro tenga fila propia, solo porque el tipo se pide
                siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
                marca inicial al centro incluso cuando venía del valor general del tipo. *@
+            <p class="workspace-metrica-inline">@_nombreTipoDocumentoEditando</p>
             <label class="campo-checkbox">
                 <input type="checkbox" @bind="_incluidoEdicion" /> Incluido en este centro
             </label>
+            <p class="workspace-nota-contextual">@Textos["IncluidoAyudaRequisito"]</p>
 
             <CampoSelect Etiqueta="Periodo especial de renovación" Valor="@_periodicidadSeleccionEdicion" ValorChanged="v => _periodicidadSeleccionEdicion = v">
                 <option value="">@Textos["PeriodicidadSinPropia"]</option>
@@ -512,7 +519,8 @@ else
             }
 
             <div class="campo">
-                <label>Formulario adjunto (Word o PDF, opcional)</label>
+                <label>@Textos["ArchivoCentroEtiqueta"]</label>
+                <p class="workspace-metrica-inline">@Textos["ArchivoCentroAyuda"]</p>
                 @if (_archivoUrlEdicion is not null)
                 {
                     <p class="workspace-metrica-inline">
@@ -1364,7 +1372,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar("Documentación del centro actualizada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["RequisitoGuardadoToast"].Value, TonoToast.Exito);
 
             _drawerDocVisible = false;
             await CargarDocumentacionAsync();

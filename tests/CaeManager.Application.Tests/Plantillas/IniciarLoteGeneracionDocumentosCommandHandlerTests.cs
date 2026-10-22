@@ -115,10 +115,11 @@ public class IniciarLoteGeneracionDocumentosCommandHandlerTests
     }
 
     private static EscenarioLote PrepararLote(
-        AlcanceDatosServiceFalso alcance, Guid? centroId, Guid? clienteId, bool confirmada = true)
+        AlcanceDatosServiceFalso alcance, Guid? centroId, Guid? clienteId, bool confirmada = true,
+        AmbitoAplicacion ambito = AmbitoAplicacion.Trabajador)
     {
         var plantilla = new PlantillaDocumento(
-            OrigenPlantilla.Externa, "Ficha", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid(),
+            OrigenPlantilla.Externa, "Ficha", ambito, FormatoOrigenPlantilla.PdfVisual, Guid.NewGuid(),
             centroId: centroId, clienteId: clienteId);
         var plantillas = new PlantillaDocumentoRepositorioFalso();
         plantillas.Agregar(plantilla);
@@ -182,6 +183,20 @@ public class IniciarLoteGeneracionDocumentosCommandHandlerTests
         var resultado = await e.Handler.Handle(new IniciarLoteGeneracionDocumentosCommand(e.Version.Id, [trabajador]), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Plantilla.VersionNoEncontrada");
+        NoSePersistioNada(e);
+    }
+
+    [Fact]
+    public async Task La_cartera_se_comprueba_antes_que_el_ambito_con_una_plantilla_de_ambito_Empresa_atada_a_un_Cliente_empresarial_ajeno()
+    {
+        var trabajador = Guid.NewGuid();
+        var e = PrepararLote(
+            GestorConCarteraExplicita(trabajador), centroId: null, clienteId: Guid.NewGuid(), ambito: AmbitoAplicacion.Empresa);
+
+        var resultado = await e.Handler.Handle(new IniciarLoteGeneracionDocumentosCommand(e.Version.Id, [trabajador]), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.VersionNoEncontrada",
+            "fuera de cartera no se responde LoteSoloTrabajador, que delataría que la plantilla existe y su ámbito");
         NoSePersistioNada(e);
     }
 

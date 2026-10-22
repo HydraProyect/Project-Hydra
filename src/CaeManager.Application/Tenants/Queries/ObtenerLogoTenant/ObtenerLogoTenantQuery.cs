@@ -52,6 +52,6 @@ public class ObtenerLogoTenantQueryHandler(
         // El mismo predicado que la lista del selector y el POST de selección (lote 0, I2).
         return await TenantsBeneficiariosAutorizados.EstaAutorizadoAsync(
             operaciones, tenants, usuarioId.Value, tenantOrigenId.Value, tenantId,
-            DateTime.UtcNow, cancellationToken);
+            await currentUserService.ObtenerPerfilQueDecideAlcanceAsync(), DateTime.UtcNow, cancellationToken);
     }
 }

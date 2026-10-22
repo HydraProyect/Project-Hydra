@@ -5,11 +5,13 @@ using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Cumplimiento.Commands.ActivarTratamientoIaPorEncargo;
+using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionesSinRespuesta;
 using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador;
 using CaeManager.Application.Visitas.Queries.ObtenerDocumentacionVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
+using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Cumplimiento;
@@ -89,7 +91,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         fixture.Resultado.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.EnOrdenDeSiembra.Select(t => t.Nombre), "MEDIDO: el autónomo primero y el perfil multicliente el último");
         fixture.Resultado.Pdf.Should().Be(fixture.Resultado.Documentos, "MEDIDO: un PDF por documento");
-        fixture.Resultado.Documentos.Should().BeGreaterThan(500, "control: los ocho perfiles siembran documentos");
+        fixture.Resultado.Documentos.Should().BeGreaterThan(500, "control: los once perfiles siembran documentos");
 
         // La duración del lote y la memoria pico las dice la propia siembra, en su línea de registro.
         var lineaDelLote = fixture.Registro.Informativas.Should()
@@ -105,11 +107,11 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         foreach (var m in fixture.Informe.Tenants)
             salida.WriteLine($"MEDIDO {m.Clave}: {PilotoOutboundTextos.CentrosPorEstado(m)}");
         salida.WriteLine(
-            "MEDIDO Centros «Vigente» en los ocho Tenants: " +
+            "MEDIDO Centros «Vigente» en los Tenants del piloto: " +
             fixture.Informe.Tenants.Sum(m => m.Centros.Count(c => c.Estado == EstadoCentro.Vigente)));
 
         PilotoOutboundAutoverificacion.Discrepancias(fixture.Informe).Should().BeEmpty();
-        fixture.Informe.Tenants.Should().HaveCount(8);
+        fixture.Informe.Tenants.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count);
     }
 
     /// <summary>
@@ -139,7 +141,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
                 esperada, $"MEDIDO: la cartera de la {cuenta} es la que el catálogo le da, toda con instrucción");
         }
 
-        asistenteIa.Coordinadora.ConInstruccion.Should().HaveCount(9, "control: el Operador CAE externo y los ocho Tenants propietarios");
+        asistenteIa.Coordinadora.ConInstruccion.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1, "control: el Operador CAE externo y los once Tenants propietarios");
 
         // Las dos condiciones que el modo Preguntar exige antes de llamar al proveedor, con la Gestora CAE dentro de T1.
         var (enPantalla, errorDeCartera) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(C.Nombre, async sp =>
@@ -152,6 +154,128 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         });
         enPantalla.Should().BeTrue("MEDIDO: T1, el Tenant en pantalla, tiene instrucción vigente");
         errorDeCartera.Should().BeNull("MEDIDO: la comprobación de cartera no devuelve el error que impide enviar el mensaje");
+    }
+
+    /// <summary>
+    /// Los tres Tenants escaparate venden un estado documental concreto, medido en todos los ámbitos (Trabajador, Empresa
+    /// propia, Subcontrata y Vehículo), no solo en lo que cuenta Inicio: el grande no tiene nada vencido ni que venza en
+    /// treinta días; el de «por vencer», exactamente nueve documentos que vencen a D+4 y nada más en esos treinta días; el
+    /// de «pocos vencidos», exactamente cinco vencidos y nada por vencer. Los números están escritos a mano.
+    /// </summary>
+    [Fact]
+    public async Task Los_tres_Tenants_escaparate_tienen_el_estado_documental_que_venden()
+    {
+        var d = ArnesPilotoOutbound.FechaDemostracion();
+        var medidos = new Dictionary<string, List<(string Ambito, DateOnly Vence)>>();
+        foreach (var tenant in CatalogoPilotoOutbound.Escaparate)
+        {
+            medidos[tenant.Clave] = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+            {
+                var propia = await db.Empresas.Where(e => e.EsPropia).Select(e => e.Id).SingleAsync();
+                var razones = tenant.Subcontratas.Select(s => s.RazonSocial).ToList();
+                var subcontratas = await db.Empresas.Where(e => razones.Contains(e.RazonSocial)).Select(e => e.Id).ToListAsync();
+                subcontratas.Should().HaveCount(razones.Count, $"control: {tenant.Clave} tiene sus Subcontratas sembradas");
+
+                var documentos = await db.Documentos.AsNoTracking()
+                    .Where(x => x.SustituidoEnUtc == null && x.FechaVencimiento != null && x.FechaVencimiento <= d.AddDays(30))
+                    .Select(x => new { x.TrabajadorId, x.VehiculoId, x.EmpresaId, Vence = x.FechaVencimiento!.Value })
+                    .ToListAsync();
+                return documentos.Select(x => (
+                    x.TrabajadorId is not null ? "Trabajador"
+                    : x.VehiculoId is not null ? "Vehículo"
+                    : x.EmpresaId == propia ? "Empresa propia"
+                    : x.EmpresaId is { } e && subcontratas.Contains(e) ? "Subcontrata" : "Otro",
+                    x.Vence)).ToList();
+            });
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {string.Join(", ", medidos[tenant.Clave].Select(m => $"{m.Ambito} {m.Vence:yyyy-MM-dd}"))}");
+        }
+
+        medidos["I"].Should().BeEmpty("MEDIDO: el escaparate al día no tiene nada vencido ni que venza en treinta días");
+
+        medidos["J"].Should().OnlyContain(m => m.Vence == d.AddDays(4), "MEDIDO: todo lo que vence en treinta días vence exactamente a D+4");
+        medidos["J"].GroupBy(m => m.Ambito).ToDictionary(g => g.Key, g => g.Count()).Should().BeEquivalentTo(
+            new Dictionary<string, int> { ["Trabajador"] = 6, ["Empresa propia"] = 1, ["Subcontrata"] = 1, ["Vehículo"] = 1 });
+
+        medidos["K"].Should().OnlyContain(m => m.Vence < d, "MEDIDO: lo único fuera de «en regla» está vencido; nada por vencer");
+        medidos["K"].GroupBy(m => m.Ambito).ToDictionary(g => g.Key, g => g.Count()).Should().BeEquivalentTo(
+            new Dictionary<string, int> { ["Trabajador"] = 3, ["Subcontrata"] = 1, ["Vehículo"] = 1 });
+
+        foreach (var m in fixture.Informe.Tenants.Where(m => CatalogoPilotoOutbound.Escaparate.Any(t => t.Clave == m.Clave)))
+            salida.WriteLine($"MEDIDO {m.Clave}: {PilotoOutboundTextos.CentrosPorEstado(m)}");
+    }
+
+    /// <summary>
+    /// La rotación del Cuadro de dirección cuenta altas por <c>CreadoEnUtc</c> y bajas por <c>EliminadoEnUtc</c>: la siembra
+    /// reparte las altas en el último año y da de baja, en meses anteriores, a los Trabajadores de baja del escaparate.
+    /// </summary>
+    [Fact]
+    public async Task Las_altas_se_reparten_en_el_ultimo_ano_y_el_escaparate_tiene_bajas_en_meses_anteriores()
+    {
+        var ahora = DateTime.UtcNow;
+        var inicioDelMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var tenant in CatalogoPilotoOutbound.Escaparate)
+        {
+            var (altas, bajas) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+            (
+                await db.Trabajadores.AsNoTracking().Select(t => t.CreadoEnUtc).ToListAsync(),
+                await db.Trabajadores.IgnoreQueryFilters().AsNoTracking().Where(t => t.EstaEliminado).Select(t => t.EliminadoEnUtc!.Value).ToListAsync()
+            ));
+
+            altas.Should().HaveCount(tenant.TrabajadoresSembrados, $"control: {tenant.Clave} tiene sus Trabajadores vivos");
+            altas.Should().OnlyContain(a => a > ahora.AddDays(-366) && a <= ahora, $"MEDIDO: las altas de {tenant.Clave} caen en el último año");
+            altas.Count(a => a >= inicioDelMes).Should().BeLessThan(altas.Count / 2, $"MEDIDO: en {tenant.Clave} no todas las altas son de este mes");
+            bajas.Should().HaveCount(tenant.BajasDelUltimoAno, $"MEDIDO: {tenant.Clave} tiene sus bajas del último año");
+            bajas.Should().OnlyContain(b => b < inicioDelMes && b > ahora.AddDays(-366), $"MEDIDO: las bajas de {tenant.Clave} son de meses anteriores");
+        }
+    }
+
+    /// <summary>
+    /// El retroceso de las fechas de vida de los Centros y los Clientes empresariales, y la vigencia de la Asignación de
+    /// Operación que hace que «Centros nuevos» del Cuadro de dirección los cuente: en cada Tenant del lote, todo Centro entra
+    /// dentro de la operación, después de su Cliente empresarial, y alguno entra en el mes de la siembra. Las bajas del
+    /// escaparate quedan eliminadas por una cuenta, como lo haría la pantalla.
+    /// </summary>
+    [Fact]
+    public async Task Los_Centros_y_los_Clientes_empresariales_entran_dentro_de_la_Asignacion_de_Operacion()
+    {
+        var ahora = DateTime.UtcNow;
+        var inicioDelMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        foreach (var tenant in CatalogoPilotoOutbound.Tenants)
+        {
+            var (centros, clientes, operaciones, eliminadoresDeBajas) = await fixture.Arnes.EnTenantAsync(
+                await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
+                {
+                    var centros = await db.Centros.AsNoTracking().Select(c => new { c.ClienteId, c.CreadoEnUtc }).ToListAsync();
+                    var idsDeClientes = centros.Select(c => c.ClienteId).Distinct().ToList();
+                    var clientes = await db.Empresas.AsNoTracking().Where(e => idsDeClientes.Contains(e.Id))
+                        .ToDictionaryAsync(e => e.Id, e => e.CreadoEnUtc);
+                    var operaciones = await db.AsignacionesOperacion.AsNoTracking()
+                        .Where(o => !o.EsRaiz && o.OperadorTenantId != o.PropietarioTenantId).Select(o => o.VigenciaDesde).ToListAsync();
+                    var eliminadores = await db.Trabajadores.IgnoreQueryFilters().AsNoTracking()
+                        .Where(t => t.EstaEliminado).Select(t => t.EliminadoPorUsuarioId).ToListAsync();
+                    return (centros.Select(c => (c.ClienteId, c.CreadoEnUtc)).ToList(), clientes, operaciones, eliminadores);
+                });
+
+            centros.Should().HaveCount(tenant.ClientesEmpresariales.Sum(c => c.Centros.Count), $"control: {tenant.Clave} tiene sus Centros");
+            clientes.Should().HaveCount(tenant.ClientesEmpresariales.Count, $"control: {tenant.Clave} tiene sus Clientes empresariales");
+            var inicio = operaciones.Should().ContainSingle($"MEDIDO: {tenant.Clave} tiene una operación externa").Subject;
+
+            inicio.Should().Be(PilotoOutboundSeeder.InicioDeLaOperacionExterna(ArnesPilotoOutbound.FechaDemostracion()),
+                $"MEDIDO: la operación de {tenant.Clave} empieza doce meses antes de la demostración");
+            centros.Should().OnlyContain(c => c.CreadoEnUtc > inicio && c.CreadoEnUtc <= ahora,
+                $"MEDIDO: los Centros de {tenant.Clave} entran dentro de la operación");
+            centros.Should().OnlyContain(c => c.CreadoEnUtc > clientes[c.ClienteId],
+                $"MEDIDO: cada Centro de {tenant.Clave} entra después de su Cliente empresarial");
+            centros.Should().Contain(c => c.CreadoEnUtc >= inicioDelMes, $"MEDIDO: {tenant.Clave} tiene Centros nuevos en el mes de la siembra");
+            clientes.Values.Should().OnlyContain(a => a > ahora.AddDays(-366) && a < ahora.AddDays(-199),
+                $"MEDIDO: los Clientes empresariales de {tenant.Clave} entran en el último año, antes que sus Centros");
+            eliminadoresDeBajas.Should().HaveCount(tenant.BajasDelUltimoAno,
+                $"MEDIDO: {tenant.Clave} conserva todas las bajas previstas, también cuando no tiene ninguna");
+            eliminadoresDeBajas.Should().NotContain(id => id == null,
+                $"MEDIDO: las bajas de {tenant.Clave} las elimina una cuenta");
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {centros.Count(c => c.CreadoEnUtc >= inicioDelMes)} Centros nuevos este mes de {centros.Count}");
+        }
     }
 
     [Fact]
@@ -206,7 +330,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
 
     /// <summary>
     /// La estructura que la autoverificación mide, escrita a mano aquí y no leída del catálogo: Trabajadores propios, de
-    /// Subcontrata, Centros, Vehículos, Proyectos y Subcontratas de cada uno de los ocho perfiles, y la invariante de que
+    /// Subcontrata, Centros, Vehículos, Proyectos y Subcontratas de cada uno de los Tenants del lote, y la invariante de que
     /// cada Tenant tiene exactamente una Empresa propia y todo Centro cuelga de un Cliente empresarial del mismo Tenant.
     /// </summary>
     [Fact]
@@ -333,6 +457,43 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         sinRespuesta.Should().OnlyContain(r => DateOnly.FromDateTime(r.FechaEnvioUtc) < d);
     }
 
+    /// <summary>
+    /// La reclamación por acceso reclama lo que el Centro 360 pinta vencido o ausente aunque el Centro no marque nada «bloquea
+    /// el acceso» (fallo del 2026-10-21: en C, la Fábrica de conservas de Calahorra salía «al día» con dos vencidos).
+    /// </summary>
+    [Fact]
+    public async Task C_la_reclamacion_por_acceso_reclama_lo_que_el_Centro_360_pinta_vencido_o_ausente()
+    {
+        var centro = C.Centros[4].Nombre;
+
+        var (documentacion, lotes) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(C.Nombre, async sp =>
+        {
+            var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+            var centroId = await db.Centros.Where(c => c.Nombre == centro).Select(c => c.Id).SingleAsync();
+            var sender = sp.GetRequiredService<ISender>();
+            var documentacion = await sender.Send(
+                new CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro.ObtenerAsignacionesDocumentacionPorCentroQuery(centroId));
+            // Los Trabajadores de la Empresa que más tiene en el Centro (una cedida por ETT sería de otra Empresa empleadora).
+            var porEmpresa = await db.Trabajadores.Where(t => documentacion.Select(d => d.TrabajadorId).Contains(t.Id) && t.EmpresaId != null)
+                .Select(t => new { t.Id, EmpresaId = t.EmpresaId!.Value }).ToListAsync();
+            var empresa = porEmpresa.GroupBy(t => t.EmpresaId).OrderByDescending(g => g.Count()).First();
+            var trabajadorIds = empresa.Select(t => t.Id).ToList();
+            var lotes = await sender.Send(
+                new CaeManager.Application.Reclamaciones.Queries.ObtenerReclamacionAEmpresaEmpleadora.ObtenerReclamacionPorAccesoQuery(empresa.Key, centroId, trabajadorIds));
+            return (documentacion.Where(d => trabajadorIds.Contains(d.TrabajadorId)).ToList(), lotes);
+        });
+
+        var vencidos = documentacion.SelectMany(t => t.Documentos.Where(x => x.Estado == EstadoDocumento.Vencido).Select(x => x.DocumentoId!.Value)).ToList();
+        var ausentes = documentacion.SelectMany(t => t.Documentos.Where(x => x.Estado == EstadoDocumento.Faltante).Select(x => (t.TrabajadorId, x.TipoDocumentoId))).ToList();
+        salida.WriteLine($"MEDIDO C «{centro}»: {vencidos.Count} vencidos y {ausentes.Count} ausentes en Centro 360; {lotes.Count} lotes por acceso");
+
+        vencidos.Should().NotBeEmpty("control: la siembra deja vencidos en este Centro");
+        ausentes.Should().NotBeEmpty("control: la siembra deja documentos de Trabajador sin subir en este Centro");
+        lotes.SelectMany(l => l.Documentos.Select(x => x.DocumentoId)).Should().Contain(vencidos);
+        lotes.SelectMany(l => (l.PendientesSinFecha ?? []).Where(p => p.TrabajadorId != null).Select(p => (p.TrabajadorId!.Value, p.TipoDocumentoId)))
+            .Should().Contain(ausentes);
+    }
+
     /// <summary>La tolerancia de un Centro: el mismo documento vencido se pinta «en tolerancia» donde el Centro la concede.</summary>
     [Fact]
     public async Task C_el_documento_vencido_en_el_Centro_con_tolerancia_se_pinta_en_tolerancia()
@@ -455,8 +616,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             return [.. idPorClave.Where(p => vistos.Contains(p.Value)).Select(p => p.Key).Order()];
         }
 
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F", "H");
-        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("B", "C", "D", "E", "G");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestorSegundo)).Should().Equal("A", "C", "F", "H", "J");
+        (await ClavesVistasPorAsync(CuentasPilotoOutbound.Locales.GestoraPrimera)).Should().Equal("B", "C", "D", "E", "G", "I", "K");
     }
 
     /// <summary>
@@ -508,8 +669,10 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task C_lleva_una_revision_de_IA_una_deteccion_de_alta_y_una_sugerencia_de_Visita_pendientes()
     {
         var recuento = await fixture.Arnes.RecuentoAsync();
+        var conSenales = CatalogoPilotoOutbound.Tenants.Count(t => t.ConSenalesDeIa);
+        CatalogoPilotoOutbound.Tenants.Where(t => t.ConSenalesDeIa).Select(t => t.Clave).Should().Equal(["C", "I", "J", "K"], "control: C y el escaparate");
         new[] { "Revisiones de IA", "Detecciones de Trabajador", "Sugerencias de Visita" }.Select(k => recuento[k])
-            .Should().Equal([1, 1, 1], "MEDIDO: una de cada, en C");
+            .Should().Equal([conSenales, conSenales, conSenales], "MEDIDO: una de cada en C y en cada Tenant del escaparate");
     }
 
     /// <summary>Las Visitas de cada estado: futuras, en curso, realizadas, vencidas (pasaron sin gestionar) y canceladas.</summary>
@@ -550,8 +713,58 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             // Empieza en D+1: dentro de las 48 h de aviso el día D−1 (empieza a dos días) y el propio D, no antes.
             var urgenteDeB = dia >= fecha.AddDays(-1) ? 1 : 0;
             (enB.Estructura.VisitasConAvisoUrgente, enB.InicioVisitasUrgentes).Should().Be((urgenteDeB, urgenteDeB), $"MEDIDO el día {dia:yyyy-MM-dd}");
-            eseDia.Tenants.Where(t => t.Clave is not ("D" or "B")).Should().OnlyContain(
+            // I, el escaparate grande, lleva su propia Visita en curso desde D−10, como la de D.
+            var enI = eseDia.Tenants.Single(t => t.Clave == CatalogoPilotoOutbound.I.Clave);
+            (enI.Estructura.VisitasEnCurso, enI.Estructura.VisitasConAvisoUrgente).Should().Be((1, 0), $"MEDIDO el día {dia:yyyy-MM-dd}: la Visita en curso de I");
+            eseDia.Tenants.Where(t => t.Clave is not ("D" or "B" or "I")).Should().OnlyContain(
                 t => t.Estructura.VisitasEnCurso == 0 && t.Estructura.VisitasConAvisoUrgente == 0, "ningún otro perfil tiene una Visita en curso ni a menos de 48 h");
+        }
+    }
+
+    /// <summary>
+    /// Prueba de flujos del 2026-10-21 (fila 19): en B, una Asignación nueva al Centro con plataforma hacía nacer de golpe
+    /// una acreditación PendienteDeSubir por cada documento de la Empresa propia, y Mi trabajo pasaba de cero a trece
+    /// propagaciones pendientes sin que nadie hubiera tocado un documento de Empresa. La regla de alta del producto es la
+    /// correcta (P0-7: una Asignación pone en juego los documentos del Trabajador y de su Empresa ante ese Centro); lo que
+    /// fallaba era la siembra, que no los había acreditado aunque la Empresa ya tenía Trabajadores allí. Se reproduce la
+    /// acción con el servicio real, sin guardar: ningún documento de Empresa queda por acreditar.
+    /// </summary>
+    [Fact]
+    public async Task Una_Asignacion_nueva_al_Centro_con_plataforma_no_acredita_ningun_documento_de_Empresa_que_la_siembra_no_hubiera_acreditado()
+    {
+        var conPlataforma = CatalogoPilotoOutbound.Tenants.Where(t => t.CentroConPlataforma is not null).ToList();
+        conPlataforma.Select(t => t.Clave).Should().Contain("B", "control: B es el Tenant de la prueba de flujos");
+
+        foreach (var tenant in conPlataforma)
+        {
+            var (deEmpresaYaAcreditados, deEmpresaNuevos) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, sp) =>
+            {
+                var canal = await db.CanalesGestionDocumental.AsNoTracking().SingleAsync(c => c.Tipo == TipoCanalGestion.Plataforma);
+                var propia = await db.Empresas.AsNoTracking().Where(e => e.EsPropia).Select(e => e.Id).SingleAsync();
+                var trabajadorId = await (
+                    from asignacion in db.Asignaciones.AsNoTracking()
+                    join trabajador in db.Trabajadores.AsNoTracking() on asignacion.TrabajadorId equals trabajador.Id
+                    where asignacion.CentroId == canal.CentroId && asignacion.FechaBaja == null && trabajador.EmpresaId == propia
+                    orderby trabajador.Id
+                    select trabajador.Id).FirstAsync();
+                var documentosDeEmpresa = await db.Documentos.AsNoTracking().Operativos()
+                    .Where(d => d.EmpresaId == propia && d.TrabajadorId == null).Select(d => d.Id).ToListAsync();
+                var yaAcreditados = await db.AcreditacionesDocumentoPlataforma.AsNoTracking()
+                    .CountAsync(a => a.CanalGestionDocumentalId == canal.Id && documentosDeEmpresa.Contains(a.DocumentoId));
+
+                await sp.GetRequiredService<IAltaAcreditacionesPlataformaService>().AgregarPendientesAsync(
+                    new AltasConAcreditacion { Asignaciones = [new Asignacion(trabajadorId, canal.CentroId, DiaDeNegocio.Hoy())] });
+
+                // Sin SaveChanges: lo agregado se queda en el seguimiento de este ámbito y se descarta con él.
+                var nuevos = db.ChangeTracker.Entries<AcreditacionDocumentoPlataforma>()
+                    .Where(e => e.State == EntityState.Added && documentosDeEmpresa.Contains(e.Entity.DocumentoId))
+                    .Count();
+                return (yaAcreditados, nuevos);
+            });
+
+            salida.WriteLine($"MEDIDO {tenant.Clave}: {deEmpresaYaAcreditados} documentos de Empresa acreditados en el Centro con plataforma; una Asignación nueva añade {deEmpresaNuevos}");
+            deEmpresaYaAcreditados.Should().BeGreaterThan(0, $"control {tenant.Clave}: la Empresa propia tiene documentos que acreditar allí");
+            deEmpresaNuevos.Should().Be(0, $"{tenant.Clave}: la siembra ya acreditó lo que la regla de alta exige para la Empresa en ese Centro");
         }
     }
 
@@ -599,7 +812,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             }, $"MEDIDO {tenant.Clave}: los Centros que piden el REA o el recibo de RETA");
             (enUso.GetValueOrDefault("Certificado de inscripción en el REA"), enUso.GetValueOrDefault("Libro de Subcontratación"),
                 enUso.GetValueOrDefault("Recibo de cuota de autónomos"))
-                .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, 0, 0) }, $"MEDIDO {tenant.Clave}: dónde se usan");
+                .Should().Be(tenant.Clave switch { "D" => (1, 5, 0), "E" => (0, 0, 1), _ => (0, tenant.Obras.Count, 0) },
+                    $"MEDIDO {tenant.Clave}: dónde se usan (un Libro de Subcontratación por obra: D y el escaparate tienen obras)");
         }
     }
 
@@ -685,7 +899,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         }
 
         sinCaducidadEnTotal.Should().BeGreaterThan(0, "la información de riesgos de un Trabajador sigue sin caducidad: el estado no desaparece de la siembra");
-        conVencimientoAutomatico.Should().BeGreaterThan(100, "control: se miraron los documentos de los ocho Tenants, no un conjunto vacío");
+        conVencimientoAutomatico.Should().BeGreaterThan(100, "control: se miraron los documentos de los Tenants del piloto, no un conjunto vacío");
         fixture.Informe.Tenants.Should().OnlyContain(
             m => m.DocumentosConVencimientoAjenoASuTipo == 0 && m.DocumentosEmitidosEnElFuturo == 0, "la autoverificación midió lo mismo, por Tenant");
     }
@@ -800,7 +1014,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Una_segunda_siembra_no_escribe_nada()
     {
         var antes = await fixture.Arnes.RecuentoAsync();
-        antes["Tenants del piloto"].Should().Be(9, "control: el recuento ve los ocho Tenants propietarios y el del Operador CAE externo");
+        antes["Tenants del piloto"].Should().Be(CatalogoPilotoOutbound.Tenants.Count + 1, "control: el recuento ve los once Tenants propietarios y el del Operador CAE externo");
         antes["Cuentas del piloto"].Should().Be(7, "MEDIDO: las seis del equipo (con la Dirección CAE) y de T1, y el Usuario de Cliente de T1");
         antes["Cuenta pendiente de activación"].Should().Be(1, "MEDIDO: la octava, fuera de las siete que tienen contraseña");
         (antes["Solicitudes de incorporación a cartera"], antes["Propuestas de apoyo"]).Should().Be((0, 0), "MEDIDO: no se siembran: sus políticas exigen el Tenant de origen de una sesión autenticada");
@@ -809,7 +1023,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         // acreditaciones: una segunda siembra que duplicara cualquiera de ellas dejaba el recuento igual hasta entonces.
         // Las cifras salen de la matriz (A..G): 2+1+4+6+1+3+1 Vehículos, los 5 Proyectos de D y la Subcontrata Supervisada de F por sus tres tipos.
         (antes["Vehículos"], antes["Proyectos"], antes["Verificaciones externas de Subcontrata"])
-            .Should().Be((19, 8, 3), "MEDIDO: Vehículos, Proyectos (con los tres eventos de H) y verificaciones externas del lote");
+            .Should().Be((31, 12, 3), "MEDIDO (A..H: 19, 8, 3; I, J y K suman 12 Vehículos y 4 Proyectos):Vehículos, Proyectos (con los tres eventos de H) y verificaciones externas del lote");
         antes["Acreditaciones externas"].Should().BeGreaterThan(0, "MEDIDO: las plataformas de A, B y C llevan acreditaciones");
 
         var segunda = await fixture.Arnes.SembrarAsync(fixture.Configuracion);
@@ -831,7 +1045,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Los_siete_Tenants_sin_Administrador_propio_llevan_el_encargo_de_la_siembra_y_C_no()
     {
         var conEncargo = CatalogoPilotoOutbound.Tenants.Where(t => !ReferenceEquals(t, C)).Select(t => t.Nombre).ToList();
-        conEncargo.Should().HaveCount(7);
+        conEncargo.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count - 1);
 
         var medido = await fixture.Arnes.ComoBootstrapAsync(async b =>
         {
@@ -865,7 +1079,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
         });
 
         medido.carteras.Select(c => medido.tenants[c.Tenant]).Should().BeEquivalentTo(
-            CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre), "una cartera en cada uno de los ocho, también en C");
+            CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre), "una cartera en cada uno de los once, también en C");
         medido.carteras.Should().AllSatisfy(c =>
         {
             c.OperadorTenantId.Should().Be(medido.operadorId, "cuelga de la operación externa del Operador CAE externo");
@@ -877,28 +1091,27 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     }
 
     /// <summary>
-    /// El encargo surte efecto con la identidad real y por el camino de producción (<c>CurrentUserService</c> →
-    /// <c>TechoDeRolPorEncargo</c>, bajo el rol restringido): en un Tenant con encargo el Administrador del Operador CAE
-    /// externo es Administrador pleno y supera la autoridad de un acto de Administrador, activar la IA por encargo
-    /// (<c>ActivarTratamientoIaPorEncargoCommand</c>), que se detiene después, en «ya está activada», porque la siembra
-    /// deja la instrucción de demostración vigente. En C entra con el rol de su cartera, Coordinador CAE, sin encargo
-    /// que lo eleve, y el mismo acto se le niega por autoridad.
+    /// Decisión Chris 2026-10-20, con la identidad real y por el camino de producción (<c>CurrentUserService</c>,
+    /// bajo el rol restringido): el Administrador del Operador CAE externo es Administrador en todos los Tenants
+    /// beneficiarios que su organización opera por una Asignación de Operación vigente del Tenant entero —la siembra
+    /// la deja en los ocho—, tenga o no Encargo de administración y tenga o no el Tenant Administrador propio (C). El
+    /// encargo ya no eleva, así que no hay encargo pleno que lo señale, y el acto que solo existe «por encargo»
+    /// (<c>ActivarTratamientoIaPorEncargoCommand</c>) se niega en los dos: deuda declarada, la maquinaria del encargo
+    /// queda sin efecto hasta que se retire o se reasigne.
     /// </summary>
     [Fact]
-    public async Task El_Administrador_del_Operador_CAE_administra_por_encargo_un_Tenant_sin_Administrador_propio_y_C_no()
+    public async Task El_Administrador_del_Operador_CAE_es_Administrador_en_todos_los_Tenants_operados_con_o_sin_encargo()
     {
         var conEncargo = CatalogoPilotoOutbound.Tenants.First(t => !ReferenceEquals(t, C));
 
-        var enElDeEncargo = await ComoAdministradorDelOperadorEnAsync(conEncargo);
-        enElDeEncargo.Rol.Should().Be(Roles.Administrador);
-        enElDeEncargo.EncargoPleno.Should().NotBeNull("el encargo que eleva es pleno: el Tenant no tiene Administrador propio");
-        enElDeEncargo.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.YaVigente,
-            "la autoridad pasa; lo que lo detiene es la instrucción de demostración ya vigente");
-
-        var enC = await ComoAdministradorDelOperadorEnAsync(C);
-        enC.Rol.Should().Be(Roles.CoordinadorCae, "sin encargo, el rol de su cartera");
-        enC.EncargoPleno.Should().BeNull();
-        enC.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.NoAutorizado);
+        foreach (var tenant in new[] { conEncargo, C })
+        {
+            var medido = await ComoAdministradorDelOperadorEnAsync(tenant);
+            medido.Rol.Should().Be(Roles.Administrador, $"{tenant.Nombre}: rige el perfil de origen, sin encargo");
+            medido.EncargoPleno.Should().BeNull($"{tenant.Nombre}: el encargo ya no eleva el rol");
+            medido.Activar.Error.Should().Be(ActivarTratamientoIaPorEncargoCommandHandler.NoAutorizado,
+                $"{tenant.Nombre}: sin encargo pleno que lo señale, el acto por encargo no tiene autoridad (deuda)");
+        }
     }
 
     private async Task<(string? Rol, Guid? EncargoPleno, Result<Guid> Activar)> ComoAdministradorDelOperadorEnAsync(
@@ -1336,17 +1549,19 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var reanudada = await arnes.SembrarAsync(configuracion);
         reanudada!.TenantsConDatosNuevos.Should().Equal(
             CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantH,
-            CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC);
+            CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantK, CatalogoPilotoOutbound.NombreTenantJ,
+            CatalogoPilotoOutbound.NombreTenantC, CatalogoPilotoOutbound.NombreTenantI);
         await arnes.BackfillAsync();
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
         var completa = await arnes.RecuentoAsync();
         completa["Ficheros en el almacén"].Should().Be(porTenant.Values.Sum());
         var escenariosDelOperador = new[] { "Cuenta pendiente de activación",
             "Revisiones de IA", "Detecciones de Trabajador", "Sugerencias de Visita" };
-        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, 1, 1, 1], "control positivo: la siembra completa los tiene");
+        var conSenales = CatalogoPilotoOutbound.Tenants.Count(t => t.ConSenalesDeIa);
+        escenariosDelOperador.Select(k => completa[k]).Should().Equal([1, conSenales, conSenales, conSenales], "control positivo: la siembra completa los tiene (las señales, en C y en el escaparate)");
 
         // 3. La retirada no deja nada del piloto y no toca lo demás.
-        (await arnes.RetirarAsync()).Should().HaveCount(9);
+        (await arnes.RetirarAsync()).Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1);
         var retirada = await arnes.RecuentoAsync();
         retirada.Should().BeEquivalentTo(sinPiloto, "MEDIDO: ni Tenants, ni cuentas, ni filas, ni ficheros del piloto; lo demás, igual que antes");
         escenariosDelOperador.Select(k => retirada[k]).Should().Equal([0, 0, 0, 0], "MEDIDO: la retirada borra la cuenta pendiente y las tres señales de IA y correo");
@@ -1422,7 +1637,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
             .Where(u => u.Email == CuentasPilotoOutbound.Locales.AdministradorOperador).Select(u => u.Id).SingleAsync());
         var sembradas = await InstruccionesDelPilotoAsync(arnes);
         sembradas.Select(i => i.Tenant).Should().BeEquivalentTo(
-            Vigentes, "MEDIDO: exactamente una por Tenant del piloto, el Operador CAE externo y los ocho propietarios");
+            Vigentes, "MEDIDO: exactamente una por Tenant del piloto, el Operador CAE externo y los once propietarios");
         sembradas.Should().OnlyContain(i => i.Vigente, "MEDIDO: todas vigentes");
         sembradas.Should().OnlyContain(
             i => i.Dpa == "Draft-2026-09-03" && i.Anexo == "Draft-2026-09-03",
@@ -1435,7 +1650,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         {
             var ids = await IdsDelPilotoAsync(b);
             return await b.InstruccionesTratamientoIaTenantPropietario.IgnoreQueryFilters().Where(i => ids.Contains(i.TenantId)).ExecuteDeleteAsync();
-        })).Should().Be(9, "control: se han quitado las nueve");
+        })).Should().Be(CatalogoPilotoOutbound.Tenants.Count + 1, "control: se han quitado las doce");
         (await arnes.RecuentoAsync()).Should().BeEquivalentTo(
             new Dictionary<string, int>(completa) { [Clave] = 0 }, "control: lo único que cambia respecto del lote completo es que no hay instrucciones");
 
@@ -1455,7 +1670,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
 
         var discrepancias = PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion));
         foreach (var linea in discrepancias) salida.WriteLine("MEDIDO " + linea);
-        discrepancias.Should().HaveCount(20, "MEDIDO: una por Tenant y por cuenta: seis de la Gestora CAE, cinco del segundo Gestor CAE y nueve de la Coordinadora CAE");
+        discrepancias.Should().HaveCount(26, "una por Tenant y por cuenta: ocho de la Gestora CAE (con I y K), seis del segundo Gestor CAE (con J) y doce de la Coordinadora CAE");
         discrepancias.Should().OnlyContain(l => l.StartsWith("Asistente IA · "), "control: del lote solo falla el Asistente IA");
         discrepancias.Should().Contain(
             $"Asistente IA · cartera de la Coordinadora CAE · «{CatalogoPilotoOutbound.NombreTenantC}»: medido sin instrucción de tratamiento de IA " +
@@ -1465,7 +1680,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         var resiembra = await arnes.SembrarAsync(configuracion);
         resiembra!.Escribio.Should().BeFalse("MEDIDO: añadir la instrucción que faltaba no cuenta como haber escrito el lote");
         resiembra.TenantsConDatosNuevos.Should().BeEmpty();
-        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "MEDIDO: vuelve a haber nueve instrucciones y nada más ha cambiado");
+        (await arnes.RecuentoAsync()).Should().BeEquivalentTo(completa, "vuelve a haber una instrucción por Tenant del lote y nada más ha cambiado");
         (await InstruccionesDelPilotoAsync(arnes)).Select(i => i.Tenant).Should().BeEquivalentTo(
             Vigentes, "MEDIDO: una por Tenant, no nueve en uno");
         PilotoOutboundAutoverificacion.Exigir(await arnes.MedirAsync(configuracion));
@@ -1474,7 +1689,7 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
             CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.Coordinadora,
             sp => sp.GetRequiredService<ISender>().Send(new ComprobarInstruccionIaCarteraQuery()));
         carteraConInstruccion.ErrorSiFalta().Should().BeNull("MEDIDO: la comprobación de cartera pasa para la Coordinadora CAE");
-        carteraConInstruccion.ConInstruccion.Should().HaveCount(9, "control: y pasa con los nueve en la cartera, no con una cartera vacía");
+        carteraConInstruccion.ConInstruccion.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1, "control: y pasa con los doce en la cartera, no con una cartera vacía");
 
         // 5. Repetirla no añade ninguna.
         await arnes.SembrarAsync(configuracion);
@@ -1489,15 +1704,15 @@ public class PilotoOutboundInterrupcionTests(ITestOutputHelper salida)
         })).Should().BeGreaterThan(0, "control: la revocación se guardó");
         await arnes.SembrarAsync(configuracion);
         var trasRevocar = await InstruccionesDelPilotoAsync(arnes);
-        trasRevocar.Should().HaveCount(9, "MEDIDO: la siembra no añade otra al Tenant cuya instrucción se revocó");
+        trasRevocar.Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1, "MEDIDO: la siembra no añade otra al Tenant cuya instrucción se revocó");
         trasRevocar.Where(i => !i.Vigente).Select(i => i.Tenant).Should().Equal(
             [CatalogoPilotoOutbound.NombreTenantA], "MEDIDO: y la revocada sigue revocada");
         PilotoOutboundAutoverificacion.Discrepancias(await arnes.MedirAsync(configuracion)).Should().HaveCount(2, "MEDIDO: la autoverificación lo dice, una vez por cuenta")
             .And.OnlyContain(l => l.StartsWith("Asistente IA · ") && l.Contains($"«{CatalogoPilotoOutbound.NombreTenantA}»: medido sin instrucción"));
 
         // 7. La retirada se las lleva con el resto del lote, también la revocada.
-        completa[Clave].Should().Be(9, "control positivo: antes de retirar hay nueve que borrar");
-        (await arnes.RetirarAsync()).Should().HaveCount(9);
+        completa[Clave].Should().Be(CatalogoPilotoOutbound.Tenants.Count + 1, "control positivo: antes de retirar hay doce que borrar");
+        (await arnes.RetirarAsync()).Should().HaveCount(CatalogoPilotoOutbound.Tenants.Count + 1);
         (await arnes.RecuentoAsync()).Should().BeEquivalentTo(sinPiloto);
         // El recuento del arnés cuenta por los Tenants del piloto que existen, y ya no existe ninguno: daría cero aunque
         // las filas siguieran ahí. Lo que mide la retirada es este, sobre la tabla entera de una base recién creada.

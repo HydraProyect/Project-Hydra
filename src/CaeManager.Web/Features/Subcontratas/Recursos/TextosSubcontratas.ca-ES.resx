@@ -456,6 +456,45 @@
   <data name="ErrorCargaSupervisionTitulo" xml:space="preserve">
     <value>No pudimos cargar la supervisión</value>
   </data>
+  <data name="VerificacionesErrorTitulo" xml:space="preserve">
+    <value>No s'han pogut carregar les verificacions.</value>
+  </data>
+  <data name="VerificacionesVacioTitulo" xml:space="preserve">
+    <value>Sense verificacions externes</value>
+  </data>
+  <data name="VerificacionesVacioDescripcion" xml:space="preserve">
+    <value>Amb nivell Gestionada, TALVEG les fa per l'Empresa; amb Supervisada, les registra el Gestor CAE.</value>
+  </data>
+  <data name="BotonAnadirVerificacion" xml:space="preserve">
+    <value>Registra una verificació</value>
+  </data>
+  <data name="TituloDrawerVerificacionAlta" xml:space="preserve">
+    <value>Registra una verificació</value>
+  </data>
+  <data name="BotonGuardarVerificacion" xml:space="preserve">
+    <value>Desa la verificació</value>
+  </data>
+  <data name="RotuloEvidenciaVerificacion" xml:space="preserve">
+    <value>Evidència</value>
+  </data>
+  <data name="AyudaEvidenciaVerificacion" xml:space="preserve">
+    <value>Captura o PDF del registre consultat. PDF, JPG o PNG, fins a 10 MB. Obligatòria.</value>
+  </data>
+  <data name="ToastVerificacionGuardada" xml:space="preserve">
+    <value>Verificació de «{0}» desada.</value>
+  </data>
+  <data name="ToastVerificacionEliminadaDeTipo" xml:space="preserve">
+    <value>Verificació de «{0}» eliminada.</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoTitulo" xml:space="preserve">
+    <value>Vols eliminar la verificació de «{0}»?</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoMensaje" xml:space="preserve">
+    <value>Es suprimeix el resultat i la seva evidència de la supervisió. El semàfor tornarà a calcular-se amb la verificació anterior, si n'hi ha.</value>
+  </data>
+  <data name="BotonConfirmarEliminarVerificacion" xml:space="preserve">
+    <value>Elimina la verificació</value>
+  </data>
   <data name="ExplicacionSupervision" xml:space="preserve">
     <value>Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.</value>
   </data>
@@ -911,4 +950,26 @@
   <data name="SinEmpresaContratante" xml:space="preserve">
     <value>Sense empresa contractant</value>
   </data>
+  <data name="ChipContratadaPor" xml:space="preserve"><value>Contractada per: {0}</value></data>
+  <data name="TituloCadenaSubcontratacion" xml:space="preserve"><value>Cadena de subcontractació</value></data>
+  <data name="RotuloClientesDeLosCentros" xml:space="preserve"><value>Clients dels centres on treballa</value></data>
+  <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Treu el filtre de contractant</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordena per aquesta columna</value></data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
+  <data name="TextoPlataformasIntro" xml:space="preserve"><value>Compliment de la subcontracta a les plataformes del titular de cada centre, verificat a mà pel Gestor CAE. El semàfor es calcula amb l'última verificació i els llindars del sistema.</value></data>
+  <data name="AriaFiltrosPlataformas" xml:space="preserve"><value>Què mostrar</value></data>
+  <data name="FiltroPlataformasSoloIncidencias" xml:space="preserve"><value>Només incidències · {0}</value></data>
+  <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Tot · {0}</value></data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Cap incidència a les plataformes</value></data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Tot el que s'exigeix està validat a les plataformes dels seus Clients.</value></data>
+  <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360</value></data>
+  <data name="AriaIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360 de {0}</value></data>
+  <data name="TituloDrawerVerificacionEdicion" xml:space="preserve"><value>Verificació externa</value></data>
+  <data name="BotonEditarVerificacion" xml:space="preserve"><value>Edita</value></data>
+  <data name="AriaEditarVerificacion" xml:space="preserve"><value>Edita la verificació de {0} a {1}</value></data>
+  <data name="ErrorEvidenciaObligatoria" xml:space="preserve"><value>Adjunta la captura o el PDF del registre.</value></data>
+  <data name="EvidenciaActualVerificacion" xml:space="preserve"><value>Evidència actual: {0}. Tria un altre arxiu per substituir-la.</value></data>
+  <data name="ErrorActualizarVerificacion" xml:space="preserve"><value>No hem pogut desar els canvis de la verificació. Torna-ho a provar d'aquí a uns segons.</value></data>
+  <data name="ToastVerificacionRecuperada" xml:space="preserve"><value>Verificació de «{0}» recuperada.</value></data>
+  <data name="ToastErrorDeshacerVerificacion" xml:space="preserve"><value>No hem pogut desfer el canvi de la verificació.</value></data>
 </root>

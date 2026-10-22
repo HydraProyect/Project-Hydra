@@ -1,0 +1,30 @@
+/* «Abrir ficha completa»: botón de icono de 40 px a la izquierda de la X, alineado con la primera línea del título. */
+.drawer-lectura-abrir {
+    flex: none;
+    margin-top: -6px;
+    width: var(--space-10);
+    height: var(--space-10);
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard);
+}
+
+.drawer-lectura-abrir:hover {
+    background-color: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+/* Pastilla «Solo consulta» bajo el título (rol Consulta). */
+.drawer-lectura-pastilla {
+    align-self: flex-start;
+    margin-top: 8px;
+    padding: 2px 10px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-info-50);
+    color: var(--color-text);
+    font: var(--font-label);
+    font-size: 12px;
+}

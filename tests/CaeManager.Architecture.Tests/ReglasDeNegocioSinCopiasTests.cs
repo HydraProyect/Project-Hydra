@@ -376,6 +376,9 @@ public class ReglasDeNegocioSinCopiasTests
         //     (ObtenerDocumentosQuery) ya muestra solo los operativos desde la PR 4 (Renovar sustituye y el anterior
         //     pasaría a salir duplicado); la búsqueda global sigue sin filtrar hasta la PR 9. ---
         ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs"] = 2,
+        // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
+        // de versiones del mismo propietario y tipo, incluidas las sustituidas.
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,
         ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
 
         // --- Búsqueda por Id de un documento que ya se nombró (el historial referencia a documentos que pudieron
@@ -386,12 +389,17 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs"] = 1,
         // Una reclamación enviada nombra Documentos que pudieron renovarse después: se resuelve su Trabajador por Id
         // para derivar a qué Empresa empleadora y Delegación se envió, sea o no operativo hoy.
-        ["src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs"] = 1,
+        // Y a qué Clientes empresariales llegó una reclamación a la Empresa empleadora (rastro de Centro 360): por las líneas que
+        // nombran el Documento, sea o no operativo hoy, porque habla de lo que se reclamó y no del estado actual.
+        ["src/CaeManager.Application/Reclamaciones/DestinoDeReclamacionesEnviadasService.cs"] = 3,
 
         // --- Auditoría: quién accedió a qué documento, sea o no operativo hoy. ---
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/RegistroAccesoDocumentoSensibleService.cs"] = 1,
+        // Historial de Centro 360 (bloque 3 del 21-10): un cambio de estado anotado sobre una versión ya renovada sigue
+        // siendo un hecho del Historial; el Documento solo da su tipo y su titular, no decide estado ni cifras.
+        ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,
@@ -448,9 +456,11 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // El punto único: la emisión más reciente y «sin confirmar» como desempates del orden (dos líneas).
         ["src/CaeManager.Application/Documentos/DocumentoEfectivo.cs"] = 2,
-        // Orden de la LISTA de Documentos por la columna que elige el usuario (emisión, dos líneas): no elige a quién
-        // representa a un tipo, presenta filas.
-        ["src/CaeManager.Application/Documentos/Queries/ObtenerDocumentos/ObtenerDocumentosQuery.cs"] = 2,
+        // Documento 360, pestaña Versiones: presenta el historial de versiones por emisión descendente (otra pregunta: no elige un efectivo).
+        ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 1,
+        // La lista de Documentos ya no escribe a mano ningún orden por emisión (2026-10-19, lista 1:1 con Design):
+        // la entrada de ObtenerDocumentosQuery.cs se retira. El orden por emisión sigue en ObtenerDocumentosQuery.cs (rama por
+        // defecto del orden, junto a la clave FechaEmision), pero a través del helper OrdenarPor, que el detector no ve como orden escrito a mano.
     };
 
     [Fact]

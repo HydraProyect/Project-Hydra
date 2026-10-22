@@ -191,6 +191,44 @@ public class AlcanceDatosService(
     public async Task<bool> AlcanzaElTenantEnteroAsync(CancellationToken cancellationToken = default) =>
         await ObtenerAlcanceDeCarteraAsync(cancellationToken) is { SinRestriccion: true } or { TenantEntero: true };
 
+    /// <summary>
+    /// El rol con el que se calcula el alcance de datos: el rol efectivo, salvo cuando la sesión
+    /// está limitada a Consulta por login local. Entonces el alcance sigue siendo el del rol real
+    /// (decisión Chris 2026-10-20: la restricción nunca amplía el alcance) y Consulta solo quita
+    /// escritura:
+    /// <list type="bullet">
+    /// <item>en un Tenant beneficiario delegado al que se entra por Asignación de Operación con
+    /// perfil de origen Gestor CAE, el de su Asignación de Cartera;</item>
+    /// <item>un Gestor CAE o Coordinador CAE conserva el alcance de su rol real en vez del acceso
+    /// total de Consulta (defecto corregido el 2026-10-22): en su Tenant de origen, su cartera o la
+    /// de su equipo; por la vía de Operación, el Coordinador CAE alcanza el Tenant entero por
+    /// cartera universal (los mismos datos que Consulta, sin acceso total).</item>
+    /// </list>
+    /// Solo puede estrechar: devuelve un perfil sin acceso total, y por la vía heredada (acceso de
+    /// soporte) no actúa, porque ahí el rol sale de otra asignación.
+    /// </summary>
+    private async Task<string?> RolQueDecideAlcanceAsync()
+    {
+        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        if (rol == Roles.GestorCae) return rol;
+
+        var porOperacion = currentUserService is IEncargoDeAdministracionActual senal
+                           && await senal.OperaPorAsignacionDeOperacionAsync();
+        if (porOperacion && await currentUserService.ObtenerPerfilQueDecideAlcanceAsync() == Roles.GestorCae)
+            return Roles.GestorCae;
+
+        if (rol == Roles.Consulta
+            && await currentUserService.ObtenerPerfilAntesDeRestringirAsync() is { } antes
+            && antes is Roles.GestorCae or Roles.CoordinadorCae
+            && (porOperacion || await OperaEnSuTenantDeOrigenAsync()))
+            return antes;
+
+        return rol;
+    }
+
+    private async Task<bool> OperaEnSuTenantDeOrigenAsync() =>
+        tenantActual.TenantId is { } actual && await currentUserService.ObtenerTenantOrigenIdAsync() == actual;
+
     private async Task<bool> TieneAccesoTotalRealAsync(CancellationToken cancellationToken)
     {
         var tenant = ClaveTenantVigente();
@@ -244,8 +282,7 @@ public class AlcanceDatosService(
         }
         else
         {
-            var rol = await currentUserService.ObtenerRolEfectivoAsync();
-            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(rol);
+            accesoTotal = Roles.AlcanzaTodaLaOrganizacion(await RolQueDecideAlcanceAsync());
         }
 
         Memoizar(_accesoTotal, tenant, generacion, accesoTotal);
@@ -327,8 +364,19 @@ public class AlcanceDatosService(
     {
         if (await TieneAccesoTotalRealAsync(cancellationToken)) return AlcanceCartera.Total;
 
-        var rol = await currentUserService.ObtenerRolEfectivoAsync();
+        var rol = await RolQueDecideAlcanceAsync();
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+
+        // Decisión Chris 2026-10-20: en un Tenant beneficiario delegado al que entra por la
+        // Asignación de Operación de su organización (que cubre el Tenant entero), el Coordinador
+        // CAE alcanza ese Tenant entero sin Asignación de Cartera. Solo el Gestor CAE sigue acotado
+        // por cartera. La señal la da la misma clase que resolvió el rol efectivo; un doble que no
+        // la dé cae en la rama de equipo de abajo (fallo cerrado). En su Tenant de origen, y por la
+        // vía heredada de soporte, el Coordinador CAE conserva el alcance de las carteras de su equipo.
+        if (rol == Roles.CoordinadorCae
+            && currentUserService is IEncargoDeAdministracionActual senal
+            && await senal.OperaPorAsignacionDeOperacionAsync())
+            return AlcanceCartera.Universal;
 
         return (rol, usuarioId) switch
         {
@@ -622,7 +670,7 @@ public class AlcanceDatosService(
     /// Solo decide el rol: quien llama ya ha comprobado que la cartera no está vacía.
     /// </summary>
     private async Task<bool> IncluyeEstructuraPropiaAsync(CancellationToken cancellationToken) =>
-        await currentUserService.ObtenerRolEfectivoAsync() is Roles.GestorCae or Roles.CoordinadorCae
+        await RolQueDecideAlcanceAsync() is Roles.GestorCae or Roles.CoordinadorCae
         || (await ObtenerGestorDeLenteAsync(cancellationToken) is not null
             && await TieneAccesoTotalRealAsync(cancellationToken));
 

@@ -72,7 +72,7 @@ src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: Bandeja = 2
 src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: ItemBandejaDto = 9
 src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: TipoItemBandejaUi = 5
+src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: TipoItemBandejaUi = 6
 src/CaeManager.Web/Features/Bandeja/Components/GrupoCola.razor :: bandeja = 1
 src/CaeManager.Web/Features/Bandeja/Components/PanelResolverItem.razor :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Bandeja/Components/PanelResolverItem.razor :: AccionesBandeja = 1
@@ -116,19 +116,19 @@ src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.cs :: Bandeja = 1
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: Bandeja = 4
-src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ItemBandejaDto = 6
+src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ItemBandejaDto = 5
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: ObtenerBandejaGestor = 1
-src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandeja = 43
+src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandeja = 52
 src/CaeManager.Web/Features/Bandeja/TipoItemBandejaUi.cs :: TipoItemBandejaUi = 1
 src/CaeManager.Web/Features/BusquedaGlobal/CoberturaDePaleta.cs :: bandeja = 1
 src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaConversacion.razor :: bandeja = 14
 src/CaeManager.Web/Features/Comunicaciones/Components/FilaMensajeBuzonPersonal.razor :: bandeja = 11
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: (nombre de fichero) = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 74
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: CambiarPaginaBandejaAsync = 2
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: bandeja = 70
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: (nombre de fichero) = 1
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: Bandeja = 2
 src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: CambiarPaginaBandejaAsync = 1
@@ -145,12 +145,12 @@ src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: BandejaAgrupadaDt
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ItemBandejaDto = 2
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupada = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupadaQuery = 1
-src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaAgrupadaQueryHandler = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: ObtenerBandejaGestor = 1
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: RutaBandeja = 3
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: TipoItemBandejaUi = 1
-src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 9
+src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: _bandejaAgrupada = 6
 src/CaeManager.Web/Features/Dashboard/Pages/Inicio.razor.cs :: bandeja = 9
+src/CaeManager.Web/Features/Documentos/Pages/DocumentoDetalle.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Documentos/Components/DocumentoWorkspacePanel.razor :: Bandeja = 1
 src/CaeManager.Web/Features/Trabajadores/Pages/TrabajadorDetalle.razor :: Bandeja = 1
 src/CaeManager.Web/Features/IncorporacionCartera/Pages/SolicitudesCartera.razor :: _bandeja = 9
@@ -162,3 +162,13 @@ src/CaeManager.Web/Services/ContadorPendientesSelectorTenant.cs :: Bandeja = 1
 
 # Calendario reutiliza el Drawer de reclamaciones existente: referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
 src/CaeManager.Web/Features/Calendario/Pages/Calendario.razor :: Bandeja = 1
+# Reclamar para acceso reutiliza el Drawer de reclamaciones existente (DrawerReclamacionLote): referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
+src/CaeManager.Web/Features/Empresas/Pages/ReclamarParaAcceso.razor :: Bandeja = 1
+# La pestaña Reclamar de Empresa 360 reutiliza el mismo Drawer de reclamaciones (DrawerReclamacionLote): referencia técnica a su namespace legacy, sin rótulo nuevo ni nueva ruta.
+src/CaeManager.Web/Features/Empresas/Components/PestanaReclamarEmpresa.razor :: Bandeja = 1
+
+# Núcleo Comunicaciones: bandeja de entrada del correo, no Mi trabajo.
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: VolverABandejaAsync = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: VolverBandeja = 1
+src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor.cs :: VolverABandejaAsync = 1
+src/CaeManager.Web/Features/Comunicaciones/Recursos/TextosListaConversaciones.resx :: bandeja = 1

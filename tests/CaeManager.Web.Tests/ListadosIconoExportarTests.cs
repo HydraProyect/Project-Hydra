@@ -33,7 +33,7 @@ internal static class ComprobacionIconoExportar
         });
     }
 
-    internal static void Cabecera<T>(IRenderedComponent<T> cut, string ruta, bool conOtrasAcciones) where T : class, IComponent
+    internal static void Cabecera<T>(IRenderedComponent<T> cut, string ruta, bool conOtrasAcciones, params string[] accionesExactas) where T : class, IComponent
     {
         var enlace = cut.FindAll("header.cabecera-pagina a[data-keytip=X]").Should().ContainSingle().Which;
         enlace.GetAttribute("href").Should().StartWith(ruta);
@@ -50,7 +50,7 @@ internal static class ComprobacionIconoExportar
         entradas.Select(e => e.TextContent.Trim()).Should().Contain("Exportar todo")
             .And.NotContain(e => e.StartsWith("Exportar esta vista", StringComparison.Ordinal));
         if (!conOtrasAcciones)
-            entradas.Select(e => e.TextContent.Trim()).Should().Equal("Exportar todo");
+            entradas.Select(e => e.TextContent.Trim()).Should().Equal(accionesExactas.Length > 0 ? accionesExactas : new[] { "Exportar todo" });
         else
             entradas.Count.Should().BeGreaterThan(1, "se conservan las acciones secundarias de la maqueta");
         menu.Click();
@@ -171,8 +171,9 @@ public partial class ProyectosGen2Tests
     }
 
     [Fact]
-    public async Task La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
-        ComprobacionIconoExportar.Cabecera(await RenderizarConClienteAsync(), "/proyectos/exportar.xlsx", false);
+    public async Task La_cabecera_adopta_exportacion_filtrada_con_menu_Crear_Evento_y_Exportar_todo() =>
+        ComprobacionIconoExportar.Cabecera(await RenderizarConClienteAsync(), "/proyectos/exportar.xlsx", false,
+            "Crear Evento", "Exportar todo");
 }
 
 public partial class VisitasGen2Tests
@@ -194,7 +195,7 @@ public partial class VisitasGen2Tests
 
     [Fact]
     public void La_cabecera_adopta_exportacion_filtrada_con_menu_solo_Exportar_todo() =>
-        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", false);
+        ComprobacionIconoExportar.Cabecera(Renderizar(new MediatorVisitas()), "/visitas/exportar.xlsx", true);
 }
 
 public partial class GestionesListaGen2Tests

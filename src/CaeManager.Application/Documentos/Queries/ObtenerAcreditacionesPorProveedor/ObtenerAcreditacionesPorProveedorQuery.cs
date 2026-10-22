@@ -72,8 +72,14 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// 2026-09-23). No trae el resto de aceptadas, que <paramref name="IncluirAceptadas"/>
 /// sí trae: la cola solo quiere las que ya no valen.
 /// </param>
+/// <param name="SoloDocumentosDeEmpresaId">
+/// Solo los documentos de ESTA Empresa (los suyos, de Ámbito Empresa, no los de sus Trabajadores): la pestaña
+/// «Plataformas» de Empresa 360. Es el mismo alcance de gestión de siempre, más la comprobación de que la Empresa es visible;
+/// una Empresa fuera de alcance devuelve la lista vacía, igual que el resto de consultas de Empresa 360.
+/// </param>
 public record ObtenerAcreditacionesPorProveedorQuery(
-    bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false)
+    bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false,
+    Guid? SoloDocumentosDeEmpresaId = null)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -104,7 +110,8 @@ public record AcreditacionDrillDownDto(
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
     DateOnly? FechaVencimientoEnPlataforma = null,
     bool VencidaEnPlataforma = false,
-    string? UrlAccesoCanal = null);
+    string? UrlAccesoCanal = null,
+    string? CentroNombre = null);
 
 public class ObtenerAcreditacionesPorProveedorQueryHandler(
     IDocumentosQueryContext documentosContext, ICentrosQueryContext centrosContext,
@@ -122,6 +129,11 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         // Cliente (usuario de portal) los Centros de su propio Cliente y, con
         // ellos, el DNI de los Trabajadores de las contratistas — ver
         // ObtenerCentroIdsParaGestionAsync (REC-153).
+        if (request.SoloDocumentosDeEmpresaId is { } empresaDelFiltro
+            && !await alcanceDatos.EmpresaVisibleAsync(empresaDelFiltro, cancellationToken))
+            return [];
+
+        var soloEmpresaId = request.SoloDocumentosDeEmpresaId;
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var incluirAceptadas = request.IncluirAceptadas;
         var incluirSubidas = request.IncluirSubidas;
@@ -148,6 +160,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             // generan trabajo de acreditación (ni pendientes ni rechazos).
             where centro.GestionCae != ModalidadGestionCae.SinGestionCae
             join documento in documentosContext.Documentos.Operativos() on acreditacion.DocumentoId equals documento.Id
+            where soloEmpresaId == null || (documento.EmpresaId == soloEmpresaId && documento.TrabajadorId == null)
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             select new
             {
@@ -160,6 +173,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                 CanalGestionDocumentalId = canal.Id,
                 canal.UrlAcceso,
                 CentroId = centro.Id,
+                CentroNombre = centro.Nombre,
                 centro.ClienteId,
                 documento.TrabajadorId,
                 documento.EmpresaId,
@@ -232,7 +246,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                                 VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
                                                      && f.FechaVencimientoEnPlataforma < hoy,
-                                UrlAccesoCanal: f.UrlAcceso))
+                                UrlAccesoCanal: f.UrlAcceso, CentroNombre: f.CentroNombre))
                             .OrderBy(d => d.PropietarioNombre)
                             .ToList()))
                     .OrderBy(c => c.ClienteNombre)

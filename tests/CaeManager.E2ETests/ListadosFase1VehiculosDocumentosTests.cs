@@ -14,7 +14,7 @@ namespace CaeManager.E2ETests;
 public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture)
 {
     [Fact]
-    public async Task Vehiculos_las_opciones_nativas_conservan_el_orden_por_Modelo_en_ambos_sentidos()
+    public async Task Vehiculos_las_opciones_nativas_conservan_el_orden_por_Matricula_en_ambos_sentidos()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -22,25 +22,22 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/vehiculos");
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var prefijo = $"F1-{sufijo}";
-        // Nombre y Modelo tienen órdenes opuestos; ignorar Modelo no puede pasar este caso.
-        await CrearVehiculoAsync(page, $"{prefijo} Alfa", "Modelo Z", $"{prefijo}-A");
-        await CrearVehiculoAsync(page, $"{prefijo} Beta", "Modelo A", $"{prefijo}-B");
+        // Nombre y Matrícula tienen órdenes opuestos; ignorar Matrícula no puede pasar este caso.
+        await CrearVehiculoAsync(page, $"{prefijo} Alfa", "Modelo Z", $"{prefijo}-Z");
+        await CrearVehiculoAsync(page, $"{prefijo} Beta", "Modelo A", $"{prefijo}-A");
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre, modelo o matrícula").FillAsync(prefijo);
         var nombres = page.Locator("tbody .celda-vehiculo .enlace-nombre-fila");
-        var modelos = page.Locator("tbody .celda-vehiculo-modelo");
         await Expect(nombres).ToHaveCountAsync(2);
         var cabecera = Cabecera(page, "Vehículo");
         await cabecera.Locator(".col-options-button").ClickAsync();
         await cabecera.Locator(".col-options select").FocusAsync();
         await cabecera.Locator(".col-options").GetByLabel("Ordenar por", new LocatorGetByLabelOptions { Exact = true })
-            .SelectOptionAsync("Modelo");
+            .SelectOptionAsync("Matrícula");
         await cabecera.Locator(".col-options").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
         await Expect(cabecera.Locator("button.col-title")).ToBeFocusedAsync();
         await OrdenAscendenteAsync(cabecera);
-        await Expect(modelos).ToHaveTextAsync(["Modelo A", "Modelo Z"]);
         await Expect(nombres).ToHaveTextAsync([$"{prefijo} Beta", $"{prefijo} Alfa"]);
         await cabecera.Locator("button.col-title").ClickAsync();
-        await Expect(modelos).ToHaveTextAsync(["Modelo Z", "Modelo A"]);
         await Expect(nombres).ToHaveTextAsync([$"{prefijo} Alfa", $"{prefijo} Beta"]);
 
         // El clic anterior deja foco real en el botón nativo; j debe sacarlo de ese
@@ -57,7 +54,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await panel.Locator("button.workspace-cerrar").ClickAsync();
         await Expect(panel).ToHaveCountAsync(0);
 
-        // El nombre de la segunda fila debe seguir abriendo Beta tras ordenar por Modelo.
+        // El nombre de la segunda fila debe seguir abriendo Beta tras ordenar por Matrícula.
         await filas.Nth(1).Locator(".nombre-abre-vista-rapida").ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToHaveTextAsync($"{prefijo} Beta");
     }
@@ -72,7 +69,7 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await page.Locator("table.tabla-datos").WaitForAsync();
         // Las dos direcciones hacen visibles los extremos de la unión, aunque una página
         // completa pueda contener solo Trabajadores. No se afirma un número fijo de documentos.
-        var entidad = Cabecera(page, "Pertenece a");
+        var entidad = CabeceraDocumento(page, "Propietario");
         await ElegirOpcionDocumentoAsync(entidad, "Ordenar por ámbito");
         await ComprobarOrdenDocumentoAsync(page, entidad, "ambito");
 
@@ -80,15 +77,16 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         // La siembra tiene emisiones distintas y fechas de vencimiento diversas; los controles
         // posteriores fallan explícitamente si ese universo deja de distinguir ambos sentidos.
         // El estado se filtra en la franja de estado (sustituyó a la pastilla «Estado»): un botón por
-        // estado, localizable por su estado de código (data-estado).
+        // estado, localizable por su estado de código (data-estado). Vive en «Más filtros».
         var botonVigentes = page.Locator(".franja-estado-boton[data-estado='Vigente']");
-        // En la presentación de maqueta los botones de estado viven en un desplegable «Documentación».
-        await page.Locator(".franja-campo-desplegable > summary").ClickAsync();
+        var masFiltros = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Más filtros" });
+        await masFiltros.ClickAsync();
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
-        // Se cierra el desplegable: abierto, su panel tapa la cabecera de la tabla.
-        await page.Locator(".franja-campo-desplegable > summary").ClickAsync();
-        var vigencia = Cabecera(page, "Vigencia");
+        // Se cierra el menú pulsando fuera: abierto, su superposición y su panel tapan la cabecera de la tabla.
+        await page.Locator(".menu-acciones-superposicion").ClickAsync(new LocatorClickOptions { Position = new Position { X = 5, Y = 5 } });
+        await Expect(page.Locator(".menu-acciones-panel")).ToHaveCountAsync(0);
+        var vigencia = CabeceraDocumento(page, "Vence");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por emisión");
         await ComprobarOrdenDocumentoAsync(page, vigencia, "emision");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por vencimiento");
@@ -117,6 +115,10 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
     private static ILocator Cabecera(IPage page, string prefijo) =>
         page.Locator("thead th").Filter(new LocatorFilterOptions { HasTextRegex = new Regex("^" + Regex.Escape(prefijo)) });
 
+    // QuickGrid conserva su propia tabla, oculta, con las mismas cabeceras: solo cuenta la tabla visible.
+    private static ILocator CabeceraDocumento(IPage page, string prefijo) =>
+        page.Locator("table.documentos-tabla-visible thead th").Filter(new LocatorFilterOptions { HasTextRegex = new Regex("^" + Regex.Escape(prefijo)) });
+
     private static async Task OrdenAscendenteAsync(ILocator cabecera)
     {
         if ((await cabecera.GetAttributeAsync("class") ?? "").Contains("col-sort-desc", StringComparison.Ordinal))
@@ -126,12 +128,14 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
 
     private static async Task ElegirOpcionDocumentoAsync(ILocator cabecera, string opcion)
     {
-        await cabecera.Locator(".col-options-button").ClickAsync();
-        await cabecera.Locator(".col-options").GetByRole(AriaRole.Button,
+        await cabecera.Locator(".documentos-opciones-boton").ClickAsync();
+        await cabecera.Locator(".documentos-opciones-orden").GetByRole(AriaRole.Button,
             new LocatorGetByRoleOptions { Name = opcion, Exact = true }).ClickAsync();
-        await cabecera.Locator(".col-options").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
-        await Expect(cabecera.Locator("button.col-title")).ToBeFocusedAsync();
-        await OrdenAscendenteAsync(cabecera);
+        await cabecera.Locator(".documentos-opciones-orden").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
+        // Cambiar de campo conserva el sentido que ya llevaba la columna; el test parte siempre de ascendente.
+        if (await cabecera.GetAttributeAsync("aria-sort") == "descending")
+            await cabecera.Locator("button.documentos-orden-grupo").ClickAsync();
+        await Expect(cabecera).ToHaveAttributeAsync("aria-sort", "ascending");
     }
 
     internal static async Task CrearVehiculoAsync(IPage page, string nombre, string modelo, string matricula)
@@ -154,8 +158,8 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         await EsperarDatosOrdenadosAsync(page, campo, descendente: false);
         var ascendente = await LeerClavesDocumentoAsync(page, campo);
         Assert.True(ascendente.Length >= 2, "Control positivo: la página contiene datos comparables.");
-        await cabecera.Locator("button.col-title").ClickAsync();
-        await Expect(cabecera).ToHaveClassAsync(new Regex(@"\bcol-sort-desc\b"));
+        await cabecera.Locator("button.documentos-orden-grupo").ClickAsync();
+        await Expect(cabecera).ToHaveAttributeAsync("aria-sort", "descending");
         // Exigir un extremo distinto evita leer la página anterior, homogénea, antes de la respuesta.
         await EsperarDatosOrdenadosAsync(page, campo, descendente: true, mayorQue: ascendente[0]);
         var descendente = await LeerClavesDocumentoAsync(page, campo);

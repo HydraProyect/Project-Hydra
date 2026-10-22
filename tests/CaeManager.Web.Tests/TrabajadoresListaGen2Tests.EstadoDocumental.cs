@@ -71,6 +71,27 @@ public partial class TrabajadoresListaGen2Tests
     // --- Estado documental: pastilla y motivo --------------------------------------------------
 
     [Fact]
+    public async Task La_franja_ofrece_Pendiente_y_filtra_los_faltantes_sin_incluirlos_en_Sin_incidencias()
+    {
+        // ObtenerTrabajadoresQuery entrega el estado ya combinado con lo exigido sin documento (Pendiente).
+        var faltante = Trabajador("Ana", "Falta", estado: EstadoDocumento.Faltante);
+        faltante = faltante with { Dto = faltante.Dto with { DocumentosFaltantes = ["Aptitud médica"] } };
+        var mediador = new MediatorFalso { Almacen = { faltante, Trabajador("Bea", "Completa", estado: EstadoDocumento.Vigente) } };
+        var cut = Renderizar(mediador);
+
+        cut.Find("button[data-estado=Faltante] .franja-estado-recuento").TextContent.Should().Be("1");
+        cut.Find("button[data-estado='Vigente,SinCaducidad'] .franja-estado-recuento").TextContent.Should().Be("1");
+        await AlternarEnLaFranja(cut, "Pendiente");
+        UltimaConsulta(mediador).EstadoDocumental.Should().Be(nameof(EstadoDocumento.Faltante));
+        Columna(cut, 0).Should().Equal("Falta");
+        CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
+
+        await AlternarEnLaFranja(cut, "Pendiente");
+        await AlternarEnLaFranja(cut, "Sin incidencias");
+        Columna(cut, 0).Should().Equal("Completa");
+    }
+
+    [Fact]
     public void Con_una_incidencia_el_motivo_bajo_la_pastilla_dice_el_documento_que_la_causa()
     {
         var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Urgente), 6, 6,
@@ -86,9 +107,9 @@ public partial class TrabajadoresListaGen2Tests
     [Fact]
     public void Quien_no_tiene_un_documento_exigido_nunca_se_pinta_sin_incidencias_y_el_motivo_dice_cual_falta()
     {
-        // El estado calculado solo mira los documentos registrados: aquí todos están al día, pero un Centro exige
-        // un Tipo del que no hay ninguno.
-        var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vigente);
+        // Los documentos registrados están al día, pero un Centro exige un Tipo del que no hay ninguno: la consulta
+        // entrega la fila ya como Pendiente (SeveridadEstadoDocumento.ConFaltantes) y la página la pinta tal cual.
+        var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Faltante);
         javier = javier with { Dto = javier.Dto with { DocumentosFaltantes = ["Formación Art. 19", "Aptitud médica"] } };
         var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
 
@@ -358,6 +379,21 @@ public partial class TrabajadoresListaGen2Tests
         cut.FindAll(".cabecera-columnas-trabajadores > .col-registrados-vigentes").Should().ContainSingle();
         cut.FindAll(".cabecera-columnas-trabajadores > span").Select(th => th.TextContent.Trim())
             .Should().Equal("", "Trabajador", "Empresa", "Registrados vigentes", "Estado documental", "");
+    }
+
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21): quien tenía «Falta: Documento de identidad» se leía 4/4 o 5/5, porque el
+    /// denominador solo contaba lo registrado. Lo exigido sin documento también se espera: 4 vigentes de 5.
+    /// </summary>
+    [Fact]
+    public void La_cifra_de_registrados_vigentes_cuenta_lo_exigido_sin_documento_en_el_denominador()
+    {
+        var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Faltante), 4, 4);
+        javier = javier with { Dto = javier.Dto with { DocumentosFaltantes = ["Documento de identidad"] } };
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        FilasDeDatos(cut)[0].QuerySelector(".celda-registrados-vigentes")!.TextContent.Trim().Should().Be("4/5");
+        CeldaDeEstado(cut).QuerySelector(".badge")!.TextContent.Trim().Should().Be("Pendiente");
     }
 
     // --- Filtro «Centro» ----------------------------------------------------------------------

@@ -34,6 +34,7 @@ public class ObtenerComunicacionesCuadroDireccionQueryHandler(
     IAlcanceDatosService alcanceDatos,
     IComunicacionesQueryContext comunicacionesContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     TimeProvider reloj)
     : IRequestHandler<ObtenerComunicacionesCuadroDireccionQuery, ComunicacionesCuadroDireccionDto>
 {
@@ -43,7 +44,7 @@ public class ObtenerComunicacionesCuadroDireccionQueryHandler(
 
     public async Task<ComunicacionesCuadroDireccionDto> Handle(ObtenerComunicacionesCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes) || new MesCuadroDireccion(request.Anyo, request.Mes).InicioUtc > ahoraUtc)
             return Fusionar(request.Anyo, request.Mes, [], 0);
@@ -52,7 +53,7 @@ public class ObtenerComunicacionesCuadroDireccionQueryHandler(
         var inicio = mes.InicioUtc;
         var fin = mes.FinUtc;
         var abiertos = EstadosAbiertos;
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var porTenant = new List<ComunicacionesTenantDto>();
         var sinAlcance = 0;
 

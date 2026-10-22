@@ -1,8 +1,7 @@
 using CaeManager.Application.Dashboard.Queries;
-using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Comunicaciones;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using FluentAssertions;
 using Xunit;
 
@@ -18,8 +17,8 @@ public class SerieYComunicacionesCuadroDireccionTests
     private static MedicionCuadroDireccion Medicion(int altas = 0, int? gestiones = null, EstadoCifraMensual? persistido = null) =>
         new(10, altas, 0, 2, 0, 0, 0, [], new KpisDashboardDto(0, 0, 0, 0, 0, 0, 0, 0), gestiones, persistido);
 
-    private static LineaFacturacionDto Linea(ConceptoFacturable concepto, int unidades, decimal precio, string moneda = "EUR") =>
-        new(concepto, concepto.ToString(), unidades, precio, moneda, unidades * precio);
+    private static LineaFacturacionCuadroDto Linea(ConceptoTarifaOperadorCae concepto, int unidades, decimal precio, string moneda = "EUR") =>
+        new(concepto, concepto.ToString(), moneda, unidades, unidades * precio);
 
     // ---------------------------------------------------------------- Gestiones en las cifras
 
@@ -130,14 +129,14 @@ public class SerieYComunicacionesCuadroDireccionTests
     {
         var lineas = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas(
         [
-            Linea(ConceptoFacturable.TrabajadorActivo, 10, 2m),
-            Linea(ConceptoFacturable.TrabajadorActivo, 5, 2m),
-            Linea(ConceptoFacturable.TrabajadorActivo, 3, 1m, "USD"),
-            Linea(ConceptoFacturable.AltaCentro, 2, 50m),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 10, 2m),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 5, 2m),
+            Linea(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 3, 1m, "USD"),
+            Linea(ConceptoTarifaOperadorCae.CentroNuevo, 2, 50m),
         ]);
 
         lineas.Should().HaveCount(3);
-        var trabajadoresEur = lineas.Single(l => l.Concepto == ConceptoFacturable.TrabajadorActivo && l.MonedaIso == "EUR");
+        var trabajadoresEur = lineas.Single(l => l.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero && l.MonedaIso == "EUR");
         trabajadoresEur.Unidades.Should().Be(15);
         trabajadoresEur.Importe.Should().Be(30m);
         lineas.Single(l => l.MonedaIso == "USD").Importe.Should().Be(3m);
@@ -147,8 +146,8 @@ public class SerieYComunicacionesCuadroDireccionTests
     public void Con_facturacion_cada_punto_suma_las_lineas_de_todos_los_Tenants()
     {
         var meses = ObtenerSerieCuadroDireccionQueryHandler.MesesDeLaSerie(2026, 10, 1, EnOctubre);
-        var a = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(ConceptoFacturable.DocumentoGestionado, 10, 1.5m)]);
-        var b = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(ConceptoFacturable.DocumentoGestionado, 4, 1.5m)]);
+        var a = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(ConceptoTarifaOperadorCae.ObraNueva, 10, 1.5m)]);
+        var b = ObtenerSerieCuadroDireccionQueryHandler.SumarLineas([Linea(ConceptoTarifaOperadorCae.ObraNueva, 4, 1.5m)]);
 
         var serie = ObtenerSerieCuadroDireccionQueryHandler.Construir(meses, EnOctubre,
         [
@@ -158,8 +157,8 @@ public class SerieYComunicacionesCuadroDireccionTests
 
         var punto = serie.Total.Single();
         punto.ImporteEn("EUR").Should().Be(21m);
-        punto.UnidadesDe(ConceptoFacturable.DocumentoGestionado).Should().Be(14);
-        punto.UnidadesDe(ConceptoFacturable.AltaCentro).Should().Be(0, "sin tarifa no hay línea y no se inventa");
+        punto.UnidadesDe(ConceptoTarifaOperadorCae.ObraNueva).Should().Be(14);
+        punto.UnidadesDe(ConceptoTarifaOperadorCae.CentroNuevo).Should().Be(0, "sin tarifa no hay línea y no se inventa");
     }
 
     [Fact]
@@ -209,26 +208,22 @@ public class SerieYComunicacionesCuadroDireccionTests
     }
 
     [Fact]
-    public async Task Direccion_CAE_recibe_los_importes_de_la_serie()
+    public async Task Direccion_CAE_del_Operador_pasa_la_guarda_de_los_importes_de_la_serie()
     {
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("DireccionCae"))).Should().BeTrue();
+        (await CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae
+            .OperadorQueGestionaAsync(new UsuarioConRol("DireccionCae"))).Should().NotBeNull();
     }
 
     [Fact]
-    public async Task Coordinador_CAE_lee_el_Cuadro_pero_no_recibe_importes()
+    public async Task Coordinador_CAE_lee_el_Cuadro_pero_no_pasa_la_guarda_de_los_importes()
     {
         await AutorizacionCuadroDireccionComprobar("CoordinadorCae");
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(true, new UsuarioConRol("CoordinadorCae"))).Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Sin_pedir_facturacion_no_hay_importes_ni_para_Direccion_CAE()
-    {
-        (await ObtenerSerieCuadroDireccionQueryHandler.DevuelveFacturacionAsync(false, new UsuarioConRol("DireccionCae"))).Should().BeFalse();
+        (await CaeManager.Application.Dashboard.TarifasOperadorCae.AutorizacionTarifasOperadorCae
+            .OperadorQueGestionaAsync(new UsuarioConRol("CoordinadorCae"))).Should().BeNull();
     }
 
     private static async Task AutorizacionCuadroDireccionComprobar(string rol) =>
-        await CaeManager.Application.Dashboard.AutorizacionCuadroDireccion.ExigirLecturaAsync(new UsuarioConRol(rol));
+        await CaeManager.Application.Dashboard.AutorizacionCuadroDireccion.ExigirLecturaAsync(new UsuarioConRol(rol), new PoliticaAccesoTotalFalsa(false));
 
     // ---------------------------------------------------------------- Gestiones por día
 

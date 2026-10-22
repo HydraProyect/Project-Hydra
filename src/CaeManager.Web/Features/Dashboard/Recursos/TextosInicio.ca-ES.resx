@@ -13,22 +13,25 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="SinCarteraTitulo" xml:space="preserve">
-    <value>Sin cartera asignada</value>
+    <value>Sense cartera assignada</value>
   </data>
   <data name="SinCarteraDescripcion" xml:space="preserve">
-    <value>Todavía no tienes cartera asignada, así que no hay datos que mostrar. Pide a tu Coordinador CAE o a un Administrador de tu organización que te la asigne.</value>
+    <value>Encara no tens cartera assignada, així que no hi ha dades per mostrar. Demana al teu Coordinador CAE o a un Administrador de la teva organització que te l'assigni.</value>
   </data>
   <data name="SinCarteraDescripcionCoordinador" xml:space="preserve">
-    <value>Todavía no tienes cartera asignada, así que no hay datos que mostrar. Solo ves las empresas de la cartera de los Gestores CAE de tu equipo: asigna empresas a uno de ellos desde Usuarios.</value>
+    <value>Encara no tens cartera assignada, així que no hi ha dades per mostrar. Només veus les empreses de la cartera dels Gestors CAE del teu equip: assigna empreses a un d'ells des d'Usuaris.</value>
   </data>
   <data name="SinCarteraEnEsteContextoTitulo" xml:space="preserve">
-    <value>Sin cartera en este contexto</value>
+    <value>Sense cartera en aquest context</value>
   </data>
   <data name="SinCarteraEnEsteContextoDescripcion" xml:space="preserve">
-    <value>Aquí no tienes cartera asignada, pero sí en otras organizaciones que operas. Tu trabajo pendiente en ellas está en Mi trabajo.</value>
+    <value>Aquí no tens cartera assignada, però sí en altres organitzacions que operes. La teva feina pendent en elles és a La meva feina.</value>
   </data>
   <data name="EnlaceMiTrabajo" xml:space="preserve">
-    <value>Ir a Mi trabajo →</value>
+    <value>Anar a La meva feina →</value>
+  </data>
+  <data name="SinReclamacionesTexto" xml:space="preserve">
+    <value>Cap reclamació no porta més de 7 dies sense resposta.</value>
   </data>
   <data name="AnilloConPendientes" xml:space="preserve">
     <value>Hi ha pendents</value>
@@ -56,5 +59,74 @@
   </data>
   <data name="TrabajadoresBloqueadosKpiVarios" xml:space="preserve">
     <value>{0} Treballadors bloquejats: el percentatge compta documents, no accés.</value>
+  </data>
+  <data name="CarteraTitulo" xml:space="preserve">
+    <value>La teva cartera</value>
+  </data>
+  <data name="CarteraMetaUna" xml:space="preserve">
+    <value>1 empresa gestionada</value>
+  </data>
+  <data name="CarteraMetaVarias" xml:space="preserve">
+    <value>{0} Empreses gestionades</value>
+  </data>
+  <data name="CarteraDescripcion" xml:space="preserve">
+    <value>Ets en el context de la teva pròpia organització. La teva feina és a les Empreses gestionades de la teva cartera: entra en una per veure-la en detall, o ves a La meva feina per a la cua de totes.</value>
+  </data>
+  <data name="CarteraCifraTrabajadoresBloqueados" xml:space="preserve">
+    <value>Treballadors bloquejats</value>
+  </data>
+  <data name="CarteraCifraCentrosBloqueados" xml:space="preserve">
+    <value>Centres de Treball amb bloqueig</value>
+  </data>
+  <data name="CarteraCifraVencidos" xml:space="preserve">
+    <value>Documents vençuts</value>
+  </data>
+  <data name="CarteraCifraUrgentes" xml:space="preserve">
+    <value>Documents urgents</value>
+  </data>
+  <data name="CarteraColumnaEmpresa" xml:space="preserve">
+    <value>Empresa que gestiones</value>
+  </data>
+  <data name="CarteraColumnaVencidos" xml:space="preserve">
+    <value>Vençuts</value>
+  </data>
+  <data name="CarteraColumnaUrgentes" xml:space="preserve">
+    <value>Urgents</value>
+  </data>
+  <data name="CarteraColumnaCumplimiento" xml:space="preserve">
+    <value>Compliment documental</value>
+  </data>
+  <data name="CarteraColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="CarteraCeldaSinDatos" xml:space="preserve">
+    <value>Sense dades</value>
+  </data>
+  <data name="CarteraBotonEntrar" xml:space="preserve">
+    <value>Accedir</value>
+  </data>
+  <data name="CarteraBotonEntrarTitulo" xml:space="preserve">
+    <value>Canviar el context a {0}</value>
+  </data>
+  <data name="CarteraColumnaTrabajadoresBloqueados" xml:space="preserve">
+    <value>Treballadors bloquejats</value>
+  </data>
+  <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
+    <value>Centres amb bloqueig</value>
+  </data>
+  <data name="AnilloAlDiaDetalle" xml:space="preserve">
+    <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat)</value>
+  </data>
+  <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
+    <value>1 centre amb treballadors bloquejats</value>
+  </data>
+  <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
+    <value>{0} centres amb treballadors bloquejats</value>
+  </data>
+  <data name="KpiVigentesAlDia" xml:space="preserve">
+    <value>{0} més al dia (per vèncer o sense caducitat)</value>
+  </data>
+  <data name="KpiVigentesNoAlDia" xml:space="preserve">
+    <value>{0} no al dia (vençuts o sense confirmar)</value>
   </data>
 </root>

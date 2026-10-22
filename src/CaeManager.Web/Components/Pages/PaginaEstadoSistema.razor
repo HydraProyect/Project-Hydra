@@ -2,7 +2,7 @@
    sistema (Error, /not-found, /acceso-denegado) — Estados Sistema
    TALVEG.dc.html. Estas páginas no llevan MainLayout: sin sesión (Error) o
    con ella pero sin destino claro (404, denegado), no tiene sentido pintar
-   menú lateral ni barra superior. Marca arriba con salida al Dashboard,
+   menú lateral ni barra superior. Marca arriba con salida a Inicio,
    tarjeta con acento de color por Tipo, EstadoVacio del catálogo para
    icono/título/descripción, y un camino de salida siempre visible.
 
@@ -13,11 +13,16 @@
    circuito interactivo no debería añadir más trabajo antes de poder pintar
    el mensaje (mismo principio que ya aplicaba AuthLayout, Sentry DOTNET-8). *@
 @using CaeManager.Infrastructure.Comunicaciones
+@using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.Comunicaciones
+@using Microsoft.AspNetCore.Components.Authorization
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
 @using Microsoft.Extensions.Options
 @inject IOptions<ComunicacionesOptions> OpcionesComunicaciones
+@inject IStringLocalizer<TextosComunes> Textos
 <div class="pagina-estado-sistema">
-    <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir al Dashboard")">
+    <a class="marca-estado-sistema" href="/" aria-label="@($"{Marca.Nombre} — ir a Inicio")">
         <span class="marca-estado-sistema-marca" aria-hidden="true"></span>
         <span class="marca-estado-sistema-nombre">@Marca.Nombre</span>
     </a>
@@ -30,17 +35,22 @@
                 @if (MostrarReferenciaTecnica)
                 {
                     <div class="referencia-tecnica-estado-sistema">
-                        <span class="referencia-tecnica-etiqueta">Referencia técnica</span>
+                        <span class="referencia-tecnica-etiqueta">@Textos["CodigoParaSoporte"]</span>
                         <code class="referencia-tecnica-valor">@ReferenciaTecnica</code>
-                        <BotonCopiar Valor="@ReferenciaTecnica" Etiqueta="la referencia técnica" />
+                        <BotonCopiar Valor="@ReferenciaTecnica" Etiqueta="@Textos["CodigoParaSoporteCopia"]" />
                     </div>
                     <p class="referencia-tecnica-ayuda">
-                        Si escribes a soporte, pega esta referencia: identifica exactamente esta petición en los registros.
+                        @Textos["CodigoParaSoporteAyuda"]
                     </p>
                 }
 
                 <div class="acciones-estado-sistema">
-                    <Boton Variante="VarianteBoton.Primario" Href="/">Ir al Inicio</Boton>
+                    @if (_destinoLista is { } lista)
+                    {
+                        <Boton Variante="VarianteBoton.Primario" Href="@lista.Ruta">@Textos[lista.ClaveTexto]</Boton>
+                    }
+                    @* En acceso denegado, Mi trabajo para quien lo tiene e Inicio para el resto: nunca otra pantalla que su rol niegue. *@
+                    <Boton Variante="@(_destinoLista is null ? VarianteBoton.Primario : VarianteBoton.Secundario)" Href="@RutaPrincipal">@EtiquetaPrincipal</Boton>
                     @if (MostrarReintentar)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Href="@RutaReintentar">Reintentar</Boton>
@@ -72,6 +82,53 @@
 
 @code {
     [Parameter, EditorRequired] public TipoEstadoSistema Tipo { get; set; }
+
+    [Parameter] public string? RutaOriginal { get; set; }
+
+    private (string Ruta, string ClaveTexto)? _destinoLista;
+
+    // Los href y las claves proceden exclusivamente del catálogo cerrado, nunca de la URL recibida.
+    private static (string Ruta, string ClaveTexto)? DestinoLista(string? ruta)
+    {
+        if (string.IsNullOrEmpty(ruta) || !ruta.StartsWith('/') || ruta.StartsWith("//", StringComparison.Ordinal))
+            return null;
+
+        var segmento = ruta[1..].Split('/', '?', '#')[0].ToLowerInvariant();
+        return segmento switch
+        {
+            "trabajadores" => ("/trabajadores", "VolverListaTrabajadores"),
+            "empresas" => ("/empresas", "VolverListaEmpresas"),
+            "centros" => ("/centros", "VolverListaCentros"),
+            "clientes" => ("/clientes", "VolverListaClientes"),
+            "subcontratas" => ("/subcontratas", "VolverListaSubcontratas"),
+            "vehiculos" => ("/vehiculos", "VolverListaVehiculos"),
+            "proyectos" => ("/proyectos", "VolverListaProyectos"),
+            "documentos" => ("/documentos", "VolverListaDocumentos"),
+            "visitas" => ("/visitas", "VolverListaVisitas"),
+            "gestiones" => ("/gestiones", "VolverListaGestiones"),
+            "alertas" => ("/alertas", "VolverListaAlertas"),
+            _ => null,
+        };
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _destinoLista = Tipo == TipoEstadoSistema.NoEncontrado && EstadoAutenticacion is not null
+            && (await EstadoAutenticacion).User.Identity?.IsAuthenticated == true
+                ? DestinoLista(RutaOriginal)
+                : null;
+    }
+
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+
+    /// <summary>
+    /// Adónde lleva el botón principal: siempre Inicio. La pantalla principal es Inicio para todos los
+    /// roles (decisión del propietario, 2026-10-21); antes «acceso denegado» llevaba a Mi trabajo a los
+    /// roles que lo tienen. «Acceso denegado» conserva su etiqueta «Ir a tu pantalla principal».
+    /// </summary>
+    private const string RutaPrincipal = "/";
+
+    private string EtiquetaPrincipal => Tipo == TipoEstadoSistema.AccesoDenegado ? Textos["IrATuPantallaPrincipal"].Value : "Ir al Inicio";
 
     /// <summary>
     /// Solo aplica a <see cref="TipoEstadoSistema.Error"/>. Sin valor, el
@@ -119,18 +176,20 @@
     {
         TipoEstadoSistema.Error => "Ocurrió un error inesperado",
         TipoEstadoSistema.NoEncontrado => "No encontramos esta página",
-        TipoEstadoSistema.AccesoDenegado => "No tienes permiso para ver esta sección",
+        // Lenguaje de producto, no de permisos: quien llega aquí no sabe qué es un rol de plataforma y la
+        // propia interfaz no debería haberle ofrecido el destino. Sin nombrar el recurso que se pedía.
+        TipoEstadoSistema.AccesoDenegado => "Tu rol actual no incluye esta pantalla",
         _ => string.Empty,
     };
 
     private string Descripcion => Tipo switch
     {
         TipoEstadoSistema.Error => "No pudimos completar tu solicitud. Inténtalo nuevamente en unos segundos.",
-        TipoEstadoSistema.NoEncontrado => "Comprueba la dirección o vuelve al Dashboard.",
+        TipoEstadoSistema.NoEncontrado => "Comprueba la dirección o vuelve a Inicio.",
         // Nunca "el cliente X no es tuyo" ni "esa ficha no existe": ambas
         // frases confirmarían que el recurso existe, y eso es justo la fuga
         // de información que esta pantalla existe para evitar.
-        TipoEstadoSistema.AccesoDenegado => "Si crees que es un error, contacta con quien gestione tus accesos en tu organización.",
+        TipoEstadoSistema.AccesoDenegado => "Si la necesitas para tu trabajo, contacta con quien gestione tus accesos en tu organización.",
         _ => string.Empty,
     };
 

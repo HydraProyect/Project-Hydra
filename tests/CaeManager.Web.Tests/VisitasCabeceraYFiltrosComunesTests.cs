@@ -118,7 +118,14 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Which.GetAttribute("data-keytip").Should().Be("K");
         cut.Find("button[aria-label='Selección múltiple']").GetAttribute("data-keytip").Should().Be("S");
         cut.Find("[data-keytip-contenedor='N']").TextContent.Should().Contain("Nueva visita");
-        cut.Find(".cabecera-pagina-kicker").TextContent.Trim().Should().Be("Operación", "la maqueta rotula el grupo con un antetítulo sobre el título");
+        cut.FindAll(".contenedor-pagina.lista-design").Should().ContainSingle("es el listado nuevo, con el molde de Subcontratas");
+        cut.Find(".cabecera-pagina button[aria-label='Selección múltiple']").GetAttribute("aria-pressed").Should().Be("false", "el conmutador ☑ vive en la cabecera, no en la barra de herramientas");
+        cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.FindAll(".franja-campo-desplegable").Should().BeEmpty("el estado va en chips, no en un desplegable");
+        cut.FindAll(".barra-filtros-pastillas .franja-estado button[data-estado]").Should().NotBeEmpty();
+        cut.FindAll(".barra-herramientas-lista button[data-keytip='E']").Should().ContainSingle();
+        cut.FindAll(".tarjeta-listado .tarjeta-listado-pie .paginador-pie-listado").Should().ContainSingle("el pie va dentro de la tarjeta");
+        cut.FindAll(".cabecera-pagina-kicker").Should().BeEmpty("el listado nuevo no lleva antetítulo de grupo: el menú lateral ya dice dónde está");
     }
 
     // ------------------------------------------------------------------- filtros
@@ -133,13 +140,13 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
             .Should().Be("Buscar por centro, titular o empresa…");
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().Equal(
-                ["Solo activas: Sí", "Solo urgentes: No", "Notificada al titular del Centro: Todas", "Más filtros", "Filtros guardados"],
+                ["Cliente", "Empresa", "Ventana", "Más filtros", "Filtros guardados", "Agrupar: no"],
                 "«Solo activas» nace marcado; el orden vive en «Más filtros»");
 
         OpcionesDe(cut, "Solo activas").Should().Equal("No", "Sí");
         OpcionesDe(cut, "Solo urgentes").Should().Equal("No", "Sí");
         OpcionesDe(cut, "Notificada al titular del Centro").Should().Equal("Todas", "Sí", "No");
-        OpcionesDe(cut, "Más filtros").Should().Equal("Por fechas", "Documentación por gestionar primero");
+        OpcionesDe(cut, "Más filtros").Should().Equal("Por fechas", "Documentación por gestionar primero", "Por origen", "Por aviso al titular del Centro");
     }
 
     private static IEnumerable<string> OpcionesDe(IRenderedComponent<Visitas> cut, string pastilla)
@@ -147,7 +154,7 @@ public class VisitasCabeceraYFiltrosComunesTests : BunitContext
         if (FiltrosVisitasDePrueba.Pastilla(cut, pastilla).GetAttribute("aria-expanded") != "true")
             FiltrosVisitasDePrueba.Pastilla(cut, pastilla).Click();
         return cut.Find("#" + FiltrosVisitasDePrueba.Pastilla(cut, pastilla).GetAttribute("aria-controls"))
-            .QuerySelectorAll("[role=menuitemradio]").Select(o => o.TextContent.Trim()).ToList();
+            .QuerySelectorAll(":scope > [role=menuitemradio]").Select(o => o.TextContent.Trim()).ToList();
     }
 
     [Fact]

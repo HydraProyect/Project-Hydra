@@ -139,7 +139,7 @@
     <value>Registra la primera incidencia operativa de un centro.</value>
   </data>
   <data name="DrawerTituloNueva" xml:space="preserve">
-    <value>Nueva incidencia</value>
+    <value>Registrar incidencia</value>
   </data>
   <data name="DrawerTituloEditar" xml:space="preserve">
     <value>Editar incidencia</value>
@@ -214,13 +214,16 @@
     <value>Selecciona un centro.</value>
   </data>
   <data name="ToastCreada" xml:space="preserve">
-    <value>Incidencia creada correctamente.</value>
+    <value>Incidencia registrada.</value>
   </data>
   <data name="ToastActualizada" xml:space="preserve">
     <value>Incidencia actualizada correctamente.</value>
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+  </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
   </data>
   <data name="ToastMarcadaResuelta" xml:space="preserve">
     <value>Incidencia marcada como resuelta.</value>
@@ -249,4 +252,8 @@
   <data name="NombreHojaExportacion" xml:space="preserve">
     <value>Incidencias</value>
   </data>
+  <data name="ColumnaIncidencia" xml:space="preserve"><value>Incidencia</value></data>
+  <data name="CopiarReferenciaIncidencia" xml:space="preserve"><value>Copiar la referencia de la incidencia ({0})</value></data>
+  <data name="ChipBusqueda" xml:space="preserve"><value>Búsqueda: &quot;{0}&quot;</value></data>
+  <data name="AriaQuitarBusqueda" xml:space="preserve"><value>Quitar la búsqueda</value></data>
 </root>

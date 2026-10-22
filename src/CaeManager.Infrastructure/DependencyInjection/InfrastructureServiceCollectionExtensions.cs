@@ -426,6 +426,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Tenants.ITenantsQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Facturacion.IFacturacionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Dashboard.ICierresCuadroDireccion>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -534,8 +535,11 @@ public static class InfrastructureServiceCollectionExtensions
         // RolDeOrigenFueraDeAutorizacionTests).
         services.AddScoped<CaeManager.Application.Tenants.IPerfilDePropiedadEnOrigen,
             PerfilDePropiedadEnOrigenEnBase>();
-        // Se registra aquí y no en AddApplication porque depende del puerto de arriba y de los
-        // contextos de consulta: un contenedor que solo componga Application no lo necesita.
+        // Deuda (decisión Chris 2026-10-20): el rol efectivo en un Tenant beneficiario delegado es
+        // el perfil de origen, sin encargo, y CurrentUserService ya no resuelve este techo. Se
+        // registra mientras el Encargo de administración exista y lo usen sus pruebas.
+        // Aquí y no en AddApplication porque depende del puerto de arriba y de los contextos
+        // de consulta: un contenedor que solo componga Application no lo necesita.
         services.AddScoped<CaeManager.Application.Tenants.TechoDeRolPorEncargo>();
         // Quién registra, retira y lee el encargo: nunca el rol efectivo (ver la clase).
         services.AddScoped<CaeManager.Application.Tenants.Encargo.AutoridadSobreElEncargo>();

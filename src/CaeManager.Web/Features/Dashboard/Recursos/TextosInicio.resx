@@ -30,6 +30,9 @@
   <data name="EnlaceMiTrabajo" xml:space="preserve">
     <value>Ir a Mi trabajo →</value>
   </data>
+  <data name="SinReclamacionesTexto" xml:space="preserve">
+    <value>Ninguna reclamación lleva más de 7 días sin respuesta.</value>
+  </data>
   <data name="AnilloConPendientes" xml:space="preserve">
     <value>Hay pendientes</value>
   </data>
@@ -56,5 +59,74 @@
   </data>
   <data name="TrabajadoresBloqueadosKpiVarios" xml:space="preserve">
     <value>{0} Trabajadores bloqueados: el porcentaje cuenta documentos, no acceso.</value>
+  </data>
+  <data name="CarteraTitulo" xml:space="preserve">
+    <value>Tu cartera</value>
+  </data>
+  <data name="CarteraMetaUna" xml:space="preserve">
+    <value>1 Empresa gestionada</value>
+  </data>
+  <data name="CarteraMetaVarias" xml:space="preserve">
+    <value>{0} Empresas gestionadas</value>
+  </data>
+  <data name="CarteraDescripcion" xml:space="preserve">
+    <value>Estás en el contexto de tu propia organización. Tu trabajo está en las Empresas gestionadas de tu cartera: entra en una para verla en detalle, o ve a Mi trabajo para la cola de todas.</value>
+  </data>
+  <data name="CarteraCifraTrabajadoresBloqueados" xml:space="preserve">
+    <value>Trabajadores bloqueados</value>
+  </data>
+  <data name="CarteraCifraCentrosBloqueados" xml:space="preserve">
+    <value>Centros de Trabajo con bloqueo</value>
+  </data>
+  <data name="CarteraCifraVencidos" xml:space="preserve">
+    <value>Documentos vencidos</value>
+  </data>
+  <data name="CarteraCifraUrgentes" xml:space="preserve">
+    <value>Documentos urgentes</value>
+  </data>
+  <data name="CarteraColumnaEmpresa" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="CarteraColumnaVencidos" xml:space="preserve">
+    <value>Vencidos</value>
+  </data>
+  <data name="CarteraColumnaUrgentes" xml:space="preserve">
+    <value>Urgentes</value>
+  </data>
+  <data name="CarteraColumnaCumplimiento" xml:space="preserve">
+    <value>Cumplimiento documental</value>
+  </data>
+  <data name="CarteraColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="CarteraCeldaSinDatos" xml:space="preserve">
+    <value>Sin datos</value>
+  </data>
+  <data name="CarteraBotonEntrar" xml:space="preserve">
+    <value>Entrar</value>
+  </data>
+  <data name="CarteraBotonEntrarTitulo" xml:space="preserve">
+    <value>Cambiar el contexto a {0}</value>
+  </data>
+  <data name="CarteraColumnaTrabajadoresBloqueados" xml:space="preserve">
+    <value>Trabajadores bloqueados</value>
+  </data>
+  <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
+    <value>Centros con bloqueo</value>
+  </data>
+  <data name="AnilloAlDiaDetalle" xml:space="preserve">
+    <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad)</value>
+  </data>
+  <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
+    <value>1 centro con trabajadores bloqueados</value>
+  </data>
+  <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
+    <value>{0} centros con trabajadores bloqueados</value>
+  </data>
+  <data name="KpiVigentesAlDia" xml:space="preserve">
+    <value>{0} más al día (por vencer o sin caducidad)</value>
+  </data>
+  <data name="KpiVigentesNoAlDia" xml:space="preserve">
+    <value>{0} no al día (vencidos o sin confirmar)</value>
   </data>
 </root>

@@ -43,7 +43,7 @@ public partial class Trabajador360Gen2Tests
 
         var tarjeta = TarjetaNotaInterna(cut);
         tarjeta.Should().NotBeNull();
-        tarjeta!.TextContent.Should().Contain(NotaDelTrabajador).And.Contain("No la ve el cliente.");
+        tarjeta!.TextContent.Should().Contain(NotaDelTrabajador).And.Contain("No la ve el Cliente.");
         tarjeta.QuerySelectorAll("button").Should().ContainSingle(b => b.TextContent.Trim() == "Editar →");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza").Should().Be("nota-interna");
     }
@@ -67,7 +67,7 @@ public partial class Trabajador360Gen2Tests
         var cut = Renderizar(id);
 
         TarjetaNotaInterna(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

@@ -10,5 +10,8 @@ public enum FormaEsqueleto
     Tabla,
 
     /// <summary>Tarjetas de métrica (etiqueta y cifra), como las del dashboard.</summary>
-    Metricas
+    Metricas,
+
+    /// <summary>El hueco de una gráfica dentro de una tarjeta: un bloque con el alto de la gráfica real (<c>Alto</c>), para que al llegar los datos nada se mueva.</summary>
+    Grafica
 }

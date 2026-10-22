@@ -123,14 +123,11 @@ public static class EstadoDocumentoUi
         estado is null ? TonoBadge.Neutro : Tono(estado.Value);
 
     /// <summary>
-    /// El estado que se pinta de un propietario al que un Centro le exige un Tipo de documento que no tiene. El estado
-    /// calculado sobre sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo
-    /// exigido se leería como «Sin incidencias». Si ya hay algo más grave (un vencido), manda ese.
+    /// <see cref="SeveridadEstadoDocumento.ConFaltantes"/>, para los DTO que traen el peor estado y los faltantes por
+    /// separado (la búsqueda global). Un Trabajador del listado ya llega combinado en su <c>EstadoDocumental</c>.
     /// </summary>
     public static EstadoDocumento? ConFaltantes(EstadoDocumento? estado, bool hayFaltantes) =>
-        hayFaltantes && (estado is null || SeveridadEstadoDocumento.Rango(EstadoDocumento.Faltante) < SeveridadEstadoDocumento.Rango(estado.Value))
-            ? EstadoDocumento.Faltante
-            : estado;
+        SeveridadEstadoDocumento.ConFaltantes(estado, hayFaltantes);
 
     /// <summary>
     /// Rótulo del peor estado de un propietario. Lo que está bien se dice de una sola forma, «Sin incidencias»:
@@ -201,7 +198,8 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
-    /// Botones de la franja de estado de los listados de propietarios (Trabajadores, Empresas, Vehículos), de peor
+    /// Botones de la franja de estado de los listados de propietarios (Empresas, Vehículos; Trabajadores usa
+    /// <see cref="FranjaDeTrabajadores"/>, que añade Faltante), de peor
     /// a mejor. «Por vencer» marca Urgente y Próximo a la vez, y «Sin incidencias» Vigente y Sin caducidad: es el
     /// mismo agrupado que hace <see cref="TextoDocumental"/> al rotular la fila, así que cada botón filtra
     /// exactamente las filas que llevan su rótulo. Se construye en cada lectura (textos localizados).
@@ -214,6 +212,14 @@ public static class EstadoDocumentoUi
         new(PorVencer, TonoBadge.Advertencia, nameof(EstadoDocumento.Urgente), nameof(EstadoDocumento.Proximo)),
         new(TextosVigenciaDocumento.Texto("SinConfirmar"), TonoBadge.Advertencia, nameof(EstadoDocumento.SinConfirmar)),
         new(SinIncidencias, TonoBadge.Exito, nameof(EstadoDocumento.Vigente), nameof(EstadoDocumento.SinCaducidad))
+    ];
+
+    /// <summary>La franja de Trabajadores incluye los requisitos exigidos sin documento registrado.</summary>
+    public static IReadOnlyList<OpcionFranjaEstado> FranjaDeTrabajadores =>
+    [
+        FranjaDocumental[0],
+        new(Texto(EstadoDocumento.Faltante), TonoBadge.Peligro, nameof(EstadoDocumento.Faltante)),
+        .. FranjaDocumental.Skip(1)
     ];
 
     /// <summary>
@@ -232,11 +238,14 @@ public static class EstadoDocumentoUi
     /// <summary>
     /// La selección de estados que llega de fuera (la URL, un filtro guardado) reducida a los valores que el
     /// filtro de estado documental conoce (<see cref="OpcionesDocumentales"/>); lo demás se descarta, como
-    /// siempre se hizo con un valor desconocido. Cadena vacía si no queda ninguno.
+    /// siempre se hizo con un valor desconocido. Con <paramref name="incluirFaltantes"/> también admite Faltante
+    /// (listado de Trabajadores). Cadena vacía si no queda ninguno.
     /// </summary>
-    public static string SeleccionDocumentalValida(string? seleccion)
+    public static string SeleccionDocumentalValida(string? seleccion, bool incluirFaltantes = false)
     {
         var conocidos = OpcionesDocumentales.Select(o => o.Valor).ToHashSet(StringComparer.Ordinal);
+        if (incluirFaltantes)
+            conocidos.Add(nameof(EstadoDocumento.Faltante));
         return SeleccionEstados.Unir(SeleccionEstados.Separar(seleccion).Where(conocidos.Contains)) ?? string.Empty;
     }
 

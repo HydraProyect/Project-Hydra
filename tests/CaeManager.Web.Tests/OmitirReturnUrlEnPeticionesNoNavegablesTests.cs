@@ -61,7 +61,7 @@ public class OmitirReturnUrlEnPeticionesNoNavegablesTests
         destino.Should().Be(Acceso, "la ruta de un POST no es un sitio al que el navegador pueda volver con un GET");
 
         // Lo que ve el usuario: sin ReturnUrl, el inicio de sesión aterriza en Inicio con la
-        // marca de un solo uso (D-2), no en la ruta del formulario.
+        // marca de un solo uso, no en la ruta del formulario.
         RedireccionLocal.DestinoTrasLogin(ReturnUrlDe(destino)).Should().Be("/?desde=login");
     }
 

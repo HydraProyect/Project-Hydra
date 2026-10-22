@@ -456,6 +456,45 @@
   <data name="ErrorCargaSupervisionTitulo" xml:space="preserve">
     <value>No pudimos cargar la supervisión</value>
   </data>
+  <data name="VerificacionesErrorTitulo" xml:space="preserve">
+    <value>No se han podido cargar las verificaciones.</value>
+  </data>
+  <data name="VerificacionesVacioTitulo" xml:space="preserve">
+    <value>Sin verificaciones externas</value>
+  </data>
+  <data name="VerificacionesVacioDescripcion" xml:space="preserve">
+    <value>Con nivel Gestionada, TALVEG las hace por la Empresa; con Supervisada, las registra el Gestor CAE.</value>
+  </data>
+  <data name="BotonAnadirVerificacion" xml:space="preserve">
+    <value>Registrar verificación</value>
+  </data>
+  <data name="TituloDrawerVerificacionAlta" xml:space="preserve">
+    <value>Registrar verificación</value>
+  </data>
+  <data name="BotonGuardarVerificacion" xml:space="preserve">
+    <value>Guardar verificación</value>
+  </data>
+  <data name="RotuloEvidenciaVerificacion" xml:space="preserve">
+    <value>Evidencia</value>
+  </data>
+  <data name="AyudaEvidenciaVerificacion" xml:space="preserve">
+    <value>Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Obligatoria.</value>
+  </data>
+  <data name="ToastVerificacionGuardada" xml:space="preserve">
+    <value>Verificación de «{0}» guardada.</value>
+  </data>
+  <data name="ToastVerificacionEliminadaDeTipo" xml:space="preserve">
+    <value>Verificación de «{0}» eliminada.</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoTitulo" xml:space="preserve">
+    <value>¿Eliminar la verificación de «{0}»?</value>
+  </data>
+  <data name="ConfirmarEliminarVerificacionDeTipoMensaje" xml:space="preserve">
+    <value>Se quita el resultado y su evidencia de la supervisión. El semáforo volverá a calcularse con la verificación anterior, si la hay.</value>
+  </data>
+  <data name="BotonConfirmarEliminarVerificacion" xml:space="preserve">
+    <value>Eliminar verificación</value>
+  </data>
   <data name="ExplicacionSupervision" xml:space="preserve">
     <value>Cumplimiento de la subcontrata en las plataformas externas de cada centro, según las verificaciones que se registran a mano aquí. El semáforo se calcula con la última verificación y los umbrales del sistema.</value>
   </data>
@@ -911,4 +950,26 @@
   <data name="SinEmpresaContratante" xml:space="preserve">
     <value>Sin empresa contratante</value>
   </data>
+  <data name="ChipContratadaPor" xml:space="preserve"><value>Contratada por: {0}</value></data>
+  <data name="TituloCadenaSubcontratacion" xml:space="preserve"><value>Cadena de subcontratación</value></data>
+  <data name="RotuloClientesDeLosCentros" xml:space="preserve"><value>Clientes de los centros donde trabaja</value></data>
+  <data name="BotonQuitarContratadaPor" xml:space="preserve"><value>Quitar filtro de contratante</value></data>
+  <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar por esta columna</value></data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="TextoPlataformasIntro" xml:space="preserve"><value>Cumplimiento de la subcontrata en las plataformas del titular de cada centro, verificado a mano por el Gestor CAE. El semáforo se calcula con la última verificación y los umbrales del sistema.</value></data>
+  <data name="AriaFiltrosPlataformas" xml:space="preserve"><value>Qué mostrar</value></data>
+  <data name="FiltroPlataformasSoloIncidencias" xml:space="preserve"><value>Solo incidencias · {0}</value></data>
+  <data name="FiltroPlataformasTodo" xml:space="preserve"><value>Todo · {0}</value></data>
+  <data name="PlataformasVacioTitulo" xml:space="preserve"><value>Sin incidencias en plataformas</value></data>
+  <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Todo lo exigido está validado en las plataformas de sus Clientes.</value></data>
+  <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360</value></data>
+  <data name="AriaIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360 de {0}</value></data>
+  <data name="TituloDrawerVerificacionEdicion" xml:space="preserve"><value>Verificación externa</value></data>
+  <data name="BotonEditarVerificacion" xml:space="preserve"><value>Editar</value></data>
+  <data name="AriaEditarVerificacion" xml:space="preserve"><value>Editar la verificación de {0} en {1}</value></data>
+  <data name="ErrorEvidenciaObligatoria" xml:space="preserve"><value>Adjunta la captura o el PDF del registro.</value></data>
+  <data name="EvidenciaActualVerificacion" xml:space="preserve"><value>Evidencia actual: {0}. Elige otro archivo para sustituirla.</value></data>
+  <data name="ErrorActualizarVerificacion" xml:space="preserve"><value>No pudimos guardar los cambios de la verificación. Intenta nuevamente en unos segundos.</value></data>
+  <data name="ToastVerificacionRecuperada" xml:space="preserve"><value>Verificación de «{0}» recuperada.</value></data>
+  <data name="ToastErrorDeshacerVerificacion" xml:space="preserve"><value>No pudimos deshacer el cambio de la verificación.</value></data>
 </root>

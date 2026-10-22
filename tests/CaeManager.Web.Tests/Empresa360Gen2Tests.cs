@@ -464,9 +464,13 @@ public partial class Empresa360Gen2Tests : BunitContext
     {
         var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso { Fallar = x => fallaCumplimiento && x is ObtenerCumplimientoEmpresaQuery ? new InvalidOperationException() : null });
         m.Detalles[id] = fallaCumplimiento ? Detalle(id, "Montajes Ebro S.L.") : null;
+        ComponentFactories.AddStub<PanelNoEncontrado>();
         var cut = Renderizar(id);
-        cut.FindAll(".estado-vacio").Should().ContainSingle("un fallo de carga se presenta como fallo, no como datos vacíos")
-            .Which.TextContent.Should().Contain("No pudimos cargar la empresa");
+        if (fallaCumplimiento)
+            cut.FindAll(".estado-vacio").Should().ContainSingle("un fallo de carga se presenta como fallo, no como datos vacíos")
+                .Which.TextContent.Should().Contain("No pudimos cargar la empresa");
+        else
+            cut.PintaPanelNoEncontrado().Should().BeTrue("sin detalle no es un fallo: el panel se cierra con un toast");
         cut.Markup.Should().NotContain("0%", "un fallo no equivale a cumplimiento cero").And.NotContain("Sin Clientes", "un resumen fallido no es una lista vacía");
     }
     /// <summary>

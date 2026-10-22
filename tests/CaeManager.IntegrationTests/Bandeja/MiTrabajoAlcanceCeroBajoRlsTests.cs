@@ -44,10 +44,12 @@ namespace CaeManager.IntegrationTests.Bandeja;
 /// </para>
 ///
 /// <para>
-/// Escenario: el usuario es Administrador en el Tenant de origen del Operador
-/// CAE externo (claim de sesión) y Gestor CAE en dos Tenants beneficiarios
-/// delegantes. En uno tiene una Asignación de Cartera vigente sobre un Cliente
-/// empresarial, sin ningún pendiente; en el otro, ninguna.
+/// Escenario: el usuario es Gestor CAE en el Tenant de origen del Operador
+/// CAE externo (claim de sesión) y, por tanto, en los dos Tenants beneficiarios
+/// delegantes (decisión Chris 2026-10-20: el perfil de origen rige en todos; con
+/// otro perfil de organización entraría sin cartera y el alcance cero no podría
+/// darse). En uno tiene una Asignación de Cartera vigente, sin ningún pendiente;
+/// en el otro, ninguna: ahí llega solo por la delegación heredada.
 /// </para>
 /// </summary>
 public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
@@ -201,8 +203,9 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
             "tiene cartera sobre un Cliente: una cola vacía aquí sí es «al día»");
         conCartera.Resumen.TotalAcciones.Should().Be(0, "la siembra no deja ningún pendiente");
 
-        resultado.Tenants.Single(t => t.TenantId == _tenantOrigen).AlcanceCero.Should().BeFalse(
-            "Administrador en su Tenant de origen: acceso total, nunca alcance cero");
+        resultado.Tenants.Single(t => t.TenantId == _tenantOrigen).AlcanceCero.Should().BeTrue(
+            "Gestor CAE sin Asignación de Cartera en su propio Tenant: el rol y la cartera se resuelven en cada " +
+            "vuelta y la cartera de otro Tenant no se hereda");
     }
 
     private CurrentUserService CrearCurrentUserService(ITenantsQueryContext contexto)
@@ -210,7 +213,7 @@ public class MiTrabajoAlcanceCeroBajoRlsTests : IAsyncLifetime
         var identidad = new ClaimsIdentity(
             [
                 new Claim(ClaimTypes.NameIdentifier, _usuario.ToString()),
-                new Claim(ClaimTypes.Role, "Administrador"),
+                new Claim(ClaimTypes.Role, Roles.GestorCae),
                 new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, _tenantOrigen.ToString())
             ],
             "prueba");

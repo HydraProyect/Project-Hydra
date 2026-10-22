@@ -77,6 +77,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las dos consultas van acotadas al Tenant actual.
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Subcontratas/Commands/RestaurarVerificacionExterna/RestaurarVerificacionExternaSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Gestiones/Commands/RestaurarGestion/RestaurarGestionCommand.cs", ".IgnoreQueryFilters()")] = 1,
@@ -101,9 +102,21 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Cuadro de dirección: activos a fecha de corte, altas y bajas del mes de
         // Trabajadores y Centros, y los Documentos gestionados en el mes (actividad),
         // necesitan las filas ya eliminadas (una baja ES la
-        // eliminación). Tres apariciones, una por tabla, cada una seguida de la
-        // comparación del TenantId con el Tenant del ámbito (falla cerrado sin él).
-        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 3,
+        // eliminación). Tres apariciones, una por tabla, más dos para las altas del
+        // mes que cuentan aunque luego se eliminaran (Obras nuevas y Centros nuevos
+        // por Cliente empresarial), cada una seguida de la comparación del TenantId
+        // con el Tenant del ámbito (falla cerrado sin él).
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", ".IgnoreQueryFilters()")] = 2,
+        // Altas de Centros y Obras nuevas también cuentan las eliminadas después; el Where() compara el TenantId del ámbito.
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", "centrosContext.Centros.IgnoreQueryFilters().Where(c => c.TenantId == tenantId);")] = 1,
+        [("src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs", "proyectosContext?.Proyectos.IgnoreQueryFilters().Where(p => p.TenantId == tenantId && p.Tipo == CaeManager.Domain.Proyectos.TipoProyecto.Obra);")] = 1,
+
+        // Trabajadores extranjeros del mes (exportación del Cuadro de dirección, decisión de Chris del
+        // 2026-10-20): la Visita del mes se gestionó aunque después se eliminaran su Trabajador, su Centro o
+        // las Empresas que nombra, y se cobra igual. Tres apariciones (Trabajadores, Centros, Empresas), cada
+        // una seguida de la comparación del TenantId con el Tenant del ámbito (falla cerrado sin él). La
+        // Visita eliminada sigue fuera: su filtro global no se quita.
+        [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
         // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
         // en ese punto todavía no hay tenant resuelto en el contexto — es
@@ -309,6 +322,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Igual que los filtros guardados: el orden de cajas de las fichas 360 es por Tenant y de
         // un usuario. El Where() acota por UsuarioId.
         [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.OrdenesCajasFicha.IgnoreQueryFilters().Where(o => idsUsuarios.Contains(o.UsuarioId) && o.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
+        // Las tarifas que un Operador CAE externo fijó al Tenant retirado son filas del Operador (TenantId ajeno): el
+        // barrido genérico por TenantId no las alcanza. El Where() acota por PropietarioTenantId, el Tenant retirado.
+        [("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs", "await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);")] = 1,
         // Retirada del piloto Outbound: antes de borrar las filas de un Tenant borra del almacén los PDF
         // de sus documentos, y tiene que alcanzar también los DESCARTADOS (borrado lógico), cuyo fichero
         // sigue en disco. Lectura con la identidad no privilegiada, dentro del ámbito del Tenant (RLS), y

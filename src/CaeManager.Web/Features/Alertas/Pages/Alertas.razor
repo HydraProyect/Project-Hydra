@@ -100,12 +100,13 @@
             }
             else
             {
+                var clavesLotes = new ClavesDeHermanos();
                 @foreach (var lote in _lotes)
                 {
-                    var seleccionados = _seleccionPorTitular[lote.TitularId];
-                    var enviando = _enviandoTitularId == lote.TitularId;
+                    var seleccionados = _seleccionPorLote[lote.Clave];
+                    var enviando = _enviandoLote == lote.Clave;
 
-                    <Tarjeta @key="lote.TitularId" Titulo="@lote.TitularNombre" Class="tarjeta-reclamacion">
+                    <Tarjeta @key="clavesLotes.De(lote.Clave)" Titulo="@lote.TituloVisible" Class="tarjeta-reclamacion">
                         <AccionesHeader>
                             <span class="alertas-lote-ultima">
                                 @TextoUltimaReclamacion(lote.UltimaReclamacionFechaUtc)
@@ -121,28 +122,40 @@
                                Tampoco se ofrece con el módulo apagado (Comunicaciones:Activo):
                                /comunicaciones redirige a «no encontrado», y el menú oculta su entrada. *@
                             @if (lote.UltimaReclamacionConversacionId is not null && lote.Ambito != AmbitoAplicacion.Empresa
-                                 && OpcionesComunicaciones.Value.Activo)
+                                 && lote.EmpresaEmpleadora is null && OpcionesComunicaciones.Value.Activo)
                             {
                                 <a href="@($"/comunicaciones?cliente={lote.TitularId}")">@Textos["EnlaceVerEnComunicaciones"]</a>
                             }
                             @* Reclamar envía un mensaje a terceros: nunca de un
                                solo clic. El botón solo abre la confirmación, que
                                dice cuántos documentos y a quién. *@
-                            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.TitularId).Count == 0)"
+                            <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(seleccionados.Count == 0 || ContactosMarcados(lote.Clave).Count == 0)"
                                    Cargando="enviando" OnClick="() => PedirConfirmacionEnvio(lote)">
                                 @Textos["BotonEnviarReclamacionConCuenta", seleccionados.Count]
                             </Boton></SoloConEscritura>
                         </AccionesHeader>
 
                         <ChildContent>
+                            @* Un Trabajador de Empresa se reclama a su Empresa empleadora: la tarjeta dice a qué Delegación va, o que va a la agenda de la Empresa. *@
+                            @if (lote.EmpresaEmpleadora is { } destino)
+                            {
+                                <p class="reclamacion-motivo reclamacion-destino-delegacion">
+                                    @(destino.DelegacionEmpresaNombre is { } delegacion
+                                        ? Textos["LoteDestinoDelegacionEmpresa", delegacion]
+                                        : Textos["LoteDestinoEmpresa"])
+                                </p>
+                            }
                             @if (lote.Destinatarios is not { Count: > 0 })
                             {
                                 <div class="alerta-formulario" role="alert">
-                                    @Textos["LoteSinContactos"]
-                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => AbrirAltaContacto(lote)">
-                                        @Textos["BotonAnadirContacto"]
-                                    </Boton></SoloConEscritura>
+                                    @(EsLoteDeDelegacionEmpresa(lote) ? Textos["LoteDelegacionEmpresaSinContactoVisible"] : Textos["LoteSinContactos"])
+                                    @if (!EsLoteDeDelegacionEmpresa(lote))
+                                    {
+                                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => AbrirAltaContacto(lote)">
+                                            @Textos["BotonAnadirContacto"]
+                                        </Boton></SoloConEscritura>
+                                    }
                                 </div>
                             }
                             else
@@ -153,16 +166,19 @@
                                     {
                                         <label class="campo-checkbox" @key="destinatario.ContactoId">
                                             <input type="checkbox"
-                                                   checked="@ContactosMarcados(lote.TitularId).Contains(destinatario.ContactoId)"
-                                                   @onchange="e => AlternarContacto(lote.TitularId, destinatario.ContactoId, (bool)e.Value!)" />
+                                                   checked="@ContactosMarcados(lote.Clave).Contains(destinatario.ContactoId)"
+                                                   @onchange="e => AlternarContacto(lote.Clave, destinatario.ContactoId, (bool)e.Value!)" />
                                             <span>@destinatario.Nombre — @destinatario.Email</span>
                                             <span class="reclamacion-motivo">@string.Join(", ", destinatario.MotivoTipos)</span>
                                         </label>
                                     }
-                                    <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                           OnClick="() => AbrirAltaContacto(lote)">
-                                        @Textos["BotonAnadirContacto"]
-                                    </Boton></SoloConEscritura>
+                                    @if (!EsLoteDeDelegacionEmpresa(lote))
+                                    {
+                                        <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
+                                               OnClick="() => AbrirAltaContacto(lote)">
+                                            @Textos["BotonAnadirContacto"]
+                                        </Boton></SoloConEscritura>
+                                    }
                                 </fieldset>
                             }
 
@@ -193,7 +209,7 @@
                                                 <td>
                                                     <input type="checkbox" checked="@seleccionados.Contains(documento.DocumentoId)"
                                                            aria-label="@Textos["CasillaIncluirDocumento", documento.TipoDocumentoNombre]"
-                                                           @onchange="e => AlternarSeleccion(lote.TitularId, documento.DocumentoId, (bool)e.Value!)" />
+                                                           @onchange="e => AlternarSeleccion(lote.Clave, documento.DocumentoId, (bool)e.Value!)" />
                                                 </td>
                                                 @if (muestraTrabajador)
                                                 {
@@ -230,7 +246,7 @@
                          Titulo="@Textos["ConfirmacionEnvioTitulo", _envioPendiente?.TitularNombre ?? string.Empty]"
                          Mensaje="@MensajeConfirmacionEnvio"
                          TextoBotonConfirmar="@Textos["BotonEnviarReclamacion"]"
-                         EnProgreso="_enviandoTitularId is not null"
+                         EnProgreso="_enviandoLote is not null"
                          OnConfirmar="ConfirmarEnvioAsync" />
 
     @* Estado recorta la lista y viaja en la URL (llega así desde las tarjetas
@@ -304,7 +320,7 @@
         <div class="alertas-grupos">
             @foreach (var (grupo, filas) in GruposDePagina)
             {
-                var abierto = !_gruposCerrados.Contains(grupo.Clave);
+                var abierto = _gruposAbiertos.Contains(grupo.Clave);
 
                 <section class="@(grupo.Critico ? "alertas-grupo alertas-grupo-critico" : "alertas-grupo")" @key="grupo.Clave">
                     <button type="button" class="alertas-grupo-cabecera" aria-expanded="@(abierto ? "true" : "false")"

@@ -97,6 +97,42 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclama de nou</value>
   </data>
+  <data name="RecReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correu enviat no es pot desfer</value>
+  </data>
+  <data name="RecReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial i a Comunicacions.</value>
+  </data>
+  <data name="RecReenvioAvisoTextoSinComunicaciones" xml:space="preserve">
+    <value>Revisa el destinatari i el text. En enviar-lo queda a l'historial.</value>
+  </data>
+  <data name="RecHistorialVacioDetalleLectura" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG.</value>
+  </data>
+  <data name="RecReenvioCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="RecReenvioEnviar" xml:space="preserve">
+    <value>Envia la reclamació</value>
+  </data>
+  <data name="RecReenvioToast" xml:space="preserve">
+    <value>Reclamació enviada a {0}.</value>
+  </data>
+  <data name="RecHistorialTitulo" xml:space="preserve">
+    <value>Historial de reclamacions</value>
+  </data>
+  <data name="RecHistorialSubtitulo" xml:space="preserve">
+    <value>Allò que s'ha demanat i si ha contestat.</value>
+  </data>
+  <data name="RecHistorialVacioTitulo" xml:space="preserve">
+    <value>Mai reclamat</value>
+  </data>
+  <data name="RecHistorialVacioDetalle" xml:space="preserve">
+    <value>Encara no s'ha demanat res des de TALVEG. Els lots que enviïs des de la pestanya "+ Nueva reclamación" apareixeran aquí.</value>
+  </data>
+  <data name="RecHistorialErrorTitulo" xml:space="preserve">
+    <value>No s'ha pogut carregar l'historial.</value>
+  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hi ha cap contacte a l&apos;agenda a qui reclamar. Afegeix-ne un amb «Afegeix contacte».</value>
   </data>
@@ -105,6 +141,9 @@
   </data>
   <data name="RecBotonMarcaDocumento" xml:space="preserve">
     <value>Marca almenys un document per reclamar.</value>
+  </data>
+  <data name="PlatErrorCargaTitulo" xml:space="preserve">
+    <value>No s'ha pogut carregar l'estat per plataforma.</value>
   </data>
   <data name="PlatSinVigenciaResumen" xml:space="preserve">
     <value>{0} validada(s) sense vigència</value>
@@ -251,5 +290,43 @@
   <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamat el {0}, sense resposta</value></data>
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificat automàticament</value>
+  </data>
+  <data name="AgruparNo" xml:space="preserve"><value>Agrupa: no</value></data>
+  <data name="AgruparPorAmbitoEtiqueta" xml:space="preserve"><value>Agrupa: per àmbit</value></data>
+  <data name="ChipPropietario" xml:space="preserve"><value>Propietari · 1</value></data>
+  <data name="Gestionar" xml:space="preserve"><value>Gestiona</value></data>
+  <data name="GestionarAria" xml:space="preserve"><value>Gestiona {0} de {1}</value></data>
+  <data name="ListaAcciones" xml:space="preserve"><value>Accions</value></data>
+  <data name="ListaArchivo" xml:space="preserve"><value>Fitxer</value></data>
+  <data name="ListaDocumento" xml:space="preserve"><value>Document</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="ListaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
+  <data name="ListaPortal" xml:space="preserve"><value>Portal</value></data>
+  <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
+  <data name="ListaVence" xml:space="preserve"><value>Venç</value></data>
+  <data name="PorAmbito" xml:space="preserve"><value>Per àmbit</value></data>
+  <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Treu el filtre de propietari</value></data>
+  <data name="SinAgrupar" xml:space="preserve"><value>Sense agrupar</value></data>
+  <data name="VacioDescripcionDesign" xml:space="preserve"><value>Puja el primer o fes servir la pujada massiva.</value></data>
+  <data name="VacioFiltroQuitarDesign" xml:space="preserve"><value>Treu els filtres</value></data>
+  <data name="VacioFiltroTituloDesign" xml:space="preserve"><value>Cap resultat amb aquests filtres</value></data>
+  <data name="VacioTituloDesign" xml:space="preserve"><value>Encara no hi ha documents</value></data>
+  <data name="ContraerTodo" xml:space="preserve"><value>Contreu-ho tot</value></data>
+  <data name="DocumentoContraer" xml:space="preserve"><value>Contreu {0}</value></data>
+  <data name="DocumentoExpandir" xml:space="preserve"><value>Desplega {0}</value></data>
+  <data name="ExpandirTodo" xml:space="preserve"><value>Desplega-ho tot</value></data>
+  <data name="ListaCentro" xml:space="preserve"><value>Centre</value></data>
+  <data name="ListaDestino" xml:space="preserve"><value>Destinació</value></data>
+  <data name="SeleccionarDocumento" xml:space="preserve"><value>Selecciona {0} de {1}, emissió {2}</value></data>
+  <data name="SeleccionarPagina" xml:space="preserve"><value>Selecciona els documents d&apos;aquesta pàgina</value></data>
+  <data name="ToleranciaHasta" xml:space="preserve"><value>En tolerància fins al {0}</value></data>
+  <data name="RecDestinoDelegacionEmpresa" xml:space="preserve">
+    <value>Es reclama a la Delegació {0}, al seu contacte de reclamació.</value>
+  </data>
+  <data name="RecDestinoEmpresa" xml:space="preserve">
+    <value>Es reclama a l&apos;Empresa que ocupa aquests Treballadors, als contactes de la seva agenda.</value>
+  </data>
+  <data name="RecDelegacionEmpresaSinContactoVisible" xml:space="preserve">
+    <value>No pots veure el contacte de reclamació d&apos;aquesta Delegació, així que no li pots enviar la reclamació.</value>
   </data>
 </root>

@@ -1,3 +1,5 @@
+using CaeManager.Application.Asignaciones;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
@@ -43,7 +45,9 @@ public class DestinoDeReclamacionesEnviadasService(
     IReclamacionesQueryContext reclamacionesContext,
     IDocumentosQueryContext documentosContext,
     ITrabajadoresQueryContext trabajadoresContext,
-    IEmpresasQueryContext empresasContext)
+    IEmpresasQueryContext empresasContext,
+    IAsignacionesQueryContext asignacionesContext,
+    ICentrosQueryContext centrosContext)
 {
     private sealed record DestinoDeTrabajador(bool Valido, Guid? DelegacionEmpresaId);
 
@@ -134,6 +138,45 @@ public class DestinoDeReclamacionesEnviadasService(
         }
 
         return resultado;
+    }
+
+    /// <summary>La última reclamación enviada a una Empresa empleadora que pidió documentos de Trabajadores de un Cliente.</summary>
+    public sealed record UltimaReclamacionDeClienteViaEmpresa(Guid Id, DateTime FechaEnvioUtc, int TotalDocumentos, Guid? ConversacionId, string EmpresaNombre);
+
+    /// <summary>
+    /// La última reclamación enviada a una Empresa empleadora (<c>ParaEmpresaEmpleadora</c>) que pidió documentos de
+    /// Trabajadores asignados hoy a Centros de <paramref name="clienteEmpresarialId"/>: el rastro que Centro 360 enseña
+    /// del Cliente cuando «Gestionar» reclama a la Empresa y no a él. Solo cuentan las Empresas de
+    /// <paramref name="empresaIdsGestion"/> (<c>null</c> = todas): quien no gestiona la Empresa no ve su rastro. No filtra por
+    /// la visibilidad del Cliente: el llamador ya la comprobó.
+    /// </summary>
+    public async Task<UltimaReclamacionDeClienteViaEmpresa?> UltimaViaEmpresaEmpleadoraDeClienteAsync(
+        Guid clienteEmpresarialId, IReadOnlyCollection<Guid>? empresaIdsGestion, CancellationToken cancellationToken)
+    {
+        var centroIds = centrosContext.Centros.Where(c => c.ClienteId == clienteEmpresarialId).Select(c => c.Id);
+        var trabajadorIds = asignacionesContext.Asignaciones.Where(a => a.FechaBaja == null && centroIds.Contains(a.CentroId)).Select(a => a.TrabajadorId);
+
+        var reclamacionIds = reclamacionesContext.ReclamacionesDocumentalesDocumento
+            .Where(l => (l.TrabajadorId != null && trabajadorIds.Contains(l.TrabajadorId.Value))
+                || documentosContext.Documentos.Any(d => d.Id == l.DocumentoId && d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value)))
+            .Select(l => l.ReclamacionDocumentalId);
+        var lineasDelCliente = reclamacionesContext.ReclamacionesDocumentalesDocumento
+            .Where(l => (l.TrabajadorId != null && trabajadorIds.Contains(l.TrabajadorId.Value))
+                || documentosContext.Documentos.Any(d => d.Id == l.DocumentoId && d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value)));
+
+        var ultima = await reclamacionesContext.ReclamacionesDocumentales
+            .Where(r => r.EmpresaId != null && reclamacionIds.Contains(r.Id))
+            .Where(r => empresaIdsGestion == null || empresaIdsGestion.Contains(r.EmpresaId!.Value))
+            .OrderByDescending(r => r.FechaEnvioUtc)
+            .Select(r => new { r.Id, r.FechaEnvioUtc, r.ConversacionId, EmpresaId = r.EmpresaId!.Value })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (ultima is null)
+            return null;
+
+        // Solo las líneas de Trabajadores de este Cliente: el total no cuenta lo que se pidió de los de otros Clientes.
+        var total = await lineasDelCliente.CountAsync(d => d.ReclamacionDocumentalId == ultima.Id, cancellationToken);
+        var nombre = await empresasContext.Empresas.Where(e => e.Id == ultima.EmpresaId).Select(e => e.RazonSocial).FirstOrDefaultAsync(cancellationToken) ?? string.Empty;
+        return new UltimaReclamacionDeClienteViaEmpresa(ultima.Id, ultima.FechaEnvioUtc, total, ultima.ConversacionId, nombre);
     }
 
     /// <summary>

@@ -111,7 +111,7 @@
             @if (_clientesFiltro.Count > 0)
             {
                 <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
-                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" />
+                                ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
             }
             @if (_elementosPagina.Count > 0)
             {
@@ -227,20 +227,30 @@
                 <span></span>
                 <span>@Textos["ColEmpresa"]</span>
                 <span>@Textos["ColDetecciones"]</span>
-                <span>@Textos["ColCumplimiento"]</span>
+                @* Revisión 1:1 del 2026-10-21: no es la cifra del anillo de Inicio (documentos de Trabajador guardados al día);
+                   aquí el denominador son los documentos que sus Centros exigen, falten o no. *@
+                <span title="@Textos["TituloColCumplimiento"]">@Textos["ColCumplimiento"]</span>
                 <span>@Textos["ColEstadoDocumental"]</span>
                 <span></span>
             </div>
 
             <div class="lista-filas-acordeon">
-                @foreach (var (empresa, grupo, cantidadGrupo) in FilasConGrupo())
+                @{ var clavesDeGrupo = new ClavesDeHermanos(); }
+                @foreach (var filaDeGrupo in FilasConGrupo())
                 {
-                    @if (grupo is not null)
+                    var empresa = filaDeGrupo.Fila;
+                    @if (filaDeGrupo.Cabecera is { } grupo)
                     {
-                        @* Título del grupo «Por Cliente» (maqueta de Empresas): el Cliente y cuántas Empresas suyas hay en esta página. *@
-                        <div class="cabecera-grupo-empresas" data-grupo-cliente="@grupo">
-                            @grupo<span class="cabecera-grupo-empresas-recuento">@RecuentoDeGrupo(cantidadGrupo)</span>
+                        @* Grupo «Por Cliente» (maqueta de Empresas), plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado,
+                           con «· N» y, plegado, la pastilla roja de las Empresas en rojo. *@
+                        <div data-grupo-cliente="@grupo.Nombre" @key="clavesDeGrupo.De(grupo.Clave)">
+                            <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                Abierto="filaDeGrupo.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
                         </div>
+                    }
+                    @if (filaDeGrupo.Oculta)
+                    {
+                        continue;
                     }
                     <div class="@ClaseTarjeta(empresa)" @key="empresa.Id">
                         @{ var expandido = _expandidos.Contains(empresa.Id); }
@@ -368,7 +378,7 @@
                                 @if (empresa.Incidencias.Count > 0)
                                 {
                                     <ul class="documentos-pendientes-empresa" data-pieza="documentos-pendientes">
-                                        @foreach (var incidencia in empresa.Incidencias)
+                                        @foreach (var incidencia in VerRestantes.Recortar(empresa.Incidencias, _incidenciasCompletas.Contains(empresa.Id)))
                                         {
                                             <li class="documento-pendiente-empresa" @key="incidencia.DocumentoId">
                                                 <span class="documento-pendiente-nombre">@MotivoIncidenciasUi.NombreDeTipo(incidencia)</span>
@@ -383,6 +393,8 @@
                                             </li>
                                         }
                                     </ul>
+                                    <VerRestantes Total="empresa.Incidencias.Count" Completa="_incidenciasCompletas.Contains(empresa.Id)"
+                                                  OnVerRestantes="() => _incidenciasCompletas.Add(empresa.Id)" />
                                 }
                                 else
                                 {
@@ -458,7 +470,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }

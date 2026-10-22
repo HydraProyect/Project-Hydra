@@ -78,7 +78,8 @@ public class RolDeOrigenFueraDeAutorizacionTests
             + "o cambia su logo; el predicado se extrajo de AutorizacionDelegacionPorAdministradorDelCliente, que lo usa",
         ["src/CaeManager.Infrastructure/Autorizacion/DirectorioUsuariosTenant.cs"] =
             "directorio de cuentas del Tenant (GetUsersInRoleAsync): identidad de terceros para /usuarios y /roles, "
-            + "no decide la autoridad del usuario actual; los Operadores delegados se muestran con su rol de cartera",
+            + "no decide la autoridad del usuario actual; los Operadores delegados se muestran con el rol que ejercen "
+            + "(TenantsBeneficiariosAutorizados.RolEjercidoEnTenantBeneficiario, la etiqueta de /delegaciones)",
         ["src/CaeManager.Infrastructure/Autorizacion/PerfilDePropiedadEnOrigenEnBase.cs"] =
             "solo eleva bajo Encargo de administración vigente del Tenant propietario, con cartera y con techo "
             + "(D-8): su único consumidor es TechoDeRolPorEncargo, que exige las tres cosas antes de preguntar",
@@ -97,14 +98,17 @@ public class RolDeOrigenFueraDeAutorizacionTests
     };
 
     /// <summary>
-    /// Quién puede nombrar el techo: él mismo, el registro en el contenedor y la resolución del rol
-    /// efectivo. Ninguna otra autorización decide con el encargo por su cuenta.
+    /// Quién puede nombrar el techo: él mismo y el registro en el contenedor. Desde la decisión Chris
+    /// 2026-10-20 la resolución del rol efectivo (<c>CurrentUserService</c>) ya no lo llama: en un
+    /// Tenant beneficiario delegado rige el perfil de origen, sin encargo
+    /// (<c>TenantsBeneficiariosAutorizados.RolEnTenantDelegadoAsync</c>). El techo queda como deuda,
+    /// sin consumidor; si vuelve a tenerlo, que sea solo la resolución del rol efectivo. Ninguna otra
+    /// autorización decide con el encargo por su cuenta.
     /// </summary>
     private static readonly HashSet<string> NombranElTechoDelEncargo = new(StringComparer.Ordinal)
     {
         "src/CaeManager.Application/Tenants/TechoDeRolPorEncargo.cs",
         "src/CaeManager.Infrastructure/DependencyInjection/InfrastructureServiceCollectionExtensions.cs",
-        "src/CaeManager.Web/Services/CurrentUserService.cs",
     };
 
     private static readonly Regex NombraElPerfilDePropiedadEnOrigen =
@@ -166,8 +170,9 @@ public class RolDeOrigenFueraDeAutorizacionTests
 
         ficheros.Where(f => NombraElTechoDelEncargo.IsMatch(Codigo(f))).Should().BeEquivalentTo(
             NombranElTechoDelEncargo,
-            "el techo del encargo solo entra en la resolución del rol efectivo: quien necesite saber si alguien "
-            + "administra por encargo pregunta a IEncargoDeAdministracionActual, que restringe y no concede");
+            "el techo del encargo no tiene consumidor desde la decisión Chris 2026-10-20 y ninguna autorización lo "
+            + "nombra: quien necesite saber si alguien administra por encargo, o opera el Tenant por Asignación de "
+            + "Operación, pregunta a IEncargoDeAdministracionActual");
 
         NombraElPerfilDePropiedadEnOrigen.IsMatch("IPerfilDePropiedadEnOrigen perfil").Should().BeTrue();
         NombraElPerfilDePropiedadEnOrigen.IsMatch("new PerfilDePropiedadEnOrigenEnBase(x)").Should().BeTrue();

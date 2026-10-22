@@ -32,9 +32,10 @@ public partial class SelectorClienteActivo
 {
     /// <summary>
     /// Desde cuántos Tenants la lista lleva buscador (contrato del selector,
-    /// decisión 7 ter): por debajo, el buscador es ruido.
+    /// decisión 7 ter): por debajo, el buscador es ruido. El marco de Design del
+    /// 20-10 (marco-talveg.js) lo pone con más de 10 Empresas gestionadas, es decir, desde 11.
     /// </summary>
-    public const int UmbralBusqueda = 15;
+    public const int UmbralBusqueda = 11;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IClienteActivoSeleccionado ClienteActivoSeleccionado { get; set; } = default!;
@@ -113,10 +114,15 @@ public partial class SelectorClienteActivo
 
     private string IdsFijadas => string.Join(",", FijadasAutorizadas.Select(c => c.TenantId));
 
-    /// <summary>Hay una sección encima de la lista principal: entonces esta se titula «Resto de la cartera».</summary>
+    /// <summary>Hay una sección encima de la lista principal: entonces esta va sin rótulo visible.</summary>
     private bool HayGruposArriba => Fijadas.Count > 0 || Recientes.Count > 0;
 
     private bool Buscando => !string.IsNullOrWhiteSpace(_busqueda);
+
+    /// <summary>Línea bajo el buscador: cuántas Empresas gestionadas coinciden, o la ayuda de teclado si no hay texto.</summary>
+    private string AyudaDelBuscador => Buscando
+        ? Textos["SelectorTenantConteo", Filtrados.Count(), _totalCartera].Value
+        : Textos["SelectorTenantAyudaBuscar"].Value;
 
     private bool EsFijada(ClienteAutorizadoDto cliente) => _fijadas.Contains(cliente.TenantId);
 
@@ -136,8 +142,10 @@ public partial class SelectorClienteActivo
     /// </summary>
     private IEnumerable<ClienteAutorizadoDto> Filtrados => string.IsNullOrWhiteSpace(_busqueda)
         ? _clientes!.Where(c => !c.EsOrigen && !Recientes.Contains(c) && !EsFijada(c))
+            .OrderBy(c => c.Nombre, StringComparer.CurrentCulture)
         : _clientes!.Where(c => !c.EsOrigen && CultureInfo.CurrentCulture.CompareInfo.IndexOf(
-            c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0);
+                c.Nombre, _busqueda.Trim(), CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace) >= 0)
+            .OrderBy(c => c.Nombre, StringComparer.CurrentCulture);
 
     /// <summary>
     /// Vuelve a la misma ruta SIN query: los filtros con Ids del Tenant anterior
@@ -146,31 +154,12 @@ public partial class SelectorClienteActivo
     /// se rechaza allí. Se calcula al pintar y no al iniciar: el selector vive en
     /// el layout y sobrevive a las navegaciones del circuito.
     /// <para>
-    /// Única excepción: en una ficha 360 por Id (<c>/trabajadores/{id}</c>, <c>/centros/{id}</c>,
-    /// <c>/empresas/{id}</c>, <c>/clientes/{id}</c>) se añade la pista <c>?tenant={Tenant que se deja}</c>
-    /// (contrato del selector, § 4.5, I15). La ficha pertenece al Tenant que se abandona; sin la pista el
-    /// usuario aterriza en «No pudimos cargar…» sin salida. La pista es una coordenada de contexto, no
-    /// autoridad: <c>EnlaceProfundoOtraEmpresa</c> solo ofrece «Abrir en…» si ese Tenant está en el
-    /// conjunto autorizado del usuario y el cambio sigue siendo un POST revalidado por el servidor.
-    /// No lleva Ids de filtros, así que no contradice I14.
+    /// Desde una ficha por Id (<c>/trabajadores/{id}</c>, <c>/proyectos/{id}</c>…) se vuelve a la lista
+    /// de ese árbol (<see cref="RutaTrasCambioDeTenant"/>, contrato del selector § 4.4): la ficha
+    /// pertenece al Tenant que se deja y en el nuevo solo pintaría el estado vacío de «sin acceso».
     /// </para>
     /// </summary>
-    private string RutaDeRetorno
-    {
-        get
-        {
-            var ruta = new Uri(NavigationManager.Uri).AbsolutePath;
-            return _activo is not null && EsFichaPorId(ruta)
-                ? $"{ruta}?tenant={_activo.TenantId}"
-                : ruta;
-        }
-    }
-
-    private static readonly System.Text.RegularExpressions.Regex FichaPorId = new(
-        "^/(trabajadores|centros|empresas|clientes)/[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}/?$",
-        System.Text.RegularExpressions.RegexOptions.CultureInvariant | System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    private static bool EsFichaPorId(string ruta) => FichaPorId.IsMatch(ruta);
+    private string RutaDeRetorno => RutaTrasCambioDeTenant.Calcular(new Uri(NavigationManager.Uri).AbsolutePath);
 
     /// <summary>
     /// «Recientes»: los últimos Tenants abiertos con éxito, recortados SIEMPRE al conjunto autorizado que
@@ -192,10 +181,6 @@ public partial class SelectorClienteActivo
     /// <summary>URL versionada del logo del Tenant (§ 4.1.5), o <c>null</c> para pintar las iniciales.</summary>
     private static string? UrlLogo(ClienteAutorizadoDto cliente) =>
         CaeManager.Web.Components.DesignSystem.AvatarTenant.UrlDeLogo(cliente.TenantId, cliente.LogoVersion);
-
-    private string Empresas(int n) => n == 1
-        ? Textos["SelectorTenantEmpresasUna"].Value
-        : Textos["SelectorTenantEmpresasVarias", n].Value;
 
     private void Alternar()
     {

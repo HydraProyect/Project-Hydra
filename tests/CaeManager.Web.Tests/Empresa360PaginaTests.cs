@@ -1,7 +1,9 @@
+﻿using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit.TestDoubles;
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
 using CaeManager.Application.Empresas.Commands.GuardarNotaInternaEmpresa;
@@ -53,6 +55,9 @@ public partial class Empresa360PaginaTests : BunitContext
         ComponentFactories.AddStub<PestanaAgendaContactos>();
         ComponentFactories.AddStub<PestanaSelloEmpresa>();
         ComponentFactories.AddStub<PestanaHistorial>();
+        ComponentFactories.AddStub<PestanaVigenciaEmpresa>();
+        ComponentFactories.AddStub<PestanaPlataformasEmpresa>();
+        ComponentFactories.AddStub<PestanaReclamarEmpresa>();
     }
 
     private sealed class MediatorFalso : IMediator
@@ -63,6 +68,7 @@ public partial class Empresa360PaginaTests : BunitContext
         public Dictionary<Guid, List<ClienteDeEmpresaDto>> Clientes { get; } = [];
         public Dictionary<Guid, CredencialAccesoEmpresaDto> Credenciales { get; } = [];
         public Dictionary<Guid, SelloEmpresaDto> Sellos { get; } = [];
+        public Dictionary<Guid, List<ContactoAgendaDto>> Agenda { get; } = [];
         public Dictionary<Guid, CaeManager.Application.Empresas.Queries.ObtenerCatalogoTrabajadoresEmpresa.CatalogoTrabajadoresEmpresaDto> Catalogos { get; } = [];
 
         public List<object> Enviadas { get; } = [];
@@ -82,6 +88,7 @@ public partial class Empresa360PaginaTests : BunitContext
         {
             ObtenerEmpresaPorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerSelloEmpresaQuery q => Sellos.GetValueOrDefault(q.EmpresaId),
+            ObtenerAgendaContactosQuery q => (IReadOnlyList<ContactoAgendaDto>)(Agenda.GetValueOrDefault(q.PropietarioId) ?? []),
             ObtenerCumplimientoEmpresaQuery q => Cumplimiento.GetValueOrDefault(q.EmpresaId),
             ObtenerTrabajadoresQuery q => ResponderTrabajadores(q),
             ObtenerClientesDeEmpresaQuery q => (IReadOnlyList<ClienteDeEmpresaDto>)(Clientes.GetValueOrDefault(q.EmpresaId) ?? []),
@@ -141,11 +148,13 @@ public partial class Empresa360PaginaTests : BunitContext
 
         private static int Rango(EstadoDocumento? estado) => estado switch
         {
+            // El handler ordena con EstadoDocumentalFiltro.ClaveOrdenConFaltantes: lo Pendiente va justo detrás de lo vencido.
             EstadoDocumento.Vencido => 0,
-            EstadoDocumento.Urgente => 1,
-            EstadoDocumento.Proximo => 2,
-            EstadoDocumento.Vigente => 3,
-            _ => 4
+            EstadoDocumento.Faltante => 1,
+            EstadoDocumento.Urgente => 2,
+            EstadoDocumento.Proximo => 3,
+            EstadoDocumento.Vigente => 4,
+            _ => 5
         };
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
@@ -173,6 +182,7 @@ public partial class Empresa360PaginaTests : BunitContext
     private MediatorFalso Registrar(MediatorFalso mediador, string rol = Roles.GestorCae)
     {
         this.ConRolDeEscritura(rol);
+        this.ConServiciosDelFormularioDeDocumento();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -275,7 +285,7 @@ public partial class Empresa360PaginaTests : BunitContext
         cabecera.QuerySelector("h1").Should().NotBeNull();
         var entradilla = cabecera.QuerySelector(".cabecera-identidad-datos")!.TextContent;
         entradilla.Should().Contain("CIF B-48.220.917").And.Contain("2 Clientes").And.Contain("25 trabajadores");
-        cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de cumplimiento");
+        cut.Find("[role=img]").GetAttribute("aria-label").Should().StartWith("72% de los documentos exigidos");
         // El anillo va a la izquierda de la identidad, no entre las acciones (mockup).
         cabecera.QuerySelector(".cabecera-identidad-anillo [role=img]").Should().NotBeNull();
         cabecera.QuerySelector(".cabecera-identidad-acciones")!.QuerySelector("[role=img]").Should().BeNull();
@@ -291,6 +301,23 @@ public partial class Empresa360PaginaTests : BunitContext
             "nunca se trae la plantilla entera para contar");
     }
 
+    [Theory]
+    [InlineData(Roles.GestorCae, true)]
+    [InlineData(Roles.Consulta, false)]
+    public void La_cabecera_ofrece_Subir_documento_como_accion_principal_solo_con_escritura(string rol, bool escribe)
+    {
+        Registrar(Empresa(), rol);
+
+        var acciones = Renderizar().Find(".cabecera-identidad-acciones");
+
+        var subir = acciones.QuerySelectorAll("button").SingleOrDefault(b => b.TextContent.Trim() == "Subir documento");
+        (subir is not null).Should().Be(escribe);
+        if (escribe)
+            subir!.ClassList.Should().Contain("boton-primario");
+        acciones.QuerySelectorAll("a").Single(x => x.TextContent.Contains("Detectar altas y bajas"))
+            .ClassList.Should().NotContain("boton-primario", "la acción principal es subir el documento");
+    }
+
     [Fact]
     public void La_informacion_del_lateral_sale_del_detalle()
     {
@@ -302,15 +329,15 @@ public partial class Empresa360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Si_la_empresa_no_llega_se_ofrece_reintentar_y_no_se_consulta_nada_mas()
+    public void Si_la_empresa_no_llega_pinta_FichaNoEncontrada_sin_Reintentar_y_no_se_consulta_nada_mas()
     {
-        Services.ConEnlaceProfundoOtraEmpresa();
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Registrar(new MediatorFalso());
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No pudimos cargar esta empresa").And.Contain("Puede que ya no exista o que no tengas acceso.");
-        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Reintentar");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/empresas");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reintentar");
         mediador.Enviadas.OfType<ObtenerTrabajadoresQuery>().Should().BeEmpty();
         mediador.Enviadas.OfType<ObtenerCredencialAccesoEmpresaSinContrasenaQuery>().Should().BeEmpty();
     }
@@ -330,16 +357,33 @@ public partial class Empresa360PaginaTests : BunitContext
         Chips(cut).Should().Equal(["Todos · 25", "Sin documentación válida · 3", "Por vencer · 3", "Al día · 19"]);
     }
 
+    /// <summary>
+    /// Revisión 1:1 (2026-10-21): Empresa 360 pintaba «Sin incidencias» y contaba «Al día» a quien el listado daba como
+    /// Pendiente (Andrés Blanco, Elena Cano…). La maqueta del 20-10 define «sin documentación válida» como Bloqueado +
+    /// Vencido + Pendiente: el Pendiente entra en ese chip, su fila dice «Pendiente» y ya no hay aclaración de lo que no cuenta.
+    /// </summary>
     [Fact]
-    public void El_chip_sin_documentacion_valida_lleva_la_aclaracion_de_lo_que_no_cuenta()
+    public async Task El_pendiente_cuenta_como_sin_documentacion_valida_y_su_fila_dice_Pendiente()
     {
-        Registrar(Empresa());
+        var mediador = Empresa(
+        [
+            Trabajador(EstadoDocumento.Vencido, "Vencido Uno"),
+            Trabajador(EstadoDocumento.Faltante, "Blanco"),
+            Trabajador(EstadoDocumento.Faltante, "Cano"),
+            Trabajador(EstadoDocumento.Urgente, "Urgente Uno"),
+            Trabajador(EstadoDocumento.Vigente, "Vigente Uno"),
+            Trabajador(EstadoDocumento.SinCaducidad, "Sin caducidad Uno")
+        ]);
+        Registrar(mediador);
 
         var cut = Renderizar();
 
-        cut.FindAll(".empresa360-chip")[1].GetAttribute("title")
-            .Should().Be("Los documentos obligatorios que faltan no entran en este recuento.");
-        cut.FindAll(".empresa360-chip")[2].HasAttribute("title").Should().BeFalse();
+        Chips(cut).Should().Equal(["Todos · 6", "Sin documentación válida · 3", "Por vencer · 1", "Al día · 2"]);
+        cut.FindAll(".empresa360-chip").Should().OnlyContain(c => !c.HasAttribute("title"));
+
+        await cut.FindAll(".empresa360-chip")[1].ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => EstadosDeLasFilas(cut).Should().BeEquivalentTo(["Vencido", "Pendiente", "Pendiente"]));
     }
 
     [Fact]
@@ -472,6 +516,43 @@ public partial class Empresa360PaginaTests : BunitContext
     // ── Pestañas ──────────────────────────────────────────────────────────
 
     [Fact]
+    public void La_tarjeta_Se_pide_la_documentacion_a_muestra_el_contacto_predeterminado_sin_sus_notas()
+    {
+        var mediador = Empresa();
+        mediador.Agenda[EmpresaId] =
+        [
+            new ContactoAgendaDto(Guid.NewGuid(), "Iker Mena", "iker.mena@ejemplo.test", "610338921", "Jefe de equipo", null, false, false, false, [], [], []),
+            new ContactoAgendaDto(Guid.NewGuid(), "Jon Arregi", "jon.arregi@ejemplo.test", "976338900", "Administración", "Nota interna del contacto", true, false, false, [], [], [])
+        ];
+        Registrar(mediador);
+        var cut = Renderizar();
+        var lateral = cut.Find(".cuerpo-con-lateral-lateral");
+        lateral.TextContent.Should().Contain("Se pide la documentación a").And.Contain("Jon Arregi").And.Contain("Administración").And.Contain("Contacto principal");
+        lateral.TextContent.Should().NotContain("Iker Mena").And.NotContain("Nota interna del contacto");
+    }
+
+    [Fact]
+    public void Sin_contacto_predeterminado_no_se_pinta_la_tarjeta_Se_pide_la_documentacion()
+    {
+        var mediador = Empresa();
+        mediador.Agenda[EmpresaId] = [new ContactoAgendaDto(Guid.NewGuid(), "Iker Mena", "iker.mena@ejemplo.test", null, null, null, false, false, false, [], [], [])];
+        Registrar(mediador);
+        var cut = Renderizar();
+        cut.Find(".cuerpo-con-lateral-lateral").TextContent.Should().NotContain("Se pide la documentación a");
+    }
+
+    [Fact]
+    public void El_enlace_Agenda_de_la_tarjeta_abre_la_pestana_Agenda()
+    {
+        var mediador = Empresa();
+        mediador.Agenda[EmpresaId] = [new ContactoAgendaDto(Guid.NewGuid(), "Jon Arregi", "jon.arregi@ejemplo.test", null, "Administración", null, true, false, false, [], [], [])];
+        Registrar(mediador);
+        var cut = Renderizar();
+        cut.Find(".cuerpo-con-lateral-lateral").QuerySelectorAll("button").Single(b => b.TextContent.Contains("Agenda")).Click();
+        Pestana(cut, "Agenda").GetAttribute("aria-selected").Should().Be("true");
+    }
+
+    [Fact]
     public void Las_pestanas_siguen_el_orden_del_mockup_y_Trabajadores_es_la_de_entrada()
     {
         var mediador = Empresa();
@@ -485,7 +566,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         cut.FindAll("[role=tab]").Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal(["Trabajadores", "Clientes", "Documentación", "Agenda", "Ficha", "Historial"]);
+            .Should().Equal(["Trabajadores", "Vigencia", "Clientes", "Documentación", "Reclamar", "Plataformas", "Agenda", "Ficha", "Historial"]);
         Pestana(cut, "Trabajadores").GetAttribute("aria-selected").Should().Be("true");
         Pestana(cut, "Trabajadores").TextContent.Should().Contain("25");
         Pestana(cut, "Clientes").TextContent.Should().Contain("2");
@@ -511,6 +592,9 @@ public partial class Empresa360PaginaTests : BunitContext
     [InlineData("documentacion")]
     [InlineData("agenda")]
     [InlineData("historial")]
+    [InlineData("vigencia")]
+    [InlineData("plataformas")]
+    [InlineData("reclamar")]
     public void La_pestana_de_la_url_monta_su_componente_con_la_empresa(string pestana)
     {
         Registrar(Empresa());
@@ -521,6 +605,9 @@ public partial class Empresa360PaginaTests : BunitContext
         {
             "documentacion" => cut.FindComponent<Stub<PestanaDocumentacion>>().Instance.Parameters.Get(x => x.PropietarioId),
             "agenda" => cut.FindComponent<Stub<PestanaAgendaContactos>>().Instance.Parameters.Get(x => x.PropietarioId),
+            "vigencia" => cut.FindComponent<Stub<PestanaVigenciaEmpresa>>().Instance.Parameters.Get(x => x.EmpresaId),
+            "plataformas" => cut.FindComponent<Stub<PestanaPlataformasEmpresa>>().Instance.Parameters.Get(x => x.EmpresaId),
+            "reclamar" => cut.FindComponent<Stub<PestanaReclamarEmpresa>>().Instance.Parameters.Get(x => x.EmpresaId),
             _ => cut.FindComponent<Stub<PestanaHistorial>>().Instance.Parameters.Get(x => x.EntidadId)
         };
         propietario.Should().Be(EmpresaId);
@@ -567,7 +654,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var lateral = cut.Find(".cuerpo-con-lateral-lateral");
         lateral.QuerySelectorAll(".tarjeta").Should().ContainSingle();
         lateral.TextContent.Should().Contain("Información").And.NotContain("Carpeta de documentación");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         var tabs = cut.FindAll("[role=tab]");
         tabs[^2].TextContent.Trim().Should().Be("Ficha");
         tabs[^1].TextContent.Trim().Should().Be("Historial");
@@ -607,8 +694,9 @@ public partial class Empresa360PaginaTests : BunitContext
         Registrar(m);
         var cut = Renderizar("?pestana=ficha");
         Pestana(cut, "Ficha").GetAttribute("aria-selected").Should().Be("true");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
+        cut.Find("[data-pieza=sello-empresa] h2").TextContent.Should().Be("Sello", "la maqueta lo pone como sección bajo las cajas, no como caja del flujo");
     }
 
     [Fact]
@@ -617,7 +705,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var m = EmpresaConCredencial();
         m.Sellos.Clear();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion", "sello");
+        cut.FindAll("[data-caja]:not([data-caja='catalogo-trabajadores'])").Select(c => c.GetAttribute("data-caja")).Should().Equal("acceso", "firma-documentos", "prevencion", "mutua", "formacion");
         cut.FindComponent<Stub<PestanaSelloEmpresa>>().Instance.Parameters.Get(x => x.EntidadId).Should().Be(EmpresaId);
     }
 
@@ -982,7 +1070,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var tarjeta = TarjetaNota(cut);
         tarjeta.Should().NotBeNull();
-        tarjeta!.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta!.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el Cliente.");
         tarjeta.TextContent.Should().NotContain("Sin nota interna.");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza").Should().Be("nota-interna");
     }
@@ -995,7 +1083,7 @@ public partial class Empresa360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el Cliente.");
     }
 
     /// <summary>
@@ -1011,7 +1099,7 @@ public partial class Empresa360PaginaTests : BunitContext
         var cut = Renderizar();
 
         TarjetaNota(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]
@@ -1039,7 +1127,7 @@ public partial class Empresa360PaginaTests : BunitContext
         cut.WaitForAssertion(() => EditorNotaAbierto(cut).Should().BeTrue());
         var campo = EditorNota(cut).QuerySelector("textarea")!;
         campo.TextContent.Should().Be(NotaGuardada);
-        EditorNota(cut).TextContent.Should().Contain("No la ve el cliente.");
+        EditorNota(cut).TextContent.Should().Contain("No la ve el Cliente.");
         campo.Input("Ahora atiende Jon.");
         EditorNota(cut).QuerySelector(".drawer-pie .boton-primario")!.Click();
 

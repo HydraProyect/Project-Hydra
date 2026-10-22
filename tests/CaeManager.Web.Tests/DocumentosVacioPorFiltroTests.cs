@@ -193,9 +193,9 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Reconocimiento médico");
 
-        cut.Markup.Should().Contain("Ningún documento con estos filtros");
-        cut.Markup.Should().Contain("Quitar los filtros");
-        cut.Markup.Should().NotContain("Aún no hay documentos",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Quitar filtros");
+        cut.Markup.Should().NotContain("Todavía no hay documentos",
             "decirle «sube el primero» a quien acaba de buscar lo manda a duplicar un documento que ya existe");
     }
 
@@ -204,8 +204,8 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(EstadoDocumento.Vencido));
 
-        cut.Markup.Should().Contain("Ningún documento con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay documentos",
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay documentos",
             "cero vencidos es una buena noticia, no una lista sin documentos");
     }
 
@@ -214,9 +214,9 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay documentos");
-        cut.Markup.Should().Contain("Sube el primero para empezar a controlar vigencias.");
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay documentos");
+        cut.Markup.Should().Contain("Sube el primero o usa la subida masiva.");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
     }
 
     /// <summary>
@@ -228,7 +228,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Reconocimiento médico");
 
-        cut.Markup.Should().Contain("Ningún documento con estos filtros");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros");
         cut.Markup.Should().NotContain("Hay documentos subidos");
     }
 
@@ -243,7 +243,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Reconocimiento", estado: nameof(EstadoDocumento.Vencido),
             ambito: nameof(AmbitoAplicacion.Trabajador));
-        cut.Markup.Should().Contain("Ningún documento con estos filtros", "es el punto de partida de este caso");
+        cut.Markup.Should().Contain("Ningún resultado con estos filtros", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
 
@@ -252,8 +252,8 @@ public class DocumentosVacioPorFiltroTests : BunitContext
         uri.Should().NotContain("Ambito=");
         uri.Should().NotContain("q=Reconocimiento");
 
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
-        cut.Markup.Should().Contain("Aún no hay documentos");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
+        cut.Markup.Should().Contain("Todavía no hay documentos");
     }
 
     [Fact]
@@ -261,8 +261,8 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(busqueda: "Reconocimiento", documentos: Documento("Reconocimiento médico"));
 
-        cut.Markup.Should().NotContain("Ningún documento con estos filtros");
-        cut.Markup.Should().NotContain("Aún no hay documentos");
+        cut.Markup.Should().NotContain("Ningún resultado con estos filtros");
+        cut.Markup.Should().NotContain("Todavía no hay documentos");
         cut.Markup.Should().Contain("Reconocimiento médico");
     }
 
@@ -319,7 +319,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Aún no hay documentos»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Todavía no hay documentos»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -332,7 +332,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Aún no hay documentos");
+        cut.Markup.Should().NotContain("Todavía no hay documentos");
         cut.Markup.Should().NotContain("+ Nuevo documento", "invitar a crear con alcance cero termina en un duplicado");
     }
 
@@ -343,7 +343,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Aún no hay documentos");
+        cut.Markup.Should().Contain("Todavía no hay documentos");
         cut.Markup.Should().Contain("+ Nuevo documento");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }

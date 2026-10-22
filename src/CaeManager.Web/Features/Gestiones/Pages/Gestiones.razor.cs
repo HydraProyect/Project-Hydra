@@ -426,11 +426,32 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         StateHasChanged();
     }
 
+    // Los últimos ocho caracteres: en un Id v7 los primeros son el reloj y se repiten entre Gestiones creadas en el mismo minuto.
+    private static string ReferenciaGestion(Guid id) => $"GES-{id.ToString("N")[^8..].ToUpperInvariant()}";
+
     private static TonoBadge TonoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? TonoBadge.Exito : TonoBadge.Advertencia;
 
     private string TextoEstado(EstadoGestion estado) =>
         estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
+
+    /// <summary>
+    /// Pastilla de la cabecera de la vista rápida (maqueta «Flujos 10»): «Abierta hace N días» en ámbar desde
+    /// 5 días y en rojo desde 10; por debajo de 5, la pastilla de estado de siempre. La completada no cambia.
+    /// </summary>
+    private (string Texto, TonoBadge Tono) PastillaVistaRapida(GestionListaDto gestion)
+    {
+        if (gestion.Estado != EstadoGestion.Pendiente)
+            return (TextoEstado(gestion.Estado), TonoEstado(gestion.Estado));
+
+        var dias = DiasAbierta(gestion.CreadoEnUtc, DiaDeNegocio.Hoy());
+        return dias switch
+        {
+            >= 10 => (Textos["MotivoAbiertaHaceDias", dias].Value, TonoBadge.Peligro),
+            >= 5 => (Textos["MotivoAbiertaHaceDias", dias].Value, TonoBadge.Advertencia),
+            _ => (TextoEstado(gestion.Estado), TonoEstado(gestion.Estado))
+        };
+    }
 
     /// <summary>
     /// Motivo bajo la pastilla de estado: cuánto lleva abierta una Gestión pendiente. La completada no
@@ -508,7 +529,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         return WorkspaceService.AbrirAsync(tipo, id, titulo, pestana);
     }
 
-    private async Task CambiarEstadoAsync(Guid id, bool completada)
+    private async Task CambiarEstadoAsync(Guid id, bool completada, bool ofrecerDeshacer = true)
     {
         if (!_cambiandoEstado.Add(id))
             return;
@@ -526,6 +547,15 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             // comando viajaba se pudo abrir otra fila, y a esa no le ha pasado nada.
             if (_vistaRapida is { } vista && vista.Id == id)
                 _vistaRapida = vista with { Estado = completada ? EstadoGestion.Completada : EstadoGestion.Pendiente };
+
+            // Maqueta «Flujos 10 Incidencias y Gestiones»: completar y reabrir avisan y ofrecen Deshacer (la
+            // acción contraria). El propio Deshacer no encadena otro, para no dejar un bucle de avisos.
+            var aviso = completada ? Textos["ToastGestionCompletada"].Value : Textos["ToastGestionReabierta"].Value;
+            if (ofrecerDeshacer)
+                ToastService.Mostrar(aviso, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value,
+                    () => CambiarEstadoAsync(id, !completada, ofrecerDeshacer: false));
+            else
+                ToastService.Mostrar(aviso, TonoToast.Exito);
 
             await RecargarAsync();
         }

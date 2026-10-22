@@ -1,3 +1,5 @@
+using CriterioDocumentoIdentidadTrabajador = CaeManager.Domain.Trabajadores.CriterioDocumentoIdentidadTrabajador;
+using TipoDocumentoTrabajador = CaeManager.Domain.Trabajadores.TipoDocumentoTrabajador;
 using CaeManager.Application.Trabajadores.Queries.ObtenerEmpleadoresDeTrabajadoresVisibles;
 using System.Text.Json;
 using CaeManager.Application.Alertas;
@@ -115,17 +117,20 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private int _pagina = 1;
     private int _tamanoPagina = TamanoPaginaMinimo;
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
     private bool _cargaPendiente = true;
     private bool _parametrosInicializados;
     private CancellationTokenSource? _peticionActiva;
     private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
     private readonly HashSet<Guid> _cerradasAMano = [];
 
     private Task CambiarPaginaAsync(int pagina)
     {
         _pagina = pagina;
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         return CargarListaAsync();
     }
@@ -498,7 +503,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         _parametrosInicializados = true;
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
-        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+        var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial, incluirFaltantes: true);
 
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
@@ -578,7 +583,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
             Pagina: _pagina,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
             DelegacionEmpresaId: Guid.TryParse(_filtroDelegacionEmpresaId, out var delegacionId) ? delegacionId : null,
             OficioEmpresaId: Guid.TryParse(_filtroOficioId, out var oficioId) ? oficioId : null,
@@ -607,14 +612,15 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _elementosPagina = resultado.Elementos.ToList();
             if (conservarSeleccion)
             {
-                _seleccionados.IntersectWith(_elementosPagina.Select(t => t.Id));
-                if (_idEnfocado is { } enfocado && _elementosPagina.All(t => t.Id != enfocado)) _idEnfocado = null;
+                var pintadas = FilasPintadas;
+                _seleccionados.IntersectWith(pintadas.Select(t => t.Id));
+                if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
             }
             else
             {
                 _seleccionados.Clear();
                 _idEnfocado = null;
-                _expandidos.Clear();
+                _expandidos.Clear(); _incidenciasCompletas.Clear();
                 _cerradasAMano.Clear();
             }
             _expandidos.IntersectWith(_elementosPagina.Where(t => t.Incidencias.Count > 0).Select(t => t.Id));
@@ -667,6 +673,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agrupar = AgrupacionValida(valor);
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupado ? _agrupar : null);
         await RecargarAsync();
     }
@@ -686,27 +694,34 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// tienen Delegación u Oficio, al final, bajo «Sin delegación» / «Sin oficio»). <c>Cantidad</c> es cuántas filas
     /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
-    private IEnumerable<(TrabajadorListaDto Trabajador, string? Grupo, int Cantidad)> FilasConGrupo()
-    {
-        if (!Agrupado)
-        {
-            foreach (var trabajador in _elementosPagina)
-                yield return (trabajador, null, 0);
-            yield break;
-        }
+    private IEnumerable<FilaDeGrupo<TrabajadorListaDto>> FilasConGrupo() =>
+        GruposDeLista.Agrupar(_elementosPagina, Agrupado, ClaveDeGrupo, (_, trabajador) => TituloDeGrupo(trabajador), EsFilaRoja, _gruposAbiertos);
 
-        var cantidades = _elementosPagina.GroupBy(ClaveDeGrupo).ToDictionary(g => g.Key, g => g.Count());
-        string? anterior = null;
-        foreach (var trabajador in _elementosPagina)
-        {
-            var clave = ClaveDeGrupo(trabajador);
-            var empiezaGrupo = anterior is null || clave != anterior;
-            anterior = clave;
-            yield return empiezaGrupo
-                ? (trabajador, TituloDeGrupo(trabajador), cantidades[clave])
-                : (trabajador, null, 0);
-        }
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<TrabajadorListaDto> FilasPintadas =>
+        Agrupado ? _elementosPagina.Where(t => _gruposAbiertos.EstaAbierto(ClaveDeGrupo(t))).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(t => t.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
     }
+
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila). «Sin confirmar» no cuenta.</summary>
+    private static bool EsFilaRoja(TrabajadorListaDto item) =>
+        EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
 
     /// <summary>Lo que identifica el grupo de una fila en la agrupación vigente (el Id del catálogo, no el nombre: dos Empresas pueden llamar igual a una Delegación).</summary>
     private string ClaveDeGrupo(TrabajadorListaDto t) => _agrupar switch
@@ -756,7 +771,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var trabajador = _elementosPagina.FirstOrDefault(t => t.Id == id);
         if (trabajador is not null && EstaExpandido(trabajador))
         {
-            _expandidos.Remove(id);
+            _expandidos.Remove(id); _incidenciasCompletas.Remove(id);
             _cerradasAMano.Add(id);
         }
         else
@@ -768,7 +783,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private void AlternarTodosExpandidos(bool expandir)
     {
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         var conIncidencias = _elementosPagina.Where(t => t.Incidencias.Count > 0).Select(t => t.Id);
         if (expandir) _expandidos.UnionWith(conIncidencias);
@@ -777,6 +792,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private bool EstaExpandido(TrabajadorListaDto trabajador) => _expandidos.Contains(trabajador.Id)
         || (!_cerradasAMano.Contains(trabajador.Id) && trabajador.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda)));
+
+    /// <summary>Con una búsqueda que coincide con algún documento de la fila se enseñan todos: no se esconde lo que se busca tras «Ver los N restantes».</summary>
+    private bool IncidenciasCompletas(TrabajadorListaDto trabajador) => _incidenciasCompletas.Contains(trabajador.Id)
+        || (!string.IsNullOrWhiteSpace(_busqueda) && trabajador.Incidencias.Any(i => CaeManager.Web.Features.Documentos.Components.SubcajaIncidenciasDocumentales.Coincide(i, _busqueda)));
 
     /// <summary>Un Id de la URL solo vale si es un Guid; cualquier otra cosa es «sin filtro».</summary>
     private static string IdDesdeUrl(string? valor) =>
@@ -1112,7 +1131,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         _consultaQueConservaSeleccion = null;
         _pagina = 1;
-        _expandidos.Clear();
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         _cerradasAMano.Clear();
         await CargarListaAsync();
     }
@@ -1345,7 +1364,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private void CambiarTipoEmpleador(string tipo)
     {
         _tipoEmpleador = tipo;
-        _empresaId = string.Empty;
+        // En modo silencioso la Empresa única no tiene selector: al volver a «Empresa» hay que restaurarla.
+        _empresaId = tipo == "empresa" && _resolverEmpresaEnSilencio && _empresasDisponibles.Count == 1
+            ? _empresasDisponibles[0].Id.ToString()
+            : string.Empty;
         _subcontrataId = string.Empty;
         _oficioId = string.Empty;
         _delegacionId = string.Empty;
@@ -1450,7 +1472,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastCreado"], TonoToast.Exito);
+            var nombreCompleto = $"{_nombre} {_apellidos}".Trim();
+            ToastService.MostrarConEnlace(
+                Textos["ToastCreado"],
+                new ToastEnlace($"/trabajadores/{resultado.Valor}", string.Format(Textos["ToastVerFicha"], nombreCompleto), nombreCompleto));
             _drawerVisible = false;
             await RecargarTrasEscrituraAsync();
         }
@@ -1510,14 +1535,17 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         {
             if (string.IsNullOrWhiteSpace(_dni)) return null;
 
-            var resultado = ValidadorIdentificacion.Analizar(_dni);
-            return resultado.Tipo switch
+            // Criterio único del documento del Trabajador (decisión de Chris, 2026-10-20): DNI, NIE o Pasaporte. Lo que no
+            // es DNI ni NIE se avisa antes de guardar; un marcador («PENDIENTE», «SIN DNI») lo rechaza la validación.
+            var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(_dni);
+            return (resultado.EsValido, resultado.Tipo ?? CriterioDocumentoIdentidadTrabajador.TipoGuardado(_dni)) switch
             {
-                TipoIdentificacion.Dni => resultado.EsValido ? Textos["PistaDniValido"] : Textos["PistaDniInvalido"],
-                TipoIdentificacion.Nie => resultado.EsValido ? Textos["PistaNieValido"] : Textos["PistaNieInvalido"],
-                TipoIdentificacion.NifEmpresa => resultado.EsValido ? Textos["PistaCifValido"] : Textos["PistaCifInvalido"],
-                TipoIdentificacion.TieSoporte => Textos["PistaTieSoporte"],
-                _ => Textos["PistaDocumentoExtranjero"]
+                (true, TipoDocumentoTrabajador.Dni) => Textos["PistaDniValido"].Value,
+                (true, TipoDocumentoTrabajador.Nie) => Textos["PistaNieValido"].Value,
+                (true, _) => Textos["PistaDocumentoExtranjero"].Value,
+                (false, TipoDocumentoTrabajador.Dni) when resultado.Error!.Contains("letra") => Textos["PistaDniInvalido"].Value,
+                (false, TipoDocumentoTrabajador.Nie) when resultado.Error!.Contains("letra") => Textos["PistaNieInvalido"].Value,
+                _ => null,
             };
         }
     }
@@ -1526,27 +1554,31 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         get
         {
-            var resultado = ValidadorIdentificacion.Analizar(_dni);
-            if (resultado.Tipo is TipoIdentificacion.TieSoporte or TipoIdentificacion.Otros) return "info";
-            return resultado.EsValido ? "exito" : "error";
+            var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(_dni);
+            if (!resultado.EsValido) return "error";
+            return resultado.SeGuardaComoPasaporte ? "info" : "exito";
         }
     }
 
     private static string NombreCompleto(TrabajadorListaDto trabajador) => $"{trabajador.Nombre} {trabajador.Apellidos}";
 
-    /// <summary>Porcentaje de documentos registrados al día para la barra de «Registrados vigentes»; sin documentos no hay universo y la barra pinta la raya.</summary>
+    /// <summary>
+    /// Porcentaje al día para la barra de «Registrados vigentes», sobre los registrados más lo exigido que falta (el mismo
+    /// denominador que la cifra); sin ninguno de los dos no hay universo y la barra pinta la raya.
+    /// </summary>
     private static int? PorcentajeRegistradosVigentes(TrabajadorListaDto trabajador) =>
-        trabajador.DocumentosRegistrados <= 0 ? null : trabajador.DocumentosVigentes * 100 / trabajador.DocumentosRegistrados;
+        trabajador.DocumentosEsperados <= 0 ? null : trabajador.DocumentosVigentes * 100 / trabajador.DocumentosEsperados;
 
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
+        // Solo las filas pintadas: las de un grupo plegado no se ven y no se pueden seleccionar a ciegas.
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1752,7 +1784,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     {
         // Mismo criterio que Empresas y la maqueta: rojo para lo que falta o vence, ámbar para lo que está por vencer o en
         // tolerancia; «Sin confirmar» no tiñe.
-        var tinte = EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) switch
+        var tinte = item.EstadoDocumental switch
         {
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
             EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
@@ -1776,20 +1808,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":
@@ -1828,7 +1862,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(valores.EmpresaId);
         // Un filtro guardado define el conjunto entero: sin estado guardado, el estado se quita. Un valor que
         // ya no es una opción (catálogo cambiado) se ignora, como uno de la URL.
-        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado);
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(valores.Estado, incluirFaltantes: true);
         _filtroCentroId = IdDesdeUrl(valores.CentroId);
         _filtroDelegacionEmpresaId = IdDesdeUrl(valores.DelegacionEmpresaId);
         _filtroOficioId = IdDesdeUrl(valores.OficioId);
@@ -1870,7 +1904,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
-        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"), incluirFaltantes: true);
         _filtroSubcontrataId = IdDesdeUrl(vista.GetValueOrDefault("subcontrata"));
         _filtroEmpresaId = _filtroSubcontrataId.Length > 0 ? string.Empty : IdDesdeUrl(vista.GetValueOrDefault("empresa"));
         _filtroCentroId = IdDesdeUrl(vista.GetValueOrDefault("centro"));

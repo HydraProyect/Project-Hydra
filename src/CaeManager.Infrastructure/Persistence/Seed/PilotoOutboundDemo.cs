@@ -212,6 +212,14 @@ public sealed record FechasPilotoOutbound(DateOnly FechaDemostracion)
     public DateOnly Vigente(int i) => FechaDemostracion.AddDays(75 + Positivo(i) % 240);
     public DateOnly Proximo(int i) => FechaDemostracion.AddDays(20 + Positivo(i) % 2);
     public DateOnly Urgente(int i) => FechaDemostracion.AddDays(5 + Positivo(i) % 2);
+
+    /// <summary>
+    /// Si un vencimiento fijo a <paramref name="dias"/> días de D está «Urgente» todos los días en que se puede sembrar,
+    /// de D−<see cref="OpcionesPilotoOutbound.MargenMaximoDias"/> a D: no ha vencido el día D y, sembrado el primer día
+    /// del margen, ya queda dentro del umbral rojo. Con el margen de nueve días y el umbral de quince, de D+1 a D+6.
+    /// </summary>
+    public static bool EsUrgenteEnTodoElMargen(int dias) =>
+        dias >= 1 && dias + OpcionesPilotoOutbound.MargenMaximoDias <= UmbralRojoDias;
     public DateOnly Vencido(int i) => FechaDemostracion.AddDays(-(10 + Positivo(i) % 81));
 
     /// <summary>Emisión de un documento que no caduca o que nadie ha confirmado: no hay vencimiento del que calcularla.</summary>
@@ -450,8 +458,21 @@ public static class IdentidadesPilotoOutbound
     /// comparte factor con los ochenta millones del módulo: dos Trabajadores del lote
     /// no reciben el mismo número, y los de dos Trabajadores seguidos distan millones.
     /// </summary>
-    public static string Dni(TenantPilotoOutbound tenant, int i) =>
-        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000));
+    public static string Dni(TenantPilotoOutbound tenant, int i)
+    {
+        var numero = 10_000_000 + (int)((OrdinalEnElLote(tenant, i) + 1L) * 37_139_213 % 80_000_000);
+        return tenant.Extranjeros.Any(e => e.Trabajador == i) ? NieValido(numero) : DatosPruebaSeeder.GenerarDniValido(numero);
+    }
+
+    /// <summary>
+    /// Un NIE con su letra de control (X + 7 cifras) para los extranjeros del perfil: un Trabajador con permiso de trabajo no
+    /// tiene DNI. Las siete cifras salen del mismo número que el DNI que tendría, así que tampoco se repiten dentro del lote.
+    /// </summary>
+    private static string NieValido(int numero)
+    {
+        var cifras = 1_000_000 + numero % 9_000_000;
+        return $"X{cifras:D7}{"TRWAGMYFPDXBNJZSQVHLCKE"[cifras % 23]}";
+    }
 
     /// <summary>El documento de identidad de la persona que detecta la IA en un documento de Empresa: un ordinal por encima de los de Trabajador del lote, así que no repite ninguno.</summary>
     public static string DniDeLaDeteccion(TenantPilotoOutbound tenant) =>
@@ -469,6 +490,28 @@ public static class IdentidadesPilotoOutbound
     }
 
     private static int IndiceDe(TenantPilotoOutbound tenant) => CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
+
+    /// <summary>
+    /// El ordinal de la baja <paramref name="k"/> del Tenant (<see cref="TenantPilotoOutbound.BajasDelUltimoAno"/>): los
+    /// últimos de los <see cref="OrdinalesDeTrabajador"/> reservados, de arriba abajo, así que ni su nombre ni su documento de
+    /// identidad repiten los de un Trabajador del lote.
+    /// </summary>
+    private static int OrdinalDeLaBaja(TenantPilotoOutbound tenant, int k)
+    {
+        var ordinal = OrdinalesDeTrabajador - 1 - CatalogoPilotoOutbound.Tenants.Take(IndiceDe(tenant)).Sum(t => t.BajasDelUltimoAno) - k;
+        var delLote = CatalogoPilotoOutbound.Tenants.Sum(CatalogoPilotoOutbound.TrabajadoresSembrados);
+        if (k < 0 || k >= tenant.BajasDelUltimoAno || ordinal < delLote)
+            throw new InvalidOperationException(
+                $"{tenant.Clave}: la baja {k} no cabe entre los {OrdinalesDeTrabajador} ordinales reservados por encima de los {delLote} Trabajadores del lote.");
+        return ordinal;
+    }
+
+    /// <summary>El nombre de pila y los apellidos de la baja <paramref name="k"/> del Tenant.</summary>
+    public static (string Nombre, string Apellidos) TrabajadorDeBaja(TenantPilotoOutbound tenant, int k) => Persona(OrdinalDeLaBaja(tenant, k));
+
+    /// <summary>El documento de identidad de la baja <paramref name="k"/> del Tenant, con la misma regla que el de un Trabajador.</summary>
+    public static string DniDeBaja(TenantPilotoOutbound tenant, int k) =>
+        DatosPruebaSeeder.GenerarDniValido(10_000_000 + (int)((OrdinalDeLaBaja(tenant, k) + 1L) * 37_139_213 % 80_000_000));
 
     // Códigos de provincia con que empieza un identificador fiscal de sociedad: es solo verosimilitud, no la sede de nadie.
     private static readonly int[] Provincias = [28, 8, 46, 41, 48, 50, 39, 15, 29, 33, 3, 47, 45];
@@ -540,6 +583,9 @@ public static class IdentidadesPilotoOutbound
             PerfilPilotoOutbound.ObrasYMaquinaria => ["Oficial de primera de estructuras", "Operador de maquinaria", "Gruista", "Encofrador", "Encargado de obra", "Peón especialista"],
             PerfilPilotoOutbound.Autonomo => ["Técnico de mantenimiento"],
             PerfilPilotoOutbound.ConSubcontratas => ["Montador", "Oficial electricista", "Técnico de puesta en marcha", "Encargado de montaje"],
+            PerfilPilotoOutbound.EscaparateAlDia => ["Técnico de mantenimiento", "Oficial electricista", "Técnico frigorista", "Mecánico de mantenimiento", "Encargado de turno", "Fontanero industrial"],
+            PerfilPilotoOutbound.EscaparatePorVencer => ["Instalador de climatización", "Técnico frigorista", "Oficial de calefacción", "Ayudante de instalaciones"],
+            PerfilPilotoOutbound.EscaparatePocosVencidos => ["Mecánico industrial", "Soldador de mantenimiento", "Electromecánico", "Encargado de mantenimiento"],
             _ => ["Solador", "Oficial de albañilería", "Peón de pavimentos", "Encargado de reformas"]
         };
 

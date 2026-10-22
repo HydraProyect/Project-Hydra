@@ -15,6 +15,7 @@ using CaeManager.Application.Centros.Commands.EliminarCentro;
 using CaeManager.Application.Centros.Commands.RestaurarCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
+using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
@@ -84,6 +85,9 @@ public partial class Centro360Gen2Tests : BunitContext
         public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
         public Dictionary<Guid, List<TrabajadorAsignacionDocumentacionDto>> Asignaciones { get; } = [];
         public Dictionary<Guid, List<TrabajadorSinAsignacionDto>> SinAsignacion { get; } = [];
+
+        /// <summary>Empresa empleadora por Trabajador asignado (la fila de Centro 360 la enseña junto al nombre).</summary>
+        public Dictionary<Guid, List<TrabajadorAsignadoDto>> Empleadores { get; } = [];
         public Dictionary<Guid, List<DocumentoReclamableDto>> PorReclamar { get; } = [];
 
         /// <summary>Los bloqueos de acceso por Centro: responde a la consulta con SU Centro, como la real.</summary>
@@ -138,7 +142,10 @@ public partial class Centro360Gen2Tests : BunitContext
             ObtenerDocumentacionBloqueantePendienteQuery q => (IReadOnlyList<DocumentacionBloqueantePendienteDto>)
                 (q.CentroId is { } id ? Bloqueos.GetValueOrDefault(id) ?? [] : Bloqueos.Values.SelectMany(b => b).ToList()),
             ObtenerTrabajadoresVisitaSinAsignacionQuery q => SinAsignacion.GetValueOrDefault(q.CentroId) ?? [],
+            ObtenerTrabajadoresAsignadosDeCentroQuery q => (IReadOnlyList<TrabajadorAsignadoDto>)(Empleadores.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
+            CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.ObtenerCambiosEstadoPlataformaDeCentroQuery =>
+                (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.CambioEstadoPlataformaCentroDto>)[],
             DarDeBajaAsignacionesCommand => ResultadoBaja,
             CrearAsignacionCommand => ResultadoCrearAsignacion,
             EliminarCentroCommand => Result.Exito(),
@@ -313,7 +320,7 @@ public partial class Centro360Gen2Tests : BunitContext
 
         cut.FindAll("[role=tab]")
             .Select(t => t.ChildNodes.OfType<IText>().First(n => !string.IsNullOrWhiteSpace(n.Data)).Data.Trim())
-            .Should().Equal("Trabajadores", "Documentación del Centro", "Visitas", "Requisitos", "Ficha", "Historial");
+            .Should().Equal("Trabajadores", "Documentación Empresa", "Requisitos", "Visitas", "Ficha", "Historial");
         var primera = cut.FindAll("[role=tab]")[0];
         primera.GetAttribute("aria-selected").Should().Be("true");
         primera.QuerySelector(".pestanas-contador")!.TextContent.Trim().Should().Be("2 trabajadores con incidencias");
@@ -372,6 +379,8 @@ public partial class Centro360Gen2Tests : BunitContext
             .Should().Equal("10/10/2026 – 22/10/2026", "12/10/2026 – 14/10/2026");
         cut.FindAll("[role=tabpanel] .elemento-lista-lateral-detalles").Select(v => v.TextContent.Trim())
             .Should().Equal("3 trabajadores", "1 trabajador");
+        cut.FindAll(".centro-visitas-lista .boton-360").Select(v => v.GetAttribute("href"))
+            .Should().Equal(mediador.Visitas[id].OrderBy(v => v.FechaInicio).Select(v => $"/visitas/{v.VisitaId}"));
         cut.Find("[role=tabpanel] [hidden]").Should().NotBeNull();
     }
 
@@ -407,7 +416,7 @@ public partial class Centro360Gen2Tests : BunitContext
     [Theory]
     [InlineData("trabajadores")]
     [InlineData("visitas")]
-    public void La_tarjeta_de_canales_sigue_en_el_lateral_sin_otra_tarjeta_de_visitas(string pestana)
+    public void La_tarjeta_de_canales_pertenece_a_Ficha_y_no_al_lateral(string pestana)
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -417,8 +426,8 @@ public partial class Centro360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         cut.Find("aside[data-pieza=lateral]").TextContent.Should()
-            .Contain("Canales de gestión").And.NotContain("Próxima visita");
-        cut.Find(".cuerpo-con-lateral-principal").TextContent.Should().NotContain("Canales de gestión");
+            .NotContain("Canales de gestión").And.NotContain("Próxima visita");
+        cut.Find(".centro-ficha-canales").HasAttribute("hidden").Should().BeTrue();
         cut.FindAll("[role=tab]").Single(t => t.GetAttribute("aria-selected") == "true")
             .TextContent.Trim().Should().StartWith(pestana == "visitas" ? "Visitas" : "Trabajadores");
     }
@@ -513,10 +522,10 @@ public partial class Centro360Gen2Tests : BunitContext
         lateral.GetAttribute("aria-label").Should().Be("Contexto del centro");
         var tarjetas = lateral.QuerySelectorAll(":scope > .tarjeta-compacta[data-pieza='tarjeta']");
         tarjetas.Select(t => t.QuerySelector(".tarjeta-titulo")!.TextContent.Trim())
-            .Should().Equal("Información", "Canales de gestión");
+            .Should().Equal("Información");
         tarjetas[0].TextContent.Should().Contain("Refrielectric S.A.").And.Contain("CN-01").And.Contain("Pol. Norte 4");
         tarjetas[0].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Editar →");
-        tarjetas[1].QuerySelector(".tarjeta-acciones button")!.TextContent.Trim().Should().Be("Gestionar →");
+        cut.Find(".centro-ficha-canales .tarjeta-acciones button").TextContent.Trim().Should().Be("Gestionar →");
 
         cut.Find(".cuerpo-con-lateral-principal").QuerySelector("aside").Should().BeNull();
         cut.FindAll(".centro360-cuerpo, .centro360-lateral, .centro360-tarjeta-lateral, .cabecera-pagina")
@@ -549,12 +558,37 @@ public partial class Centro360Gen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Sin las pastillas de motivos, el bloque «Empresa» del acordeón es el único camino de Centro 360 para ver las causas de
-    /// ámbito Empresa, también la de plataforma con Estado null (rechazo en la plataforma). Si la página dejara de pasarle
-    /// <c>IncidenciasEmpresa</c>, esas causas desaparecerían de la pantalla sin aviso.
+    /// Maqueta del 20-10, lista de Trabajadores: la Empresa empleadora acompaña al nombre, los filtros son «Todos» y «Bloquea acceso»
+    /// y la baja en lote no se ofrece. El lateral lleva «Alta» y ya no «Empresa»; «Visitas» sin visitas no enseña un «0».
     /// </summary>
     [Fact]
-    public void Las_causas_de_ambito_Empresa_se_ven_en_el_acordeon_tambien_la_de_plataforma_sin_estado()
+    public void La_ficha_sigue_la_maqueta_del_20_10_empleadora_filtros_alta_y_sin_cero_en_Visitas()
+    {
+        this.ConRolDeEscritura();
+        var id = Guid.NewGuid();
+        var mediador = Registrar(new MediatorFalso());
+        mediador.Detalles[id] = Detalle(id, "Centro Norte") with { CreadoEnUtc = new DateTime(2026, 3, 5, 10, 0, 0, DateTimeKind.Utc) };
+        mediador.Resumenes[id] = Resumen(id, "Centro Norte");
+        var juan = Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido));
+        mediador.Asignaciones[id] = [juan];
+        mediador.Empleadores[id] = [new(juan.TrabajadorId, "Juan Pérez", "Montajes Orvelta S.L.", juan.FechaAlta)];
+
+        var cut = Renderizar(id);
+
+        cut.WaitForAssertion(() => cut.Find("[data-empleador]").TextContent.Should().Be("Montajes Orvelta S.L."));
+        cut.FindAll(".franja-estado [data-estado]").Select(e => e.GetAttribute("data-estado")).Should().Equal("Bloqueado");
+        cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Dar de baja seleccionados");
+        var lateral = cut.Find(".centro360-lateral, aside").TextContent;
+        lateral.Should().Contain("Alta").And.Contain("05/03/2026").And.NotContain("Ibertec GmbH");
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.StartsWith("Visitas")).TextContent.Trim().Should().Be("Visitas");
+    }
+
+    /// <summary>
+    /// Maqueta del 20-10: los documentos de Empresa con incidencia no abren «Trabajadores» en un bloque «Empresa»; su cifra va en la
+    /// pestaña «Documentación Empresa» (también la causa de plataforma con Estado null) y las causas de Trabajador no cuentan.
+    /// </summary>
+    [Fact]
+    public void Las_causas_de_ambito_Empresa_van_en_el_contador_de_Documentacion_Empresa_y_no_en_el_acordeon()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -568,9 +602,9 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var cut = Renderizar(id);
 
-        var bloque = cut.WaitForElement("[data-bloque-empresa]");
-        bloque.TextContent.Should().Contain("Seguro de responsabilidad civil").And.Contain("Rechazo en plataforma: falta la firma")
-            .And.Contain("2 doc.").And.NotContain("Formación de Juan", "las causas de Trabajador van en la fila de su Trabajador");
+        var pestana = cut.WaitForElements("[role=tab]").Single(p => p.TextContent.Contains("Documentación Empresa"));
+        pestana.TextContent.Should().Contain("2", "los dos documentos de Empresa con incidencia, no el de Trabajador");
+        cut.FindAll("[data-bloque-empresa]").Should().BeEmpty("el bloque «Empresa» ya no abre la pestaña Trabajadores");
     }
 
     [Fact]
@@ -601,11 +635,11 @@ public partial class Centro360Gen2Tests : BunitContext
 
         var enlace = cut.FindAll("a").Where(a => a.TextContent.Contains("Abrir portal"))
             .Should().ContainSingle("hay un canal de plataforma con dirección").Subject;
-        enlace.GetAttribute("class").Should().Contain("boton-primario");
+        enlace.GetAttribute("class").Should().Contain("boton-secundario");
         enlace.GetAttribute("href").Should().Be("https://app.twind.io/login");
         enlace.GetAttribute("target").Should().Be("_blank");
         enlace.GetAttribute("rel").Should().Contain("noopener").And.Contain("noreferrer");
-        cut.FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo(
+        cut.FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim()).Should().BeEquivalentTo(
             ["Copiar usuario", "Copiar contraseña"], "la dirección del portal ya no se copia: solo las credenciales");
     }
 
@@ -656,7 +690,7 @@ public partial class Centro360Gen2Tests : BunitContext
     {
         var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io") with { TieneCredenciales = false });
 
-        Renderizar(id).FindAll(".boton-copiar").Should().BeEmpty("sin credenciales no hay nada que copiar");
+        Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Should().BeEmpty("sin credenciales no hay nada que copiar");
     }
 
     [Fact]
@@ -666,7 +700,7 @@ public partial class Centro360Gen2Tests : BunitContext
             null, "gestion@ejemplo.test", null, null, true, Guid.NewGuid());
         var (id, _, _) = CentroConCanal(correo);
 
-        Renderizar(id).FindAll(".boton-copiar").Select(b => b.TextContent.Trim())
+        Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim())
             .Should().NotContain(["Copiar usuario", "Copiar contraseña"]);
     }
 
@@ -684,7 +718,7 @@ public partial class Centro360Gen2Tests : BunitContext
         this.ConRolDeEscritura(rol);
         var (id, _, _) = CentroConCanal(CanalPlataforma("app.twind.io"));
 
-        var botones = Renderizar(id).FindAll(".boton-copiar").Select(b => b.TextContent.Trim()).ToList();
+        var botones = Renderizar(id).FindAll("[data-caja=canales-centro] .boton-copiar").Select(b => b.TextContent.Trim()).ToList();
 
         if (seOfrece)
             botones.Should().Contain(["Copiar usuario", "Copiar contraseña"]);
@@ -703,7 +737,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle()
             .Which.Should().Be(new ObtenerCredencialCanalGestionQuery(id, canal.Id));
@@ -719,7 +753,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == "Copiar contraseña").ClickAsync(new MouseEventArgs());
 
         modulo.Invocations.Should().BeEmpty("no había nada que copiar");
         Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t => t.Mensaje.Contains("No hay ninguna contraseña"));
@@ -739,7 +773,7 @@ public partial class Centro360Gen2Tests : BunitContext
         modulo.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
         var cut = Renderizar(id);
 
-        await cut.FindAll(".boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[data-caja=canales-centro] .boton-copiar").Single(b => b.TextContent.Trim() == boton).ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<ObtenerCredencialCanalGestionQuery>().Should().ContainSingle();
         Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2F",
@@ -906,17 +940,16 @@ public partial class Centro360Gen2Tests : BunitContext
         var menu = cut.FindAll("[role=menuitem]").Select(i => i.TextContent.Trim()).ToList();
         menu.Should().Contain("Generar informe del centro");
         cut.Find(".motivo-bloqueo-texto").TextContent.Should().Contain("Formación PRL");
-        cut.Find(".celda-documento-nombre").TextContent.Trim().Should().Be("Formación PRL");
+        cut.Find(".identidad-documento-plataforma").TextContent.Should().Contain("Formación PRL");
 
         var botones = cut.FindAll("button").Select(b => b.TextContent.Trim()).ToList();
         var esperados = seOfrecen ? 1 : 0;
         botones.Count(b => b == "Programar visita").Should().Be(esperados);
         botones.Count(b => b == "+ Asignar trabajador").Should().Be(esperados);
-        botones.Count(b => b == "Dar de baja seleccionados").Should().Be(esperados);
+        botones.Should().NotContain("Dar de baja seleccionados", "la maqueta del 20-10 lo quita en Centro 360 («no decidido»), también al rol con escritura");
         menu.Count(i => i == "Reclamar documentación (1)").Should().Be(esperados);
         cut.FindAll(".motivo-bloqueo-pedir").Should().HaveCount(esperados, "«Gestionar» (antes «Pedir») abre el flujo que acaba en un envío de reclamación");
-        cut.FindAll(".celda-documento-nombre button").Should().HaveCount(esperados,
-            "el nombre del documento abre el Drawer que crea o renueva: a Consulta se le pinta como texto");
+        cut.FindAll(".identidad-documento-plataforma button").Should().BeEmpty("el desglose de plataforma es de lectura");
     }
 
     /// <summary>
@@ -1157,6 +1190,49 @@ public partial class Centro360Gen2Tests : BunitContext
             .And.Contain("trabajadores de este centro", "la documentación de la Empresa no entra en esta suma");
     }
 
+    /// <summary>
+    /// Revisión 1:1 del 2026-10-21 (Centro ILL-01): «40 exigidos · 10 al día · 0 vencidos · 28 pendientes» no sumaba. «Al día»
+    /// incluye los por vencer y deja fuera los sin confirmar: el pie dice las dos cosas para que las partes cuadren.
+    /// </summary>
+    [Fact]
+    public void Los_totales_suman_el_total_con_por_vencer_y_sin_confirmar()
+    {
+        var id = Guid.NewGuid();
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            Asignado("Juan Pérez", EstadoDocumento.Proximo,
+                Documento("Formación PRL", EstadoDocumento.Proximo, new DateOnly(2026, 11, 2)),
+                Documento("Reconocimiento médico", EstadoDocumento.SinConfirmar)),
+            Asignado("Nuria Salas", EstadoDocumento.Faltante,
+                Documento("Formación específica de centro", EstadoDocumento.Faltante))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        var totales = System.Text.RegularExpressions.Regex.Replace(cut.Find("[data-totales-documentales]").TextContent, @"\s+", " ");
+        totales.Should().Contain("3 exigidos · 1 al día (de ellos, 1 por vencer) · 0 vencidos · 1 pendiente")
+            .And.Contain("sin confirmar o sin validar en la plataforma: 1");
+    }
+
+    /// <summary>El listado enseña el vencido que ya tiene renovación; el pie cuenta pares, así que ese vencido no suma.</summary>
+    [Fact]
+    public void Un_vencido_con_renovacion_vigente_no_cuenta_como_vencido_en_los_totales()
+    {
+        var id = Guid.NewGuid();
+        var vencido = Documento("Formación PRL", EstadoDocumento.Vencido, new DateOnly(2026, 8, 2));
+        var renovacion = vencido with { DocumentoId = Guid.NewGuid(), Estado = EstadoDocumento.Vigente, FechaVencimiento = new DateOnly(2027, 8, 2) };
+        Registrar(new MediatorFalso()).Asignaciones[id] =
+        [
+            new(Guid.NewGuid(), Guid.NewGuid(), "Juan Pérez", new DateOnly(2026, 1, 9), EstadoDocumento.Vigente, [vencido, renovacion],
+                new FraccionCumplimiento(1, 1))
+        ];
+
+        var cut = RenderizarAcordeon(id);
+
+        System.Text.RegularExpressions.Regex.Replace(cut.Find("[data-totales-documentales]").TextContent, @"\s+", " ")
+            .Should().Contain("1 exigidos · 1 al día · 0 vencidos · 0 pendientes").And.NotContain("sin validar");
+    }
+
     // ── Contrato: concurrencia ────────────────────────────────────────────
 
     /// <summary>
@@ -1280,7 +1356,9 @@ public partial class Centro360Gen2Tests : BunitContext
                 nameof(ObtenerCanalesGestionDeCentroQuery), nameof(ObtenerDocumentacionBloqueantePendienteQuery),
                 // Las del acordeón: es hijo de la página y su token es el suyo propio.
                 nameof(ObtenerAsignacionesDocumentacionPorCentroQuery),
-                nameof(ObtenerTrabajadoresVisitaSinAsignacionQuery)
+                nameof(ObtenerTrabajadoresVisitaSinAsignacionQuery),
+                // La Empresa empleadora de cada fila (Centro 360 del 20-10).
+                nameof(ObtenerTrabajadoresAsignadosDeCentroQuery)
             ],
             "el recorrido tiene que haber pasado por todas las consultas que lanza la pantalla, o la comprobación no las mira");
         consultas.Should().OnlyContain(t => t.Token.CanBeCanceled && !t.Token.IsCancellationRequested);
@@ -1610,13 +1688,18 @@ public partial class Centro360Gen2Tests : BunitContext
             Asignado("Juan Pérez", EstadoDocumento.Vencido, Documento("Formación PRL", EstadoDocumento.Vencido)),
             Asignado("Marco Vila", EstadoDocumento.Vigente, Documento("Formación PRL", EstadoDocumento.Vigente))
         ];
+        mediador.Bloqueos[id] =
+        [
+            new(id, "Centro Norte", mediador.Asignaciones[id][0].TrabajadorId, "Juan Pérez", Guid.NewGuid(), "Formación PRL")
+        ];
 
         var cut = Renderizar(id);
         var navegador = Services.GetRequiredService<NavigationManager>();
 
-        await cut.Find(".franja-estado [data-estado=Vencido]").ClickAsync(new MouseEventArgs());
+        // Maqueta del 20-10: «Todos» y «Bloquea acceso» (el estado «Bloqueado» del Trabajador).
+        await cut.Find(".franja-estado [data-estado=Bloqueado]").ClickAsync(new MouseEventArgs());
 
-        navegador.Uri.Should().Contain($"estado={nameof(EstadoDocumento.Vencido)}",
+        navegador.Uri.Should().Contain("estado=Bloqueado",
             "un centro filtrado tiene que poder enlazarse");
 
         await Boton(cut, "Limpiar filtros").ClickAsync(new MouseEventArgs());
@@ -1640,7 +1723,7 @@ public partial class Centro360Gen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Almacén Sur"));
 
         cut.Find(".menu-acciones-disparador").Click();
-        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar centro").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".menu-acciones-item").Single(i => i.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
         cut.Find("[role=dialog]").TextContent.Should().Contain("¿Eliminar el centro «Almacén Sur»?");
         mediador.Enviadas.OfType<EliminarCentroCommand>().Should().BeEmpty("hasta confirmar no se elimina nada");
 

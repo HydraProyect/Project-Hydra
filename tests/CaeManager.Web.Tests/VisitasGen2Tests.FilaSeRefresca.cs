@@ -40,7 +40,7 @@ public partial class VisitasGen2Tests
     /// <summary>El Centro de cada fila: el primer nombre de la columna «Visita» (debajo van el titular y la Empresa).</summary>
     private static List<string> CentrosDeLasFilas(IRenderedComponent<Visitas> cut) =>
         cut.FindAll("tbody tr.fila-pulsable")
-            .Select(tr => tr.QuerySelector(".visitas-celda-apilada .enlace-nombre-fila")!.TextContent.Trim())
+            .Select(tr => tr.QuerySelector(".visitas-centro-nombre")!.TextContent.Trim())
             .ToList();
 
     private static IElement CasillaDeSeleccion(IRenderedComponent<Visitas> cut, string centro) =>
@@ -58,7 +58,7 @@ public partial class VisitasGen2Tests
 
     private static async Task IrALaPaginaDosDeVisitasAsync(IRenderedComponent<Visitas> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-pie-listado button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => CentrosDeLasFilas(cut).Should().HaveCount(5));
     }
 

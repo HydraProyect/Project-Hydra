@@ -6,8 +6,8 @@ using Microsoft.AspNetCore.Components;
 namespace CaeManager.Web.Tests;
 
 /// <summary>
-/// Renovar un documento abre el formulario con la fecha de emisión VACÍA (no con la del documento anterior): quien
-/// renueva tiene que escribirla. Los tests que guardan una renovación sin ocuparse de la fecha la escriben con esto.
+/// Escribe la fecha de emisión cuando el test necesita cambiarla. Tras subir un archivo nuevo nace vacía;
+/// al corregir el mismo registro sin archivo nuevo, conserva la fecha actual.
 /// </summary>
 internal static class EmisionDeRenovacion
 {

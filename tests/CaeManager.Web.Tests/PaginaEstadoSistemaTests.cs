@@ -1,8 +1,11 @@
 using Bunit;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Pages;
 using FluentAssertions;
+using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -26,6 +29,24 @@ namespace CaeManager.Web.Tests;
 public class PaginaEstadoSistemaTests : BunitContext
 {
     public PaginaEstadoSistemaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
+
+    [Fact]
+    public void El_error_muestra_el_codigo_y_la_ayuda_para_soporte()
+    {
+        var cut = Renderizar(TipoEstadoSistema.Error, codigo: "codigo-prueba");
+
+        cut.Find(".referencia-tecnica-etiqueta").TextContent.Should().Be("Código para soporte");
+        cut.Find(".referencia-tecnica-valor").TextContent.Should().Be("codigo-prueba");
+        cut.Find(".referencia-tecnica-ayuda").TextContent.Trim().Should().Be("Si se repite, envía este código a soporte.");
+    }
+
+    [Fact]
+    public void Sin_codigo_no_se_muestra_la_ayuda_para_soporte()
+    {
+        var cut = Renderizar(TipoEstadoSistema.Error);
+
+        cut.FindAll(".referencia-tecnica-etiqueta, .referencia-tecnica-ayuda").Should().BeEmpty();
+    }
 
     // ------------------------------------------------------------ Reintentar
 
@@ -117,11 +138,188 @@ public class PaginaEstadoSistemaTests : BunitContext
             "con el módulo congelado, /comunicaciones no es un destino alcanzable aunque el rol sea el correcto");
     }
 
+    // ---- Pantalla principal (demo del piloto): texto de producto y salida que el rol admite
+
+    [Fact]
+    public void AccesoDenegado_habla_de_la_pantalla_y_del_rol_sin_revelar_el_recurso()
+    {
+        var cut = Renderizar(TipoEstadoSistema.AccesoDenegado, rol: Roles.GestorCae);
+
+        cut.Find("h2, h1, h3").TextContent.Should().Be("Tu rol actual no incluye esta pantalla");
+        cut.Markup.Should().NotContain("No tienes permiso");
+        cut.Markup.Should().NotContain("Tenant");
+    }
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-21: la pantalla principal es Inicio para todos los roles, también
+    /// para el Gestor CAE con varios Tenants autorizados (antes, Mi trabajo).
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae, 1)]
+    [InlineData(Roles.GestorCae, 2)]
+    [InlineData(Roles.CoordinadorCae, 2)]
+    [InlineData(Roles.Consulta, 1)]
+    [InlineData(Roles.Cliente, 1)]
+    public void AccesoDenegado_lleva_a_Inicio_como_pantalla_principal(string rol, int tenantsAutorizados)
+    {
+        Services.AddScoped<IMediator>(_ => new MediatorConClientesAutorizados(tenantsAutorizados));
+
+        var cut = Renderizar(TipoEstadoSistema.AccesoDenegado, rol: rol);
+
+        var boton = cut.Find("a.boton-primario");
+        boton.TextContent.Should().Be("Ir a tu pantalla principal");
+        boton.GetAttribute("href").Should().Be("/");
+    }
+
+    [Fact]
+    public void AccesoDenegado_sin_sesion_conocida_lleva_a_Inicio()
+    {
+        var cut = Renderizar(TipoEstadoSistema.AccesoDenegado);
+
+        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/");
+    }
+
+    [Theory]
+    [InlineData(TipoEstadoSistema.Error)]
+    [InlineData(TipoEstadoSistema.NoEncontrado)]
+    public void Error_y_no_encontrado_conservan_Ir_al_Inicio(TipoEstadoSistema tipo)
+    {
+        var cut = Renderizar(tipo, rol: Roles.GestorCae);
+
+        var boton = cut.Find("a.boton-primario");
+        boton.TextContent.Should().Be("Ir al Inicio");
+        boton.GetAttribute("href").Should().Be("/");
+    }
+
+    [Theory]
+    [InlineData("trabajadores", "trabajadores")]
+    [InlineData("empresas", "empresas")]
+    [InlineData("centros", "centros de trabajo")]
+    [InlineData("clientes", "clientes")]
+    [InlineData("subcontratas", "subcontratas")]
+    [InlineData("vehiculos", "vehículos")]
+    [InlineData("proyectos", "proyectos")]
+    [InlineData("documentos", "documentos")]
+    [InlineData("visitas", "visitas")]
+    [InlineData("gestiones", "gestiones")]
+    [InlineData("alertas", "alertas")]
+    public void NoEncontrado_con_sesion_ofrece_la_lista_con_texto_legible(string segmento, string nombre)
+    {
+        var cut = Renderizar(TipoEstadoSistema.NoEncontrado, rol: Roles.GestorCae,
+            rutaOriginal: $"/{segmento}/no-existe?volver=https://evil.example#detalle");
+
+        var boton = cut.Find("a.boton-primario");
+        boton.GetAttribute("href").Should().Be($"/{segmento}");
+        boton.TextContent.Should().Be($"Volver a la lista de {nombre}");
+        cut.Find("a.boton-secundario").GetAttribute("href").Should().Be("/");
+        cut.Markup.Should().NotContain("onclick=");
+    }
+
+    [Fact]
+    public void NoEncontrado_manda_a_Inicio_y_no_nombra_el_Dashboard()
+    {
+        var cut = Renderizar(TipoEstadoSistema.NoEncontrado, rol: Roles.GestorCae);
+
+        cut.Markup.Should().Contain("vuelve a Inicio.").And.NotContain("Dashboard");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("/not-found")]
+    [InlineData("/desconocido/trabajadores")]
+    [InlineData("/trabajadores-falso/123")]
+    [InlineData("//trabajadores/123")]
+    [InlineData("https://evil.example/trabajadores")]
+    [InlineData("/trabajadores%2fmalicioso/123")]
+    [InlineData("/\\trabajadores/123")]
+    public void NoEncontrado_no_construye_destinos_fuera_del_catalogo(string? ruta)
+    {
+        var cut = Renderizar(TipoEstadoSistema.NoEncontrado, rol: Roles.GestorCae, rutaOriginal: ruta);
+
+        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/");
+        cut.Markup.Should().NotContain("Volver a la lista");
+    }
+
+    [Theory]
+    [InlineData(TipoEstadoSistema.NoEncontrado, null)]
+    [InlineData(TipoEstadoSistema.Error, Roles.GestorCae)]
+    [InlineData(TipoEstadoSistema.AccesoDenegado, Roles.GestorCae)]
+    public void Solo_404_con_sesion_ofrece_la_lista(TipoEstadoSistema tipo, string? rol)
+    {
+        var cut = Renderizar(tipo, rol: rol, rutaOriginal: "/trabajadores/123");
+
+        cut.Markup.Should().NotContain("Volver a la lista");
+    }
+
+    [Fact]
+    public void NotFound_usa_la_ruta_original_de_la_reejecucion()
+    {
+        ConfigurarServicios(Roles.GestorCae, true);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/not-found");
+        var contexto = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        contexto.Features.Set<Microsoft.AspNetCore.Diagnostics.IStatusCodeReExecuteFeature>(
+            new Microsoft.AspNetCore.Diagnostics.StatusCodeReExecuteFeature { OriginalPath = "/vehiculos/no-existe" });
+
+        var cut = Render<NotFound>(p => p.AddCascadingValue<Microsoft.AspNetCore.Http.HttpContext>(contexto));
+
+        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/vehiculos");
+    }
+
+    [Fact]
+    public void NotFound_sin_reejecucion_usa_la_ruta_de_navegacion()
+    {
+        ConfigurarServicios(Roles.GestorCae, true);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/empresas/no-existe");
+
+        var cut = Render<NotFound>();
+
+        cut.Find("a.boton-primario").GetAttribute("href").Should().Be("/empresas");
+    }
+
+    private sealed class MediatorConClientesAutorizados(int cuantos) : IMediator
+    {
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            request is ObtenerClientesAutorizadosQuery
+                ? Task.FromResult((TResponse)(object)(IReadOnlyList<ClienteAutorizadoDto>)
+                    [.. Enumerable.Range(0, cuantos).Select(i => new ClienteAutorizadoDto(Guid.NewGuid(), $"Tenant {i}", EsOrigen: i == 0))])
+                : throw new NotSupportedException(request.GetType().Name);
+
+        public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
+            Task.CompletedTask;
+
+        public Task<object?> Send(object request, CancellationToken cancellationToken = default) =>
+            Task.FromResult<object?>(null);
+
+        public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public IAsyncEnumerable<object?> CreateStream(object request, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+
+        public Task Publish(object notification, CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task Publish<TNotification>(TNotification notification, CancellationToken cancellationToken = default)
+            where TNotification : INotification => Task.CompletedTask;
+    }
+
     // ---------------------------------------------------------------- arnés
 
     private IRenderedComponent<PaginaEstadoSistema> Renderizar(
-        TipoEstadoSistema tipo, string? rutaReintentar = null, string? rol = null, bool comunicacionesActivo = true)
+        TipoEstadoSistema tipo, string? rutaReintentar = null, string? rol = null, bool comunicacionesActivo = true,
+        string? rutaOriginal = null, string? codigo = null)
     {
+        ConfigurarServicios(rol, comunicacionesActivo);
+        return Render<PaginaEstadoSistema>(parametros => parametros
+            .Add(p => p.Tipo, tipo)
+            .Add(p => p.RutaReintentar, rutaReintentar)
+            .Add(p => p.RutaOriginal, rutaOriginal)
+            .Add(p => p.ReferenciaTecnica, codigo));
+    }
+
+    private void ConfigurarServicios(string? rol, bool comunicacionesActivo)
+    {
+        Services.AddLocalization();
+        Services.AddSingleton<ToastService>();
         Services.AddSingleton<IOptions<ComunicacionesOptions>>(
             Options.Create(new ComunicacionesOptions { Activo = comunicacionesActivo }));
 
@@ -131,9 +329,6 @@ public class PaginaEstadoSistemaTests : BunitContext
         var autorizacion = AddAuthorization();
         if (rol is not null)
             autorizacion.SetAuthorized("usuaria-de-prueba").SetRoles(rol);
-
-        return Render<PaginaEstadoSistema>(parametros => parametros
-            .Add(p => p.Tipo, tipo)
-            .Add(p => p.RutaReintentar, rutaReintentar));
     }
 }
+

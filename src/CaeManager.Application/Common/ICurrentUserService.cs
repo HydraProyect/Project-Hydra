@@ -19,14 +19,20 @@ public interface ICurrentUserService
     /// <item>sin Workspace operativo derivado, el rol de la sesión en el
     /// Tenant de origen (con las restricciones de sesión ya aplicadas, p. ej.
     /// login local);</item>
-    /// <item>en un Workspace operativo derivado, el de la Asignación de
-    /// Cartera (o de la delegación heredada) en el Tenant propietario;</item>
+    /// <item>en un Workspace operativo derivado abierto por Asignación de
+    /// Operación, el perfil de la sesión en el Tenant de origen, mientras la
+    /// operación le siga autorizando ese Tenant (decisión Chris 2026-10-20: la
+    /// cartera solo da acceso y alcance al Gestor CAE, no el rol); por la
+    /// delegación heredada (acceso de soporte), el rol de su fila;</item>
     /// <item>bajo <c>AmbitoTenantExplicito</c> (fan-out multi-Tenant), el del
     /// Tenant visitado en cada vuelta — el de sesión si es el de origen;</item>
     /// <item>null bajo una Sesión Privilegiada de plataforma, sin sesión, o
     /// sin asignación viva (fallo cerrado).</item>
     /// </list>
-    /// Decisión P7 (2026-09-23): nunca usar el rol de origen en su lugar.
+    /// Decisión P7 (2026-09-23): nunca usar en su lugar el rol de origen de
+    /// Identity (<see cref="ObtenerRolOrigenAsync"/>). Que por la vía de Operación
+    /// coincida con el rol de la sesión en origen lo decide este método, que
+    /// revalida la operación; no autoriza leerlo directamente.
     /// </summary>
     Task<string?> ObtenerRolEfectivoAsync();
 
@@ -43,6 +49,27 @@ public interface ICurrentUserService
     /// Privilegiada: es un dato de identidad de la cuenta.
     /// </summary>
     Task<string?> ObtenerRolOrigenAsync();
+
+    /// <summary>
+    /// Perfil de la <b>sesión</b> en el Tenant de origen que decide qué Tenants beneficiarios
+    /// delegados alcanza (decisión Chris 2026-10-20) y por qué vía entra el usuario
+    /// (<c>TenantsBeneficiariosAutorizados.OperacionesQueAutorizan</c>): el rol del token antes
+    /// de sustituirse por el del Tenant operado y, si la sesión quedó limitada a Consulta por
+    /// login local, el perfil anterior a esa restricción, para que la restricción nunca amplíe
+    /// el alcance (un Gestor CAE sigue acotado por cartera). No es rol efectivo. A diferencia de
+    /// <see cref="ObtenerRolOrigenAsync"/>, sí vale para autorizar: es la sesión, no Identity.
+    /// La implementación por defecto solo sirve a dobles de prueba sin Tenant delegado.
+    /// </summary>
+    Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => ObtenerRolEfectivoAsync();
+
+    /// <summary>
+    /// El perfil que la sesión traía antes de quedar limitada a solo lectura por login local, o
+    /// <c>null</c> si la sesión no está limitada (o no traía rol conocido). No es rol efectivo ni
+    /// autoriza nada: solo permite que el alcance de datos siga siendo el del rol real, para que la
+    /// restricción nunca lo amplíe (un Gestor CAE en Consulta seguiría viendo el Tenant entero).
+    /// La implementación por defecto, sin restricción, solo sirve a dobles de prueba.
+    /// </summary>
+    Task<string?> ObtenerPerfilAntesDeRestringirAsync() => Task.FromResult<string?>(null);
 
     /// <summary>
     /// Alias obsoleto de <see cref="ObtenerRolEfectivoAsync"/> (decisión P7,

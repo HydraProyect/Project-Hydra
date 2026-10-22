@@ -38,7 +38,7 @@
         <div class="formulario-drawer-contenido" @ref="_contenido">
             @if (Cargando)
             {
-                <EstadoCargando Filas="FilasCargando" />
+                <EstadoCargando Filas="FilasCargando" ConEtiqueta="true" />
             }
             else if (SinContenido is not null)
             {
@@ -51,6 +51,12 @@
         </div>
     </ChildContent>
     <Pie>
+        @if (PieIzquierda is not null)
+        {
+            @* Una acción sobre el registro que no es guardar («Descartar» de un recordatorio propuesto, maqueta Flujos 13): a la
+               izquierda, lejos de la primaria, y deshabilitada sola mientras se guarda, como PieExtra. *@
+            <fieldset class="formulario-drawer-pie-izquierda" disabled="@Guardando">@PieIzquierda</fieldset>
+        }
         @* Una sola «primaria» por pie: «Guardar» (o «Siguiente», en un paso que no es el último). El modo pasos (Pasos) solo cambia
            qué botones hay y cómo se ordenan en móvil; sin él, el pie es el de siempre. *@
         @if (EnPasos)
@@ -176,6 +182,15 @@
     [Parameter] public RenderFragment? PieExtra { get; set; }
 
     /// <summary>
+    /// Acción sobre el registro que no es guardar ni cancelar («Descartar» una propuesta): a la izquierda del pie, separada de
+    /// «Cancelar» y de la primaria. Se deshabilita sola mientras <see cref="Guardando"/>; su propio spinner es de la pantalla.
+    /// </summary>
+    [Parameter] public RenderFragment? PieIzquierda { get; set; }
+
+    /// <summary>Etiqueta de la primaria mientras <see cref="Guardando"/> cuando la acción no es guardar («Enviando…»). Nula, «Guardando…».</summary>
+    [Parameter] public string? TextoGuardando { get; set; }
+
+    /// <summary>
     /// Diálogos que abre el formulario (<c>DialogoConfirmacion</c>, un <c>Modal</c> auxiliar): se pintan después del drawer y
     /// antes del aviso de navegación, para que la pregunta de salida quede siempre encima de ellos (v2, T10).
     /// </summary>
@@ -250,7 +265,7 @@
     }
 
     // «Primaria» y «Cancelar» van en el bloque de código (no en el marcado) para que las dos variantes del pie compartan una sola definición.
-    private RenderFragment Primaria => @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado"
+    private RenderFragment Primaria => @<BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando && !PasoIntermedio" Progreso="ProgresoGuardado" TextoEnCurso="@TextoGuardando"
                                                        Fallido="@(GuardadoFallido && !PasoIntermedio)" Deshabilitado="PrimariaDeshabilitada" title="@MotivoPrimaria"
                                                        OnClick="PrimariaAsync" OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
         @(PasoIntermedio ? (TextoSiguiente ?? Comunes["PasosSiguiente"].Value) : TextoGuardar)
@@ -314,6 +329,7 @@
     {
         builder.OpenComponent<AvisoFormulario>(0);
         builder.AddAttribute(1, nameof(AvisoFormulario.Mensaje), MensajeError);
+        builder.AddAttribute(2, nameof(AvisoFormulario.EnPanel), true);
         builder.CloseComponent();
     };
 

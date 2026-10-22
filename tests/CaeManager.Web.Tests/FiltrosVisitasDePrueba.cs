@@ -13,17 +13,24 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 internal static class FiltrosVisitasDePrueba
 {
-    public static IElement Pastilla(IRenderedComponent<Visitas> cut, string etiqueta) =>
-        cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla")
+    public static IElement Pastilla(IRenderedComponent<Visitas> cut, string etiqueta)
+    {
+        if (etiqueta is "Solo activas" or "Solo urgentes" or "Notificada al titular del Centro")
+        {
+            var mas = cut.FindAll(".menu-acciones-disparador-pastilla").Single(b => b.GetAttribute("aria-label") == "Más filtros");
+            if (mas.GetAttribute("aria-expanded") != "true") mas.Click();
+        }
+        return cut.FindAll(".menu-acciones-disparador-pastilla")
             .Single(b => b.GetAttribute("aria-label") is { } nombre &&
-                (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal)));
+                (nombre == etiqueta || nombre.StartsWith(etiqueta + ": ", StringComparison.Ordinal) || nombre.StartsWith(etiqueta + " · ", StringComparison.Ordinal)));
+    }
 
     /// <summary>El panel del menú solo existe con la pastilla abierta: se abre si hace falta.</summary>
     public static IElement Opcion(IRenderedComponent<Visitas> cut, string etiqueta, string opcion)
     {
         if (Pastilla(cut, etiqueta).GetAttribute("aria-expanded") != "true")
             Pastilla(cut, etiqueta).Click();
-        return cut.Find("#" + Pastilla(cut, etiqueta).GetAttribute("aria-controls")).QuerySelectorAll("[role=menuitemradio]")
+        return cut.Find("#" + Pastilla(cut, etiqueta).GetAttribute("aria-controls")).QuerySelectorAll("[role=menuitemradio], [role=menuitemcheckbox]")
             .Single(o => o.TextContent.Trim() == opcion);
     }
 

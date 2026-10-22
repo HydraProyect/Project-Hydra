@@ -1,0 +1,5 @@
+.anotacion-estado-plataforma {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}

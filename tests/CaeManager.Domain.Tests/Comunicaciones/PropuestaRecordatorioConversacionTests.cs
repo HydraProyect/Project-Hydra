@@ -117,4 +117,41 @@ public class PropuestaRecordatorioConversacionTests
         propuesta.LiberarTrasEnvioFallido();
         propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada, "liberar solo deshace una aprobación");
     }
+
+    [Fact]
+    public void Restaurar_deshace_solo_un_descarte_y_solo_mientras_dura_la_misma_espera()
+    {
+        var conversacion = EsperandoDesde(LunesOnceMadrid);
+        var ahora = LunesOnceMadrid.AddDays(3);
+        var propuesta = PropuestaRecordatorioConversacion.ProponerSiCorresponde(conversacion, ahora, SinFestivos)!;
+
+        propuesta.Restaurar(conversacion).Error.Should().Be(PropuestaRecordatorioConversacion.ErrorNoDescartada,
+            "una propuesta Pendiente no tiene descarte que deshacer");
+
+        propuesta.Descartar(ahora).EsExitoso.Should().BeTrue();
+        propuesta.Restaurar(conversacion).EsExitoso.Should().BeTrue();
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Pendiente, "Deshacer la devuelve, la misma propuesta");
+        propuesta.ResueltaEnUtc.Should().BeNull();
+
+        propuesta.Aprobar(ahora).EsExitoso.Should().BeTrue();
+        propuesta.Restaurar(conversacion).Error.Should().Be(PropuestaRecordatorioConversacion.ErrorNoDescartada,
+            "una aprobada ya salió: no se restaura");
+    }
+
+    [Fact]
+    public void Un_descarte_cuya_espera_termino_no_se_restaura()
+    {
+        var conversacion = EsperandoDesde(LunesOnceMadrid);
+        var ahora = LunesOnceMadrid.AddDays(3);
+        var propuesta = PropuestaRecordatorioConversacion.ProponerSiCorresponde(conversacion, ahora, SinFestivos)!;
+        propuesta.Descartar(ahora).EsExitoso.Should().BeTrue();
+
+        conversacion.CambiarEstado(EstadoConversacion.Abierta, ahora).EsExitoso.Should().BeTrue();
+        propuesta.Restaurar(conversacion).Error.Should().Be(PropuestaRecordatorioConversacion.ErrorEsperaTerminada);
+
+        conversacion.CambiarEstado(EstadoConversacion.EsperandoRespuestaExterna, ahora.AddHours(1)).EsExitoso.Should().BeTrue();
+        propuesta.Restaurar(conversacion).Error.Should().Be(PropuestaRecordatorioConversacion.ErrorEsperaTerminada,
+            "una espera nueva es otra espera: tendrá su propia propuesta");
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
+    }
 }

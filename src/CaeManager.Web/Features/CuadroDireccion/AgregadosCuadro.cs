@@ -53,7 +53,8 @@ public static class AgregadosCuadro
             Solicitudes: new SolicitudesDelMesDto(Suma(c => c.Solicitudes.Total), franjas),
             Cumplimiento: new CumplimientoActualDto(
                 vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad, paresExigidos, porcentaje, sinDatos,
-                cifras.Count == 0 ? ahoraUtc : cifras.Max(c => c.Cumplimiento.MedidoEnUtc)),
+                cifras.Count == 0 ? ahoraUtc : cifras.Max(c => c.Cumplimiento.MedidoEnUtc),
+                ObtenerCuadroDireccionQueryHandler.SumarExigido(cifras.Select(c => c.Cumplimiento.Exigido))),
             Gestiones: cifras.Count > 0 && cifras.All(c => c.Gestiones is not null)
                 ? new CifraMensual(cifras.Sum(c => c.Gestiones!.Valor), estado)
                 : null,

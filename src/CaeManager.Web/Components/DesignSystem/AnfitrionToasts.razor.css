@@ -166,6 +166,65 @@
     opacity: 1;
 }
 
+/* Toast de confirmación con enlace (maqueta «Panel Formulario TALVEG»): superficie elevada con borde, no el fondo inverso;
+   icono de éxito arriba a la izquierda y bloque título / detalle / llamada que es, entero, el enlace a la ficha. */
+.toast.toast-con-enlace {
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 12px 14px 16px;
+    background-color: var(--color-elevated);
+    border: var(--border-default);
+    color: var(--color-text);
+}
+
+.toast-con-enlace .toast-icono {
+    color: var(--color-success-700);
+    margin-top: 1px;
+}
+
+.toast-con-enlace .toast-cerrar {
+    border-radius: var(--radius-full);
+    color: var(--color-text-muted);
+}
+
+.toast-enlace {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: -4px;
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    color: var(--color-text);
+    text-decoration: none;
+}
+
+.toast-enlace:hover {
+    background-color: var(--color-surface-hover);
+}
+
+.toast-enlace-titulo {
+    font: var(--font-label);
+    font-size: 14px;
+}
+
+.toast-enlace-detalle {
+    font: var(--font-body-sm);
+    font-weight: 400;
+    color: var(--color-text-muted);
+    text-wrap: pretty;
+}
+
+.toast-enlace-llamada {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font: var(--font-label);
+    color: var(--color-primary-500);
+}
+
 /* Segundos que quedan para «Deshacer»: cifras de ancho fijo para que el aviso no baile al cambiar. */
 .toast-cuenta {
     font-size: 0.75rem;

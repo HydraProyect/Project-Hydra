@@ -128,8 +128,36 @@ public class SemanaPorEmpresaTests
         var fila = (await Handler().Handle(new(Lunes), default)).Single();
 
         fila.Documentos.Single(d => d.DocumentoId == propio.Id).Should().Match<DocumentoSemanaDto>(d => d.Reclamable && !d.DeTrabajador);
-        fila.Documentos.Single(d => d.DocumentoId == deTrabajador.Id).Should().Match<DocumentoSemanaDto>(d => !d.Reclamable && d.DeTrabajador,
-            "el documento de un Trabajador se reclama al Cliente del Centro, no a la Empresa");
+        fila.Documentos.Single(d => d.DocumentoId == deTrabajador.Id).Should().Match<DocumentoSemanaDto>(d => d.Reclamable && d.DeTrabajador,
+            "el documento de un Trabajador de Empresa se reclama a su Empresa empleadora (decisión de 2026-10-18)");
+    }
+
+    [Fact]
+    public async Task El_documento_de_un_Trabajador_de_Subcontrata_no_es_reclamable_a_la_empresa_porque_va_al_Cliente()
+    {
+        var empresa = Empresa();
+        var trabajador = Trabajador.DeSubcontrata(empresa.Id, "Ana", "Gil", "77189989B");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var documento = Documento(trabajador.Id, Lunes, true);
+
+        var fila = (await Handler().Handle(new(Lunes), default)).Single();
+
+        fila.Documentos.Single(d => d.DocumentoId == documento.Id).Reclamable.Should().BeFalse();
+        fila.ReclamadoHoy.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Sin_alcance_de_gestion_sobre_la_empresa_el_documento_de_su_Trabajador_tampoco_es_reclamable()
+    {
+        var empresa = Empresa();
+        var trabajador = Trabajador.DeEmpresa(empresa.Id, "Ana", "Gil", "77189989B");
+        _trabajadores.ListaTrabajadores.Add(trabajador);
+        var documento = Documento(trabajador.Id, Lunes, true);
+
+        var fila = (await Handler(new(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id], trabajadorIdsVisibles: [trabajador.Id], empresaIdsParaGestion: []))
+            .Handle(new(Lunes), default)).Single();
+
+        fila.Documentos.Single(d => d.DocumentoId == documento.Id).Reclamable.Should().BeFalse();
     }
 
     [Fact]

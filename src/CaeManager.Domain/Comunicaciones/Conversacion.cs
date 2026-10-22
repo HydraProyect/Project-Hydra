@@ -279,6 +279,19 @@ public class Conversacion : EntidadBase
     }
 
     /// <summary>
+    /// Hace que <see cref="FechaUltimoMensajeUtc"/> sea la del último de los mensajes cargados, también cuando es anterior
+    /// a la creación de la conversación. <see cref="AgregarMensaje"/> solo adelanta la fecha, y el constructor la fija
+    /// a «ahora»: un hilo importado o sembrado con mensajes fechados en el pasado quedaría con la fecha de su alta
+    /// en la lista y la de su mensaje en el hilo. Solo para quien construye la conversación entera con sus mensajes;
+    /// una conversación cargada sin su colección de mensajes no se toca.
+    /// </summary>
+    public void AlinearFechaConLosMensajes()
+    {
+        if (_mensajes.Count > 0)
+            FechaUltimoMensajeUtc = _mensajes.Max(m => m.FechaUtc);
+    }
+
+    /// <summary>
     /// Cambia el estado si <see cref="TransicionesEstadoConversacion"/> lo permite; si no, devuelve el fallo de dominio
     /// y no toca nada. Registra el instante del cambio en <see cref="CambiosEstado"/> — nunca quién lo hizo.
     /// <paramref name="ahoraUtc"/> existe para que los tests fijen el reloj; en producción es el instante actual.

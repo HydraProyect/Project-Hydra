@@ -12,6 +12,7 @@
 @using CaeManager.Web.Services
 @using CaeManager.Web.Features.Centros.Components
 @using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
 @using CaeManager.Web.Features.Empresas.Components
 @using CaeManager.Web.Features.Empresas.Recursos
 @using CaeManager.Web.Recursos
@@ -25,13 +26,16 @@
 <div class="contenedor-pagina">
     <Breadcrumb Elementos="Miguero" ElementoSeleccionadoChanged="IrABreadcrumb" EtiquetaNavegacion="@Textos["EtiquetaMigas"]" />
 
-    @if (_error)
+    @if (_noEncontrada)
+    {
+        <FichaNoEncontrada RutaLista="/empresas" />
+    }
+    else if (_error)
     {
         <EstadoVacio Titulo="@Textos["ErrorTitulo"]" Descripcion="@Textos["ErrorDescripcion"]"
                      NombreIcono="error-circulo" AcentoIcono="var(--color-danger-500)" FondoIcono="var(--color-danger-50)">
             <Accion>
                 <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
-                <EnlaceProfundoOtraEmpresa />
             </Accion>
         </EstadoVacio>
     }
@@ -83,7 +87,11 @@
                 }
             </Datos>
             <Acciones>
-                <Boton Variante="VarianteBoton.Primario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/deteccion-trabajadores")">@Textos["AccionDetectar"]</Boton>
+                <Boton Variante="VarianteBoton.Secundario" Href="@($"/empresas/{_detalle.Id}/reclamar-acceso")">@Textos["AccionReclamarAcceso"]</Boton>
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="SubirDocumentoAsync">@Textos["AccionSubirDocumento"]</Boton>
+                </SoloConEscritura>
                 @* El único ítem del menú es de escritura: sin escritura no hay menú. *@
                 <SoloConEscritura>
                     <MenuAcciones ConBorde="true" EtiquetaAccesible="@Textos["MenuMasAcciones"]">
@@ -93,22 +101,45 @@
             </Acciones>
         </CabeceraIdentidad>
 
+        @* «Subir documento» de la cabecera: el alta del drawer con la Empresa ya elegida. *@
+        <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
+
         <CuerpoConLateral EtiquetaLateral="@Textos["EtiquetaLateral"]">
             <ChildContent>
                 <Pestanas Definiciones="Pestanas" PestanaActiva="@_pestana" PestanaActivaChanged="CambiarPestanaAsync" EtiquetaGrupo="@Textos["EtiquetaGrupoPestanas"]" Pagina360="true">
                     @switch (_pestana)
                     {
+                        case PestanaVigencia:
+                            <PestanaVigenciaEmpresa EmpresaId="_detalle.Id" />
+                            break;
+                        case PestanaPlataformas:
+                            <PestanaPlataformasEmpresa EmpresaId="_detalle.Id" />
+                            break;
                         case PestanaClientes:
                             @PestanaDeClientes
                             break;
                         case PestanaDocumentacion:
                             <PestanaDocumentacion Ambito="AmbitoAplicacion.Empresa" PropietarioId="_detalle.Id" EnPagina="true" />
                             break;
+                        case PestanaReclamar:
+                            <PestanaReclamarEmpresa EmpresaId="_detalle.Id" />
+                            break;
                         case PestanaAgenda:
                             <PestanaAgendaContactos Tipo="TipoPropietarioAgenda.Empresa" PropietarioId="_detalle.Id" />
                             break;
                         case PestanaFicha:
                             <CajasFicha Cajas="CajasDeFicha" />
+                            @* «Sello» ya no es pestaña ni caja del flujo: la maqueta lo pone como sección propia bajo las cajas. *@
+                            @if (HayCajaSello)
+                            {
+                                <section class="empresa360-seccion empresa360-sello" data-pieza="sello-empresa">
+                                    <h2 class="empresa360-sello-titulo">@Textos["PestanaSello"]</h2>
+                                    <p class="empresa360-apoyo">@Textos["SelloApoyo"]</p>
+                                    <Tarjeta>
+                                        <PestanaSelloEmpresa EntidadId="_detalle.Id" />
+                                    </Tarjeta>
+                                </section>
+                            }
                             break;
                         case PestanaHistorial:
                             <PestanaHistorial EntidadTipo="Empresa" EntidadId="_detalle.Id" />
@@ -127,15 +158,50 @@
                         </SoloConEscritura>
                     </AccionesHeader>
                     <ChildContent>
+                        @* Orden y anchos de la maqueta: identificación fiscal, CNAE y convenio a ancho completo; alta y Anexo I, a media rejilla. *@
                         <RejillaDatos>
-                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" />
-                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoIdentificacionFiscal"]" Ancho="true">
+                                @if (string.IsNullOrWhiteSpace(_detalle.Cif))
+                                {
+                                    <span>—</span>
+                                }
+                                else
+                                {
+                                    <BotonCopiar Valor="@_detalle.Cif" Texto="@_detalle.Cif" Etiqueta="@Textos["CopiarElCif"]" />
+                                }
+                            </DatoRejilla>
+                            <DatoRejilla Etiqueta="@Textos["DatoCnae"]" Valor="@(_detalle.Cnae ?? "—")" Ancho="true" />
                             <DatoRejilla Etiqueta="@Textos["DatoConvenio"]" Valor="@(_detalle.ConvenioAplicable ?? "—")" Ancho="true" />
-                            <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" Ancho="true" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAlta"]" Valor="@_detalle.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")" />
+                            <DatoRejilla Etiqueta="@Textos["DatoAnexoI"]" Valor="@(_detalle.EsActividadAnexoI ? Textos["Si"] : Textos["No"])" />
                         </RejillaDatos>
                     </ChildContent>
                 </Tarjeta>
 
+                @if (_contactoPrincipal is { } contactoPrincipal)
+                {
+                    <Tarjeta Titulo="@Textos["TarjetaSePideDocumentacion"]" Compacta="true">
+                        <AccionesHeader>
+                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="IrAAgendaAsync">@Textos["IrAAgendaFlecha"]</Boton>
+                        </AccionesHeader>
+                        <ChildContent>
+                            <div class="empresa360-contacto">
+                                <div class="empresa360-contacto-identidad">
+                                    <span class="empresa360-contacto-iniciales" aria-hidden="true">@Iniciales(contactoPrincipal.Nombre)</span>
+                                    <span class="empresa360-contacto-texto">
+                                        <b>@contactoPrincipal.Nombre</b>
+                                        <span class="empresa360-apoyo">@(string.IsNullOrWhiteSpace(contactoPrincipal.Cargo) ? Textos["ContactoPrincipal"] : $"{contactoPrincipal.Cargo} · {Textos["ContactoPrincipal"]}")</span>
+                                    </span>
+                                </div>
+                                <BotonCopiar Valor="@contactoPrincipal.Email" Texto="@contactoPrincipal.Email" Etiqueta="@Textos["CopiarCorreoContacto"]" />
+                                @if (!string.IsNullOrWhiteSpace(contactoPrincipal.Telefono))
+                                {
+                                    <BotonCopiar Valor="@contactoPrincipal.Telefono" Texto="@contactoPrincipal.Telefono" Etiqueta="@Textos["CopiarTelefonoContacto"]" />
+                                }
+                            </div>
+                        </ChildContent>
+                    </Tarjeta>
+                }
                 @* Una sola nota por Empresa (Empresa.Notas), la misma que en Cliente 360 y Subcontrata 360. Quién la
                    ve lo decide el servidor (ObtenerEmpresaPorIdQuery): al usuario de Cliente, que también lee esta
                    ficha, le llega NotaInternaVisible = false y la tarjeta no existe, ni siquiera vacía. *@
@@ -175,7 +241,6 @@
     [
         .. HayCajaAcceso ? new[] { new CajaFicha("acceso", CajaDeAcceso) } : [],
         .. _detalle?.FichaVisible == true ? new[] { new CajaFicha("firma-documentos", CajaFirmaDocumentos), new CajaFicha("prevencion", CajaPrevencion), new CajaFicha("mutua", CajaMutua), new CajaFicha("formacion", CajaFormacion) } : [],
-        .. HayCajaSello ? new[] { new CajaFicha("sello", CajaDeSello) } : [],
         new CajaFicha("catalogo-trabajadores", CajaDeCatalogoTrabajadores)
     ];
 
@@ -296,13 +361,6 @@
         }
     };
 
-    private RenderFragment CajaDeSello => __builder =>
-    {
-        <Tarjeta Titulo="@Textos["PestanaSello"]">
-            <PestanaSelloEmpresa EntidadId="_detalle!.Id" />
-        </Tarjeta>
-    };
-
     private RenderFragment CajaDeAcceso => __builder =>
     {
         <Tarjeta Titulo="@Textos["TarjetaCarpeta"]">
@@ -346,15 +404,18 @@
             else
             {
                 var r = _recuentosLista ?? _recuentos;
-                <div class="empresa360-buscador">
-                    <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
-                                Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                </div>
-                <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
-                    @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
-                    @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.Vencidos], Textos["IndicadorFaltantesNoCuentan"])
-                    @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
-                    @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                @* Barra de la maqueta (.barra-lista): los chips a la izquierda y el buscador a la derecha, en una sola fila. *@
+                <div class="empresa360-barra">
+                    <div class="empresa360-chips" role="group" aria-label="@Textos["EtiquetaFiltros"]">
+                        @Chip(FiltroTrabajadores.Todos, Textos["ChipTodos", r.Total])
+                        @Chip(FiltroTrabajadores.SinDocumentacionValida, Textos["ChipSinValida", r.SinDocumentacionValida])
+                        @Chip(FiltroTrabajadores.PorVencer, Textos["ChipPorVencer", r.PorVencer])
+                        @Chip(FiltroTrabajadores.AlDia, Textos["ChipAlDia", r.AlDia])
+                    </div>
+                    <div class="empresa360-buscador">
+                        <CampoTexto Type="search" Placeholder="@Textos["BuscadorTrabajadores"]" aria-label="@Textos["BuscadorTrabajadores"]"
+                                    Valor="@_busqueda" ValorChanged="BuscarAsync" />
+                    </div>
                 </div>
                 @* Delegación, Oficio y «Agrupar»: solo si la Empresa tiene catálogo, o si hay una agrupación activa (que así
                    siempre se puede quitar). Las opciones son las de ESTA Empresa. *@
@@ -408,6 +469,11 @@
                                     }
                                 </Detalle>
                                 <Derecha>
+                                    @* Cifra de la maqueta: documentos al día / documentos registrados del trabajador. *@
+                                    @if (MotivoIncidenciasUi.RegistradosVigentes(trabajador.DocumentosVigentes, trabajador.DocumentosEsperados) is { } cifra)
+                                    {
+                                        <span class="empresa360-cifra-trabajador" aria-label="@MotivoIncidenciasUi.RegistradosVigentesAccesible(trabajador.DocumentosVigentes, trabajador.DocumentosEsperados)">@cifra</span>
+                                    }
                                     <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
                                         @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)
                                     </Badge>

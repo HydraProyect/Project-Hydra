@@ -39,7 +39,7 @@ public partial class Trabajador360Gen2Tests
     }
 
     [Fact]
-    public void Solo_con_contacto_de_emergencia_se_pinta_la_tarjeta_con_sus_dos_filas()
+    public void Con_contacto_de_emergencia_pero_sin_telefono_ni_correo_la_tarjeta_pinta_igualmente_sus_cuatro_filas()
     {
         var id = Guid.NewGuid();
         var mediador = Registrar(new MediatorFalso());
@@ -55,7 +55,8 @@ public partial class Trabajador360Gen2Tests
         var cut = Renderizar(id);
 
         cut.Find(".cuerpo-con-lateral-lateral .trabajador360-contactos").QuerySelectorAll("dt")
-            .Select(d => d.TextContent.Trim()).Should().Equal(["Contacto de emergencia", "Teléfono de emergencia"]);
+            .Select(d => d.TextContent.Trim()).Should().Equal(["Teléfono", "Correo electrónico", "Contacto de emergencia", "Teléfono de emergencia"],
+                "la tarjeta «Datos del trabajador» siempre pinta teléfono y correo, con «Sin informar» si faltan");
     }
 
     [Fact]
@@ -70,7 +71,7 @@ public partial class Trabajador360Gen2Tests
         };
         var cut = Renderizar(id); var drawer = await AbrirEditorFicha(cut);
 
-        drawer.FindComponents<CampoTexto>().Should().HaveCount(12);
+        drawer.FindComponents<CampoTexto>().Should().HaveCount(15);
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Contacto de emergencia").Instance.Valor
             .Should().Be("Lucía Moreno");
         drawer.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Teléfono de emergencia").Instance.Type

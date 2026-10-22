@@ -6,6 +6,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Reclamaciones;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresa;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacionEmpresaEmpleadora;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacion;
 using CaeManager.Application.Reclamaciones.Queries.ObtenerLoteReclamacionPorFiltro;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento;
@@ -138,6 +139,14 @@ public class AlertasGen2Tests : BunitContext
     private static List<string> InsigniasDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut) =>
         cut.FindAll(".alertas-grupo-cabecera .badge").Select(e => e.TextContent.Trim()).ToList();
 
+    /// <summary>Los bloques llegan plegados: despliega todos para leer sus filas.</summary>
+    private static async Task AbrirGrupos(IRenderedComponent<Features.Alertas.Pages.Alertas> cut)
+    {
+        // Cada pulsación repinta: se vuelve a buscar la cabecera en vez de reutilizar elementos viejos.
+        for (var i = 0; i < cut.FindAll(".alertas-grupo-cabecera").Count; i++)
+            await cut.FindAll(".alertas-grupo-cabecera")[i].ClickAsync(new MouseEventArgs());
+    }
+
     private static IElement CabeceraDeGrupo(IRenderedComponent<Features.Alertas.Pages.Alertas> cut, string titulo) =>
         cut.FindAll(".alertas-grupo-cabecera").Single(b => b.QuerySelector(".alertas-grupo-titulo")!.TextContent.Trim() == titulo);
 
@@ -228,6 +237,7 @@ public class AlertasGen2Tests : BunitContext
             "un bloque por tipo, el que tiene algo vencido delante");
         InsigniasDeGrupo(cut).Should().Equal(["Vencido", "Por vencer"], "la insignia es la peor severidad del bloque");
 
+        await AbrirGrupos(cut);
         var formacion = cut.FindAll(".alertas-grupo")[0];
         formacion.QuerySelectorAll("thead th").Select(t => t.TextContent.Trim()).Should().Contain("Severidad");
         formacion.QuerySelectorAll("tbody tr").Select(f => f.TextContent).Should().SatisfyRespectively(
@@ -236,17 +246,21 @@ public class AlertasGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Plegar_un_bloque_oculta_sus_filas_y_no_las_de_los_demas()
+    public async Task Los_bloques_llegan_plegados_y_desplegar_uno_no_toca_los_demas()
     {
         var cut = RenderizarLista(
             Alerta(EstadoDocumento.Vencido, trabajador: "Juan Pérez"),
             Alerta(EstadoDocumento.Proximo, trabajador: "Lucía Bengoa"));
 
+        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("false");
+        cut.Markup.Should().NotContain("Juan Pérez", "los bloques llegan plegados");
+        cut.Markup.Should().NotContain("Lucía Bengoa", "los bloques llegan plegados");
+
         await CabeceraDeGrupo(cut, "Vencido").ClickAsync(new MouseEventArgs());
 
-        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("false");
-        cut.Markup.Should().NotContain("Juan Pérez", "su bloque está plegado");
-        cut.Markup.Should().Contain("Lucía Bengoa", "plegar un bloque no toca los demás");
+        CabeceraDeGrupo(cut, "Vencido").GetAttribute("aria-expanded").Should().Be("true");
+        cut.Markup.Should().Contain("Juan Pérez");
+        cut.Markup.Should().NotContain("Lucía Bengoa", "desplegar un bloque no toca los demás");
     }
 
     /// <summary>
@@ -254,9 +268,10 @@ public class AlertasGen2Tests : BunitContext
     /// cabe en la página: diría 20 donde hay 25 vencidos.
     /// </summary>
     [Fact]
-    public void La_insignia_cuenta_todo_el_bloque_aunque_la_pagina_solo_muestre_una_parte()
+    public async Task La_insignia_cuenta_todo_el_bloque_aunque_la_pagina_solo_muestre_una_parte()
     {
         var cut = RenderizarLista(Enumerable.Range(0, 25).Select(_ => Alerta(EstadoDocumento.Vencido)).ToArray());
+        await AbrirGrupos(cut);
 
         InsigniasDeGrupo(cut).Should().Equal(["25"]);
         cut.Find(".alertas-grupo-meta").TextContent.Should().Contain("20 en esta página");
@@ -295,6 +310,7 @@ public class AlertasGen2Tests : BunitContext
             ObtenerLoteReclamacionPorFiltroQuery => lotes[Math.Min(llamadasLote++, lotes.Length - 1)],
             EnviarReclamacionCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
             EnviarReclamacionEmpresaCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
+            EnviarReclamacionEmpresaEmpleadoraCommand cmd => alEnviar?.Invoke(peticion) ?? Result.Exito(new EnvioReclamacionResultado(cmd.DocumentoIds, [])),
             _ => throw new NotSupportedException($"Petición no prevista en este test: {peticion.GetType().Name}.")
         });
         Services.GetRequiredService<NavigationManager>().NavigateTo("alertas");
@@ -453,6 +469,78 @@ public class AlertasGen2Tests : BunitContext
         enviado.EmpresaId.Should().Be(EmpresaId);
         enviado.DocumentoIds.Should().Equal([DocumentoA]);
         enviado.ContactoIdsSeleccionados.Should().Equal([ContactoCarmen]);
+    }
+
+    // ---------------------------------------------------------------- Empresa empleadora (decisión del 2026-10-18)
+
+    private static readonly Guid DelegacionSevilla = Guid.NewGuid();
+
+    private static LoteReclamacionAgrupadoDto LoteDeEmpresaEmpleadora(
+        Guid? delegacionId, string? delegacion, Guid documento, bool conContacto = true) => new(
+        EmpresaId, "Contratista SL", AmbitoAplicacion.Trabajador, UltimaReclamacionFechaUtc: DateTime.UtcNow.AddDays(-3),
+        [new DocumentoReclamableDto(documento, Guid.NewGuid(), "Ana Pérez", Guid.NewGuid(), "Ficha de riesgos", new DateOnly(2026, 8, 30), EstadoDocumento.Vencido)],
+        UltimaReclamacionConversacionId: Guid.NewGuid(),
+        conContacto ? [new DestinatarioAgendaDto(delegacionId ?? ContactoCarmen, "Marta Sevilla", "sevilla@contratista.example", ["Contacto de reclamación"])] : [],
+        EmpresaEmpleadora: new DestinoEmpresaEmpleadoraDto(delegacionId, delegacion));
+
+    [Fact]
+    public async Task Alertas_pide_los_lotes_de_Trabajador_reagrupados_por_Empresa_empleadora()
+    {
+        var (cut, mediator) = RenderizarConLote(lotes: [[LoteCliente()]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        mediator.Enviados.OfType<ObtenerLoteReclamacionPorFiltroQuery>().Should().ContainSingle()
+            .Which.PorEmpresaEmpleadora.Should().BeTrue("lo de un Trabajador de Empresa se reclama a la Empresa y no al Cliente");
+    }
+
+    [Fact]
+    public async Task Un_lote_de_Delegacion_dice_a_quien_va_y_se_envia_con_el_comando_de_la_Empresa_empleadora()
+    {
+        var (cut, mediator) = RenderizarConLote(lotes: [[LoteDeEmpresaEmpleadora(DelegacionSevilla, "Sevilla", DocumentoA)]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        cut.Markup.Should().Contain("Se reclama a la Delegación Sevilla, a su contacto de reclamación.");
+        cut.FindAll("a").Should().NotContain(a => (a.GetAttribute("href") ?? string.Empty).StartsWith("/comunicaciones?cliente=", StringComparison.Ordinal),
+            "el titular de este lote es una Empresa y el filtro de Comunicaciones es por Cliente");
+        await BotonEnviarDeTarjeta(cut).ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviados.OfType<EnviarReclamacionCommand>().Should().BeEmpty();
+        mediator.Enviados.OfType<EnviarReclamacionEmpresaCommand>().Should().BeEmpty();
+        var enviado = mediator.Enviados.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Subject;
+        enviado.EmpresaId.Should().Be(EmpresaId);
+        enviado.DelegacionEmpresaId.Should().Be(DelegacionSevilla);
+        enviado.DocumentoIds.Should().Equal([DocumentoA]);
+        enviado.ContactoIdsSeleccionados.Should().Equal([DelegacionSevilla]);
+    }
+
+    [Fact]
+    public async Task Los_lotes_de_la_Delegacion_y_de_la_agenda_de_la_misma_Empresa_se_envian_por_separado()
+    {
+        var (cut, mediator) = RenderizarConLote(lotes:
+            [[LoteDeEmpresaEmpleadora(DelegacionSevilla, "Sevilla", DocumentoA), LoteDeEmpresaEmpleadora(null, null, DocumentoB)]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        cut.FindAll(".tarjeta-reclamacion").Should().HaveCount(2);
+        cut.FindAll(".tarjeta-acciones button").Where(b => b.TextContent.Trim().StartsWith("Enviar reclamación"))
+            .Should().HaveCount(2);
+
+        await cut.FindAll(".tarjeta-acciones button").Last(b => b.TextContent.Trim().StartsWith("Enviar reclamación")).ClickAsync(new MouseEventArgs());
+        await BotonDelDialogo(cut, "Enviar reclamación").ClickAsync(new MouseEventArgs());
+
+        var enviado = mediator.Enviados.OfType<EnviarReclamacionEmpresaEmpleadoraCommand>().Should().ContainSingle().Subject;
+        enviado.DelegacionEmpresaId.Should().BeNull("se envió la tarjeta de la agenda de la Empresa");
+        enviado.DocumentoIds.Should().Equal([DocumentoB], "cada tarjeta lleva su propia selección");
+    }
+
+    [Fact]
+    public async Task Un_lote_de_Delegacion_sin_contacto_visible_lo_dice_y_no_ofrece_anadir_contacto()
+    {
+        var (cut, _) = RenderizarConLote(lotes: [[LoteDeEmpresaEmpleadora(DelegacionSevilla, "Sevilla", DocumentoA, conContacto: false)]]);
+        await AbrirSeccionYElegirFiltro(cut);
+
+        cut.Markup.Should().Contain("No puedes ver el contacto de reclamación de esta Delegación");
+        cut.FindAll("button").Where(b => b.TextContent.Contains("Añadir contacto")).Should().BeEmpty();
     }
 
     [Fact]

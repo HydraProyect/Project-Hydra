@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -98,6 +98,18 @@
   <data name="GlosaSubcontrataVarios" xml:space="preserve">
     <value>subcontratas</value>
   </data>
+  <data name="GlosaDocumentoUno" xml:space="preserve">
+    <value>documento exigido</value>
+  </data>
+  <data name="GlosaDocumentoVarios" xml:space="preserve">
+    <value>documentos exigidos</value>
+  </data>
+  <data name="GlosaContactoUno" xml:space="preserve">
+    <value>contacto</value>
+  </data>
+  <data name="GlosaContactoVarios" xml:space="preserve">
+    <value>contactos</value>
+  </data>
   <data name="DetalleEntraComoContratista" xml:space="preserve">
     <value>Entra como contratista: {0}</value>
     <comment>Empresa contratista del Tenant propietario que trabaja en el Centro del Cliente empresarial, su titular. En las filas se nombra solo si hay varias Empresas contratistas visibles; en la cabecera, solo si hay una.</comment>
@@ -109,17 +121,17 @@
     <value>{0} vencidos</value>
   </data>
   <data name="DetalleProximosUno" xml:space="preserve">
-    <value>1 próximo</value>
+    <value>1 por vencer</value>
   </data>
   <data name="DetalleProximosVarios" xml:space="preserve">
-    <value>{0} próximos</value>
+    <value>{0} por vencer</value>
   </data>
   <data name="CentroSinRequisitos" xml:space="preserve">
     <value>Sin requisitos</value>
     <comment>El Centro no exige ningún documento: no hay porcentaje.</comment>
   </data>
   <data name="CumplimientoCentro" xml:space="preserve">
-    <value>Cumplimiento del centro</value>
+    <value>Documentos validados en la plataforma CAE de este Cliente</value>
   </data>
   <data name="SinCentrosTitulo" xml:space="preserve">
     <value>Sin centros</value>
@@ -381,11 +393,26 @@
   <data name="ToleranciaSinTiposDescripcion" xml:space="preserve">
     <value>Este Cliente no tiene tipos de documento de Trabajador o de Empresa a los que fijar tolerancia, o no tienes acceso a él.</value>
   </data>
-  <data name="MotivoUnDocumento" xml:space="preserve">
-    <value>1 documento</value>
+  <data name="MotivoUnVencido" xml:space="preserve">
+    <value>1 vencido</value>
   </data>
-  <data name="MotivoDocumentos" xml:space="preserve">
-    <value>{0} documentos</value>
+  <data name="MotivoVencidos" xml:space="preserve">
+    <value>{0} vencidos</value>
+  </data>
+  <data name="MotivoUnPendiente" xml:space="preserve">
+    <value>1 pendiente</value>
+  </data>
+  <data name="MotivoPendientes" xml:space="preserve">
+    <value>{0} pendientes</value>
+  </data>
+  <data name="MotivoUnPorVencer" xml:space="preserve">
+    <value>1 por vencer</value>
+  </data>
+  <data name="MotivoPorVencer" xml:space="preserve">
+    <value>{0} por vencer</value>
+  </data>
+  <data name="SeparadorMotivo" xml:space="preserve">
+    <value> · </value>
   </data>
   <data name="IncidenciasTituloUna" xml:space="preserve">
     <value>1 documento con incidencia entre sus trabajadores</value>
@@ -508,6 +535,9 @@
   <data name="PlataformaCaeSinRegistrar" xml:space="preserve">
     <value>Sin plataforma CAE registrada.</value>
   </data>
+  <data name="PlataformaCaeDeSusCentros" xml:space="preserve">
+    <value>Sus Centros ya se acreditan en {0}.</value>
+  </data>
   <data name="PlataformaCaeAlcance" xml:space="preserve">
     <value>La comparten todos sus Centros.</value>
   </data>
@@ -625,18 +655,24 @@
   <data name="DocumentosExigidosError" xml:space="preserve"><value>No pudimos cargar los documentos exigidos</value></data>
   <data name="DocumentosExigidosErrorDescripcion" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ListaDocumentosExigidos" xml:space="preserve"><value>Documentos que exige el Cliente</value></data>
-  <data name="ListaEmpresasCertificado" xml:space="preserve"><value>Empresas del Cliente y su certificado de la Seguridad Social</value></data>
-  <data name="CertificadoEmpresasUna" xml:space="preserve"><value>{0} Empresa</value></data>
-  <data name="CertificadoEmpresasVarias" xml:space="preserve"><value>{0} Empresas</value></data>
   <data name="SolicitudesCero" xml:space="preserve"><value>Sin solicitudes</value></data>
   <data name="SolicitudesUna" xml:space="preserve"><value>1 solicitud</value></data>
   <data name="SolicitudesVarias" xml:space="preserve"><value>{0} solicitudes</value></data>
   <data name="ExigidoEnCentroUnico" xml:space="preserve"><value>En su Centro</value></data>
   <data name="ExigidoEnCentros" xml:space="preserve"><value>En {0} de {1} Centros</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
-  <data name="RequisitoAmbitoEmpresa" xml:space="preserve"><value>Empresa empleadora</value></data>
-  <data name="RequisitoAmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
   <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="RequisitoCertificadoDetalle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="RequisitoSeExige" xml:space="preserve"><value>Se exige</value></data>
+  <data name="RequisitoVerHistorial" xml:space="preserve"><value>Ver historial</value></data>
+  <data name="RequisitoVerCentros" xml:space="preserve"><value>Ver Centros</value></data>
+  <data name="RequisitoGrupoEmpresa" xml:space="preserve"><value>Lo que exige a la Empresa empleadora</value></data>
+  <data name="RequisitoGrupoTrabajador" xml:space="preserve"><value>Lo que exige a los Trabajadores</value></data>
+  <data name="RequisitoGrupoUno" xml:space="preserve"><value>1 documento</value></data>
+  <data name="RequisitoGrupoVarios" xml:space="preserve"><value>{0} documentos</value></data>
+  <data name="RequisitoGrupoBloqueaUno" xml:space="preserve"><value>1 bloquea el acceso</value></data>
+  <data name="RequisitoGrupoBloqueanVarios" xml:space="preserve"><value>{0} bloquean el acceso</value></data>
+  <data name="RequisitoGrupoSinBloqueos" xml:space="preserve"><value>Sin bloqueos</value></data>
   <data name="CertificadoSinSolicitar" xml:space="preserve"><value>Sin solicitar</value></data>
   <data name="CertificadoPendienteTgss" xml:space="preserve"><value>Pendiente TGSS</value></data>
   <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silencio)</value></data>
@@ -647,4 +683,14 @@
   <data name="CentrosDesplegadosError" xml:space="preserve"><value>No pudimos cargar los centros. Vuelve a desplegar la fila para reintentarlo.</value></data>
   <data name="CentrosDesplegadosNinguno" xml:space="preserve"><value>Ningún centro con incidencias.</value></data>
   <data name="OrdenarPorColumna" xml:space="preserve"><value>Ordenar</value></data>
+  <data name="EmpresasDelCentro" xml:space="preserve"><value>Empresas: {0}</value></data>
+  <data name="RotuloBloqueoPlataforma" xml:space="preserve"><value>Bloqueo de la plataforma CAE</value></data>
+  <data name="NotaEditarTitulo" xml:space="preserve"><value>Editar nota interna</value></data>
+  <data name="NotaEtiqueta" xml:space="preserve"><value>Nota</value></data>
+  <data name="NotaPrivada" xml:space="preserve"><value>No la ve el Cliente.</value></data>
+  <data name="NotaSinCambios" xml:space="preserve"><value>No hay cambios que guardar.</value></data>
+  <data name="NotaErrorGuardar" xml:space="preserve"><value>No pudimos guardar la nota. Intenta nuevamente en unos segundos.</value></data>
+  <data name="BajaTitulo" xml:space="preserve"><value>Dar de baja al Cliente</value></data>
+  <data name="BajaMensaje" xml:space="preserve"><value>Se dará de baja a {0}. ¿Quieres continuar?</value></data>
+  <data name="BajaError" xml:space="preserve"><value>No pudimos dar de baja al Cliente. Intenta nuevamente en unos segundos.</value></data>
 </root>

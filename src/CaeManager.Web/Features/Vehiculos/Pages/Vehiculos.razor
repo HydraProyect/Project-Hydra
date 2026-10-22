@@ -27,12 +27,12 @@
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* La empresa gestionada activa sigue resolviendo qué lista se carga; el rediseño oculta
        su rótulo en la cabecera y conserva el estado vacío cuando todavía no hay selección. *@
     @if (!_sinEmpresaSeleccionada && !_resolviendoEmpresa)
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" Contador="@(_cargando || _errorCarga ? null : _totalElementos)"
                          SeleccionMultiple="_seleccionMultiple"
                          SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
                          RutaExportar="@(_alcanceCero ? null : "/vehiculos/exportar.xlsx")" CriteriosExportar="CriteriosExportar" Menu="@(!_alcanceCero ? MenuExportarTodo : null)">
@@ -46,7 +46,7 @@
     }
     else
     {
-        <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]" />
+        <CabeceraListado Titulo="@Textos["TituloPagina"]" />
     }
 
     @if (_resolviendoEmpresa)
@@ -64,18 +64,27 @@
     {
     @if (!_alcanceCero)
     {
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : _totalElementos)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && !_alcanceCero && !_errorCarga ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
                   VistaRecordada="_vistaRecordada">
         <Pastillas>
-            <FranjaEstado PresentacionCampo="true" Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
-                  Recuentos="_recuentosPorEstado" />
-            <PastillaFiltro PresentacionCampo="true" Etiqueta="@Textos["EtiquetaEmpleador"]" TextoTodos="@Textos["ListaFiltroTodos"]"
+            <PastillaFiltro Etiqueta="@Textos["ListaColumnaEmpresa"]" TextoTodos="@Textos["ListaFiltroTodos"]"
                             Valor="@ValorFiltroEmpleador" ValorChanged="CambiarFiltroEmpleadorAsync" Opciones="OpcionesFiltroEmpleador" />
         </Pastillas>
-        <Herramientas><BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" /></Herramientas>
+        <Estados>
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+                  Recuentos="_recuentosPorEstado" />
+        </Estados>
+        <Herramientas>
+            <PastillaFiltro Etiqueta="@Textos["EtiquetaAgrupar"]" TextoTodos="@Textos["OpcionSinAgrupar"]" Valor="@ValorAgrupacion"
+                            ValorChanged="CambiarAgrupacionAsync" Opciones="OpcionesAgrupacion" Keytip="A" />
+            @if (_elementosPagina.Count > 0)
+            {
+                <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+            }
+        </Herramientas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
@@ -95,7 +104,7 @@
                                OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Vehiculos"
                              ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
-    @* Selector desplegable de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
+    @* Franja de estado: conserva la semántica de la franja para «Documentación». Admite varios estados a la vez, viaja en la
        URL como «estado» (estados de código separados por coma) y cada botón dice cuántas filas hay, con los
        demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
 
@@ -113,8 +122,10 @@
     }
     else
     {
-        @TarjetaListado.RenderizarMaqueta(@<text>
-                <div style="display:@(_totalElementos == 0 && !_cargando ? "none" : "block")">
+        @if (_totalElementos > 0 || _cargando)
+        {
+        @TarjetaListado.Renderizar(@<text>
+                <div>
                 <table class="tabla-datos quickgrid vehiculos-rejilla-propia" theme="default" aria-busy="@(_cargando ? "true" : "false")">
                     <thead><tr>
                         @if (_seleccionMultiple)
@@ -122,15 +133,29 @@
                             <th scope="col"><input type="checkbox" aria-label="@Textos["AriaSeleccionarPagina"]" checked="@TodosSeleccionados" @onchange="e => AlternarSeleccionTodos((bool)e.Value!)" /></th>
                         }
                         @CabeceraOrdenable(_campoOrdenVehiculo, TituloColumnaVehiculo)
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.EmpleadorNombre), Textos["EtiquetaEmpleador"])
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.NumeroPlaca), Textos["EtiquetaMatricula"])
-                        @CabeceraOrdenable(nameof(VehiculoListaDto.EstadoDocumental), Textos["ListaColumnaEstadoDocumental"], "col-estado")
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.EmpleadorNombre), Textos["ListaColumnaEmpresa"])
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.Modelo), Textos["EtiquetaModelo"])
+                        @CabeceraOrdenable(nameof(VehiculoListaDto.EstadoDocumental), Textos["ListaColumnaDocumentacion"], "col-estado")
                         <th scope="col"></th>
                     </tr></thead>
                     <tbody>
                     @{ var claves = new ClavesDeHermanos(); }
-                    @foreach (var context in _elementosPagina)
+                    @foreach (var filaDeGrupo in FilasConGrupo())
                     {
+                        var context = filaDeGrupo.Fila;
+                        @if (filaDeGrupo.Cabecera is { } grupo)
+                        {
+                            @* Grupo «Por Empresa» (maqueta de Vehículos), plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado,
+                               con «· N» y, plegado, la pastilla roja de los Vehículos en rojo. *@
+                            <tr @key='claves.De((grupo.Clave, "grupo"))' class="vehiculo-grupo" data-grupo-empresa="@grupo.Nombre"><td colspan="@(_seleccionMultiple ? 6 : 5)">
+                                <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                    Abierto="filaDeGrupo.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
+                            </td></tr>
+                        }
+                        @if (filaDeGrupo.Oculta)
+                        {
+                            continue;
+                        }
                         <tr @key="claves.De(context.Id)" class="@ObtenerClaseFila(context)">
                             @if (_seleccionMultiple)
                             {
@@ -143,17 +168,17 @@
                                 }
                                 <span class="celda-vehiculo">
                                     <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" aria-label="@Textos["AbrirVistaRapidaDe", context.Nombre]" @onclick="() => AbrirVistaRapidaAsync(context.Id)"><TextoResaltado Texto="@context.Nombre" Termino="@_busqueda" /></button>
-                                    <span class="celda-vehiculo-modelo"><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></span>
+                                    @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
+                                    {
+                                        <span class="celda-vehiculo-modelo celda-vehiculo-matricula"><BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]" NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" /></span>
+                                    }
                                 </span>
                             </div></td>
                             <td>@context.EmpleadorNombre</td>
-                            <td>
-                                @if (!string.IsNullOrWhiteSpace(context.NumeroPlaca))
-                                {
-                                    <span class="celda-vehiculo-matricula"><BotonCopiar EnLinea="true" Valor="@context.NumeroPlaca" Texto="@context.NumeroPlaca" TerminoResaltado="@_busqueda" Etiqueta="@Textos["FichaCopiarLaMatricula"]" NombreAccesible="@Textos["FichaCopiarMatricula", context.NumeroPlaca]" /></span>
-                                }
-                            </td>
-                            <td class="col-estado"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
+                            <td><TextoResaltado Texto="@context.Modelo" Termino="@_busqueda" /></td>
+                            <td class="col-estado"><BarraCumplimiento Porcentaje="@PorcentajeDocumentacion(context)"
+                                                   Texto="@MotivoIncidenciasUi.RegistradosVigentes(context.DocumentosVigentes, context.DocumentosRegistrados)"
+                                                   Etiqueta="@MotivoIncidenciasUi.RegistradosVigentesAccesible(context.DocumentosVigentes, context.DocumentosRegistrados)" /><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(context.EstadoDocumental)" Texto="@EstadoDocumentoUi.TextoDocumental(context.EstadoDocumental)" Correcto="EstadoDocumentoUi.EsCorrecto(context.EstadoDocumental)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></td>
                             <td><Boton360 Nombre="@context.Nombre" Href="@($"/vehiculos/{context.Id}")" /></td>
                         </tr>
                         @if (context.Incidencias.Count > 0 && EstaExpandido(context))
@@ -168,6 +193,8 @@
 
                 </div>
 
+        </text>, PieDelListado)
+        }
         @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
         {
             @* Distinto de "aún no hay vehículos": hay cuatro filtros puestos
@@ -196,7 +223,10 @@
                 </EstadoVacio>
             </VacioSegunAlcance>
         }
-        </text>, PieDelListado)
+        @if (_totalElementos == 0 && !_cargando)
+        {
+            @TarjetaListado.RenderizarMaqueta(null, PieDelListadoVacio)
+        }
     }
     }
 </div>
@@ -272,12 +302,18 @@
 </LimiteDeErrores>
 
 @code {
-    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
+    private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : PieSegun(false);
+
+    // Sin vehículos el pie sigue visible debajo de la tarjeta, con la presentación de la maqueta anterior
+    // (regla compartida de los listados, ListadosPieSiempreVisibleTests).
+    private RenderFragment PieDelListadoVacio => PieSegun(true);
+
+    private RenderFragment PieSegun(bool presentacionMaqueta) => @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }
@@ -297,7 +333,7 @@
                 <button type="button" class="col-options-button" aria-label="@Textos["OpcionesOrdenVehiculo"]" aria-expanded="@(_opcionesOrdenVehiculo ? "true" : "false")" @onclick="() => _opcionesOrdenVehiculo = !_opcionesOrdenVehiculo"><Icono Nombre="filtro" Tamano="TamanoIcono.Pequeno" /></button>
                 @if (_opcionesOrdenVehiculo)
                 {
-                    <div class="col-options" data-opciones-orden><CampoSelect Etiqueta="@Textos["ListaOrdenarPor"]" Valor="@_campoOrdenVehiculo" ValorChanged="CambiarCampoOrdenVehiculoAsync"><option value="@nameof(VehiculoListaDto.Nombre)">@Textos["EtiquetaNombre"]</option><option value="@nameof(VehiculoListaDto.Modelo)">@Textos["EtiquetaModelo"]</option></CampoSelect></div>
+                    <div class="col-options" data-opciones-orden><CampoSelect Etiqueta="@Textos["ListaOrdenarPor"]" Valor="@_campoOrdenVehiculo" ValorChanged="CambiarCampoOrdenVehiculoAsync"><option value="@nameof(VehiculoListaDto.Nombre)">@Textos["EtiquetaNombre"]</option><option value="@nameof(VehiculoListaDto.NumeroPlaca)">@Textos["EtiquetaMatricula"]</option></CampoSelect></div>
                 }
             }
         </div>

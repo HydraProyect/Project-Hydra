@@ -96,21 +96,19 @@ button.indicador-pasos-boton:focus-visible {
    completado en verde de �xito con su marca, futuro con el borde de control. Una raya fina une los pasos. */
 .indicador-pasos-panel {
     align-items: center;
-    gap: var(--space-2);
+    gap: 6px;
 }
 
+/* Como la maqueta: el <li> no es caja; botón y raya son hijos de la fila, separados 6 px, y las rayas reparten el ancho sobrante. */
 .indicador-pasos-panel .indicador-pasos-item {
-    flex: 1;
-}
-
-.indicador-pasos-panel .indicador-pasos-item:last-child {
-    flex: none;
+    display: contents;
 }
 
 .indicador-pasos-panel .indicador-pasos-item:not(:last-child)::after {
+    flex: 1;
     height: 1px;
     min-width: var(--space-2);
-    margin: 0 var(--space-2);
+    margin: 0;
 }
 
 .indicador-pasos-panel .indicador-pasos-item.indicador-pasos-completado:not(:last-child)::after {
@@ -194,5 +192,5 @@ button.indicador-pasos-boton:focus-visible {
 
 /* «Paso 2 de 3 · Trabajo»: el separador es de presentación y no es texto de la pantalla. */
 .indicador-pasos-movil-titulo::before {
-    content: " \00B7 ";
+    content: "\00A0\00B7\00A0";
 }

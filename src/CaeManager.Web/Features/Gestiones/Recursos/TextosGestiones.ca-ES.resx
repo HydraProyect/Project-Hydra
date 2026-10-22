@@ -175,6 +175,14 @@
   <data name="ListaOrdenarTrabajador" xml:space="preserve"><value>Ordenar per treballador</value></data>
   <data name="ListaTrabajadorPorCentro" xml:space="preserve"><value>Treballador · Centre</value></data>
   <data name="ListaTipoDocumento" xml:space="preserve"><value>Tipus de document</value></data>
+  <data name="ColumnaGestion" xml:space="preserve"><value>Gestió</value></data>
+  <data name="CopiarReferenciaGestion" xml:space="preserve"><value>Copia la referència de la gestió de {0}</value></data>
+  <data name="ToastGestionCompletada" xml:space="preserve">
+    <value>Gestió completada.</value>
+  </data>
+  <data name="ToastGestionReabierta" xml:space="preserve">
+    <value>Gestió reoberta.</value>
+  </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>

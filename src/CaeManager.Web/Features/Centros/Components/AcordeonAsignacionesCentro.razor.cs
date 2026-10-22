@@ -9,6 +9,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesPara
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -39,6 +40,44 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     /// <summary>Empresa titular del centro, sujeto del ámbito Empresa (OD-13).</summary>
     [Parameter] public Guid EmpresaId { get; set; }
+    /// <summary>
+    /// Presentación de Centro 360 (maqueta del 20-10): estado en la plataforma por documento y, con ella, la lista de la maqueta —
+    /// filtros «Todos» y «Bloquea acceso», la Empresa empleadora junto al nombre y sin baja en lote («no decidido»).
+    /// </summary>
+    [Parameter] public bool MostrarEstadoPlataforma { get; set; }
+
+    /// <summary>Empresa empleadora de cada Trabajador del Centro, solo en la presentación de Centro 360; vacía si la lectura falla.</summary>
+    private IReadOnlyDictionary<Guid, string> _empleadoresPorTrabajador = new Dictionary<Guid, string>();
+
+    private string? EmpleadorDe(Guid trabajadorId) =>
+        MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
+    /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
+    [Parameter] public string? NombrePlataforma { get; set; }
+    [Parameter] public RenderFragment? Busqueda { get; set; }
+
+    private static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
+    private static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
+        documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true;
+    private static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
+        BloqueaPlataforma(documento) ? 0 : TienePendienteValidacion(documento) ? 1 : 2;
+    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[estado switch
+    {
+        EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
+        EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
+        EstadoAcreditacion.Subida => "PlataformaPendienteValidacion360",
+        EstadoAcreditacion.Aceptada => "PlataformaValidado360",
+        EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
+        _ => "PlataformaSinDatos360"
+    }];
+    private static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
+    {
+        EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Peligro,
+        EstadoAcreditacion.Subida => TonoBadge.Advertencia,
+        EstadoAcreditacion.Aceptada => TonoBadge.Exito,
+        _ => TonoBadge.Neutro
+    };
+
     [Parameter] public string EmpresaNombre { get; set; } = string.Empty;
 
     /// <summary>
@@ -150,7 +189,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto> BloqueosEfectivos =>
         Bloqueos ?? _bloqueosPropios;
 
-    private bool EstaBloqueado(Guid trabajadorId) => BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId);
+    /// <summary>
+    /// «Bloqueado» del Trabajador: un bloqueo de acceso del Centro o, en Centro 360, un documento que bloquea en la plataforma
+    /// CAE del Cliente (Rechazado o Pendiente de subir, bloque 3 del 21-10). Con la misma regla cuentan la fila, su pastilla
+    /// «Bloquea acceso», el orden y el filtro con su contador: un rechazo de la plataforma deja al Trabajador bloqueado.
+    /// </summary>
+    private bool EstaBloqueado(Guid trabajadorId) =>
+        BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId) || BloqueaEnPlataforma(trabajadorId);
+
+    private bool BloqueaEnPlataforma(Guid trabajadorId) =>
+        MostrarEstadoPlataforma && _trabajadores.Any(t => t.TrabajadorId == trabajadorId && t.Documentos.Any(BloqueaPlataforma));
 
     private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosDe(Guid trabajadorId) =>
         BloqueosEfectivos.Where(b => b.TrabajadorId == trabajadorId).ToList();
@@ -230,7 +278,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private readonly HashSet<Guid> _expandidosTrabajador = [];
 
-    /// <summary>Fila plegable de la Empresa: desplegada de entrada, porque el bloque solo existe cuando hay incidencias que resolver.</summary>
+    /// <summary>
+    /// Fila plegable de la Empresa. En Centro 360 va desplegada de entrada, porque el bloque solo existe cuando hay incidencias que
+    /// resolver. Dentro de la fila desplegada de /centros (ModoListado) nace contraída, como todo lo desplegable de los listados
+    /// (decisión 2026-10-21, #1530): se abre con su chevron.
+    /// </summary>
     private bool _empresaDesplegada = true;
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
@@ -243,7 +295,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        _empresaDesplegada = !ModoListado;
+    }
 
     /// <summary>
     /// Apagar "Selección múltiple" limpia la selección de trabajadores — mismo
@@ -319,6 +375,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
                 : [];
             if (carga != _cargaLista) return;
             _trabajadoresVisitaSinAsignacion = sinAsignacion;
+            if (MostrarEstadoPlataforma)
+                await CargarEmpleadoresAsync(carga, centroId);
             await OnResumenCargado.InvokeAsync((centroId, _trabajadores.Count));
         }
         catch (Exception)
@@ -337,6 +395,24 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
         if (Bloqueos is null)
             await CargarBloqueosPropiosAsync(carga, centroId);
+    }
+
+    /// <summary>La Empresa empleadora es un dato de apoyo de la fila: si no se puede leer, la fila se enseña sin ella.</summary>
+    private async Task CargarEmpleadoresAsync(int carga, Guid centroId)
+    {
+        try
+        {
+            var asignados = await Mediator.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(centroId), _cancelacion);
+            if (carga != _cargaLista) return;
+            _empleadoresPorTrabajador = asignados
+                .GroupBy(a => a.TrabajadorId)
+                .ToDictionary(g => g.Key, g => g.First().EmpleadorNombre);
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaLista)
+                _empleadoresPorTrabajador = new Dictionary<Guid, string>();
+        }
     }
 
     /// <summary>
@@ -472,7 +548,13 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private bool HayFiltroAplicado => !string.IsNullOrWhiteSpace(TextoBusqueda) || SeleccionEstados.Separar(FiltroEstado).Count > 0;
 
-    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranja =>
+    // Maqueta de Centro 360 (20-10): «Todos» y «Bloquea acceso». «Pendiente de validación» depende del estado por documento en
+    // la plataforma (decisión 14, sin cerrar) y no se ofrece todavía.
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranja => MostrarEstadoPlataforma
+        ? [new(Textos["BloqueaAccesoEtiqueta"], TonoBadge.Peligro, "Bloqueado")]
+        : OpcionesFranjaCompleta;
+
+    private IReadOnlyList<OpcionFranjaEstado> OpcionesFranjaCompleta =>
     [
         new(Textos["BloqueadoEtiqueta"], TonoBadge.Peligro, "Bloqueado"),
         new(EstadoDocumentoFicha360.Texto(EstadoDocumento.Vencido), TonoBadge.Peligro, nameof(EstadoDocumento.Vencido)),
@@ -525,7 +607,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     // La fila compacta no repite el estado en el motivo; la gestión conserva el desglose existente.
     private string MotivoTrabajadorListado(TrabajadorAsignacionDocumentacionDto trabajador)
     {
-        if (EstaBloqueado(trabajador.TrabajadorId)) return DescripcionBloqueo(trabajador.TrabajadorId);
+        if (BloqueosDe(trabajador.TrabajadorId).Count > 0) return DescripcionBloqueo(trabajador.TrabajadorId);
         var documentos = trabajador.Documentos.Where(d =>
             EstadoDocumentoFicha360.Clave(d.Estado) == EstadoDocumentoFicha360.Clave(trabajador.PeorEstado)).ToList();
         if (documentos.Count > 1) return Textos["ListadoDocumentosIncidencia", documentos.Count];
@@ -581,19 +663,30 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// aquí, por eso el rótulo lo dice en vez de llamarlos «del centro».
     /// </para>
     /// </summary>
-    private (int Exigidos, int AlDia, int Vencidos, int Faltantes) TotalesDocumentales
+    private (int Exigidos, int AlDia, int PorVencer, int Vencidos, int Faltantes, int SinValidar) TotalesDocumentales
     {
         get
         {
-            var documentos = _trabajadores.SelectMany(t => t.Documentos).ToList();
+            // Un documento por par Trabajador × Tipo, el mejor de los que trae el listado: el listado enseña también el vencido
+            // que ya tiene renovación, y contarlo aparte inflaría los vencidos frente a «exigidos», que cuenta pares.
+            var documentos = _trabajadores
+                .SelectMany(t => t.Documentos.GroupBy(d => d.TipoDocumentoId)
+                    .Select(g => g.MaxBy(d => SeveridadEstadoDocumento.Rango(d.Estado))!))
+                .ToList();
             // «Exigidos» y «al día» salen de CumplimientoDocumental (la porción de cada Trabajador del % del Centro): el
             // listado de documentos no trae los «Sin caducidad» y puede repetir un tipo (vencido y renovación).
             var cumplimiento = FraccionCumplimiento.Sumar(_trabajadores.Select(t => t.Cumplimiento));
+            var vencidos = documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado));
+            var faltantes = documentos.Count(d => d.Estado == EstadoDocumento.Faltante);
+            // Revisión 1:1 del 2026-10-21: las partes no sumaban el total. «Al día» ya incluye los por vencer (siguen valiendo
+            // hoy) y deja fuera los «Sin confirmar» y los pendientes en la plataforma de un tipo bloqueante; el resto es eso.
             return (
                 cumplimiento.Requeridos,
                 cumplimiento.AlDia,
-                documentos.Count(d => EstadoDocumentoUi.HaVencido(d.Estado)),
-                documentos.Count(d => d.Estado == EstadoDocumento.Faltante));
+                documentos.Count(d => d.Estado is EstadoDocumento.Urgente or EstadoDocumento.Proximo),
+                vencidos,
+                faltantes,
+                Math.Max(0, cumplimiento.Requeridos - cumplimiento.AlDia - vencidos - faltantes));
         }
     }
 
@@ -616,6 +709,26 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     }
 
     private DrawerGestionDocumento _drawerGestion = default!;
+
+    private sealed record AcreditacionAGestionar(DocumentoRequeridoDto Documento, Guid PropietarioId, string PropietarioNombre);
+
+    private AcreditacionAGestionar? _acreditacionAGestionar;
+    private bool _panelAcreditacionVisible;
+
+    /// <summary>
+    /// «Gestionar» de un documento vigente en TALVEG: abre el panel que cambia su estado en las plataformas de este Centro.
+    /// Un Centro sin plataforma para ese documento no tiene estado de acreditación que cambiar, y entonces se abre el
+    /// drawer del documento, como antes.
+    /// </summary>
+    private Task GestionarAcreditacion(TrabajadorAsignacionDocumentacionDto trabajador, DocumentoRequeridoDto documento)
+    {
+        if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+            return GestionarAsync(trabajador.TrabajadorId, documento);
+
+        _acreditacionAGestionar = new AcreditacionAGestionar(documento, trabajador.TrabajadorId, trabajador.TrabajadorNombre);
+        _panelAcreditacionVisible = true;
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// Gestionar in situ (contrato de fidelidad 2026-08-09, item 3 del
@@ -666,11 +779,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         if (incidencia.Estado is null)
             return Textos["VigenciaNoAplica"];
 
-        if (incidencia.FechaVencimiento is not { } fecha)
-            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(incidencia.Estado);
-
-        var texto = fecha.ToString("dd/MM/yyyy");
-        return incidencia.Estado == EstadoDocumento.Vencido ? $"Vencio {texto}" : $"Caduca {texto}";
+        return DetalleVigenciaDocumentoUi.DeFicha360(incidencia.Estado.Value, incidencia.FechaVencimiento, incidencia.Descripcion, deEmpresa: true);
     }
 
     private void AbrirConfirmarBajaLoteAsync()
@@ -816,22 +925,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// segun el estado porque una fecha suelta no dice si ya paso o esta por
     /// llegar, y esa es justo la pregunta del gestor.
     /// </summary>
-    private static string TextoVigencia(DocumentoRequeridoDto documento)
-    {
-        if (documento.DocumentoId is null)
-        {
-            return "—";
-        }
-
-        if (documento.FechaVencimiento is not { } fecha)
-        {
-            // Sin fecha NO es «no caduca»: «Sin caducidad» solo si está confirmado; si nadie ha anotado hasta
-            // cuándo vale, «Sin confirmar» (el modelo eliminó el «nulo = no caduca»).
-            return EstadoDocumentoUi.TextoSinFechaDeVencimiento(documento.Estado);
-        }
-
-        var texto = fecha.ToString("dd/MM/yyyy");
-        return EstadoDocumentoUi.HaVencido(documento.Estado) ? $"Vencio {texto}" : $"Caduca {texto}";
-    }
+    private static string TextoVigencia(DocumentoRequeridoDto documento) =>
+        DetalleVigenciaDocumentoUi.DeFicha360(documento.Estado, documento.FechaVencimiento, documento.TipoDocumentoNombre);
 
 }

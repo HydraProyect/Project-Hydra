@@ -1,0 +1,430 @@
+@using System.Globalization
+@using CaeManager.Application.Documentos.DocumentacionBase
+@using CaeManager.Application.Empresas.Queries.ObtenerVigenciaEmpresa
+@using CaeManager.Domain.Common
+@using CaeManager.Web.Features.Empresas.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosEmpresas> Textos
+
+@* Pestaña «Vigencia» de Empresa 360 (maqueta «Empresa 360 TALVEG»): Trabajador × tipo de documento, con el estado de vigencia de cada celda.
+   Los datos son de ObtenerVigenciaEmpresaQuery; la regla de cada celda en un alcance de Centros, de VigenciaEnAlcance. *@
+<section class="vigencia-empresa" data-pieza="vigencia-empresa" aria-label="@Textos["PestanaVigencia"]">
+    @if (_error)
+    {
+        <EstadoVacio Titulo="@Textos["VigenciaErrorTitulo"]" Descripcion="@Textos["ErrorSeccionDescripcion"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Primario" OnClick="CargarAsync">@Textos["Reintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_dto is null)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_dto.Filas.Count == 0)
+    {
+        <EstadoVacio Titulo="@Textos["VigenciaSinTrabajadoresTitulo"]" Descripcion="@Textos["VigenciaSinTrabajadoresDescripcion"]" />
+    }
+    else
+    {
+        var vista = Construir();
+        <div class="vigencia-barra">
+            <select class="vigencia-select" data-activo="@(_centro is not null ? "true" : null)" aria-label="@Textos["VigenciaFiltroCentro"]" @onchange="e => CambiarCentro(e.Value?.ToString())">
+                <option value="" selected="@(_centro is null)">@Textos["VigenciaTodosLosCentros"]</option>
+                @foreach (var centro in CentrosConExigencias)
+                {
+                    <option value="@centro.CentroId" selected="@(_centro == centro.CentroId)">@centro.Nombre</option>
+                }
+            </select>
+            <select class="vigencia-select" data-activo="@(_delegacionEmpresa is not null ? "true" : null)" aria-label="@Textos["VigenciaFiltroDelegacionEmpresa"]" @onchange="e => CambiarDelegacionEmpresa(e.Value?.ToString())">
+                <option value="" selected="@(_delegacionEmpresa is null)">@Textos["VigenciaTodasLasDelegacionesEmpresa"]</option>
+                @foreach (var sede in DelegacionesEmpresa)
+                {
+                    <option value="@sede.Id" selected="@(_delegacionEmpresa == sede.Id)">@sede.Nombre</option>
+                }
+            </select>
+            <select class="vigencia-select" data-activo="@(_puesto is not null ? "true" : null)" aria-label="@Textos["VigenciaFiltroPuesto"]" @onchange="e => CambiarPuesto(e.Value?.ToString())">
+                <option value="" selected="@(_puesto is null)">@Textos["VigenciaTodosLosPuestos"]</option>
+                @foreach (var puesto in Puestos)
+                {
+                    <option value="@puesto" selected="@(_puesto == puesto)">@puesto</option>
+                }
+            </select>
+            <button type="button" class="vigencia-chip" aria-pressed="@(_soloProblemas ? "true" : "false")" @onclick="AlternarProblemas">@Textos["VigenciaSoloProblemas", vista.ConProblema]</button>
+            <button type="button" class="vigencia-chip" aria-pressed="@(_vence30 ? "true" : "false")" @onclick="AlternarVence30">@Textos["VigenciaVenceEnDias", _dto.UmbralPorVencerDias, vista.PorVencer]</button>
+            <span class="vigencia-barra-derecha">
+                <label class="vigencia-ordenar">
+                    @Textos["VigenciaOrdenarPor"]
+                    <select class="vigencia-select" @onchange="e => CambiarOrden(e.Value?.ToString())">
+                        <option value="nombre" selected="@(_orden == "nombre")">@Textos["VigenciaOrdenNombre"]</option>
+                        <option value="delegacion-empresa" selected="@(_orden == "delegacion-empresa")">@Textos["VigenciaOrdenDelegacionEmpresa"]</option>
+                        <option value="puesto" selected="@(_orden == "puesto")">@Textos["VigenciaOrdenPuesto"]</option>
+                    </select>
+                </label>
+                <span class="vigencia-segmento" role="group" aria-label="@Textos["VigenciaFechaMostrada"]">
+                    <button type="button" aria-pressed="@(!_verEmision ? "true" : "false")" @onclick="() => FijarFecha(false)">@Textos["VigenciaFechaVencimiento"]</button>
+                    <button type="button" aria-pressed="@(_verEmision ? "true" : "false")" @onclick="() => FijarFecha(true)">@Textos["VigenciaFechaEmision"]</button>
+                </span>
+            </span>
+        </div>
+
+        <div class="vigencia-leyenda">
+            <span><i class="vigencia-muestra" data-estado="vigente" aria-hidden="true"></i>@Textos["VigenciaLeyendaVigente"]</span>
+            <span><i class="vigencia-muestra" data-estado="por-vencer" aria-hidden="true"></i>@Textos["VigenciaLeyendaPorVencer"]</span>
+            <span><i class="vigencia-muestra" data-estado="vencido" aria-hidden="true"></i>@Textos["VigenciaLeyendaVencidoOFalta"]</span>
+            <span><i class="vigencia-muestra" data-estado="opcional" aria-hidden="true"></i>@Textos["VigenciaLeyendaOpcional"]</span>
+            <span class="vigencia-leyenda-nota">@Textos["VigenciaPulsaUnaCelda"]</span>
+        </div>
+
+        @if (vista.Columnas.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["VigenciaSinColumnasTitulo"]" Descripcion="@Textos["VigenciaSinColumnasDescripcion"]" />
+        }
+        else if (vista.Filas.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["VigenciaSinFilasTitulo"]">
+                <Accion>
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="QuitarFiltros">@Textos["VigenciaQuitarFiltros"]</Boton>
+                </Accion>
+            </EstadoVacio>
+        }
+        else
+        {
+            <div class="vigencia-tarjeta">
+                <div class="vigencia-rejilla" role="table" aria-label="@Textos["PestanaVigencia"]">
+                    <div class="vigencia-grupos" aria-hidden="true">
+                        <span class="vigencia-esquina"></span>
+                        @foreach (var grupo in vista.Grupos)
+                        {
+                            <span class="vigencia-grupo" style="@EstiloGrupo(grupo)">@NombreGrupo(grupo.Grupo)</span>
+                        }
+                    </div>
+                    <div class="vigencia-cabecera" role="row">
+                        <span class="vigencia-esquina vigencia-esquina--cabecera" role="columnheader">@Textos["VigenciaColumnaTrabajador", vista.TextoRecuento]</span>
+                        @foreach (var columna in vista.Columnas)
+                        {
+                            var vigencia = VigenciaDeCabecera(columna.Col);
+                            <span class="vigencia-columna" role="columnheader" style="@EstiloMargen(columna.NuevoGrupo)">
+                                <span class="vigencia-columna-nombre" data-opcional="@(columna.Col.Grupo == GrupoColumnaVigencia.Opcional ? "true" : null)" title="@columna.Col.Nombre">@AliasDe(columna.Col)</span>
+                                <span class="vigencia-columna-vigencia" tabindex="0" title="@Textos["VigenciaMinima", vigencia.Texto]. @vigencia.Explicacion"
+                                      aria-label="@Textos["VigenciaMinima", vigencia.Texto]. @vigencia.Explicacion">@vigencia.Texto</span>
+                            </span>
+                        }
+                    </div>
+                    @foreach (var fila in vista.Pagina)
+                    {
+                        <div class="vigencia-fila" role="row" @key="fila.Fila.TrabajadorId" data-fila>
+                            <span class="vigencia-trabajador" role="rowheader">
+                                <a class="vigencia-trabajador-nombre" href="@($"/trabajadores/{fila.Fila.TrabajadorId}")">@fila.Fila.Nombre</a>
+                                <span class="vigencia-trabajador-detalle">@DetalleDeTrabajador(fila.Fila)</span>
+                            </span>
+                            @foreach (var celda in fila.Celdas)
+                            {
+                                var titulo = TituloDeCelda(celda, fila.Fila);
+                                var atenuada = Filtrando && !Resalta(celda.Resultado);
+                                <span class="vigencia-celda-caja" role="cell" style="@EstiloMargen(celda.NuevoGrupo)">
+                                    @if (celda.Resultado.Estado == EstadoCeldaVigencia.NoAplica)
+                                    {
+                                        <span class="vigencia-celda" data-estado="no-aplica" title="@titulo" aria-label="@titulo">–</span>
+                                    }
+                                    else
+                                    {
+                                        @* El estado no depende solo del color: lo dice el nombre accesible y lo marcan el trazo y el grosor (ver el CSS). *@
+                                        <a class="vigencia-celda" data-estado="@CodigoEstado(celda.Resultado)" data-atenuada="@(atenuada ? "true" : null)"
+                                           href="@($"/trabajadores/{fila.Fila.TrabajadorId}?pestana=documentacion")"
+                                           title="@titulo" aria-label="@titulo">@TextoDeCelda(celda)</a>
+                                    }
+                                </span>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="vigencia-pie">
+                    <span>@Textos["VigenciaPie", vista.Desde, vista.Hasta, vista.Filas.Count]</span>
+                    <span class="vigencia-paginador">
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(vista.PaginaActual == 0)" OnClick="() => IrAPagina(vista.PaginaActual - 1)">@Textos["VigenciaAnterior"]</Boton>
+                        <span>@Textos["VigenciaPagina", vista.PaginaActual + 1, vista.TotalPaginas]</span>
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(vista.PaginaActual >= vista.TotalPaginas - 1)" OnClick="() => IrAPagina(vista.PaginaActual + 1)">@Textos["VigenciaSiguiente"]</Boton>
+                    </span>
+                    <span class="vigencia-tamanos">
+                        @Textos["VigenciaFilasPorPagina"]
+                        @foreach (var n in TamanosDePagina)
+                        {
+                            <button type="button" aria-pressed="@(_tamano == n ? "true" : "false")" @onclick="() => FijarTamano(n)">@n</button>
+                        }
+                    </span>
+                </div>
+            </div>
+        }
+    }
+</section>
+
+@code {
+    private const int AnchoColumna = 72;
+    private static readonly int[] TamanosDePagina = [10, 20, 50];
+
+    [Parameter, EditorRequired] public Guid EmpresaId { get; set; }
+
+    private readonly CancellationTokenSource _ciclo = new();
+    private VigenciaEmpresaDto? _dto;
+    private bool _error;
+    private Guid _cargado;
+    private int _carga;
+
+    private Guid? _centro;
+    private Guid? _delegacionEmpresa;
+    private string? _puesto;
+    private string _orden = "nombre";
+    private bool _verEmision;
+    private bool _soloProblemas;
+    private bool _vence30;
+    private int _pagina;
+    private int _tamano = 10;
+
+    private sealed record ColumnaVista(VigenciaColumnaDto Col, int Indice, bool NuevoGrupo);
+    private sealed record CeldaVista(VigenciaColumnaDto Col, VigenciaCeldaDto Celda, VigenciaEnAlcance.Resultado Resultado, bool NuevoGrupo);
+    private sealed record FilaVista(VigenciaFilaDto Fila, IReadOnlyList<CeldaVista> Celdas);
+    private sealed record GrupoVista(GrupoColumnaVigencia Grupo, int Columnas, bool Primero);
+    private sealed record Vista(
+        IReadOnlyList<ColumnaVista> Columnas, IReadOnlyList<GrupoVista> Grupos, IReadOnlyList<FilaVista> Filas,
+        IReadOnlyList<FilaVista> Pagina, int ConProblema, int PorVencer, int PaginaActual, int TotalPaginas, int Desde, int Hasta, string TextoRecuento);
+
+    private bool Filtrando => _soloProblemas || _vence30;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (EmpresaId == _cargado) return;
+        _cargado = EmpresaId;
+        await CargarAsync();
+    }
+
+    private async Task CargarAsync()
+    {
+        var carga = ++_carga;
+        var empresaId = EmpresaId;
+        _error = false;
+        _dto = null;
+        try
+        {
+            var dto = await Mediator.Send(new ObtenerVigenciaEmpresaQuery(empresaId), _ciclo.Token);
+            if (carga == _carga) _dto = dto;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception)
+        {
+            if (carga == _carga) _error = true;
+        }
+    }
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+
+    // Un Centro sin gestión CAE (o que no exige nada a esta Empresa) no aporta columnas: elegirlo dejaría filas sin celdas.
+    private IEnumerable<VigenciaCentroDto> CentrosConExigencias => _dto!.Centros
+        .Where(c => _dto.Columnas.Any(col => col.ExigidoPor.Any(e => e.CentroId == c.CentroId)));
+
+    private IEnumerable<(Guid Id, string Nombre)> DelegacionesEmpresa => _dto!.Filas
+        .Where(f => f.DelegacionEmpresaId is not null && f.DelegacionEmpresaNombre is not null)
+        .Select(f => (f.DelegacionEmpresaId!.Value, f.DelegacionEmpresaNombre!))
+        .Distinct()
+        .OrderBy(d => d.Item2, StringComparer.CurrentCultureIgnoreCase);
+
+    private IEnumerable<string> Puestos => _dto!.Filas
+        .Where(f => !string.IsNullOrWhiteSpace(f.Puesto))
+        .Select(f => f.Puesto!)
+        .Distinct()
+        .OrderBy(p => p, StringComparer.CurrentCultureIgnoreCase);
+
+    private Vista Construir()
+    {
+        var dto = _dto!;
+        var hoy = DiaDeNegocio.Hoy();
+        IReadOnlyCollection<Guid>? alcance = _centro is { } centro ? [centro] : null;
+
+        var columnasVisibles = dto.Columnas
+            .Select((c, indice) => (Col: c, Indice: indice))
+            .Where(x => _centro is not { } elegido || x.Col.ExigidoPor.Any(e => e.CentroId == elegido))
+            .ToList();
+        var columnas = columnasVisibles
+            .Select((x, i) => new ColumnaVista(x.Col, x.Indice, i > 0 && columnasVisibles[i - 1].Col.Grupo != x.Col.Grupo))
+            .ToList();
+
+        var grupos = new List<GrupoVista>();
+        foreach (var columna in columnas)
+        {
+            if (grupos.Count > 0 && grupos[^1].Grupo == columna.Col.Grupo)
+                grupos[^1] = grupos[^1] with { Columnas = grupos[^1].Columnas + 1 };
+            else
+                grupos.Add(new GrupoVista(columna.Col.Grupo, 1, grupos.Count == 0));
+        }
+
+        var filasBase = dto.Filas
+            .Where(f => (_centro is not { } elegido || f.CentroIds.Contains(elegido))
+                        && (_delegacionEmpresa is null || f.DelegacionEmpresaId == _delegacionEmpresa)
+                        && (_puesto is null || string.Equals(f.Puesto, _puesto, StringComparison.Ordinal)));
+        IOrderedEnumerable<VigenciaFilaDto> ordenadas = _orden switch
+        {
+            "delegacion-empresa" => filasBase.OrderBy(f => f.DelegacionEmpresaNombre ?? string.Empty, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase),
+            "puesto" => filasBase.OrderBy(f => f.Puesto ?? string.Empty, StringComparer.CurrentCultureIgnoreCase).ThenBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase),
+            _ => filasBase.OrderBy(f => f.Nombre, StringComparer.CurrentCultureIgnoreCase)
+        };
+
+        var todas = ordenadas
+            .Select(f => new FilaVista(f, [.. columnas.Select(c =>
+            {
+                var celda = f.Celdas[c.Indice];
+                return new CeldaVista(c.Col, celda, VigenciaEnAlcance.Resolver(c.Col, celda, alcance, hoy, dto.UmbralPorVencerDias), c.NuevoGrupo);
+            })]))
+            .ToList();
+
+        static bool EsProblema(CeldaVista c) => c.Resultado.Exigida
+            && c.Resultado.Estado is EstadoCeldaVigencia.Vencido or EstadoCeldaVigencia.Falta or EstadoCeldaVigencia.PorVencer;
+        static bool EsPorVencer(CeldaVista c) => c.Resultado.Exigida && c.Resultado.Estado == EstadoCeldaVigencia.PorVencer;
+
+        var conProblema = todas.Count(f => f.Celdas.Any(EsProblema));
+        var porVencer = todas.Count(f => f.Celdas.Any(EsPorVencer));
+        var visibles = todas
+            .Where(f => (!_soloProblemas || f.Celdas.Any(EsProblema)) && (!_vence30 || f.Celdas.Any(EsPorVencer)))
+            .ToList();
+
+        var totalPaginas = Math.Max(1, (int)Math.Ceiling(visibles.Count / (double)_tamano));
+        var paginaActual = Math.Min(_pagina, totalPaginas - 1);
+        var pagina = visibles.Skip(paginaActual * _tamano).Take(_tamano).ToList();
+        var texto = visibles.Count == todas.Count ? todas.Count.ToString(CultureInfo.CurrentCulture) : $"{visibles.Count} / {todas.Count}";
+
+        return new Vista(columnas, grupos, visibles, pagina, conProblema, porVencer, paginaActual, totalPaginas,
+            paginaActual * _tamano + 1, paginaActual * _tamano + pagina.Count, texto);
+    }
+
+    private bool Resalta(VigenciaEnAlcance.Resultado r) =>
+        (_vence30 && r.Estado == EstadoCeldaVigencia.PorVencer)
+        || (_soloProblemas && r.Exigida && r.Estado is EstadoCeldaVigencia.Vencido or EstadoCeldaVigencia.Falta or EstadoCeldaVigencia.PorVencer);
+
+    private void CambiarCentro(string? valor) { _centro = Guid.TryParse(valor, out var id) ? id : null; _pagina = 0; }
+    private void CambiarDelegacionEmpresa(string? valor) { _delegacionEmpresa = Guid.TryParse(valor, out var id) ? id : null; _pagina = 0; }
+    private void CambiarPuesto(string? valor) { _puesto = string.IsNullOrEmpty(valor) ? null : valor; _pagina = 0; }
+    private void CambiarOrden(string? valor) { _orden = valor ?? "nombre"; _pagina = 0; }
+    private void FijarFecha(bool emision) => _verEmision = emision;
+    private void AlternarProblemas() { _soloProblemas = !_soloProblemas; _pagina = 0; }
+    private void AlternarVence30() { _vence30 = !_vence30; _pagina = 0; }
+    private void IrAPagina(int pagina) => _pagina = Math.Max(0, pagina);
+    private void FijarTamano(int tamano) { _tamano = tamano; _pagina = 0; }
+
+    private void QuitarFiltros()
+    {
+        _soloProblemas = false;
+        _vence30 = false;
+        _centro = null;
+        _delegacionEmpresa = null;
+        _puesto = null;
+        _pagina = 0;
+    }
+
+    private string NombreGrupo(GrupoColumnaVigencia grupo) => grupo switch
+    {
+        GrupoColumnaVigencia.Basicos => Textos["VigenciaGrupoBasicos"],
+        GrupoColumnaVigencia.Formacion => Textos["VigenciaGrupoFormacion"],
+        _ => Textos["VigenciaGrupoOpcional"]
+    };
+
+    // Una columna mide 72 px como mínimo (cabe «dd/MM/yyyy») y 4 px de hueco; entre grupos hay 12 px más (la maqueta).
+    private static string EstiloGrupo(GrupoVista grupo)
+    {
+        var ancho = grupo.Columnas * AnchoColumna + (grupo.Columnas - 1) * 4;
+        return $"flex:{grupo.Columnas} 1 {ancho}px;min-width:{ancho}px;margin-left:{(grupo.Primero ? 0 : 12)}px";
+    }
+
+    private static string EstiloMargen(bool nuevoGrupo) => nuevoGrupo ? "margin-left:12px" : string.Empty;
+
+    private string AliasDe(VigenciaColumnaDto columna) => columna.Basico switch
+    {
+        TipoDocumentoBase.AptitudMedica => Textos["VigenciaAliasAptitud"],
+        TipoDocumentoBase.EntregaEpi => Textos["VigenciaAliasEpi"],
+        TipoDocumentoBase.InformacionArt18 => Textos["VigenciaAliasArt18"],
+        TipoDocumentoBase.FormacionArt19 => Textos["VigenciaAliasArt19"],
+        _ => columna.Nombre
+    };
+
+    private string TextoMeses(int meses) => meses % 12 == 0
+        ? meses == 12 ? Textos["VigenciaUnAnio"] : Textos["VigenciaAnios", meses / 12]
+        : meses == 1 ? Textos["VigenciaUnMes"] : Textos["VigenciaMeses", meses];
+
+    // Cabecera de columna: la vigencia más corta que pide algún Centro del alcance, y cuáles la piden.
+    private (string Texto, string Explicacion) VigenciaDeCabecera(VigenciaColumnaDto columna)
+    {
+        var enAlcance = columna.ExigidoPor
+            .Where(e => (_centro is not { } elegido || e.CentroId == elegido) && e.VigenciaMeses is not null)
+            .ToList();
+        if (enAlcance.Count == 0)
+        {
+            return (columna.VigenciaMesesDelTipo is { } propia ? TextoMeses(propia) : "—",
+                columna.ExigidoPor.Count == 0 ? Textos["VigenciaPropia"] : string.Empty);
+        }
+
+        var minimo = enAlcance.Min(e => e.VigenciaMeses!.Value);
+        var nombres = enAlcance
+            .Where(e => e.VigenciaMeses == minimo)
+            .Select(e => _dto!.Centros.FirstOrDefault(c => c.CentroId == e.CentroId))
+            .Where(c => c is not null)
+            .Select(c => $"{c!.ClienteNombre} › {c.Nombre}")
+            .ToList();
+        var piden = nombres.Count == 1 ? Textos["VigenciaLaPide", nombres[0]] : Textos["VigenciaLaPiden", string.Join(" / ", nombres)];
+        return (TextoMeses(minimo), piden);
+    }
+
+    private string DetalleDeTrabajador(VigenciaFilaDto fila) =>
+        string.Join(" · ", new[] { fila.Puesto, fila.DelegacionEmpresaNombre }.Where(x => !string.IsNullOrWhiteSpace(x)));
+
+    private static string CodigoEstado(VigenciaEnAlcance.Resultado r) => !r.Exigida && r.Estado != EstadoCeldaVigencia.Falta
+        ? "opcional"
+        : r.Estado switch
+        {
+            EstadoCeldaVigencia.PorVencer => "por-vencer",
+            EstadoCeldaVigencia.Vencido => "vencido",
+            EstadoCeldaVigencia.Falta => "falta",
+            EstadoCeldaVigencia.SinConfirmar => "sin-confirmar",
+            _ => "vigente"
+        };
+
+    private static string Corta(DateOnly fecha) => fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
+
+    private string TextoDeCelda(CeldaVista celda)
+    {
+        if (celda.Resultado.Estado == EstadoCeldaVigencia.Falta) return Textos["VigenciaCeldaFalta"];
+        var fecha = _verEmision ? celda.Celda.FechaEmision : celda.Resultado.Fecha;
+        return fecha is { } f ? Corta(f) : Textos["VigenciaCeldaVigente"];
+    }
+
+    private string TituloDeCelda(CeldaVista celda, VigenciaFilaDto fila)
+    {
+        var estado = celda.Resultado.Estado;
+        string descripcion;
+        if (estado == EstadoCeldaVigencia.NoAplica)
+            descripcion = Textos["VigenciaCeldaNoAplica"];
+        else if (estado == EstadoCeldaVigencia.Falta)
+            descripcion = Textos["VigenciaEstadoFalta"];
+        else
+        {
+            var nombreEstado = !celda.Resultado.Exigida ? Textos["VigenciaLeyendaOpcional"] : estado switch
+            {
+                EstadoCeldaVigencia.PorVencer => Textos["VigenciaEstadoPorVencer"],
+                EstadoCeldaVigencia.Vencido => Textos["VigenciaEstadoVencido"],
+                EstadoCeldaVigencia.SinConfirmar => Textos["VigenciaEstadoSinConfirmar"],
+                _ => Textos["VigenciaEstadoVigente"]
+            };
+            descripcion = celda.Celda.FechaEmision is { } emision && celda.Resultado.Fecha is { } caduca
+                ? $"{nombreEstado}, {Textos["VigenciaEmitidoCaduca", Corta(emision), Corta(caduca)]}"
+                : nombreEstado;
+        }
+
+        return $"{celda.Col.Nombre} · {fila.Nombre} · {descripcion}";
+    }
+}

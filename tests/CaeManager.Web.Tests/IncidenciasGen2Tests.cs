@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 using CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
+using CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -24,7 +25,7 @@ namespace CaeManager.Web.Tests;
 /// Cada prueba mira el EFECTO: el comando que sale con su id y sus datos, o
 /// lo que la pantalla termina diciendo tras cargar — no el camino.
 /// </summary>
-public class IncidenciasGen2Tests : BunitContext
+public partial class IncidenciasGen2Tests : BunitContext
 {
     /// <summary>La página importa ./js/atajos-lista.js y el Drawer ./js/dialogo-foco.js; quedan fuera de lo que se observa.</summary>
     public IncidenciasGen2Tests()
@@ -152,6 +153,7 @@ public class IncidenciasGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)RespuestaEditar);
 
                 case EliminarIncidenciaCommand:
+                case MarcarResueltaIncidenciaCommand:
                     return Task.FromResult((TResponse)(object)Result.Exito());
 
                 default:
@@ -205,9 +207,6 @@ public class IncidenciasGen2Tests : BunitContext
         params IncidenciaListaDto[] filas) =>
         cut.InvokeAsync(() => respuesta.TrySetResult(new ResultadoPaginado<IncidenciaListaDto>(filas, filas.Length, 1, 20)));
 
-    /// <summary>El select del filtro de estado: el único de la página con la opción «Todas».</summary>
-    private static AngleSharp.Dom.IElement SelectDeEstado(IRenderedComponent<Incidencias> cut) =>
-        cut.FindAll("select").Single(s => s.QuerySelector("option[value='']")?.TextContent == "Todas");
 
     [Fact]
     public async Task Una_carga_lenta_de_un_filtro_anterior_no_pisa_la_respuesta_del_filtro_vigente()
@@ -221,7 +220,7 @@ public class IncidenciasGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => mediador.CargasPendientes.Should().NotBeEmpty());
 
-        await SelectDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "SinResolver" });
+        await cut.BotonDeFranja("Sin resolver").ClickAsync(new());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ninguna incidencia con estos filtros"));
         mediador.Consultas.Should().Contain(q => q.Resuelta == false, "la carga vigente salió con el filtro puesto");
@@ -232,8 +231,8 @@ public class IncidenciasGen2Tests : BunitContext
 
         cut.Markup.Should().Contain("Ninguna incidencia con estos filtros",
             "la respuesta de un filtro que ya no está puesto no puede decidir qué estado vacío se pinta");
-        cut.Markup.Should().NotContain("1 incidencia",
-            "el recuento es el de «Sin resolver», no el de la carga de «Todas» que llegó tarde");
+        cut.Markup.Should().NotContain("Centro Alfa",
+            "la fila es la de la carga de «Todas» que llegó tarde, no la de «Sin resolver»");
     }
 
     [Fact]
@@ -262,13 +261,13 @@ public class IncidenciasGen2Tests : BunitContext
 
         // «Editar» en Alfa: su detalle queda pendiente. El clic no se espera,
         // porque su manejador está a mitad de un await que decide la prueba.
-        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[0].ClickAsync(new());
         var editarAlfa = cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar");
         var clicAlfa = editarAlfa.ClickAsync(new());
         cut.WaitForAssertion(() => mediador.DetallesPendientes.Should().ContainKey(IdAlfa));
 
         // «Editar» en Beta, con el de Alfa todavía en vuelo.
-        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
         var editarBeta = cut.FindAll(".menu-acciones-item").Where(b => b.TextContent.Trim() == "Editar").Last();
         var clicBeta = editarBeta.ClickAsync(new());
         cut.WaitForAssertion(() => mediador.DetallesPendientes.Should().ContainKey(IdBeta));
@@ -330,32 +329,73 @@ public class IncidenciasGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task El_chip_de_estado_quita_el_filtro_de_la_lista_y_de_la_url()
+    public async Task La_franja_de_estado_marca_el_filtro_y_Todas_lo_quita_de_la_lista_y_de_la_url()
     {
         var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
         var cut = Renderizar(mediador, estado: "SinResolver");
 
-        cut.WaitForAssertion(() => cut.Find(".chip-filtro").TextContent.Should().Contain("Estado: sin resolver"));
+        cut.WaitForAssertion(() => cut.BotonDeFranja("Sin resolver").GetAttribute("aria-pressed").Should().Be("true"));
         mediador.Consultas.Last().Resuelta.Should().Be(false, "punto de partida: la consulta sale filtrada por la URL");
+        cut.FindAll(".chip-filtro").Should().BeEmpty("el estado lo dice la franja marcada, no un chip");
 
-        await cut.Find("button[aria-label='Quitar el filtro de estado']").ClickAsync(new());
+        await cut.BotonDeFranja("Todas").ClickAsync(new());
 
         cut.WaitForAssertion(() => mediador.Consultas.Last().Resuelta.Should().BeNull());
         Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("estado=",
             "si el estado se quedara en la URL, OnParametersSet lo devolvería en la siguiente navegación");
-        cut.FindAll(".chip-filtro").Should().BeEmpty();
     }
 
     [Fact]
-    public void El_recuento_solo_dice_con_el_filtro_actual_cuando_hay_filtro()
+    public async Task Con_los_dos_estados_marcados_la_lista_sale_sin_filtro_y_la_URL_sin_estado()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
+        var cut = Renderizar(mediador, estado: "SinResolver");
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        await cut.BotonDeFranja("Resuelta").ClickAsync(new());
+
+        cut.WaitForAssertion(() => mediador.Consultas.Last().Resuelta.Should().BeNull());
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("estado=");
+    }
+
+    [Fact]
+    public async Task La_busqueda_viaja_en_la_URL_y_se_restaura_de_ella()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+
+        await cut.InvokeAsync(() => cut.FindComponent<BarraFiltros>().Instance.BusquedaChanged.InvokeAsync("alfa"));
+
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("q=alfa");
+    }
+
+    [Fact]
+    public void Es_el_listado_nuevo_con_el_tipo_y_su_codigo_INC_en_la_primera_columna()
+    {
+        var cut = Renderizar(new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] });
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
+        cut.Find(".contenedor-pagina").ClassList.Should().Contain("lista-design");
+        cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().ContainSingle("el conmutador ☑ vive en la cabecera");
+        cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty("sin el botón de la barra antigua");
+        cut.FindAll("thead th").First().TextContent.Should().Contain("Incidencia");
+        var primera = cut.Find("tbody tr td");
+        primera.QuerySelector(".incidencia-nombre-tipo").Should().NotBeNull();
+        primera.QuerySelector(".incidencia-referencia")!.TextContent.Should().Contain("INC-" + IdAlfa.ToString("N")[^8..].ToUpperInvariant());
+        cut.FindAll(".tarjeta-listado").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void El_contador_de_la_cabecera_dice_el_total()
     {
         var sinFiltro = Renderizar(new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa")] });
 
-        sinFiltro.WaitForAssertion(() => sinFiltro.Find(".recuento-incidencias").TextContent.Trim().Should().Be("1 incidencia"));
+        sinFiltro.WaitForAssertion(() => sinFiltro.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1"));
     }
 
     [Fact]
-    public void Con_filtro_el_recuento_lo_dice()
+    public void Con_filtro_el_contador_dice_el_total_filtrado()
     {
         var cut = Renderizar(
             new MediadorControlado
@@ -365,8 +405,7 @@ public class IncidenciasGen2Tests : BunitContext
             },
             estado: "SinResolver");
 
-        cut.WaitForAssertion(() => cut.Find(".recuento-incidencias").TextContent.Trim()
-            .Should().Be("42 incidencias con el filtro actual"));
+        cut.WaitForAssertion(() => cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("42"));
     }
 
     [Fact]
@@ -395,13 +434,13 @@ public class IncidenciasGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
 
-        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[0].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
 
         var guardarAlfa = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
         cut.WaitForAssertion(() => mediador.Peticiones.OfType<EditarIncidenciaCommand>().Should().ContainSingle());
 
-        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
         cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
 
@@ -427,13 +466,13 @@ public class IncidenciasGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
 
-        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[0].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
 
         var guardarAlfa = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
         cut.WaitForAssertion(() => mediador.Peticiones.OfType<EditarIncidenciaCommand>().Should().ContainSingle());
 
-        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
         cut.Find(".drawer-panel .texto-vacio-seccion").TextContent.Should().Be("Centro Beta");
 
@@ -457,7 +496,7 @@ public class IncidenciasGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
 
-        await cut.Find(".menu-acciones-disparador").ClickAsync(new());
+        await cut.Find("table .menu-acciones-disparador").ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new());
 
@@ -512,7 +551,7 @@ public class IncidenciasGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
 
-        await cut.FindAll(".menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Eliminar").ClickAsync(new());
 
         mediador.Peticiones.OfType<EliminarIncidenciaCommand>().Should().BeEmpty("abrir el diálogo no borra nada");
@@ -522,6 +561,30 @@ public class IncidenciasGen2Tests : BunitContext
 
         mediador.Peticiones.OfType<EliminarIncidenciaCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(IdBeta);
+    }
+
+    /// <summary>
+    /// Maqueta «Flujos 10 Incidencias y Gestiones»: resolver ofrece Deshacer, que manda la acción contraria
+    /// sobre la misma Incidencia y no encadena otro aviso con Deshacer.
+    /// </summary>
+    [Fact]
+    public async Task Resolver_una_incidencia_ofrece_Deshacer_que_la_reabre_sin_encadenar_otro_aviso()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
+
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Marcar resuelta").ClickAsync(new());
+
+        mediador.Peticiones.OfType<MarcarResueltaIncidenciaCommand>().Should().Equal([new MarcarResueltaIncidenciaCommand(IdBeta, true)]);
+        var toasts = Services.GetRequiredService<ToastService>();
+        var aviso = toasts.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Peticiones.OfType<MarcarResueltaIncidenciaCommand>().Should().Equal(
+            [new MarcarResueltaIncidenciaCommand(IdBeta, true), new MarcarResueltaIncidenciaCommand(IdBeta, false)]);
+        toasts.Mensajes.Where(m => m.TextoAccion == "Deshacer").Should().ContainSingle("el Deshacer no ofrece otro Deshacer");
     }
 
     // --- Recuento de consultas ----------------------------------------------------------------
@@ -543,7 +606,7 @@ public class IncidenciasGen2Tests : BunitContext
         cut.WaitForAssertion(() => ConsultasDeLista(mediador).Should().BeGreaterThan(0));
         var consultasAntes = ConsultasDeLista(mediador);
 
-        await SelectDeEstado(cut).ChangeAsync(new ChangeEventArgs { Value = "SinResolver" });
+        await cut.BotonDeFranja("Sin resolver").ClickAsync(new());
 
         cut.WaitForAssertion(() => mediador.Consultas.Last().Resuelta.Should().BeFalse());
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
@@ -580,7 +643,7 @@ public class IncidenciasGen2Tests : BunitContext
         mediador.Detalles[IdAlfa] = Detalle(IdAlfa, "Centro Alfa", VersionAlfa, "Caída en la nave");
         var cut = Renderizar(mediador);
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Alfa"));
-        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[0].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
         cut.Find(".drawer-panel textarea").TextContent.Should().Be("Caída en la nave",
             "el test necesita la edición abierta con los datos cargados");
@@ -602,7 +665,7 @@ public class IncidenciasGen2Tests : BunitContext
         var (cut, _) = await AbrirEdicionDeAlfaAsync();
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
 
-        await cut.FindAll(".menu-acciones-disparador")[0].ClickAsync(new());
+        await cut.FindAll("table .menu-acciones-disparador")[0].ClickAsync(new());
         await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").ClickAsync(new());
         await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Caída en la nave 2" });
         await cut.PulsarCancelarDelPieAsync(".drawer-pie");

@@ -15,8 +15,14 @@
   <data name="TrabajadorPreseleccionadoNoEncontrado" xml:space="preserve">
     <value>No trobem aquest treballador entre els que pots gestionar. Tria a qui pertany el document.</value>
   </data>
+  <data name="EmpresaPreseleccionadaNoEncontrada" xml:space="preserve">
+    <value>No trobem aquesta empresa entre les que pots gestionar. Tria a qui pertany el document.</value>
+  </data>
   <data name="GuardarEsperaSubida" xml:space="preserve">
     <value>Espera que acabi la pujada de l'arxiu.</value>
+  </data>
+  <data name="ToastDocumentoActualizado" xml:space="preserve">
+    <value>Document actualitzat correctament.</value>
   </data>
   <data name="HistorialAbreVigente" xml:space="preserve">
     <value>Aquest document és a l'historial: un altre el va substituir. Obrim el vigent.</value>
@@ -32,5 +38,20 @@
   </data>
   <data name="SiguienteNoDisponible" xml:space="preserve">
     <value>El document s'ha desat, però no hem pogut obrir el següent de la llista.</value>
+  </data>
+  <data name="ArchivoNoAdjuntado" xml:space="preserve">
+    <value>Aquest arxiu no s'ha adjuntat. Tria'n un altre o torna-ho a provar.</value>
+  </data>
+  <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
+    <value>No s'ha desat: l'arxiu que has triat no s'ha adjuntat. Torna a adjuntar-lo abans de desar.</value>
+  </data>
+  <data name="SeguirSinArchivo" xml:space="preserve">
+    <value>Continuar sense arxiu</value>
+  </data>
+  <data name="SeguirConArchivoAnterior" xml:space="preserve">
+    <value>Continuar amb l'arxiu anterior</value>
+  </data>
+  <data name="DemasiadosArchivos" xml:space="preserve">
+    <value>Pots pujar fins a {0} arxius alhora.</value>
   </data>
 </root>

@@ -167,7 +167,7 @@ public class OrdenMenuLateralTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Solo el Actor de Plataforma TALVEG ordena el menú");
+        cut.Markup.Should().Contain("Solo el equipo de TALVEG puede cambiar el orden del menú.");
         cut.FindAll("[data-fila]").Should().BeEmpty();
         cut.FindAll("[data-accion='guardar']").Should().BeEmpty();
         _mediador.LecturasDelOrden.Should().Be(0, "quien no puede ordenar no necesita el orden");
@@ -182,7 +182,7 @@ public class OrdenMenuLateralTests : BunitContext
         cut.Find(Fila(TipoDeFila.Grupo, "", GruposPorDefecto[0]) + " [data-flecha='abajo']").Click();
         cut.Find("[data-accion='guardar']").Click();
 
-        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Solo el Actor de Plataforma TALVEG ordena el menú"));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Solo el equipo de TALVEG puede cambiar el orden del menú."));
         cut.FindAll("[data-fila]").Should().BeEmpty();
     }
 

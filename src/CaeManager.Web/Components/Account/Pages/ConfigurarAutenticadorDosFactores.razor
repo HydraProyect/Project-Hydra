@@ -216,7 +216,7 @@
 
     // Salida sin ficha: quien llega forzado por la 2FA obligatoria (_dosFactoresObligatorio)
     // acaba de iniciar sesión y termina aquí su login, así que aterriza con la marca de un
-    // solo uso (D-2: Mi trabajo es el aterrizaje tras iniciar sesión). Un returnUrl local
+    // solo uso (RedireccionLocal.DestinoTrasLogin), como Login. Un returnUrl local
     // explícito manda siempre; el alta voluntaria desde el perfil no es un login y vuelve a "/".
     private string RutaDeVuelta => HayVueltaAFicha
         ? ReturnUrl!

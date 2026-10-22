@@ -4,7 +4,10 @@
     lado). Sin ninguno de los dos se pinta «—», como CampoInfo: un hueco en
     blanco no distingue «vacío» de «no ha cargado».
 *@
-<div class="dato-rejilla @(Ancho ? "dato-rejilla-ancho" : null)">
+@using CaeManager.Web.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosComunes> Comunes
+<div class="dato-rejilla @(Ancho ? "dato-rejilla-ancho" : null) @(EnLectura ? "dato-rejilla-lectura" : null)">
     <dt class="dato-rejilla-etiqueta">@Etiqueta</dt>
     <dd class="dato-rejilla-valor">
         @if (ChildContent is not null)
@@ -17,7 +20,7 @@
         }
         else
         {
-            <span class="dato-rejilla-vacio">—</span>
+            <span class="dato-rejilla-vacio">@(EnLectura ? Comunes["LecturaSinDato"].Value : "—")</span>
         }
     </dd>
 </div>
@@ -34,4 +37,10 @@
 
     /// <summary>Ocupa las dos columnas de la rejilla (textos largos: convenio, actividad).</summary>
     [Parameter] public bool Ancho { get; set; }
+
+    /// <summary>
+    /// Modo Lectura del panel («Panel Formulario TALVEG»): el dato es una fila etiqueta/valor de la rejilla de <see cref="SeccionLectura"/>
+    /// (dt y dd son celdas de ésa) y el vacío dice «Sin dato».
+    /// </summary>
+    [Parameter] public bool EnLectura { get; set; }
 }

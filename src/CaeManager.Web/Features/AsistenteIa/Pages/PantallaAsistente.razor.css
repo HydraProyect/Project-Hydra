@@ -1,0 +1,7 @@
+/* Pantalla completa de Vega sin ningun proveedor de IA configurado. */
+.pantalla-asistente-nota {
+    margin: 0;
+    padding: var(--space-6) var(--space-4);
+    font: var(--font-body-md);
+    color: var(--color-text-muted);
+}

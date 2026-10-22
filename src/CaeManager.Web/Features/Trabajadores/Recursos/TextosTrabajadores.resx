@@ -127,7 +127,7 @@
     <value>p. ej. Soldador</value>
   </data>
   <data name="BotonAsignarACentro" xml:space="preserve">
-    <value>Asignar a centro…</value>
+    <value>Asignar a un centro</value>
   </data>
   <data name="DialogoEliminarLoteMensaje" xml:space="preserve">
     <value>Se ocultarán de las listas activas y sus asignaciones activas quedarán dadas de baja. Podrás deshacer la eliminación desde el aviso que aparecerá, pero las asignaciones seguirán de baja; después, solo un Administrador de esta organización puede recuperarlos desde Auditoría.</value>
@@ -166,7 +166,10 @@
     <value>¿Eliminar {0} trabajador(es)?</value>
   </data>
   <data name="ModalAsignarCentroTitulo" xml:space="preserve">
-    <value>Asignar {0} trabajador(es) a un centro</value>
+    <value>Asignar {0} trabajadores a un centro</value>
+  </data>
+  <data name="ModalAsignarCentroTituloUno" xml:space="preserve">
+    <value>Asignar 1 trabajador a un centro</value>
   </data>
   <data name="PreflightDocumentosQueSePiden" xml:space="preserve">
     <value>{0} documento(s) que se piden</value>
@@ -192,6 +195,9 @@
   <data name="ErrorSeleccionaSubcontrata" xml:space="preserve">
     <value>Selecciona una subcontrata.</value>
   </data>
+  <data name="ToastVerFicha" xml:space="preserve">
+    <value>Ver ficha de {0}</value>
+  </data>
   <data name="ToastCreado" xml:space="preserve">
     <value>Trabajador creado correctamente.</value>
   </data>
@@ -207,17 +213,8 @@
   <data name="PistaNieInvalido" xml:space="preserve">
     <value>✗ Formato de NIE, pero el dígito de control no coincide.</value>
   </data>
-  <data name="PistaCifValido" xml:space="preserve">
-    <value>✓ Formato de CIF válido — comprueba que sea la persona y no la empresa.</value>
-  </data>
-  <data name="PistaCifInvalido" xml:space="preserve">
-    <value>✗ Parece un CIF, pero el dígito de control no coincide.</value>
-  </data>
-  <data name="PistaTieSoporte" xml:space="preserve">
-    <value>✓ Número de soporte TIE reconocido.</value>
-  </data>
   <data name="PistaDocumentoExtranjero" xml:space="preserve">
-    <value>ℹ Documento no español (pasaporte u otro) — se acepta sin validar dígito de control.</value>
+    <value>No coincide con un DNI ni un NIE: se guardará como Pasaporte.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
@@ -250,7 +247,7 @@
     <value>{0} asignación(es) creada(s), {1} ya estaban activas.</value>
   </data>
   <data name="ErrorAsignarLote" xml:space="preserve">
-    <value>No pudimos asignar a los trabajadores seleccionados. Intenta nuevamente.</value>
+    <value>No se ha podido asignar a los trabajadores. Vuelve a intentarlo.</value>
   </data>
   <data name="ToastFiltroGuardado" xml:space="preserve">
     <value>Filtro guardado.</value>
@@ -288,32 +285,17 @@
   <data name="VacioAsignacionesDescripcion" xml:space="preserve">
     <value>Este trabajador no tiene ninguna asignación activa a un centro.</value>
   </data>
-  <data name="SeparadorDocumentacionPorCentro" xml:space="preserve">
-    <value>Documentación por centro</value>
-  </data>
-  <data name="TextoExigenciaPorCentro" xml:space="preserve">
-    <value>La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro y bloqueado en otro, porque cada centro pide cosas distintas.</value>
-  </data>
   <data name="TextoCentroSinExigencia" xml:space="preserve">
     <value>Este centro no exige documentación específica a este trabajador.</value>
   </data>
   <data name="ColumnaVigencia" xml:space="preserve">
     <value>Vigencia</value>
   </data>
-  <data name="ColumnaAccion" xml:space="preserve">
-    <value>Acción</value>
-  </data>
-  <data name="ColumnaCentro" xml:space="preserve">
-    <value>Centro</value>
-  </data>
   <data name="ColumnaDesde" xml:space="preserve">
     <value>Desde</value>
   </data>
-  <data name="ColumnaGestion" xml:space="preserve">
-    <value>Gestión</value>
-  </data>
-  <data name="ColumnaCreada" xml:space="preserve">
-    <value>Creada</value>
+  <data name="GestionPendienteSub" xml:space="preserve">
+    <value>{0} · creada {1}</value>
   </data>
   <data name="AccionDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
@@ -603,6 +585,99 @@
   <data name="DocBaseEstadoSinConfirmar" xml:space="preserve">
     <value>Vigencia sin confirmar</value>
   </data>
+  <data name="DocBaseSubVigente" xml:space="preserve">
+    <value>Vigente hasta el {0}</value>
+  </data>
+  <data name="DocBaseSubVigenteSinFecha" xml:space="preserve">
+    <value>Al día</value>
+  </data>
+  <data name="DocBaseSubPresente" xml:space="preserve">
+    <value>Documento presente</value>
+  </data>
+  <data name="DocBaseSubProximoAVencer" xml:space="preserve">
+    <value>Vence el {0}</value>
+  </data>
+  <data name="DocBaseSubVencido" xml:space="preserve">
+    <value>Venció el {0}</value>
+  </data>
+  <data name="DocBaseSubFalta" xml:space="preserve">
+    <value>Sin documento subido</value>
+  </data>
+  <data name="DocBaseSubSinConfirmar" xml:space="preserve">
+    <value>Falta confirmar la fecha de caducidad</value>
+  </data>
+  <data name="SeparadorExigidosEnTodos" xml:space="preserve">
+    <value>Exigidos en todos sus Centros</value>
+  </data>
+  <data name="SeparadorExigidosEnAlgunos" xml:space="preserve">
+    <value>Exigidos solo en algunos Centros</value>
+  </data>
+  <data name="SeparadorOtrosDocumentos" xml:space="preserve">
+    <value>Otros documentos del trabajador</value>
+  </data>
+  <data name="AlcanceTodosCentros" xml:space="preserve">
+    <value>En sus {0} Centros</value>
+  </data>
+  <data name="AlcanceUnicoCentro" xml:space="preserve">
+    <value>En su único Centro</value>
+  </data>
+  <data name="AlcanceSoloEn" xml:space="preserve">
+    <value>Solo en {0}</value>
+  </data>
+  <data name="AlcanceEnDos" xml:space="preserve">
+    <value>En {0} y {1}</value>
+  </data>
+  <data name="AlcanceEnVarios" xml:space="preserve">
+    <value>En {0}, {1} y {2} más</value>
+  </data>
+  <data name="AlcanceNingunCentro" xml:space="preserve">
+    <value>Ningún Centro lo exige hoy</value>
+  </data>
+  <data name="ContadorDocumentosUno" xml:space="preserve">
+    <value>documento</value>
+  </data>
+  <data name="ContadorDocumentosVarios" xml:space="preserve">
+    <value>documentos</value>
+  </data>
+  <data name="SeparadorSinConfirmar" xml:space="preserve">
+    <value>Vigencia sin confirmar</value>
+  </data>
+  <data name="BajaDeteccionTitulo" xml:space="preserve">
+    <value>Podría estar de baja en {0}</value>
+  </data>
+  <data name="BajaDeteccionMotivo" xml:space="preserve">
+    <value>No aparece en el último documento de personal de la Empresa</value>
+  </data>
+  <data name="BajaDeteccionAyuda" xml:space="preserve">
+    <value>Confirmar la baja le da de baja y cierra sus asignaciones. Si el documento que subieron estaba incompleto, ignórala.</value>
+  </data>
+  <data name="BajaDeteccionConfirmar" xml:space="preserve">
+    <value>Confirmar baja</value>
+  </data>
+  <data name="BajaDeteccionIgnorar" xml:space="preserve">
+    <value>Ignorar</value>
+  </data>
+  <data name="BajaDeteccionVerComparacion" xml:space="preserve">
+    <value>Ver la comparación →</value>
+  </data>
+  <data name="BajaDeteccionDialogoTitulo" xml:space="preserve">
+    <value>¿Dar de baja a este trabajador?</value>
+  </data>
+  <data name="BajaDeteccionDialogoMensaje" xml:space="preserve">
+    <value>{0} dejará de estar activo y se cerrarán sus asignaciones a Centros. Desde aquí no se puede deshacer.</value>
+  </data>
+  <data name="ToastBajaDeteccionConfirmada" xml:space="preserve">
+    <value>Trabajador dado de baja.</value>
+  </data>
+  <data name="ToastBajaDeteccionIgnorada" xml:space="preserve">
+    <value>Aviso ignorado: el trabajador sigue de alta.</value>
+  </data>
+  <data name="ToastBajaDeteccionYaNoActivo" xml:space="preserve">
+    <value>El trabajador ya no estaba de alta: no se ha cambiado nada.</value>
+  </data>
+  <data name="DatosTrabajadorSinDato" xml:space="preserve">
+    <value>Sin informar</value>
+  </data>
   <data name="DocBaseResumenAriaAlDia" xml:space="preserve">
     <value>Documentación base: al día</value>
   </data>
@@ -720,10 +795,17 @@
   <data name="FichaCopiarBajaEmpresa" xml:space="preserve"><value>la fecha de baja en la empresa</value></data>
   <data name="FichaCopiarCaducidadPermiso" xml:space="preserve"><value>la caducidad del permiso de trabajo</value></data>
   <data name="FichaRotuloDni" xml:space="preserve"><value>DNI</value></data>
+  <data name="FichaRotuloNie" xml:space="preserve"><value>NIE</value></data>
+  <data name="FichaRotuloPasaporte" xml:space="preserve"><value>Pasaporte</value></data>
   <data name="FichaCopiarDni" xml:space="preserve"><value>el DNI</value></data>
+  <data name="FichaCopiarNie" xml:space="preserve"><value>el NIE</value></data>
+  <data name="FichaCopiarPasaporte" xml:space="preserve"><value>el pasaporte</value></data>
   <data name="FichaCopiarTelefono" xml:space="preserve"><value>el teléfono</value></data>
   <data name="FichaContactoEmergencia" xml:space="preserve"><value>Contacto de emergencia</value></data>
   <data name="FichaTelefonoEmergencia" xml:space="preserve"><value>Teléfono de emergencia</value></data>
+  <data name="FichaExtranjeroCobrable" xml:space="preserve"><value>Trabajador extranjero (cobrable)</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoSi" xml:space="preserve"><value>Por su documento cuenta como extranjero. Desmárcalo si no se cobra (por ejemplo, un ciudadano de la UE).</value></data>
+  <data name="FichaExtranjeroCobrableDocumentoNo" xml:space="preserve"><value>Por su documento no cuenta como extranjero (DNI, NIE o TIE). Márcalo si se cobra.</value></data>
   <data name="FichaCopiarTelefonoEmergencia" xml:space="preserve"><value>el teléfono de emergencia</value></data>
   <data name="FichaCopiarCorreo" xml:space="preserve"><value>el correo electrónico</value></data>
   <data name="FichaCopiarNacimiento" xml:space="preserve"><value>la fecha de nacimiento</value></data>
@@ -771,4 +853,35 @@
   <data name="EtiquetaPasosAlta" xml:space="preserve">
     <value>Alta de trabajador</value>
   </data>
+  <data name="AccionCorregirDocumento" xml:space="preserve">
+    <value>Corregir documento de identidad</value>
+  </data>
+  <data name="CorregirDocumentoEtiqueta" xml:space="preserve">
+    <value>Documento de identidad</value>
+  </data>
+  <data name="CorregirDocumentoAyuda" xml:space="preserve">
+    <value>DNI, NIE o pasaporte. Si la casilla «Trabajador extranjero (cobrable)» se marcó o desmarcó a mano, esa marca se quita y la casilla se recalcula con el documento nuevo solo hacia delante: los meses ya gestionados no cambian.</value>
+  </data>
+  <data name="CorregirDocumentoGuardar" xml:space="preserve">
+    <value>Guardar documento</value>
+  </data>
+  <data name="CorregirDocumentoExito" xml:space="preserve">
+    <value>Documento de identidad corregido.</value>
+  </data>
+  <data name="CorregirDocumentoActual" xml:space="preserve">
+    <value>Documento actual</value>
+  </data>
+  <data name="PestanaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="PlataformasDescripcion" xml:space="preserve"><value>Estado de su documentación en la plataforma CAE de cada Cliente, por Centro.</value></data>
+  <data name="PlataformasEstadoAceptada" xml:space="preserve"><value>Validado</value></data>
+  <data name="PlataformasEstadoPendienteDeSubir" xml:space="preserve"><value>Pendiente de subir</value></data>
+  <data name="PlataformasEstadoRechazada" xml:space="preserve"><value>Rechazado</value></data>
+  <data name="PlataformasEstadoSubida" xml:space="preserve"><value>Pendiente de validación</value></data>
+  <data name="PlataformasIrCentro" xml:space="preserve"><value>Ir al Centro 360</value></data>
+  <data name="PlataformasNombre" xml:space="preserve"><value>Plataforma {0}</value></data>
+  <data name="PlataformasSinResultados" xml:space="preserve"><value>Sin resultados en plataformas</value></data>
+  <data name="PlataformasSinResultadosDescripcion" xml:space="preserve"><value>No hay acreditaciones disponibles para este filtro.</value></data>
+  <data name="PlataformasSoloIncidencias" xml:space="preserve"><value>Solo incidencias · {0}</value></data>
+  <data name="PlataformasTodo" xml:space="preserve"><value>Todo · {0}</value></data>
+  <data name="CabeceraExtranjeroCobrable" xml:space="preserve"><value>Extranjero (cobrable)</value></data>
 </root>

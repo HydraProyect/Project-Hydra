@@ -1,597 +1,555 @@
+using System.Globalization;
+using CaeManager.Application.Dashboard;
+using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Dashboard.TarifasOperadorCae;
 using CaeManager.Domain.Common;
-using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
-using CaeManager.Application.Facturacion.Commands.ActualizarTarifaCliente;
-using CaeManager.Application.Facturacion.Commands.CrearTarifaCliente;
-using CaeManager.Application.Facturacion.Commands.EliminarTarifaCliente;
-using CaeManager.Application.Facturacion.Queries.ObtenerResumenFacturacion;
-using CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente;
-using CaeManager.Domain.Facturacion;
+using CaeManager.Domain.Dashboard;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Features.CuadroDireccion;
+using CaeManager.Web.Features.Facturacion.Recursos;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Facturacion.Pages;
 
+/// <summary>
+/// «Facturación»: la cuota que el Operador CAE externo cobra a cada Empresa gestionada (Tenant beneficiario) contra su
+/// maqueta («Facturacion TALVEG.dc.html», assets/facturacion-operador.js y «Drawer Tarifas TALVEG»). No calcula nada:
+/// compone lo que ya miden y valoran <see cref="ObtenerSerieCuadroDireccionQuery"/>,
+/// <see cref="ContarExtranjerosCobrablesDelMesQuery"/> y <see cref="ObtenerTarifasOperadorCaeQuery"/>
+/// (<see cref="FacturacionOperadorModelo"/>), con las mismas autorizaciones y el mismo alcance que el Cuadro de
+/// dirección; las tarifas las fija <see cref="FijarTarifaOperadorCaeCommand"/>, que solo admite al Administrador o la
+/// Dirección CAE del Operador. Lo que cada Empresa gestionada cobra a sus Clientes empresariales (TarifaCliente) no se
+/// usa de momento: <see cref="FacturacionPorClienteEmpresarial"/> se conserva sin ruta y la pestaña sale
+/// «Próximamente».
+/// </summary>
 public partial class Facturacion : CaeManager.Web.Components.PaginaInteractiva
 {
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosFacturacion> Textos { get; set; } = default!;
 
-    internal const string PestanaTarifas = "tarifas";
-    internal const string PestanaResumen = "resumen";
+    /// <summary>Los meses que ofrece el selector: los tres anteriores, el actual y el siguiente (que sale como futuro).</summary>
+    private const int MesesAntes = 3;
 
-    private static readonly IReadOnlyList<PestanaDefinicion> Pestanas =
-    [
-        new(PestanaTarifas, "Tarifas configuradas"),
-        new(PestanaResumen, "Resumen mensual"),
-    ];
+    private static readonly ConceptoTarifaOperadorCae[] Conceptos =
+        [ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, ConceptoTarifaOperadorCae.CentroNuevo, ConceptoTarifaOperadorCae.ObraNueva];
 
-    private static readonly int TotalConceptos = Enum.GetValues<ConceptoFacturable>().Length;
+    /// <summary>Un índice por concepto, en el orden de <see cref="Conceptos"/>: lo recorre el drawer de tarifas.</summary>
+    private static readonly int[] IndicesTarifa = [0, 1, 2];
 
+    private int _anyo;
+    private int _mes;
     private bool _cargando = true;
-    private bool _errorCarga;
-    private bool _cargandoTarifas;
-    private bool _errorTarifas;
-    private bool _guardando;
+    private bool _error;
+    private bool _sinAcceso;
+    private int _solicitud;
+    private ModeloFacturacion? _modelo;
+    private IReadOnlyList<TarifaOperadorCaeDto>? _tarifas;
+    private Guid _empresaId;
 
-    private IReadOnlyList<ClienteSelectorDto> _clientes = [];
-    private Guid _clienteSeleccionadoId = Guid.Empty;
-    private List<TarifaClienteDto> _tarifas = [];
-    private List<ConceptoFacturable> _conceptosDisponibles = [];
-
-    private string _pestanaActiva = PestanaTarifas;
-
-    // Cada carga que escribe estado tras un await lleva su número de solicitud.
-    // Si al volver ya no es la última (cambió el cliente, el periodo, o se
-    // lanzó otra carga igual), la respuesta se descarta: sin esto, las
-    // tarifas de un cliente elegido antes y resuelto después se pintaban bajo
-    // el cliente que el usuario tiene seleccionado ahora.
-    private int _solicitudTarifas;
-    private int _solicitudEstimado;
-    private int _solicitudResumen;
-
-    // Estimado del mes en curso, junto al selector de cliente.
-    private ResumenFacturacionDto? _estimado;
-    private bool _cargandoEstimado;
-    private bool _errorEstimado;
-
-    // Resumen mensual. El periodo que se pinta es el que se CALCULÓ, no el que
-    // tienen ahora los filtros: cambiar el mes sin pulsar «Calcular» dejaba el
-    // título y el enlace de exportación hablando de un mes cuyos datos no
-    // estaban en pantalla.
-    private int _anyoResumen = DiaDeNegocio.Hoy().Year;
-    private int _mesResumen = DiaDeNegocio.Hoy().Month;
-    private bool _cargandoResumen;
-    private bool _errorResumen;
-    private bool _resumenConsultado;
-    private ResumenFacturacionDto? _resumen;
-    private (Guid ClienteId, int Anyo, int Mes) _periodoResumen;
-
-    // Formulario nueva tarifa
-    private bool _mostrarFormularioNueva;
-    private ConceptoFacturable _nuevaConcepto;
-    private decimal _nuevaPrecio;
-    private string _nuevaMoneda = "EUR";
-    private string? _nuevaError;
-    private Dictionary<string, string> _nuevaErrores = new();
-
-    // Edición inline
-    private Guid _tarifaEditandoId = Guid.Empty;
-    // Versión de la tarifa tal como se abrió: vuelve en el Command para
-    // detectar que otra persona guardó mientras el formulario estaba abierto.
-    private Guid _versionEditando;
-    private decimal _editPrecio;
-    private string _editMoneda = "EUR";
-    // Fallo del comando (conflicto de versión, tarifa inexistente) o excepción.
-    private string? _editError;
-    // Errores de validación por propiedad del comando. Antes se guardaban aquí
-    // con la clave "PrecioUnitario"/"MonedaIso" pero la vista solo leía
-    // "precio": un precio negativo no mostraba nada al pulsar Guardar.
-    private Dictionary<string, string> _editErrores = new();
-
-    // Eliminar tarifa pendiente de confirmar (antes iba directo del enlace al comando).
-    private TarifaClienteDto? _tarifaAEliminar;
-    private bool _confirmarEliminarVisible;
-    private bool _eliminando;
-
-    protected override Task OnInitializedAsync() => CargarAsync();
-
-    private async Task CargarAsync()
+    protected override async Task OnInitializedAsync()
     {
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
-
-        try
-        {
-            _clientes = await Mediator.Send(new ObtenerClientesParaSelectorQuery());
-        }
-        catch (Exception)
-        {
-            _errorCarga = true;
-        }
-        finally
-        {
-            _cargando = false;
-        }
+        var hoy = DiaDeNegocio.Hoy(Reloj);
+        _anyo = hoy.Year;
+        _mes = hoy.Month;
+        await CargarAsync();
     }
 
-    /// <summary>
-    /// P1-E2b: la zona del Cliente empresarial elegido (pestañas, alta y edición de tarifa): se
-    /// desmonta sin navegar al cambiar de Cliente, así que el cambio pregunta con el mismo aviso.
-    /// </summary>
-    private readonly AmbitoCambiosSinGuardar _ambitoCliente = new();
-
-    /// <summary>
-    /// Cambiar de Cliente empresarial cierra el alta y la edición de tarifa (OnClienteChangedAsync):
-    /// con algo escrito se pregunta antes. Si se sigue editando, la selección no cambia y el
-    /// <c>@bind:get</c> devuelve el selector al Cliente de antes.
-    /// </summary>
-    private IReadOnlyList<OpcionSelect> OpcionesClientes =>
-        [new(Guid.Empty.ToString(), "— Selecciona un Cliente —"), .. _clientes.Select(c => new OpcionSelect(c.Id.ToString(), c.RazonSocial))];
-
-    private Task CambiarClienteDesdeSelectorAsync(string valor) =>
-        CambiarClienteAsync(Guid.TryParse(valor, out var id) ? id : Guid.Empty);
-
-    private async Task CambiarClienteAsync(Guid nuevo)
-    {
-        if (nuevo == _clienteSeleccionadoId) return;
-        if (!await _ambitoCliente.ConfirmarAbandonoAsync()) return;
-
-        _clienteSeleccionadoId = nuevo;
-        await OnClienteChangedAsync();
-    }
-
-    private async Task OnClienteChangedAsync()
-    {
-        _tarifas = [];
-        _conceptosDisponibles = [];
-        _pestanaActiva = PestanaTarifas;
-        _mostrarFormularioNueva = false;
-        CancelarEdicion();
-
-        _estimado = null;
-        _errorEstimado = false;
-        _cargandoEstimado = false;
-
-        _resumen = null;
-        _resumenConsultado = false;
-        _errorResumen = false;
-        _cargandoResumen = false;
-
-        // Invalida lo que siguiera en vuelo para el cliente anterior, también
-        // cuando se vuelve a «— Selecciona un Cliente —».
-        _solicitudTarifas++;
-        _solicitudEstimado++;
-        _solicitudResumen++;
-
-        if (_clienteSeleccionadoId != Guid.Empty)
-            await CargarDatosClienteAsync();
-    }
-
-    /// <summary>
-    /// Tarifas y, después, el estimado del mes en curso. En serie y no a la
-    /// vez: las dos consultas pasan por el mismo circuito.
-    /// </summary>
-    private async Task CargarDatosClienteAsync()
-    {
-        var clienteId = _clienteSeleccionadoId;
-        await CargarTarifasAsync();
-
-        if (clienteId == _clienteSeleccionadoId)
-            await CargarEstimadoAsync();
-    }
-
-    private async Task CargarTarifasAsync()
-    {
-        var solicitud = ++_solicitudTarifas;
-        var clienteId = _clienteSeleccionadoId;
-        _cargandoTarifas = true;
-        _errorTarifas = false;
-        StateHasChanged();
-
-        try
-        {
-            var tarifas = await Mediator.Send(new ObtenerTarifasClienteQuery(clienteId));
-            if (solicitud != _solicitudTarifas) return;
-
-            _tarifas = tarifas;
-            RecalcularConceptosDisponibles();
-        }
-        catch (Exception)
-        {
-            if (solicitud != _solicitudTarifas) return;
-            _errorTarifas = true;
-        }
-        finally
-        {
-            if (solicitud == _solicitudTarifas)
-                _cargandoTarifas = false;
-        }
-    }
-
-    /// <summary>
-    /// El «Estimado de {mes}» del mockup: la misma consulta que el resumen
-    /// mensual, para el mes en curso. No hay cifra nueva que calcular aquí;
-    /// solo se decide cómo pintarla (ver <see cref="TextoEstimado"/>).
-    /// </summary>
-    private async Task CargarEstimadoAsync()
-    {
-        var solicitud = ++_solicitudEstimado;
-        var clienteId = _clienteSeleccionadoId;
-        var hoy = DiaDeNegocio.Hoy();
-        _cargandoEstimado = true;
-        _errorEstimado = false;
-        StateHasChanged();
-
-        try
-        {
-            var estimado = await Mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, hoy.Year, hoy.Month));
-            if (solicitud != _solicitudEstimado) return;
-
-            _estimado = estimado;
-        }
-        catch (Exception)
-        {
-            if (solicitud != _solicitudEstimado) return;
-            _estimado = null;
-            _errorEstimado = true;
-        }
-        finally
-        {
-            if (solicitud == _solicitudEstimado)
-                _cargandoEstimado = false;
-        }
-    }
-
-    private async Task CargarResumenAsync()
-    {
-        var solicitud = ++_solicitudResumen;
-        var periodo = (_clienteSeleccionadoId, _anyoResumen, _mesResumen);
-        _cargandoResumen = true;
-        _errorResumen = false;
-        StateHasChanged();
-
-        try
-        {
-            var resumen = await Mediator.Send(
-                new ObtenerResumenFacturacionQuery(periodo.Item1, periodo.Item2, periodo.Item3));
-            if (solicitud != _solicitudResumen) return;
-
-            _resumen = resumen;
-            _periodoResumen = periodo;
-            _resumenConsultado = true;
-        }
-        catch (Exception)
-        {
-            // Antes no había catch: una excepción de la consulta subía sin
-            // aviso. Ahora se dice y se ofrece reintentar.
-            if (solicitud != _solicitudResumen) return;
-            _resumen = null;
-            _resumenConsultado = false;
-            _errorResumen = true;
-        }
-        finally
-        {
-            if (solicitud == _solicitudResumen)
-                _cargandoResumen = false;
-        }
-    }
-
-    private async Task CrearTarifaAsync()
-    {
-        _nuevaError = null;
-        _nuevaErrores = new();
-        _guardando = true;
-        StateHasChanged();
-
-        try
-        {
-            var resultado = await Mediator.Send(
-                new CrearTarifaClienteCommand(_clienteSeleccionadoId, _nuevaConcepto, _nuevaPrecio, _nuevaMoneda));
-
-            if (resultado.EsFallido)
-            {
-                _nuevaError = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Tarifa guardada correctamente.", TonoToast.Exito);
-            _mostrarFormularioNueva = false;
-            _nuevaPrecio = 0;
-            _nuevaMoneda = "EUR";
-            await CargarDatosClienteAsync();
-        }
-        catch (ValidationException ex)
-        {
-            _nuevaErrores = ErroresPorPropiedad(ex);
-        }
-        catch (Exception)
-        {
-            _nuevaError = "No pudimos guardar la tarifa. Intenta nuevamente.";
-        }
-        finally
-        {
-            _guardando = false;
-        }
-    }
-
-    /// <summary>
-    /// «Editar» sobre otra fila sustituye la edición abierta: si esa tenía un precio o una moneda
-    /// cambiados, se pregunta antes (con el mismo aviso) en vez de tirarlos sin decir nada.
-    /// </summary>
-    private async Task IniciarEdicionAsync(TarifaClienteDto tarifa)
-    {
-        var sustituyeUnaEdicionSucia = _tarifaEditandoId != Guid.Empty
-            && _tarifaEditandoId != tarifa.Id
-            && _instantaneaEdicion.Difiere(ValoresEdicion());
-        if (sustituyeUnaEdicionSucia && !await _ambitoCliente.ConfirmarAbandonoAsync()) return;
-
-        IniciarEdicion(tarifa);
-    }
-
-    private void IniciarEdicion(TarifaClienteDto tarifa)
-    {
-        _tarifaEditandoId = tarifa.Id;
-        _versionEditando = tarifa.Version;
-        _editPrecio = tarifa.PrecioUnitario;
-        _editMoneda = tarifa.MonedaIso;
-        _editError = null;
-        _editErrores = new();
-        _instantaneaEdicion.Fijar(ValoresEdicion());
-    }
-
-    private void AbrirFormularioNueva()
-    {
-        _mostrarFormularioNueva = true;
-        // Con el primer concepto libre ya preseleccionado (RecalcularConceptosDisponibles):
-        // eso no es un cambio de quien edita.
-        _instantaneaNueva.Fijar(ValoresNueva());
-    }
-
-    private readonly InstantaneaFormulario _instantaneaNueva = new();
-    private readonly InstantaneaFormulario _instantaneaEdicion = new();
-
-    /// <summary>
-    /// P1-E2b: si el alta o la edición de tarifa abiertas tienen algo escrito que se
-    /// perdería al salir o al cambiar de pestaña (CambiarPestana cierra las dos). Lo lee
-    /// AvisoCambiosSinGuardar; guardar cierra el formulario, así que ya no pregunta.
-    /// </summary>
-    private bool HayCambiosSinGuardar =>
-        (_mostrarFormularioNueva && _instantaneaNueva.Difiere(ValoresNueva()))
-        || (_tarifaEditandoId != Guid.Empty && _instantaneaEdicion.Difiere(ValoresEdicion()));
-
-    private object?[] ValoresNueva() => [_clienteSeleccionadoId, _nuevaConcepto, _nuevaPrecio, _nuevaMoneda];
-
-    private object?[] ValoresEdicion() => [_clienteSeleccionadoId, _tarifaEditandoId, _editPrecio, _editMoneda];
-
-    /// <summary>«Salir y descartar»: cierra los formularios sin navegar (la navegación la repite el aviso).</summary>
-    private void CerrarFormulariosDescartando()
-    {
-        _mostrarFormularioNueva = false;
-        CancelarEdicion();
-    }
-
-    private void CancelarEdicion()
-    {
-        _tarifaEditandoId = Guid.Empty;
-        _editError = null;
-        _editErrores = new();
-    }
-
-    private async Task GuardarEdicionAsync()
-    {
-        _editError = null;
-        _editErrores = new();
-        _guardando = true;
-        StateHasChanged();
-
-        try
-        {
-            var resultado = await Mediator.Send(
-                new ActualizarTarifaClienteCommand(_tarifaEditandoId, _editPrecio, _editMoneda, _versionEditando));
-
-            if (resultado.EsFallido)
-            {
-                _editError = resultado.Error.Mensaje;
-                return;
-            }
-
-            ToastService.Mostrar("Tarifa actualizada correctamente.", TonoToast.Exito);
-            _tarifaEditandoId = Guid.Empty;
-            await CargarDatosClienteAsync();
-        }
-        catch (ValidationException ex)
-        {
-            _editErrores = ErroresPorPropiedad(ex);
-        }
-        catch (Exception)
-        {
-            _editError = "No pudimos guardar los cambios. Intenta nuevamente.";
-        }
-        finally
-        {
-            _guardando = false;
-        }
-    }
-
-    private void AbrirConfirmarEliminar(TarifaClienteDto tarifa)
-    {
-        _tarifaAEliminar = tarifa;
-        _confirmarEliminarVisible = true;
-    }
-
-    private async Task ConfirmarEliminarAsync()
-    {
-        if (_tarifaAEliminar is not { } tarifa)
-            return;
-
-        _eliminando = true;
-        try
-        {
-            var resultado = await Mediator.Send(new EliminarTarifaClienteCommand(tarifa.Id));
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(resultado.Error);
-                return;
-            }
-
-            ToastService.Mostrar("Tarifa eliminada.", TonoToast.Exito);
-            _confirmarEliminarVisible = false;
-            _tarifaAEliminar = null;
-            await CargarDatosClienteAsync();
-        }
-        catch (Exception)
-        {
-            ToastService.Mostrar("No pudimos eliminar la tarifa. Intenta nuevamente.", TonoToast.Error);
-        }
-        finally
-        {
-            _eliminando = false;
-        }
-    }
-
-    private void CambiarPestana(string pestana)
-    {
-        _pestanaActiva = pestana;
-        CancelarEdicion();
-        _mostrarFormularioNueva = false;
-    }
-
-    private void CambiarMesResumen(string valor)
-    {
-        if (int.TryParse(valor, out var mes) && mes is >= 1 and <= 12)
-            _mesResumen = mes;
-    }
-
-    private void CambiarConceptoNueva(string valor)
-    {
-        if (Enum.TryParse<ConceptoFacturable>(valor, out var concepto))
-            _nuevaConcepto = concepto;
-    }
-
-    private void RecalcularConceptosDisponibles()
-    {
-        var usados = _tarifas.Select(t => t.Concepto).ToHashSet();
-        _conceptosDisponibles = Enum.GetValues<ConceptoFacturable>()
-            .Where(c => !usados.Contains(c))
-            .ToList();
-
-        if (_conceptosDisponibles.Count > 0)
-            _nuevaConcepto = _conceptosDisponibles[0];
-    }
-
-    private static Dictionary<string, string> ErroresPorPropiedad(ValidationException ex) =>
-        ex.Errors
-            .GroupBy(e => e.PropertyName)
-            .ToDictionary(g => g.Key, g => g.First().ErrorMessage);
-
-    private string? ErrorEdicion(string propiedad) =>
-        _editErrores.TryGetValue(propiedad, out var error) ? error : null;
-
-    private string TextoConceptosTarificados =>
-        _cargandoTarifas || _errorTarifas ? "—" : $"{_tarifas.Count} de {TotalConceptos}";
-
-    private static string EtiquetaEstimado => $"Estimado de {NombreMes(DiaDeNegocio.Hoy().Month).ToLowerInvariant()}";
-
-    /// <summary>
-    /// El total del mes en curso, sin inventar nada: sin tarifas no hay importe
-    /// (el DTO trae la lista de totales vacía), y con tarifas en varias monedas
-    /// se muestra el total por moneda que ya calculó el handler — la pantalla
-    /// no vuelve a sumar subtotales.
-    /// </summary>
-    private string TextoEstimado
+    private (int Anyo, int Mes) MesActual
     {
         get
         {
-            if (_cargandoEstimado) return "…";
-            if (_errorEstimado) return "No disponible";
-            if (_estimado is null || _estimado.Lineas.Count == 0) return "—";
-
-            return string.Join(" · ", _estimado.TotalesPorMoneda.Select(t => FormatearImporte(t.Total, t.MonedaIso)));
+            var hoy = DiaDeNegocio.Hoy(Reloj);
+            return (hoy.Year, hoy.Month);
         }
     }
 
-    private string PistaEstimado =>
-        _estimado is { Lineas.Count: 0 } && !_cargandoEstimado && !_errorEstimado
-            ? "Sin tarifas configuradas"
-            : "Mes en curso, con los datos de hoy";
+    private DateTime AhoraUtc => Reloj.GetUtcNow().UtcDateTime;
 
-    /// <summary>
-    /// Cultura de la aplicación (es-ES, fijada en Program.cs), no de la
-    /// pantalla: «857,40 EUR».
-    /// </summary>
-    internal static string FormatearImporte(decimal importe, string moneda) => $"{importe:N2} {moneda}";
+    // ------------------------------------------------------------------ carga
 
-    /// <summary>
-    /// Ancho de la barra de «Dónde está el importe» respecto del subtotal
-    /// mayor. Solo tiene sentido con una sola moneda y algún importe positivo:
-    /// la vista no pinta el gráfico en otro caso.
-    /// </summary>
-    internal static decimal PorcentajeBarra(decimal subtotal, decimal maximo) =>
-        maximo <= 0 ? 0 : Math.Round(subtotal / maximo * 100m, 1);
-
-    // Invariante porque es CSS («50.5%», nunca «50,5%»), y "0.#" porque
-    // Math.Round sobre decimal conserva la escala: sin él salía «50.0%».
-    private static string AnchoBarra(decimal subtotal, decimal maximo) =>
-        PorcentajeBarra(subtotal, maximo).ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + "%";
-
-    private string UrlExportacion =>
-        $"/facturacion/resumen.xlsx?clienteId={_periodoResumen.ClienteId}&anyo={_periodoResumen.Anyo}&mes={_periodoResumen.Mes}";
-
-    /// <summary>
-    /// Mismos nombres que <c>ObtenerTarifasClienteQueryHandler.NombreConcepto</c>
-    /// (Application). Antes esta copia solo cubría 4 de los 7 conceptos y el
-    /// desplegable de «Nueva tarifa» enseñaba «GestionProyectoRealizada» en
-    /// crudo mientras la tabla decía «Gestión de proyecto realizada».
-    /// </summary>
-    internal static string NombreConcepto(ConceptoFacturable concepto) => concepto switch
+    private async Task CargarAsync()
     {
-        ConceptoFacturable.TrabajadorActivo => "Trabajador activo",
-        ConceptoFacturable.AltaCentro => "Alta de centro",
-        ConceptoFacturable.VisitaTrabajadorExtranjero => "Visita de trabajador extranjero",
-        ConceptoFacturable.DocumentoGestionado => "Documento gestionado",
-        ConceptoFacturable.TecnicoAsignadoProyecto => "Técnico asignado a proyecto",
-        ConceptoFacturable.GestionProyectoRealizada => "Gestión de proyecto realizada",
-        ConceptoFacturable.DiaProyectoAbierto => "Día de proyecto abierto",
-        _ => concepto.ToString()
+        var solicitud = ++_solicitud;
+        _cargando = true;
+        _error = false;
+        _sinAcceso = false;
+        StateHasChanged();
+
+        try
+        {
+            // En serie: el DbContext del circuito no admite consultas concurrentes.
+            var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, 1, ConFacturacion: true));
+            // Una sola fuente de vigencia, la del Cuadro de dirección: solo las Empresas que el Operador CAE gestiona con una
+            // Asignación de Operación externa en vigor en el mes, y los extranjeros se cuentan dentro de esos tramos.
+            var gestionadas = await Mediator.Send(new ObtenerEmpresasGestionadasDelMesQuery(_anyo, _mes));
+            var extranjeros = await Mediator.Send(
+                new ContarExtranjerosCobrablesDelMesQuery(_anyo, _mes, gestionadas.EsOperadorCae ? gestionadas.Tramos : null));
+            var tarifas = await Mediator.Send(new ObtenerTarifasOperadorCaeQuery());
+            var operadas = gestionadas.Tramos.Keys.ToList();
+            if (solicitud != _solicitud)
+                return;
+
+            _tarifas = tarifas;
+            _modelo = FacturacionOperadorModelo.Construir(_anyo, _mes, serie, extranjeros, tarifas, operadas, AhoraUtc);
+            if (_modelo.Empresas.All(e => e.TenantId != _empresaId))
+                _empresaId = _modelo.Empresas.FirstOrDefault()?.TenantId ?? Guid.Empty;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            if (solicitud != _solicitud)
+                return;
+
+            _sinAcceso = true;
+        }
+        catch (Exception)
+        {
+            if (solicitud != _solicitud)
+                return;
+
+            _error = true;
+        }
+        finally
+        {
+            if (solicitud == _solicitud)
+                _cargando = false;
+        }
+    }
+
+    private async Task ElegirMesAsync(int anyo, int mes)
+    {
+        if (_cargando || (anyo == _anyo && mes == _mes))
+            return;
+
+        _anyo = anyo;
+        _mes = mes;
+        await CargarAsync();
+    }
+
+    // ------------------------------------------------------------------ selector de mes
+
+    private sealed record ChipMes(int Anyo, int Mes, string Corto, string Marca, bool Futuro, string Titulo);
+
+    private IEnumerable<ChipMes> Meses()
+    {
+        var (anyoActual, mesActual) = MesActual;
+        var actual = new DateOnly(anyoActual, mesActual, 1);
+        for (var i = -MesesAntes; i <= 1; i++)
+        {
+            var d = actual.AddMonths(i);
+            var futuro = i > 0;
+            yield return new ChipMes(
+                d.Year, d.Month, Textos[$"MesCorto{d.Month}"].Value,
+                futuro ? Textos["MarcaFuturo"].Value : i == 0 ? Textos["MarcaEnCurso"].Value : Textos["MarcaCerrado"].Value,
+                futuro,
+                futuro ? Textos["TituloMesFuturo", NombreMes(d.Year, d.Month)].Value : NombreMes(d.Year, d.Month));
+        }
+    }
+
+    private string NombreMes(int anyo, int mes) => $"{Textos[$"Mes{mes}"].Value} {anyo.ToString(CultureInfo.CurrentCulture)}";
+
+    // ------------------------------------------------------------------ estado del mes
+
+    private (string Clave, string Texto, string Detalle) EstadoDelMes => _modelo?.Estado switch
+    {
+        EstadoCifraMensual.Existe => ("cerrado", Textos["EstadoCerrado"].Value, Textos["EstadoCerradoDetalle"].Value),
+        EstadoCifraMensual.Estimado => ("sin-cerrar", Textos["EstadoSinCerrar"].Value, Textos["EstadoSinCerrarDetalle"].Value),
+        _ => ("en-curso", Textos["EstadoEnCurso"].Value,
+            Textos["EstadoEnCursoDetalle", DiaDeNegocio.Hoy(Reloj).ToString("d", CultureInfo.CurrentCulture)].Value),
     };
 
-    /// <summary>
-    /// Qué cuenta cada unidad, leído de lo que realmente cuenta
-    /// <c>ObtenerResumenFacturacionQueryHandler</c> — no del comentario del
-    /// enum, que para TrabajadorActivo dice «al cierre del período» cuando la
-    /// consulta cuenta cualquier asignación viva en algún momento del mes.
-    /// Si cambia una de esas consultas, esta frase cambia con ella.
-    /// </summary>
-    internal static string UnidadConcepto(ConceptoFacturable concepto) => concepto switch
+    private string AlcanceParcial => _modelo is { TenantsSinAlcanceCompleto: 1 }
+        ? Textos["AlcanceParcialUna"].Value
+        : Textos["AlcanceParcial", _modelo?.TenantsSinAlcanceCompleto ?? 0].Value;
+
+    // ------------------------------------------------------------------ empresas
+
+    private EmpresaFacturada? Seleccionada => _modelo?.Empresas.FirstOrDefault(e => e.TenantId == _empresaId);
+
+    private void ElegirEmpresa(Guid tenantId) => _empresaId = tenantId;
+
+    /// <summary>«14 extranjeros · 1 Centro nuevo · 2 Obras nuevas»: cada concepto en singular con 1 y en plural con el resto.</summary>
+    private string SubEmpresa(EmpresaFacturada e) => string.Join(" · ",
+        Cantidad(e.Extranjeros, "SubExtranjerosUno", "SubExtranjerosVarios"),
+        Cantidad(e.CentrosNuevos, "SubCentrosUno", "SubCentrosVarios"),
+        Cantidad(e.ObrasNuevas, "SubObrasUno", "SubObrasVarios"));
+
+    private string Cantidad(int? unidades, string claveUno, string claveVarios) =>
+        Textos[unidades == 1 ? claveUno : claveVarios, Unidades(unidades)].Value;
+
+    private string Unidades(int? unidades) => unidades?.ToString(CultureInfo.CurrentCulture) ?? Textos["SinDato"].Value;
+
+    private string TextoCuota(EmpresaFacturada e)
     {
-        ConceptoFacturable.TrabajadorActivo => "Por trabajador con asignación activa en algún momento del período",
-        ConceptoFacturable.AltaCentro => "Por centro dado de alta durante el período",
-        ConceptoFacturable.VisitaTrabajadorExtranjero => "Por trabajador sin DNI español que visita un centro en el período",
-        ConceptoFacturable.DocumentoGestionado => "Por documento creado en el período para un trabajador asignado",
-        ConceptoFacturable.TecnicoAsignadoProyecto => "Por técnico distinto asignado a alguna obra en el período (los eventos no se facturan)",
-        ConceptoFacturable.GestionProyectoRealizada => "Por documento creado en el período en una obra (los eventos no se facturan)",
-        ConceptoFacturable.DiaProyectoAbierto => "Por día abierto de cada obra, contando el primero y el último (los eventos no se facturan)",
-        _ => string.Empty
+        if (e.ImportesOcultos)
+            return Textos["SinImporte"].Value;
+        if (e.SinTarifa)
+            return Textos["SinTarifa"].Value;
+        if (e.SinTarifaEnElMes)
+            return Textos["SinTarifaEnElMes"].Value;
+        // Con todos los conceptos sin cobrar la cuota es «0 €» (la línea lleva su moneda), no un hueco.
+        return e.Cuota.Count > 0 ? Dinero(e.Cuota) : Textos["SinImporte"].Value;
+    }
+
+    private static string ClaseCuota(EmpresaFacturada e) =>
+        (e.SinTarifa || e.SinTarifaEnElMes) && !e.ImportesOcultos ? "fct-cuota fct-cuota-aviso" : "fct-cuota";
+
+    private string TextoTotal() => _modelo is { Total.Count: > 0 } ? Dinero(_modelo.Total) : Textos["SinImporte"].Value;
+
+    /// <summary>El total no incluye las Empresas que quien mira no alcanza por completo: se dice junto a la cifra.</summary>
+    private string TextoTotalParcial => _modelo is { TenantsSinAlcanceCompleto: 1 }
+        ? Textos["TotalParcialUna"].Value
+        : Textos["TotalParcial", _modelo?.TenantsSinAlcanceCompleto ?? 0].Value;
+
+    /// <summary>
+    /// Con línea de facturación las unidades son las de la línea (unidades × precio = importe). Si el Excel de extranjeros
+    /// cuenta otras, se enseña como información complementaria, nunca en su lugar.
+    /// </summary>
+    private string? ComplementoUnidades(EmpresaFacturada e, ConceptoFacturado c) =>
+        c.Concepto == ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero && c.Moneda is not null && c.Unidades != e.ExtranjerosEnExcel
+            ? Textos["ExtranjerosEnExcel", e.ExtranjerosEnExcel.ToString(CultureInfo.CurrentCulture)].Value
+            : null;
+
+    // ------------------------------------------------------------------ conceptos
+
+    private string NombreConcepto(ConceptoTarifaOperadorCae concepto) => concepto switch
+    {
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => Textos["ConceptoExtranjeros"].Value,
+        ConceptoTarifaOperadorCae.CentroNuevo => Textos["ConceptoCentros"].Value,
+        _ => Textos["ConceptoObras"].Value,
     };
 
-    internal static string NombreMes(int mes) => mes switch
+    private string UnidadConcepto(ConceptoTarifaOperadorCae concepto) => concepto switch
     {
-        1 => "Enero",
-        2 => "Febrero",
-        3 => "Marzo",
-        4 => "Abril",
-        5 => "Mayo",
-        6 => "Junio",
-        7 => "Julio",
-        8 => "Agosto",
-        9 => "Septiembre",
-        10 => "Octubre",
-        11 => "Noviembre",
-        12 => "Diciembre",
-        _ => mes.ToString()
+        ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero => Textos["UnidadExtranjero"].Value,
+        ConceptoTarifaOperadorCae.CentroNuevo => Textos["UnidadCentro"].Value,
+        _ => Textos["UnidadObra"].Value,
     };
+
+    private string TextoTarifa(EmpresaFacturada e, ConceptoFacturado c)
+    {
+        if (e.ImportesOcultos)
+            return Textos["SinImporte"].Value;
+        return c.Estado switch
+        {
+            EstadoTarifaConcepto.NoSeCobra => Textos["NoSeCobra"].Value,
+            EstadoTarifaConcepto.Cobra when c.Precio is { } precio =>
+                Textos["TarifaPorUnidad", Dinero(precio, c.Moneda, true), UnidadConcepto(c.Concepto)].Value,
+            EstadoTarifaConcepto.Cobra or EstadoTarifaConcepto.SinDato => Textos["SinDato"].Value,
+            _ => Textos["SinTarifa"].Value,
+        };
+    }
+
+    private string TextoImporte(ConceptoFacturado c) =>
+        c.Estado is EstadoTarifaConcepto.Cobra or EstadoTarifaConcepto.SinDato && c.Importe is { } importe
+            ? Dinero(importe, c.Moneda, false)
+            : Textos["SinImporte"].Value;
+
+    private static bool TarifaActiva(ConceptoFacturado c) => c.Estado == EstadoTarifaConcepto.Cobra;
+
+    private string TextoGestiones(EmpresaFacturada e) => e.Gestiones is { } gestiones
+        ? Textos["GestionesDetalle", Math.Max(0, gestiones - (e.GestionesExtranjero ?? 0)).ToString(CultureInfo.CurrentCulture),
+            (e.GestionesExtranjero ?? 0).ToString(CultureInfo.CurrentCulture)].Value
+        : Textos["SinDato"].Value;
+
+    private string DineroOSinDato(double? valor, EmpresaFacturada e) =>
+        valor is { } v && e.Cuota.Count == 1 ? Dinero((decimal)v, e.Cuota[0].Moneda, true) : Textos["SinDato"].Value;
+
+    /// <summary>
+    /// «Costo × gestión» con su cuenta, como la maqueta y la tabla del Cuadro: «(cuota − importe de extranjeros) ÷ gestiones
+    /// normales». Solo se pinta la cuenta con una única moneda y con las cifras a la vista; el valor lo da el modelo.
+    /// </summary>
+    private string CostoPorGestionConCuenta(EmpresaFacturada e)
+    {
+        var valor = DineroOSinDato(e.CostoPorGestion, e);
+        if (e.CostoPorGestion is null || e.Cuota.Count != 1 || e.Gestiones is not { } gestiones)
+            return valor;
+
+        var cuota = e.Cuota[0];
+        var importeExtranjeros = e.Concepto(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero).Importe ?? 0m;
+        var normales = Math.Max(0, gestiones - (e.GestionesExtranjero ?? 0));
+        return Textos["ValorConCuenta", valor,
+            Textos["CuentaGestionesNormales", Dinero(cuota.Importe - importeExtranjeros, cuota.Moneda, false), normales.ToString(CultureInfo.CurrentCulture)].Value].Value;
+    }
+
+    /// <summary>«Costo × extranjero» con su cuenta: «importe de extranjeros ÷ gestiones de extranjeros».</summary>
+    private string CostoPorExtranjeroConCuenta(EmpresaFacturada e)
+    {
+        var valor = DineroOSinDato(e.CostoPorExtranjero, e);
+        if (e.CostoPorExtranjero is null || e.Cuota.Count != 1 || e.GestionesExtranjero is not { } gestionesExtranjero)
+            return valor;
+
+        var importeExtranjeros = e.Concepto(ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero);
+        if (importeExtranjeros.Importe is not { } importe)
+            return valor;
+
+        return Textos["ValorConCuenta", valor,
+            Textos["CuentaGestionesExtranjero", Dinero(importe, importeExtranjeros.Moneda ?? e.Cuota[0].Moneda, false), gestionesExtranjero.ToString(CultureInfo.CurrentCulture)].Value].Value;
+    }
+
+    private string TextoRelacion(EmpresaFacturada e) => e.Relacion is { } r
+        ? "×" + r.ToString("0.0", CultureInfo.CurrentCulture)
+        : Textos["SinDato"].Value;
+
+    // ------------------------------------------------------------------ dinero
+
+    private static string Simbolo(string? moneda) => (moneda ?? "EUR").Trim().ToUpperInvariant() switch
+    {
+        "EUR" => "€",
+        "USD" => "$",
+        var otra => otra,
+    };
+
+    /// <summary>«1.234 €» o «40,00 €»: con decimales los precios y las tasas, sin ellos los importes enteros.</summary>
+    private static string Dinero(decimal importe, string? moneda, bool decimales)
+    {
+        var enteroExacto = !decimales && decimal.Round(importe, 0) == importe;
+        return importe.ToString(enteroExacto ? "N0" : "N2", CultureInfo.CurrentCulture) + " " + Simbolo(moneda);
+    }
+
+    private static string Dinero(IReadOnlyList<ImporteEnMoneda> importes) =>
+        string.Join(" + ", importes.Select(i => Dinero(i.Importe, i.Moneda, false)));
+
+    // ------------------------------------------------------------------ exportaciones
+
+    private string RutaExcel => FormattableString.Invariant($"{FacturacionEndpoints.RutaCuotaDelOperador}?anyo={_anyo}&mes={_mes}");
+
+    private string RutaExtranjeros =>
+        FormattableString.Invariant($"{CuadroDireccionEndpoints.RutaExtranjerosDelMes}?anyo={_anyo}&mes={_mes}");
+
+    private int ExtranjerosDelMes => _modelo?.ExtranjerosDelMes ?? 0;
+
+    private string TituloExtranjeros => ExtranjerosDelMes > 0
+        ? Textos["ExtranjerosFilas", ExtranjerosDelMes.ToString(CultureInfo.CurrentCulture)].Value
+        : Textos["ExtranjerosNinguno", NombreMes(_anyo, _mes)].Value;
+
+    // ------------------------------------------------------------------ drawer de tarifas
+
+    private readonly InstantaneaFormulario _instantanea = new();
+    private bool _drawerVisible;
+    private bool _guardando;
+    private string? _errorGuardar;
+    private Guid _drawerTenantId;
+    private string _drawerNombre = string.Empty;
+    private string _moneda = "EUR";
+
+    /// <summary>La moneda de la tarifa en vigor al abrir el drawer; null si la Empresa no tenía tarifa.</summary>
+    private string? _monedaOriginal;
+
+    private readonly bool[] _activo = new bool[3];
+
+    /// <summary>El precio tal como lo escribió quien edita: se valida entero al guardar y un hueco nunca se guarda como 0.</summary>
+    private readonly string?[] _precioTexto = new string?[3];
+
+    private readonly string?[] _errorPrecio = new string?[3];
+
+    private bool DrawerSinTarifa => _tarifas is null || _tarifas.All(t => t.PropietarioTenantId != _drawerTenantId);
+
+    private bool CambiaMoneda => _monedaOriginal is not null && !string.Equals(_moneda, _monedaOriginal, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Una moneda guardada que el selector no ofrece (EUR y USD) se añade para no perderla al abrir.</summary>
+    private bool MonedaOriginalFueraDeLista => _monedaOriginal is { } m && m != "EUR" && m != "USD";
+
+    private bool HayCambiosTarifas => _drawerVisible && _instantanea.Difiere(ValoresDrawer());
+
+    private object?[] ValoresDrawer() => [_moneda, _activo[0], _precioTexto[0], _activo[1], _precioTexto[1], _activo[2], _precioTexto[2]];
+
+    private TarifaOperadorCaeDto? Vigente(Guid tenantId, ConceptoTarifaOperadorCae concepto) =>
+        _tarifas is null ? null : ValoracionOperadorCae.VigenteEn(_tarifas, tenantId, concepto, AhoraUtc);
+
+    private void AbrirTarifas(EmpresaFacturada empresa)
+    {
+        if (_tarifas is null)
+            return;
+
+        _drawerTenantId = empresa.TenantId;
+        _drawerNombre = empresa.Nombre;
+        _errorGuardar = null;
+        _monedaOriginal = Conceptos.Select(c => Vigente(empresa.TenantId, c)).FirstOrDefault(v => v is not null)?.MonedaIso.Trim().ToUpperInvariant();
+        _moneda = _monedaOriginal ?? "EUR";
+        for (var i = 0; i < Conceptos.Length; i++)
+        {
+            var version = Vigente(empresa.TenantId, Conceptos[i]);
+            // Sin tarifa, como la maqueta: extranjeros activo y los otros dos sin cobrar, todos sin precio.
+            _activo[i] = version?.Activa ?? i == 0;
+            _precioTexto[i] = version?.PrecioUnitario.ToString(CultureInfo.InvariantCulture);
+            _errorPrecio[i] = null;
+        }
+
+        _drawerVisible = true;
+        _instantanea.Fijar(ValoresDrawer());
+    }
+
+    private Task CerrarDrawerAsync(bool visible)
+    {
+        _drawerVisible = visible;
+        if (!visible)
+            _errorGuardar = null;
+        return Task.CompletedTask;
+    }
+
+    private void AlternarActivo(int indice, bool valor)
+    {
+        _activo[indice] = valor;
+        _errorPrecio[indice] = null;
+    }
+
+    private void FijarPrecio(int indice, object? valor)
+    {
+        _precioTexto[indice] = valor?.ToString();
+        _errorPrecio[indice] = null;
+    }
+
+    private string UnidadPrecio => _moneda == "USD" ? Textos["UnidadPrecioUsd"].Value : Textos["UnidadPrecioEur"].Value;
+
+    private string NombreTarifaDrawer(int indice) => indice == 0 ? Textos["NombreTarifaExtranjeros"].Value : NombreConcepto(Conceptos[indice]);
+
+    private string AyudaDrawer(int indice) => indice switch
+    {
+        0 => Textos["AyudaExtranjeros"].Value,
+        1 => Textos["AyudaCentros"].Value,
+        _ => Textos["AyudaObras"].Value,
+    };
+
+    private string? MotivoGuardarDeshabilitado => HayCambiosTarifas ? null : Textos["MotivoSinCambios"].Value;
+
+    /// <summary>Lo máximo que admite el comando (<see cref="FijarTarifaOperadorCaeCommandValidator"/>).</summary>
+    private const decimal PrecioMaximo = 999_999.99m;
+
+    /// <summary>
+    /// Un precio válido: número con punto o coma decimal, de cero a <see cref="PrecioMaximo"/> y con como mucho dos
+    /// decimales. Sin separador de miles: «36,5» es 36,50 y no 365.
+    /// </summary>
+    private static bool TryLeerPrecio(string? texto, out decimal precio)
+    {
+        precio = 0m;
+        var limpio = texto?.Trim().Replace(',', '.');
+        return !string.IsNullOrEmpty(limpio)
+            && decimal.TryParse(limpio, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out precio)
+            && precio is >= 0m and <= PrecioMaximo
+            && decimal.Round(precio, 2) == precio;
+    }
+
+    /// <summary>
+    /// Valida los tres conceptos ANTES de enviar nada. Un concepto que se cobra necesita su precio: en blanco o ilegible no
+    /// se guarda (nunca como 0). Uno que no se cobra no usa el precio: sin precio escrito conserva el de su versión
+    /// anterior, o 0 si no tuvo ninguna, solo porque el comando exige una cifra; no se muestra ni se cobra.
+    /// </summary>
+    private bool ValidarPrecios(out decimal[] precios)
+    {
+        precios = new decimal[Conceptos.Length];
+        var todoBien = true;
+        for (var i = 0; i < Conceptos.Length; i++)
+        {
+            _errorPrecio[i] = null;
+            var vacio = string.IsNullOrWhiteSpace(_precioTexto[i]);
+            if (!_activo[i] && vacio)
+            {
+                precios[i] = Vigente(_drawerTenantId, Conceptos[i])?.PrecioUnitario ?? 0m;
+                continue;
+            }
+
+            if (vacio)
+            {
+                _errorPrecio[i] = Textos["ErrorPrecioVacio"].Value;
+                todoBien = false;
+            }
+            else if (!TryLeerPrecio(_precioTexto[i], out precios[i]))
+            {
+                _errorPrecio[i] = Textos["ErrorPrecioNoValido"].Value;
+                todoBien = false;
+            }
+        }
+
+        return todoBien;
+    }
+
+    private async Task GuardarTarifasAsync()
+    {
+        if (_guardando || !HayCambiosTarifas)
+            return;
+
+        _guardando = true;
+        _errorGuardar = null;
+        try
+        {
+            if (!ValidarPrecios(out var precios))
+            {
+                _errorGuardar = Textos["ErrorRevisaPrecios"].Value;
+                return;
+            }
+
+            // Una versión por concepto que cambió; cada comando es una transacción propia, así que si uno falla los
+            // anteriores ya están guardados: se recarga y se dice cuáles.
+            var pendientes = ComandosAEnviar(precios).ToList();
+            var guardados = new List<int>();
+            for (var n = 0; n < pendientes.Count; n++)
+            {
+                var (indice, comando) = pendientes[n];
+                var fallo = await EnviarAsync(comando);
+                if (fallo is null)
+                {
+                    guardados.Add(indice);
+                    continue;
+                }
+
+                await CargarAsync();
+                _errorGuardar = guardados.Count == 0
+                    ? fallo
+                    : Textos["ErrorGuardadoParcial", NombresConceptos(guardados), NombresConceptos(pendientes.Skip(n).Select(p => p.Indice)), fallo].Value;
+                return;
+            }
+
+            _drawerVisible = false;
+            ToastService.Mostrar(Textos["AvisoTarifasGuardadas", NombresConceptos(guardados)].Value, TonoToast.Exito);
+            await CargarAsync();
+        }
+        finally
+        {
+            _guardando = false;
+        }
+    }
+
+    /// <summary>Envía un comando de tarifa; null si se guardó, y si no el motivo para enseñar en el drawer.</summary>
+    private async Task<string?> EnviarAsync(FijarTarifaOperadorCaeCommand comando)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(comando);
+            return resultado.EsFallido ? resultado.Error.Mensaje : null;
+        }
+        catch (ValidationException ex)
+        {
+            return ex.Errors.FirstOrDefault()?.ErrorMessage ?? Textos["ErrorGuardarTarifas"].Value;
+        }
+        catch (Exception)
+        {
+            return Textos["ErrorGuardarTarifas"].Value;
+        }
+    }
+
+    private string NombresConceptos(IEnumerable<int> indices) =>
+        string.Join(", ", indices.Select(i => NombreTarifaDrawer(i).ToLower(CultureInfo.CurrentCulture)));
+
+    /// <summary>
+    /// Una versión nueva por concepto que cambió (y las tres si la Empresa no tenía tarifa o cambió la moneda: la tarifa
+    /// se guarda entera). Se compara con las tarifas recién cargadas, así que tras un fallo a medias solo quedan los que
+    /// faltan.
+    /// </summary>
+    private IEnumerable<(int Indice, FijarTarifaOperadorCaeCommand Comando)> ComandosAEnviar(decimal[] precios)
+    {
+        var todas = DrawerSinTarifa;
+        for (var i = 0; i < Conceptos.Length; i++)
+        {
+            var version = Vigente(_drawerTenantId, Conceptos[i]);
+            var cambia = todas || version is null || version.Activa != _activo[i] || version.PrecioUnitario != precios[i]
+                || !string.Equals(version.MonedaIso.Trim(), _moneda, StringComparison.OrdinalIgnoreCase);
+            if (cambia)
+                yield return (i, new FijarTarifaOperadorCaeCommand(_drawerTenantId, Conceptos[i], precios[i], _moneda, _activo[i]));
+        }
+    }
 }

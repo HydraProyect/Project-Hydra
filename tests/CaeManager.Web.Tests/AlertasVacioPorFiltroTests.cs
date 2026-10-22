@@ -87,7 +87,17 @@ public class AlertasVacioPorFiltroTests : BunitContext
         Services.GetRequiredService<NavigationManager>()
             .NavigateTo(estado is null ? "alertas" : "alertas?Estado=" + Uri.EscapeDataString(estado));
 
-        return Render<Features.Alertas.Pages.Alertas>();
+        var cut = Render<Features.Alertas.Pages.Alertas>();
+        AbrirGrupos(cut);
+        return cut;
+    }
+
+    /// <summary>Los bloques llegan plegados: se despliegan para leer sus filas.</summary>
+    private static void AbrirGrupos(IRenderedComponent<Features.Alertas.Pages.Alertas> cut)
+    {
+        // Cada pulsación repinta: se vuelve a buscar la cabecera en vez de reutilizar elementos viejos.
+        for (var i = 0; i < cut.FindAll(".alertas-grupo-cabecera").Count; i++)
+            cut.FindAll(".alertas-grupo-cabecera")[i].Click();
     }
 
     [Fact]
@@ -113,8 +123,10 @@ public class AlertasVacioPorFiltroTests : BunitContext
 
         cut.Markup.Should().Contain("Ninguna alerta con este estado");
         cut.Markup.Should().Contain("Quitar el filtro");
-        cut.Markup.Should().NotContain("Todos los documentos están vigentes",
+        cut.Markup.Should().NotContain("Todo lo que piden tus Centros está en regla",
             "hay dos vencidos: decir que todo está vigente es exactamente lo contrario de la verdad");
+        cut.Markup.Should().NotContain("Sin alertas",
+            "hay dos vencidos: el vacío general no puede aparecer con el filtro puesto");
     }
 
     /// <summary>
@@ -137,11 +149,11 @@ public class AlertasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar(estado: nameof(EstadoDocumento.Proximo));
 
-        // Sin ninguna alerta en absoluto, "nada que reclamar" es cierto y es
+        // Sin ninguna alerta en absoluto, "sin alertas" es cierto y es
         // además la buena noticia que el usuario quiere leer. Decir "ninguna
         // con este estado, hay 0 en otros" sería técnicamente cierto y
         // completamente inútil.
-        cut.Markup.Should().Contain("Nada que reclamar");
+        cut.Markup.Should().Contain("Sin alertas");
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
         cut.Markup.Should().NotContain("Hay 0 documento(s)");
     }
@@ -151,8 +163,8 @@ public class AlertasVacioPorFiltroTests : BunitContext
     {
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Nada que reclamar");
-        cut.Markup.Should().Contain("Todos los documentos están vigentes o fuera del umbral de aviso.");
+        cut.Markup.Should().Contain("Sin alertas");
+        cut.Markup.Should().Contain("Todo lo que piden tus Centros está en regla.");
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
     }
 
@@ -163,6 +175,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
         cut.Markup.Should().Contain("Ninguna alerta con este estado", "es el punto de partida de este caso");
 
         cut.Find(".estado-vacio button").Click();
+        AbrirGrupos(cut);
 
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Reconocimiento médico");
@@ -174,12 +187,12 @@ public class AlertasVacioPorFiltroTests : BunitContext
         var cut = Renderizar(estado: nameof(EstadoDocumento.Vencido), Alerta(EstadoDocumento.Vencido));
 
         cut.Markup.Should().NotContain("Ninguna alerta con este estado");
-        cut.Markup.Should().NotContain("Nada que reclamar");
+        cut.Markup.Should().NotContain("Sin alertas");
         cut.Find("table.tabla-datos").TextContent.Should().Contain("Reconocimiento médico");
     }
 
     // P0-9a (FS-03 a FS-06): con alcance cero —sin ninguna Asignación de Cartera
-    // vigente en este Tenant— el vacío no es «Nada que reclamar»: la pantalla dice que
+    // vigente en este Tenant— el vacío no es «Sin alertas»: la pantalla dice que
     // falta la Asignación de Cartera y a quién pedirla.
     private bool _alcanceCero;
 
@@ -192,7 +205,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
 
         cut.Find("[data-estado=sin-asignacion-cartera]").TextContent
             .Should().Contain("Sin Asignación de Cartera").And.Contain("Coordinador CAE");
-        cut.Markup.Should().NotContain("Nada que reclamar");
+        cut.Markup.Should().NotContain("Sin alertas");
     }
 
     [Fact]
@@ -202,7 +215,7 @@ public class AlertasVacioPorFiltroTests : BunitContext
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("Nada que reclamar");
+        cut.Markup.Should().Contain("Sin alertas");
         cut.FindAll("[data-estado=sin-asignacion-cartera]").Should().BeEmpty();
     }
 }

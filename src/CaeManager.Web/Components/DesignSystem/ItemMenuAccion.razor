@@ -14,7 +14,7 @@
 }
 else
 {
-    <button type="button" class="@Clases" role="@(Marcado is null ? "menuitem" : "menuitemradio")" aria-checked="@(Marcado is null ? null : (Marcado.Value ? "true" : "false"))"
+    <button type="button" class="@Clases" role="@(Marcado is null ? "menuitem" : SeleccionMultiple ? "menuitemcheckbox" : "menuitemradio")" aria-checked="@(Marcado is null ? null : (Marcado.Value ? "true" : "false"))"
             aria-label="@EtiquetaAccesible" tabindex="-1" disabled="@(!Habilitado)" @ref="_boton" @onclick="EjecutarAsync" @onkeydown="ManejarTeclaAsync">
         @ChildContent
     </button>
@@ -35,6 +35,9 @@ else
     /// vigente. Al abrir el menú, el foco va a la marcada. Sin valor, es un ítem de acción normal.
     /// </summary>
     [Parameter] public bool? Marcado { get; set; }
+
+    /// <summary>Una selección múltiple anuncia casillas y mantiene abierto el menú al elegir.</summary>
+    [Parameter] public bool SeleccionMultiple { get; set; }
 
     /// <summary>Nombre accesible cuando el contenido visible no lo dice todo (un ✕ que borra un filtro guardado).</summary>
     [Parameter] public string? EtiquetaAccesible { get; set; }
@@ -58,6 +61,7 @@ else
     {
         if (!Habilitado) return;
         await OnClick.InvokeAsync();
+        if (SeleccionMultiple) return;
         // Una opción de filtro devuelve el foco a su pastilla; una acción no (ver MenuAcciones).
         if (Marcado is not null) Menu?.CerrarDevolviendoFoco();
         else Menu?.Cerrar();

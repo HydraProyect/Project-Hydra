@@ -119,6 +119,27 @@
   <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
     <value>Obre a {0}</value>
   </data>
+  <data name="FichaNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Aquesta fitxa no és a {0}; et portem a la llista.</value>
+  </data>
+  <data name="FichaNoDisponibleTitulo" xml:space="preserve">
+    <value>Aquesta fitxa no està disponible</value>
+  </data>
+  <data name="FichaNoDisponibleDescripcion" xml:space="preserve">
+    <value>Potser s'ha eliminat o l'enllaç no és correcte.</value>
+  </data>
+  <data name="FichaNoDisponibleIrALista" xml:space="preserve">
+    <value>Ves a la llista</value>
+  </data>
+  <data name="FichaNoDisponibleVolviendo" xml:space="preserve">
+    <value>Tornant a la llista…</value>
+  </data>
+  <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Aquesta fitxa no és a {0}.</value>
+  </data>
+  <data name="FichaPanelNoDisponible" xml:space="preserve">
+    <value>Aquesta fitxa ja no està disponible.</value>
+  </data>
   <data name="SelectorTenantEtiqueta" xml:space="preserve">
     <value>Context operatiu actual</value>
   </data>
@@ -126,7 +147,7 @@
     <value>Empresa gestionada</value>
   </data>
   <data name="SelectorTenantCartera" xml:space="preserve">
-    <value>La meva cartera · {0}</value>
+    <value>Empreses gestionades · {0}</value>
   </data>
   <data name="SelectorTenantRecientes" xml:space="preserve">
     <value>Recents</value>
@@ -137,17 +158,8 @@
   <data name="SelectorTenantPendientesUno" xml:space="preserve">
     <value>1 pendent</value>
   </data>
-  <data name="SelectorTenantEmpresasUna" xml:space="preserve">
-    <value>1 empresa</value>
-  </data>
-  <data name="SelectorTenantEmpresasVarias" xml:space="preserve">
-    <value>{0} empreses</value>
-  </data>
   <data name="SelectorTenantBuscar" xml:space="preserve">
     <value>Cerca una empresa</value>
-  </data>
-  <data name="SelectorTenantLista" xml:space="preserve">
-    <value>Canvia d'empresa gestionada</value>
   </data>
   <data name="SelectorTenantOrigen" xml:space="preserve">
     <value>La teva organització</value>
@@ -159,7 +171,7 @@
     <value>Exportar a Excel</value>
   </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
-    <value>Cap empresa coincideix amb la cerca.</value>
+    <value>Cap empresa coincideix amb «{0}»</value>
   </data>
   <data name="FiltrosGuardados" xml:space="preserve">
     <value>Filtres desats</value>
@@ -401,6 +413,15 @@
   <data name="GrupoContadorParcial" xml:space="preserve">
     <value>{0} de {1}</value>
   </data>
+  <data name="GrupoConIncidencia" xml:space="preserve">
+    <value>{0} amb incidència</value>
+  </data>
+  <data name="GrupoConIncidencias" xml:space="preserve">
+    <value>{0} amb incidències</value>
+  </data>
+  <data name="VerRestantes" xml:space="preserve">
+    <value>Veure els {0} restants</value>
+  </data>
   <data name="GrupoContadorParcialTitulo" xml:space="preserve">
     <value>{0} de {1} en aquesta pàgina</value>
   </data>
@@ -473,7 +494,7 @@
     <value>Sense nota interna.</value>
   </data>
   <data name="NotaInternaNoLaVeCliente" xml:space="preserve">
-    <value>No la veu el client.</value>
+    <value>No la veu el Client.</value>
     <comment>Peu de la targeta NotaInterna: la nota no la veu l'usuari d'un Client. La veuen l'equip i el Gestor CAE d'un Operador CAE extern.</comment>
   </data>
   <data name="NotaInternaEditar" xml:space="preserve">
@@ -552,9 +573,6 @@
   <data name="SelectorTenantFijadas" xml:space="preserve">
     <value>Fixades</value>
   </data>
-  <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resta de la cartera</value>
-  </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fixa a dalt</value>
   </data>
@@ -579,10 +597,103 @@
   <data name="PasosGrupoEtiqueta" xml:space="preserve">
     <value>Passos del formulari</value>
   </data>
+  <data name="LecturaAbrirFicha" xml:space="preserve">
+    <value>Obre la fitxa completa</value>
+  </data>
+  <data name="LecturaCerrar" xml:space="preserve">
+    <value>Tanca</value>
+  </data>
+  <data name="LecturaEditar" xml:space="preserve">
+    <value>Edita</value>
+  </data>
+  <data name="LecturaSoloConsulta" xml:space="preserve">
+    <value>Només consulta</value>
+  </data>
+  <data name="LecturaSinDato" xml:space="preserve">
+    <value>Sense dada</value>
+  </data>
+  <data name="SelectorQuitarElegido" xml:space="preserve">
+    <value>Treu {0}</value>
+  </data>
   <data name="SeccionErrorSingular" xml:space="preserve">
     <value>Un error</value>
   </data>
   <data name="SeccionErroresPlural" xml:space="preserve">
     <value>{0} errors</value>
+  </data>
+  <data name="IrATuPantallaPrincipal" xml:space="preserve">
+    <value>Ves a la teva pantalla principal</value>
+  </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Codi per a suport</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si es repeteix, envia aquest codi a suport.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el codi per a suport</value>
+  </data>
+  <data name="VolverListaTrabajadores" xml:space="preserve">
+    <value>Tornar a la llista de treballadors</value>
+  </data>
+  <data name="VolverListaEmpresas" xml:space="preserve">
+    <value>Tornar a la llista d'empreses</value>
+  </data>
+  <data name="VolverListaCentros" xml:space="preserve">
+    <value>Tornar a la llista de centres de treball</value>
+  </data>
+  <data name="VolverListaClientes" xml:space="preserve">
+    <value>Tornar a la llista de clients</value>
+  </data>
+  <data name="VolverListaSubcontratas" xml:space="preserve">
+    <value>Tornar a la llista de subcontractes</value>
+  </data>
+  <data name="VolverListaVehiculos" xml:space="preserve">
+    <value>Tornar a la llista de vehicles</value>
+  </data>
+  <data name="VolverListaProyectos" xml:space="preserve">
+    <value>Tornar a la llista de projectes</value>
+  </data>
+  <data name="VolverListaDocumentos" xml:space="preserve">
+    <value>Tornar a la llista de documents</value>
+  </data>
+  <data name="VolverListaVisitas" xml:space="preserve">
+    <value>Tornar a la llista de visites</value>
+  </data>
+  <data name="VolverListaGestiones" xml:space="preserve">
+    <value>Tornar a la llista de gestions</value>
+  </data>
+  <data name="VolverListaAlertas" xml:space="preserve">
+    <value>Tornar a la llista d'alertes</value>
+  </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablir ordre</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Moure la targeta {0}. Utilitza les fletxes amunt i avall.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrossega ⠿ per reordenar les targetes</value></data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota per a Comunicacions</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Tracte especial o precaució en respondre-li</value>
+  </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Quan aquesta persona escrigui, la nota apareix com a marcapàgines a la conversa. Només la veu el teu equip, mai el contacte.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Surt com a marcapàgines a Comunicacions quan escriu</value>
+  </data>
+  <data name="SelectorTenantBuscarEtiqueta" xml:space="preserve">
+    <value>Cerca una empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantResultados" xml:space="preserve">
+    <value>Resultats</value>
+  </data>
+  <data name="SelectorTenantAyudaBuscar" xml:space="preserve">
+    <value>Escriu per filtrar · ↑↓ i Intro per triar</value>
+  </data>
+  <data name="SelectorTenantConteo" xml:space="preserve">
+    <value>{0} de {1} empreses</value>
+  </data>
+  <data name="SelectorTenantTodas" xml:space="preserve">
+    <value>Totes les empreses</value>
   </data>
 </root>

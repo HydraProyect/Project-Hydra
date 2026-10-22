@@ -157,16 +157,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<ConversacionListaDto> _conversaciones = [];
     private Guid? _idEnfocado;
 
-    // --- Paginación en SQL (Project-Hydra-Negocio/tecnico/CODING_STANDARDS.md § Paginación/volumen — la
-    // bandeja no tenía techo, cargaba TODAS las conversaciones que cumplieran
-    // los filtros en cada visita). Enteros propios, no PaginationState de
-    // QuickGrid: esto no es una tabla, es una lista agrupada por cliente con
-    // secciones colapsables (ver PaginadorSimple.razor, variante manual).
-    // Un cliente puede quedar partido entre dos páginas si tiene
-    // conversaciones a ambos lados del corte — trade-off aceptado a cambio de
-    // no cargar la bandeja entera en cada visita; en la práctica ocurre solo
-    // con filtros amplios (sin cliente ni buscador), que es justo el caso que
-    // esta paginación existe para acotar.
+    // Paginación SQL compartida por la tabla inicial y la lista plana del hilo.
+    // Ambas conservan el orden del resultado sin agrupar por Cliente empresarial.
     private const int TamanoPaginaBandeja = 20;
     private int _pagina = 1;
     private int _totalConversaciones;
@@ -175,7 +167,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private IReadOnlyList<EjecutivoSelectorDto> _ejecutivosDisponibles = [];
     private IReadOnlyList<CompaneroGestorCaeDto> _companeros = [];
 
-    private readonly HashSet<string> _gruposColapsados = [];
 
     // --- Detalle / centro ---
     private Guid? _conversacionSeleccionadaId;
@@ -653,19 +644,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         return CargarListaAsync();
     }
 
-    private IEnumerable<IGrouping<Guid, ConversacionListaDto>> GruposPorCliente() =>
-        _conversaciones.Where(c => c.ClienteId is not null).GroupBy(c => c.ClienteId!.Value);
-
-    /// <summary>Conversaciones en el orden en que se pintan (Triage primero, después cada Cliente empresarial), sin las de grupos colapsados: es el orden por el que se mueve j/k.</summary>
-    private List<ConversacionListaDto> ConversacionesVisiblesEnOrden()
-    {
-        var visibles = new List<ConversacionListaDto>();
-        if (!GrupoColapsado("triage")) visibles.AddRange(ConversacionesTriage());
-        foreach (var grupo in GruposPorCliente())
-            if (!GrupoColapsado(grupo.Key.ToString()))
-                visibles.AddRange(grupo.OrderByDescending(c => c.FechaUltimoMensajeUtc));
-        return visibles;
-    }
+    /// <summary>El teclado recorre el mismo orden que la tabla y la lista plana del hilo.</summary>
+    private List<ConversacionListaDto> ConversacionesVisiblesEnOrden() => _conversaciones.ToList();
 
     /// <summary>
     /// j/k mueven el foco por la lista y Enter abre la conversación enfocada.
@@ -694,34 +674,22 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         StateHasChanged();
     }
 
-    private IReadOnlyList<ConversacionListaDto> ConversacionesTriage() =>
-        _conversaciones.Where(c => c.ClienteId is null).OrderByDescending(c => c.FechaUltimoMensajeUtc).ToList();
+    private bool _notaInternaActiva;
 
-    /// <summary>
-    /// Desglose del grupo para el <c>title</c> de su cabecera (el
-    /// <c>countTitulo</c> del mockup): el recuento dice cuántas hay, esto dice
-    /// cuáles — útil justo cuando el grupo está plegado y no se ve ninguna.
-    /// Se recorta a las diez primeras: un tooltip con sesenta líneas no se lee.
-    /// </summary>
-    private static string DesgloseGrupo(IReadOnlyList<ConversacionListaDto> conversaciones)
+    private async Task VolverABandejaAsync()
     {
-        const int maximo = 10;
-        var listadas = conversaciones.Take(maximo)
-            .Select(c => $"{c.RemitentePrincipal}: {c.Asunto}");
-        var desglose = string.Join(" · ", listadas);
-
-        return conversaciones.Count > maximo
-            ? $"{conversaciones.Count} conversaciones — {desglose} …"
-            : $"{conversaciones.Count} conversaciones — {desglose}";
+        if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+        ++_cargaDetalleVigente;
+        _cargandoDetalle = false;
+        _conversacionSeleccionadaId = null;
+        _detalle = null;
+        _clienteActivo = null;
+        _notaInternaActiva = false;
+        _textoRespuesta = string.Empty;
+        _adjuntosPendientes.Clear();
+        _errorAdjuntos = null;
+        NavigationManager.ActualizarFiltroEnUrl("conversacion", null);
     }
-
-    private void AlternarGrupo(string clave)
-    {
-        if (!_gruposColapsados.Add(clave))
-            _gruposColapsados.Remove(clave);
-    }
-
-    private bool GrupoColapsado(string clave) => _gruposColapsados.Contains(clave);
 
     private async Task SeleccionarConversacionAsync(Guid id)
     {
@@ -736,6 +704,8 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
 
         _conversacionSeleccionadaId = id;
+        _idEnfocado = id;
+        _notaInternaActiva = false;
         _textoRespuesta = string.Empty;
         _macroSeleccionadaId = string.Empty;
         _clienteTriageSeleccionado = string.Empty;
@@ -1126,15 +1096,14 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         _medidorTiempo?.RegistrarAccionCompletadaAsync() ?? Task.CompletedTask;
 
     /// <summary>
-    /// Cambia con cada intento desde el selector «Cambiar estado…» y es su <c>@key</c>: tras un cambio rechazado el valor
-    /// enlazado sigue siendo vacío y Blazor no tocaría el DOM, así que el desplegable se quedaría mostrando el estado
-    /// elegido aunque no se aplicó. Con otra clave se vuelve a pintar desde cero.
+    /// Recrea el selector tras cada intento para restaurar el estado real cuando el comando falla.
     /// </summary>
     private int _intentosCambioEstado;
 
     private async Task CambiarEstadoDesdeSelectorAsync(string valor)
     {
-        if (!Enum.TryParse<EstadoConversacion>(valor, out var nuevoEstado) || !Enum.IsDefined(nuevoEstado))
+        if (!Enum.TryParse<EstadoConversacion>(valor, out var nuevoEstado) || !Enum.IsDefined(nuevoEstado)
+            || nuevoEstado == _detalle?.Estado || nuevoEstado == EstadoConversacion.Cerrada)
             return;
 
         try

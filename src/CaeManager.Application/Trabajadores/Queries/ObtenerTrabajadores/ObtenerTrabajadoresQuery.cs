@@ -26,7 +26,13 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// vigencia confirmada y ninguno está en Próximo, Urgente o Vencido, cae en
 /// <see cref="EstadoDocumento.SinConfirmar"/> — el <c>null</c> del tipo
 /// es un artefacto de <see cref="TrabajadorListaDto"/> siendo compartido con
-/// otros listados, no un valor que este handler produzca.
+/// otros listados, no un valor que este handler produzca. Sobre ese peor
+/// estado se aplican los Tipos exigidos sin documento
+/// (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>): Vencido &gt;
+/// Pendiente &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias, el mismo
+/// orden de la clave con la que se filtra, cuenta y ordena antes de paginar.
+/// Es el ÚNICO estado de Trabajador: el listado, Empresa 360 y la cabecera de
+/// Trabajador 360 lo leen de aquí.
 ///
 /// <para>
 /// <paramref name="CentroId"/> deja solo a los Trabajadores con una Asignación activa en ese Centro. Solo
@@ -47,7 +53,8 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias y la fracción
 /// «vigentes / registrados» de <see cref="TrabajadorListaDto"/>. Cuesta una consulta de documentos por página, así
 /// que hay que pedirlo: lo pide solo quien lo pinta (el listado de Trabajadores, en su carga de página y al
-/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero.
+/// refrescar una fila por id). Sin pedirlo, las filas llegan con las incidencias vacías y los contadores a cero;
+/// los faltantes y el estado combinado llegan siempre.
 /// </para>
 /// </summary>
 public record ObtenerTrabajadoresQuery(
@@ -87,6 +94,13 @@ public record TrabajadorListaDto(
     /// <summary>De los registrados, los que están al día (<see cref="CumplimientoDocumental.EsConforme(EstadoDocumento)"/>).</summary>
     public int DocumentosVigentes { get; init; }
 
+    /// <summary>
+    /// Denominador de la cifra «vigentes / registrados» de las filas: los registrados más los Tipos exigidos que faltan
+    /// (<see cref="DocumentosFaltantes"/>). Quien tiene «Falta: Documento de identidad» no puede leerse 4/4: lo que
+    /// falta tampoco está vigente.
+    /// </summary>
+    public int DocumentosEsperados => DocumentosRegistrados + DocumentosFaltantes.Count;
+
     /// <summary>Cuenta ajena, autónomo o voluntario.</summary>
     public TipoContratacion TipoContratacion { get; init; }
 
@@ -99,13 +113,13 @@ public record TrabajadorListaDto(
     /// <summary>
     /// Nombres de los Tipos de documento que algún Centro con Asignación activa del Trabajador le EXIGE y de los que no
     /// tiene ningún Documento operativo (la misma regla de <see cref="IDocumentosFaltantesService"/>: Alertas, preflight
-    /// de asignación y Trabajador 360). Sin repetir y por nombre. Solo los rellena <c>ConDesgloseDocumental</c>. Un
-    /// Trabajador con alguno nunca se presenta como «Sin incidencias» en la fila, aunque <see cref="EstadoDocumental"/>,
-    /// que mide solo los documentos registrados, diga lo contrario.
+    /// de asignación y Trabajador 360). Sin repetir y por nombre. Se rellenan siempre, y con alguno
+    /// <see cref="EstadoDocumental"/> ya llega como <see cref="EstadoDocumento.Faltante"/> («Pendiente») salvo que haya
+    /// un vencido (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>): ninguna pantalla lo combina por su cuenta.
     ///
     /// <para>
-    /// Límites declarados: el filtro, los recuentos y la ordenación por estado siguen calculándose sobre los documentos
-    /// registrados (no ven estos faltantes); y, como en Trabajador 360, no entran los faltantes por requisitos de un
+    /// El filtro, los recuentos y la ordenación incluyen los mismos faltantes antes de paginar.
+    /// Como en Trabajador 360, no entran los faltantes por requisitos de un
     /// Proyecto de tipo Evento, que Alertas sí suma. Un voluntario inactivo no los tiene (sus requisitos no avisan) y
     /// solo se miran los Centros que el usuario ve.
     /// </para>
@@ -258,6 +272,18 @@ public class ObtenerTrabajadoresQueryHandler(
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
             var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
 
+            // Solo se materializan las parejas activas (Id, Centro, contratación), nunca el listado completo.
+            // La exigencia se resuelve en el servicio compartido, igual que el detalle de cada fila.
+            var faltantes = await FaltantesPorTrabajadorAsync(consulta.Select(x => x.trabajador), cancellationToken);
+            var idsConFaltantes = faltantes.Keys.ToList();
+            var claveVencido = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vencido);
+            var claveFaltante = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Faltante);
+            var claveUrgente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Urgente);
+            var claveProximo = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Proximo);
+            var claveSinConfirmar = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.SinConfirmar);
+            var claveVigente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vigente);
+            var claveSinCaducidad = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.SinCaducidad);
+
             var conFecha =
                 from x in consulta
                 select new
@@ -280,80 +306,64 @@ public class ObtenerTrabajadoresQueryHandler(
                         .Any(d => d.TrabajadorId == x.trabajador.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
-            // La clave de estado es la misma expresión con la que se ordena (EstadoDocumentalFiltro.ClaveOrden:
-            // 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente, 5 Sin caducidad), escrita en línea
-            // porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de estado, el
-            // filtro y el orden parten las filas igual.
-            //
+            var conEstado = conFecha.Select(x => new
+            {
+                x.Id,
+                x.Nombre,
+                x.Apellidos,
+                x.Dni,
+                x.EmpleadorNombre,
+                x.DelegacionEmpresaId,
+                x.DelegacionEmpresaNombre,
+                x.OficioEmpresaId,
+                x.OficioNombre,
+                x.PeorFecha,
+                x.HaySinConfirmar,
+                ClaveEstado = x.PeorFecha != null && x.PeorFecha < hoy ? claveVencido
+                    : idsConFaltantes.Contains(x.Id) ? claveFaltante
+                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? claveUrgente
+                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? claveProximo
+                    : x.HaySinConfirmar ? claveSinConfirmar
+                    : x.PeorFecha != null ? claveVigente
+                    : claveSinCaducidad
+            });
+
             // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
             // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
             if (request.ConRecuentosPorEstado)
             {
-                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conFecha
-                    .GroupBy(x =>
-                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
-                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
-                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
-                    : x.HaySinConfirmar ? 3
-                    : x.PeorFecha != null ? 4
-                    : 5)
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conEstado
+                    .GroupBy(x => x.ClaveEstado)
                     .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
-                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken), incluirFaltantes: true);
             }
 
-            // Varios estados a la vez (la franja deja marcar más de uno). null: el filtro no descarta nada
-            // (vacío o sin ningún valor conocido). Lista vacía: ninguna fila — «sin documentos» (este listado
-            // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que un propietario
-            // nunca tiene (Faltante, En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
-            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is { } clavesPedidas)
-            {
-                conFecha = conFecha.Where(x => clavesPedidas.Contains(
-                    x.PeorFecha != null && x.PeorFecha < hoy ? 0
-                    : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
-                    : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
-                    : x.HaySinConfirmar ? 3
-                    : x.PeorFecha != null ? 4
-                    : 5));
-            }
+            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental, incluirFaltantes: true) is { } clavesPedidas)
+                conEstado = conEstado.Where(x => clavesPedidas.Contains(x.ClaveEstado));
 
-            var totalConEstado = await conFecha.CountAsync(cancellationToken);
+            var totalConEstado = await conEstado.CountAsync(cancellationToken);
 
-            // Ternario anidado en línea a propósito, no un método aparte: un
-            // método de C# dentro de un OrderBy no se traduce a SQL — tiene
-            // que ser una expresión que EF pueda leer, igual que
-            // ObtenerDocumentosQuery.
+            // Filtro, franja y orden usan una sola clave traducible a SQL antes de paginar.
             var ordenadaConEstado = ordenaPorEstado
                 ? (request.Descendente
-                    ? conFecha.OrderByDescending(x =>
-                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
-                        : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
-                        : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
-                        : x.HaySinConfirmar ? 3
-                        : x.PeorFecha != null ? 4
-                        : 5)
-                    : conFecha.OrderBy(x =>
-                        x.PeorFecha != null && x.PeorFecha < hoy ? 0
-                        : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? 1
-                        : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? 2
-                        : x.HaySinConfirmar ? 3
-                        : x.PeorFecha != null ? 4
-                        : 5))
+                    ? conEstado.OrderByDescending(x => x.ClaveEstado)
+                    : conEstado.OrderBy(x => x.ClaveEstado))
                     .ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre)
                 : (request.OrdenarPor, request.Descendente) switch
                 {
-                    (nameof(TrabajadorListaDto.Apellidos), true) => conFecha.OrderByDescending(x => x.Apellidos).ThenBy(x => x.Nombre),
-                    (nameof(TrabajadorListaDto.Nombre), false) => conFecha.OrderBy(x => x.Nombre).ThenBy(x => x.Apellidos),
-                    (nameof(TrabajadorListaDto.Nombre), true) => conFecha.OrderByDescending(x => x.Nombre).ThenBy(x => x.Apellidos),
-                    (nameof(TrabajadorListaDto.Dni), false) => conFecha.OrderBy(x => x.Dni),
-                    (nameof(TrabajadorListaDto.Dni), true) => conFecha.OrderByDescending(x => x.Dni),
-                    (nameof(TrabajadorListaDto.EmpleadorNombre), false) => conFecha.OrderBy(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
-                    (nameof(TrabajadorListaDto.EmpleadorNombre), true) => conFecha.OrderByDescending(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
-                    (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => conFecha.OrderBy(x => x.DelegacionEmpresaNombre == null).ThenBy(x => x.DelegacionEmpresaNombre)
+                    (nameof(TrabajadorListaDto.Apellidos), true) => conEstado.OrderByDescending(x => x.Apellidos).ThenBy(x => x.Nombre),
+                    (nameof(TrabajadorListaDto.Nombre), false) => conEstado.OrderBy(x => x.Nombre).ThenBy(x => x.Apellidos),
+                    (nameof(TrabajadorListaDto.Nombre), true) => conEstado.OrderByDescending(x => x.Nombre).ThenBy(x => x.Apellidos),
+                    (nameof(TrabajadorListaDto.Dni), false) => conEstado.OrderBy(x => x.Dni),
+                    (nameof(TrabajadorListaDto.Dni), true) => conEstado.OrderByDescending(x => x.Dni),
+                    (nameof(TrabajadorListaDto.EmpleadorNombre), false) => conEstado.OrderBy(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
+                    (nameof(TrabajadorListaDto.EmpleadorNombre), true) => conEstado.OrderByDescending(x => x.EmpleadorNombre).ThenBy(x => x.Apellidos),
+                    (nameof(TrabajadorListaDto.DelegacionEmpresaNombre), _) => conEstado.OrderBy(x => x.DelegacionEmpresaNombre == null).ThenBy(x => x.DelegacionEmpresaNombre)
                         .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.DelegacionEmpresaId).ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre),
-                    (nameof(TrabajadorListaDto.OficioNombre), _) => conFecha.OrderBy(x => x.OficioNombre == null).ThenBy(x => x.OficioNombre)
+                    (nameof(TrabajadorListaDto.OficioNombre), _) => conEstado.OrderBy(x => x.OficioNombre == null).ThenBy(x => x.OficioNombre)
                         .ThenBy(x => x.EmpleadorNombre).ThenBy(x => x.OficioEmpresaId).ThenBy(x => x.Apellidos).ThenBy(x => x.Nombre),
-                    _ => conFecha.OrderBy(x => x.Apellidos).ThenBy(x => x.Nombre)
+                    _ => conEstado.OrderBy(x => x.Apellidos).ThenBy(x => x.Nombre)
                 };
             // Mismo desempate estable que el camino normal.
             ordenadaConEstado = ordenadaConEstado.ThenBy(x => x.Id);
@@ -375,7 +385,7 @@ public class ObtenerTrabajadoresQueryHandler(
                         OficioNombre = x.OficioNombre
                     })
                         .ToList(),
-                    request, cancellationToken),
+                    request, cancellationToken, faltantes),
                 totalConEstado,
                 request.Pagina,
                 request.TamanoPagina)
@@ -403,67 +413,77 @@ public class ObtenerTrabajadoresQueryHandler(
     }
 
     /// <summary>
-    /// Añade a las filas YA paginadas su desglose documental, en una sola consulta de documentos para toda la
-    /// página. No toca <see cref="TrabajadorListaDto.EstadoDocumental"/>: sale de los mismos documentos y la
-    /// misma calculadora, así que coinciden (lo ata <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
+    /// Añade a las filas YA paginadas sus faltantes (siempre) y su desglose documental (si se pide), en una sola
+    /// consulta de documentos para toda la página. De <see cref="TrabajadorListaDto.EstadoDocumental"/> solo cambia
+    /// lo que los faltantes agravan (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>); lo demás sale de los
+    /// mismos documentos y la misma calculadora que el desglose, así que coinciden (lo ata
+    /// <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
     /// </summary>
     private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
-        IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken)
+        IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken,
+        IReadOnlyDictionary<Guid, IReadOnlyList<string>>? faltantesCalculados = null)
     {
         pagina = await ConActividadAsync(pagina, cancellationToken);
 
-        if (!request.ConDesgloseDocumental || pagina.Count == 0)
+        if (pagina.Count == 0)
+            return pagina;
+
+        // Los faltantes entran SIEMPRE en el estado de la fila, pida o no el desglose quien llama: es el mismo estado
+        // que la clave de filtro, franja y orden del camino con estado completo (Vencido > Pendiente > Urgente > …).
+        // Sin esto, Empresa 360 leía «Sin incidencias» a quien el listado daba como Pendiente.
+        var ids = pagina.Select(t => t.Id).ToList();
+        var faltantes = faltantesCalculados ?? await FaltantesPorTrabajadorAsync(
+            trabajadoresContext.Trabajadores.Where(t => ids.Contains(t.Id)), cancellationToken);
+
+        pagina = pagina
+            .Select(t => t with
+            {
+                EstadoDocumental = SeveridadEstadoDocumento.ConFaltantes(t.EstadoDocumental, faltantes.ContainsKey(t.Id)),
+                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
+            })
+            .ToList();
+
+        if (!request.ConDesgloseDocumental)
             return pagina;
 
         var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(
-            AmbitoAplicacion.Trabajador, pagina.Select(t => t.Id).ToList(), cancellationToken);
-
-        var faltantes = await FaltantesPorTrabajadorAsync(pagina, cancellationToken);
+            AmbitoAplicacion.Trabajador, ids, cancellationToken);
 
         return pagina
-            .Select(t => (desgloses.TryGetValue(t.Id, out var desglose)
+            .Select(t => desgloses.TryGetValue(t.Id, out var desglose)
                 ? t with
                 {
                     Incidencias = desglose.Incidencias,
                     DocumentosRegistrados = desglose.DocumentosRegistrados,
                     DocumentosVigentes = desglose.DocumentosVigentes
                 }
-                : t) with
-            {
-                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
-            })
+                : t)
             .ToList();
     }
 
     /// <summary>
-    /// Lo que cada Trabajador de la página tiene exigido y sin documento, con la regla única de
-    /// <see cref="IDocumentosFaltantesService"/> sobre sus Asignaciones activas (una consulta de Asignaciones y la del
-    /// servicio para toda la página). El nombre del Centro no se pinta aquí y no se carga.
+    /// Lo que cada Trabajador de la consulta tiene exigido y sin documento, con la regla única de
+    /// <see cref="IDocumentosFaltantesService"/> sobre sus Asignaciones activas. Sirve antes de paginar para el estado
+    /// completo y sobre los Ids de la página para el desglose. No se carga el nombre del Centro porque no se pinta.
     /// </summary>
     private async Task<Dictionary<Guid, IReadOnlyList<string>>> FaltantesPorTrabajadorAsync(
-        IReadOnlyList<TrabajadorListaDto> pagina, CancellationToken cancellationToken)
+        IQueryable<Trabajador> trabajadores, CancellationToken cancellationToken)
     {
-        // Como Alertas: un voluntario inactivo no avisa (sus requisitos no cuentan) y solo se miran los Centros que el
-        // usuario ve, para no revelar la exigencia de un Centro ajeno a su alcance.
-        var ids = pagina.Where(t => !t.VoluntarioInactivo).Select(t => t.Id).ToList();
-        if (ids.Count == 0)
-            return [];
-
+        // Mismas Asignaciones activas y Centros visibles para la franja y para la fila.
+        // Un voluntario inactivo no genera avisos por requisitos.
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
+            trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
         var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        var centrosActivos = await asignacionesContext.Asignaciones
-            .Where(a => ids.Contains(a.TrabajadorId) && a.FechaBaja == null
-                && (centroIdsVisibles == null || centroIdsVisibles.Contains(a.CentroId)))
-            .Select(a => new { a.TrabajadorId, a.CentroId })
+        var parejas = await (
+            from t in trabajadores
+            where !inactivos.Contains(t.Id)
+            join a in asignacionesContext.Asignaciones on t.Id equals a.TrabajadorId
+            where a.FechaBaja == null && (centroIdsVisibles == null || centroIdsVisibles.Contains(a.CentroId))
+            select new ParejaTrabajadorCentro(t.Id, string.Empty, a.CentroId, string.Empty, t.TipoContratacion))
             .Distinct()
             .ToListAsync(cancellationToken);
-        if (centrosActivos.Count == 0)
+        if (parejas.Count == 0)
             return [];
-
-        var porId = pagina.ToDictionary(t => t.Id);
-        var parejas = centrosActivos
-            .Select(a => new ParejaTrabajadorCentro(
-                a.TrabajadorId, string.Empty, a.CentroId, string.Empty, porId[a.TrabajadorId].TipoContratacion))
-            .ToList();
 
         return (await documentosFaltantes.CalcularAsync(parejas, cancellationToken))
             .GroupBy(f => f.TrabajadorId)

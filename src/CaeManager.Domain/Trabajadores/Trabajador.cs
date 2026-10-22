@@ -137,6 +137,13 @@ public class Trabajador : EntidadBase
     public DateOnly? CaducidadPermisoTrabajo { get; private set; }
     public string? MotivoPermisoTrabajo { get; private set; }
 
+    /// <summary>
+    /// «Trabajador extranjero (cobrable)» fijado a mano (decisión de Chris, 2026-10-20). <c>null</c> = sin fijar: decide
+    /// el documento (<see cref="CriterioExtranjeroCobrable"/>). Solo lo escribe <see cref="FijarMarcaExtranjeroCobrable"/>.
+    /// Dice algo de la nacionalidad de la persona, así que es dato personal y <see cref="Anonimizar"/> lo vacía.
+    /// </summary>
+    public bool? MarcaExtranjeroCobrable { get; private set; }
+
     public string NombreCompleto => $"{Nombre} {Apellidos}";
 
     public bool EsDeSubcontrata => SubcontrataId is not null;
@@ -225,8 +232,8 @@ public class Trabajador : EntidadBase
     /// <c>EnmascaraAuditoriaDeTrabajadorAnonimizado</c>) reescribe con "***" estas mismas
     /// claves en las entradas anteriores. La función repite la lista en SQL: una propiedad
     /// personal nueva se añade aquí, en <see cref="Anonimizar"/> y en la función, redefinida con
-    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeDelegacionYOficioEmpresa</c>,
-    /// añadió <see cref="OficioEmpresaId"/>).
+    /// CREATE OR REPLACE en una migración nueva (la última, <c>AnadeExtranjeroCobrableYAsignacionVisita</c>,
+    /// añadió <see cref="MarcaExtranjeroCobrable"/>).
     /// </summary>
     public static readonly IReadOnlyList<string> CamposDeDatosPersonales =
     [
@@ -236,6 +243,7 @@ public class Trabajador : EntidadBase
         nameof(NumeroAfiliacionSeguridadSocial), nameof(Nacionalidad), nameof(TipoVinculo),
         nameof(FechaAltaEmpresa), nameof(FechaBajaEmpresa), nameof(FiguraEnRnt),
         nameof(TipoPermisoTrabajo), nameof(CaducidadPermisoTrabajo), nameof(MotivoPermisoTrabajo),
+        nameof(MarcaExtranjeroCobrable),
     ];
 
     /// <summary>
@@ -286,6 +294,7 @@ public class Trabajador : EntidadBase
         TipoPermisoTrabajo = null;
         CaducidadPermisoTrabajo = null;
         MotivoPermisoTrabajo = null;
+        MarcaExtranjeroCobrable = null;
 
         AnonimizadoEnUtc = ahoraUtc;
     }
@@ -308,6 +317,19 @@ public class Trabajador : EntidadBase
             throw new ArgumentException($"La nota interna no puede superar {LongitudMaximaNotas} caracteres.", nameof(notas));
 
         Notas = normalizada;
+    }
+
+    /// <summary>
+    /// Fija a mano si el Trabajador cuenta como extranjero cobrable (<see cref="MarcaExtranjeroCobrable"/>); <c>null</c>
+    /// la quita y vuelve a decidir el documento. Un Trabajador anonimizado no la admite: es dato personal.
+    /// </summary>
+    public void FijarMarcaExtranjeroCobrable(bool? marca)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        MarcaExtranjeroCobrable = marca;
     }
 
     /// <summary>
@@ -619,36 +641,36 @@ public class Trabajador : EntidadBase
     }
 
     /// <summary>
-    /// Acepta DNI, NIE, número de soporte TIE o cualquier otro documento
-    /// extranjero (pasaporte) — un trabajador no tiene por qué ser español.
-    /// Solo se exige el dígito de control real cuando el formato encaja con
-    /// uno calculable (DNI/NIE/CIF); el resto se acepta sin validación
-    /// estricta, igual que hace <see cref="ValidadorIdentificacion"/>.
+    /// Corrige el documento de identidad (acción «Corregir documento de identidad» de la ficha 360, decisión de Chris,
+    /// 2026-10-20) con el mismo criterio que el alta (<see cref="CriterioDocumentoIdentidadTrabajador"/>). Quita la
+    /// marca a mano de <see cref="MarcaExtranjeroCobrable"/> para que la casilla vuelva a decidirla el documento nuevo:
+    /// el recálculo es solo hacia delante, porque las asignaciones a Visitas ya hechas guardan su foto
+    /// (<c>VisitaTrabajador.EsExtranjeroCobrable</c>). Devuelve el documento anterior. Un Trabajador anonimizado no lo
+    /// admite.
+    /// </summary>
+    public string? CorregirDocumentoIdentidad(string documento)
+    {
+        if (EstaAnonimizado)
+            throw new InvalidOperationException(
+                "Este trabajador está anonimizado: sus datos personales se suprimieron y no pueden volver a introducirse.");
+
+        var anterior = Dni;
+        EstablecerDni(documento);
+        MarcaExtranjeroCobrable = null;
+        return anterior;
+    }
+
+    /// <summary>
+    /// Fija el documento con <see cref="CriterioDocumentoIdentidadTrabajador"/>: obligatorio; DNI o NIE con su letra de
+    /// control; cualquier otro valor, Pasaporte, que ha de ser alfanumérico, sin espacios y con algún dígito (los
+    /// marcadores como «PENDIENTE» o «SIN DNI» se rechazan). Se guarda normalizado, sin separadores.
     /// </summary>
     private void EstablecerDni(string dni)
     {
-        if (string.IsNullOrWhiteSpace(dni))
-            throw new ArgumentException("El documento de identidad es obligatorio.", nameof(dni));
+        var resultado = CriterioDocumentoIdentidadTrabajador.Clasificar(dni);
+        if (!resultado.EsValido)
+            throw new ArgumentException(resultado.Error, nameof(dni));
 
-        var normalizado = dni.Trim().ToUpperInvariant();
-
-        if (normalizado.Length < LongitudMinimaDni || normalizado.Length > LongitudMaximaDni)
-            throw new ArgumentException(
-                $"El documento de identidad debe tener entre {LongitudMinimaDni} y {LongitudMaximaDni} caracteres.", nameof(dni));
-
-        var resultado = ValidadorIdentificacion.Analizar(normalizado);
-
-        if (!resultado.EsValido && resultado.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie or TipoIdentificacion.NifEmpresa)
-        {
-            var etiqueta = resultado.Tipo switch
-            {
-                TipoIdentificacion.Dni => "DNI",
-                TipoIdentificacion.Nie => "NIE",
-                _ => "CIF"
-            };
-            throw new ArgumentException($"El dígito de control del {etiqueta} no es válido.", nameof(dni));
-        }
-
-        Dni = normalizado;
+        Dni = resultado.Normalizado;
     }
 }

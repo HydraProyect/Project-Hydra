@@ -81,7 +81,8 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var icono = fila.Locator("a.boton-360-pagina");
         await Expect(icono).ToHaveAttributeAsync("href", new Regex(@"^/documentos/tipos/[0-9a-f-]{36}$"));
 
-        await fila.Locator("button.nombre-abre-vista-rapida").ClickAsync();
+        // La fila trae dos nombres que abren lo mismo: el del tipo de documento y el de la entidad asociada.
+        await fila.Locator("button.nombre-abre-vista-rapida").First.ClickAsync();
         await Expect(panel.Locator(".workspace-titulo-entidad")).ToBeVisibleAsync();
 
         // Con el panel cerrado: abierto, a este ancho puede tapar el final de la fila.

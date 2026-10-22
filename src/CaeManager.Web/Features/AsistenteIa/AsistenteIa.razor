@@ -1,127 +1,200 @@
 @using CaeManager.Application.Common
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
+@* Vega, el asistente IA (marco-talveg.js y «Asistente TALVEG.dc.html», 2026-10-21). Panel de
+   400 px a la derecha y a toda la altura: complementario, nunca modal (sin aria-modal ni
+   velo), acoplado con ≥ 1280 px y superpuesto por debajo (base.css). Con PantallaCompleta es
+   el contenido de /asistente. Propone, no ejecuta: ver PlanAsistente. *@
 <LimiteDeErrores Islote="this">
-@if (_visible)
+@if (Visible)
 {
-    <div class="asistente-superposicion" @onmousedown="() => _mouseDownEnSuperposicion = true" @onclick="ManejarClicSuperposicion">
-        <div class="asistente-panel" @onmousedown="() => _mouseDownEnSuperposicion = false" @onmousedown:stopPropagation="true" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-labelledby="asistente-titulo">
-            <div class="asistente-cabecera">
-                <h2 id="asistente-titulo">@TituloPanel</h2>
-                <div class="asistente-cabecera-acciones">
-                    @if (Disponibilidad.AgenteDisponible)
-                    {
-                        <button type="button" class="asistente-cerrar" @onclick="AlternarBorradoresAsync"
-                                aria-pressed="@(_verBorradores ? "true" : "false")"
-                                aria-label="@Textos["BorradoresEtiqueta"]" data-tooltip="@Textos["BorradoresEtiqueta"]"><Icono Nombre="reloj" /></button>
-                    }
-                    <button type="button" class="asistente-cerrar" @onclick="Cerrar" aria-label="@Textos["CerrarEtiqueta"]"><Icono Nombre="cerrar" /></button>
-                </div>
+    // Antes de pintar nada: un hilo de otro Tenant efectivo no llega al marcado.
+    var hilo = HiloDelTenantEfectivo();
+    <aside class="vega-panel @(PantallaCompleta ? "vega-panel-pantalla" : "")" role="complementary"
+           aria-labelledby="vega-titulo" @onkeydown="ManejarTeclaPanelAsync"
+           data-vega-pantalla="@(PantallaCompleta ? "" : null)">
+        <div class="vega-cabecera">
+            <span class="vega-avatar" aria-hidden="true"><Icono Nombre="ia" /></span>
+            <span class="vega-identidad">
+                <h2 id="vega-titulo" class="vega-nombre">@Vega.Nombre</h2>
+                <small>@Textos["SubtituloVega", Marca.Nombre]</small>
+            </span>
+            @if (Disponibilidad.AgenteDisponible)
+            {
+                <button type="button" class="vega-icono-boton" @onclick="AlternarBorradoresAsync"
+                        aria-pressed="@(_verBorradores ? "true" : "false")"
+                        aria-label="@Textos["BorradoresEtiqueta"]" data-tooltip="@Textos["BorradoresEtiqueta"]"><Icono Nombre="reloj" /></button>
+            }
+            <button type="button" class="vega-icono-boton vega-nueva" @onclick="NuevaConversacion"
+                    aria-label="@Textos["NuevaConversacion"]" data-tooltip="@Textos["NuevaConversacion"]"><Icono Nombre="mas" /></button>
+            @if (!PantallaCompleta)
+            {
+                <a class="vega-icono-boton vega-pantalla-completa" href="@Vega.RutaPantallaCompleta"
+                   aria-label="@Textos["PantallaCompleta"]" data-tooltip="@Textos["PantallaCompleta"]"><Icono Nombre="pantalla-completa" /></a>
+                <button type="button" class="vega-icono-boton vega-plegar" @onclick="Plegar"
+                        aria-label="@Textos["Plegar"]" data-tooltip="@Textos["Plegar"]"><Icono Nombre="siguiente" /></button>
+            }
+        </div>
+
+        @if (_empresa is { } empresa)
+        {
+            <div class="vega-contexto" role="status">
+                <span>@Textos["TrabajandoEn"]</span>
+                <span class="vega-chip" data-tooltip="@Textos["TrabajandoEnTooltip", empresa.Nombre]"
+                      aria-label="@Textos["TrabajandoEnTooltip", empresa.Nombre]">
+                    <i aria-hidden="true">@Iniciales(empresa.Nombre)</i>@empresa.Nombre
+                </span>
             </div>
+        }
 
-            @if (Disponibilidad.PreguntasDisponibles && Disponibilidad.AgenteDisponible)
-            {
-                <div class="asistente-modos" role="group" aria-label="@Textos["ModoEtiqueta"]">
-                    <button type="button" class="asistente-modo" aria-pressed="@(EnModoGestion ? "true" : "false")" @onclick="() => CambiarModo(ModoAsistente.Gestion)">@Textos["ModoGestion"]</button>
-                    <button type="button" class="asistente-modo" aria-pressed="@(!EnModoGestion ? "true" : "false")" @onclick="() => CambiarModo(ModoAsistente.Preguntar)">@Textos["ModoPreguntar"]</button>
-                </div>
-            }
+        <div class="vega-aviso">
+            <Icono Nombre="info" Tamano="TamanoIcono.Pequeno" />
+            <span>@Textos["AvisoIa"]</span>
+        </div>
 
-            <p class="asistente-descripcion">@TextoDescripcion</p>
+        @if (Disponibilidad.PreguntasDisponibles && Disponibilidad.AgenteDisponible)
+        {
+            <div class="asistente-modos" role="group" aria-label="@Textos["ModoEtiqueta"]">
+                <button type="button" class="asistente-modo" aria-pressed="@(EnModoGestion ? "true" : "false")"
+                        aria-label="@($"{Textos["Modo_Operativo"]}. {Textos["ModoTooltip_Operativo"]}")"
+                        data-tooltip="@Textos["ModoTooltip_Operativo"]" @onclick="() => CambiarModo(ModoAsistente.Gestion)">
+                    <Icono Nombre="pulso" Tamano="TamanoIcono.Pequeno" />@Textos["Modo_Operativo"]
+                </button>
+                <button type="button" class="asistente-modo" aria-pressed="@(!EnModoGestion ? "true" : "false")"
+                        aria-label="@($"{Textos["Modo_ConsultaPrl"]}. {Textos["ModoTooltip_ConsultaPrl"]}")"
+                        data-tooltip="@Textos["ModoTooltip_ConsultaPrl"]" @onclick="() => CambiarModo(ModoAsistente.Preguntar)">
+                    <Icono Nombre="roles" Tamano="TamanoIcono.Pequeno" />@Textos["Modo_ConsultaPrl"]
+                </button>
+            </div>
+        }
 
-            @if (!Disponibilidad.AgenteDisponible)
-            {
-                <p class="asistente-nota" role="note">@Textos["AgenteNoDisponible"]</p>
-            }
+        @if (!Disponibilidad.AgenteDisponible)
+        {
+            <p class="asistente-nota" role="note">@Textos["AgenteNoDisponible"]</p>
+        }
 
-            @if (_verBorradores)
-            {
-                <div class="asistente-mensajes" aria-label="@Textos["BorradoresEtiqueta"]" role="region">
-                    <p class="asistente-nota">@Textos["BorradoresAyuda"]</p>
-                    @if (_borradores is null)
+        @if (_verBorradores)
+        {
+            <div class="vega-hilo" aria-label="@Textos["BorradoresEtiqueta"]" role="region">
+                <p class="asistente-nota">@Textos["BorradoresAyuda"]</p>
+                @if (_borradores is null)
+                {
+                    <p class="asistente-mensaje-vacio">@Textos["IndicadorPensando"]</p>
+                }
+                else if (_borradores.Count == 0)
+                {
+                    <p class="asistente-mensaje-vacio">@Textos["BorradoresVacio"]</p>
+                }
+                else
+                {
+                    <ul class="asistente-borradores">
+                        @foreach (var borrador in _borradores)
+                        {
+                            <li class="asistente-borrador">
+                                <span class="asistente-borrador-estado">@Textos[$"TareaEstado_{borrador.Estado}"]</span>
+                                <span class="asistente-borrador-texto">@borrador.PrimerTextoOriginal</span>
+                                <span class="asistente-borrador-fecha">@FechaDeBorrador(borrador.ActualizadaEnUtc)</span>
+                                <button type="button" class="asistente-borrador-descartar" @onclick="() => DescartarBorradorAsync(borrador.Id)">@Textos["Plan_Descartar"]</button>
+                            </li>
+                        }
+                    </ul>
+                }
+                @if (_mensajeError is not null)
+                {
+                    <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="vega-hilo" aria-live="polite">
+                @if (hilo.Count == 0 && !_enviando)
+                {
+                    <div class="vega-bienvenida">
+                        <span class="vega-avatar" aria-hidden="true"><Icono Nombre="ia" /></span>
+                        <h3>@Textos["BienvenidaSinNombre"]</h3>
+                        <p>@Textos["BienvenidaTexto"]</p>
+                        @foreach (var modo in ModosDisponibles)
+                        {
+                            <button type="button" class="vega-ejemplo" @onclick="() => EnviarEjemploAsync(modo)">
+                                <small><Icono Nombre="@IconoModo(modo)" Tamano="TamanoIcono.Pequeno" />@NombreModo(modo) · @ResumenModo(modo)</small>
+                                <span>@EjemploModo(modo)</span>
+                            </button>
+                        }
+                    </div>
+                }
+
+                @foreach (var entrada in hilo)
+                {
+                    @if (entrada.Tipo == TipoEntradaHilo.Usuario)
                     {
-                        <p class="asistente-mensaje-vacio">@Textos["IndicadorPensando"]</p>
-                    }
-                    else if (_borradores.Count == 0)
-                    {
-                        <p class="asistente-mensaje-vacio">@Textos["BorradoresVacio"]</p>
+                        <div class="vega-u asistente-mensaje-usuario">@entrada.Texto</div>
                     }
                     else
                     {
-                        <ul class="asistente-borradores">
-                            @foreach (var borrador in _borradores)
-                            {
-                                <li class="asistente-borrador">
-                                    <span class="asistente-borrador-estado">@Textos[$"TareaEstado_{borrador.Estado}"]</span>
-                                    <span class="asistente-borrador-texto">@borrador.PrimerTextoOriginal</span>
-                                    <span class="asistente-borrador-fecha">@FechaDeBorrador(borrador.ActualizadaEnUtc)</span>
-                                    <button type="button" class="asistente-borrador-descartar" @onclick="() => DescartarBorradorAsync(borrador.Id)">@Textos["Plan_Descartar"]</button>
-                                </li>
-                            }
-                        </ul>
+                        <div class="vega-a">
+                            <span class="vega-avatar vega-avatar-s" aria-hidden="true"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                            <div class="vega-a-cuerpo">
+                                @if (entrada.Modo is { } modo)
+                                {
+                                    <span class="vega-modo" tabindex="0" data-tooltip="@TooltipModo(modo)"
+                                          aria-label="@($"{NombreModo(modo)}. {TooltipModo(modo)}")">
+                                        <Icono Nombre="@IconoModo(modo)" Tamano="TamanoIcono.Pequeno" />@NombreModo(modo)
+                                    </span>
+                                }
+                                @switch (entrada.Tipo)
+                                {
+                                    case TipoEntradaHilo.Asistente:
+                                        <div class="vega-txt asistente-mensaje-markdown">@RenderizarMarkdown(entrada.Texto)</div>
+                                        break;
+                                    case TipoEntradaHilo.Aviso:
+                                        <div class="vega-txt asistente-mensaje-aviso" role="status">@entrada.Texto</div>
+                                        break;
+                                    case TipoEntradaHilo.Plan:
+                                        <PlanAsistente Vista="entrada.Plan!" Ocupado="_enviando"
+                                                       OnConfirmar="() => ConfirmarAsync(entrada.Plan!)"
+                                                       OnDescartar="() => DescartarPlanAsync(entrada.Plan!)"
+                                                       OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)"
+                                                       OnEscape="PlegarPorEscape" />
+                                        break;
+                                }
+                            </div>
+                        </div>
                     }
-                    @if (_mensajeError is not null)
-                    {
-                        <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
-                    }
-                </div>
-            }
-            else
-            {
-                <div class="asistente-mensajes" aria-live="polite">
-                    @if (_hilo.Count == 0)
-                    {
-                        <p class="asistente-mensaje-vacio">@TextoMensajeVacio</p>
-                    }
+                }
 
-                    @foreach (var entrada in _hilo)
-                    {
-                        @switch (entrada.Tipo)
-                        {
-                            case TipoEntradaHilo.Usuario:
-                                <div class="asistente-mensaje asistente-mensaje-usuario">@entrada.Texto</div>
-                                break;
-                            case TipoEntradaHilo.Asistente:
-                                <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-markdown">@RenderizarMarkdown(entrada.Texto)</div>
-                                break;
-                            case TipoEntradaHilo.Aviso:
-                                <div class="asistente-mensaje asistente-mensaje-asistente" role="status">@entrada.Texto</div>
-                                break;
-                            case TipoEntradaHilo.Plan:
-                                <PlanAsistente Vista="entrada.Plan!" Ocupado="_enviando"
-                                               OnConfirmar="() => ConfirmarAsync(entrada.Plan!)"
-                                               OnDescartar="() => DescartarPlanAsync(entrada.Plan!)"
-                                               OnElegirTenant="id => ElegirTenantAsync(entrada.Plan!, id)" />
-                                break;
-                        }
-                    }
+                @if (_enviando)
+                {
+                    <div class="vega-a asistente-mensaje-cargando">
+                        <span class="vega-avatar vega-avatar-s" aria-hidden="true"><Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /></span>
+                        <span class="vega-pensando" role="status" aria-label="@Textos["Pensando"]"><i></i><i></i><i></i></span>
+                    </div>
+                }
 
-                    @if (_enviando)
-                    {
-                        <div class="asistente-mensaje asistente-mensaje-asistente asistente-mensaje-cargando">@Textos["IndicadorPensando"]</div>
-                    }
+                @if (_mensajeError is not null)
+                {
+                    <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
+                }
+            </div>
 
-                    @if (_mensajeError is not null)
-                    {
-                        <div class="asistente-mensaje-error" role="alert">@_mensajeError</div>
-                    }
-                </div>
-
-                <div class="asistente-entrada">
-                    <textarea class="asistente-textarea"
-                              aria-label="@EtiquetaEntrada"
-                              placeholder="@PlaceholderEntrada"
+            <div class="vega-entrada">
+                <div class="vega-caja">
+                    <textarea class="asistente-textarea" rows="1" @ref="_campo"
+                              aria-label="@Textos["EtiquetaMensaje"]"
+                              placeholder="@Textos["PlaceholderMensaje"]"
                               value="@_valorMostrado"
                               disabled="@_enviando"
                               maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : (int?)null)"
                               @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
                               @onkeydown="ManejarTeclaAsync"></textarea>
-                    <button type="button" class="asistente-boton-enviar" disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
-                        @Textos["BotonEnviar"]
+                    <button type="button" class="asistente-boton-enviar" aria-label="@Textos["BotonEnviar"]"
+                            disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
+                        <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
                     </button>
                 </div>
-            }
-        </div>
-    </div>
+                <small class="vega-pista-campo">@(PantallaCompleta ? Textos["PistaCampoPantalla"] : Textos["PistaCampo"])</small>
+            </div>
+        }
+    </aside>
 }
 </LimiteDeErrores>

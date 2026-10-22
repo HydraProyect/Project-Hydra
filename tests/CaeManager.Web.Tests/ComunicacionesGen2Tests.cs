@@ -62,8 +62,7 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// <b>Lo que esto SÍ observa:</b> el marcado que el rediseño fija (cabecera de
-/// la columna de la lista, toggle de ámbito como <c>tablist</c>, cabeceras de
-/// grupo con recuento, caret y desglose); que los dos vacíos siguen siendo
+/// la columna de la lista, toggle de ámbito como <c>tablist</c>, tabla inicial y lista plana del hilo); que los dos vacíos siguen siendo
 /// distintos y que quitar los filtros los quita de la URL; que el envío
 /// distingue éxito, fallo de negocio y validación sin perder lo escrito; que
 /// dos clics no mandan dos correos; y que una respuesta que llega tarde —de la
@@ -195,7 +194,7 @@ public class ComunicacionesGen2Tests : BunitContext
             new AlmacenUsuariosQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!);
 
         return new DirectorioUsuariosTenant(
-            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad);
+            userManager, new TenantsQueryContextQueNadieDebeTocar(), tenantActual, new PuertaAccesoDatos(), identidad, null!);
     }
 
     // ---------------------------------------------------------------- escenario
@@ -328,27 +327,24 @@ public class ComunicacionesGen2Tests : BunitContext
     private static IElement SelectorDeEstado(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-filtros-avanzados select")[0];
 
-    /// <summary>El selector «Cambiar estado…» de la cabecera del detalle, no el filtro de la lista.</summary>
+    /// <summary>El selector de estado de la cabecera del detalle, no el filtro de la lista.</summary>
     private static IElement SelectorCambiarEstado(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-centro-acciones select").Single(s => s.QuerySelector("option")!.TextContent.Trim() == "Cambiar estado…");
+        cut.FindAll(".bandeja-centro-acciones select").Single(s => s.ParentElement!.QuerySelector("label")?.TextContent.Trim() == "Estado");
 
     private static IElement SelectorDeCliente(IRenderedComponent<Bandeja> cut) =>
         cut.FindAll(".bandeja-filtros-avanzados select")
             .Single(s => s.QuerySelector($"option[value='{ClienteEbroId}']") is not null);
 
-    private static IReadOnlyList<IElement> CabecerasGrupo(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-grupo-cabecera");
-
-    private static IElement CabeceraGrupo(IRenderedComponent<Bandeja> cut, string rotulo) =>
-        CabecerasGrupo(cut).Single(c => c.QuerySelector(".bandeja-grupo-titulo")!.TextContent.Trim() == rotulo);
-
     private static IReadOnlyList<string> AsuntosVisibles(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-fila-asunto").Select(f => f.TextContent.Trim()).ToList();
+        cut.FindAll(".bandeja-fila-asunto, .tabla-conversaciones-asunto button").Select(f => f.TextContent.Trim()).ToList();
 
-    private static Task SeleccionarFila(IRenderedComponent<Bandeja> cut, string asunto) =>
-        cut.FindAll(".bandeja-fila")
-            .Single(f => f.QuerySelector(".bandeja-fila-asunto")!.TextContent.Trim() == asunto)
+    private static Task SeleccionarFila(IRenderedComponent<Bandeja> cut, string asunto)
+    {
+        var tabla = cut.FindAll(".tabla-conversaciones-asunto button").FirstOrDefault(b => b.TextContent.Trim() == asunto);
+        return (tabla ?? cut.FindAll(".bandeja-fila")
+            .Single(f => f.QuerySelector(".bandeja-fila-asunto")!.TextContent.Trim() == asunto))
             .ClickAsync(new MouseEventArgs());
+    }
 
     private static IElement Boton(IRenderedComponent<Bandeja> cut, string selector, string texto) =>
         cut.FindAll(selector).Single(b => b.TextContent.Trim() == texto);
@@ -396,61 +392,46 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task La_cabecera_de_grupo_lleva_el_recuento_el_desglose_y_pliega_el_grupo()
+    public async Task La_bandeja_y_el_hilo_muestran_la_misma_lista_plana_sin_agrupar_por_Empresa()
     {
         var escenario = new Escenario();
-        escenario.Conversaciones.AddRange(
-        [
-            Conversacion("Documentación pendiente", ClienteRefrielectric),
-            Conversacion("RNT de julio", ClienteRefrielectric, "luis.otero@refrielectric.es"),
-            Conversacion("Rechazo de documento", remitente: "notificaciones@nalanda.es"),
-        ]);
+        escenario.Conversaciones.AddRange([
+            Conversacion("Documentos", ClienteRefrielectric),
+            Conversacion("RNT", ClienteRefrielectric),
+            Conversacion("Rechazo", remitente: "notificaciones@example.invalid")]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
         var (cut, _) = Renderizar(escenario);
-
-        CabecerasGrupo(cut).Select(c => c.QuerySelector(".bandeja-grupo-titulo")!.TextContent.Trim())
-            .Should().BeEquivalentTo(["Sin Cliente asignado (Triage) (1)", "Refrielectric S.A. (2)"],
-                "el recuento va en el rótulo, como en el mockup");
-
-        var deRefrielectric = CabeceraGrupo(cut, "Refrielectric S.A. (2)");
-        deRefrielectric.GetAttribute("title").Should()
-            .Be("2 conversaciones — luis.otero@refrielectric.es: RNT de julio · carmen.ruiz@refrielectric.es: Documentación pendiente",
-                "el desglose del title dice CUÁLES son, que es justo lo que no se ve con el grupo plegado");
-        deRefrielectric.GetAttribute("aria-expanded").Should().Be("true");
-
-        await deRefrielectric.ClickAsync(new MouseEventArgs());
-
-        CabeceraGrupo(cut, "Refrielectric S.A. (2)").GetAttribute("aria-expanded").Should().Be("false");
-        AsuntosVisibles(cut).Should().Equal(["Rechazo de documento"],
-            "plegado el grupo desaparecen sus filas, no las del otro");
+        AsuntosVisibles(cut).Should().Equal("Documentos", "RNT", "Rechazo");
+        cut.FindAll(".bandeja-fila").Should().BeEmpty();
+        await SeleccionarFila(cut, "Documentos");
+        AsuntosVisibles(cut).Should().Equal("Documentos", "RNT", "Rechazo");
+        cut.FindAll(".bandeja-grupo-cabecera").Should().BeEmpty();
     }
 
     [Fact]
-    public void La_fila_pone_el_remitente_y_el_asunto_en_lineas_propias_y_la_lista_trae_su_divisor()
+    public async Task La_fila_del_hilo_pone_el_remitente_y_el_asunto_en_lineas_propias()
     {
         var escenario = new Escenario();
         escenario.Conversaciones.Add(Conversacion("Documentación pendiente", ClienteRefrielectric));
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
         var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Documentaci\u00f3n pendiente");
 
         var fila = cut.Find(".bandeja-fila");
         fila.QuerySelector(".bandeja-fila-linea1 .bandeja-fila-remitente")!.TextContent.Trim().Should().Be("Refrielectric S.A.");
         fila.QuerySelector(".bandeja-fila-linea2 .bandeja-fila-asunto")!.TextContent.Trim().Should().Be("Documentación pendiente");
         fila.QuerySelector(".bandeja-fila-separador").Should().BeNull("remitente y asunto ya no comparten línea");
 
-        var divisor = cut.Find(".bandeja-layout > [role=separator][data-redimensionable]");
-        divisor.GetAttribute("data-redimensionable").Should().Be("--bandeja-lista-ancho");
-        divisor.GetAttribute("tabindex").Should().Be("0", "el ancho también se ajusta con el teclado");
     }
-
-    // ---------------------------------------------------------------- vacíos y filtros
 
     [Fact]
     public void Sin_ninguna_conversacion_el_vacio_no_culpa_a_unos_filtros_que_nadie_puso()
     {
         var (cut, _) = Renderizar(new Escenario());
 
-        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim().Should().Be("No hay conversaciones");
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim().Should().Be("No hay conversaciones");
         cut.Markup.Should().NotContain("Ninguna conversación con estos filtros");
-        cut.FindAll(".bandeja-lista .estado-vacio button").Should().BeEmpty(
+        cut.FindAll(".bandeja-centro .estado-vacio button").Should().BeEmpty(
             "sin filtros puestos no hay ningún filtro que quitar");
     }
 
@@ -464,10 +445,10 @@ public class ComunicacionesGen2Tests : BunitContext
 
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().Be(EstadoConversacion.Resuelta,
             "el filtro de la URL tiene que llegar al servidor, no quedarse pintado en el select");
-        cut.Find(".bandeja-lista .estado-vacio h3").TextContent.Trim()
+        cut.Find(".bandeja-centro .estado-vacio h3").TextContent.Trim()
             .Should().Be("Ninguna conversación con estos filtros");
 
-        await Boton(cut, ".bandeja-lista .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
+        await Boton(cut, ".bandeja-centro .estado-vacio button", "Quitar los filtros").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().NotContain("estado=", "un filtro quitado no puede seguir en la URL que se comparte");
         mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last().Estado.Should().BeNull();
@@ -501,7 +482,7 @@ public class ComunicacionesGen2Tests : BunitContext
         opciones.Select(o => o.GetAttribute("value")).Should().Equal(
             "", "Abierta", "Pendiente", "EsperandoRespuestaExterna", "EnEsperaDeTercero", "Resuelta", "Cerrada");
         opciones.Select(o => o.TextContent.Trim()).Should().Equal(
-            "Todos los estados", "Abierta", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
+            "Todos los estados", "Abierta", "Pendiente", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
     }
 
     [Fact]
@@ -518,7 +499,7 @@ public class ComunicacionesGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando respuesta externa")]
+    [InlineData(EstadoConversacion.EsperandoRespuestaExterna, "Esperando al Cliente")]
     [InlineData(EstadoConversacion.EnEsperaDeTercero, "En espera de tercero")]
     public async Task El_chip_de_la_fila_y_el_de_la_cabecera_dicen_el_estado_en_castellano_y_con_tono_de_advertencia(
         EstadoConversacion estado, string texto)
@@ -528,7 +509,7 @@ public class ComunicacionesGen2Tests : BunitContext
         escenario.Conversaciones.Add(conversacion);
         var (cut, _) = Renderizar(escenario);
 
-        var chipFila = cut.Find(".bandeja-fila-linea3 [data-pieza='pastilla']");
+        var chipFila = cut.Find(".tabla-conversaciones [data-pieza='pastilla']");
         chipFila.TextContent.Trim().Should().Be(texto, "el nombre del enum («EsperandoRespuestaExterna») no se enseña al Gestor CAE");
         chipFila.ClassName.Should().Contain("advertencia");
 
@@ -548,8 +529,8 @@ public class ComunicacionesGen2Tests : BunitContext
 
         await SeleccionarFila(cut, "Documentación pendiente");
 
-        SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
-            "Cambiar estado…", "Abierta", "Cerrada");
+        SelectorCambiarEstado(cut).QuerySelectorAll("option:not([disabled])").Select(o => o.TextContent.Trim()).Should().Equal("Abierta");
+        SelectorCambiarEstado(cut).GetAttribute("value").Should().Be(nameof(EstadoConversacion.Resuelta));
     }
 
     [Fact]
@@ -562,7 +543,8 @@ public class ComunicacionesGen2Tests : BunitContext
         await SeleccionarFila(cut, "Documentación pendiente");
 
         SelectorCambiarEstado(cut).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).Should().Equal(
-            "Cambiar estado…", "Pendiente", "Esperando respuesta externa", "En espera de tercero", "Resuelta", "Cerrada");
+            "Abierta", "Esperando al Cliente", "En espera de tercero", "Resuelta", "Cerrada");
+        SelectorCambiarEstado(cut).QuerySelector("option[value=Cerrada]")!.HasAttribute("disabled").Should().BeTrue();
         await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.EsperandoRespuestaExterna) });
 
         mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().ContainSingle()
@@ -823,7 +805,7 @@ public class ComunicacionesGen2Tests : BunitContext
         var (cut, _) = Renderizar(new Escenario());
 
         cut.Markup.Should()
-            .Contain("Esperando respuesta externa")
+            .Contain("Esperando al Cliente")
             .And.Contain("Todos los Clientes")
             .And.Contain("primer correo de un Cliente");
 
@@ -1023,7 +1005,7 @@ public class ComunicacionesGen2Tests : BunitContext
     public async Task Pedir_prioridad_sin_buzon_conectado_deja_copiar_el_borrador_y_dice_a_quien_pedir_el_buzon()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync(conBuzon: false);
-        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
 
@@ -1037,7 +1019,7 @@ public class ComunicacionesGen2Tests : BunitContext
     public async Task El_borrador_de_pedir_prioridad_no_es_un_cambio_y_editarlo_si()
     {
         var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
 
@@ -1048,7 +1030,7 @@ public class ComunicacionesGen2Tests : BunitContext
     public async Task Editar_el_borrador_de_pedir_prioridad_y_salir_pregunta()
     {
         var (cut, navegacion) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
 
@@ -1088,7 +1070,7 @@ public class ComunicacionesGen2Tests : BunitContext
     public async Task Cancelar_Pedir_prioridad_con_el_borrador_editado_pregunta_y_sin_tocar_cierra()
     {
         var (cut, _) = await RenderizarConversacionAbiertaAsync();
-        await cut.FindAll(".composer-correo select")[1].ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
         await PulsarCancelarEnAsync(cut, ".drawer-pie");
@@ -1242,43 +1224,66 @@ public class ComunicacionesGen2Tests : BunitContext
         elemento.KeyDownAsync(new KeyboardEventArgs { Key = tecla, CtrlKey = ctrl, MetaKey = meta });
 
     [Fact]
-    public async Task Aplicar_una_macro_con_un_borrador_escrito_lo_conserva_y_anade_la_macro_al_final()
+    public async Task El_nucleo_no_dibuja_macros_ni_plazos_y_conserva_la_respuesta()
     {
-        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var conversacion = Conversacion("Documentos", ClienteRefrielectric) with { SlaRestante = TimeSpan.FromHours(2) };
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
-        var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Acuse", "Gracias, lo revisamos hoy.", Guid.NewGuid());
-        escenario.Macros.Add(macro);
         var (cut, _) = Renderizar(escenario);
-        await SeleccionarFila(cut, "Documentación pendiente");
-        await Escribir(cut, "Hola Carmen,");
-
-        await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
-
-        var texto = TextareaCorreo(cut).TextContent;
-        texto.Should().StartWith("Hola Carmen,", "el borrador no se pierde");
-        texto.Should().EndWith("Gracias, lo revisamos hoy.", "la macro se añade al final");
+        cut.FindAll(".tabla-conversaciones [role=columnheader]").Select(e => e.TextContent.Trim())
+            .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente", "Estado", "Asignada a");
+        await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
+        await Escribir(cut, "Recibido.");
+        cut.FindAll(".composer-macro-campo").Should().BeEmpty();
+        cut.FindAll(".bandeja-fila-linea3 [title]").Should().NotContain(e => e.GetAttribute("title")!.Contains("SLA"));
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("Recibido.");
     }
 
     [Fact]
-    public async Task Aplicar_una_macro_sin_borrador_deja_solo_la_macro()
+    public async Task Volver_a_la_bandeja_cierra_el_hilo_y_quita_solo_la_conversacion_de_la_URL()
     {
-        var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
+        var conversacion = Conversacion("Documentos", ClienteRefrielectric);
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
         escenario.Conversaciones.Add(conversacion);
-        var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Acuse", "Gracias, lo revisamos hoy.", Guid.NewGuid());
-        escenario.Macros.Add(macro);
-        var (cut, mediador) = Renderizar(escenario);
-        await SeleccionarFila(cut, "Documentación pendiente");
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?busqueda=Documentos");
+        await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".bandeja-modo-hilo").Should().ContainSingle();
+        await cut.Find(".bandeja-volver").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".bandeja-modo-tabla").Should().ContainSingle();
+        cut.FindAll(".tabla-conversaciones-asunto button").Should().ContainSingle();
+        var uri = Services.GetRequiredService<NavigationManager>().Uri;
+        uri.Should().Contain("busqueda=Documentos").And.NotContain("conversacion=");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
 
-        await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+    [Fact]
+    public async Task Alternar_nota_interna_y_respuesta_conserva_cada_borrador_y_no_envia()
+    {
+        var (cut, _, mediador, _) = await RenderizarDosConversacionesAsync();
+        await Escribir(cut, "Respuesta para el contacto.");
+        var tabs = cut.FindAll(".bandeja-editor-tabs button");
+        tabs[0].GetAttribute("aria-pressed").Should().Be("true");
+        cut.Find(".bandeja-editor-nota").HasAttribute("hidden").Should().BeTrue();
+        await tabs[1].ClickAsync(new MouseEventArgs());
+        cut.Find(".bandeja-editor-publico").HasAttribute("hidden").Should().BeTrue();
+        await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Nota del equipo." });
+        await cut.FindAll(".bandeja-editor-tabs button")[0].ClickAsync(new MouseEventArgs());
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("Respuesta para el contacto.");
+        await cut.FindAll(".bandeja-editor-tabs button")[1].ClickAsync(new MouseEventArgs());
+        cut.FindComponents<CampoTextarea>().Should().Contain(c => c.Instance.Valor == "Nota del equipo.");
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
 
-        var aplicada = mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle().Which;
-        aplicada.ConversacionId.Should().Be(conversacion.Id);
-        aplicada.MacroId.Should().Be(macro.Id);
-        cut.Find(".timeline-evento-fila").TextContent.Should().Contain("Se aplicó la plantilla Acuse al borrador.");
-
-        TextareaCorreo(cut).TextContent.Should().Be("Gracias, lo revisamos hoy.");
+    [Fact]
+    public async Task Volver_con_respuesta_sin_guardar_permite_seguir_editando()
+    {
+        var (cut, _, _, _) = await RenderizarDosConversacionesAsync();
+        await Escribir(cut, "No perder esta respuesta.");
+        var volver = cut.Find(".bandeja-volver").ClickAsync(new MouseEventArgs());
+        await cut.PulsarEnElAvisoAsync("Seguir editando");
+        await volver;
+        cut.FindAll(".bandeja-modo-hilo").Should().ContainSingle();
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("No perder esta respuesta.");
     }
 
     [Theory]
@@ -1342,7 +1347,7 @@ public class ComunicacionesGen2Tests : BunitContext
         cut.InvokeAsync(() => cut.FindComponent<AtajosListaTeclado>().Instance.RecibirAtajo(tecla));
 
     private static IReadOnlyList<string> AsuntosEnfocados(IRenderedComponent<Bandeja> cut) =>
-        cut.FindAll(".bandeja-fila.fila-enfocada .bandeja-fila-asunto").Select(f => f.TextContent.Trim()).ToList();
+        cut.FindAll(".bandeja-fila.fila-enfocada .bandeja-fila-asunto, .tabla-conversaciones-fila.fila-enfocada .tabla-conversaciones-asunto button").Select(f => f.TextContent.Trim()).ToList();
 
     [Fact]
     public async Task J_y_k_mueven_el_foco_por_la_lista_y_Intro_abre_la_conversacion_enfocada()
@@ -1374,6 +1379,24 @@ public class ComunicacionesGen2Tests : BunitContext
         mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().ContainSingle().Which.Id.Should().Be(abierta.Id);
     }
 
+    [Fact]
+    public async Task Abrir_por_clic_situa_j_k_en_el_hilo_abierto_sin_agrupar_por_Cliente_empresarial()
+    {
+        var primera = Conversacion("Primera", ClienteRefrielectric);
+        var segunda = Conversacion("Segunda", ClienteEbro);
+        var tercera = Conversacion("Tercera", ClienteRefrielectric);
+        var escenario = new Escenario { Detalle = id => DetalleDe(id == tercera.Id ? tercera : segunda) };
+        escenario.Conversaciones.AddRange([primera, segunda, tercera]);
+        var (cut, mediador) = Renderizar(escenario);
+
+        AsuntosVisibles(cut).Should().Equal("Primera", "Segunda", "Tercera");
+        await SeleccionarFila(cut, "Segunda");
+        AsuntosVisibles(cut).Should().Equal("Primera", "Segunda", "Tercera");
+        await PulsarAtajoDeLista(cut, "j");
+        AsuntosEnfocados(cut).Should().Equal("Tercera");
+        await PulsarAtajoDeLista(cut, "Enter");
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Last().Id.Should().Be(tercera.Id);
+    }
     [Fact]
     public async Task Intro_sin_fila_enfocada_no_abre_nada()
     {

@@ -97,6 +97,42 @@
   <data name="RecReenvioTitulo" xml:space="preserve">
     <value>Reclamar de nuevo</value>
   </data>
+  <data name="RecReenvioAvisoTitulo" xml:space="preserve">
+    <value>Un correo enviado no se puede deshacer</value>
+  </data>
+  <data name="RecReenvioAvisoTexto" xml:space="preserve">
+    <value>Revisa destinatario y texto. Al enviar queda en el historial y en Comunicaciones.</value>
+  </data>
+  <data name="RecReenvioAvisoTextoSinComunicaciones" xml:space="preserve">
+    <value>Revisa destinatario y texto. Al enviar queda en el historial.</value>
+  </data>
+  <data name="RecHistorialVacioDetalleLectura" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG.</value>
+  </data>
+  <data name="RecReenvioCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="RecReenvioEnviar" xml:space="preserve">
+    <value>Enviar reclamación</value>
+  </data>
+  <data name="RecReenvioToast" xml:space="preserve">
+    <value>Reclamación enviada a {0}.</value>
+  </data>
+  <data name="RecHistorialTitulo" xml:space="preserve">
+    <value>Historial de reclamaciones</value>
+  </data>
+  <data name="RecHistorialSubtitulo" xml:space="preserve">
+    <value>Lo que se ha pedido y si ha contestado.</value>
+  </data>
+  <data name="RecHistorialVacioTitulo" xml:space="preserve">
+    <value>Nunca reclamado</value>
+  </data>
+  <data name="RecHistorialVacioDetalle" xml:space="preserve">
+    <value>Todavía no se ha pedido nada desde TALVEG. Los lotes que envíes desde la pestaña "+ Nueva reclamación" aparecerán aquí.</value>
+  </data>
+  <data name="RecHistorialErrorTitulo" xml:space="preserve">
+    <value>No se ha podido cargar el historial.</value>
+  </data>
   <data name="RecBotonSinContacto" xml:space="preserve">
     <value>No hay ningún contacto en la agenda al que reclamar. Añade uno con «Añadir contacto».</value>
   </data>
@@ -105,6 +141,9 @@
   </data>
   <data name="RecBotonMarcaDocumento" xml:space="preserve">
     <value>Marca al menos un documento para reclamar.</value>
+  </data>
+  <data name="PlatErrorCargaTitulo" xml:space="preserve">
+    <value>No se ha podido cargar el estado por plataforma.</value>
   </data>
   <data name="PlatSinVigenciaResumen" xml:space="preserve">
     <value>{0} validada(s) sin vigencia</value>
@@ -199,7 +238,7 @@
   <data name="RevIaResumenParcial" xml:space="preserve">
     <value>Se aceptaron {0} de {1} lecturas; {2} no se pudieron aceptar.</value>
   </data>
-  <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: propietario o tipo de documento</value></data>
+  <data name="ListaFiltrarPlaceholder" xml:space="preserve"><value>Filtrar esta pantalla: Documento o propietario</value></data>
   <data name="ListaFiltroAmbito" xml:space="preserve"><value>Ámbito</value></data>
   <data name="ListaFiltroTipo" xml:space="preserve"><value>Tipo de documento</value></data>
   <data name="ListaFiltroPlataforma" xml:space="preserve"><value>Plataforma</value></data>
@@ -216,15 +255,15 @@
   <data name="ListaAmbitoEmpresa" xml:space="preserve"><value>Empresa</value></data>
   <data name="ListaAmbitoVehiculo" xml:space="preserve"><value>Vehículo</value></data>
   <data name="ListaAmbitoProyecto" xml:space="preserve"><value>Proyecto</value></data>
-  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Pertenece a · Ámbito</value></data>
-  <data name="ListaVigenciaPorEmision" xml:space="preserve"><value>Vigencia · Emisión</value></data>
-  <data name="ListaVigenciaPorVencimiento" xml:space="preserve"><value>Vigencia · Vencimiento</value></data>
+  <data name="ListaEntidadAsociadaPorAmbito" xml:space="preserve"><value>Propietario · Ámbito</value></data>
+  <data name="ListaVigenciaPorEmision" xml:space="preserve"><value>Vence · Emisión</value></data>
+  <data name="ListaVigenciaPorVencimiento" xml:space="preserve"><value>Vence</value></data>
   <data name="ListaOrdenarEntidadAsociada" xml:space="preserve"><value>Ordenar por entidad asociada</value></data>
   <data name="ListaOrdenarAmbito" xml:space="preserve"><value>Ordenar por ámbito</value></data>
   <data name="ListaOrdenarEmision" xml:space="preserve"><value>Ordenar por emisión</value></data>
   <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar por vencimiento</value></data>
   <data name="ListaEmitido" xml:space="preserve"><value>Emitido {0}</value></data>
-  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Pertenece a</value></data>
+  <data name="ListaEntidadAsociada" xml:space="preserve"><value>Propietario</value></data>
   <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
     <value>¿Borrar el filtro guardado «{0}»?</value>
   </data>
@@ -251,5 +290,43 @@
   <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamado el {0}, sin respuesta</value></data>
   <data name="ValDecisionVerificadoAutomaticamente" xml:space="preserve">
     <value>Verificado automáticamente</value>
+  </data>
+  <data name="AgruparNo" xml:space="preserve"><value>Agrupar: no</value></data>
+  <data name="AgruparPorAmbitoEtiqueta" xml:space="preserve"><value>Agrupar: por ámbito</value></data>
+  <data name="ChipPropietario" xml:space="preserve"><value>Propietario · 1</value></data>
+  <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="GestionarAria" xml:space="preserve"><value>Gestionar {0} de {1}</value></data>
+  <data name="ListaAcciones" xml:space="preserve"><value>Acciones</value></data>
+  <data name="ListaArchivo" xml:space="preserve"><value>Archivo</value></data>
+  <data name="ListaDocumento" xml:space="preserve"><value>Documento</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estado</value></data>
+  <data name="ListaPlataformas" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="ListaPortal" xml:space="preserve"><value>Portal</value></data>
+  <data name="ListaPropietario" xml:space="preserve"><value>Propietario</value></data>
+  <data name="ListaVence" xml:space="preserve"><value>Vence</value></data>
+  <data name="PorAmbito" xml:space="preserve"><value>Por ámbito</value></data>
+  <data name="QuitarFiltroPropietario" xml:space="preserve"><value>Quitar filtro de propietario</value></data>
+  <data name="SinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="VacioDescripcionDesign" xml:space="preserve"><value>Sube el primero o usa la subida masiva.</value></data>
+  <data name="VacioFiltroQuitarDesign" xml:space="preserve"><value>Quitar filtros</value></data>
+  <data name="VacioFiltroTituloDesign" xml:space="preserve"><value>Ningún resultado con estos filtros</value></data>
+  <data name="VacioTituloDesign" xml:space="preserve"><value>Todavía no hay documentos</value></data>
+  <data name="ContraerTodo" xml:space="preserve"><value>Contraer todo</value></data>
+  <data name="DocumentoContraer" xml:space="preserve"><value>Contraer {0}</value></data>
+  <data name="DocumentoExpandir" xml:space="preserve"><value>Desplegar {0}</value></data>
+  <data name="ExpandirTodo" xml:space="preserve"><value>Expandir todo</value></data>
+  <data name="ListaCentro" xml:space="preserve"><value>Centro</value></data>
+  <data name="ListaDestino" xml:space="preserve"><value>Destino</value></data>
+  <data name="SeleccionarDocumento" xml:space="preserve"><value>Seleccionar {0} de {1}, emisión {2}</value></data>
+  <data name="SeleccionarPagina" xml:space="preserve"><value>Seleccionar los documentos de esta página</value></data>
+  <data name="ToleranciaHasta" xml:space="preserve"><value>En tolerancia hasta {0}</value></data>
+  <data name="RecDestinoDelegacionEmpresa" xml:space="preserve">
+    <value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value>
+  </data>
+  <data name="RecDestinoEmpresa" xml:space="preserve">
+    <value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value>
+  </data>
+  <data name="RecDelegacionEmpresaSinContactoVisible" xml:space="preserve">
+    <value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value>
   </data>
 </root>

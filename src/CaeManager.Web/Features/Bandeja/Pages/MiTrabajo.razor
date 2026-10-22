@@ -83,6 +83,37 @@
             </div>
         }
 
+        var propagaciones = _vista.Propagaciones(Filtro);
+        <section class="propagaciones" aria-label="@Textos["PropagacionesTitulo"]">
+            <header class="propagaciones-cabecera">
+                <h2>@Textos["PropagacionesTitulo"] · @propagaciones.Count</h2>
+                <p>@Textos["PropagacionesDetalle"]</p>
+            </header>
+            @if (ConsultandoCartera)
+            {
+                <EstadoCargando Filas="3" />
+            }
+            else if (propagaciones.Count == 0)
+            {
+                <p class="propagaciones-vacio">@Textos[_vista.Incompleta(Filtro) ? "PropagacionesIncompletas" : _vista.SinAlcance(Filtro) ? "SinCarteraTitulo" : HayFiltrosActivos ? "PropagacionesSinResultados" : "PropagacionesVacio"]</p>
+            }
+            @foreach (var fila in propagaciones)
+            {
+                <div class="propagaciones-fila">
+                    <div class="propagaciones-texto">
+                        @* El título es el enlace al documento (maqueta): misma puerta cross-Tenant que «Gestionar», que revalida en cada envío. *@
+                        <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
+                                           UrlDestino="@MiTrabajoVista.UrlDocumento(fila)" ComoEnlace="true"
+                                           Texto="@($"{fila.Item.Titulo} · {MiTrabajoVista.Sujeto(fila.Item)}")" Titulo="@Textos["PropagacionesAbrirDocumento"]" />
+                        <span>@MiTrabajoVista.DestinoPropagacion(fila)</span>
+                        <span>@fila.Item.ProveedorNombre</span>
+                    </div>
+                    <AccionCrossTenant TenantId="fila.TenantId" Item="fila.Item" Token="_token" UrlRetorno="@UrlMiTrabajo"
+                                       Texto="@Textos["PropagacionesGestionar"]" Variante="VarianteBoton.Secundario" />
+                </div>
+            }
+        </section>
+
         <div class="mi-trabajo-chips contenido-entra" role="group" aria-label="@Textos["FiltrarPorSeveridad"]" data-lista-con-filtros>
             @foreach (var chip in Chips)
             {
@@ -343,6 +374,12 @@
                     <dl class="mi-trabajo-detalle-datos">
                         <dt>@Textos["Empresa"]</dt>
                         <dd>@abierta.TenantNombre</dd>
+                        @* Maqueta Flujos 11, «Detalle de la tarea»: el Centro de la tarea va tras la Empresa. Solo si el ítem lo trae. *@
+                        @if (abierta.Item.CentroNombre is { Length: > 0 } centro)
+                        {
+                            <dt>@Textos["Centro"]</dt>
+                            <dd>@centro</dd>
+                        }
                         <dt>@Textos["Cliente"]</dt>
                         <dd>@(abierta.Item.ClienteNombre ?? Textos["SinCliente"])</dd>
                         @if (abierta.Item.ProveedorNombre is { Length: > 0 } plataforma)

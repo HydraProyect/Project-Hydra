@@ -1,4 +1,4 @@
-﻿using System.Reflection;
+using System.Reflection;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;

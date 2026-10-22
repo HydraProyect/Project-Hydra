@@ -22,7 +22,7 @@
 <div class="contenedor-pagina">
     <CabeceraListado Grupo="Negocio" ControlesEnBarra="true" Titulo="@Textos["TituloPagina"]"
                      Contador="@(ListaDisponible && _listaCargada ? (int?)_totalElementos : null)"
-                     RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuExportarTodo : null)">
+                     RutaExportar="@(ListaDisponible ? "/proyectos/exportar.xlsx" : null)" CriteriosExportar="CriteriosExportar" Menu="@(ListaDisponible ? MenuListado : null)">
         <Primaria>
             @if (ListaDisponible)
             {
@@ -63,10 +63,18 @@
             <FranjaEstado PresentacionCampo="true" Etiqueta="@ComunesLista["ListaEstado"]" Opciones="OpcionesEstado" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                       Recuentos="_recuentosPorEstado" />
                 @* Filtro opcional: «Todos» (el valor vacío) lista los Proyectos de todos los Clientes empresariales visibles. *@
-                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["EtiquetaCliente"]"
+                <PastillaFiltro PresentacionCampo="true" @key="_versionSelectorCliente" @ref="_selectorClienteEmpresarial" Etiqueta="@Textos["ListaEmpresa"]"
                                 Valor="@(_clienteSeleccionadoId == Guid.Empty ? string.Empty : _clienteSeleccionadoId.ToString())"
                                 ValorChanged="OnClienteSeleccionadoAsync" Opciones="OpcionesClienteListado" />
             </Pastillas>
+            <Herramientas>
+                <PastillaFiltro Etiqueta="@Textos["ListaAgrupar"]" Valor="@_agrupar" ValorChanged="CambiarAgrupacion"
+                                TextoTodos="@Textos["ListaSinAgrupar"]" Opciones="@([new OpcionEstado("empresa", Textos["ListaPorEmpresa"])])" Keytip="A" />
+                @if (_proyectos.Count > 0)
+                {
+                    <BarraHerramientasLista TodosExpandidos="TodosExpandidos" OnAlternarTodos="AlternarTodosExpandidos" />
+                }
+            </Herramientas>
             <Chips>
                 @if (!string.IsNullOrWhiteSpace(_busqueda))
                 {
@@ -131,7 +139,13 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var proyecto in _proyectos)
+                            @foreach (var bloque in BloquesDeProyectos)
+                            {
+                            @if (_agrupar == "empresa")
+                            {
+                                <tr class="proyectos-grupo"><th colspan="6" scope="rowgroup">@bloque.Key.Nombre</th></tr>
+                            }
+                            @foreach (var proyecto in bloque)
                             {
                                 var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
                                 @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
@@ -140,6 +154,10 @@
                                    icono 360— hacen lo suyo y no dejan subir el clic. *@
                                 <tr @key="proyecto.Id" class="@ClaseFila(proyecto)" @onclick="() => AbrirDetalleDesdeLaFilaAsync(proyecto.Id)">
                                     <td>
+                                        <button type="button" class="proyecto-expandir" aria-expanded="@(_expandidos.Contains(proyecto.Id) ? "true" : "false")"
+                                                aria-label="@Textos["ListaDocumentacionDe", proyecto.Nombre]" @onclick="() => AlternarDocumentacion(proyecto.Id)" @onclick:stopPropagation="true">
+                                            <Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" />
+                                        </button>
                                         <span class="proyecto-nombre-centro">
                                             @* El nombre es el destino de teclado del clic en la fila (la fila no es focable con Tab). *@
                                             <button type="button" class="enlace-nombre-fila nombre-proyecto nombre-abre-vista-rapida"
@@ -238,6 +256,13 @@
                                         </span>
                                     </td>
                                 </tr>
+                                @if (_expandidos.Contains(proyecto.Id))
+                                {
+                                    <tr class="proyecto-documentacion"><td colspan="6">
+                                        <DocumentacionFilaProyecto ProyectoId="proyecto.Id" />
+                                    </td></tr>
+                                }
+                            }
                             }
                         </tbody>
                     </table>
@@ -481,6 +506,8 @@
 
         @if (NuevoEsEvento)
         {
+            <p class="texto-ayuda-campo">@Textos["AyudaFinEvento"]</p>
+
             @* Los requisitos de un evento se copian de una plantilla o de otro evento del mismo Cliente empresarial. *@
             <CampoSelect Etiqueta="@Textos["EtiquetaOrigenRequisitos"]" Valor="@_nuevoOrigenRequisitos" ValorChanged="v => _nuevoOrigenRequisitos = v">
                 <option value="">@Textos["OpcionSinRequisitos"]</option>
@@ -588,5 +615,9 @@
 }
 
 @code {
-    private RenderFragment MenuExportarTodo => @<CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" />;
+    /// <summary>«Más acciones»: el alta de un Evento (mismo drawer que «+ Nuevo proyecto», con el tipo Evento) y la exportación.</summary>
+    private RenderFragment MenuListado => @<text>
+        <SoloConEscritura><ItemMenuAccion OnClick="AbrirNuevoEventoAsync">@Textos["MenuCrearEvento"]</ItemMenuAccion></SoloConEscritura>
+        <CaeManager.Web.Exportacion.EntradasExportar Ruta="/proyectos/exportar.xlsx" />
+    </text>;
 }

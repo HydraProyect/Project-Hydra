@@ -8,10 +8,20 @@
     (AbrirAsync con argumentos). Sin argumentos se comporta como el del panel: preselecciona el Centro
     solo cuando hay uno.
 
-    Registrar es un ICommand denegado a Consulta en Application (AutorizacionEscrituraBehavior); quien
-    monta este componente solo ofrece sus disparadores dentro de SoloConEscritura.
+    Dos modos (Flujos 09 Subcontratas): alta (AbrirAsync) y edición de una verificación ya registrada
+    (AbrirEditarAsync): el Centro y el tipo quedan fijos, el pie ofrece «Eliminar verificación» (con su
+    confirmación dentro del kit, y el «Deshacer» lo ofrece quien monta el componente al recibir OnEliminada)
+    y, al guardar, un aviso con «Deshacer» que devuelve los valores anteriores. La evidencia es obligatoria
+    en los dos: en la edición vale la que ya tenía la verificación. Si se sustituye el archivo, el aviso no
+    ofrece «Deshacer»: la evidencia anterior no se recupera desde aquí.
+
+    Registrar, Actualizar y Eliminar son ICommand denegados a Consulta en Application
+    (AutorizacionEscrituraBehavior); quien monta este componente solo ofrece sus disparadores dentro de
+    SoloConEscritura.
 *@
 @using CaeManager.Application.Common
+@using CaeManager.Application.Subcontratas.Commands.ActualizarVerificacionExterna
+@using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
@@ -28,25 +38,43 @@
 @inject IStringLocalizer<TextosSubcontratas> Textos
 @inject ToastService ToastService
 
-<DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad" Titulo="@Textos["TituloDrawerVerificacion"]"
-                 HayCambios="() => HayCambios" Guardando="_guardando" MensajeError="@_mensajeError"
-                 OnGuardar="GuardarAsync"
-                 TextoGuardar="@Textos["BotonRegistrar"]" TextoCancelar="@Textos["BotonCancelar"]">
-    <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
-        <option value="">@Textos["OpcionSeleccionaCentro"]</option>
-        @foreach (var centro in CentrosSeleccionables)
-        {
-            <option value="@centro.CentroId">@centro.CentroNombre (@centro.ClienteRazonSocial)</option>
-        }
-    </CampoSelect>
+<DrawerFormulario Visible="_visible" VisibleChanged="CambiarVisibilidad"
+                 Titulo="@(Editando ? Textos["TituloDrawerVerificacionEdicion"] : Textos["TituloDrawerVerificacionAlta"])"
+                 Subtitulo="@(string.IsNullOrWhiteSpace(Subtitulo) ? null : Subtitulo)"
+                 HayCambios="() => HayCambios" Guardando="_guardando || _eliminando" MensajeError="@_mensajeError"
+                 HayErroresDeCampo="@(_errorEvidencia is not null)" OnGuardar="GuardarAsync"
+                 PieExtra="@(Editando ? PieEliminar : null)"
+                 TextoGuardar="@Textos["BotonGuardarVerificacion"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <ChildContent>
+    @if (Editando)
+    {
+        @* Centro y tipo son lo que hace de esta fila «la verificación de X en Y»: no se cambian al editar. *@
+        <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_centroId" Deshabilitado="true">
+            <option value="@_centroId">@_centroEtiqueta</option>
+        </CampoSelect>
 
-    <CampoSelect Etiqueta="@Textos["RotuloTipoDocumento"]" Valor="@_tipoId" ValorChanged="v => _tipoId = v">
-        <option value="">@Textos["OpcionSeleccionaTipo"]</option>
-        @foreach (var tipo in _tiposVerificables)
-        {
-            <option value="@tipo.Id">@tipo.Nombre</option>
-        }
-    </CampoSelect>
+        <CampoSelect Etiqueta="@Textos["RotuloTipoDocumento"]" Valor="@_tipoId" Deshabilitado="true">
+            <option value="@_tipoId">@_tipoNombre</option>
+        </CampoSelect>
+    }
+    else
+    {
+        <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+            <option value="">@Textos["OpcionSeleccionaCentro"]</option>
+            @foreach (var centro in CentrosSeleccionables)
+            {
+                <option value="@centro.CentroId">@centro.CentroNombre (@centro.ClienteRazonSocial)</option>
+            }
+        </CampoSelect>
+
+        <CampoSelect Etiqueta="@Textos["RotuloTipoDocumento"]" Valor="@_tipoId" ValorChanged="v => _tipoId = v">
+            <option value="">@Textos["OpcionSeleccionaTipo"]</option>
+            @foreach (var tipo in _tiposVerificables)
+            {
+                <option value="@tipo.Id">@tipo.Nombre</option>
+            }
+        </CampoSelect>
+    }
 
     <CampoSelect Etiqueta="@Textos["RotuloResultado"]" Valor="@_resultado" ValorChanged="v => _resultado = v">
         <option value="@nameof(ResultadoVerificacionExterna.Valido)">@Textos["ResultadoVerificacionValido"]</option>
@@ -59,7 +87,8 @@
     <CampoTextarea Etiqueta="@Textos["RotuloObservaciones"]" Valor="@_observaciones" ValorChanged="v => _observaciones = v" Filas="3" />
 
     <div class="campo">
-        <label>@Textos["RotuloEvidencia"]</label>
+        <label>@Textos["RotuloEvidenciaVerificacion"] *</label>
+        <p class="texto-ayuda-campo">@Textos["AyudaEvidenciaVerificacion"]</p>
         <ZonaSoltarArchivo
             OnChange="ManejarEvidenciaSeleccionadaAsync"
             Multiple="false"
@@ -70,7 +99,23 @@
         {
             <p class="texto-ayuda-campo">@Textos["EvidenciaAdjunta", _evidenciaNombre]</p>
         }
+        else if (_evidenciaExistente is not null)
+        {
+            <p class="texto-ayuda-campo">@Textos["EvidenciaActualVerificacion", _evidenciaExistente]</p>
+        }
+        @if (_errorEvidencia is not null)
+        {
+            <span class="campo-mensaje-error" aria-live="assertive">@_errorEvidencia</span>
+        }
     </div>
+    </ChildContent>
+    <Dialogos>
+        <DialogoConfirmacion Visible="_confirmarEliminarVisible" VisibleChanged="v => _confirmarEliminarVisible = v"
+                             Titulo="@Textos["ConfirmarEliminarVerificacionDeTipoTitulo", _tipoNombre]"
+                             Mensaje="@Textos["ConfirmarEliminarVerificacionDeTipoMensaje"]"
+                             TextoBotonConfirmar="@Textos["BotonConfirmarEliminarVerificacion"]"
+                             EnProgreso="_eliminando" OnConfirmar="EliminarAsync" />
+    </Dialogos>
 </DrawerFormulario>
 
 @code {
@@ -79,8 +124,20 @@
     /// <summary>Centros donde se puede verificar: los que trae <c>SupervisionSubcontrataDto.CentrosSeleccionables</c>.</summary>
     [Parameter, EditorRequired] public IReadOnlyList<CentroSeleccionableDto> CentrosSeleccionables { get; set; } = [];
 
+    /// <summary>Subtítulo del formulario: la Subcontrata y su identificación fiscal.</summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
     /// <summary>La verificación se registró: quien lo monta recarga la supervisión.</summary>
     [Parameter] public EventCallback OnRegistrada { get; set; }
+
+    /// <summary>
+    /// La verificación se eliminó desde el formulario de edición: quien lo monta ofrece el «Deshacer» y recarga la supervisión
+    /// (la misma salida que «Eliminar» del menú de la fila).
+    /// </summary>
+    [Parameter] public EventCallback<VerificacionEliminada> OnEliminada { get; set; }
+
+    /// <summary>Verificación eliminada desde el formulario: su Id y el nombre del tipo, para el aviso.</summary>
+    public sealed record VerificacionEliminada(Guid Id, string TipoNombre);
 
     private readonly CancellationTokenSource _ciclo = new();
     private readonly InstantaneaFormulario _instantanea = new();
@@ -97,6 +154,17 @@
     private string _observaciones = string.Empty;
     private byte[]? _evidenciaContenido;
     private string? _evidenciaNombre;
+
+    // Edición: la verificación que se corrige, con los valores de partida para el «Deshacer».
+    private UltimaVerificacionDto? _editando;
+    private string _centroEtiqueta = string.Empty;
+    private string _tipoNombre = string.Empty;
+    private string? _evidenciaExistente;
+    private string? _errorEvidencia;
+    private bool _confirmarEliminarVisible;
+    private bool _eliminando;
+
+    private bool Editando => _editando is not null;
 
     private bool HayCambios => _visible && _instantanea.Difiere(Valores());
 
@@ -135,6 +203,9 @@
             _observaciones = string.Empty;
             _evidenciaContenido = null;
             _evidenciaNombre = null;
+            _evidenciaExistente = null;
+            _errorEvidencia = null;
+            _editando = null;
             _mensajeError = null;
             _visible = true;
             _instantanea.Fijar(Valores());
@@ -152,6 +223,33 @@
         {
             _abriendo = false;
         }
+    }
+
+    /// <summary>
+    /// Abre el formulario para corregir <paramref name="verificacion"/> (la última de su Centro y tipo): el Centro y el tipo
+    /// quedan fijos, y la evidencia que ya tenía vale como evidencia. Quien lo llama ya conoce los nombres.
+    /// </summary>
+    public void AbrirEditar(UltimaVerificacionDto verificacion, Guid centroId, string centroEtiqueta, Guid tipoId, string tipoNombre)
+    {
+        if (_abriendo) return;
+
+        _editando = verificacion;
+        _centroId = centroId.ToString();
+        _centroEtiqueta = centroEtiqueta;
+        _tipoId = tipoId.ToString();
+        _tipoNombre = tipoNombre;
+        _resultado = verificacion.Resultado.ToString();
+        _fecha = verificacion.FechaVerificacion.ToString("yyyy-MM-dd");
+        _validoHasta = verificacion.ValidoHasta?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _observaciones = verificacion.Observaciones ?? string.Empty;
+        _evidenciaContenido = null;
+        _evidenciaNombre = null;
+        _evidenciaExistente = verificacion.TieneEvidencia ? verificacion.EvidenciaNombreArchivo ?? Textos["RotuloEvidenciaVerificacion"].Value : null;
+        _errorEvidencia = null;
+        _mensajeError = null;
+        _visible = true;
+        _instantanea.Fijar(Valores());
+        StateHasChanged();
     }
 
     /// <summary>Cierra sin preguntar: la página lo llama al pasar a otra subcontrata, cuyo formulario ya no es este.</summary>
@@ -177,6 +275,7 @@
         await archivo.OpenReadStream(LimitesArchivoSubido.TamanoMaximoBytes).CopyToAsync(memoria);
         _evidenciaContenido = memoria.ToArray();
         _evidenciaNombre = archivo.Name;
+        _errorEvidencia = null;
         _mensajeError = null;
     }
 
@@ -202,6 +301,13 @@
             return;
         }
 
+        // Sin evidencia no se guarda (Flujos 09): ni el alta ni la edición, salvo que la verificación ya tuviera una.
+        if (_evidenciaContenido is null && _evidenciaExistente is null)
+        {
+            _errorEvidencia = Textos["ErrorEvidenciaObligatoria"];
+            return;
+        }
+
         DateOnly? validoHasta = DateOnly.TryParse(_validoHasta, out var vh) ? vh : null;
         var resultadoVerificacion = Enum.Parse<ResultadoVerificacionExterna>(_resultado);
         var subcontrataId = SubcontrataId;
@@ -213,9 +319,14 @@
         {
             // Sin token: retirar la página no deshace un registro que el usuario ya pidió.
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
-            var resultado = await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
-                subcontrataId, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
-                _evidenciaContenido, _evidenciaNombre));
+            var anterior = _editando;
+            var resultado = anterior is null
+                ? await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
+                    subcontrataId, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
+                    _evidenciaContenido, _evidenciaNombre))
+                : await Mediator.Send(new ActualizarVerificacionExternaSubcontrataCommand(
+                    anterior.Id, fecha, resultadoVerificacion, validoHasta, observaciones,
+                    _evidenciaContenido, _evidenciaNombre));
 
             if (resultado.EsFallido)
             {
@@ -223,7 +334,15 @@
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastVerificacionRegistrada"], TonoToast.Exito);
+            var nombreTipo = anterior is null
+                ? _tiposVerificables.FirstOrDefault(t => t.Id == tipoId)?.Nombre ?? string.Empty
+                : _tipoNombre;
+            // «Deshacer» de una edición devuelve los valores anteriores; con archivo nuevo no se ofrece (ver el comentario de arriba).
+            if (anterior is not null && _evidenciaContenido is null)
+                ToastService.Mostrar(Textos["ToastVerificacionGuardada", nombreTipo], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerEdicionAsync(anterior, nombreTipo));
+            else
+                ToastService.Mostrar(Textos["ToastVerificacionGuardada", nombreTipo], TonoToast.Exito);
             // La página pudo pasar a otra subcontrata con el registro en vuelo: su supervisión no es la de esta.
             if (subcontrataId != SubcontrataId) return;
             _visible = false;
@@ -235,11 +354,67 @@
         }
         catch (Exception)
         {
-            _mensajeError = Textos["ErrorRegistrarVerificacion"];
+            _mensajeError = Textos[Editando ? "ErrorActualizarVerificacion" : "ErrorRegistrarVerificacion"];
         }
         finally
         {
             _guardando = false;
+        }
+    }
+
+    /// <summary>«Deshacer» del aviso de una edición: devuelve fecha, resultado, validez y observaciones de antes; la evidencia no cambió.</summary>
+    private async Task DeshacerEdicionAsync(UltimaVerificacionDto anterior, string nombreTipo)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new ActualizarVerificacionExternaSubcontrataCommand(
+                anterior.Id, anterior.FechaVerificacion, anterior.Resultado, anterior.ValidoHasta, anterior.Observaciones));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastVerificacionRecuperada", nombreTipo], TonoToast.Exito);
+            await OnRegistrada.InvokeAsync();
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorDeshacerVerificacion"], TonoToast.Error);
+        }
+    }
+
+    private RenderFragment PieEliminar => @<Boton Variante="VarianteBoton.Destructivo" OnClick="() => _confirmarEliminarVisible = true">@Textos["BotonConfirmarEliminarVerificacion"]</Boton>;
+
+    private async Task EliminarAsync()
+    {
+        if (_eliminando || _editando is not { } verificacion) return;
+
+        _eliminando = true;
+        try
+        {
+            var resultado = await Mediator.Send(new EliminarVerificacionExternaSubcontrataCommand(verificacion.Id));
+
+            if (resultado.EsFallido)
+            {
+                _confirmarEliminarVisible = false;
+                _mensajeError = resultado.Error.Mensaje;
+                return;
+            }
+
+            _confirmarEliminarVisible = false;
+            _visible = false;
+            await OnEliminada.InvokeAsync(new VerificacionEliminada(verificacion.Id, _tipoNombre));
+        }
+        catch (Exception)
+        {
+            _confirmarEliminarVisible = false;
+            _mensajeError = Textos["ToastErrorEliminarVerificacion"];
+        }
+        finally
+        {
+            _eliminando = false;
         }
     }
 

@@ -45,7 +45,7 @@
                 data-tenant-id="@_activo.TenantId" @onclick="Alternar">
             <AvatarTenant Nombre="@_activo.Nombre" LogoUrl="@UrlLogo(_activo)" Tamano="TamanoAvatarTenant.Pequeno" />
             <span class="selector-tenant-texto">
-                <span class="selector-tenant-sub">@Textos["SelectorTenantRotulo"]</span>
+                <span class="selector-tenant-sub">@Textos[_activo.EsOrigen ? "SelectorTenantOrigen" : "SelectorTenantRotulo"]</span>
                 <span class="selector-tenant-nombre" title="@_activo.Nombre">@_activo.Nombre</span>
             </span>
             <span class="selector-tenant-chevron @(_abierto ? "selector-tenant-chevron-abierto" : null)" aria-hidden="true">
@@ -61,7 +61,7 @@
                    existente de solicitud de incorporación a la cartera (/cartera/solicitudes); solo se ofrece a quien participa
                    en él (ParticipaEnIncorporacionCarteraQuery), el mismo criterio que la página, que a los demás les niega el acceso. *@
                 <div class="selector-tenant-cabecera">
-                    <h6 class="selector-tenant-cabecera-titulo">@Textos["SelectorTenantCartera", Empresas(_totalCartera)]</h6>
+                    <h6 class="selector-tenant-cabecera-titulo">@Textos["SelectorTenantCartera", _totalCartera]</h6>
                     @if (_puedeSolicitar)
                     {
                         <a class="selector-tenant-solicitar" href="/cartera/solicitudes"
@@ -72,9 +72,14 @@
                 @if (_totalCartera >= UmbralBusqueda)
                 {
                     @* Fuera del <form>: Intro en el buscador no debe enviar un POST sin Tenant. *@
+                    @* Marco de Design (20-10): ↑/↓ recorren los resultados desde el propio buscador, Intro elige el que tiene
+                       el foco (o el primero) y la línea de ayuda cuenta los resultados. Solo presentación: lo que se ofrece
+                       sigue siendo lo que ya autorizó el servidor, y elegir sigue siendo el mismo POST. *@
                     <input type="search" class="selector-tenant-busqueda" placeholder="@Textos["SelectorTenantBuscar"]"
-                           aria-label="@Textos["SelectorTenantBuscar"]" @ref="_buscador"
+                           aria-label="@Textos["SelectorTenantBuscarEtiqueta"]" @ref="_buscador"
+                           data-selector-tenant-buscador data-busqueda-pintada="@_busqueda" autocomplete="off"
                            @bind="Busqueda" @bind:event="oninput" />
+                    <p class="selector-tenant-ayuda" role="status">@AyudaDelBuscador</p>
                 }
 
                 <form method="post" action="/cuenta/cliente-activo">
@@ -108,20 +113,20 @@
                         </div>
                     }
 
-                    @* Como en el marco de Design, la lista principal siempre lleva cabecera: «Resto de la cartera» si hay
-                       fijadas (o recientes) encima y «Recientes» si no las hay. Mientras se busca no hay cabecera: la búsqueda
-                       ve la cartera entera y plana. *@
-                    @* Si todas las empresas ya están en Fijadas o Recientes la lista principal queda vacía: sin cabecera ni lista
-                       y sin «Sin resultados», que solo tiene sentido al buscar. *@
-                    @if (Buscando || Filtrados.Any())
+                    @* Como en el marco de Design (20-10), la lista principal, siempre por orden alfabético, lleva cabecera «Resultados» al buscar
+                       (la búsqueda ve la cartera entera y plana) y «Todas las empresas» si no hay fijadas ni recientes encima;
+                       con ellas encima va sin rótulo (solo aria-label). *@
+                    @* Si todas las empresas ya están en Fijadas o Recientes, o la búsqueda no encuentra nada, la lista principal
+                       queda vacía: sin cabecera ni lista, y «Ninguna empresa coincide» solo al buscar. *@
+                    @if (Filtrados.Any())
                     {
-                        @if (!Buscando)
+                        @if (Buscando || !HayGruposArriba)
                         {
-                            <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(HayGruposArriba ? Textos["SelectorTenantResto"] : Textos["SelectorTenantRecientes"])</h6>
+                            <h6 class="selector-tenant-grupo" id="selector-tenant-resto">@(Buscando ? Textos["SelectorTenantResultados"] : Textos["SelectorTenantTodas"])</h6>
                         }
                         <div role="listbox" aria-orientation="vertical" class="selector-tenant-lista"
-                             aria-label="@(Buscando ? Textos["SelectorTenantLista"].Value : null)"
-                             aria-labelledby="@(Buscando ? null : "selector-tenant-resto")">
+                             aria-labelledby="@(Buscando || !HayGruposArriba ? "selector-tenant-resto" : null)"
+                             aria-label="@(Buscando || !HayGruposArriba ? null : Textos["SelectorTenantTodas"].Value)">
                             @foreach (var cliente in Filtrados)
                             {
                                 @Opcion(cliente, false)
@@ -131,14 +136,14 @@
 
                     @if (Buscando && !Filtrados.Any())
                     {
-                        <p class="selector-tenant-vacio" role="status">@Textos["SelectorTenantSinResultados"]</p>
+                        <p class="selector-tenant-vacio" role="status">@Textos["SelectorTenantSinResultados", _busqueda.Trim()]</p>
                     }
 
                     @* «Tu organización» queda fija bajo la lista, separada de la cartera. *@
                     @if (_origen is not null)
                     {
                         <div class="selector-tenant-separador"></div>
-                        <div role="listbox" aria-label="@Textos["SelectorTenantOrigen"]">
+                        <div role="listbox" aria-label="@Textos["SelectorTenantOrigen"]" data-selector-tenant-origen>
                             @Opcion(_origen, true)
                         </div>
                     }

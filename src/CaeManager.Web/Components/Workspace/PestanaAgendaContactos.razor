@@ -67,6 +67,15 @@ else
                     {
                         <span class="agenda-contacto-telefono">@contacto.Telefono</span>
                     }
+                    @if (!string.IsNullOrWhiteSpace(contacto.Notas))
+                    {
+                        <SoloConEscritura>
+                        <span class="agenda-contacto-nota" title="@Comunes["AgendaNotaMarcapaginas"]">
+                            <svg width="11" height="14" viewBox="0 0 11 14" aria-hidden="true"><path d="M0 0h11v14L5.5 10 0 14z" fill="currentColor" /></svg>
+                            @contacto.Notas
+                        </span>
+                        </SoloConEscritura>
+                    }
                 </div>
                 <div class="agenda-contacto-etiquetas">
                     @if (contacto.EsPredeterminado)

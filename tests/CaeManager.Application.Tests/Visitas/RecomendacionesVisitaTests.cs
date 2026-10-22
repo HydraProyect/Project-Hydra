@@ -45,7 +45,7 @@ public class RecomendacionesVisitaTests
     }
 
     [Fact]
-    public void La_documentacion_pendiente_da_una_recomendacion_por_sujeto_con_sus_tipos()
+    public void La_documentacion_pendiente_y_la_vencida_dan_cada_una_su_recomendacion_por_sujeto()
     {
         var documentacion = Documentacion(
             Seccion(Documento("Seguro RC", EstadoDocumento.Vencido, Hoy.AddDays(-3))),
@@ -59,8 +59,9 @@ public class RecomendacionesVisitaTests
 
         recomendaciones.Should().BeEquivalentTo(new[]
         {
-            new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionPendiente, "Montajes Springfield", ["Seguro RC"]),
-            new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionPendiente, "Homer Simpson", ["Formación PRL", "Aptitud médica"]),
+            new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionVencida, "Montajes Springfield", ["Seguro RC"]),
+            new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionPendiente, "Homer Simpson", ["Formación PRL"]),
+            new RecomendacionVisita(TipoRecomendacionVisita.DocumentacionVencida, "Homer Simpson", ["Aptitud médica"]),
         }, o => o.WithStrictOrdering());
     }
 
@@ -89,7 +90,7 @@ public class RecomendacionesVisitaTests
     {
         var documentacion = Documentacion(Seccion(Documento("Seguro RC", EstadoDocumento.Vencido, Hoy.AddDays(-3))));
 
-        Calcular(documentacion).Should().ContainSingle().Which.Tipo.Should().Be(TipoRecomendacionVisita.DocumentacionPendiente);
+        Calcular(documentacion).Should().ContainSingle().Which.Tipo.Should().Be(TipoRecomendacionVisita.DocumentacionVencida, "vencido no es «pendiente»: pendiente es lo que falta");
     }
 
     [Fact]

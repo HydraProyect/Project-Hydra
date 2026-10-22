@@ -479,7 +479,7 @@
   <data name="ListadoDocumentoPorVencerSingular" xml:space="preserve">
     <value>{0}/{1} · {2} en {3} dia</value>
   </data>
-  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentació del Centre</value></data>
+  <data name="PestanaDocumentacionCentro360" xml:space="preserve"><value>Documentació Empresa</value></data>
   <data name="PestanaRequisitos360" xml:space="preserve"><value>Requisits</value></data>
   <data name="LecturaCentroError360" xml:space="preserve"><value>No s’ha pogut carregar la documentació del Centre</value></data>
   <data name="DocumentacionCentroSinGestion360" xml:space="preserve"><value>Aquest Centre no requereix gestió CAE</value></data>
@@ -561,7 +561,10 @@
   <data name="InformacionCliente360" xml:space="preserve"><value>Client</value></data>
   <data name="EditarFlecha360" xml:space="preserve"><value>Editar →</value></data>
   <data name="ConsultaRapida360" xml:space="preserve"><value>Consulta ràpida</value></data>
-  <data name="InformacionEmpresa360" xml:space="preserve"><value>Empresa</value></data>
+  <data name="InformacionAlta360" xml:space="preserve"><value>Alta</value></data>
+  <data name="GlosaDocumentoEmpresaConIncidencia" xml:space="preserve"><value>document d'Empresa amb incidència</value></data>
+  <data name="GlosaDocumentosEmpresaConIncidencia" xml:space="preserve"><value>documents d'Empresa amb incidència</value></data>
+  <data name="BloqueaAccesoEtiqueta" xml:space="preserve"><value>Bloqueja l'accés</value></data>
   <data name="EtiquetaAgrupar" xml:space="preserve">
     <value>Agrupa</value>
   </data>
@@ -589,4 +592,122 @@
   <data name="CopiarCodigo" xml:space="preserve">
     <value>Copia el codi {0}</value>
   </data>
+  <data name="UltimaReclamacionCliente" xml:space="preserve">
+    <value>Darrera reclamació a aquest Client</value>
+  </data>
+  <data name="UltimaReclamacionEmpresaEmpleadora" xml:space="preserve">
+    <value>Darrera reclamació a {0}, Empresa dels seus Treballadors</value>
+  </data>
+  <data name="PlataformaEstadoCabecera360" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="PlataformaEstadoCabeceraNombre360" xml:space="preserve"><value>Estat a {0}</value></data>
+  <data name="DocumentacionEmpresaIntroNombre360" xml:space="preserve"><value>El que aquest Centre exigeix a cada Empresa, amb el seu estat a {0}.</value></data>
+  <data name="PlataformaSinDatos360" xml:space="preserve"><value>Sense dades de plataforma</value></data>
+  <data name="PlataformaBloquea360" xml:space="preserve"><value>Bloqueja</value></data>
+  <data name="PlataformaBloqueaSi360" xml:space="preserve"><value>Sí</value></data>
+  <data name="PlataformaBloqueaNo360" xml:space="preserve"><value>No</value></data>
+  <data name="PlataformaPendienteSubir360" xml:space="preserve"><value>Pendent de pujar</value></data>
+  <data name="PlataformaPendienteValidacion360" xml:space="preserve"><value>Pendent de validació</value></data>
+  <data name="PlataformaValidado360" xml:space="preserve"><value>Validat</value></data>
+  <data name="PlataformaRechazado360" xml:space="preserve"><value>Rebutjat</value></data>
+  <data name="PlataformaNoExigido360" xml:space="preserve"><value>No exigit</value></data>
+  <data name="PlataformaBloqueaAcceso360" xml:space="preserve"><value>Bloqueja l’accés</value></data>
+  <data name="PlataformaCaducidad360" xml:space="preserve"><value>Caducitat</value></data>
+  <data name="PlataformaTalveg360" xml:space="preserve"><value>A TALVEG: {0}</value></data>
+  <data name="DocumentacionEmpresaIntro360" xml:space="preserve"><value>El que aquest Centre exigeix a cada Empresa, amb el seu estat a la plataforma CAE.</value></data>
+  <data name="DocumentacionEmpresaTabla360" xml:space="preserve"><value>Documentació d’Empresa exigida en aquest Centre</value></data>
+  <data name="DocumentoNombre360" xml:space="preserve"><value>Document</value></data>
+  <data name="HistorialCambios360" xml:space="preserve"><value>Canvis</value></data>
+  <data name="DocumentoColumna360" xml:space="preserve"><value>Document</value></data>
+  <data name="BuscarTrabajadorCentro360" xml:space="preserve"><value>Cercar treballador d’aquest centre…</value></data>
+  <data name="RutaCentro360" xml:space="preserve"><value>Ruta de Centre 360</value></data>
+  <data name="ErrorCargarCentro360" xml:space="preserve"><value>No hem pogut carregar aquest centre</value></data>
+  <data name="ReintentarCentroDescripcion360" xml:space="preserve"><value>Torna-ho a provar d’aquí a uns segons.</value></data>
+  <data name="ReintentarCentro360" xml:space="preserve"><value>Tornar-ho a provar</value></data>
+  <data name="EditarCentro360" xml:space="preserve"><value>Editar centre</value></data>
+  <data name="ReclamarDocumentacionCentro360" xml:space="preserve"><value>Reclamar documentació ({0})</value></data>
+  <data name="GenerarInformeCentro360" xml:space="preserve"><value>Generar informe del centre</value></data>
+  <data name="DarBajaCentro360" xml:space="preserve"><value>Donar de baixa</value></data>
+  <data name="LimpiarFiltrosCentro360" xml:space="preserve"><value>Netejar filtres</value></data>
+  <data name="CanalesGestionCentro360" xml:space="preserve"><value>Canals de gestió</value></data>
+  <data name="GestionarCanalesCentro360" xml:space="preserve"><value>Gestionar →</value></data>
+  <data name="CanalesVacioCentro360" xml:space="preserve"><value>Sense cap canal de gestió registrat per a aquest centre.</value></data>
+  <data name="PlataformaSinResolverCentro360" xml:space="preserve"><value>Plataforma sense resoldre</value></data>
+  <data name="GestionCorreoCentro360" xml:space="preserve"><value>Gestió per correu</value></data>
+  <data name="ConCredencialesCentro360" xml:space="preserve"><value>Amb credencials</value></data>
+  <data name="SinCredencialesCentro360" xml:space="preserve"><value>Sense credencials</value></data>
+  <data name="CanalPrincipalCentro360" xml:space="preserve"><value>Principal</value></data>
+  <data name="AbrirPortalCentroAccesible360" xml:space="preserve"><value>Obrir el portal {0} en una pestanya nova</value></data>
+  <data name="AbrirPortalCentro360" xml:space="preserve"><value>Obrir portal ↗</value></data>
+  <data name="DireccionCanalCentro360" xml:space="preserve"><value>l’adreça d’aquest canal</value></data>
+  <data name="ContactosCentro360" xml:space="preserve"><value>Contactes del centre</value></data>
+  <data name="RegistrarCanal360" xml:space="preserve"><value>Registra un canal</value></data>
+  <data name="VisitasAnterioresTitulo360" xml:space="preserve"><value>Anteriors</value></data>
+  <data name="VisitasAnterioresError360" xml:space="preserve"><value>No hem pogut carregar les visites anteriors</value></data>
+  <data name="VisitasAnterioresVacio360" xml:space="preserve"><value>Sense visites anteriors</value></data>
+  <data name="VisitaCancelada360" xml:space="preserve"><value>Cancel·lada</value></data>
+  <data name="VisitaDocumentacionGestionada360" xml:space="preserve"><value>Documentació gestionada</value></data>
+  <data name="VisitaPasada360" xml:space="preserve"><value>Passada</value></data>
+  <data name="VisitaNombre360" xml:space="preserve"><value>Visita {0} – {1}</value></data>
+  <data name="VisitaTrabajadoresDe360" xml:space="preserve"><value>Treballadors de la visita: {0}</value></data>
+  <data name="ConfigurarRequisitoTitulo" xml:space="preserve">
+    <value>Configurar requisit</value>
+  </data>
+  <data name="IncluidoAyudaRequisito" xml:space="preserve">
+    <value>Si ho desactives, aquest Centre deixa de demanar-ho encara que el tipus es demani per defecte.</value>
+  </data>
+  <data name="ArchivoCentroEtiqueta" xml:space="preserve">
+    <value>Arxiu del Centre (Word o PDF, opcional)</value>
+  </data>
+  <data name="ArchivoCentroAyuda" xml:space="preserve">
+    <value>Model o instruccions que el Centre lliura a les Empreses. Opcional.</value>
+  </data>
+  <data name="RequisitoGuardadoToast" xml:space="preserve">
+    <value>Requisit desat en aquest centre.</value>
+  </data>
+  <data name="AccionColumna360" xml:space="preserve"><value>Acció</value></data>
+  <data name="MarcarSubido360" xml:space="preserve"><value>Marcar pujat</value></data>
+  <data name="MarcarValidado360" xml:space="preserve"><value>Marcar validat</value></data>
+  <data name="MarcarSubidoTitulo360" xml:space="preserve"><value>L&apos;has pujat a {0}: passa a Pendent de validació</value></data>
+  <data name="MarcarValidadoTitulo360" xml:space="preserve"><value>{0} l&apos;ha acceptat: passa a Validat</value></data>
+  <data name="CambiarEstado360" xml:space="preserve"><value>Canviar</value></data>
+  <data name="CambiarEstadoAria360" xml:space="preserve"><value>Canviar l&apos;estat de {0} a {1}</value></data>
+  <data name="ModalEstadoSobretitulo360" xml:space="preserve"><value>Estat a {0} · {1}</value></data>
+  <data name="ModalEstadoSubtitulo360" xml:space="preserve"><value>{0} · ara: {1}</value></data>
+  <data name="ModalEstadoGrupo360" xml:space="preserve"><value>Nou estat a la plataforma</value></data>
+  <data name="EstadoDescPendienteSubir360" xml:space="preserve"><value>Encara no és a la plataforma</value></data>
+  <data name="EstadoDescPendienteValidacion360" xml:space="preserve"><value>Pujat; la plataforma encara no l&apos;ha revisat</value></data>
+  <data name="EstadoDescValidado360" xml:space="preserve"><value>La plataforma l&apos;ha acceptat</value></data>
+  <data name="EstadoDescRechazado360" xml:space="preserve"><value>La plataforma l&apos;ha retornat</value></data>
+  <data name="FechaSubido360" xml:space="preserve"><value>Data (pujat)</value></data>
+  <data name="FechaValidado360" xml:space="preserve"><value>Data (validat)</value></data>
+  <data name="FechaRechazado360" xml:space="preserve"><value>Data (rebutjat)</value></data>
+  <data name="FechaMarcado360" xml:space="preserve"><value>Data (marcat)</value></data>
+  <data name="FechaInvalida360" xml:space="preserve"><value>Escriu la data com a dd/mm/aaaa.</value></data>
+  <data name="MotivoRechazo360" xml:space="preserve"><value>Motiu del rebuig</value></data>
+  <data name="MotivoRechazoPlaceholder360" xml:space="preserve"><value>El que indica la plataforma, p. ex. falta la signatura</value></data>
+  <data name="MotivoRechazoObligatorio360" xml:space="preserve"><value>Escriu el motiu: és el que veurà qui hagi de corregir el document.</value></data>
+  <data name="NotaOpcional360" xml:space="preserve"><value>Nota (opcional)</value></data>
+  <data name="NotaPlaceholder360" xml:space="preserve"><value>P. ex. ID de la sol·licitud a la plataforma</value></data>
+  <data name="ModalEstadoPie360" xml:space="preserve"><value>Només canvia l&apos;estat en aquest Centre. Queda a l&apos;Historial amb el teu nom i es recalcula si bloqueja l&apos;accés.</value></data>
+  <data name="GuardarEstado360" xml:space="preserve"><value>Desar estat</value></data>
+  <data name="CancelarEstado360" xml:space="preserve"><value>Cancel·lar</value></data>
+  <data name="VerboSubido360" xml:space="preserve"><value>pujat</value></data>
+  <data name="VerboValidado360" xml:space="preserve"><value>validat</value></data>
+  <data name="VerboRechazado360" xml:space="preserve"><value>rebutjat</value></data>
+  <data name="VerboMarcado360" xml:space="preserve"><value>marcat</value></data>
+  <data name="AnotacionVerboFecha360" xml:space="preserve"><value>{0} el {1}</value></data>
+  <data name="ToastEstadoPlataforma360" xml:space="preserve"><value>{0}: {1} a {2}</value></data>
+  <data name="ToastDeshacer360" xml:space="preserve"><value>Desfés</value></data>
+  <data name="ToastEstadoDeshecho360" xml:space="preserve"><value>{0}: estat anterior restaurat a {1}</value></data>
+  <data name="HistorialPlataforma360" xml:space="preserve"><value>Estat a la plataforma</value></data>
+  <data name="HistorialPlataformaFila360" xml:space="preserve"><value>{0}: {1} → {2} a {3}</value></data>
+  <data name="HistorialPlataformaDeshecho360" xml:space="preserve"><value>Desfet</value></data>
+  <data name="TotalesAlDiaPorVencer" xml:space="preserve">
+    <value>(d'ells, {0} per vèncer)</value>
+  </data>
+  <data name="TotalesSinValidar" xml:space="preserve">
+    <value>sense confirmar o sense validar a la plataforma: {0}</value>
+  </data>
+  <data name="FechaPlaceholder360" xml:space="preserve"><value>dd/mm/aaaa</value></data>
+  <data name="ConfirmarVigencia360" xml:space="preserve"><value>Vigència a la plataforma: confirmar o corregir</value></data>
 </root>

@@ -148,7 +148,10 @@
     <value>Correo corregido</value>
   </data>
   <data name="EditarCorreoNoSeCambiaAqui" xml:space="preserve">
-    <value>El correo identifica la cuenta y no se cambia desde aquí. Mientras la cuenta esté pendiente de activación, se corrige con «Corregir correo» en el menú de su fila.</value>
+    <value>El correo identifica la cuenta y no se cambia desde aquí. Mientras la cuenta esté pendiente de activar, se corrige con «Corregir correo» en el menú de su fila.</value>
+  </data>
+  <data name="AltaCorreoAyudaActivacion" xml:space="preserve">
+    <value>Recibirá el enlace de activación.</value>
   </data>
   <data name="CarteraAltaErrorCarga" xml:space="preserve">
     <value>No pudimos cargar las empresas para su cartera. Puedes guardar sin ninguna y asignárselas después.</value>
@@ -314,5 +317,29 @@
   </data>
   <data name="AvatarMotivo_erizo" xml:space="preserve">
     <value>Erizo</value>
+  </data>
+  <data name="AlcanceGestorPorCartera" xml:space="preserve">
+    <value>Por sus Asignaciones de Cartera vigentes.</value>
+  </data>
+  <data name="AlcanceCoordinadorPorOperacion" xml:space="preserve">
+    <value>Además entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.</value>
+  </data>
+  <data name="AlcanceCoordinadorSoloPorOperacion" xml:space="preserve">
+    <value>Entra sin Asignación de Cartera en las Empresas gestionadas que su organización opera enteras.</value>
+  </data>
+  <data name="AlcanceEmpresaGestionada" xml:space="preserve">
+    <value>Empresa gestionada</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadas" xml:space="preserve">
+    <value>Empresas gestionadas</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadasNombres" xml:space="preserve">
+    <value>Empresas gestionadas: {0}{1}.</value>
+  </data>
+  <data name="AlcanceEmpresasGestionadasResto" xml:space="preserve">
+    <value> y {0} más</value>
+  </data>
+  <data name="AlcanceEmpresaGestionadaParcial" xml:space="preserve">
+    <value>{0} (solo un Cliente)</value>
   </data>
 </root>

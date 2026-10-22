@@ -8,6 +8,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +35,8 @@ public record SolicitudesDelMesDto(CifraMensual Total, IReadOnlyList<FranjaSolic
 /// </summary>
 public record CumplimientoActualDto(
     int Vigentes, int Proximos, int Urgentes, int Vencidos, int SinConfirmar, int SinCaducidad,
-    int ParesExigidosSinDocumento, int Porcentaje, bool SinDatos, DateTime MedidoEnUtc);
+    int ParesExigidosSinDocumento, int Porcentaje, bool SinDatos, DateTime MedidoEnUtc,
+    FraccionCumplimiento? Exigido = null);
 
 /// <summary>
 /// Las cifras del Cuadro de dirección de un Tenant beneficiario, o la suma de todos. Volumen de la operación,
@@ -56,6 +58,14 @@ public record CumplimientoActualDto(
 /// <see cref="CaeManager.Domain.Common.ValidadorIdentificacion.EsDocumentoDeExtranjero"/>): personas, no visitas. Null si la
 /// medición no lo lleva (un cierre anterior).
 /// </param>
+/// <param name="ObrasNuevas">
+/// Proyectos de tipo Obra dados de alta en el mes (los Eventos no cuentan). Null si la medición no lo lleva (un
+/// cierre anterior a este campo).
+/// </param>
+/// <param name="CentrosNuevosPorCliente">
+/// Los Centros dados de alta en el mes repartidos por Cliente empresarial: indicador de crecimiento, no se cobra
+/// (decisión de Chris, 2026-10-20). Null si la medición no lo lleva (un cierre anterior).
+/// </param>
 public record CifrasCuadroDireccionDto(
     CifraMensual TrabajadoresActivos,
     CifraMensual AltasTrabajadores,
@@ -67,7 +77,12 @@ public record CifrasCuadroDireccionDto(
     SolicitudesDelMesDto Solicitudes,
     CumplimientoActualDto Cumplimiento,
     CifraMensual? Gestiones = null,
-    CifraMensual? Extranjeros = null);
+    CifraMensual? Extranjeros = null,
+    CifraMensual? ObrasNuevas = null,
+    IReadOnlyList<CentrosNuevosPorClienteDto>? CentrosNuevosPorCliente = null);
+
+/// <summary>Centros dados de alta en el mes bajo un Cliente empresarial de un Tenant beneficiario.</summary>
+public record CentrosNuevosPorClienteDto(Guid TenantId, Guid ClienteEmpresarialId, string ClienteNombre, int Centros);
 
 /// <summary>
 /// Quien lleva la marca de principal en la Asignación de Cartera bajo la Asignación de Operación del Operador
@@ -105,6 +120,12 @@ public record CuadroDireccionDto(
     CuadroDireccionSinCifras? SinCifras = null);
 
 /// <summary>Lo medido en un Tenant beneficiario, antes de marcar el estado del mes y fusionar.</summary>
+/// <param name="VisitasTrabajadorExtranjero">
+/// Unidades del concepto que el Operador CAE externo cobra por extranjeros (decisión de Chris, 2026-10-20): una por
+/// Trabajador con documento de extranjero en cada Visita no cancelada que empieza en el mes; un Trabajador recurrente
+/// en tres Visitas cuenta tres. Null si la medición no lo lleva (un cierre anterior a este campo): ese mes no se
+/// valora. Solo para la valoración (<see cref="ValoracionOperadorCae"/>); no es una cifra del Cuadro.
+/// </param>
 public record MedicionCuadroDireccion(
     int TrabajadoresActivos, int AltasTrabajadores, int BajasTrabajadores,
     int CentrosActivos, int AltasCentros,
@@ -113,12 +134,17 @@ public record MedicionCuadroDireccion(
     KpisDashboardDto Documental,
     int? GestionesCompletadas = null,
     EstadoCifraMensual? EstadoPersistido = null,
-    int? ExtranjerosActivos = null);
+    int? ExtranjerosActivos = null,
+    int? ObrasNuevas = null,
+    IReadOnlyList<CentrosNuevosPorClienteDto>? CentrosNuevosPorCliente = null,
+    int? VisitasTrabajadorExtranjero = null,
+    FraccionCumplimiento? CumplimientoExigido = null);
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
-/// <see cref="ObtenerDashboardEjecutivoQueryHandler"/>: por cada Tenant beneficiario autorizado
-/// (<see cref="ObtenerClientesAutorizadosQuery"/>), las consultas corren con
+/// <see cref="ObtenerDashboardEjecutivoQueryHandler"/>: por cada Tenant que lee quien mira
+/// (<see cref="ObtenerTenantsCuadroDireccionQuery"/>: los beneficiarios autorizados por rol, o solo el Tenant objetivo
+/// de una Sesión Privilegiada), las consultas corren con
 /// <see cref="AmbitoTenantExplicito"/> fijado a ese Tenant —filtro global y RLS de ese Tenant, ninguna cruza
 /// a otro— y el resultado se fusiona en memoria con <see cref="Fusionar"/>, que es pura. Secuencial por el
 /// mismo motivo que allí: el <c>DbContext</c> scoped no admite consultas concurrentes.
@@ -128,7 +154,9 @@ public record MedicionCuadroDireccion(
 /// (<see cref="IAlcanceDatosService.AlcanzaElTenantEnteroAsync"/>). Las cifras son del Tenant entero y las
 /// bajas cuentan filas eliminadas que ya no están en ninguna lista de alcance, así que no se pueden
 /// recortar a una cartera parcial: quien no alcanza el Tenant entero no las ve, y se dice cuántos Tenants
-/// quedaron fuera.
+/// quedaron fuera. Desde la decisión Chris 2026-10-20, Administrador, Dirección CAE, Coordinador CAE y
+/// Consulta del Operador CAE externo alcanzan entero, sin cartera, cada Tenant beneficiario de la Asignación
+/// de Operación de su organización; solo el Gestor CAE queda acotado por su cartera.
 /// </para>
 ///
 /// <para>
@@ -155,16 +183,20 @@ public class ObtenerCuadroDireccionQueryHandler(
     IReclamacionesQueryContext reclamacionesContext,
     IComunicacionesQueryContext comunicacionesContext,
     ICurrentUserService currentUserService,
+    IPoliticaNotaInterna politicaAcceso,
     IDirectorioUsuariosService directorioUsuarios,
     ICatalogoIncorporacionCartera catalogo,
     TimeProvider reloj,
     ICierresCuadroDireccion? cierresContext = null,
-    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null)
+    CaeManager.Application.Gestiones.IGestionesQueryContext? gestionesContext = null,
+    CaeManager.Application.Proyectos.IProyectosQueryContext? proyectosContext = null,
+    CaeManager.Application.Empresas.IEmpresasQueryContext? empresasContext = null,
+    CaeManager.Application.Visitas.IVisitasQueryContext? visitasContext = null)
     : IRequestHandler<ObtenerCuadroDireccionQuery, CuadroDireccionDto>
 {
     public async Task<CuadroDireccionDto> Handle(ObtenerCuadroDireccionQuery request, CancellationToken cancellationToken)
     {
-        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService);
+        await AutorizacionCuadroDireccion.ExigirLecturaAsync(currentUserService, politicaAcceso);
         var ahoraUtc = reloj.GetUtcNow().UtcDateTime;
         if (!MesCuadroDireccion.EsValido(request.Anyo, request.Mes))
             return SinCifras(request.Anyo, request.Mes, null, ahoraUtc, CuadroDireccionSinCifras.MesNoValido);
@@ -174,7 +206,7 @@ public class ObtenerCuadroDireccionQueryHandler(
             return SinCifras(request.Anyo, request.Mes, mes, ahoraUtc, CuadroDireccionSinCifras.MesFuturo);
 
         var corteUtc = mes.CorteA(ahoraUtc);
-        var clientes = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        var clientes = await mediator.Send(new ObtenerTenantsCuadroDireccionQuery(), cancellationToken);
         var principales = await ObtenerPrincipalesAsync(cancellationToken);
 
         var porTenant = new List<(ClienteAutorizadoDto Cliente, MedicionCuadroDireccion Medicion)>();
@@ -194,12 +226,14 @@ public class ObtenerCuadroDireccionQueryHandler(
                     ? await cierresContext.CierresMensuales.SingleOrDefaultAsync(c => c.Anyo == mes.Anyo && c.Mes == mes.Mes && c.ReabiertoEnUtc == null, cancellationToken)
                     : null;
                 var medicion = cierre is null
-                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator, gestionesContext).MedirAsync(mes, corteUtc, cancellationToken)
+                    ? await new MedicionMensualCuadroDireccion(tenantActual, trabajadoresContext, centrosContext, documentosContext, reclamacionesContext, comunicacionesContext, mediator, gestionesContext, proyectosContext, empresasContext, visitasContext).MedirAsync(mes, corteUtc, cancellationToken)
                     : FotoCierreMensual.Leer(cierre.FotoJson).Medicion with
                     {
                         EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,
                         Documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken)
                     };
+                // Contexto Empresa del Tenant beneficiario (pares exigidos, los que faltan en contra): foto de hoy, como "Documental".
+                medicion = medicion with { CumplimientoExigido = await mediator.Send(new ObtenerCumplimientoExigidoTenantQuery(), cancellationToken) };
                 porTenant.Add((cliente, medicion));
             }
         }
@@ -320,12 +354,38 @@ public class ObtenerCuadroDireccionQueryHandler(
                 new CifraMensual(solicitudes.Count, estado), DefinicionesCuadroDireccion.PorFranja(solicitudes)),
             Cumplimiento: new CumplimientoActualDto(
                 vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad, paresExigidos,
-                porcentaje, sinDatos, ahoraUtc),
+                porcentaje, sinDatos, ahoraUtc,
+                SumarExigido(mediciones.Select(m => m.CumplimientoExigido))),
             Gestiones: mediciones.Count > 0 && mediciones.All(m => m.GestionesCompletadas is not null)
                 ? new CifraMensual(mediciones.Sum(m => m.GestionesCompletadas!.Value), estado)
                 : null,
             Extranjeros: mediciones.Count > 0 && mediciones.All(m => m.ExtranjerosActivos is not null)
                 ? new CifraMensual(mediciones.Sum(m => m.ExtranjerosActivos!.Value), estado)
+                : null,
+            ObrasNuevas: mediciones.Count > 0 && mediciones.All(m => m.ObrasNuevas is not null)
+                ? new CifraMensual(mediciones.Sum(m => m.ObrasNuevas!.Value), estado)
+                : null,
+            CentrosNuevosPorCliente: mediciones.Count > 0 && mediciones.All(m => m.CentrosNuevosPorCliente is not null)
+                ? SumarCentrosNuevosPorCliente(mediciones.SelectMany(m => m.CentrosNuevosPorCliente!))
                 : null);
     }
+
+    /// <summary>
+    /// El cumplimiento en contexto Empresa de un conjunto de Tenants: la fracción de los pares sumados, nunca la media de
+    /// porcentajes. Null si alguna medición no lo trae (la serie mensual no lo reconstruye).
+    /// </summary>
+    public static FraccionCumplimiento? SumarExigido(IEnumerable<FraccionCumplimiento?> fracciones)
+    {
+        var lista = fracciones.ToList();
+        return lista.Count > 0 && lista.All(f => f is not null) ? FraccionCumplimiento.Sumar(lista.Select(f => f!)) : null;
+    }
+    /// <summary>Suma por Tenant y Cliente empresarial, de más Centros nuevos a menos.</summary>
+    public static IReadOnlyList<CentrosNuevosPorClienteDto> SumarCentrosNuevosPorCliente(IEnumerable<CentrosNuevosPorClienteDto> filas) =>
+        filas
+            .GroupBy(f => (f.TenantId, f.ClienteEmpresarialId))
+            .Select(g => new CentrosNuevosPorClienteDto(g.Key.TenantId, g.Key.ClienteEmpresarialId, g.First().ClienteNombre, g.Sum(f => f.Centros)))
+            .Where(f => f.Centros > 0)
+            .OrderByDescending(f => f.Centros)
+            .ThenBy(f => f.ClienteNombre, StringComparer.CurrentCulture)
+            .ToList();
 }

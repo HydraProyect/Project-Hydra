@@ -1,0 +1,42 @@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosListaConversaciones> Textos
+@inject IStringLocalizer<TextosEstadosConversacion> Estados
+@inject IStringLocalizer<TextosPlazosConversacion> Prioridades
+
+<div class="tabla-conversaciones" role="table" aria-label="@Textos["TodasConversaciones"]">
+    <div class="tabla-conversaciones-fila tabla-conversaciones-cabecera" role="row">
+        <span role="columnheader">@Textos["Prioridad"]</span>
+        <span role="columnheader">@Textos["Conversacion"]</span>
+        <span role="columnheader">@Textos["Empresa"]</span>
+        <span role="columnheader">@Textos["Estado"]</span>
+        <span role="columnheader">@Textos["AsignadaA"]</span>
+    </div>
+    @foreach (var conversacion in Conversaciones)
+    {
+        <div class="tabla-conversaciones-fila @(conversacion.Id == EnfocadaId ? "fila-enfocada" : null)" role="row" @key="conversacion.Id">
+            <span role="cell" class="tabla-prioridad tabla-prioridad-@conversacion.Prioridad.ToString().ToLowerInvariant()">@Prioridades[conversacion.Prioridad.ToString()]</span>
+            <div role="cell" class="tabla-conversaciones-asunto">
+                <button type="button" @onclick="() => OnAbrir.InvokeAsync(conversacion.Id)">@conversacion.Asunto</button>
+                <span class="tabla-conversaciones-remitente">@conversacion.RemitentePrincipal · @conversacion.FechaUltimoMensajeUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
+                <span class="tabla-conversaciones-canal"><Icono Nombre="@(conversacion.Canal == CanalConversacion.WhatsApp ? "chat" : "correo")" Tamano="TamanoIcono.Pequeno" />@(conversacion.Canal == CanalConversacion.WhatsApp ? "WhatsApp" : Textos["Correo"].Value)</span>
+            </div>
+            <span role="cell">@(conversacion.ClienteRazonSocial ?? Textos["SinEmpresa"].Value)</span>
+            <span role="cell"><Badge Tono="EstadoConversacionPresentacion.Tono(conversacion.Estado)" Tamano="TamanoBadge.Pequeno">@EstadoConversacionPresentacion.Etiqueta(Estados, conversacion.Estado)</Badge></span>
+            <span role="cell">@NombreAsignado(conversacion.EjecutivoAsignadoId)</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<ConversacionListaDto> Conversaciones { get; set; } = [];
+    [Parameter] public IReadOnlyDictionary<Guid, string> NombresAsignados { get; set; } = new Dictionary<Guid, string>();
+    [Parameter] public Guid? EnfocadaId { get; set; }
+    [Parameter] public EventCallback<Guid> OnAbrir { get; set; }
+
+    private string NombreAsignado(Guid? usuarioId) => usuarioId is { } id
+        ? NombresAsignados.GetValueOrDefault(id, Textos["Asignada"].Value)
+        : Textos["SinAsignar"].Value;
+}

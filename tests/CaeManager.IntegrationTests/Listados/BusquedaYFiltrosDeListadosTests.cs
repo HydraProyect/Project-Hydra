@@ -8,6 +8,7 @@ using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -61,6 +62,15 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
         _empresaNorteId = empresaNorte.Id;
         _empresaSurId = empresaSur.Id;
+
+        // «Contratada por»: la gestionada la contrata el Norte; la supervisada, el Sur (y el Norte con la relación ya cerrada).
+        var relacionCerrada = RelacionEmpresarial.Crear(supervisada.Id, empresaNorte.Id, DateTime.UtcNow.AddMonths(-6));
+        relacionCerrada.Cerrar(DateTime.UtcNow.AddMonths(-1));
+        contexto.RelacionesEmpresariales.AddRange(
+            RelacionEmpresarial.Crear(gestionada.Id, empresaNorte.Id, DateTime.UtcNow.AddMonths(-3)),
+            RelacionEmpresarial.Crear(supervisada.Id, empresaSur.Id, DateTime.UtcNow.AddMonths(-3)),
+            relacionCerrada);
+        await contexto.SaveChangesAsync();
 
         // Una Empresa cuyo único Centro está dado de baja: no debe salir entre las opciones del filtro.
         var empresaEste = new Empresa("Obras Este S.L.", "B10380210");
@@ -158,7 +168,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
     public async Task Subcontratas_filtra_por_nivel_de_servicio(NivelServicioSubcontrata nivel, string esperada)
     {
         var filtradas = await ObtenerSubcontratasAsync(nivel);
-        var todas = await ObtenerSubcontratasAsync(null);
+        var todas = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null));
 
         filtradas.Should().Equal(esperada);
         todas.Should().BeEquivalentTo("Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.");
@@ -238,14 +248,75 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         return resultado.Select(e => e.RazonSocial).ToList();
     }
 
-    private async Task<IReadOnlyList<string>> ObtenerSubcontratasAsync(NivelServicioSubcontrata? nivel)
+    [Fact]
+    public async Task Subcontratas_filtra_por_Empresa_contratante_con_relacion_vigente()
+    {
+        var delNorte = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaNorteId));
+        var delSur = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaSurId));
+
+        delNorte.Should().Equal("Subcontrata Gestionada S.L."); // la relación del Norte con la supervisada está cerrada
+        delSur.Should().Equal("Subcontrata Supervisada S.L.");
+    }
+
+    [Theory]
+    [InlineData("ContratadaPor", false, "Subcontrata Supervisada S.L.", "Subcontrata Gestionada S.L.")]
+    [InlineData("ContratadaPor", true, "Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.")]
+    [InlineData("NivelServicio", false, "Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.")]
+    [InlineData("NivelServicio", true, "Subcontrata Supervisada S.L.", "Subcontrata Gestionada S.L.")]
+    [InlineData("CumplimientoPorcentaje", false, "Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.")]
+    [InlineData("CumplimientoPorcentaje", true, "Subcontrata Gestionada S.L.", "Subcontrata Supervisada S.L.")]
+    public async Task Subcontratas_ordena_por_las_columnas_de_la_maqueta(string columna, bool descendente, string primera, string segunda)
+    {
+        // «Limpiezas Sur» ordena antes que «Montajes Norte»: por «Contratada por» la supervisada va primero. Sin cumplimiento
+        // (ningún requisito exigido) las dos van al final y conservan el orden por razón social.
+        var orden = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, OrdenarPor: columna, Descendente: descendente));
+
+        orden.Should().Equal(primera, segunda);
+    }
+
+    [Fact]
+    public async Task Filtrar_por_Contratada_por_no_revela_Empresas_fuera_del_alcance_de_visibilidad()
+    {
+        await using var contexto = CrearContexto();
+        var alcance = new AlcanceDatosServiceFalso(empresaIds: [_empresaSurId]);
+        var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
+
+        var delNorte = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaNorteId), CancellationToken.None);
+        var delSur = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaSurId), CancellationToken.None);
+
+        delNorte.Elementos.Should().BeEmpty("el Norte no está en el alcance de Empresas de quien consulta");
+        delSur.Elementos.Select(s => s.RazonSocial).Should().Equal("Subcontrata Supervisada S.L.");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Subcontratas_sin_contratante_van_al_final_al_ordenar_por_Contratada_por_en_los_dos_sentidos(bool descendente)
+    {
+        await using (var contexto = CrearContexto())
+        {
+            contexto.Empresas.Add(Empresa.CrearComoSubcontrata("Subcontrata Sin Contratante S.L.", "B10380277", NivelServicioSubcontrata.Gestionada.ToString()));
+            await contexto.SaveChangesAsync();
+        }
+
+        var orden = await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, OrdenarPor: "ContratadaPor", Descendente: descendente));
+
+        orden.Should().HaveCount(3);
+        orden.Last().Should().Be("Subcontrata Sin Contratante S.L.");
+    }
+
+    private async Task<IReadOnlyList<string>> ObtenerSubcontratasAsync(NivelServicioSubcontrata? nivel) =>
+        await ObtenerSubcontratasAsync(new ObtenerSubcontratasQuery(null, NivelServicio: nivel));
+
+    private async Task<IReadOnlyList<string>> ObtenerSubcontratasAsync(ObtenerSubcontratasQuery consulta)
     {
         await using var contexto = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
         var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
 
-        var resultado = await handler.Handle(new ObtenerSubcontratasQuery(null, NivelServicio: nivel), CancellationToken.None);
+        var resultado = await handler.Handle(consulta, CancellationToken.None);
         return resultado.Elementos.Select(s => s.RazonSocial).ToList();
     }
 

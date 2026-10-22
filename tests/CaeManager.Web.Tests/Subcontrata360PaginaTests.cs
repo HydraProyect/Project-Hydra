@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Layout;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConCumplimientoDeSubcontrata;
 using AngleSharp.Dom;
@@ -7,7 +8,10 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Subcontratas.Commands.ActualizarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.RestaurarVerificacionExterna;
+using Microsoft.AspNetCore.Components.Forms;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
@@ -92,6 +96,7 @@ public class Subcontrata360PaginaTests : BunitContext
         public bool DobleFactor { get; set; } = true;
         public bool FallaElCumplimiento { get; set; }
         public bool FallaGestion { get; set; }
+        public bool FallaLaSupervision { get; set; }
         public List<DocumentoListaDto> DocumentosGestion { get; } = [];
         public List<TipoDocumentoListaDto> TiposCatalogo { get; } = [];
         public Dictionary<Guid, Task<ResultadoPaginado<DocumentoListaDto>>> GestionPendiente { get; } = [];
@@ -110,6 +115,7 @@ public class Subcontrata360PaginaTests : BunitContext
             if (request is ObtenerDocumentosQuery q && q.PropietarioId is { } propietario && GestionPendiente.TryGetValue(propietario, out var pendiente))
                 return (TResponse)(object)await pendiente;
             if (request is ObtenerDocumentosQuery && FallaGestion) throw new InvalidOperationException("fallo de lectura");
+            if (request is ObtenerSupervisionSubcontrataQuery && FallaLaSupervision) throw new InvalidOperationException("fallo de lectura de la supervisión");
             if (request is CambiarNivelServicioSubcontrataCommand nivel && Detalle is not null)
                 Detalle = Detalle with { NivelServicio = nivel.NivelServicio };
             if (FallaElCumplimiento && request is ObtenerCumplimientoSubcontrataQuery)
@@ -140,7 +146,8 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or RestaurarSubcontrataCommand
-                or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand => Result.Exito(),
+                or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand
+                or ActualizarVerificacionExternaSubcontrataCommand or RestaurarVerificacionExternaSubcontrataCommand => Result.Exito(),
             GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -180,22 +187,22 @@ public class Subcontrata360PaginaTests : BunitContext
     }
 
     [Fact]
-    public void Sin_cajas_reales_no_hay_Ficha_ni_texto_de_cadena_y_se_conservan_las_seis_pestanas()
+    public void La_Ficha_existe_siempre_con_la_cadena_y_se_conservan_las_ocho_pestanas_de_Supervisada()
     {
         Montar();
         var cut = Renderizar();
-        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Supervisión|Centros|Vehículos|Agenda|Historial)").Value)
-            .Should().Equal("Trabajadores", "Supervisión", "Centros", "Vehículos", "Agenda", "Historial");
+        cut.FindAll("[role=tab]").Select(t => System.Text.RegularExpressions.Regex.Match(t.TextContent.Trim(), "^(Trabajadores|Documentación|Plataformas|Centros|Vehículos|Agenda|Ficha|Historial)").Value)
+            .Should().Equal("Trabajadores", "Documentación", "Plataformas", "Centros", "Vehículos", "Agenda", "Ficha", "Historial");
         cut.Markup.Should().NotContain("Cadena de subcontratación");
     }
 
     [Fact]
-    public void La_URL_ficha_sin_cajas_reales_abre_Trabajadores_sin_placeholder()
+    public void La_URL_ficha_abre_la_Ficha_con_la_caja_de_cadena()
     {
         Montar();
         var cut = Renderizar("?pestana=ficha");
-        cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Trabajadores");
-        cut.FindAll("[data-pieza=cajas-ficha]").Should().BeEmpty();
+        cut.FindAll("[role=tab][aria-selected=true]").Should().ContainSingle().Which.TextContent.Should().StartWith("Ficha");
+        cut.Markup.Should().Contain("Cadena de subcontratación");
     }
 
     [Fact]
@@ -287,6 +294,10 @@ public class Subcontrata360PaginaTests : BunitContext
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
+    /// <summary>Plataformas arranca con «Solo incidencias»; los tests de lista completa eligen «Todo».</summary>
+    private static void MostrarTodoPlataformas(IRenderedComponent<SubcontrataDetalle> cut) =>
+        cut.FindAll("button.subcontrata360-filtro")[1].Click();
+
     private static IElement Boton(IRenderedComponent<SubcontrataDetalle> cut, string texto) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == texto);
 
@@ -331,11 +342,13 @@ public class Subcontrata360PaginaTests : BunitContext
     [Fact]
     public void Una_subcontrata_que_no_existe_o_esta_fuera_del_alcance_se_ve_igual_y_no_pide_nada_mas()
     {
+        ComponentFactories.AddStub<FichaNoEncontrada>();
         var mediador = Montar(ajustar: m => m.Detalle = null);
 
         var cut = Renderizar();
 
-        cut.Markup.Should().Contain("No encontramos esta subcontrata");
+        cut.RutaListaDeFichaNoEncontrada().Should().Be("/subcontratas");
+        cut.Markup.Should().NotContain("Reintentar");
         cut.FindAll("[data-pieza=cabecera-identidad]").Should().BeEmpty();
         mediador.Enviadas.Should().NotContain(p => p is ObtenerTrabajadoresDocumentacionPorSubcontrataQuery
             || p is ObtenerSupervisionSubcontrataQuery || p is ObtenerCredencialAccesoSubcontrataQuery
@@ -688,11 +701,20 @@ public class Subcontrata360PaginaTests : BunitContext
         });
         var cut = Renderizar($"?pestana={pesta}");
         var gestionada = nivel == NivelServicioSubcontrata.Gestionada;
-        var tab = cut.FindAll("[role=tab]")[1];
-        tab.TextContent.Should().StartWith(gestionada ? "Gestión" : "Supervisión");
-        tab.TextContent.Should().Contain(gestionada ? "documentos con problema en la gestión" : "documentos con problema en la supervisión");
-        tab.TextContent.Should().Contain("1");
-        cut.FindAll("[role=tab]").Should().HaveCount(6);
+        // Supervisada: «supervision» enlaza Plataformas (índice 2); «gestion» sigue en Documentación (índice 1), sin contenido.
+        var documentacion = !gestionada && pesta == "gestion";
+        var tab = cut.FindAll("[role=tab]")[gestionada || documentacion ? 1 : 2];
+        if (documentacion)
+        {
+            tab.TextContent.Should().StartWith("Documentación");
+        }
+        else
+        {
+            tab.TextContent.Should().StartWith(gestionada ? "Gestión" : "Plataformas");
+            tab.TextContent.Should().Contain(gestionada ? "documentos con problema en la gestión" : "documentos con problema en la supervisión");
+            tab.TextContent.Should().Contain("1");
+        }
+        cut.FindAll("[role=tab]").Should().HaveCount(gestionada ? 7 : 8);
         tab.GetAttribute("aria-selected").Should().Be("true");
         cut.Find(".pestanas-boton-activa").TextContent.Should().Be(tab.TextContent);
         if (gestionada)
@@ -711,10 +733,74 @@ public class Subcontrata360PaginaTests : BunitContext
         }
         else
         {
-            cut.Markup.Should().Contain("Supervisada: la subcontrata sube su documentación a la plataforma del titular del Centro");
+            if (!documentacion) cut.Markup.Should().Contain("Cumplimiento de la subcontrata en las plataformas del titular de cada centro");
             cut.Markup.Should().NotContain("RNT gestionado");
             m.Enviadas.OfType<ObtenerDocumentosQuery>().Should().BeEmpty();
         }
+    }
+
+    [Fact]
+    public async Task Plataformas_muestra_solo_incidencias_por_defecto_y_el_filtro_Todo_enseña_el_resto()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+        var chips = cut.FindAll("section[aria-label=Plataformas] button.subcontrata360-filtro");
+        chips.Select(c => c.TextContent.Trim()).Should().Equal("Solo incidencias · 1", "Todo · 2");
+        chips[0].GetAttribute("aria-pressed").Should().Be("true");
+        cut.Markup.Should().Contain("Formación Art. 19").And.NotContain("Aptitud médica");
+
+        await chips[1].ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.Markup.Should().Contain("Formación Art. 19").And.Contain("Aptitud médica");
+        cut.FindAll("button.subcontrata360-filtro")[1].GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    [Fact]
+    public void Plataformas_cabecera_de_grupo_pone_Cliente_antes_del_Centro_y_enlaza_a_su_Centro_360()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+
+        var grupo = cut.Find("li.subcontrata360-grupo");
+        // Orden de la maqueta: «Cliente ›» y debajo el Centro.
+        grupo.Children[0].TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›Almacén Vigo");
+        grupo.QuerySelector(".subcontrata360-grupo-cliente")!.TextContent.Trim().Should().Be("Cyberdyne Ibérica S.A. ›");
+        grupo.QuerySelector("strong")!.TextContent.Trim().Should().Be("Almacén Vigo");
+
+        var enlace = grupo.QuerySelector("a")!;
+        enlace.GetAttribute("href").Should().Be($"/centros/{CentroId}");
+        enlace.TextContent.Trim().Should().Be("Ir al Centro 360");
+        // El nombre accesible empieza por el texto visible y dice de qué Centro habla.
+        enlace.GetAttribute("aria-label").Should().Be("Ir al Centro 360 de Almacén Vigo");
+    }
+
+    [Fact]
+    public void Plataformas_sin_incidencias_muestra_el_estado_vacio_con_el_filtro_en_cero()
+    {
+        Montar(ajustar: m => m.Supervision = new SupervisionSubcontrataDto(
+            [
+                new SupervisionCentroDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.",
+                [
+                    new SupervisionTipoDto(Guid.NewGuid(), "Aptitud médica", Exigido: true, EstadoSupervision.Vigente,
+                        new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png")),
+                ])
+            ],
+            [new CentroSeleccionableDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.")]));
+        var cut = Renderizar("?pestana=supervision");
+
+        cut.FindAll("section[aria-label=Plataformas] button.subcontrata360-filtro").Select(c => c.TextContent.Trim())
+            .Should().Equal("Solo incidencias · 0", "Todo · 1");
+        cut.Markup.Should().Contain("Sin incidencias en plataformas").And.NotContain("Aptitud médica");
+    }
+
+    [Fact]
+    public void En_Supervisada_Documentacion_va_antes_que_Plataformas_y_solo_esta_lleva_el_recuento_de_incidencias()
+    {
+        Montar();
+        var cut = Renderizar();
+        var tabs = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
+        tabs[1].Should().StartWith("Documentación").And.NotContain("1");
+        tabs[2].Should().StartWith("Plataformas1");
     }
 
     [Fact]
@@ -734,7 +820,7 @@ public class Subcontrata360PaginaTests : BunitContext
         await cut.InvokeAsync(() => workspace.AbrirAsync(EntidadWorkspace.Subcontrata, SubcontrataId, "Transportes", "informacion"));
         m.Detalle = m.Detalle with { NivelServicio = NivelServicioSubcontrata.Supervisada };
         await cut.InvokeAsync(workspace.CerrarAsync);
-        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Supervisión"));
+        cut.WaitForAssertion(() => cut.Find(".pestanas-boton-activa").TextContent.Should().StartWith("Plataformas"));
         cut.FindAll("[data-gestion-documental]").Should().BeEmpty();
     }
 
@@ -804,6 +890,7 @@ public class Subcontrata360PaginaTests : BunitContext
         Montar();
 
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
         var filas = cut.FindAll(".fila-relacion");
@@ -817,8 +904,8 @@ public class Subcontrata360PaginaTests : BunitContext
 
     /// <summary>
     /// Regla 8 de LEEME-AUTORIDAD (Chris, 2026-10-18): «Gestionar» en una fila de supervisión no registra nada con un clic: abre
-    /// el formulario «Registrar verificación externa» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
-    /// se registra al confirmar con «Registrar»; cancelar no deja rastro.
+    /// el formulario «Registrar verificación» con el Centro y el tipo de la fila ya elegidos, y la verificación solo
+    /// se registra al confirmar con «Guardar verificación»; cancelar no deja rastro.
     /// </summary>
     [Fact]
     public async Task Gestionar_en_una_fila_de_supervision_abre_el_formulario_y_solo_registra_al_confirmar()
@@ -840,12 +927,22 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
         mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "un clic solo abre el formulario");
 
-        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Registrar").ClickAsync(new MouseEventArgs());
+        // Sin evidencia no se guarda (Flujos 09): el error sale en el campo y no se envía nada.
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Adjunta la captura o el PDF del registro.");
+        mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "la evidencia es obligatoria");
+
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1, 2, 3], "rea.pdf", contentType: "application/pdf"));
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().NotContain("Adjunta la captura o el PDF del registro."));
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
 
         var comando = mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.EvidenciaNombreArchivo.Should().Be("rea.pdf");
         comando.SubcontrataId.Should().Be(SubcontrataId);
         comando.CentroId.Should().Be(CentroId, "el Centro de la fila llega elegido");
         comando.TipoDocumentoId.Should().Be(tipo.Id, "el tipo de la fila llega elegido");
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .Contain(t => t.Mensaje == "Verificación de «Formación Art. 19» guardada.", "el aviso nombra el tipo verificado (Flujos 09)");
     }
 
     [Fact]
@@ -864,9 +961,10 @@ public class Subcontrata360PaginaTests : BunitContext
         var mediador = Montar();
         var verificacion = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!.Id;
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         cut.Find(".fila-relacion .menu-acciones-disparador").Click();
-        cut.Find(".fila-relacion .menu-acciones-item").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
 
         mediador.Enviadas.Should().NotContain(p => p is EliminarVerificacionExternaSubcontrataCommand, "eliminar pregunta antes");
         cut.FindAll("button").Last(b => b.ClassList.Any(c => c.Contains("destructivo"))).Click();
@@ -875,12 +973,147 @@ public class Subcontrata360PaginaTests : BunitContext
             .Which.Id.Should().Be(verificacion));
     }
 
+    // ── Flujos 09 (paquete del 20-10): verificación externa ──────────────
+
+    private static SupervisionSubcontrataDto SupervisionSinVerificaciones() =>
+        new([], [new CentroSeleccionableDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.")]);
+
+    [Fact]
+    public void Sin_verificaciones_la_lista_dice_quien_las_hace_segun_el_nivel_y_ofrece_anadir()
+    {
+        Montar(ajustar: m => m.Supervision = SupervisionSinVerificaciones());
+
+        var cut = Renderizar("?pestana=supervision");
+
+        var vacio = cut.Find("section[aria-label=Plataformas]").TextContent;
+        vacio.Should().Contain("Sin verificaciones externas")
+            .And.Contain("Con nivel Gestionada, TALVEG las hace por la Empresa; con Supervisada, las registra el Gestor CAE.");
+        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().Contain("Registrar verificación");
+    }
+
+    [Fact]
+    public void En_Consulta_la_lista_sin_verificaciones_no_ofrece_anadir()
+    {
+        Montar(Roles.Consulta, m => m.Supervision = SupervisionSinVerificaciones());
+
+        var cut = Renderizar("?pestana=supervision");
+
+        cut.Find("section[aria-label=Plataformas]").TextContent.Should().Contain("Sin verificaciones externas");
+        cut.FindAll("section[aria-label=Plataformas] button").Select(b => b.TextContent.Trim()).Should().NotContain("Registrar verificación");
+    }
+
+    [Fact]
+    public void Si_falla_la_lectura_de_verificaciones_el_error_no_se_disfraza_de_vacio_y_ofrece_reintentar()
+    {
+        Montar(ajustar: m => m.FallaLaSupervision = true);
+
+        var cut = Renderizar("?pestana=supervision");
+
+        var seccion = cut.Find("section[aria-label=Plataformas]").TextContent;
+        seccion.Should().Contain("No se han podido cargar las verificaciones.").And.Contain("Reintentar");
+        seccion.Should().NotContain("Sin verificaciones externas");
+    }
+
+    [Fact]
+    public async Task El_formulario_de_verificacion_se_titula_Anadir_con_la_Subcontrata_y_su_identificacion_y_guarda_con_Guardar()
+    {
+        Montar();
+        var cut = Renderizar("?pestana=supervision");
+
+        await cut.FindAll(".cabecera-identidad-acciones button").Single(b => b.TextContent.Trim() == "Registrar verificación").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
+        var panel = cut.Find(".drawer-panel");
+        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Registrar verificación");
+        panel.TextContent.Should().Contain("Transportes Terminator S.L. · B70005204")
+            .And.Contain("Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Obligatoria.");
+        cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Guardar verificación").And.NotContain("Registrar");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_verificacion_nombra_el_tipo_en_la_pregunta_y_en_el_aviso()
+    {
+        var mediador = Montar();
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
+
+        var dialogo = cut.Find("[role=dialog]").TextContent;
+        dialogo.Should().Contain("¿Eliminar la verificación de «Aptitud médica»?")
+            .And.Contain("El semáforo volverá a calcularse con la verificación anterior, si la hay.");
+        await cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar verificación").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle());
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .Contain(t => t.Mensaje == "Verificación de «Aptitud médica» eliminada.");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_verificacion_ofrece_Deshacer_que_la_restaura()
+    {
+        var mediador = Montar();
+        var verificacion = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!.Id;
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
+        await cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar verificación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Which.Id.Should().Be(verificacion);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Verificación de «Aptitud médica» recuperada.");
+    }
+
+    [Fact]
+    public async Task Editar_una_verificacion_abre_el_formulario_con_sus_valores_y_guarda_con_la_evidencia_que_ya_tenia()
+    {
+        var mediador = Montar();
+        var anterior = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!;
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Editar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
+        var panel = cut.Find(".drawer-panel");
+        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Verificación externa");
+        panel.TextContent.Should().Contain("Aptitud médica").And.Contain("Evidencia actual: captura.png");
+        panel.QuerySelectorAll("select").Where(s => s.HasAttribute("disabled")).Should().HaveCount(2, "el Centro y el tipo no se cambian al editar");
+        cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Eliminar verificación");
+
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.Id.Should().Be(anterior.Id);
+        comando.EvidenciaContenido.Should().BeNull("sin archivo nuevo se conserva la evidencia");
+        mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "editar no crea otra verificación");
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+        mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().HaveCount(2);
+        var deshecho = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Last();
+        deshecho.FechaVerificacion.Should().Be(anterior.FechaVerificacion);
+        deshecho.Resultado.Should().Be(anterior.Resultado);
+        deshecho.ValidoHasta.Should().Be(anterior.ValidoHasta, "Deshacer devuelve también la validez declarada");
+        deshecho.Observaciones.Should().Be(anterior.Observaciones);
+    }
+
     [Fact]
     public void En_Consulta_la_supervision_no_ofrece_verificar_ni_eliminar()
     {
         Montar(Roles.Consulta);
 
         var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
 
         NombresDeFila(cut).Should().Equal("Formación Art. 19", "Aptitud médica");
         cut.FindAll(".fila-relacion button").Should().BeEmpty();
@@ -918,7 +1151,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var tarjeta = TarjetaNota(cut);
         tarjeta.Should().NotBeNull();
         tarjeta!.QuerySelector(".tarjeta-titulo")!.TextContent.Trim().Should().Be("Nota interna");
-        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el cliente.");
+        tarjeta.TextContent.Should().Contain(NotaGuardada).And.Contain("No la ve el Cliente.");
         tarjeta.TextContent.Should().NotContain("Sin nota interna.");
         cut.Find(".cuerpo-con-lateral-lateral").LastElementChild!.GetAttribute("data-pieza")
             .Should().Be("nota-interna", "la nota cierra el lateral, tras «Información» y «Acceso al portal»");
@@ -931,7 +1164,7 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var cut = Renderizar();
 
-        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el cliente.");
+        TarjetaNota(cut)!.TextContent.Should().Contain("Sin nota interna.").And.Contain("No la ve el Cliente.");
     }
 
     /// <summary>
@@ -946,7 +1179,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var cut = Renderizar();
 
         TarjetaNota(cut).Should().BeNull();
-        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el cliente.");
+        cut.Markup.Should().NotContain("Nota interna").And.NotContain("No la ve el Cliente.");
     }
 
     [Fact]

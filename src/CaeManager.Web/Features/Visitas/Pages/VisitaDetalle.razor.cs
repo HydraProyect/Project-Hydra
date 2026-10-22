@@ -51,6 +51,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     internal const string PestanaPaquete = "paquete";
     internal const string PestanaAviso = "aviso";
     internal const string PestanaFicha = "ficha";
+    internal const string PestanaHistorial = "historial";
 
     [Parameter] public Guid VisitaId { get; set; }
 
@@ -64,6 +65,11 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     private DetalleVisitaDto? _detalle;
     private bool _cargando = true;
     private bool _error;
+    /// <summary>
+    /// La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; es el mismo estado, § 4.5).
+    /// No es un fallo transitorio, así que no lleva «Reintentar»: lo pinta <c>FichaNoEncontrada</c>.
+    /// </summary>
+    private bool _noEncontrada;
     private DrawerGestionDocumento? _drawerGestion;
 
     private Task CorregirDocumentoAsync(DocumentoVisitaItemDto item) =>
@@ -129,6 +135,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         return recomendacion.Tipo switch
         {
             TipoRecomendacionVisita.DocumentacionPendiente => Textos["RecomendacionDocumentacionPendiente", recomendacion.Sujeto, tipos],
+            TipoRecomendacionVisita.DocumentacionVencida => Textos["RecomendacionDocumentacionVencida", recomendacion.Sujeto, tipos],
             TipoRecomendacionVisita.VenceAntesDeLaEntrada => Textos["RecomendacionVenceAntesDeLaEntrada", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.VencidoEnTolerancia => Textos["RecomendacionVencidoEnTolerancia", recomendacion.Sujeto, tipos, fecha],
             TipoRecomendacionVisita.YaVencido => Textos["RecomendacionYaVencido", recomendacion.Sujeto, tipos, fecha],
@@ -207,7 +214,11 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// enseñar: una pestaña vacía no se pinta.
     /// </summary>
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
-        HayAntelacion ? [.. PestanasDeLaRama, new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : PestanasDeLaRama;
+    [
+        .. PestanasDeLaRama,
+        .. HayAntelacion ? [new PestanaDefinicion(PestanaFicha, Comunes["PestanaFicha"])] : Array.Empty<PestanaDefinicion>(),
+        new PestanaDefinicion(PestanaHistorial, Textos["Visita360PestanaHistorial"])
+    ];
 
     private IReadOnlyList<PestanaDefinicion> PestanasDeLaRama
     {
@@ -254,6 +265,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
         ++_cargaDocumentacion;
         _cargando = true;
         _error = false;
+        _noEncontrada = false;
         _detalle = null;
         _documentacion = null;
         _errorDocumentacion = false;
@@ -276,7 +288,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             // no revela si la Visita existe en otra organización.
             if (detalle is null)
             {
-                _error = true;
+                _noEncontrada = true;
                 return;
             }
 
@@ -757,7 +769,11 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Maqueta «Flujos 06 Visitas», «Éxito · gestionada»: el aviso ofrece Deshacer, que quita la marca.
+                // La página reutiliza la instancia al cambiar de Visita: Deshacer solo actúa sobre la misma.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -780,7 +796,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Regla del 2026-09-29 (toda pérdida de edición pregunta): un diálogo de confirmación con
-    /// un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo
+    /// un «Motivo» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo
     /// abierto, y un motivo en blanco no es nada escrito.
     /// </summary>
     private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>

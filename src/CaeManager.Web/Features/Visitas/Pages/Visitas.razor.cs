@@ -35,31 +35,30 @@ using CaeManager.Web.Components.Workspace;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
-using Microsoft.AspNetCore.Components.QuickGrid;
 
 namespace CaeManager.Web.Features.Visitas.Pages;
 
 public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 {
-    private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
+    private int _pagina;
+    private int _tamanoPagina = 20;
 
-    // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
 
-    private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
-    // H5 (Project-Hydra-Negocio/tecnico/docs/ux-audit/05-trabajadores-vehiculos.md): selector de tamaño de página, compartido por PaginadorSimple.razor.
-    // Una sola petición: SetCurrentPageIndexAsync ya avisa a QuickGrid aunque la
-    // página no cambie, así que refrescar además la rejilla pedía lo mismo dos
-    // veces (ver RecargarAsync).
-    private Task CambiarTamanoPaginaAsync(int tamano)
+    private async Task CambiarPaginaAsync(int pagina)
     {
-        _paginacion.ItemsPerPage = tamano;
-        return _paginacion.SetCurrentPageIndexAsync(0);
+        _pagina = pagina - 1;
+        await CargarListaAsync();
     }
 
-    private QuickGrid<VisitaListaDto>? _grid;
-
+    private Task CambiarTamanoPaginaAsync(int tamano)
+    {
+        _tamanoPagina = tamano;
+        return RecargarAsync();
+    }
     private string _busqueda = string.Empty;
     private bool _soloActivas = true;
     private bool _soloUrgentes;
@@ -267,10 +266,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         new(Textos["BadgeCancelada"], TonoBadge.Neutro, nameof(EstadoDocumentacionVisita.Cancelada)),
     ];
 
-    private GridItemsProvider<VisitaListaDto>? _proveedorElementos;
 
-    // Delegado estable — ver Clientes.razor.cs (bucle de recargas de QuickGrid).
-    protected override void OnInitialized() => _proveedorElementos = ProveerElementosAsync;
+
 
     /// <summary>
     /// Abre el drawer prellenado si se llegó desde el botón "Crear visita" de
@@ -290,8 +287,23 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// en el primer render — la URL como fuente de verdad de los filtros
     /// (P1-18 de Project-Hydra-Negocio/MATURITY_REVIEW.md).
     /// </summary>
-    protected override void OnParametersSet() =>
+    protected override async Task OnParametersSetAsync()
+    {
+        var vistaAnterior = VistaActual;
         FijarFiltros(TerminoBusquedaInicial, SoloActivasInicial, SoloUrgentesInicial, NotificadoInicial, OrdenInicial, EstadoInicial);
+        _clienteFiltro = ClienteInicial ?? string.Empty;
+        _empresaFiltro = EmpresaInicial ?? string.Empty;
+        _ventanaFiltro = NormalizarVentana(VentanaInicial);
+        _agruparPor = AgruparInicial == "cliente" ? "cliente" : null;
+        if (!_listaIniciada)
+        {
+            _listaIniciada = true;
+            await CargarListaAsync();
+            await CargarOpcionesDisenoAsync();
+        }
+        else if (vistaAnterior != VistaActual)
+            await RecargarAsync();
+    }
 
     /// <summary>
     /// ÚNICO sitio que valida y asigna los campos de vista: lo usan la URL (<see cref="OnParametersSet"/>) y
@@ -311,31 +323,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             SeleccionEstados.Separar<EstadoDocumentacionVisita>(estado).Select(e => e.ToString())) ?? string.Empty;
     }
 
-    /// <summary>
-    /// Proveedor del QuickGrid. Los filtros se capturan en la consulta ANTES
-    /// del await, y la respuesta solo escribe estado de la página si sigue
-    /// siendo la carga vigente: cambiar dos filtros seguidos lanza dos cargas,
-    /// y si la primera vuelve la última su total pisaba el del filtro actual
-    /// —el estado vacío «con estos filtros» desaparecía con la lista vacía—.
-    /// QuickGrid ya descarta los elementos de una carga superada (cancela su
-    /// token al empezar la siguiente); lo que no puede descartar son los
-    /// efectos que este método hace por su cuenta.
-    /// </summary>
-    private async ValueTask<GridItemsProviderResult<VisitaListaDto>> ProveerElementosAsync(
-        GridItemsProviderRequest<VisitaListaDto> request)
+    /// <summary>Consulta paginada en servidor; solo la última carga puede cambiar la lista y sus estados.</summary>
+    private async Task CargarListaAsync()
     {
-        if (_servirPaginaEnMemoria)
-        {
-            // Refresco de una fila tras guardar su edición (ver RefrescarFilaAsync).
-            _servirPaginaEnMemoria = false;
-            return GridItemsProviderResult.From(_elementosPagina.ToList(), _totalElementos);
-        }
-
         var carga = ++_cargaLista;
         _cargando = true;
         _errorCarga = false;
 
-        var (ordenarPor, descendente) = LecturaOrden.Leer(request);
+        var (ordenarPor, descendente) = (_ordenColumna, _ordenDescendente);
         // El orden de la URL manda sobre el de la cabecera: «por gestionar»
         // son los verdaderos (descendente).
         if (_orden == OrdenPorDocumentacion)
@@ -346,28 +341,33 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             SoloActivas: _soloActivas,
             NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
             SoloUrgentes: _soloUrgentes,
-            Pagina: (request.StartIndex / _paginacion.ItemsPerPage) + 1,
-            TamanoPagina: _paginacion.ItemsPerPage,
+            Pagina: _pagina + 1,
+            TamanoPagina: TamanoPedido,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
-            ConRecuentosPorEstado: true);
+            ConRecuentosPorEstado: true, AgruparPorCliente: _agruparPor == "cliente",
+            ClienteFiltro: _clienteFiltro, EmpresaFiltro: _empresaFiltro, VentanaDias: SeleccionFiltroVisitas.Ventana(_ventanaFiltro));
 
         try
         {
-            var resultado = await Mediator.Send(consulta, request.CancellationToken);
+            var resultado = await Mediator.Send(consulta);
             var elementos = resultado.Elementos.ToList();
 
             if (carga != _cargaLista)
-                return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
+                return;
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = elementos;
+            _preparaciones.Clear();
+            _preparacionCargando.Clear();
+            _preparacionErrores.Clear();
+            _versionesPreparacion.Clear();
+            _expandidas.Clear();
             _seleccionados.Clear();
             _idEnfocado = null;
-
-            return GridItemsProviderResult.From(elementos, resultado.TotalElementos);
+            return;
         }
         catch (Exception)
         {
@@ -375,7 +375,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             // de la carga vigente y no puede pintar «No pudimos cargar».
             if (carga == _cargaLista)
                 _errorCarga = true;
-            return GridItemsProviderResult.From(new List<VisitaListaDto>(), 0);
+            if (carga == _cargaLista) _elementosPagina = [];
         }
         finally
         {
@@ -418,6 +418,8 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private async Task OrdenarAsync(string valor)
     {
         _orden = valor == OrdenPorDocumentacion ? valor : string.Empty;
+        _ordenColumna = null;
+        _ordenDescendente = false;
         NavigationManager.ActualizarFiltroEnUrl("orden", _orden);
         await RecargarAsync();
     }
@@ -454,11 +456,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private bool HayFiltrosActivos =>
         !string.IsNullOrWhiteSpace(_busqueda) || _soloUrgentes
-        || !string.IsNullOrWhiteSpace(_filtroNotificado) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+        || !string.IsNullOrWhiteSpace(_filtroNotificado) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || _clienteFiltro.Length > 0 || _empresaFiltro.Length > 0 || _ventanaFiltro.Length > 0;
 
     private async Task LimpiarFiltrosAsync()
     {
         _busqueda = string.Empty;
+        _clienteFiltro = _empresaFiltro = _ventanaFiltro = string.Empty;
         _soloUrgentes = false;
         _filtroNotificado = string.Empty;
         _estadoFiltro = string.Empty;
@@ -471,6 +475,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         // el usuario (ver HayFiltrosActivos).
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
+            ["cliente"] = null,
+            ["empresa"] = null,
+            ["ventana"] = null,
             ["q"] = null,
             ["notificado"] = null,
             ["urgentes"] = null,
@@ -490,7 +497,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// Quedan fuera los de «Nueva visita» prellenada (<c>sugerenciaId</c>, <c>centroId</c>, <c>fechaInicio</c>,
     /// <c>fechaFin</c>): ni se guardan ni se tocan al aplicar una vista.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "activas", "urgentes", "notificado", "orden", "estado"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "activas", "urgentes", "notificado", "orden", "estado", "cliente", "empresa", "ventana", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -503,6 +510,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {
+        _clienteFiltro = vista.GetValueOrDefault("cliente") ?? string.Empty;
+        _empresaFiltro = vista.GetValueOrDefault("empresa") ?? string.Empty;
+        _ventanaFiltro = NormalizarVentana(vista.GetValueOrDefault("ventana"));
+        _agruparPor = vista.GetValueOrDefault("agrupar") == "cliente" ? "cliente" : null;
         FijarFiltros(
             vista.GetValueOrDefault("q"),
             bool.TryParse(vista.GetValueOrDefault("activas"), out var activas) ? activas : null,
@@ -512,6 +523,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             vista.GetValueOrDefault("estado"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
+            ["cliente"] = _clienteFiltro,
+            ["empresa"] = _empresaFiltro,
+            ["ventana"] = _ventanaFiltro,
+            ["agrupar"] = _agruparPor,
             ["q"] = _busqueda,
             ["activas"] = _soloActivas ? null : "false",
             ["urgentes"] = _soloUrgentes ? "true" : null,
@@ -528,19 +543,11 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         await CambiarSoloActivasAsync(false);
     }
 
-    /// <summary>
-    /// Vuelve a la página 1 y pide la lista UNA vez.
-    /// <see cref="PaginationState.SetCurrentPageIndexAsync"/> no lleva guarda de
-    /// igualdad: avisa a QuickGrid cambie o no la página, y QuickGrid recarga al
-    /// recibir el aviso. Llamar además a <c>RefreshDataAsync</c> pedía dos veces
-    /// lo mismo. Ver <c>Clientes.razor.cs</c> para el detalle del componente.
-    /// </summary>
+    /// <summary>Vuelve a la primera página y consulta una sola vez.</summary>
     private async Task RecargarAsync()
     {
-        if (_grid is not null && _paginacion.CurrentPageIndex == 0)
-            await _grid.RefreshDataAsync();
-        else
-            await _paginacion.SetCurrentPageIndexAsync(0);
+        _pagina = 0;
+        await CargarListaAsync();
 
         StateHasChanged();
     }
@@ -552,21 +559,13 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     // el cambio la saque del filtro activo o del orden, hasta la siguiente carga. El alta sí
     // recarga: la fila nueva no tiene sitio en la página que se está viendo.
 
-    /// <summary>
-    /// La siguiente petición de QuickGrid se sirve de <see cref="_elementosPagina"/> sin consultar:
-    /// QuickGrid solo repinta sus filas cuando su proveedor le entrega una página, y una carga
-    /// de verdad limpiaría la selección y la fila enfocada. El total no cambia, así que no hay
-    /// segunda petición (ver <see cref="RecargarAsync"/>).
-    /// </summary>
-    private bool _servirPaginaEnMemoria;
-
     /// <returns>
     /// <c>false</c> si la fila no se sustituyó (no está en la página, hay una carga en vuelo o la
     /// relectura falló): quien llama recarga la lista, que es lo que se hacía antes.
     /// </returns>
     private async Task<bool> RefrescarFilaAsync(Guid id)
     {
-        if (_grid is null || _cargando || !_elementosPagina.Any(e => e.Id == id))
+        if (_cargando || !_elementosPagina.Any(e => e.Id == id))
             return false;
 
         var carga = _cargaLista;
@@ -576,22 +575,21 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(
                 new ObtenerVisitasQuery(Busqueda: null, SoloActivas: false, NotificadoCliente: null, VisitaId: id));
             var indice = _elementosPagina.FindIndex(e => e.Id == id);
-            if (_grid is null || _cargando || carga != _cargaLista || indice < 0
+            if (_cargando || carga != _cargaLista || indice < 0
                 || resultado.Elementos.FirstOrDefault() is not { } actualizada)
                 return false;
 
             _elementosPagina[indice] = actualizada;
-            _servirPaginaEnMemoria = true;
-            await _grid.RefreshDataAsync();
+            _preparaciones.Remove(id);
+            _preparacionCargando.Remove(id);
+            _versionesPreparacion[id] = ++_versionPreparacion;
+            if (_expandidas.Contains(id)) await CargarPreparacionAsync(id);
+            StateHasChanged();
             return true;
         }
         catch (Exception)
         {
             return false;
-        }
-        finally
-        {
-            _servirPaginaEnMemoria = false;
         }
     }
 
@@ -1069,7 +1067,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Deshacer solo actúa si el panel sigue en la misma Visita: no quita la marca de otra.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception)
         {
@@ -1211,12 +1212,60 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (_trabajadorAQuitar is not { } trabajador)
             return;
 
+        var visitaId = _detalle?.Id ?? Guid.Empty;
+        // Versión que deja la baja del Trabajador: se lee del panel ya recargado y es la que Deshacer exige.
+        var versionTrasQuitar = Guid.Empty;
         await CambiarTrabajadoresAsync(
             detalle => new QuitarTrabajadorDeVisitaCommand(detalle.Id, trabajador.Id, detalle.Version),
-            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto]);
+            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto],
+            () => DeshacerQuitarTrabajadorAsync(visitaId, trabajador.Id, versionTrasQuitar));
+        if (_detalle is { } tras && tras.Id == visitaId)
+            versionTrasQuitar = tras.Version;
 
         _confirmarQuitarTrabajadorVisible = false;
         _trabajadorAQuitar = null;
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de quitar (maqueta «Flujos 06 Visitas», «Éxito · quitado»): vuelve a añadir al
+    /// Trabajador con la versión que dejó la baja (como el Deshacer de cancelar con el recibo): si alguien cambió la
+    /// Visita entretanto, el servidor lo rechaza y el aviso lo dice en vez de pisar ese cambio.
+    /// </summary>
+    private async Task DeshacerQuitarTrabajadorAsync(Guid visitaId, Guid trabajadorId, Guid versionTrasQuitar)
+    {
+        if (_cambiandoTrabajadores)
+            return;
+
+        if (visitaId == Guid.Empty || versionTrasQuitar == Guid.Empty)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+            return;
+        }
+
+        _cambiandoTrabajadores = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, versionTrasQuitar));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastTrabajadorDevuelto"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoTrabajadores = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == visitaId)
+            await AbrirDetalleAsync(visitaId, PestanaTrabajadores);
+
+        // El aviso llama desde fuera del ciclo de la página: sin esto el panel no se repinta con el Trabajador devuelto.
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -1224,7 +1273,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// la documentación y la versión de la Visita salen de lo guardado, no de lo que la pantalla
     /// creía tener. Tanto si sale bien como si falla (otra persona la cambió, se canceló).
     /// </summary>
-    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito)
+    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito, Func<Task>? deshacer = null)
     {
         if (_detalle is not { } detalle || _cambiandoTrabajadores)
             return;
@@ -1235,8 +1284,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(comando(detalle));
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
-            else
+            else if (deshacer is null)
                 ToastService.Mostrar(mensajeExito, TonoToast.Exito);
+            else
+                ToastService.Mostrar(mensajeExito, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, deshacer);
         }
         catch (Exception)
         {
@@ -1344,7 +1395,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (reactivar, cancelar
-    /// en lote) con un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
+    /// en lote) con un «Motivo» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
     /// también tras confirmar, el texto que quede en el campo ya no se puede perder) y un motivo en blanco no es nada escrito.
     /// </summary>
     private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>
@@ -1640,12 +1691,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1723,7 +1774,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// expone el clic de fila, así que lo atiende el módulo de atajos de lista, que pulsa el
     /// «nombre-abre-vista-rapida» de la fila (aquí, sus fechas).
     /// </summary>
-    private string ObtenerClaseFila(VisitaListaDto item) => item.Id == _idEnfocado ? "fila-pulsable fila-enfocada" : "fila-pulsable";
+    private string ObtenerClaseFila(VisitaListaDto item) =>
+        (item.Id == _idEnfocado ? "fila-pulsable fila-enfocada" : "fila-pulsable")
+        + (item.EstaCancelada || !item.CentroRequiereGestionCae ? string.Empty : EstadoDocumentoVisitaUi.TonoDeFila(EstadoDocumentalDe(item)) switch
+        {
+            TonoFila.Peligro => " visitas-fila-peligro",
+            TonoFila.Advertencia => " visitas-fila-advertencia",
+            _ => string.Empty
+        });
 
     [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
 
@@ -1745,7 +1803,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         if (tecla == "e")
         {
@@ -1758,14 +1818,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":
@@ -1799,6 +1859,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// </summary>
     private Dictionary<string, string?> CriteriosExportar => new()
     {
+        ["cliente"] = _clienteFiltro,
+        ["empresa"] = _empresaFiltro,
+        ["ventana"] = _ventanaFiltro,
+        ["agrupar"] = _agruparPor,
         ["q"] = _busqueda,
         ["activas"] = _soloActivas ? "true" : null,
         ["notificado"] = _filtroNotificado,

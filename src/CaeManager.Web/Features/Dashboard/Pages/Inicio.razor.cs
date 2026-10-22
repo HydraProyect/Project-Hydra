@@ -44,9 +44,11 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     [Inject] private IJSRuntime JsRuntime { get; set; } = default!;
 
     /// <summary>
-    /// Destino del aterrizaje del Gestor CAE de un Operador CAE externo (D-2 del
-    /// piloto Outbound): su trabajo vive en los Tenants propietarios que opera,
-    /// no en el Tenant de origen del Operador CAE.
+    /// La cola agregada de toda la cartera (Mi trabajo con más de un Tenant
+    /// autorizado). Ya no es un destino de aterrizaje: desde 2026-10-21 la
+    /// pantalla al entrar es Inicio para todos (antes D-2 llevaba aquí al Gestor
+    /// CAE de un Operador CAE externo tras iniciar sesión). Solo es la salida
+    /// «Ver todo en Mi trabajo» y la del Inicio de cartera.
     /// </summary>
     public const string RutaMiTrabajo = "/mi-trabajo";
 
@@ -69,6 +71,21 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     /// decir «Sin cartera asignada».
     /// </summary>
     private bool _carteraEnOtroTenant;
+
+    /// <summary>
+    /// El Context Workspace activo es el Tenant de origen del Operador CAE (su
+    /// propia organización). Con <see cref="_carteraEnOtroTenant"/>, Inicio no
+    /// dice «sin cartera»: enseña la cartera (<see cref="_empresasGestionadas"/>).
+    /// </summary>
+    private bool _activoEsOrigen;
+
+    /// <summary>
+    /// Empresas gestionadas con Asignación de Cartera de quien mira, fuera del
+    /// Tenant de origen y del activo: las filas del Inicio de cartera. Salen de la
+    /// visión de cartera (<see cref="ObtenerKpisGlobalesQuery"/>), calculada
+    /// Tenant a Tenant con su propio alcance y su RLS.
+    /// </summary>
+    private IReadOnlyList<ClienteRiesgoDto> _empresasGestionadas = [];
     private BandejaAgrupadaDto? _bandejaAgrupada;
 
     /// <summary>
@@ -173,9 +190,9 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
 
     /// <summary>
     /// Marca de un solo uso que añade el inicio de sesión
-    /// (<c>RedireccionLocal.DestinoTrasLogin</c>): solo con ella Inicio es el
-    /// aterrizaje tras autenticar y puede llevar a Mi trabajo (D-2). Una visita
-    /// por el menú (<c>/</c> sin marca) muestra siempre el dashboard.
+    /// (<c>RedireccionLocal.DestinoTrasLogin</c>). Desde 2026-10-21 no cambia lo
+    /// que se ve —la pantalla al entrar es Inicio para todos, ya no Mi trabajo
+    /// (D-2 retirado)—: Inicio solo la consume y la quita de la URL.
     /// </summary>
     [SupplyParameterFromQuery(Name = CaeManager.Web.Components.Account.RedireccionLocal.ParametroAterrizaje)]
     private string? Desde { get; set; }
@@ -232,7 +249,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     private async Task ResolverSaludoAsync(CancellationToken token)
     {
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var nombrePila = await PuertaAccesoDatos.EjecutarAsync(async () =>
+
+        // Primero el nombre que ya trae la sesión (TenantClaimsPrincipalFactory): no lee la base, así que no depende de la
+        // carrera con el resto del shell por el DbContext del circuito. La cuenta solo se relee para un ticket emitido antes
+        // de que existiera ese claim.
+        var nombreDelTicket = estadoAutenticacion.User.FindFirst(
+            CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto)?.Value;
+        var nombrePila = nombreDelTicket is { Length: > 0 } ? NombreDePila(nombreDelTicket) : await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await UserManager.GetUserAsync(estadoAutenticacion.User);
             // Identity.Name es el email de acceso (mismo dato que usa el enlace "Mi
@@ -242,9 +265,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             // caer en el email — "Buenos días, refri.gestorcae1@..." es peor que no
             // personalizar. Solo el nombre de pila, como en el mockup ("Buenos días,
             // Marta") — el nombre completo en un saludo de cabecera lee como un formulario.
-            return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto
-                ? nombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
-                : null;
+            return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto ? NombreDePila(nombreCompleto) : null;
         }, token);
 
         if (_desechado)
@@ -256,6 +277,9 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             StateHasChanged();
         }
     }
+
+    private static string? NombreDePila(string nombreCompleto) =>
+        nombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 
     private string Saludo => _nombrePila is { Length: > 0 }
         ? $"{SaludoBase}, {_nombrePila}"
@@ -295,7 +319,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         IReadOnlyList<ReclamacionSinRespuestaDto> sinRespuesta = [];
         var carteraEnOtroTenant = false;
         var activoEsOrigen = false;
-        var irAMiTrabajo = false;
+        IReadOnlyList<ClienteRiesgoDto> empresasGestionadas = [];
         var rutaVerTodoMiTrabajo = RutaBandeja;
 
         try
@@ -308,16 +332,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             var kpis = await Mediator.Send(new ObtenerKpisDashboardQuery(), token);
 
             if (kpis.SinCarteraAsignada && RolesMiTrabajo.Any(estadoAutenticacion.User.IsInRole))
-                (carteraEnOtroTenant, activoEsOrigen) = await ResolverCarteraEnOtroTenantAsync(token);
-
-            if (carteraEnOtroTenant && activoEsOrigen && _aterrizaTrasLogin)
             {
-                // D-2: el Gestor CAE (o Coordinador CAE) de un Operador CAE externo
-                // aterriza en Mi trabajo TRAS INICIAR SESIÓN (marca ?desde=login).
-                // Pulsar «Inicio» en el menú no lleva la marca: enseña el estado
-                // vacío con el enlace a Mi trabajo. Nada se publica: la pantalla se va.
-                irAMiTrabajo = true;
-                return;
+                // Decisión 2026-10-21: la pantalla al entrar es Inicio, también para el
+                // Gestor CAE (o Coordinador CAE) de un Operador CAE externo. Ya no se
+                // salta a Mi trabajo (D-2 retirado): en su propia organización, Inicio
+                // enseña la cartera que opera en vez de un «sin cartera» vacío.
+                (empresasGestionadas, activoEsOrigen) = await ResolverCarteraEnOtrosTenantsAsync(token);
+                carteraEnOtroTenant = empresasGestionadas.Count > 0;
             }
 
             if (!kpis.SinCarteraAsignada)
@@ -368,6 +389,8 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             _perfilVocabulario = perfilVocabulario;
             _kpis = kpis;
             _carteraEnOtroTenant = carteraEnOtroTenant;
+            _activoEsOrigen = activoEsOrigen;
+            _empresasGestionadas = empresasGestionadas;
             _bandejaAgrupada = bandeja;
             _rutaVerTodoMiTrabajo = rutaVerTodoMiTrabajo;
             _pendientePorPlataforma = plataformas;
@@ -391,31 +414,21 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         }
         finally
         {
-            // Fuera del catch a propósito: la navegación no puede acabar
-            // convertida en el estado de error de la pantalla. replace: Inicio
-            // no fue un paso propio que «Atrás» deba devolver — volver a él
-            // solo repetiría el salto.
+            // Fuera del catch a propósito: la limpieza de la URL no puede acabar
+            // convertida en el estado de error de la pantalla.
             if (EsVigente(carga))
             {
-                if (irAMiTrabajo)
-                {
-                    NavigationManager.NavigateTo(RutaMiTrabajo, replace: true);
-                }
-                else
-                {
-                    StateHasChanged();
+                StateHasChanged();
 
-                    // La marca es de un solo uso: ya decidido que no se va a Mi
-                    // trabajo, se quita de la URL para que recargar no repita el
-                    // aterrizaje. Solo en interactivo: durante el prerenderizado
-                    // no hay JS y la URL aún la necesita el circuito interactivo.
-                    if (_aterrizaTrasLogin && RendererInfo.IsInteractive)
-                    {
-                        // Antes del await: otra carga (Reintentar, cambio de Tenant)
-                        // no repite ni la limpieza ni la lógica D-2.
-                        _aterrizaTrasLogin = false;
-                        await QuitarMarcaDeLaUrlAsync(token);
-                    }
+                // La marca es de un solo uso: se quita de la URL. Solo en
+                // interactivo: durante el prerenderizado no hay JS y la URL aún la
+                // necesita el circuito interactivo.
+                if (_aterrizaTrasLogin && RendererInfo.IsInteractive)
+                {
+                    // Antes del await: otra carga (Reintentar, cambio de Tenant)
+                    // no repite la limpieza.
+                    _aterrizaTrasLogin = false;
+                    await QuitarMarcaDeLaUrlAsync(token);
                 }
             }
         }
@@ -455,20 +468,20 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     }
 
     /// <summary>
-    /// Si el usuario tiene cartera en algún Tenant propietario autorizado que no
-    /// sea su Tenant de origen, y si el Context Workspace activo es ese Tenant de
-    /// origen. Sin consulta nueva: la lista de Tenants autorizados es
+    /// Las Empresas gestionadas (Tenants propietarios autorizados distintos del de
+    /// origen y del activo) donde el usuario tiene Asignación de Cartera, y si el
+    /// Context Workspace activo es su Tenant de origen. Sin consulta nueva ni cruce
+    /// de Tenants propio: la lista de Tenants autorizados es
     /// <see cref="ObtenerClientesAutorizadosQuery"/> (la misma que recorre Mi
-    /// trabajo Gen2) y «sin cartera» por Tenant es
-    /// <see cref="ClienteRiesgoDto.SinCarteraAsignada"/> de
+    /// trabajo Gen2) y las cifras y el «sin cartera» por Tenant son los de
     /// <see cref="ObtenerKpisGlobalesQuery"/>, que calcula cada Tenant con su
     /// propio alcance y su RLS, sellado por <c>AmbitoTenantExplicito</c>. El
     /// Tenant de origen no cuenta: Mi trabajo no lo enseña
-    /// (<c>MiTrabajoVista</c>), así que llevar allí a quien solo tiene cartera
-    /// en él sería llevarlo a una pantalla vacía. Lo caro (la visión de cartera
-    /// entera) solo corre si hay algún Tenant además del de origen.
+    /// (<c>MiTrabajoVista</c>), y la cartera es lo que el Operador CAE opera
+    /// fuera de su organización. Lo caro (la visión de cartera entera) solo corre
+    /// si hay algún Tenant además del de origen.
     /// </summary>
-    private async Task<(bool CarteraEnOtroTenant, bool ActivoEsOrigen)> ResolverCarteraEnOtroTenantAsync(
+    private async Task<(IReadOnlyList<ClienteRiesgoDto> Empresas, bool ActivoEsOrigen)> ResolverCarteraEnOtrosTenantsAsync(
         CancellationToken token)
     {
         var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery(), token);
@@ -476,17 +489,43 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         var activoEsOrigen = TenantActual.TenantId is { } activo && origen.Contains(activo);
 
         if (autorizados.All(t => t.EsOrigen))
-            return (false, activoEsOrigen);
+            return ([], activoEsOrigen);
 
         var vision = await Mediator.Send(new ObtenerKpisGlobalesQuery(), token);
-        var carteraEnOtro = vision.ClientesConMasRiesgo.Any(t =>
-            !origen.Contains(t.TenantId) && t.TenantId != TenantActual.TenantId && !t.SinCarteraAsignada);
+        var empresas = vision.ClientesConMasRiesgo
+            .Where(t => !origen.Contains(t.TenantId) && t.TenantId != TenantActual.TenantId && !t.SinCarteraAsignada)
+            .ToList();
 
-        return (carteraEnOtro, activoEsOrigen);
+        return (empresas, activoEsOrigen);
     }
 
-    private int DocumentosFueraDeVigencia => _kpis is null ? 0
-        : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos;
+    /// <summary>
+    /// Pista de «Vigentes»: reparte el resto de los Documentos de Trabajador medidos por conformidad, con la única definición
+    /// de <see cref="CaeManager.Domain.Documentos.CumplimientoDocumental"/>. Vigentes + «más al día» = el «al día» del anillo,
+    /// y + «no al día» = su denominador (<see cref="KpisDashboardDto.Fraccion"/>): las tres cifras cuadran a la vista. Antes
+    /// se repartía por cercanía a la fecha («vencidos o por vencer», «sin confirmar o sin caducidad») y cada parte mezclaba
+    /// documentos al día con otros que no lo están.
+    /// </summary>
+    private string? PistaVigentes
+    {
+        get
+        {
+            if (_kpis is null) return null;
+            var fraccion = _kpis.Fraccion;
+            var masAlDia = fraccion.AlDia - _kpis.DocumentosVigentes;
+            var noAlDia = fraccion.Requeridos - fraccion.AlDia;
+            var partes = new List<string>();
+            if (masAlDia > 0) partes.Add(Textos["KpiVigentesAlDia", masAlDia].Value);
+            if (noAlDia > 0) partes.Add(Textos["KpiVigentesNoAlDia", noAlDia].Value);
+            return partes.Count == 0 ? null : string.Join(" · ", partes);
+        }
+    }
+
+    /// <summary>
+    /// «Desglosar por Cliente» solo con más de un Cliente empresarial en el alcance: con uno —siempre el caso del usuario de
+    /// Cliente empresarial— el desglose repetiría la misma cifra y además lleva a un informe que ese rol no puede abrir.
+    /// </summary>
+    private bool MostrarDesglosePorCliente => _kpis is { ClientesEmpresarialesEnAlcance: > 1 };
 
     /// <summary>
     /// Todo lo que el panel resume está a cero <b>y</b> nada espera en las colas:
@@ -509,23 +548,6 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         && _sinRespuesta.Count == 0 && _proximamente.Count == 0
         && (_bandejaAgrupada is null
             || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
-
-    /// <summary>
-    /// Trabajadores distintos con al menos un item que de verdad les cierra el
-    /// acceso a un Centro, en la cola ya cargada — sin query nueva, es el mismo dato que ya
-    /// pinta "Requiere atención". El criterio es
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>, el
-    /// mismo que usa <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> para
-    /// el badge «Bloquea acceso» de cada grupo. «Bloqueado» es un estado del Trabajador, no del
-    /// Centro (2026-10-03): se cuentan Trabajadores, no Centros. Una acreditación Rechazada de un
-    /// documento de Empresa (sin Trabajador) no se cuenta aquí.
-    /// </summary>
-    private int TrabajadoresBloqueados => _bandejaAgrupada is null ? 0
-        : _bandejaAgrupada.Grupos.SelectMany(g => g.Items).Concat(_bandejaAgrupada.SinGrupo)
-            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(i) && i.TrabajadorId is not null)
-            .Select(i => i.TrabajadorId!.Value)
-            .Distinct()
-            .Count();
 
     /// <summary>
     /// Aviso bajo el anillo cuando la consulta de KPI cuenta Trabajadores bloqueados

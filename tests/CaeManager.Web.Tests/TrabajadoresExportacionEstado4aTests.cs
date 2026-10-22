@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
+using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Trabajadores;
 using FluentAssertions;
 using MediatR;
@@ -152,13 +153,14 @@ public class TrabajadoresExportacionEstado4aTests
             q: "prieto", estado: "Vencido", empresa: empresa.ToString(), subcontrata: subcontrata.ToString(),
             orden: nameof(TrabajadorListaDto.Apellidos), desc: true, centro: centro.ToString());
 
-        // El Excel no lleva columnas del desglose documental: se pide sin él. El «false» va escrito aquí aunque
-        // sea el valor por defecto de la consulta: así este test no depende de cuál sea ese valor.
+        // El Excel no lleva columnas del desglose documental, pero lo pide para que la columna Estado cuente los
+        // requisitos exigidos sin documento igual que el listado. El «true» va escrito aquí aunque no sea el valor
+        // por defecto de la consulta: así este test no depende de cuál sea ese valor.
         mediador.UltimaConsulta.Should().BeEquivalentTo(
             new ObtenerTrabajadoresQuery(
                 Busqueda: "prieto", EmpresaId: empresa, SubcontrataId: subcontrata,
                 OrdenarPor: nameof(TrabajadorListaDto.Apellidos), Descendente: true, EstadoDocumental: "Vencido",
-                CentroId: centro, ConDesgloseDocumental: false),
+                CentroId: centro, ConDesgloseDocumental: true),
             o => o.Excluding(c => c.Pagina).Excluding(c => c.TamanoPagina));
     }
 
@@ -170,7 +172,7 @@ public class TrabajadoresExportacionEstado4aTests
         await TrabajadoresEndpoints.ExportarAsync(mediador, new TenantActualFalso(Origen), new RegistroFalso(), default);
 
         mediador.UltimaConsulta.Should().BeEquivalentTo(
-            new ObtenerTrabajadoresQuery(Busqueda: null, ConDesgloseDocumental: false),
+            new ObtenerTrabajadoresQuery(Busqueda: null, ConDesgloseDocumental: true),
             o => o.Excluding(c => c.Pagina).Excluding(c => c.TamanoPagina));
     }
 
@@ -216,5 +218,27 @@ public class TrabajadoresExportacionEstado4aTests
             new MediatorFalso([Propio()], DosTrabajadores), new TenantActualFalso(Origen), new RegistroFalso(falla: true), default);
 
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("sin rastro");
+    }
+
+    /// <summary>
+    /// La consulta del listado entrega el estado ya combinado con lo exigido sin documento
+    /// (SeveridadEstadoDocumento.ConFaltantes): el libro lo copia tal cual, sin recombinarlo.
+    /// </summary>
+    [Fact]
+    public void La_columna_Estado_del_libro_es_la_misma_que_la_fila_del_listado()
+    {
+        var conFaltante = DosTrabajadores[0] with
+        {
+            EstadoDocumental = EstadoDocumento.Faltante,
+            DocumentosFaltantes = ["DNI"]
+        };
+        var conVencido = DosTrabajadores[0] with
+        {
+            EstadoDocumental = EstadoDocumento.Vencido,
+            DocumentosFaltantes = ["DNI"]
+        };
+
+        FilaExportacionTrabajador.Desde(conFaltante).EstadoDocumental.Should().Be(EstadoDocumento.Faltante);
+        FilaExportacionTrabajador.Desde(conVencido).EstadoDocumental.Should().Be(EstadoDocumento.Vencido, "manda lo más grave");
     }
 }

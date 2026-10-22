@@ -65,15 +65,15 @@ public class BucleCorreccionPlataformaTests(WebAppFixture fixture)
         await Expect(drawer.GetByText("Renovar documento")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         var hoy = Ayudas.HoyDeNegocio();
-        await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
-        // La vigencia se deja como la trae el drawer (la del Documento sembrado, que
-        // puede ser «No caduca»); la corrección es el archivo nuevo.
 
         var rutaPdf = Ayudas.GenerarPdfDePruebaEnDisco("version-corregida.pdf");
         try
         {
             await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+            // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe
+            // después. La vigencia queda sin confirmar, que no impide guardar; la corrección es el archivo nuevo.
+            await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
             await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
             try
             {

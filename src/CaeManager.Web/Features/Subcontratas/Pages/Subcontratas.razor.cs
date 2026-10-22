@@ -19,6 +19,7 @@ using CaeManager.Web.Features.Subcontratas.Recursos;
 using CaeManager.Web.Recursos;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.QuickGrid;
 using Microsoft.Extensions.Localization;
 
 namespace CaeManager.Web.Features.Subcontratas.Pages;
@@ -50,7 +51,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private int _totalElementos;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>
+    /// Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos
+    /// (bloque 1 de CAMBIOS-SESION 2026-10-21).
+    /// </summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    /// <summary>Con qué agrupación se cargaron las filas de pantalla: al cambiarla hay que volver a pedirlas.</summary>
+    private bool _cargadoAgrupado;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -89,6 +99,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>Qué filas tienen el acordeón abierto — mismo criterio que Centros.razor.cs.</summary>
     private readonly HashSet<Guid> _expandidos = [];
+
+    /// <summary>Filas desplegadas a las que se pidió «Ver los N restantes»: el resto enseña solo los primeros documentos.</summary>
+    private readonly HashSet<Guid> _incidenciasCompletas = [];
     private List<SubcontrataListaDto> _elementosPagina = [];
     private Guid? _idEnfocado;
     private bool _eliminandoLote;
@@ -109,6 +122,46 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     [SupplyParameterFromQuery(Name = "estado")]
     public string? EstadoInicial { get; set; }
 
+    /// <summary>Filtro «Contratada por»: Id de la Empresa propia contratante (<c>?contratadapor=</c>).</summary>
+    [SupplyParameterFromQuery(Name = "contratadapor")]
+    public string? ContratadaPorInicial { get; set; }
+
+    [SupplyParameterFromQuery(Name = "orden")]
+    public string? OrdenInicial { get; set; }
+
+    /// <summary>Empresas propias entre las que elegir en «Contratada por»; vacío hasta la primera carga.</summary>
+    private IReadOnlyList<EmpresaSelectorDto> _contratantesParaFiltro = [];
+
+    /// <summary>Empresa elegida en «Contratada por» (Id en texto) o vacío. Solo vale si es una de las ofrecidas.</summary>
+    private string _contratadaPorFiltro = string.Empty;
+
+    /// <summary>Orden de columna en la URL. Nace por razón social; la lista pagina en servidor.</summary>
+    private readonly OrdenDeRejilla _orden = new(
+    [
+        ("subcontrata", nameof(SubcontrataListaDto.RazonSocial)),
+        ("contratadapor", ObtenerSubcontratasQueryHandler.ColumnaContratadaPor),
+        ("nivel", nameof(SubcontrataListaDto.NivelServicio)),
+        ("cumplimiento", nameof(SubcontrataListaDto.CumplimientoPorcentaje)),
+    ], claveDeFabrica: "subcontrata");
+
+    private string ContratadaPorValida(string? valor) =>
+        Guid.TryParse(valor, out var id) && _contratantesParaFiltro.Any(e => e.Id == id) ? id.ToString() : string.Empty;
+
+    private IReadOnlyList<OpcionEstado> OpcionesContratadaPor =>
+        _contratantesParaFiltro.Select(e => new OpcionEstado(e.Id.ToString(), e.RazonSocial)).ToList();
+
+    private string TextoContratadaPorFiltro =>
+        OpcionesContratadaPor.FirstOrDefault(o => o.Valor == _contratadaPorFiltro)?.Texto ?? _contratadaPorFiltro;
+
+    private async Task OrdenarAsync(string clave)
+    {
+        var descendente = _orden.Clave == clave && _orden.Direccion != SortDirection.Descending;
+        _orden.Leer(clave + (descendente ? "-desc" : string.Empty));
+        NavigationManager.ActualizarFiltroEnUrl("orden", _orden.EnUrl);
+        await CargarAsync(resetPagina: true);
+    }
+
+
     [SupplyParameterFromQuery(Name = "agrupar")]
     public string? AgruparInicial { get; set; }
 
@@ -119,10 +172,43 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void CambiarAgrupacion(string? valor)
     {
         _agruparPor = valor;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear();
+        _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
     }
 
     private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
+
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, las que salen en algún grupo abierto (una Subcontrata
+    /// con dos Empresas contratantes sale en los dos). La selección masiva, el foco y los atajos operan sobre estas, nunca
+    /// sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    /// <remarks>
+    /// Agrupada, sale de <see cref="GruposDePagina"/> y en su orden (grupos por nombre de Empresa contratante), para que
+    /// j/k recorran las filas en el mismo orden en que se pintan; una Subcontrata que sale en dos grupos abiertos cuenta una
+    /// vez, en el primero.
+    /// </remarks>
+    private List<SubcontrataListaDto> FilasPintadas => _agruparPor is null
+        ? _elementosPagina
+        : GruposDePagina.Where(g => _gruposAbiertos.EstaAbierto(g.Clave))
+            .SelectMany(g => g.Filas).DistinctBy(s => s.Id).ToList();
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(s => s.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(s => s.Id != enfocado)) _idEnfocado = null;
+    }
+
+    /// <summary>Fila en rojo: su peor documento es faltante o vencido (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(SubcontrataListaDto fila) => ClaseTinte(fila.Recuentos).Contains("peligro", StringComparison.Ordinal);
 
     private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
         ? [new(string.Empty, string.Empty, _elementosPagina)]
@@ -203,6 +289,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = TerminoBusquedaInicial ?? string.Empty;
         _nivelFiltro = NivelDesdeUrl();
         _estadoFiltro = EstadoDesdeUrl();
+        _orden.Leer(OrdenInicial);
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga del Tenant de origen.
@@ -225,6 +312,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             return;
 
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
+        await CargarContratantesParaFiltroAsync();
+        _contratadaPorFiltro = ContratadaPorValida(ContratadaPorInicial);
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -241,12 +331,17 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         var nivelDeLaUrl = NivelDesdeUrl();
         var estadoDeLaUrl = EstadoDesdeUrl();
-        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro)
+        var contratadaPorDeLaUrl = ContratadaPorValida(ContratadaPorInicial);
+        var cambiaElOrden = _orden.Leer(OrdenInicial);
+        if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro
+            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden
+            && (_agruparPor is not null) == _cargadoAgrupado)
             return;
 
         _busqueda = deLaUrl;
         _nivelFiltro = nivelDeLaUrl;
         _estadoFiltro = estadoDeLaUrl;
+        _contratadaPorFiltro = contratadaPorDeLaUrl;
         await CargarAsync(resetPagina: true);
     }
 
@@ -270,8 +365,11 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private ObtenerSubcontratasQuery ConsultaDePaginaActual() => new(
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         Pagina: _pagina,
-        TamanoPagina: _tamanoPagina,
+        TamanoPagina: TamanoPedido,
         NivelServicio: NivelSeleccionado,
+        OrdenarPor: _orden.Propiedad,
+        Descendente: _orden.Direccion == SortDirection.Descending,
+        ContratadaPorEmpresaId: Guid.TryParse(_contratadaPorFiltro, out var contratante) ? contratante : null,
         EstadoDocumental: string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
         ConRecuentosPorEstado: true);
 
@@ -355,7 +453,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             // retrocede a la última página que existe en vez de enseñar «ninguna coincide».
             if (resultado.Elementos.Count == 0 && resultado.TotalElementos > 0 && _pagina > 1)
             {
-                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)_tamanoPagina));
+                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)TamanoPedido));
                 resultado = await Mediator.Send(ConsultaDePaginaActual());
             }
         }
@@ -370,8 +468,10 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _totalElementos = resultado.TotalElementos;
         _elementosPagina = resultado.Elementos.ToList();
         _recuentosPorEstado = resultado.RecuentosPorEstado;
-        _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
-        _expandidos.Clear();
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(s => s.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(s => s.Id != enfocado)) _idEnfocado = null;
+        _expandidos.Clear(); _incidenciasCompletas.Clear();
         StateHasChanged();
     }
 
@@ -386,13 +486,14 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
+            _cargadoAgrupado = _agruparPor is not null;
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;
             _elementosPagina = resultado.Elementos.ToList();
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _seleccionados.Clear();
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
             _idEnfocado = null;
         }
         catch (Exception)
@@ -459,6 +560,26 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         await CargarAsync(resetPagina: true);
     }
 
+    private async Task CargarContratantesParaFiltroAsync()
+    {
+        try
+        {
+            _contratantesParaFiltro = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery());
+        }
+        catch (Exception)
+        {
+            // Sin la lista la pastilla queda sin opciones; la lista de Subcontratas sigue funcionando.
+            _contratantesParaFiltro = [];
+        }
+    }
+
+    private async Task CambiarContratadaPorAsync(string valor)
+    {
+        _contratadaPorFiltro = ContratadaPorValida(valor);
+        NavigationManager.ActualizarFiltroEnUrl("contratadapor", _contratadaPorFiltro);
+        await CargarAsync(resetPagina: true);
+    }
+
     private async Task CambiarEstadoAsync(string? valor)
     {
         _estadoFiltro = valor ?? string.Empty;
@@ -467,7 +588,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     private bool HayFiltrosActivos =>
-        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro);
+        !string.IsNullOrWhiteSpace(_busqueda) || !string.IsNullOrWhiteSpace(_nivelFiltro) || !string.IsNullOrWhiteSpace(_estadoFiltro)
+        || !string.IsNullOrWhiteSpace(_contratadaPorFiltro);
 
     private IReadOnlyList<OpcionEstado> OpcionesNivel =>
     [
@@ -489,7 +611,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = string.Empty;
         _nivelFiltro = string.Empty;
         _estadoFiltro = string.Empty;
-        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["nivel"] = null, ["estado"] = null });
+        _contratadaPorFiltro = string.Empty;
+        NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
+        { ["q"] = null, ["nivel"] = null, ["estado"] = null, ["contratadapor"] = null });
         await CargarAsync(resetPagina: true);
     }
 
@@ -502,7 +626,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// Lista blanca de los parámetros de VISTA de la URL: lo que guarda y aplica un filtro guardado.
     /// Fuera queda <c>accion</c>.
     /// </summary>
-    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado", "agrupar"];
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "nivel", "estado", "contratadapor", "orden", "agrupar"];
 
     private readonly ConexionFiltrosGuardados _filtrosGuardados = new();
     private readonly ConexionVistaRecordada _vistaRecordada = new();
@@ -517,12 +641,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _nivelFiltro = NivelValido(vista.GetValueOrDefault("nivel"));
         _estadoFiltro = EstadoDocumentoUi.SeleccionDocumentalValida(vista.GetValueOrDefault("estado"));
+        _contratadaPorFiltro = ContratadaPorValida(vista.GetValueOrDefault("contratadapor"));
+        _orden.Leer(vista.GetValueOrDefault("orden"));
         _agruparPor = Agrupacion.Leer(vista.GetValueOrDefault("agrupar"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
             ["q"] = _busqueda,
             ["nivel"] = _nivelFiltro,
             ["estado"] = _estadoFiltro,
+            ["contratadapor"] = _contratadaPorFiltro,
+            ["orden"] = _orden.EnUrl,
             ["agrupar"] = Agrupacion.ParaUrl(_agruparPor)
         });
         await CargarAsync(resetPagina: true);
@@ -683,7 +811,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private bool TodosExpandidos => HayFilasDesplegables
         && _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0).All(e => _expandidos.Contains(e.Id));
@@ -691,7 +819,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void AlternarExpansion(Guid id)
     {
         if (!_expandidos.Add(id))
-            _expandidos.Remove(id);
+            _expandidos.Remove(id); _incidenciasCompletas.Remove(id);
     }
 
     private void AlternarTodosExpandidos(bool expandir)
@@ -699,13 +827,13 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         if (expandir)
             foreach (var elemento in _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0)) _expandidos.Add(elemento.Id);
         else
-            _expandidos.Clear();
+            _expandidos.Clear(); _incidenciasCompletas.Clear();
     }
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -795,20 +923,22 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":
@@ -881,5 +1011,6 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         ["q"] = _busqueda,
         ["nivel"] = NivelSeleccionado?.ToString(),
         ["estado"] = string.IsNullOrWhiteSpace(_estadoFiltro) ? null : _estadoFiltro,
+        ["contratadapor"] = string.IsNullOrWhiteSpace(_contratadaPorFiltro) ? null : _contratadaPorFiltro,
     };
 }

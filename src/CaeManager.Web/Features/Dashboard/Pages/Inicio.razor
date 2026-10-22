@@ -47,12 +47,17 @@
     {
         <Esqueleto Forma="FormaEsqueleto.Metricas" Cantidad="4" />
     }
+    else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant && _activoEsOrigen)
+    {
+        @* El Gestor CAE (o Coordinador CAE) de un Operador CAE externo en su propia
+           organización: la pantalla al entrar es Inicio (2026-10-21, D-2 retirado),
+           y aquí Inicio es su cartera, no un «sin cartera». *@
+        <InicioCarteraOperador Empresas="_empresasGestionadas" RutaMiTrabajo="@RutaMiTrabajo" />
+    }
     else if (_kpis.SinCarteraAsignada && _carteraEnOtroTenant)
     {
         @* Sin cartera aquí, con cartera en otros Tenants propietarios, en un
-           Context Workspace que el usuario eligió con el selector (en el Tenant
-           de origen sin la marca de inicio de sesión también: el aterrizaje a Mi
-           trabajo D-2 es solo tras iniciar sesión). No se
+           Context Workspace que el usuario eligió con el selector. No se
            redirige: acaba de elegir este contexto y decirle que aquí no tiene
            cartera es información; llevárselo a otra pantalla, no. *@
         <EstadoVacio Titulo="@Textos["SinCarteraEnEsteContextoTitulo"]"
@@ -131,27 +136,38 @@
                         <PanelResolverItem @key="claves.De(item.Id)" Item="item" />
                     }
                 </div>
-                @* El mockup deja la salida a la cola completa siempre visible, no solo
-                   cuando el resumen se queda corto: aquí se ven como mucho
-                   MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
-                   Mi trabajo tanto si son tres como si son treinta. *@
-                <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
             }
+            @* El mockup deja la salida a la cola completa siempre visible, también con la cola vacía:
+               aquí se ven como mucho MaximoGruposAtencion grupos, y quien quiere operar de verdad va a
+               Mi trabajo tanto si son tres como si son treinta. *@
+            <a class="enlace-ver-todas" href="@_rutaVerTodoMiTrabajo">Ver todo en Mi trabajo →</a>
 
-            @if (_pendientePorPlataforma.Count > 0)
-            {
+        }
+
+        @* El mockup pone «Pendiente por plataforma» como sección propia, con su cabecera y la hora
+           de la lectura; no depende de que el usuario vea la cola de «Requiere atención». *@
+        @if (_pendientePorPlataforma.Count > 0)
+        {
+            <div class="inicio-seccion-cabecera">
                 <h2 class="dashboard-subtitulo">Pendiente por plataforma</h2>
-                <div class="dashboard-lista-unificada">
-                    @foreach (var plataforma in _pendientePorPlataforma)
-                    {
-                        <FilaPlataforma Plataforma="plataforma" />
-                    }
-                </div>
-            }
+                @if (TextoActualizado is { } actualizadoPlataformas)
+                {
+                    <span class="inicio-seccion-meta">@actualizadoPlataformas</span>
+                }
+            </div>
+            <div class="dashboard-lista-unificada">
+                @foreach (var plataforma in _pendientePorPlataforma)
+                {
+                    <FilaPlataforma Plataforma="plataforma" />
+                }
+            </div>
+        }
 
+        @if (_mostrarRequiereAtencion)
+        {
+            <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
             @if (_sinRespuesta.Count > 0)
             {
-                <h2 class="dashboard-subtitulo">Reclamado y sin respuesta</h2>
                 <div class="dashboard-lista-unificada">
                     @foreach (var reclamacion in _sinRespuesta)
                     {
@@ -165,6 +181,18 @@
                             <a class="enlace-ver-todas" href="/documentos?pestana=reclamaciones">Revisar y reclamar →</a>
                         </div>
                     }
+                </div>
+            }
+            else
+            {
+                @* Mockup Inicio, estado «Sin reclamaciones»: el bloque conserva su cabecera y dice que
+                   ninguna reclamación pasa de 7 días sin respuesta, que es el corte de la consulta.
+                   El mockup decía «3 días hábiles» (decisión pendiente, ver la PR). *@
+                <div class="inicio-cierre" data-estado="sin-reclamaciones">
+                    <span class="inicio-cierre-marca" aria-hidden="true">
+                        <Icono Nombre="exito-circulo" Tamano="TamanoIcono.Pequeno" />
+                    </span>
+                    <p class="inicio-cierre-texto">@Textos["SinReclamacionesTexto"]</p>
                 </div>
             }
         }
@@ -209,7 +237,7 @@
                         }
                         else
                         {
-                            <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
+                            <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloAlDiaDetalle", _kpis.Fraccion.AlDia.ToString("N0"), _kpis.Fraccion.Requeridos.ToString("N0")]</p>
                         }
                     }
                     @if (_kpis.TrabajadoresBloqueados > 0)
@@ -224,17 +252,21 @@
                        (no hay vista de cumplimiento agrupada por cliente para este rol —
                        Visión de cartera exige Coordinador+; Reportes, P-14, es de todo el
                        tenant sin filtro). Enlaza al informe más cercano que existe hoy en
-                       vez de a un enlace roto; construir el desglose real queda pendiente. *@
-                    <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                       vez de a un enlace roto; construir el desglose real queda pendiente. Solo con más de un
+                       Cliente empresarial en el alcance (MostrarDesglosePorCliente). *@
+                    @if (MostrarDesglosePorCliente)
+                    {
+                        <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                    }
                 </div>
             </div>
             <div class="rejilla-kpis-secundarios contenido-entra">
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
                                  Pista="@(_kpis.TrabajadoresNuevosEsteMes > 0 ? $"{_kpis.TrabajadoresNuevosEsteMes} nuevos este mes" : null)" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
-                                 Pista="@(TrabajadoresBloqueados > 0 ? $"{TrabajadoresBloqueados} trabajador{(TrabajadoresBloqueados == 1 ? "" : "es")} bloqueado{(TrabajadoresBloqueados == 1 ? "" : "s")}" : null)" />
+                                 Pista="@(_kpis.CentrosBloqueados == 0 ? null : _kpis.CentrosBloqueados == 1 ? Textos["KpiCentrosBloqueadosUno"].Value : Textos["KpiCentrosBloqueadosVarios", _kpis.CentrosBloqueados].Value)" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
-                                 Pista="@(DocumentosFueraDeVigencia > 0 ? $"{DocumentosFueraDeVigencia} fuera de vigencia" : null)" />
+                                 Pista="@PistaVigentes" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"
                                  Pista="@(_proximamente.Count > 0 ? $"próxima el {_proximamente[0].FechaInicio:dd/MM}" : null)" />
             </div>

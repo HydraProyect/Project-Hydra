@@ -4,7 +4,8 @@
     Es una vista de referencia: ni afirma que ninguno sea obligatorio por oficio ni equivale
     a «apto para un Centro» (TipoDocumentoCentro, otro plano). Los estados salen de
     DocumentacionBaseTrabajador, que reutiliza CalculadoraEstadoDocumento. «Vigencia sin
-    confirmar» cuenta como al día, pero se avisa con texto visible: junto al resumen compacto y
+    confirmar» cuenta como al día en el resumen compacto (el panel completo, por la maqueta Trabajador 360, rotula su pastilla con
+    el peor estado de las cuatro filas), pero se avisa con texto visible: junto al resumen compacto y
     en una línea propia del panel completo, además del indicador.
 
     Dos modos de alimentarlo: con Datos ya cargados o con TrabajadorId (cajón y ficha), que lo
@@ -45,29 +46,41 @@
     else
     {
         <section class="panel-doc-base" aria-label="@Textos["DocBaseTitulo"]">
+            @* Maqueta Trabajador 360: título en negrita y, al lado, una sola pastilla con el peor estado de las cuatro filas;
+               las filas, en tarjeta con la rejilla nombre · fecha · estado · acción. *@
             <div class="panel-doc-base-cabecera">
                 <strong>@Textos["DocBaseTitulo"]</strong>
-                <Badge Tono="@(_datos.AlDia ? TonoBadge.Exito : TonoBadge.Advertencia)">
-                    @(_datos.AlDia ? Textos["DocBaseAlDia"] : Textos["DocBaseNoAlDia"])
-                </Badge>
+                @if (Peor(_datos) is { } peor)
+                {
+                    <Badge Tono="TonoDe(peor.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(peor)</Badge>
+                }
             </div>
             <ul class="panel-doc-base-lista">
                 @foreach (var indicador in _datos.Indicadores)
                 {
-                    <li class="panel-doc-base-fila @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
-                        <span>@TextoTipo(indicador.Tipo)</span>
-                        <Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge>
-                        @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
-                        {
-                            <span class="panel-doc-base-fecha">@vence.ToString("dd/MM/yyyy")</span>
-                        }
+                    <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
+                        <span class="panel-doc-base-nombre">
+                            <span>@TextoTipo(indicador.Tipo)</span>
+                            <span class="panel-doc-base-sub">@TextoDetalle(indicador)</span>
+                        </span>
+                        <span class="panel-doc-base-fecha" title="@Textos["ColumnaVence"]">
+                            @if (indicador.FechaVencimiento is { } vence && indicador.Estado is EstadoIndicadorBase.Vigente or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vencido)
+                            {
+                                @vence.ToString("dd/MM/yyyy")
+                            }
+                            else
+                            {
+                                @("—")
+                            }
+                        </span>
+                        <span class="panel-doc-base-estado"><Badge Tono="TonoDe(indicador.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(indicador)</Badge></span>
                         @if (OnCorregirDocumento.HasDelegate && indicador.DocumentoId is { } documentoId &&
-                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer or EstadoIndicadorBase.Vigente)
+                            indicador.Estado is EstadoIndicadorBase.Vencido or EstadoIndicadorBase.SinConfirmar or EstadoIndicadorBase.ProximoAVencer)
                         {
                             <SoloConEscritura>
-                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar»; la del documento vigente, en tono secundario. *@
+                                @* Confirmar o renovar abren el mismo editor: la fila ofrece una sola acción, «Gestionar», y solo si el documento pide trabajo (maqueta Trabajador 360: el vigente no lleva botón). *@
                                 <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                       class="@("accion-fila-enlace" + (indicador.Estado == EstadoIndicadorBase.Vigente ? " " + EstadoDocumentoFicha360.ClaseGestionarDiscreto : string.Empty))"
+                                       class="accion-fila-enlace"
                                        aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(TextoTipo(indicador.Tipo))"
                                        OnClick="() => OnCorregirDocumento.InvokeAsync(documentoId)">@EstadoDocumentoFicha360.TextoAccion</Boton>
                             </SoloConEscritura>
@@ -170,6 +183,30 @@
         EstadoIndicadorBase.SinConfirmar => Textos["DocBaseEstadoSinConfirmar"],
         _ => Textos["DocBaseEstadoFalta"]
     };
+
+    // Línea de detalle bajo el nombre (maqueta Trabajador 360): dice por qué la fila está como está, con el dato que ya tiene el indicador.
+    private string TextoDetalle(IndicadorDocumentacionBase indicador) => indicador.Estado switch
+    {
+        EstadoIndicadorBase.Vigente when indicador.Tipo == TipoDocumentoBase.InformacionArt18 => Textos["DocBaseSubPresente"],
+        EstadoIndicadorBase.Vigente when indicador.FechaVencimiento is { } vigenteHasta => Textos["DocBaseSubVigente", vigenteHasta.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.Vigente => Textos["DocBaseSubVigenteSinFecha"],
+        EstadoIndicadorBase.ProximoAVencer when indicador.FechaVencimiento is { } vence => Textos["DocBaseSubProximoAVencer", vence.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.Vencido when indicador.FechaVencimiento is { } venció => Textos["DocBaseSubVencido", venció.ToString("dd/MM/yyyy")],
+        EstadoIndicadorBase.SinConfirmar => Textos["DocBaseSubSinConfirmar"],
+        EstadoIndicadorBase.Falta => Textos["DocBaseSubFalta"],
+        _ => string.Empty
+    };
+
+    // Orden de la maqueta (de peor a mejor): Vencido, Pendiente (falta), Por vencer, Vigencia sin confirmar, Vigente.
+    private static IndicadorDocumentacionBase? Peor(DocumentacionBaseTrabajadorDto datos) =>
+        datos.Indicadores.OrderBy(i => i.Estado switch
+        {
+            EstadoIndicadorBase.Vencido => 0,
+            EstadoIndicadorBase.Falta => 1,
+            EstadoIndicadorBase.ProximoAVencer => 2,
+            EstadoIndicadorBase.SinConfirmar => 3,
+            _ => 4
+        }).FirstOrDefault();
 
     private static TonoBadge TonoDe(EstadoIndicadorBase estado) => estado switch
     {

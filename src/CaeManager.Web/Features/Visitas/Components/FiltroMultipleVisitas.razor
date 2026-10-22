@@ -1,0 +1,22 @@
+@using CaeManager.Application.Visitas
+@using CaeManager.Web.Components.DesignSystem
+
+<MenuAcciones Etiqueta="@Rotulo" Pastilla="true" Activa="@(Seleccion.Count > 0)">
+    @foreach (var opcion in Opciones)
+    {
+        <ItemMenuAccion SeleccionMultiple="true" Marcado="@Seleccion.Contains(opcion.Valor)" OnClick="() => AlternarAsync(opcion.Valor)">@opcion.Texto</ItemMenuAccion>
+    }
+</MenuAcciones>
+
+@code {
+    [Parameter, EditorRequired] public string Etiqueta { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<OpcionEstado> Opciones { get; set; } = [];
+    [Parameter] public string Valor { get; set; } = string.Empty;
+    [Parameter] public EventCallback<string> ValorChanged { get; set; }
+
+    private IReadOnlyList<string> Seleccion => SeleccionFiltroVisitas.Leer(Valor);
+    private string Rotulo => Seleccion.Count == 0 ? Etiqueta : $"{Etiqueta} · {Seleccion.Count}";
+
+    private Task AlternarAsync(string valor) => ValorChanged.InvokeAsync(SeleccionFiltroVisitas.Escribir(
+        Seleccion.Contains(valor) ? Seleccion.Where(v => v != valor) : Seleccion.Append(valor)));
+}

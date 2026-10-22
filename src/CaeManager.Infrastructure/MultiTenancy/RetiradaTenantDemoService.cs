@@ -122,6 +122,8 @@ public static class RetiradaTenantDemoService
         ..SiembraDemoDireccionAdministrativa.NombresTenantsDelLote,
         // La colección E2E del Gestor CAE con cartera en dos Tenants beneficiarios.
         ..GestorCaeCarteraMultiTenantSeeder.NombresTenants,
+        // La siembra de cobertura de pantallas (Development): dos Tenants propietarios y su Operador CAE externo.
+        ..CoberturaPantallasSeeder.NombresTenants,
         // La siembra del piloto Outbound: seis Tenants propietarios y su Operador CAE externo,
         // con nombres limpios. Ver ExigenMarcador.
         ..CatalogoPilotoOutbound.NombresTenants,
@@ -272,6 +274,10 @@ public static class RetiradaTenantDemoService
             dbContext.RemoveRange(await dbContext.AsignacionesOperacion
                 .Where(a => a.PropietarioTenantId == tenantId || a.OperadorTenantId == tenantId)
                 .ToListAsync(cancellationToken));
+            // Tarifas que un Operador CAE externo fijó a este Tenant beneficiario: son filas del Operador (TenantId
+            // ajeno), así que el barrido genérico no las alcanza y Remove las rechazaría el sellado; sentencia directa,
+            // como los filtros guardados de abajo. Las que este Tenant fijó como Operador caen en el barrido genérico.
+            await dbContext.TarifasOperadorCae.IgnoreQueryFilters().Where(t => t.PropietarioTenantId == tenantId && t.TenantId != tenantId).ExecuteDeleteAsync(cancellationToken);
 
             var usuarios = await dbContext.Users.Where(u => u.TenantId == tenantId).ToListAsync(cancellationToken);
             var idsUsuarios = usuarios.Select(u => u.Id).ToHashSet();

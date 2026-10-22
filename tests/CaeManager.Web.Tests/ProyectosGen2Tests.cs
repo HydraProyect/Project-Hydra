@@ -117,6 +117,8 @@ public partial class ProyectosGen2Tests : BunitContext
         public List<CentroSelectorDto> CentrosClienteB { get; set; } = [];
         public Dictionary<Guid, IReadOnlyList<TecnicoProyectoDto>> TecnicosPorProyecto { get; } = [];
         public bool FallarAlCargarProyectos { get; set; }
+        public bool FallarDocumentacion { get; set; }
+        public List<CaeManager.Application.Documentos.Queries.ObtenerDocumentos.DocumentoListaDto> Documentos { get; set; } = [];
         public List<FiltroGuardadoDto> FiltrosGuardados { get; } = [];
         public List<object> Enviados { get; } = [];
         public OrigenesRequisitosEventoDto Origenes { get; set; } = OrigenesRequisitosEventoDto.Vacio;
@@ -214,6 +216,10 @@ public partial class ProyectosGen2Tests : BunitContext
                 CerrarProyectoCommand => Result.Exito(),
                 CrearProyectoCommand => Result.Exito(Guid.NewGuid()),
                 ObtenerOrigenesRequisitosEventoQuery => Origenes,
+                CaeManager.Application.Documentos.Queries.ObtenerDocumentos.ObtenerDocumentosQuery q => FallarDocumentacion
+                    ? throw new InvalidOperationException("Error documental de prueba")
+                    : new ResultadoPaginado<CaeManager.Application.Documentos.Queries.ObtenerDocumentos.DocumentoListaDto>(
+                        Documentos.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), Documentos.Count, q.Pagina, q.TamanoPagina),
                 ReabrirProyectoCommand => Result.Exito(),
                 ActualizarProyectoCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
@@ -301,7 +307,7 @@ public partial class ProyectosGen2Tests : BunitContext
         BotonConTexto(cut, "tbody .nombre-proyecto", proyecto.Nombre).ClickAsync(new MouseEventArgs());
 
     private static IElement FilaDe(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
-        cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")!.TextContent.Trim() == proyecto.Nombre);
+        cut.FindAll("tbody tr").Single(f => f.QuerySelector(".nombre-proyecto")?.TextContent.Trim() == proyecto.Nombre);
 
     private static bool PanelAbiertoEn(IRenderedComponent<Proyectos> cut, ProyectoListaDto proyecto) =>
         cut.FindAll("aside.panel-proyecto .nombre-cabecera-panel-proyecto").Any(n => n.TextContent.Trim() == proyecto.Nombre);
@@ -449,6 +455,41 @@ public partial class ProyectosGen2Tests : BunitContext
 
     private static List<string> OpcionesDelAlta(IRenderedComponent<Proyectos> cut, string etiqueta) =>
         SelectDelAlta(cut, etiqueta).QuerySelectorAll("option").Select(o => o.TextContent.Trim()).ToList();
+
+    /// <summary>«Más acciones» → «Crear Evento» abre el mismo alta de «+ Nuevo proyecto» con el tipo Evento: sale su fin obligatorio.</summary>
+    [Fact]
+    public async Task Mas_acciones_Crear_Evento_abre_el_alta_con_el_tipo_Evento()
+    {
+        _mediator.CentrosClienteA = [CentroDeA];
+        var cut = await RenderizarConClienteAsync();
+
+        await AbrirMasAccionesAsync(cut);
+        var crearEvento = cut.FindAll("[role=menuitem]").Single(e => e.TextContent.Trim() == "Crear Evento");
+        await crearEvento.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().NotBeEmpty("«Crear Evento» abre el alta"));
+        var etiquetas = cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).ToList();
+        etiquetas.Should().Contain("Fin del evento", "el alta de un Evento pide su fecha de fin");
+        etiquetas.Should().NotContain("Fin previsto (opcional — indefinido si se deja vacío)", "no es un alta de Obra");
+    }
+
+    /// <summary>«Crear Evento» es escritura: Consulta no lo ve en «Más acciones».</summary>
+    [Fact]
+    public async Task Consulta_no_ve_Crear_Evento_en_Mas_acciones()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        _mediator.Proyectos = [ProyectoAbierto];
+        var cut = await RenderizarConClienteAsync();
+
+        await AbrirMasAccionesAsync(cut);
+        var entradas = cut.FindAll("[role=menuitem]").Select(e => e.TextContent.Trim()).ToList();
+        entradas.Should().Contain("Exportar todo", "control positivo: el menú sí se abrió y pinta sus entradas");
+        entradas.Should().NotContain("Crear Evento");
+    }
+
+    /// <summary>Abre «Más acciones» de la cabecera del listado (no los desplegables de las pastillas de filtro).</summary>
+    private static Task AbrirMasAccionesAsync(IRenderedComponent<Proyectos> cut) =>
+        cut.Find("[aria-haspopup=menu][aria-label='Más acciones']").ClickAsync(new MouseEventArgs());
 
     private static Task PulsarNuevoProyectoAsync(IRenderedComponent<Proyectos> cut) =>
         cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());

@@ -592,7 +592,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
     // ---- arnés ----
 
     private static DestinoDeReclamacionesEnviadasService Destinos(CaeManagerDbContext contexto) =>
-        new(contexto, contexto, contexto, contexto);
+        new(contexto, contexto, contexto, contexto, contexto, contexto);
 
     private ObtenerLoteReclamacionEmpresaQueryHandler CrearLoteHandler(CaeManagerDbContext contexto) =>
         CrearLoteHandler(contexto, new AlcanceDatosServiceFalso());

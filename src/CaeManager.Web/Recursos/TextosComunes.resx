@@ -122,7 +122,7 @@
     <value>Empresa gestionada</value>
   </data>
   <data name="SelectorTenantCartera" xml:space="preserve">
-    <value>Mi cartera · {0}</value>
+    <value>Empresas gestionadas · {0}</value>
   </data>
   <data name="SelectorTenantRecientes" xml:space="preserve">
     <value>Recientes</value>
@@ -133,17 +133,8 @@
   <data name="SelectorTenantPendientesUno" xml:space="preserve">
     <value>1 pendiente</value>
   </data>
-  <data name="SelectorTenantEmpresasUna" xml:space="preserve">
-    <value>1 empresa</value>
-  </data>
-  <data name="SelectorTenantEmpresasVarias" xml:space="preserve">
-    <value>{0} empresas</value>
-  </data>
   <data name="SelectorTenantBuscar" xml:space="preserve">
     <value>Buscar empresa</value>
-  </data>
-  <data name="SelectorTenantLista" xml:space="preserve">
-    <value>Cambiar de empresa gestionada</value>
   </data>
   <data name="SelectorTenantOrigen" xml:space="preserve">
     <value>Tu organización</value>
@@ -155,13 +146,34 @@
     <value>Exportar a Excel</value>
   </data>
   <data name="SelectorTenantSinResultados" xml:space="preserve">
-    <value>Ninguna empresa coincide con la búsqueda.</value>
+    <value>Ninguna empresa coincide con «{0}»</value>
   </data>
   <data name="EnlaceOtraEmpresaAviso" xml:space="preserve">
     <value>Puede pertenecer a otra empresa de tu cartera. Cambia de empresa en el selector.</value>
   </data>
   <data name="EnlaceOtraEmpresaAbrir" xml:space="preserve">
     <value>Abrir en {0}</value>
+  </data>
+  <data name="FichaNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}; te llevamos a la lista.</value>
+  </data>
+  <data name="FichaNoDisponibleTitulo" xml:space="preserve">
+    <value>Esta ficha no está disponible</value>
+  </data>
+  <data name="FichaNoDisponibleDescripcion" xml:space="preserve">
+    <value>Puede que se haya eliminado o que el enlace no sea correcto.</value>
+  </data>
+  <data name="FichaNoDisponibleIrALista" xml:space="preserve">
+    <value>Ir a la lista</value>
+  </data>
+  <data name="FichaNoDisponibleVolviendo" xml:space="preserve">
+    <value>Volviendo a la lista…</value>
+  </data>
+  <data name="FichaPanelNoEstaEnEmpresaActiva" xml:space="preserve">
+    <value>Esa ficha no está en {0}.</value>
+  </data>
+  <data name="FichaPanelNoDisponible" xml:space="preserve">
+    <value>Esa ficha ya no está disponible.</value>
   </data>
   <data name="FiltrosGuardados" xml:space="preserve">
     <value>Filtros guardados</value>
@@ -409,6 +421,18 @@
     <value>{0} de {1}</value>
     <comment>Contador de la cabecera de grupo cuando la página solo enseña parte del grupo: {0} filas en esta página de las {1} del grupo.</comment>
   </data>
+  <data name="GrupoConIncidencia" xml:space="preserve">
+    <value>{0} con incidencia</value>
+    <comment>Pastilla roja de la cabecera de un grupo plegado con una sola fila en rojo (Bloqueo CAE, Vencido o Pendiente); {0} es 1.</comment>
+  </data>
+  <data name="GrupoConIncidencias" xml:space="preserve">
+    <value>{0} con incidencias</value>
+    <comment>Pastilla roja de la cabecera de un grupo plegado con varias filas en rojo (Bloqueo CAE, Vencido o Pendiente); {0} es cuántas.</comment>
+  </data>
+  <data name="VerRestantes" xml:space="preserve">
+    <value>Ver los {0} restantes</value>
+    <comment>Pie de una fila desplegada que enseña los primeros elementos; {0} es cuántos quedan por enseñar.</comment>
+  </data>
   <data name="GrupoContadorParcialTitulo" xml:space="preserve">
     <value>{0} de {1} en esta página</value>
   </data>
@@ -483,7 +507,7 @@
     <value>Sin nota interna.</value>
   </data>
   <data name="NotaInternaNoLaVeCliente" xml:space="preserve">
-    <value>No la ve el cliente.</value>
+    <value>No la ve el Cliente.</value>
     <comment>Pie de la tarjeta NotaInterna: la nota no la ve el usuario de un Cliente. La ven el equipo y el Gestor CAE de un Operador CAE externo.</comment>
   </data>
   <data name="NotaInternaEditar" xml:space="preserve">
@@ -563,9 +587,6 @@
   <data name="SelectorTenantFijadas" xml:space="preserve">
     <value>Fijadas</value>
   </data>
-  <data name="SelectorTenantResto" xml:space="preserve">
-    <value>Resto de la cartera</value>
-  </data>
   <data name="SelectorTenantFijar" xml:space="preserve">
     <value>Fijar arriba</value>
   </data>
@@ -590,10 +611,103 @@
   <data name="PasosGrupoEtiqueta" xml:space="preserve">
     <value>Pasos del formulario</value>
   </data>
+  <data name="LecturaAbrirFicha" xml:space="preserve">
+    <value>Abrir ficha completa</value>
+  </data>
+  <data name="LecturaCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="LecturaEditar" xml:space="preserve">
+    <value>Editar</value>
+  </data>
+  <data name="LecturaSoloConsulta" xml:space="preserve">
+    <value>Solo consulta</value>
+  </data>
+  <data name="LecturaSinDato" xml:space="preserve">
+    <value>Sin dato</value>
+  </data>
+  <data name="SelectorQuitarElegido" xml:space="preserve">
+    <value>Quitar {0}</value>
+  </data>
   <data name="SeccionErrorSingular" xml:space="preserve">
     <value>1 error</value>
   </data>
   <data name="SeccionErroresPlural" xml:space="preserve">
     <value>{0} errores</value>
+  </data>
+  <data name="IrATuPantallaPrincipal" xml:space="preserve">
+    <value>Ir a tu pantalla principal</value>
+  </data>
+  <data name="CodigoParaSoporte" xml:space="preserve">
+    <value>Código para soporte</value>
+  </data>
+  <data name="CodigoParaSoporteAyuda" xml:space="preserve">
+    <value>Si se repite, envía este código a soporte.</value>
+  </data>
+  <data name="CodigoParaSoporteCopia" xml:space="preserve">
+    <value>el código para soporte</value>
+  </data>
+  <data name="VolverListaTrabajadores" xml:space="preserve">
+    <value>Volver a la lista de trabajadores</value>
+  </data>
+  <data name="VolverListaEmpresas" xml:space="preserve">
+    <value>Volver a la lista de empresas</value>
+  </data>
+  <data name="VolverListaCentros" xml:space="preserve">
+    <value>Volver a la lista de centros de trabajo</value>
+  </data>
+  <data name="VolverListaClientes" xml:space="preserve">
+    <value>Volver a la lista de clientes</value>
+  </data>
+  <data name="VolverListaSubcontratas" xml:space="preserve">
+    <value>Volver a la lista de subcontratas</value>
+  </data>
+  <data name="VolverListaVehiculos" xml:space="preserve">
+    <value>Volver a la lista de vehículos</value>
+  </data>
+  <data name="VolverListaProyectos" xml:space="preserve">
+    <value>Volver a la lista de proyectos</value>
+  </data>
+  <data name="VolverListaDocumentos" xml:space="preserve">
+    <value>Volver a la lista de documentos</value>
+  </data>
+  <data name="VolverListaVisitas" xml:space="preserve">
+    <value>Volver a la lista de visitas</value>
+  </data>
+  <data name="VolverListaGestiones" xml:space="preserve">
+    <value>Volver a la lista de gestiones</value>
+  </data>
+  <data name="VolverListaAlertas" xml:space="preserve">
+    <value>Volver a la lista de alertas</value>
+  </data>
+  <data name="TarjetasRestablecer" xml:space="preserve"><value>Restablecer orden</value></data>
+  <data name="TarjetasMover" xml:space="preserve"><value>Mover la tarjeta {0}. Usa las flechas arriba y abajo.</value></data>
+  <data name="TarjetasArrastrar" xml:space="preserve"><value>Arrastra ⠿ para reordenar las tarjetas</value></data>
+  <data name="AgendaNotaComunicaciones" xml:space="preserve">
+    <value>Nota para Comunicaciones</value>
+  </data>
+  <data name="AgendaNotaPlaceholder" xml:space="preserve">
+    <value>Trato especial o precaución al responderle</value>
+  </data>
+  <data name="AgendaNotaAyuda" xml:space="preserve">
+    <value>Cuando esta persona escriba, la nota aparece como marcapáginas en la conversación. Solo la ve tu equipo, nunca el contacto.</value>
+  </data>
+  <data name="AgendaNotaMarcapaginas" xml:space="preserve">
+    <value>Sale como marcapáginas en Comunicaciones cuando escribe</value>
+  </data>
+  <data name="SelectorTenantBuscarEtiqueta" xml:space="preserve">
+    <value>Buscar empresa gestionada</value>
+  </data>
+  <data name="SelectorTenantResultados" xml:space="preserve">
+    <value>Resultados</value>
+  </data>
+  <data name="SelectorTenantAyudaBuscar" xml:space="preserve">
+    <value>Escribe para filtrar · ↑↓ y Enter para elegir</value>
+  </data>
+  <data name="SelectorTenantConteo" xml:space="preserve">
+    <value>{0} de {1} empresas</value>
+  </data>
+  <data name="SelectorTenantTodas" xml:space="preserve">
+    <value>Todas las empresas</value>
   </data>
 </root>

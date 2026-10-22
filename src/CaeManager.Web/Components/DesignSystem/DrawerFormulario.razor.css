@@ -4,6 +4,16 @@
 }
 
 /* El fieldset solo existe para deshabilitar de una vez las acciones extra mientras se guarda: no es una caja. */
+/* La acción de la izquierda empuja el resto del pie a la derecha (el pie del Drawer alinea a la derecha). */
+.formulario-drawer-pie-izquierda {
+    display: flex;
+    gap: var(--space-3);
+    margin: 0 auto 0 0;
+    border: 0;
+    padding: 0;
+    min-width: 0;
+}
+
 .formulario-drawer-pie-extra {
     display: contents;
     border: 0;
@@ -31,8 +41,17 @@
         margin-right: 0;
     }
 
-    /* Sin «order»: el orden visual es el del marcado (Atrás, Guardar y terminar, Siguiente) y el de tabulación. */
+    /* Como la maqueta: «Siguiente» arriba a todo el ancho (order 1), «Atrás/Cancelar» (2) y «Guardar y terminar» (3) debajo. */
     .formulario-drawer-siguiente {
         grid-column: span 2;
+        order: 1;
+    }
+
+    .formulario-drawer-atras-intermedio {
+        order: 2;
+    }
+
+    .formulario-drawer-terminar {
+        order: 3;
     }
 }

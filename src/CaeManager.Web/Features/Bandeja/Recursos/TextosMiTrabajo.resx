@@ -213,6 +213,12 @@
   <data name="MostradosVarios" xml:space="preserve">
     <value>{0} elementos mostrados</value>
   </data>
+  <data name="GrupoDeCliente" xml:space="preserve">
+    <value>Cliente</value>
+  </data>
+  <data name="GrupoDeEmpresa" xml:space="preserve">
+    <value>Empresa</value>
+  </data>
   <data name="PlegadosUno" xml:space="preserve">
     <value>1 plegado</value>
   </data>
@@ -306,11 +312,14 @@
   <data name="CerrarDetalle" xml:space="preserve">
     <value>Cerrar detalle</value>
   </data>
+  <data name="Centro" xml:space="preserve">
+    <value>Centro</value>
+  </data>
   <data name="AccionPedir" xml:space="preserve">
-    <value>Pedir</value>
+    <value>Reclamar</value>
   </data>
   <data name="AccionPedirTitulo" xml:space="preserve">
-    <value>Pide lo que falta de {0} abriendo «Reclamar en lote» en {1}</value>
+    <value>Reclama lo que falta de {0} abriendo «Reclamar en lote» en {1}</value>
   </data>
   <data name="ReclamacionIncluirFalta" xml:space="preserve">
     <value>Incluir {0} de {1}, que falta, en la reclamación</value>
@@ -384,11 +393,66 @@
   <data name="ReclamacionErrorPreparar" xml:space="preserve"><value>No pudimos preparar la reclamación</value></data>
   <data name="ReclamacionErrorPrepararDetalle" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ReclamacionReintentar" xml:space="preserve"><value>Reintentar</value></data>
-  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores y no entran en este lote de documentos de la Empresa: se reclaman desde «Gestionar» en la ficha de cada Trabajador.</value></data>
+  <data name="ReclamacionFueraTrabajadores" xml:space="preserve"><value>{0} de {1} documentos son de Trabajadores de Subcontrata y se reclaman al Cliente, no a esta Empresa: usa «Gestionar» en la ficha de cada Trabajador.</value></data>
   <data name="ReclamacionFueraVentana" xml:space="preserve"><value>{0} de {1} documentos están fuera de la ventana de reclamación o ya no son reclamables.</value></data>
   <data name="ReclamacionNadaTitulo" xml:space="preserve"><value>Nada que reclamar a esta Empresa</value></data>
   <data name="ReclamacionNadaDetalle" xml:space="preserve"><value>Ninguno de estos documentos se puede reclamar a los contactos de esta Empresa desde aquí.</value></data>
   <data name="ReclamacionDestinoDelegacionEmpresa" xml:space="preserve"><value>Se reclama a la Delegación {0}, a su contacto de reclamación.</value></data>
   <data name="ReclamacionDestinoEmpresa" xml:space="preserve"><value>Se reclama a la Empresa que emplea a estos Trabajadores, a los contactos de su agenda.</value></data>
   <data name="ReclamacionDelegacionEmpresaSinContactoVisible" xml:space="preserve"><value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value></data>
+  <data name="PropagacionesTitulo" xml:space="preserve"><value>Propagaciones pendientes</value></data>
+  <data name="PropagacionesDetalle" xml:space="preserve"><value>Documentos aprobados que falta actualizar en un Centro o plataforma del Cliente</value></data>
+  <data name="PropagacionesVacio" xml:space="preserve"><value>Todo actualizado en los Centros y plataformas.</value></data>
+  <data name="PropagacionesIncompletas" xml:space="preserve"><value>La consulta está incompleta. Reintenta la consulta de las Empresas pendientes.</value></data>
+  <data name="PropagacionesGestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="PropagacionesSinResultados" xml:space="preserve"><value>No hay propagaciones con estos filtros.</value></data>
+  <data name="PropagacionesAbrirDocumento" xml:space="preserve"><value>Abrir el documento</value></data>
+  <data name="RecuentoVencidoUno" xml:space="preserve">
+    <value>vencido</value>
+  </data>
+  <data name="RecuentoVencidoVarios" xml:space="preserve">
+    <value>vencidos</value>
+  </data>
+  <data name="RecuentoFaltanteUno" xml:space="preserve">
+    <value>faltante</value>
+  </data>
+  <data name="RecuentoFaltanteVarios" xml:space="preserve">
+    <value>faltantes</value>
+  </data>
+  <data name="RecuentoBloqueoUno" xml:space="preserve">
+    <value>bloqueo de acceso</value>
+  </data>
+  <data name="RecuentoBloqueoVarios" xml:space="preserve">
+    <value>bloqueos de acceso</value>
+  </data>
+  <data name="RecuentoVencidoEnPlataformaUno" xml:space="preserve">
+    <value>vencido en la plataforma</value>
+  </data>
+  <data name="RecuentoVencidoEnPlataformaVarios" xml:space="preserve">
+    <value>vencidos en la plataforma</value>
+  </data>
+  <data name="RecuentoRechazadoUno" xml:space="preserve">
+    <value>rechazado por la plataforma</value>
+  </data>
+  <data name="RecuentoRechazadoVarios" xml:space="preserve">
+    <value>rechazados por la plataforma</value>
+  </data>
+  <data name="RecuentoVisitaUno" xml:space="preserve">
+    <value>visita</value>
+  </data>
+  <data name="RecuentoVisitaVarios" xml:space="preserve">
+    <value>visitas</value>
+  </data>
+  <data name="RecuentoPorVencerUno" xml:space="preserve">
+    <value>por vencer</value>
+  </data>
+  <data name="RecuentoPorVencerVarios" xml:space="preserve">
+    <value>por vencer</value>
+  </data>
+  <data name="RecuentoPendienteUno" xml:space="preserve">
+    <value>pendiente</value>
+  </data>
+  <data name="RecuentoPendienteVarios" xml:space="preserve">
+    <value>pendientes</value>
+  </data>
 </root>

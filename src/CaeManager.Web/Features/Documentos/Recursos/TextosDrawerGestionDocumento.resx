@@ -15,8 +15,14 @@
   <data name="TrabajadorPreseleccionadoNoEncontrado" xml:space="preserve">
     <value>No encontramos este trabajador entre los que puedes gestionar. Elige a quién pertenece el documento.</value>
   </data>
+  <data name="EmpresaPreseleccionadaNoEncontrada" xml:space="preserve">
+    <value>No encontramos esta empresa entre las que puedes gestionar. Elige a quién pertenece el documento.</value>
+  </data>
   <data name="GuardarEsperaSubida" xml:space="preserve">
     <value>Espera a que termine la subida del archivo.</value>
+  </data>
+  <data name="ToastDocumentoActualizado" xml:space="preserve">
+    <value>Documento actualizado correctamente.</value>
   </data>
   <data name="HistorialAbreVigente" xml:space="preserve">
     <value>Ese documento está en el historial: lo sustituyó otro. Abrimos el vigente.</value>
@@ -32,5 +38,20 @@
   </data>
   <data name="SiguienteNoDisponible" xml:space="preserve">
     <value>El documento se guardó, pero no pudimos abrir el siguiente de la lista.</value>
+  </data>
+  <data name="ArchivoNoAdjuntado" xml:space="preserve">
+    <value>Este archivo no se adjuntó. Elige otro o vuelve a intentarlo.</value>
+  </data>
+  <data name="GuardarSinArchivoAdjuntado" xml:space="preserve">
+    <value>No se ha guardado: el archivo que elegiste no se adjuntó. Vuelve a adjuntarlo antes de guardar.</value>
+  </data>
+  <data name="SeguirSinArchivo" xml:space="preserve">
+    <value>Seguir sin archivo</value>
+  </data>
+  <data name="SeguirConArchivoAnterior" xml:space="preserve">
+    <value>Seguir con el archivo anterior</value>
+  </data>
+  <data name="DemasiadosArchivos" xml:space="preserve">
+    <value>Puedes subir hasta {0} archivos a la vez.</value>
   </data>
 </root>

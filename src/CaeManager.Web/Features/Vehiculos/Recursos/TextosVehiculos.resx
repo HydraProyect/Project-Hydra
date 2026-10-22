@@ -321,7 +321,7 @@
   <data name="OpcionesOrdenVehiculo" xml:space="preserve">
     <value>Opciones de orden del vehículo</value>
   </data>
-  <data name="PestanaCentrosEmpleador360" xml:space="preserve"><value>Centros de su Empresa empleadora</value></data>
+  <data name="PestanaCentrosEmpleador360" xml:space="preserve"><value>Centros de su empleador</value></data>
   <data name="CentrosOrientativos360" xml:space="preserve"><value>El vehículo no está asignado a ningún Centro ni Visita. Esta lista es orientativa: muestra Centros donde trabajan los Trabajadores de su Empresa empleadora.</value></data>
   <data name="SinCentrosEmpleador360" xml:space="preserve"><value>Sin actividad en Centros visibles de su Empresa empleadora</value></data>
   <data name="ErrorCentros360" xml:space="preserve"><value>No pudimos cargar los Centros de su Empresa empleadora</value></data>
@@ -382,4 +382,14 @@
   <data name="FichaErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar la ficha del vehículo.</value>
   </data>
+  <data name="ListaColumnaEmpresa" xml:space="preserve"><value>Empresa</value></data>
+  <data name="ListaColumnaDocumentacion" xml:space="preserve"><value>Documentación</value></data>
+  <data name="EtiquetaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="OpcionSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="AgruparPorEmpresa" xml:space="preserve"><value>Por Empresa</value></data>
+  <data name="PestanaPlataformas360" xml:space="preserve"><value>Plataformas</value></data>
+  <data name="FichaAlta" xml:space="preserve"><value>Alta</value></data>
+  <data name="PlataformasIntroduccion" xml:space="preserve"><value>Estado de la documentación del vehículo en la plataforma CAE de cada Cliente, por Centro.</value></data>
+  <data name="PlataformasNoDisponiblesTitulo" xml:space="preserve"><value>Estado en plataformas no disponible</value></data>
+  <data name="PlataformasNoDisponiblesDescripcion" xml:space="preserve"><value>Todavía no se puede consultar el estado del vehículo por Cliente y Centro.</value></data>
 </root>

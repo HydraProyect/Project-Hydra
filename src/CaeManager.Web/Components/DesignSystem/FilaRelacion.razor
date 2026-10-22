@@ -29,7 +29,11 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<li class="fila-relacion @(EnRejilla ? "fila-relacion-rejilla" : null)" data-pieza="fila" data-tono="@TonoPieza">
+<li class="fila-relacion @(EnRejilla ? "fila-relacion-rejilla" : null) @(Compacta ? "fila-relacion-compacta" : null)" data-pieza="fila" data-tono="@TonoPieza">
+    @if (!string.IsNullOrWhiteSpace(HrefFila))
+    {
+        <a class="fila-relacion-enlace" href="@HrefFila" aria-label="@Comunes["IrAPaginaDe", Nombre]" title="@Comunes["IrAPaginaDe", Nombre]"></a>
+    }
     <span class="fila-relacion-identidad">
     @if (Desplegable is not null)
     {
@@ -56,6 +60,7 @@
     }
 
     <span class="fila-relacion-texto">
+        <span class="fila-relacion-titulo">
         @if (!string.IsNullOrWhiteSpace(Href))
         {
             <a class="fila-relacion-nombre" href="@Href" title="@(Comunes["IrAPaginaDe", Nombre])">@Nombre</a>
@@ -68,6 +73,9 @@
         {
             <span class="fila-relacion-nombre" title="@Nombre">@Nombre</span>
         }
+
+        @JuntoAlNombre
+        </span>
 
         @if (Detalle is not null)
         {
@@ -108,6 +116,9 @@
 </li>
 
 @code {
+    /// <summary>Subfila documental: nombre, estado, vigencia y acción en una línea.</summary>
+    [Parameter] public bool Compacta { get; set; }
+
     private bool EnRejilla => Cifra is not null || Estado is not null || Acciones is not null;
 
     private string? TonoPieza => Tono switch
@@ -124,6 +135,12 @@
 
     /// <summary>Ruta de la página 360 de la entidad (<c>/centros/{id}</c>, <c>/empresas/{id}</c>…).</summary>
     [Parameter] public string? Href { get; set; }
+
+    /// <summary>Destino al pulsar el fondo de la fila; el nombre y las acciones conservan sus propios destinos.</summary>
+    [Parameter] public string? HrefFila { get; set; }
+
+    /// <summary>Rótulo junto al nombre, como el bloqueo de la plataforma CAE de un Centro.</summary>
+    [Parameter] public RenderFragment? JuntoAlNombre { get; set; }
 
     /// <summary>Nombre de un icono del catálogo de <see cref="DesignSystem.Icono"/> para la casilla de la izquierda. Opcional.</summary>
     [Parameter] public string? NombreIcono { get; set; }

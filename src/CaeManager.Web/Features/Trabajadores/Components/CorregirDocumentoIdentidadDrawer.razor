@@ -1,0 +1,118 @@
+@using CaeManager.Application.Trabajadores.Commands.CorregirDocumentoIdentidadTrabajador
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId
+@using CaeManager.Domain.Trabajadores
+@using CaeManager.Web.Features.Trabajadores.Recursos
+@using FluentValidation
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject ToastService ToastService
+@inject IStringLocalizer<TextosTrabajadores> Textos
+
+@* Acción «Corregir documento de identidad» de la ficha 360 (decisión de Chris, 2026-10-20): mismo criterio que el alta
+   (CriterioDocumentoIdentidadTrabajador), con el aviso de Pasaporte antes de guardar. *@
+<DrawerFormulario Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Textos["AccionCorregirDocumento"]"
+    Cargando="_cargando" HayCambios="() => Visible && _lista && _documento != _documentoCargado"
+    Guardando="_guardando" MensajeError="@_error" HayErroresDeCampo="@(_errorCampo is not null)"
+    MotivoGuardarDeshabilitado="@(!_lista ? Textos["FichaNoDisponible"].Value : null)" OnGuardar="GuardarAsync"
+    TextoGuardar="@Textos["CorregirDocumentoGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p class="texto-ayuda-campo" data-campo="documento-actual">@Textos["CorregirDocumentoActual"]: @_documentoCargado</p>
+    <CampoTexto Etiqueta="@Textos["CorregirDocumentoEtiqueta"]" Valor="@_documento" ValorChanged="v => { _documento = v; _errorCampo = null; }"
+        MensajeError="@_errorCampo" />
+    @if (Aviso is { } aviso)
+    {
+        <p class="texto-ayuda-campo" data-aviso="pasaporte" role="status">@aviso</p>
+    }
+    <p class="texto-ayuda-campo" data-ayuda="corregir-documento">@Textos["CorregirDocumentoAyuda"]</p>
+</DrawerFormulario>
+
+@code {
+    [Parameter] public Guid TrabajadorId { get; set; }
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
+    [Parameter] public EventCallback OnGuardada { get; set; }
+
+    private bool _abierto, _cargando, _guardando, _lista;
+    private int _generacion;
+    private Guid _id, _version;
+    private string _documento = "", _documentoCargado = "";
+    private string? _error, _errorCampo;
+    private readonly CancellationTokenSource _ciclo = new();
+
+    /// <summary>El aviso de Pasaporte del alta: lo que no es DNI ni NIE se guardará como Pasaporte.</summary>
+    private string? Aviso =>
+        _documento != _documentoCargado && CriterioDocumentoIdentidadTrabajador.Clasificar(_documento).SeGuardaComoPasaporte
+            ? Textos["PistaDocumentoExtranjero"].Value
+            : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Visible)
+        {
+            if (_abierto) ++_generacion;
+            _abierto = false;
+            return;
+        }
+        if (_abierto && _id == TrabajadorId) return;
+        _abierto = true;
+        _id = TrabajadorId;
+        var generacion = ++_generacion;
+        _cargando = true;
+        _guardando = _lista = false;
+        _error = _errorCampo = null;
+        try
+        {
+            var detalle = await Mediator.Send(new ObtenerTrabajadorPorIdQuery(_id), _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (detalle is null) { _error = Textos["FichaNoDisponible"]; return; }
+            _version = detalle.Version;
+            _documento = _documentoCargado = detalle.Dni ?? "";
+            _lista = true;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaNoDisponible"]; }
+        finally { if (generacion == _generacion) _cargando = false; }
+    }
+
+    private async Task GuardarAsync()
+    {
+        if (!_lista || _guardando || !Visible) return;
+        var generacion = _generacion;
+        _guardando = true;
+        _error = _errorCampo = null;
+        try
+        {
+            var comando = new CorregirDocumentoIdentidadTrabajadorCommand(_id, _version, _documento);
+            var validacion = new CorregirDocumentoIdentidadTrabajadorCommandValidator().Validate(comando);
+            if (!validacion.IsValid) throw new ValidationException(validacion.Errors);
+            var resultado = await Mediator.Send(comando, _ciclo.Token);
+            if (generacion != _generacion) return;
+            if (resultado.EsFallido)
+            {
+                _error = resultado.Error.Mensaje;
+                return;
+            }
+            _documentoCargado = _documento;
+            ToastService.Mostrar(Textos["CorregirDocumentoExito"], TonoToast.Exito);
+            await VisibleChanged.InvokeAsync(false);
+            await OnGuardada.InvokeAsync();
+        }
+        catch (ValidationException ex)
+        {
+            if (generacion == _generacion)
+                _errorCampo = ex.Errors.FirstOrDefault(e => e.PropertyName == nameof(CorregirDocumentoIdentidadTrabajadorCommand.Documento))?.ErrorMessage
+                    ?? ex.Errors.First().ErrorMessage;
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { if (generacion == _generacion) _error = Textos["FichaErrorGuardar"]; }
+        finally { if (generacion == _generacion) _guardando = false; }
+    }
+
+    public void Dispose()
+    {
+        ++_generacion;
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

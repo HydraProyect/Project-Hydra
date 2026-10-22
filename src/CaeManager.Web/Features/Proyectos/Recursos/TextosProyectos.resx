@@ -189,6 +189,21 @@
   <data name="BadgeActivo" xml:space="preserve">
     <value>Activo</value>
   </data>
+  <data name="BadgeSinAsignarAlCentro" xml:space="preserve">
+    <value>Sin asignar al Centro</value>
+  </data>
+  <data name="FraccionTecnico" xml:space="preserve">
+    <value>{0} de {1}</value>
+  </data>
+  <data name="MetaTecnicoSinAsignar" xml:space="preserve">
+    <value>no tiene asignación a {0}</value>
+  </data>
+  <data name="BotonAsignarAlCentro" xml:space="preserve">
+    <value>Asignar</value>
+  </data>
+  <data name="SubtituloTecnicosPorEstado" xml:space="preserve">
+    <value>{0}, del peor estado al mejor · cifras con los requisitos de {1}</value>
+  </data>
   <data name="BotonDarDeBaja" xml:space="preserve">
     <value>Dar de baja</value>
   </data>
@@ -337,7 +352,9 @@
   <data name="ListaPlazoTranscurrido" xml:space="preserve"><value>Plazo transcurrido</value></data>
   <data name="ListaProyecto" xml:space="preserve"><value>Proyecto</value></data>
   <data name="ListaSinFechaFinPrevista" xml:space="preserve"><value>Sin fecha de fin prevista</value></data>
-  <data name="MigaProyectos" xml:space="preserve"><value>Proyectos (obras)</value></data>
+  <data name="MigaProyectos" xml:space="preserve"><value>Proyectos</value></data>
+  <data name="ResumenTecnicosProyecto" xml:space="preserve"><value>{0} técnicos activos</value></data>
+  <data name="ResumenTecnicoProyecto" xml:space="preserve"><value>{0} técnico activo</value></data>
   <data name="EtiquetaMigas" xml:space="preserve"><value>Ruta de Proyecto 360</value></data>
   <data name="TituloPestanaNavegadorDetalle" xml:space="preserve"><value>Proyecto</value></data>
   <data name="KickerDetalle" xml:space="preserve"><value>Proyecto</value></data>
@@ -349,6 +366,7 @@
   <data name="AccionAsignarTecnico" xml:space="preserve"><value>Asignar técnico</value></data>
   <data name="AccionReabrir" xml:space="preserve"><value>Reabrir</value></data>
   <data name="MenuMasAcciones" xml:space="preserve"><value>Más acciones</value></data>
+  <data name="MenuCrearEvento" xml:space="preserve"><value>Crear Evento</value></data>
   <data name="MenuEditarProyecto" xml:space="preserve"><value>Editar proyecto</value></data>
   <data name="MenuCerrarProyecto" xml:space="preserve"><value>Cerrar proyecto…</value></data>
   <data name="MenuEliminarProyecto" xml:space="preserve"><value>Eliminar proyecto</value></data>
@@ -389,7 +407,7 @@
   <data name="VentanaTecnicoAyuda" xml:space="preserve"><value>Abrir la pestaña Técnicos del proyecto</value></data>
   <data name="AriaEditarProyecto" xml:space="preserve"><value>Editar la información del proyecto</value></data>
   <data name="TituloEditarConAtajo" xml:space="preserve"><value>Editar (e)</value></data>
-  <data name="ListaFechas" xml:space="preserve"><value>Fechas</value></data>
+  <data name="ListaFechas" xml:space="preserve"><value>Periodo</value></data>
   <data name="ListaSinFechaFin" xml:space="preserve"><value>sin fecha de fin</value></data>
   <data name="MotivoDuroUno" xml:space="preserve"><value>Duró {0} día</value></data>
   <data name="MotivoDuroVarios" xml:space="preserve"><value>Duró {0} días</value></data>
@@ -447,6 +465,9 @@
   <data name="ErrorFinEvento" xml:space="preserve">
     <value>Un evento necesita fecha de fin.</value>
   </data>
+  <data name="AyudaFinEvento" xml:space="preserve">
+    <value>Obligatorio. Al pasar la fecha de fin, el evento se cierra y se da de baja a sus técnicos.</value>
+  </data>
   <data name="EtiquetaOrigenRequisitos" xml:space="preserve">
     <value>Requisitos documentales</value>
   </data>
@@ -501,4 +522,13 @@
   <data name="ToastPlantillaGuardada" xml:space="preserve">
     <value>Plantilla guardada.</value>
   </data>
+  <data name="ListaEmpresa" xml:space="preserve"><value>Cliente</value></data>
+  <data name="ListaAgrupar" xml:space="preserve"><value>Agrupar</value></data>
+  <data name="ListaSinAgrupar" xml:space="preserve"><value>Sin agrupar</value></data>
+  <data name="ListaPorEmpresa" xml:space="preserve"><value>Por Cliente</value></data>
+  <data name="ListaDocumentacionDe" xml:space="preserve"><value>Documentación de {0}</value></data>
+  <data name="ListaErrorDocumentacion" xml:space="preserve"><value>No pudimos cargar la documentación</value></data>
+  <data name="ListaSinDocumentos" xml:space="preserve"><value>Sin documentos registrados para este proyecto.</value></data>
+  <data name="ListaSinVencimiento" xml:space="preserve"><value>Sin fecha de vencimiento</value></data>
+  <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
 </root>

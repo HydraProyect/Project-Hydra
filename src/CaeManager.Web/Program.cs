@@ -21,6 +21,7 @@ using CaeManager.Web.Features.BusquedaGlobal;
 using CaeManager.Web.Features.Centros;
 using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Comunicaciones;
+using CaeManager.Web.Features.CuadroDireccion;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Extension;
@@ -406,6 +407,12 @@ builder.Services.AddAuthorization(options =>
         .RequireAuthenticatedUser()
         .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
             CaeManager.Web.Services.Autorizacion.PoliticasFichas360.RolesProyectoYVisita)));
+
+    // Cuadro de dirección: Dirección CAE, Coordinador CAE y Administrador por rol, o Sesión Privilegiada de acceso total.
+    options.AddPolicy(CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Nombre, policy => policy
+        .RequireAuthenticatedUser()
+        .AddRequirements(new CaeManager.Web.Services.Autorizacion.RequisitoEquipoOSoporteConAccesoTotal(
+            CaeManager.Web.Services.Autorizacion.PoliticaCuadroDireccion.Roles)));
 
     // Solo el esquema ApiKey — sin esto, el FallbackPolicy (que no fija
     // esquema) aceptaría también la cookie de Identity, y un usuario con
@@ -1006,6 +1013,7 @@ using (var scope = app.Services.CreateScope())
         GestorCaeCarteraMultiTenantSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         Fichas360DemoSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
         PilotoOutboundSeeder.RechazarEnProduccion(app.Configuration, app.Environment);
+        CoberturaPantallasSeeder.RechazarFueraDeDevelopment(app.Configuration, app.Environment);
 
         // Identidad ADMINISTRATIVA para los seeders que no son trafico de
         // aplicacion: IdentitySeeder escribe estado de sistema sin identidad de
@@ -1056,6 +1064,11 @@ using (var scope = app.Services.CreateScope())
             dbContext, userManager, userStore,
             scope.ServiceProvider.GetRequiredService<CaeManager.Application.Common.IFileStorageService>(),
             app.Configuration, app.Environment, logger);
+
+        // Siembra de cobertura para la revisión visual 1:1: un ejemplar de cada estado de pantalla en dos
+        // Tenants propietarios nuevos — inerte salvo DatosPrueba:Cobertura:Activo (con DatosPrueba:Activo),
+        // y lanza fuera de Development (ver CoberturaPantallasSeeder).
+        await CoberturaPantallasSeeder.SeedAsync(dbContext, userManager, app.Configuration, app.Environment, logger);
 
         // Segundo tenant, exclusivamente para verificación E2E multi-tenant con
         // navegador real (ver Project-Hydra-Negocio/tecnico/PLAN-MIGRACION-MULTITENANT.md § 6) — inerte salvo
@@ -1232,6 +1245,7 @@ app.MapVisitasEndpoints();
 app.MapVehiculosEndpoints();
 app.MapProyectosEndpoints();
 app.MapGestionesEndpoints();
+app.MapCuadroDireccionEndpoints();
 app.MapReportesEndpoints();
 app.MapAuditoriaEndpoints();
 app.MapClienteActivoEndpoints();

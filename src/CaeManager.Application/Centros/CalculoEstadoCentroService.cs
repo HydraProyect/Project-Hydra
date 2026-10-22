@@ -128,6 +128,17 @@ public interface ICalculoEstadoCentroService
     /// </summary>
     Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Los pares Empresa × TipoDocumento (ámbito Empresa) que esos Centros exigen, con el estado del documento efectivo de la
+    /// Empresa o Faltante: los mismos que entran en el denominador del % del Centro (<see cref="CalcularCumplimientoAsync"/>),
+    /// sin la marca de pendiente en la plataforma. Cada Empresa con un Trabajador de Asignación activa en el Centro (o su
+    /// Subcontrata si no tiene Empresa; sin voluntarios inactivos) × cada tipo que le aplica al Centro
+    /// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>), bloquee o no el acceso. Un Centro sin gestión CAE no aporta ninguno.
+    /// No acota por alcance: quien lo consume cruza con lo que ve.
+    /// </summary>
+    Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+        IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
 }
 
 public class CalculoEstadoCentroService(
@@ -687,6 +698,16 @@ public class CalculoEstadoCentroService(
         return UnirConParesDeEvento(
             await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, [], hoy, cancellationToken),
             await ObtenerParesDeEventoAsync(conGestionCae, [], hoy, cancellationToken));
+    }
+
+    public async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+        IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0)
+            return [];
+
+        var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
+        return await ObtenerParesDeEmpresaAsync(conGestionCae, [], DiaDeNegocio.Hoy(), cancellationToken);
     }
 
     /// <summary>

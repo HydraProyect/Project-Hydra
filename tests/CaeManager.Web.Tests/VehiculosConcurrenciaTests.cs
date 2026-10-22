@@ -366,7 +366,7 @@ public class VehiculosConcurrenciaTests : BunitContext
     // Insertar dentro de VehiculosConcurrenciaTests. Añadir using AngleSharp.Dom y CaeManager.Domain.Documentos si faltan.
     public static IEnumerable<object[]> CamposOrdenVehiculoFase1()
     {
-        foreach (var campo in new[] { "Nombre", "Modelo" })
+        foreach (var campo in new[] { "Nombre", "NumeroPlaca" })
             foreach (var misma in new[] { false, true })
                 foreach (var descendente in new[] { false, true })
                     yield return [campo, misma, descendente];
@@ -378,10 +378,10 @@ public class VehiculosConcurrenciaTests : BunitContext
         string campo, bool mismaColumna, bool descendente)
     {
         var (cut, m) = Renderizar(Vehiculo("Furgoneta contractual"));
-        var previo = campo == "Nombre" ? "Modelo" : "Nombre";
+        var previo = campo == "Nombre" ? "NumeroPlaca" : "Nombre";
         await ElegirOrdenVehiculoFase1(cut, previo);
-        await FijarSentidoVehiculoFase1(cut, m, mismaColumna ? "Vehículo" : "Matrícula", descendente);
-        UltimoOrdenVehiculoFase1(m).OrdenarPor.Should().Be(mismaColumna ? previo : "NumeroPlaca");
+        await FijarSentidoVehiculoFase1(cut, m, mismaColumna ? "Vehículo" : "Modelo", descendente);
+        UltimoOrdenVehiculoFase1(m).OrdenarPor.Should().Be(mismaColumna ? previo : "Modelo");
         UltimoOrdenVehiculoFase1(m).Descendente.Should().Be(descendente);
         var antes = m.Enviadas.OfType<ObtenerVehiculosQuery>().Count();
         await ElegirOrdenVehiculoFase1(cut, campo);
@@ -403,10 +403,11 @@ public class VehiculosConcurrenciaTests : BunitContext
         m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();
         var filas = cut.FindAll("tbody tr:has(button.enlace-nombre-fila)");
         filas.Should().HaveCount(3);
-        cut.Find(".lista-herramientas-maqueta .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
+        // La identidad lleva el nombre y, debajo, la matrícula; el modelo tiene su propia columna.
         filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.Nombre))
-            .TextContent.Should().Contain(vencido.Modelo);
-        filas[0].TextContent.Should().Contain(vencido.NumeroPlaca);
+            .TextContent.Should().Contain(vencido.NumeroPlaca);
+        filas[0].QuerySelectorAll("td").Select(td => td.TextContent.Trim()).Should().Contain(vencido.Modelo);
         filas[0].ClassList.Should().Contain("fila-tintada-peligro");
         filas[1].ClassList.Should().Contain("fila-tintada-aviso");
         filas[2].ClassList.Should().NotContain("fila-tintada-peligro").And.NotContain("fila-tintada-aviso");
@@ -422,14 +423,14 @@ public class VehiculosConcurrenciaTests : BunitContext
     {
         var (cut, m) = Renderizar(Vehiculo("Furgoneta contractual"));
         var retenida = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        m.Retener = x => x is ObtenerVehiculosQuery { OrdenarPor: "Modelo" } ? retenida.Task : null;
+        m.Retener = x => x is ObtenerVehiculosQuery { OrdenarPor: "NumeroPlaca" } ? retenida.Task : null;
         Task? cambiar = null;
         var huboError = false;
         var antes = 0;
         try
         {
-            cambiar = ElegirOrdenVehiculoFase1(cut, "Modelo");
-            cut.WaitForAssertion(() => UltimoOrdenVehiculoFase1(m).OrdenarPor.Should().Be("Modelo"));
+            cambiar = ElegirOrdenVehiculoFase1(cut, "NumeroPlaca");
+            cut.WaitForAssertion(() => UltimoOrdenVehiculoFase1(m).OrdenarPor.Should().Be("NumeroPlaca"));
             antes = m.Enviadas.OfType<ObtenerVehiculosQuery>().Count();
             var token = m.Tokens[m.Enviadas.FindLastIndex(x => x is ObtenerVehiculosQuery)];
             token.CanBeCanceled.Should().BeTrue();

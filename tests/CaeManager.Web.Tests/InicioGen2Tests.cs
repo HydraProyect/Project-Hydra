@@ -1,4 +1,5 @@
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using System.Globalization;
 using System.Reflection;
@@ -241,7 +242,7 @@ public class InicioGen2Tests : BunitContext
             "decir «no hay datos» sobre un contexto que tiene una visita sería peor que los ceros");
     }
 
-    // ------------------------------------------- aterrizaje en Mi trabajo (D-2)
+    // ----------------- pantalla al entrar: Inicio, con la cartera en el contexto propio (D-2 retirado)
 
     private static readonly Guid OrigenOperador = Guid.NewGuid();
     private static readonly Guid PropietarioConCartera = Guid.NewGuid();
@@ -284,34 +285,103 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// D-2: el Gestor CAE de un Operador CAE externo aterriza en Mi trabajo. En el
-    /// Tenant de origen del Operador CAE no tiene cartera —su cartera vive en los
-    /// Tenants propietarios que opera—, y decirle «Sin cartera asignada» era falso.
+    /// Decisión del propietario, 2026-10-21: la pantalla al entrar es Inicio, también
+    /// para el Gestor CAE de un Operador CAE externo (D-2, que lo llevaba a Mi trabajo,
+    /// queda retirado). En el Tenant de origen del Operador CAE no tiene cartera —su
+    /// cartera vive en los Tenants propietarios que opera—, así que Inicio enseña esa
+    /// cartera en vez de saltar o de decir «sin cartera».
     /// </summary>
     [Fact]
-    public void Tras_iniciar_sesion_en_el_Tenant_de_origen_sin_cartera_y_con_cartera_en_otro_Tenant_lleva_a_Mi_trabajo()
+    public void Tras_iniciar_sesion_en_el_Tenant_de_origen_con_cartera_en_otro_Tenant_se_queda_en_Inicio_y_ensena_la_cartera()
     {
-        var mediador = SinCarteraAqui(carteraEnOtroTenant: true);
-        var cut = Renderizar(mediador, ruta: "/?desde=login");
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: "/?desde=login");
 
-        cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
-        cut.Markup.Should().NotContain("Sin cartera asignada",
+        cut.Find("[data-inicio-cartera] h2").TextContent.Should().Be("Tu cartera");
+        cut.FindAll("[data-empresa-gestionada]").Select(f => f.GetAttribute("data-empresa-gestionada"))
+            .Should().Equal([PropietarioConCartera.ToString()],
+                "solo las Empresas gestionadas con Asignación de Cartera, ni el Tenant de origen ni las que no tiene");
+        cut.Markup.Should().NotContain("Sin cartera",
             "no se afirma que no tiene cartera a quien la tiene en otro Tenant propietario");
+        VerificarMarcaQuitadaSinNavegar(cut);
+        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
     /// <summary>
-    /// Bug 2026-09-28: pulsar «Inicio» en el menú (sin la marca del inicio de
-    /// sesión) redirigía siempre a Mi trabajo y el dashboard de Inicio quedaba
-    /// inaccesible para este perfil. D-2 fija el aterrizaje tras iniciar sesión,
-    /// no el destino de cada clic en Inicio.
+    /// Pulsar «Inicio» en el menú (sin la marca) da lo mismo que entrar: la cartera,
+    /// con la salida a Mi trabajo para la cola de todas las Empresas gestionadas.
     /// </summary>
     [Fact]
-    public void Pulsar_Inicio_en_el_Tenant_de_origen_sin_cartera_no_redirige_y_ofrece_ir_a_Mi_trabajo()
+    public void Pulsar_Inicio_en_el_Tenant_de_origen_ensena_la_cartera_con_la_salida_a_Mi_trabajo()
     {
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: "/");
 
-        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
-        UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        cut.Find("[data-inicio-cartera] a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        cut.FindAll(".estado-vacio").Should().BeEmpty();
+        NavegacionesDeInicio.Should().Be(0);
+    }
+
+    /// <summary>
+    /// «Entrar» cambia de contexto por la misma puerta que el selector de la cabecera:
+    /// POST con antiforgery a /cuenta/cliente-activo, que revalida el Tenant en el
+    /// servidor. Inicio no lee nada del otro Tenant por su cuenta.
+    /// </summary>
+    [Fact]
+    public void Entrar_en_una_Empresa_gestionada_es_el_POST_revalidado_de_cambio_de_contexto()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true));
+
+        var formulario = cut.Find($"[data-empresa-gestionada='{PropietarioConCartera}'] form");
+        formulario.GetAttribute("method").Should().Be("post");
+        formulario.GetAttribute("action").Should().Be("/cuenta/cliente-activo");
+        formulario.QuerySelector("input[name=tenantId]")!.GetAttribute("value").Should().Be(PropietarioConCartera.ToString());
+        formulario.QuerySelector("input[name=returnUrl]")!.GetAttribute("value").Should().Be("/");
+        formulario.QuerySelector("input[name=__RequestVerificationToken]").Should().NotBeNull();
+        formulario.QuerySelector("button")!.TextContent.Trim().Should().Be("Entrar");
+        formulario.QuerySelector("button")!.GetAttribute("aria-label").Should().Be("Cambiar el contexto a Laboratorios Dexter",
+            "con varias filas, «Entrar» a secas no dice a qué Empresa gestionada se entra");
+    }
+
+    /// <summary>El Coordinador CAE de un Operador CAE externo también entra a Inicio y ve ahí la cartera.</summary>
+    [Fact]
+    public void El_Coordinador_CAE_en_el_Tenant_de_origen_tambien_ve_la_cartera()
+    {
+        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), rol: Roles.CoordinadorCae, ruta: "/?desde=login");
+
+        cut.FindAll("[data-empresa-gestionada]").Should().ContainSingle();
+        cut.FindAll(".estado-vacio").Should().BeEmpty();
+        VerificarMarcaQuitadaSinNavegar(cut);
+    }
+
+    /// <summary>
+    /// Las cifras de cabecera suman las Empresas gestionadas de la fila, y las filas
+    /// empiezan por lo que impide el acceso (Trabajadores bloqueados, luego Centros de
+    /// Trabajo con bloqueo, en columnas separadas), luego lo vencido.
+    /// </summary>
+    [Fact]
+    public void La_cartera_suma_sus_Empresas_gestionadas_y_ordena_primero_las_que_tienen_bloqueos()
+    {
+        var mediador = new MediadorDeInicio
+        {
+            Kpis = KpisACero() with { SinCarteraAsignada = true },
+            Autorizados = OrigenYDosPropietarios(),
+            CarteraPorTenant = new Dictionary<Guid, bool> { [PropietarioConCartera] = true, [PropietarioSinCartera] = true },
+            RiesgoPorTenant = new Dictionary<Guid, ClienteRiesgoDto>
+            {
+                [PropietarioConCartera] = new(PropietarioConCartera, "Laboratorios Dexter", DocumentosVencidos: 5,
+                    DocumentosUrgentes: 2, TasaCumplimientoDocumental: 80),
+                [PropietarioSinCartera] = new(PropietarioSinCartera, "Cervezas Duff Ibérica", DocumentosVencidos: 1,
+                    DocumentosUrgentes: 0, TasaCumplimientoDocumental: 60, CentrosBloqueados: 1, TrabajadoresBloqueados: 2),
+            },
+        };
+
+        var cut = Renderizar(mediador);
+
+        cut.FindAll("[data-empresa-gestionada] .inicio-cartera-nombre").Select(c => c.TextContent)
+            .Should().Equal("Cervezas Duff Ibérica", "Laboratorios Dexter");
+        cut.Find(".inicio-cartera-meta").TextContent.Should().Be("2 Empresas gestionadas");
+        cut.FindAll(".inicio-cartera-cifra dd").Select(c => c.TextContent).Should().Equal("2", "1", "6", "2");
+        cut.FindAll($"[data-empresa-gestionada='{PropietarioSinCartera}'] td").Select(c => c.TextContent.Trim()).Take(6)
+            .Should().Equal("Cervezas Duff Ibérica", "2", "1", "1", "0", "60%");
     }
 
     [Fact]
@@ -325,9 +395,9 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// La marca solo autoriza el salto en el Tenant de origen: en un Context
-    /// Workspace elegido con el selector no se redirige aunque la marca esté, y la
-    /// marca se consume igual (un solo uso).
+    /// En un Context Workspace elegido con el selector, sin cartera suya, la marca
+    /// no cambia nada: el estado vacío con la salida a Mi trabajo, y la marca se
+    /// consume igual (un solo uso).
     /// </summary>
     [Fact]
     public void Con_la_marca_en_un_Tenant_propietario_elegido_no_redirige_y_quita_la_marca()
@@ -360,7 +430,7 @@ public class InicioGen2Tests : BunitContext
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
     }
 
-    /// <summary>Solo el valor exacto <c>login</c> es la marca: cualquier otro no aterriza.</summary>
+    /// <summary>Solo el valor exacto <c>login</c> es la marca: cualquier otro ni navega ni se limpia.</summary>
     [Theory]
     [InlineData("/?desde=otro")]
     [InlineData("/?desde=LOGIN")]
@@ -369,7 +439,7 @@ public class InicioGen2Tests : BunitContext
     {
         var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: ruta);
 
-        cut.Find(".estado-vacio a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
+        cut.Find("[data-inicio-cartera] a[href='/mi-trabajo']").TextContent.Should().Contain("Mi trabajo");
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
         _moduloMarca.VerifyNotInvoke("quitarMarca");
         NavegacionesDeInicio.Should().Be(0);
@@ -389,30 +459,11 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Con la marca y D-2 Inicio se va a Mi trabajo con replace: esa navegación quita la
-    /// marca de la URL por sí sola, así que no hay llamada JS de limpieza.
-    /// </summary>
-    [Fact]
-    public void Con_la_marca_y_D2_navega_a_Mi_trabajo_con_replace_y_no_llama_a_la_limpieza()
-    {
-        var cut = Renderizar(SinCarteraAqui(carteraEnOtroTenant: true), ruta: "/?desde=login");
-
-        cut.WaitForAssertion(() => UrlActual.Should().EndWith(Inicio.RutaMiTrabajo));
-        var entradas = ((BunitNavigationManager)Services.GetRequiredService<NavigationManager>()).History;
-        // No se cuenta cuántas entradas hay: el arnés de bUnit modela «replace» sustituyendo la
-        // última entrada, de modo que el recuento no aumenta. Lo que demuestra el replace es que
-        // la entrada superior es Mi trabajo y lleva ReplaceHistoryEntry.
-        entradas.First().Uri.Should().EndWith(Inicio.RutaMiTrabajo);
-        entradas.First().Options.ReplaceHistoryEntry.Should().BeTrue();
-        _moduloMarca.VerifyNotInvoke("quitarMarca");
-    }
-
-    /// <summary>
     /// La marca se consume una vez: una recarga posterior de datos (Reintentar, cambio
-    /// de Tenant) ni repite la limpieza ni reactiva D-2 aunque ahora sí correspondiera.
+    /// de Tenant) no repite la limpieza ni navega, aunque ahora haya cartera que enseñar.
     /// </summary>
     [Fact]
-    public async Task Una_recarga_posterior_no_repite_la_limpieza_ni_reactiva_D2()
+    public async Task Una_recarga_posterior_no_repite_la_limpieza_ni_navega()
     {
         var carteras = new Dictionary<Guid, bool> { [PropietarioConCartera] = false };
         var mediador = new MediadorDeInicio
@@ -428,8 +479,9 @@ public class InicioGen2Tests : BunitContext
         await cut.InvokeAsync(() => Recargar(cut));
 
         _moduloMarca.VerifyInvoke("quitarMarca", calledTimes: 1);
-        NavegacionesDeInicio.Should().Be(0, "sin marca vigente D-2 no se reactiva: la recarga no puede llevar a Mi trabajo");
+        NavegacionesDeInicio.Should().Be(0, "la recarga no puede llevar a Mi trabajo");
         UrlActual.Should().NotEndWith(Inicio.RutaMiTrabajo);
+        cut.FindAll("[data-empresa-gestionada]").Should().ContainSingle("la recarga enseña la cartera que ahora sí hay");
     }
 
     /// <summary>
@@ -635,13 +687,93 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador, no del Centro (corrección del propietario, 2026-10-03): la pista del KPI
-    /// cuenta Trabajadores bloqueados, no Centros. Un mismo Trabajador bloqueado en dos Centros (o por dos requisitos) es UN
-    /// Trabajador; dos Trabajadores bloqueados en el mismo Centro son dos. Un recién dado de alta sin documentación cuenta
-    /// igual que cualquier otro.
+    /// La pista del KPI «Centros / plataformas» habla de Centros (revisión 1:1 del 2026-10-21): dice los Centros de Trabajo con
+    /// bloqueo de la plataforma, nunca «N trabajadores bloqueados». Los Trabajadores bloqueados siguen diciéndose bajo el anillo
+    /// y en la cola («Bloquea acceso»), donde el propietario los quiere (2026-10-03).
     /// </summary>
     [Fact]
-    public void La_pista_del_kpi_cuenta_trabajadores_bloqueados_no_centros()
+    public void La_pista_del_kpi_de_centros_cuenta_centros_bloqueados_no_trabajadores()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void La_pista_del_kpi_de_centros_concuerda_en_singular()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 1 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void Sin_centros_bloqueados_el_kpi_de_centros_no_lleva_pista_aunque_haya_trabajadores_bloqueados()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 0, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Las cifras cuadran y separan conformes de no conformes: el anillo dice 105 al día de 132; «Vigentes» (80) + 25 más al
+    /// día (5 urgentes + 10 próximos + 10 sin caducidad) = 105, y + 27 no al día (10 vencidos + 17 sin confirmar) = 132.
+    /// </summary>
+    [Fact]
+    public void La_pista_de_vigentes_reparte_el_resto_de_los_documentos_que_mide_el_anillo()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with
+            {
+                DocumentosVigentes = 80,
+                DocumentosVencidos = 10,
+                DocumentosUrgentes = 5,
+                DocumentosProximos = 10,
+                DocumentosSinConfirmar = 17,
+                DocumentosSinCaducidad = 10
+            }
+        });
+
+        PistaDelKpi(cut, "Vigentes").Should().Be("25 más al día (por vencer o sin caducidad) · 27 no al día (vencidos o sin confirmar)");
+        cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim().Should().StartWith("105 de 132 documentos de Trabajador al día");
+    }
+
+    /// <summary>«Desglosar por Cliente» solo con más de un Cliente empresarial: con uno repetiría la misma cifra.</summary>
+    [Theory]
+    [InlineData(1, Roles.Cliente, false)]
+    [InlineData(1, Roles.GestorCae, false)]
+    [InlineData(2, Roles.GestorCae, true)]
+    public void Desglosar_por_Cliente_solo_aparece_con_mas_de_un_Cliente_empresarial(int clientes, string rol, bool aparece)
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with { ClientesEmpresarialesEnAlcance = clientes }
+        }, rol: rol);
+
+        cut.FindAll(".dashboard-resumen-anillo-enlace").Any(a => a.TextContent.Contains("Desglosar por Cliente")).Should().Be(aparece);
+    }
+
+    /// <summary>El saludo toma el nombre de la sesión (claim de TenantClaimsPrincipalFactory) sin releer la cuenta.</summary>
+    [Fact]
+    public void El_saludo_lleva_el_nombre_de_pila_que_trae_la_sesion()
+    {
+        var cut = Renderizar(new MediadorDeInicio(), autenticacion: new AutenticacionConNombre("Ramón Ibáñez Cuesta"), rol: Roles.Cliente);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(", Ramón"));
+    }
+
+    private sealed class AutenticacionConNombre(string nombre) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "ramon"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, Roles.Cliente),
+                new System.Security.Claims.Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto, nombre)
+            ], "prueba"))));
+    }
+
+    /// <summary>La cola cuenta Trabajadores bloqueados: un mismo Trabajador en dos Centros es UN Trabajador (cabecera «M bloquean acceso»).</summary>
+    [Fact]
+    public void La_cabecera_de_la_cola_cuenta_trabajadores_bloqueados_no_centros()
     {
         var ana = Guid.NewGuid();
         var beto = Guid.NewGuid();
@@ -658,7 +790,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 trabajadores bloqueados");
     }
 
     /// <summary>
@@ -677,7 +808,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>
@@ -750,8 +880,80 @@ public class InicioGen2Tests : BunitContext
             "Nada pendiente ahora mismo. Próximo vencimiento: Formación PRL de A. García, el 28/08/2026 (en 12 días).");
         cierre.QuerySelector(".inicio-cierre-enlace")!.GetAttribute("href").Should().Be("/calendario");
 
-        cut.FindAll("a").Should().NotContain(a => a.TextContent.Contains("Ver todo en Mi trabajo"),
-            "sin cola no hay nada que ver en Mi trabajo");
+        cut.FindAll("a").Should().Contain(a => a.TextContent.Contains("Ver todo en Mi trabajo"),
+            "la maqueta deja «Ver todo en Mi trabajo →» siempre visible, también con la cola vacía");
+    }
+
+    // ------------------------------------------- reclamado y sin respuesta
+
+    /// <summary>
+    /// Mockup Inicio, estado «Sin reclamaciones»: el bloque no desaparece; conserva
+    /// su cabecera y dice que ninguna reclamación pasa del corte de 7 días.
+    /// </summary>
+    [Fact]
+    public void Sin_reclamaciones_el_bloque_conserva_su_cabecera_y_dice_que_ninguna_pasa_del_corte()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            ProximoVencimiento = new ProximoVencimientoDto("A. García", "Formación PRL", new DateOnly(2026, 8, 28), 12)
+        });
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+        cut.Find("[data-estado='sin-reclamaciones'] .inicio-cierre-texto").TextContent.Trim().Should().Be(
+            "Ninguna reclamación lleva más de 7 días sin respuesta.");
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El rol Cliente no ve el bloque de reclamaciones ni su estado vacío, aunque
+    /// la consulta devolviera una reclamación: el bloque va dentro de «Requiere atención».
+    /// </summary>
+    [Fact]
+    public void El_rol_Cliente_no_ve_el_estado_vacio_del_bloque()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            ProximoVencimiento = new ProximoVencimientoDto("A. García", "Formación PRL", new DateOnly(2026, 8, 28), 12)
+        }, rol: Roles.Cliente);
+
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+        cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_rol_Cliente_no_ve_las_reclamaciones_aunque_la_consulta_devuelva_alguna()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            SinRespuesta =
+            [
+                new ReclamacionSinRespuestaDto(Guid.NewGuid(), Guid.NewGuid(), AmbitoAplicacion.Cliente,
+                    "Refrielectric S.A.", Guid.NewGuid(), DateTime.UtcNow.AddDays(-9), 9, 2),
+            ],
+        }, rol: Roles.Cliente);
+
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().BeEmpty();
+        cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "Reclamado y sin respuesta");
+    }
+
+    /// <summary>
+    /// Con reclamaciones pendientes, la lista sustituye al estado vacío: nunca se ven a la vez.
+    /// </summary>
+    [Fact]
+    public void Con_reclamaciones_sin_respuesta_la_lista_sustituye_al_estado_vacio()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            SinRespuesta =
+            [
+                new ReclamacionSinRespuestaDto(Guid.NewGuid(), Guid.NewGuid(), AmbitoAplicacion.Cliente,
+                    "Refrielectric S.A.", Guid.NewGuid(), DateTime.UtcNow.AddDays(-9), 9, 2),
+            ],
+        });
+
+        cut.FindAll(".dashboard-sin-respuesta-fila").Should().HaveCount(1);
+        cut.Find(".dashboard-sin-respuesta-cliente").TextContent.Should().Be("Refrielectric S.A.");
+        cut.FindAll("[data-estado='sin-reclamaciones']").Should().BeEmpty();
     }
 
     // --------------------------------------------------- qué llegó sin ver
@@ -894,7 +1096,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio());
 
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("3.983 de 4.383 documentos al día en cartera");
+            .Should().Be("3.983 de 4.383 documentos de Trabajador al día (vigentes, por vencer y sin caducidad)");
 
         DestinoDelKpi(cut, "Trabajadores activos").Should().Be("/trabajadores");
         DestinoDelKpi(cut, "Centros / plataformas").Should().Be("/centros");
@@ -1053,6 +1255,8 @@ public class InicioGen2Tests : BunitContext
         // Por defecto, el Context Workspace activo es el Tenant de origen del
         // Operador CAE de estos casos.
         Services.AddScoped<ITenantActual>(_ => new TenantActivoFijo(tenantActivo ?? OrigenOperador));
+        // «Entrar» del Inicio de cartera: el mismo POST con antiforgery que el selector de la cabecera.
+        Services.AddSingleton<Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider>(new AntiforgeryDePrueba());
 
         // Cualquier rol menos Cliente: «Requiere atención» reutiliza la cola del
         // Gestor CAE y el rol Cliente no la ve.
@@ -1168,6 +1372,13 @@ public class InicioGen2Tests : BunitContext
             Task.FromResult((true, (DateTime?)desdeUtc));
     }
 
+    /// <summary>Token fijo para el POST de «Entrar» del Inicio de cartera.</summary>
+    private sealed class AntiforgeryDePrueba : Microsoft.AspNetCore.Components.Forms.AntiforgeryStateProvider
+    {
+        public override Microsoft.AspNetCore.Components.Forms.AntiforgeryRequestToken? GetAntiforgeryToken() =>
+            new("token-de-prueba", "__RequestVerificationToken");
+    }
+
     /// <summary>
     /// Doble de <see cref="IMediator"/> para Inicio: responde a las ocho
     /// consultas que hace la pantalla y revienta con cualquier otra. Es a
@@ -1199,6 +1410,9 @@ public class InicioGen2Tests : BunitContext
 
         /// <summary>Por Tenant autorizado: si el usuario tiene cartera en él (visión de cartera, <see cref="ObtenerKpisGlobalesQuery"/>).</summary>
         public IReadOnlyDictionary<Guid, bool> CarteraPorTenant { get; init; } = new Dictionary<Guid, bool>();
+
+        /// <summary>Cifras de la visión de cartera por Tenant; sin entrada, todo a cero y 100 %.</summary>
+        public IReadOnlyDictionary<Guid, ClienteRiesgoDto> RiesgoPorTenant { get; init; } = new Dictionary<Guid, ClienteRiesgoDto>();
 
         public int PeticionesAutorizados { get; private set; }
         public int PeticionesVision { get; private set; }
@@ -1256,8 +1470,9 @@ public class InicioGen2Tests : BunitContext
                     PeticionesVision++;
                     return Task.FromResult((TResponse)(object)new KpisGlobalesDto(
                         Autorizados.Count, 0, 0, 0, 0, 0, 100,
-                        [.. Autorizados.Select(t => new ClienteRiesgoDto(t.TenantId, t.Nombre, 0, 0, 100,
-                            SinCarteraAsignada: !CarteraPorTenant.GetValueOrDefault(t.TenantId)))]));
+                        [.. Autorizados.Select(t => (RiesgoPorTenant.GetValueOrDefault(t.TenantId)
+                                ?? new ClienteRiesgoDto(t.TenantId, t.Nombre, 0, 0, 100))
+                            with { SinCarteraAsignada = !CarteraPorTenant.GetValueOrDefault(t.TenantId) })]));
                 case ObtenerCandidatosIncorporacionCarteraQuery:
                     return Task.FromResult((TResponse)(object)Result.Exito(Candidatos));
                 default:

@@ -51,11 +51,11 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
     public void Ningun_Trabajador_del_lote_repite_nombre_completo_y_ninguna_pareja_de_apellidos_domina()
     {
         var trabajadores = TrabajadoresDelLote();
-        trabajadores.Should().HaveCountGreaterThan(100, "el lote tiene los Trabajadores propios y los de las Subcontratas de los siete Tenants");
+        trabajadores.Should().HaveCountGreaterThan(100, "el lote tiene los Trabajadores propios y los de las Subcontratas de los Tenants del lote");
 
         trabajadores.GroupBy(t => t.NombreCompleto).Where(g => g.Count() > 1)
             .Select(g => $"{g.Key}: {string.Join(", ", g.Select(t => $"{t.Tenant.Clave}[{t.Indice}]"))}")
-            .Should().BeEmpty("ningún nombre completo se repite entre los Trabajadores de los siete Tenants");
+            .Should().BeEmpty("ningún nombre completo se repite entre los Trabajadores de los Tenants del lote");
 
         // El criterio de «no domina», en su forma más estricta: una pareja de apellidos la lleva UN Trabajador del lote.
         trabajadores.GroupBy(t => t.Apellidos).Where(g => g.Count() > 1)
@@ -102,12 +102,13 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
         foreach (var t in trabajadores)
         {
             var analisis = ValidadorIdentificacion.Analizar(t.Dni);
-            (analisis.EsValido, analisis.Tipo).Should().Be((true, TipoIdentificacion.Dni), $"{t.Dni}, de {t.Tenant.Clave}[{t.Indice}], es un DNI con su letra de control");
+            var esExtranjero = t.Tenant.Extranjeros.Any(e => e.Trabajador == t.Indice);
+            (analisis.EsValido, analisis.Tipo).Should().Be((true, esExtranjero ? TipoIdentificacion.Nie : TipoIdentificacion.Dni), $"{t.Dni}, de {t.Tenant.Clave}[{t.Indice}], es un {(esExtranjero ? "NIE (extranjero con permiso de trabajo)" : "DNI")} con su letra de control");
         }
 
         trabajadores.Select(t => t.Dni).Should().OnlyHaveUniqueItems("ningún documento de identidad se repite en el lote");
 
-        var numeros = trabajadores.Select(t => long.Parse(t.Dni[..8])).ToList();
+        var numeros = trabajadores.Where(t => char.IsDigit(t.Dni[0])).Select(t => long.Parse(t.Dni[..8])).ToList();
         var distanciaMinimaEntreSeguidos = numeros.Zip(numeros.Skip(1), (a, b) => Math.Abs(a - b)).Min();
         var distanciaMinima = numeros.Order().Zip(numeros.Order().Skip(1), (a, b) => b - a).Min();
         salida.WriteLine($"MEDIDO: entre dos Trabajadores seguidos, los números distan al menos {distanciaMinimaEntreSeguidos:N0}; entre dos cualesquiera, {distanciaMinima:N0}");
@@ -120,7 +121,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
     public void Los_identificadores_fiscales_son_validos_unicos_no_correlativos_y_llevan_la_letra_de_su_forma_juridica()
     {
         var empresas = EmpresasDelLote();
-        empresas.Should().HaveCountGreaterThan(20, "el lote tiene la Empresa propia, los Clientes empresariales y las Subcontratas de los siete Tenants");
+        empresas.Should().HaveCountGreaterThan(20, "el lote tiene la Empresa propia, los Clientes empresariales y las Subcontratas de los Tenants del lote");
 
         // El autónomo no es una sociedad: su identificador fiscal es el NIF de la persona.
         var sociedades = empresas.Where(e => e.Tenant.Perfil != PerfilPilotoOutbound.Autonomo || e.RazonSocial != e.Tenant.Nombre).ToList();
@@ -215,7 +216,7 @@ public partial class IdentidadesPilotoOutboundVerosimilesTests(ITestOutputHelper
         }
 
         // Con un buzón único configurado, todas las direcciones del lote son variantes «+etiqueta» de la misma: la
-        // etiqueta es lo que dice a qué contacto, de cuál de los siete Tenants, se escribió.
+        // etiqueta es lo que dice a qué contacto, de cuál de los Tenants del lote, se escribió.
         delLote.GroupBy(e => e).Where(g => g.Count() > 1).Select(g => g.Key)
             .Should().BeEmpty("ninguna dirección se repite en el lote: cada contacto y cada canal, de cualquier Tenant, tiene la suya");
     }

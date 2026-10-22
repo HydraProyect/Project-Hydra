@@ -2,6 +2,8 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Documentos.SituacionEnCentro;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
@@ -14,7 +16,8 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeC
 
 public record ObtenerDocumentacionEmpresasDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<DocumentacionEmpresaCentroDto>>;
 public record DocumentoEmpresaCentroDto(Guid TipoDocumentoId, string Nombre, Guid? DocumentoId,
-    EstadoDocumento Estado, DateOnly? FechaVencimiento, bool BloqueaAcceso, DateOnly? FechaEmision = null, DateOnly? EnToleranciaHasta = null);
+    EstadoDocumento Estado, DateOnly? FechaVencimiento, bool BloqueaAcceso, DateOnly? FechaEmision = null, DateOnly? EnToleranciaHasta = null,
+    IReadOnlyList<AcreditacionResumenDto>? AcreditacionesEnElCentro = null, UltimaReclamacionDocumentoDto? UltimaReclamacion = null);
 public record DocumentacionEmpresaCentroDto(Guid EmpresaId, string Nombre, bool DesdeRelacionSubcontrata,
     IReadOnlyList<DocumentoEmpresaCentroDto> Documentos);
 
@@ -26,7 +29,7 @@ public record DocumentacionEmpresaCentroDto(Guid EmpresaId, string Nombre, bool 
 public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
     ICentrosQueryContext centros, IAsignacionesQueryContext asignaciones, ITrabajadoresQueryContext trabajadores,
     IEmpresasQueryContext empresas, IDocumentosQueryContext documentos, IConfiguracionQueryContext configuracion,
-    IAlcanceDatosService alcance, IMediator mediator)
+    IAlcanceDatosService alcance, IMediator mediator, ISituacionDocumentosEnCentrosService situacionDocumentos)
     : IRequestHandler<ObtenerDocumentacionEmpresasDeCentroQuery, IReadOnlyList<DocumentacionEmpresaCentroDto>>
 {
     public async Task<IReadOnlyList<DocumentacionEmpresaCentroDto>> Handle(ObtenerDocumentacionEmpresasDeCentroQuery request, CancellationToken ct)
@@ -59,6 +62,7 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
         var docs = await documentos.Documentos.Operativos()
             .Where(d => d.EmpresaId != null && ids.Contains(d.EmpresaId.Value) && tipos.Contains(d.TipoDocumentoId)).ToListAsync(ct);
         var hoy = DiaDeNegocio.Hoy();
+        var situacion = await situacionDocumentos.CargarAsync([request.CentroId], docs.Select(d => d.Id).ToList(), [], [], ct);
         var efectivos = DocumentoEfectivo.UnoPorClave<Documento, (Guid, Guid)>(docs,
             d => (d.EmpresaId!.Value, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
             d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
@@ -76,7 +80,9 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
                     doc.FechaVencimiento, doc.FechaEmision, new CondicionesDeAccesoDelCentro(requisito.PeriodicidadEspecialMeses,
                         ReglaBloqueoDeAcceso.ResolverToleranciaDias(requisito.ToleranciaDias, requisito.ToleranciaHeredadaDias)), hoy);
                 filas.Add(new(requisito.TipoDocumentoId, requisito.Nombre, doc?.Id,
-                    contextual.Estado == EstadoDocumento.SinCaducidad ? EstadoDocumento.Vigente : contextual.Estado, doc?.FechaVencimiento, requisito.BloqueaAcceso, doc?.FechaEmision, contextual.EnToleranciaHasta));
+                    contextual.Estado == EstadoDocumento.SinCaducidad ? EstadoDocumento.Vigente : contextual.Estado, doc?.FechaVencimiento, requisito.BloqueaAcceso, doc?.FechaEmision, contextual.EnToleranciaHasta,
+                    doc is null ? null : situacion.AcreditacionesEn(request.CentroId, doc.Id),
+                    doc is null ? null : situacion.UltimaReclamacionDe(doc.Id)));
             }
             resultado.Add(new(empresa.Id, empresa.RazonSocial, empresa.DesdeRelacionSubcontrata,
                 filas.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.Nombre).ToList()));

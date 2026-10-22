@@ -130,9 +130,11 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
     /// </summary>
     public static KpisGlobalesDto Fusionar(IReadOnlyList<(ClienteAutorizadoDto Cliente, KpisDashboardDto Kpis)> porCliente)
     {
-        var vencidos = porCliente.Sum(p => p.Kpis.DocumentosVencidos);
-        var urgentes = porCliente.Sum(p => p.Kpis.DocumentosUrgentes);
-        var proximos = porCliente.Sum(p => p.Kpis.DocumentosProximos);
+        // Vencidos, urgentes y próximos como los cuentan Alertas y Mi trabajo (de Trabajador y de Empresa): la fila de cada
+        // Empresa gestionada en Inicio y en Visión de cartera da la misma cifra que esas pantallas para ese Tenant.
+        var vencidos = porCliente.Sum(p => p.Kpis.VencidosComoEnAlertas);
+        var urgentes = porCliente.Sum(p => p.Kpis.UrgentesComoEnAlertas);
+        var proximos = porCliente.Sum(p => p.Kpis.ProximosComoEnAlertas);
         var trabajadores = porCliente.Sum(p => p.Kpis.TrabajadoresActivos);
         var centros = porCliente.Sum(p => p.Kpis.Centros);
 
@@ -145,7 +147,7 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
 
         var clientesConMasRiesgo = porCliente
             .Select(p => new ClienteRiesgoDto(
-                p.Cliente.TenantId, p.Cliente.Nombre, p.Kpis.DocumentosVencidos, p.Kpis.DocumentosUrgentes,
+                p.Cliente.TenantId, p.Cliente.Nombre, p.Kpis.VencidosComoEnAlertas, p.Kpis.UrgentesComoEnAlertas,
                 p.Kpis.TasaCumplimientoDocumental, p.Kpis.SinCarteraAsignada,
                 p.Kpis.CentrosBloqueados, p.Kpis.SinDatos, p.Kpis.TrabajadoresBloqueados))
             .OrderByDescending(c => c.DocumentosVencidos)

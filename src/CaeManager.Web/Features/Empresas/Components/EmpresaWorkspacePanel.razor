@@ -32,6 +32,11 @@
 {
     <EstadoCargando Filas="4" />
 }
+else if (!_error && _detalle is null)
+{
+    @* La consulta devolvió null: la ficha no está en el Tenant activo (o no existe; mismo estado, § 4.5). Se cierra el panel con un toast; sin «Reintentar». *@
+    <PanelNoEncontrado />
+}
 else if (_error || _detalle is null)
 {
     <EstadoVacio Titulo="No pudimos cargar la empresa" Descripcion="Intenta nuevamente en unos segundos.">
@@ -55,7 +60,7 @@ else
         @if (_cumplimiento is not null)
         {
             <AnilloCumplimiento Porcentaje="_cumplimiento" Tamano="TamanoAnillo.Medio"
-                                 Etiqueta="@($"{_cumplimiento}% de cumplimiento acumulado en los centros donde esta empresa tiene actividad")" />
+                                 Etiqueta="@($"{_cumplimiento}% de los documentos exigidos a sus Trabajadores en sus Centros, al día")" />
         }
         @if (!_editandoInformacion)
         {
@@ -123,7 +128,7 @@ else
                         <BotonCopiar Valor="@_credencialUsuario" Etiqueta="el usuario" />
                     </div>
                     <div class="campo-con-boton">
-                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="Déjalo en blanco para conservar la actual" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
+                        <CampoTexto Etiqueta="Contraseña" Type="password" Placeholder="@(_hayCredencialGuardada ? "Vacío = conserva la actual" : string.Empty)" Valor="@_credencialContrasena" ValorChanged="v => _credencialContrasena = v" />
                         <BotonCopiar ValorAsync="ObtenerContrasenaParaCopiarAsync" Etiqueta="la contraseña" />
                     </div>
                     @if (_hayCredencialGuardada)

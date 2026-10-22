@@ -9,9 +9,10 @@ namespace CaeManager.IntegrationTests.Identity;
 /// <summary>
 /// Verifica la capa extra de control del login SSO: mientras Entra ID esté
 /// configurado, cualquier sesión sin la marca de login por Microsoft queda
-/// con el rol efectivo limitado a Consulta, sin importar qué roles reales
-/// traiga el principal (salvo Administrador, vía de escape deliberada para
-/// nunca perder acceso de administración) — y queda intacta mientras Entra
+/// sin escritura: un rol editor pasa a Consulta (salvo Administrador, vía de
+/// escape deliberada para nunca perder acceso de administración), Cliente
+/// conserva su rol y una cuenta sin rol sigue sin él, porque la restricción
+/// nunca da más alcance que el rol real — y queda intacta mientras Entra
 /// ID no esté configurado, para no bloquear el login local antes de
 /// activar SSO.
 /// </summary>
@@ -92,5 +93,91 @@ public class RestriccionLoginLocalClaimsTransformationTests
         var segundaPasada = await transformacion.TransformAsync(primeraPasada);
 
         segundaPasada.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().ContainSingle().Which.Should().Be(Roles.Consulta);
+        segundaPasada.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae], "la segunda pasada no lo pisa con Consulta");
+    }
+
+    // Decisión Chris 2026-10-20: Consulta entra sin cartera en todos los Tenants beneficiarios de la
+    // Asignación de Operación de su organización. El perfil anterior a la restricción decide el
+    // alcance, para que limitar a un Gestor CAE a Consulta no le abra más Tenants que su cartera.
+
+    [Fact]
+    public async Task Con_sso_configurado_el_login_local_conserva_el_perfil_anterior_para_decidir_el_alcance()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae));
+
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae]);
+    }
+
+    [Fact]
+    public async Task Con_varios_roles_el_perfil_anterior_es_el_mas_acotado()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, Roles.CoordinadorCae, Roles.GestorCae));
+
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.GestorCae], "el Gestor CAE es el único acotado por cartera");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_sin_rol_sigue_sin_rol_y_queda_marcada_sin_perfil()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false));
+
+        resultado.FindAll(ClaimTypes.Role).Should().BeEmpty("Consulta le abriría el Tenant entero: la restricción nunca amplía");
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([string.Empty], "vacío es «sin perfil» (fallo cerrado)");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_con_solo_roles_desconocidos_queda_sin_rol_y_sin_perfil()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, "RolInexistente"));
+
+        resultado.FindAll(ClaimTypes.Role).Should().BeEmpty();
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([string.Empty]);
+    }
+
+    // Defecto corregido el 2026-10-22: el usuario de Cliente, acotado a su Cliente empresarial por
+    // ApplicationUser.ClienteId solo mientras su rol sea Cliente, pasaba a Consulta y veía el Tenant entero.
+
+    [Fact]
+    public async Task Con_sso_configurado_un_usuario_de_cliente_con_login_local_conserva_el_rol_cliente()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(CrearPrincipal(esSso: false, Roles.Cliente));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Cliente]);
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.Cliente]);
+    }
+
+    [Fact]
+    public async Task Con_cliente_y_un_rol_editor_gana_cliente_por_ser_el_mas_acotado()
+    {
+        var transformacion = CrearTransformacion(ssoConfigurado: true);
+
+        var primeraPasada = await transformacion.TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae, Roles.Cliente));
+        var segundaPasada = await transformacion.TransformAsync(primeraPasada);
+
+        segundaPasada.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Cliente]);
+        segundaPasada.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Select(c => c.Value).Should().Equal([Roles.Cliente], "con el perfil Gestor CAE alcanzaría su cartera");
+    }
+
+    [Fact]
+    public async Task Sin_restriccion_no_se_anade_el_perfil_anterior()
+    {
+        (await CrearTransformacion(ssoConfigurado: false).TransformAsync(CrearPrincipal(esSso: false, Roles.GestorCae)))
+            .HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse();
+        (await CrearTransformacion(ssoConfigurado: true).TransformAsync(CrearPrincipal(esSso: true, Roles.GestorCae)))
+            .HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse();
     }
 }

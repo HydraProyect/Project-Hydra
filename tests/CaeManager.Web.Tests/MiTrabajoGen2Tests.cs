@@ -27,8 +27,46 @@ namespace CaeManager.Web.Tests;
 /// calendario, chips, carril de cartera, Tenant de origen fuera (§ 10) y
 /// rótulos de pantalla (§ 14).
 /// </summary>
-public class MiTrabajoGen2Tests : BunitContext
+public partial class MiTrabajoGen2Tests : BunitContext
 {
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public void PropagacionesReutilizaColaSinModificarTotalesNiAccionesExistentes(string rol)
+    {
+        var documento = Guid.NewGuid();
+        var pendientes = new[]
+        {
+            Item("p1", TipoItemBandeja.PlataformaPendiente, "RNT", "Cliente Norte", documentoId: documento) with { CentroNombre = "Centro Norte", EsPropagacionPendiente = true },
+            Item("p2", TipoItemBandeja.PlataformaPendiente, "RNT", "Cliente Sur", documentoId: documento) with { CentroNombre = "Centro Sur", EsPropagacionPendiente = true }
+        };
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false, pendientes)]);
+        var vista = new MiTrabajoVista(datos);
+        vista.Propagaciones(new()).Should().HaveCount(2);
+        vista.TotalCartera.Should().Be(2);
+        vista.Propagaciones(new(Busqueda: "Centro Sur")).Should().ContainSingle();
+        vista.Propagaciones(new(TenantId: TenantDexter)).Should().BeEmpty();
+        vista.Propagaciones(new(Severidad: SeveridadMiTrabajo.Bloqueo)).Should().BeEmpty();
+
+        var cut = Renderizar(() => datos, rol: rol);
+        // Una sola acción por fila: «Gestionar»; el título es un enlace al documento, no una acción más.
+        cut.FindAll(".propagaciones-fila button:not(.enlace-documento)").Should().HaveCount(2)
+            .And.OnlyContain(b => b.TextContent.Trim() == "Gestionar");
+        cut.FindAll(".propagaciones-fila button.enlace-documento").Should().HaveCount(2);
+        cut.FindAll(".mi-trabajo-fila").Should().HaveCount(2);
+        cut.Markup.Should().Contain("Empresa").And.Contain("Prioridad").And.Contain("Cliente");
+    }
+
+    [Fact]
+    public void ConsultaSigueFueraDeLosRolesAutorizadosDeMiTrabajo()
+    {
+        var autorizacion = typeof(MiTrabajoPagina).GetCustomAttributes(typeof(Microsoft.AspNetCore.Authorization.AuthorizeAttribute), true)
+            .Cast<Microsoft.AspNetCore.Authorization.AuthorizeAttribute>().Single();
+        autorizacion.Roles!.Split(',').Should().NotContain(CaeManager.Infrastructure.Identity.Roles.Consulta);
+    }
+
     public MiTrabajoGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     private static readonly Guid TenantOrigen = Guid.Parse("0a0a0a0a-0000-0000-0000-000000000001");
@@ -255,7 +293,7 @@ public class MiTrabajoGen2Tests : BunitContext
         pedir.QuerySelector("input[name='tenantId']")!.GetAttribute("value").Should().Be(TenantRefri.ToString());
         pedir.QuerySelector("input[name='returnUrl']")!.GetAttribute("value").Should().Be($"/bandeja?pedir={TrabajadorQueFalta}&{Vuelta}");
         pedir.QuerySelector("input[name='__RequestVerificationToken']")!.GetAttribute("value").Should().Be("token-de-prueba");
-        pedir.QuerySelector("button")!.TextContent.Trim().Should().Be("Pedir");
+        pedir.QuerySelector("button")!.TextContent.Trim().Should().Be("Reclamar");
 
         // La acción primaria sigue siendo la suya (un solo marcador data-accion-cross-tenant por fila) y no se pisa.
         fila.QuerySelectorAll("form[data-accion-cross-tenant]").Should().ContainSingle();
@@ -284,8 +322,8 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("es-ES", "Pedir")]
-    [InlineData("ca-ES", "Demanar")]
+    [InlineData("es-ES", "Reclamar")]
+    [InlineData("ca-ES", "Reclamar")]
     public void Pedir_sigue_la_cultura_de_la_interfaz(string cultura, string texto)
     {
         var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
@@ -303,8 +341,8 @@ public class MiTrabajoGen2Tests : BunitContext
     }
 
     [Theory]
-    [InlineData("es-ES", "Pide lo que falta de")]
-    [InlineData("ca-ES", "Demana el que falta de")]
+    [InlineData("es-ES", "Reclama lo que falta de")]
+    [InlineData("ca-ES", "Reclama el que falta de")]
     public void El_titulo_de_Pedir_dice_a_donde_lleva_en_la_cultura_de_la_interfaz(string cultura, string inicio)
     {
         var (anterior, anteriorUi) = (CultureInfo.CurrentCulture, CultureInfo.CurrentUICulture);
@@ -611,6 +649,26 @@ public class MiTrabajoGen2Tests : BunitContext
         detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente", "Plataforma CAE");
         detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Laboratorios Dexter", "Cervezas Duff Ibérica", "Nalanda");
         Formulario(detalle).Tenant.Should().Be(TenantDexter.ToString());
+    }
+
+    [Fact]
+    public void El_detalle_muestra_el_Centro_de_la_tarea_tras_la_Empresa_solo_si_el_item_lo_trae()
+    {
+        // Maqueta Flujos 11, «Detalle de la tarea»: Empresa, Centro y después Cliente.
+        var datos = new MiTrabajoAgregadoDto([Tenant(TenantRefri, "Refrielectric", false,
+        [
+            Item("c1", TipoItemBandeja.Vencido, "Aptitud con Centro", "Cervezas Duff Ibérica", documentoId: DocumentoVencido) with { CentroNombre = "Sede Sevilla" },
+            Item("c2", TipoItemBandeja.Vencido, "Aptitud sin Centro", "Cervezas Duff Ibérica", documentoId: DocumentoVencido),
+        ])]);
+        var cut = Renderizar(() => datos);
+
+        FilaDe(cut, "Aptitud con Centro").Click();
+        var detalle = cut.Find(".mi-trabajo-detalle");
+        detalle.QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Centro", "Cliente");
+        detalle.QuerySelectorAll("dd").Select(d => d.TextContent).Should().Equal("Refrielectric", "Sede Sevilla", "Cervezas Duff Ibérica");
+
+        FilaDe(cut, "Aptitud sin Centro").Click();
+        cut.Find(".mi-trabajo-detalle").QuerySelectorAll("dt").Select(d => d.TextContent).Should().Equal("Empresa", "Cliente");
     }
 
     [Fact]
