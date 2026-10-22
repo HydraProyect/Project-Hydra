@@ -143,12 +143,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosDocumentos> Textos { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
-    // Por el proveedor y no con [Inject]: los dos los registra la composición real, y sin ellos (bUnit) la página
-    // sigue leyendo de la base en cada ejecución, como antes.
-    [Inject] private IServiceProvider Servicios { get; set; } = default!;
-
-    /// <summary>La primera página de filas, del prerenderizado al circuito (ver <see cref="EstadoPrerenderizado{TValor}"/>).</summary>
-    private EstadoPrerenderizado<PaginaDocumentosPrerenderizada>? _prerenderizado;
 
     /// <summary>Estado 4a del mockup del selector: hay que elegir una empresa de la cartera antes de ver la lista.</summary>
     private bool _sinEmpresaSeleccionada;
@@ -393,7 +387,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         _desechado = true;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
-        _prerenderizado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -493,16 +486,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
-        // Antes de cualquier await: en el circuito, lo persistido solo está disponible durante el primer render.
-        if (Servicios.GetService<PersistentComponentState>() is { } estadoPersistente
-            && Servicios.GetService<ICurrentUserService>() is { } currentUser)
-        {
-            _prerenderizado = new EstadoPrerenderizado<PaginaDocumentosPrerenderizada>(
-                estadoPersistente, "documentos.listado", RendererInfo.IsInteractive);
-            await _prerenderizado.FijarContextoAsync(currentUser, TenantActual);
-            if (_desechado) return;
-        }
-
         if (EstadoAutenticacion is not null)
         {
             var usuario = (await EstadoAutenticacion).User;
@@ -931,7 +914,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             var ambitoFiltro = Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambito) ? ambito : (AmbitoAplicacion?)null;
             var estadosFiltro = SeleccionEstados.Separar<EstadoDocumento>(_estadoFiltro);
 
-            var consulta = new ObtenerDocumentosQuery(
+            var resultado = await Mediator.Send(new ObtenerDocumentosQuery(
                 TrabajadorId: null,
                 Ambito: ambitoFiltro,
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
@@ -946,23 +929,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 TipoDocumentoId: Guid.TryParse(_tipoFiltro, out var tipoFiltro) ? tipoFiltro : null,
                 ProveedorPlataformaCaeId: Guid.TryParse(_plataformaFiltro, out var plataformaFiltro) ? plataformaFiltro : null,
                 AgruparPorAmbito: _agruparPorAmbito,
-                ConDestinosEnCentros: true);
-
-            // La primera carga del circuito reutiliza la del prerenderizado de la misma visita si la pregunta y el
-            // contexto son los mismos; si no, lee. La agrupada no viaja: su resumen por grupo no va en el JSON.
-            ResultadoPaginado<DocumentoListaDto> resultado;
-            if (_prerenderizado?.TryTomar(consulta, out var prerenderizada) == true)
-            {
-                resultado = prerenderizada.AResultado();
-            }
-            else
-            {
-                resultado = await Mediator.Send(consulta, token);
-                if (!_agruparPorAmbito && resultado.ResumenPorGrupo is null)
-                    _prerenderizado?.Anotar(consulta, PaginaDocumentosPrerenderizada.Desde(resultado));
-                else
-                    _prerenderizado?.Descartar();
-            }
+                ConDestinosEnCentros: true), token);
 
             // La respuesta de un filtro ya abandonado no puede pisar el total,
             // las filas ni la selección de la pregunta que sí se está mirando.
