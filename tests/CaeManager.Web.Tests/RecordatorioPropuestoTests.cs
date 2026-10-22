@@ -146,7 +146,7 @@ public class RecordatorioPropuestoTests : BunitContext
     }
 
     [Fact]
-    public void Descartar_no_envia_nada_y_Deshacer_lo_devuelve()
+    public async Task Descartar_no_envia_nada_y_Deshacer_lo_devuelve()
     {
         var propuesta = Proponer();
         var componente = Renderizar();
@@ -160,7 +160,7 @@ public class RecordatorioPropuestoTests : BunitContext
         var aviso = Toasts.Mensajes.Should().ContainSingle(t => t.Mensaje == "Recordatorio descartado.").Subject;
         aviso.TextoAccion.Should().Be("Deshacer");
 
-        componente.InvokeAsync(() => aviso.OnAccion!()).GetAwaiter().GetResult();
+        await componente.InvokeAsync(() => aviso.OnAccion!());
 
         _mediator.Enviados.OfType<RestaurarRecordatorioConversacionCommand>().Should().ContainSingle()
             .Which.Should().Be(new RestaurarRecordatorioConversacionCommand(_conversacionId, propuesta.PropuestaId));
@@ -169,7 +169,7 @@ public class RecordatorioPropuestoTests : BunitContext
     }
 
     [Fact]
-    public void Deshacer_devuelve_el_texto_que_el_Gestor_CAE_habia_editado()
+    public async Task Deshacer_devuelve_el_texto_que_el_Gestor_CAE_habia_editado()
     {
         Proponer();
         var componente = Renderizar();
@@ -178,7 +178,7 @@ public class RecordatorioPropuestoTests : BunitContext
         Pulsar(componente, "Descartar");
 
         var aviso = Toasts.Mensajes.Single(t => t.Mensaje == "Recordatorio descartado.");
-        componente.InvokeAsync(() => aviso.OnAccion!()).GetAwaiter().GetResult();
+        await componente.InvokeAsync(() => aviso.OnAccion!());
 
         Toasts.Mensajes.Should().Contain(t => t.Mensaje == "Recordatorio de nuevo propuesto.");
         Revisar(componente);
@@ -186,7 +186,7 @@ public class RecordatorioPropuestoTests : BunitContext
     }
 
     [Fact]
-    public void Si_Deshacer_falla_lo_dice_y_no_vuelve_a_pintar_la_fila()
+    public async Task Si_Deshacer_falla_lo_dice_y_no_vuelve_a_pintar_la_fila()
     {
         Proponer();
         _mediator.ResultadoRestaurar = Result.Fallo(PropuestaRecordatorioConversacion.ErrorEsperaTerminada);
@@ -195,7 +195,7 @@ public class RecordatorioPropuestoTests : BunitContext
         Pulsar(componente, "Descartar");
 
         var aviso = Toasts.Mensajes.Single(t => t.Mensaje == "Recordatorio descartado.");
-        componente.InvokeAsync(() => aviso.OnAccion!()).GetAwaiter().GetResult();
+        await componente.InvokeAsync(() => aviso.OnAccion!());
 
         Toasts.Mensajes.Should().Contain(t => t.Mensaje.Contains(PropuestaRecordatorioConversacion.ErrorEsperaTerminada.Mensaje));
         Toasts.Mensajes.Should().NotContain(t => t.Mensaje == "Recordatorio de nuevo propuesto.");
@@ -218,7 +218,7 @@ public class RecordatorioPropuestoTests : BunitContext
     }
 
     [Fact]
-    public void Mientras_se_envia_la_primaria_dice_Enviando()
+    public async Task Mientras_se_envia_la_primaria_dice_Enviando()
     {
         Proponer();
         var envio = new TaskCompletionSource<Result>();
@@ -229,7 +229,7 @@ public class RecordatorioPropuestoTests : BunitContext
         Pulsar(componente, "Aprobar y enviar");
 
         componente.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Contain("Enviando…");
-        componente.InvokeAsync(() => envio.SetResult(Result.Exito())).GetAwaiter().GetResult();
+        await componente.InvokeAsync(() => envio.SetResult(Result.Exito()));
     }
 
     private sealed class MediatorDeRecordatorio : IMediator

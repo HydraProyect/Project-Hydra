@@ -92,8 +92,8 @@
         : Textos["FilaDetalle", propuesta.Destinatario, FormatearFecha(propuesta.EsperaDesdeUtc)];
 
     private string? MotivoAprobarDeshabilitado =>
-        _descartando ? Textos["MotivoDescartando"]
-        : string.IsNullOrWhiteSpace(_borrador) ? Textos["MotivoSinTexto"]
+        _descartando ? Textos["MotivoDescartando"].Value
+        : string.IsNullOrWhiteSpace(_borrador) ? Textos["MotivoSinTexto"].Value
         : null;
 
     private static string FormatearFecha(DateTime utc) => utc.EnHoraPeninsular().ToString("dd/MM/yyyy");
