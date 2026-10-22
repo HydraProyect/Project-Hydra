@@ -1212,7 +1212,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                     // «El enlace queda abajo» solo si el modal sigue enseñándolo.
                     ToastService.MostrarError(
                         TextosUsuarios["ReenvioCorreoFallido"], resultado.Error,
-                        modalSigueConElEnlace ? TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"] : null);
+                        modalSigueConElEnlace ? TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"].Value : null);
                 else if (textoExito is not null)
                     ToastService.Mostrar(textoExito, TonoToast.Exito);
 
