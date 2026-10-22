@@ -32,9 +32,9 @@ public partial class Proyecto360PaginaTests
         var cut = Renderizar(AbiertoId);
 
         var contador = cut.FindComponent<Pestanas>().Instance.Definiciones.Single(p => p.Id == "tecnicos").Contador!;
-        contador.Valor.Should().Be(1, "los técnicos de baja no cuentan");
+        contador.Valor.Should().Be(1, "los técnicos de baja no cuentan; con alerta se mantiene el total");
         contador.EnAlerta.Should().Be(enAlerta);
-        contador.Glosa.Should().Be(enAlerta ? "técnicos bloqueados" : "técnicos activos");
+        contador.Glosa.Should().Be("técnicos activos");
         ContadorDe(cut, "tecnicos").ClassList.Contains("pestanas-contador-alerta").Should().Be(enAlerta);
     }
 
@@ -67,7 +67,7 @@ public partial class Proyecto360PaginaTests
         var cut = Renderizar(AbiertoId);
 
         var contador = cut.FindComponent<Pestanas>().Instance.Definiciones.Single(p => p.Id == "empresas").Contador!;
-        contador.Valor.Should().Be(hayRojas ? 2 : 3);
+        contador.Valor.Should().Be(3, "el total se mantiene y la alerta solo marca el color");
         contador.EnAlerta.Should().Be(hayRojas);
         ContadorDe(cut, "empresas").ClassList.Contains("pestanas-contador-alerta").Should().Be(hayRojas);
         foreach (var pestana in new[] { "vehiculos", "visitas" })
@@ -92,11 +92,11 @@ public partial class Proyecto360PaginaTests
     [Theory]
     [InlineData("es-ES", "empresas", "Empresas con técnicos en el proyecto · documentación de empresa y subcontratas")]
     [InlineData("es-ES", "vehiculos", "Vehículos con acceso a Centro de prueba para este proyecto")]
-    [InlineData("es-ES", "documentos", "Documentos propios del proyecto, del peor estado al mejor")]
+    [InlineData("es-ES", "documentos", "Documentos propios del proyecto")]
     [InlineData("es-ES", "visitas", "Visitas del proyecto, la más reciente primero")]
     [InlineData("ca-ES", "empresas", "Empreses amb tècnics al projecte · documentació d’empresa i subcontractes")]
     [InlineData("ca-ES", "vehiculos", "Vehicles amb accés a Centro de prueba per a aquest projecte")]
-    [InlineData("ca-ES", "documentos", "Documents propis del projecte, del pitjor estat al millor")]
+    [InlineData("ca-ES", "documentos", "Documents propis del projecte")]
     [InlineData("ca-ES", "visitas", "Visites del projecte, la més recent primer")]
     public void Las_introducciones_de_la_maqueta_se_localizan_y_Vehiculos_usa_el_Centro_del_Proyecto(string cultura, string pestana, string texto)
     {
@@ -209,7 +209,7 @@ public partial class Proyecto360PaginaTests
 
         cut.FindAll(".fila-relacion-nombre").Should().HaveCount(3, "hay dos técnicos activos y uno de baja");
         var contador = cut.FindComponent<Pestanas>().Instance.Definiciones.Single(p => p.Id == "tecnicos").Contador!;
-        contador.Should().Be(new ContadorPestana(1, "técnicos bloqueados", EnAlerta: true));
+        contador.Should().Be(new ContadorPestana(2, "técnicos activos", EnAlerta: true));
     }
 
     [Fact]

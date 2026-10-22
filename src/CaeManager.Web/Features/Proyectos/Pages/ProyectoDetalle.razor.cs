@@ -38,7 +38,7 @@ namespace CaeManager.Web.Features.Proyectos.Pages;
 /// <para>
 /// Lo que el panel enseñaba como campo y aquí cambia de sitio: el estado va en la pastilla
 /// de la cabecera, los recuentos en las pestañas y «Días abiertos» en la tarjeta Plazo.
-/// Técnicos y Empresas cuentan solo los estados rojos cuando los hay; en otro caso muestran el total.
+/// Todas las pestañas muestran el total; Técnicos y Empresas lo marcan con «!» en rojo si hay estados rojos.
 /// </para>
 ///
 /// <para>
@@ -120,15 +120,13 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     [
         new(PestanaTecnicos, Textos["PestanaTecnicos"])
         {
-            Contador = _detalle is null ? null : TecnicosEnAlerta > 0
-                ? new ContadorPestana(TecnicosEnAlerta, Textos["GlosaTecnicosBloqueados"], EnAlerta: true)
-                : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"])
+            Contador = _detalle is null ? null
+                : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"], EnAlerta: TecnicosEnAlerta > 0)
         },
         new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"])
         {
-            Contador = _cargandoRelacionados || _errorEmpresasProyecto ? null : EmpresasEnAlerta > 0
-                ? new ContadorPestana(EmpresasEnAlerta, Textos["GlosaEmpresasEnAlerta"], EnAlerta: true)
-                : new ContadorPestana(_empresasProyecto.Count, Textos["PestanaEmpresasProyecto"])
+            Contador = _cargandoRelacionados || _errorEmpresasProyecto ? null
+                : new ContadorPestana(_empresasProyecto.Count, Textos["PestanaEmpresasProyecto"], EnAlerta: EmpresasEnAlerta > 0)
         },
         new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"])
         {
