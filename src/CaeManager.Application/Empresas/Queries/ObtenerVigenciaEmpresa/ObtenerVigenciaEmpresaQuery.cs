@@ -175,13 +175,13 @@ public class ObtenerVigenciaEmpresaQueryHandler(
 
         var documentos = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value) && tipoIds.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         // El mismo documento que representa a cada par Trabajador×Tipo en el resto de la aplicación.
         var efectivos = DocumentoEfectivo.UnoPorClave(
             documentos, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
-            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         var centrosDeCadaTrabajador = asignaciones
             .Where(a => !sinGestionCae.Contains(a.CentroId))
@@ -245,7 +245,8 @@ public class ObtenerVigenciaEmpresaQueryHandler(
                 var celdas = columnas.Select(col =>
                 {
                     var exigidaPor = exigencias[(t.Id, col.Tipo.Id)];
-                    if (!efectivos.TryGetValue((t.Id, col.Tipo.Id), out var documento))
+                    // Un documento en renuncia no acredita (DocumentoEfectivo.ValidoHoy): la celda queda como sin documento.
+                    if (!efectivos.TryGetValue((t.Id, col.Tipo.Id), out var documento) || documento.EsRenuncia)
                         return exigidaPor.Count > 0
                             ? new VigenciaCeldaDto(EstadoCeldaVigencia.Falta, null, null, null, exigidaPor)
                             : new VigenciaCeldaDto(EstadoCeldaVigencia.NoAplica, null, null, null, exigidaPor);

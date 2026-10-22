@@ -1,4 +1,4 @@
-using CaeManager.Domain.Centros;
+﻿using CaeManager.Domain.Centros;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Tenants;
@@ -41,7 +41,7 @@ namespace CaeManager.IntegrationTests.Migraciones;
 /// </summary>
 public class RevisaCatalogoTiposDocumentoGruposYArchivadoTests : IAsyncLifetime
 {
-    private const string MigracionDelCambio = "20261019080000_RevisaCatalogoTiposDocumentoGruposYArchivado";
+    private const string MigracionDelCambio = "20261022180000_RevisaCatalogoTiposDocumentoGruposYArchivado";
     private const string TenantBase = "00000000-0000-0000-0000-000000000001";
 
     private const string BaseReciclaje = "10000000-0000-0000-0000-000000000003";

@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261019080000_RevisaCatalogoTiposDocumentoGruposYArchivado")]
+    [Migration("20261022180000_RevisaCatalogoTiposDocumentoGruposYArchivado")]
     partial class RevisaCatalogoTiposDocumentoGruposYArchivado
     {
         /// <inheritdoc />
@@ -2039,6 +2039,51 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("CierresMensualesTenantBeneficiario", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Dashboard.TarifaOperadorCae", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Concepto")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("MonedaIso")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("character varying(3)");
+
+                    b.Property<decimal>("PrecioUnitario")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<Guid>("PropietarioTenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RegistradaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("VigenteDesdeUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "PropietarioTenantId", "Concepto", "VigenteDesdeUtc");
+
+                    b.ToTable("TarifasOperadorCae", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_OperadorNoEsElTenantBeneficiario", "\"PropietarioTenantId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_TarifasOperadorCae_PrecioNoNegativo", "\"PrecioUnitario\" >= 0");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2073,6 +2118,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("date");
 
                     b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UltimoCambioEstadoAManoId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("Version")
@@ -2118,6 +2166,59 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("AprobacionesDocumento");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcreditacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeshechoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstadoAnterior")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstadoVigenciaAnterior")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaVencimientoAnterior")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("MomentoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcreditacionId");
+
+                    b.HasIndex("TenantId", "AcreditacionId", "MomentoUtc");
+
+                    b.ToTable("CambiosEstadoAcreditacionPlataforma", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
@@ -8885,6 +8986,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool?>("MarcaExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MotivoPermisoTrabajo")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -9276,6 +9380,22 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<string>("DocumentoIdentidad")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<bool>("EsExtranjeroCobrable")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("FechaAsignacionUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("GestionadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("NombreMostrado")
+                        .HasColumnType("text");
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
@@ -9804,6 +9924,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "DocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
+                        .WithMany("CambiosEstado")
+                        .HasForeignKey("AcreditacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -10585,6 +10714,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
+                    b.Navigation("CambiosEstado");
+
                     b.Navigation("HistorialRechazos");
                 });
 
