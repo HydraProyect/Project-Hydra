@@ -450,6 +450,20 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),
+        // Centro 360, cambiar a mano el estado en la plataforma (bloque 3 del 21-10): los dos comandos comprueban que la
+        // acreditación es de un canal del Centro (ICentrosQueryContext) y que su Documento se ve en la cartera
+        // (IProyectosQueryContext, como el resto de comandos de acreditación). El Historial del Centro pinta, en una lectura
+        // por lote, el documento, su titular (Trabajador, Empresa o Vehículo) y la plataforma de cada cambio.
+        ("Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "IProyectosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IDocumentosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITrabajadoresQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IEmpresasQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IVehiculosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y

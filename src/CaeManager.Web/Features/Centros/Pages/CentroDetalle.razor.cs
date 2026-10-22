@@ -620,6 +620,17 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    /// <summary>
+    /// Tras anotar a mano un estado en la plataforma (o deshacerlo) en «Documentación Empresa»: se vuelve a leer el Centro
+    /// (contadores de pestañas, bloqueos) y la tabla, para recalcular el bloqueo, el tinte y el orden de cada fila.
+    /// </summary>
+    private async Task RecargarTrasCambioPlataformaAsync()
+    {
+        _lecturaDocumentacionCentro = null;
+        await CargarAsync();
+        await CargarLecturasFase2Async();
+    }
+
     private Task AbrirEmpresaDocumentacion(DocumentacionEmpresaCentroDto empresa) =>
         WorkspaceService.AbrirAsync(empresa.DesdeRelacionSubcontrata ? EntidadWorkspace.Subcontrata : EntidadWorkspace.Empresa,
             empresa.EmpresaId, empresa.Nombre, "documentacion");

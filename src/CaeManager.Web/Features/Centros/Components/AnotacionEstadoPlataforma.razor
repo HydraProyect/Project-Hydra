@@ -1,0 +1,42 @@
+@*
+    Texto bajo la pastilla de estado en la plataforma (Centro 360, bloque 3 del 21-10):
+    «[motivo · ]{verbo} el {fecha} · {usuario}[ · nota]». Solo si lo último anotado a mano sigue describiendo el estado.
+*@
+@using System.Globalization
+@using CaeManager.Application.Documentos.Queries.ObtenerDocumentos
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCentros> Textos
+
+@if (Texto(Acreditacion, Textos) is { } texto)
+{
+    <span class="anotacion-estado-plataforma" data-anotacion-plataforma>@texto</span>
+}
+
+@code {
+    [Parameter, EditorRequired] public AcreditacionResumenDto Acreditacion { get; set; } = default!;
+
+    public static string? Texto(AcreditacionResumenDto acreditacion, IStringLocalizer<TextosCentros> textos)
+    {
+        if (acreditacion.Anotacion is not { } anotacion) return null;
+
+        var verbo = textos[acreditacion.Estado switch
+        {
+            EstadoAcreditacion.Subida => "VerboSubido360",
+            EstadoAcreditacion.Aceptada => "VerboValidado360",
+            EstadoAcreditacion.Rechazada => "VerboRechazado360",
+            _ => "VerboMarcado360"
+        }].Value;
+
+        var partes = new List<string>();
+        if (!string.IsNullOrWhiteSpace(anotacion.Motivo)) partes.Add(anotacion.Motivo);
+        partes.Add(textos["AnotacionVerboFecha360", verbo, anotacion.Fecha.ToString("dd/MM/yyyy", CultureInfo.InvariantCulture)]);
+        if (!string.IsNullOrWhiteSpace(anotacion.UsuarioNombre)) partes.Add(anotacion.UsuarioNombre);
+        if (!string.IsNullOrWhiteSpace(anotacion.Nota)) partes.Add(anotacion.Nota);
+
+        // Con motivo delante, la frase empieza por él; sin él, por el verbo en mayúscula, como la maqueta.
+        var texto = string.Join(" · ", partes);
+        return string.IsNullOrEmpty(texto) ? null : char.ToUpper(texto[0], CultureInfo.CurrentCulture) + texto[1..];
+    }
+}
