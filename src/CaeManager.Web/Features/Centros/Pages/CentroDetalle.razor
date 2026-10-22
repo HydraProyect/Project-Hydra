@@ -215,6 +215,8 @@
                                         <div role="row" class="centro-documentacion-grupo" @key="clavesDocumentos.De(claveSubcontrata)" data-subcontrata-docs>
                                             <div role="cell">
                                                 <CabeceraGrupoLista Nombre="@subcontrata.Nombre" Total="subcontrata.Documentos.Count"
+                                                                    UnidadContador="@Textos[subcontrata.Documentos.Count == 1 ? "UnidadDocumento360" : "UnidadDocumentos360"]"
+                                                                    Subtitulo="@(subcontrata.EmpresaContratistaNombre is { } contratista ? Textos["SubcontrataDe360", contratista].Value : null)"
                                                                     Incidencias="subcontrata.Documentos.Count(DocumentoConIncidencia)"
                                                                     Abierto="subcontrataAbierta" OnAlternar="() => _subcontratasAbiertas.Alternar(claveSubcontrata)" />
                                             </div>

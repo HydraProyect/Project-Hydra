@@ -210,6 +210,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IDocumentosQueryContext"),
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IConfiguracionQueryContext"),
+        // Vista «Vehículos» de Centro 360: los Vehículos los pide a ObtenerVehiculosConActividadDeCentroQuery (mismo
+        // alcance); lee sus documentos operativos, el nombre de su tipo y los umbrales, y la Empresa contratista de cada
+        // Subcontrata (Relación Empresarial vigente, Asignaciones activas del Centro y sus empleadoras).
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IAsignacionesQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IConfiguracionQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IDocumentosQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IEmpresasQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "ITrabajadoresQueryContext"),
 
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IEmpresasQueryContext"),

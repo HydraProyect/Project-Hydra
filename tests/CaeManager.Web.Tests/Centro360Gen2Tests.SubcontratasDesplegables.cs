@@ -1,4 +1,4 @@
-﻿using Bunit;
+using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionEmpresasDeCentro;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
@@ -45,7 +45,7 @@ public partial class Centro360Gen2Tests
         var cabecera = cut.Find("[data-subcontrata-docs] button.grupo-lista-cabecera");
         cabecera.GetAttribute("aria-expanded").Should().Be("false");
         cabecera.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim().Should().Be("Montajes Jalón");
-        cabecera.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("· 2");
+        cabecera.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("· 2 documentos");
         cabecera.QuerySelector(".grupo-lista-incidencias").Should().NotBeNull();
 
         await cabecera.ClickAsync(new MouseEventArgs());

@@ -45,18 +45,34 @@ else
        En el modo listado de /centros no se pinta: la fila desplegada solo lista incidencias. *@
     @if (!ModoListado)
     {
-    <SoloConEscritura>
-        <div class="acordeon-asignaciones-cabecera">
-            <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
-            @* La maqueta de Centro 360 (20-10) no lo lleva: «sin Dar de baja seleccionados (no decidido)». *@
-            @if (!MostrarEstadoPlataforma)
+        @* Centro 360 (bloque 4 del 21-10): selector Trabajadores | Vehículos, visible también para Consulta, en la misma
+           fila que Asignar; Asignar solo existe para Trabajadores (un Vehículo no se asigna a un Centro en el modelo). *@
+        <div class="@(MostrarEstadoPlataforma ? "acordeon-asignaciones-cabecera acordeon-asignaciones-cabecera-recursos" : "acordeon-asignaciones-envoltura")">
+            @if (MostrarEstadoPlataforma)
             {
-                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
-                    Dar de baja seleccionados
-                </Boton>
+                <div class="selector-recurso-centro" role="group" aria-label="@Textos["QueMostrar360"]">
+                    <button type="button" class="selector-recurso-opcion" aria-pressed="@(VerVehiculos ? "false" : "true")" data-recurso="trabajadores"
+                            @onclick="() => ElegirRecurso(vehiculos: false)">@Textos["RecursoTrabajadores360", _trabajadores.Count]</button>
+                    <button type="button" class="selector-recurso-opcion" aria-pressed="@(VerVehiculos ? "true" : "false")" data-recurso="vehiculos"
+                            @onclick="() => ElegirRecurso(vehiculos: true)">@Textos["RecursoVehiculos360", _vehiculos.Count]</button>
+                </div>
+            }
+            @if (!VerVehiculos)
+            {
+                <SoloConEscritura>
+                    <div class="acordeon-asignaciones-cabecera">
+                        <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
+                        @* La maqueta de Centro 360 (20-10) no lo lleva: «sin Dar de baja seleccionados (no decidido)». *@
+                        @if (!MostrarEstadoPlataforma)
+                        {
+                            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="_seleccionados.Count == 0" OnClick="AbrirConfirmarBajaLoteAsync">
+                                Dar de baja seleccionados
+                            </Boton>
+                        }
+                    </div>
+                </SoloConEscritura>
             }
         </div>
-    </SoloConEscritura>
     }
 
     @Busqueda
@@ -185,14 +201,26 @@ else
         </div>
     }
 
-    @if (MostrarTotales)
+    @if (MostrarTotales && !VerVehiculos)
     {
         <FranjaEstado Opciones="OpcionesFranja" Valor="@FiltroEstado" ValorChanged="FiltroEstadoChanged"
                       Recuentos="RecuentosFranja" TotalTodos="_trabajadores.Count" />
         <p class="resumen-trabajadores">@Textos["MostrandoTrabajadores360", TrabajadoresFiltrados.Count, _trabajadores.Count]</p>
     }
 
-    @if (_trabajadores.Count == 0)
+    @if (VerVehiculos)
+    {
+        @if (_errorVehiculos)
+        {
+            <EstadoVacio Titulo="@Textos["VehiculosErrorCarga360"]" Descripcion="@Textos["VehiculosErrorCargaDescripcion360"]" />
+        }
+        else
+        {
+            <VehiculosCentro360 CentroId="CentroId" CentroNombre="@CentroNombre" Vehiculos="VehiculosFiltrados"
+                                NombrePlataforma="@NombrePlataforma" OnCambio="ManejarDocumentoGuardadoAsync" />
+        }
+    }
+    else if (_trabajadores.Count == 0)
     {
         <EstadoVacio Titulo="Sin trabajadores asignados" Descripcion="Ningún trabajador tiene una asignación activa en este centro." />
     }
@@ -245,8 +273,22 @@ else
         {
         <div class="lista-trabajadores-acordeon @(ModoListado ? "lista-trabajadores-acordeon-listado" : null)">
             <ListaRelaciones Etiqueta="@($"{Textos["PestanaTrabajadores"]} · {CentroNombre}")" EnTarjeta="true">
-            @foreach (var trabajador in TrabajadoresFiltrados)
+            @{ var clavesGrupos = new ClavesDeHermanos(); }
+            @foreach (var entrada in EntradasLista)
             {
+                @* Centro 360 (bloque 4 del 21-10): los Trabajadores de cada Subcontrata van en un desplegable propio, plegado de serie. *@
+                if (entrada.Grupo is { } grupo)
+                {
+                    <li class="fila-grupo-subcontrata" @key="clavesGrupos.De(entrada.Clave!)" data-subcontrata-grupo>
+                        <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Filas.Count"
+                                            UnidadContador="@Textos[grupo.Filas.Count == 1 ? "UnidadTrabajador360" : "UnidadTrabajadores360"]"
+                                            Subtitulo="@(grupo.EmpresaContratistaNombre is { } contratista ? Textos["SubcontrataDe360", contratista].Value : null)"
+                                            Incidencias="grupo.Filas.Count(TrabajadorConIncidenciaEnPlataforma)"
+                                            Abierto="_subcontratasAbiertas.EstaAbierto(entrada.Clave!)" OnAlternar="() => _subcontratasAbiertas.Alternar(entrada.Clave!)" />
+                    </li>
+                    continue;
+                }
+                var trabajador = entrada.Trabajador!;
                 var expandido = _expandidosTrabajador.Contains(trabajador.AsignacionId);
                 <FilaRelacion @key="trabajador.AsignacionId" Nombre="@(ModoListado ? NombreTrabajadorListado(trabajador.TrabajadorNombre) : trabajador.TrabajadorNombre)" Iniciales="@(ModoListado ? null : InicialesTrabajador(trabajador.TrabajadorNombre))"
                               Tono="@(EstaBloqueado(trabajador.TrabajadorId) ? TonoFila.Peligro : EstadoDocumentoFicha360.TonoFila(trabajador.PeorEstado))"

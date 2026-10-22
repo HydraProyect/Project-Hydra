@@ -19,7 +19,10 @@ namespace CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeC
 /// </summary>
 public record ObtenerVehiculosConActividadDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VehiculoConActividadDto>>;
 
-public record VehiculoConActividadDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre);
+/// <param name="SubcontrataId">La Empresa titular cuando el Vehículo es de una Subcontrata (columna legacy
+/// <c>Vehiculo.SubcontrataId</c>, no un tipo de Empresa); <c>null</c> si es de una Empresa propia.</param>
+public record VehiculoConActividadDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre,
+    Guid? SubcontrataId = null);
 
 public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IVehiculosQueryContext vehiculosContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerVehiculosConActividadDeCentroQuery, IReadOnlyList<VehiculoConActividadDto>>
@@ -55,7 +58,8 @@ public class ObtenerVehiculosConActividadDeCentroQueryHandler(IAsignacionesQuery
             orderby vehiculo.Nombre
             select new VehiculoConActividadDto(
                 vehiculo.Id, vehiculo.Nombre, vehiculo.Modelo, vehiculo.NumeroPlaca,
-                empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial))
+                empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial,
+                empresa == null ? vehiculo.SubcontrataId : null))
             .ToListAsync(cancellationToken);
     }
 }
