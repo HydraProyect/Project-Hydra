@@ -888,8 +888,9 @@
     TextoBotonConfirmar="@(_cancelarDesdePanel ? Textos["AccionCancelar"] : Textos["BotonCancelarSeleccionadas"])"
     TextoBotonDescartar="@Textos["BotonVolver"]"
     EnProgreso="_cancelandoLote"
+    ConfirmarDeshabilitado="string.IsNullOrWhiteSpace(_motivoCancelacion)"
     OnConfirmar="ConfirmarCancelarLoteAsync">
-    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivo"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
 
 @* Salir de la pantalla con un «Motivo (opcional)» escrito en alguno de los dos diálogos de confirmación pregunta; el cierre

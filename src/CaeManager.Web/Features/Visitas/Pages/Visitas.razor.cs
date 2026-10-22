@@ -1066,7 +1066,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Deshacer solo actúa si el panel sigue en la misma Visita: no quita la marca de otra.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception)
         {
@@ -1208,12 +1211,45 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (_trabajadorAQuitar is not { } trabajador)
             return;
 
+        var visitaId = _detalle?.Id ?? Guid.Empty;
         await CambiarTrabajadoresAsync(
             detalle => new QuitarTrabajadorDeVisitaCommand(detalle.Id, trabajador.Id, detalle.Version),
-            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto]);
+            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto],
+            () => DeshacerQuitarTrabajadorAsync(visitaId, trabajador.Id));
 
         _confirmarQuitarTrabajadorVisible = false;
         _trabajadorAQuitar = null;
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de quitar (maqueta «Flujos 06 Visitas», «Éxito · quitado»): vuelve a añadir al
+    /// Trabajador con la versión que la Visita tiene ahora, leída del servidor, para no pisar un cambio ajeno.
+    /// </summary>
+    private async Task DeshacerQuitarTrabajadorAsync(Guid visitaId, Guid trabajadorId)
+    {
+        if (visitaId == Guid.Empty || _cambiandoTrabajadores)
+            return;
+
+        try
+        {
+            var actual = await Mediator.Send(new ObtenerDetalleVisitaQuery(visitaId));
+            if (actual is null)
+                return;
+
+            var resultado = await Mediator.Send(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, actual.Version));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastTrabajadorDevuelto"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == visitaId)
+            await AbrirDetalleAsync(visitaId, PestanaTrabajadores);
     }
 
     /// <summary>
@@ -1221,7 +1257,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// la documentación y la versión de la Visita salen de lo guardado, no de lo que la pantalla
     /// creía tener. Tanto si sale bien como si falla (otra persona la cambió, se canceló).
     /// </summary>
-    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito)
+    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito, Func<Task>? deshacer = null)
     {
         if (_detalle is not { } detalle || _cambiandoTrabajadores)
             return;
@@ -1232,8 +1268,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(comando(detalle));
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
-            else
+            else if (deshacer is null)
                 ToastService.Mostrar(mensajeExito, TonoToast.Exito);
+            else
+                ToastService.Mostrar(mensajeExito, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, deshacer);
         }
         catch (Exception)
         {

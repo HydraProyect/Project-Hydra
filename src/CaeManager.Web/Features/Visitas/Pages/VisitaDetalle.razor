@@ -102,7 +102,7 @@
                 {
                     @if (_puedeEscribir)
                     {
-                        <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirReactivar">@Textos["AccionReactivar"]</Boton>
+                        <Boton Variante="VarianteBoton.Primario" OnClick="AbrirReactivar">@Textos["AccionReactivar"]</Boton>
                     }
                 }
                 else if (EsSinGestionCae)
@@ -423,8 +423,10 @@
     TextoBotonConfirmar="@Textos["AccionCancelar"]"
     TextoBotonDescartar="@Textos["BotonVolver"]"
     EnProgreso="_cancelando"
+    ConfirmarDeshabilitado="string.IsNullOrWhiteSpace(_motivoCancelacion)"
     OnConfirmar="ConfirmarCancelarAsync">
-    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivoOpcional"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
+    @* Maqueta «Flujos 06 Visitas», «Cancelar y reactivar»: el motivo es obligatorio y, sin él, el botón está desactivado. *@
+    <CampoTextarea Etiqueta="@Textos["EtiquetaMotivo"]" Valor="@_motivoCancelacion" ValorChanged="v => _motivoCancelacion = v" Filas="2" />
 </DialogoConfirmacion>
 
 <DialogoConfirmacion

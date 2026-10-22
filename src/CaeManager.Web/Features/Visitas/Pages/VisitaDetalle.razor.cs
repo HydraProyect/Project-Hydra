@@ -769,7 +769,9 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Maqueta «Flujos 06 Visitas», «Éxito · gestionada»: el aviso ofrece Deshacer, que quita la marca.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, QuitarMarcaDocumentacionGestionadaAsync);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
