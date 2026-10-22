@@ -269,7 +269,9 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             centros.Should().Contain(c => c.CreadoEnUtc >= inicioDelMes, $"MEDIDO: {tenant.Clave} tiene Centros nuevos en el mes de la siembra");
             clientes.Values.Should().OnlyContain(a => a > ahora.AddDays(-366) && a < ahora.AddDays(-199),
                 $"MEDIDO: los Clientes empresariales de {tenant.Clave} entran en el último año, antes que sus Centros");
-            eliminadoresDeBajas.Should().OnlyContain(id => id != null,
+            eliminadoresDeBajas.Should().HaveCount(tenant.BajasDelUltimoAno,
+                $"MEDIDO: {tenant.Clave} conserva todas las bajas previstas, también cuando no tiene ninguna");
+            eliminadoresDeBajas.Should().NotContain(id => id == null,
                 $"MEDIDO: las bajas de {tenant.Clave} las elimina una cuenta");
 
             salida.WriteLine($"MEDIDO {tenant.Clave}: {centros.Count(c => c.CreadoEnUtc >= inicioDelMes)} Centros nuevos este mes de {centros.Count}");
