@@ -44,7 +44,13 @@ public class PreguntarAlAsistenteQueryHandler(
         if (cartera.ErrorSiFalta() is { } sinInstruccion)
             return Result.Fallo<string>(sinInstruccion);
 
-        return await asistenteIa.PreguntarAsync(Enmascarar(request.Historial), cancellationToken);
+        var (enmascarado, tabla) = Enmascarar(request.Historial);
+        var respuesta = await asistenteIa.PreguntarAsync(enmascarado, cancellationToken);
+
+        // Como en el modo Operativo, lo que vuelve se restaura con la misma tabla: la persona ve
+        // sus identificadores, y el turno del asistente se guarda en claro, así que al
+        // enmascararlo otra vez en la pregunta siguiente lleva los mismos marcadores.
+        return respuesta.EsExitoso ? Result.Exito(tabla.Restaurar(respuesta.Valor)) : respuesta;
     }
 
     /// <summary>
@@ -61,13 +67,14 @@ public class PreguntarAlAsistenteQueryHandler(
     /// distintos nunca compartan <c>[DOC_1]</c>. La persona sigue viendo su texto en claro: lo
     /// enmascarado es solo lo que viaja.
     /// </summary>
-    private static IReadOnlyList<MensajeChatDto> Enmascarar(IReadOnlyList<MensajeChatDto> historial)
+    private static (IReadOnlyList<MensajeChatDto> Historial, TextoEnmascarado Tabla) Enmascarar(IReadOnlyList<MensajeChatDto> historial)
     {
         if (historial.Count == 0)
-            return historial;
+            return (historial, EnmascaradorIdentificadores.Enmascarar(null));
 
         var unidos = string.Join(SeparadorDeTurnos, historial.Select(m => m.Texto.Replace(SeparadorDeTurnos, ' ')));
-        var turnos = EnmascaradorIdentificadores.Enmascarar(unidos).Texto.Split(SeparadorDeTurnos);
-        return historial.Select((m, i) => m with { Texto = turnos[i] }).ToList();
+        var tabla = EnmascaradorIdentificadores.Enmascarar(unidos);
+        var turnos = tabla.Texto.Split(SeparadorDeTurnos);
+        return (historial.Select((m, i) => m with { Texto = turnos[i] }).ToList(), tabla);
     }
 }

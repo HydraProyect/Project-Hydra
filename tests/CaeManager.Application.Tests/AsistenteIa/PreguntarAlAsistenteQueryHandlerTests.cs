@@ -57,13 +57,14 @@ public class PreguntarAlAsistenteQueryHandlerTests
         {
             new(RolMensajeChat.Usuario, "¿Qué formación necesita el trabajador 12345678Z (ana.ruiz@ejemplo.es)?"),
             new(RolMensajeChat.Asistente, "Depende del puesto."),
-            new(RolMensajeChat.Usuario, "El 12345678Z es soldador; ¿y X1234567L, de la contrata B12345674?"),
+            // Otro documento primero: turno a turno sería [DOC_1] y se confundiría con el del primer turno.
+            new(RolMensajeChat.Usuario, "¿Y X1234567L, de la contrata B12345674, igual que 12345678Z?"),
         };
-        var servicio = new AsistenteIaServiceFalso(Result.Exito("…"));
+        var servicio = new AsistenteIaServiceFalso(Result.Exito("[DOC_2] necesita la misma formación que [DOC_1]."));
         var handler = new PreguntarAlAsistenteQueryHandler(
             servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId), new CarteraFalsa());
 
-        await handler.Handle(new PreguntarAlAsistenteQuery(historial), CancellationToken.None);
+        var resultado = await handler.Handle(new PreguntarAlAsistenteQuery(historial), CancellationToken.None);
 
         var enviado = servicio.HistorialRecibido!;
         enviado.Should().HaveCount(3);
@@ -71,8 +72,11 @@ public class PreguntarAlAsistenteQueryHandlerTests
         string.Concat(enviado.Select(m => m.Texto)).Should()
             .NotContain("12345678Z").And.NotContain("ana.ruiz@ejemplo.es").And.NotContain("X1234567L").And.NotContain("B12345674");
         enviado[0].Texto.Should().Contain("[DOC_1]").And.Contain("[CORREO_1]");
-        enviado[2].Texto.Should().StartWith("El [DOC_1] es soldador").And.Contain("[DOC_2]").And.Contain("[CIF_1]");
         enviado[1].Texto.Should().Be("Depende del puesto.");
+        enviado[2].Texto.Should().StartWith("¿Y [DOC_2], de la contrata [CIF_1]").And.EndWith("igual que [DOC_1]?");
+
+        // Lo que vuelve se restaura: la persona ve sus identificadores.
+        resultado.Valor.Should().Be("X1234567L necesita la misma formación que 12345678Z.");
     }
 
     [Fact]

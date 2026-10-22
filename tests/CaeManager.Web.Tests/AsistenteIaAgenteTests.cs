@@ -634,6 +634,72 @@ public class AsistenteIaAgenteTests : BunitContext
         panel.WaitForAssertion(() => panel.Find(".asistente-borrador-texto").TextContent.Should().Be("alta del centro de Hotel Mirador"));
     }
 
+    /// <summary>
+    /// El panel del layout y la pantalla completa comparten la conversación: el aviso de
+    /// cambio de Tenant del servicio solo llega a la primera instancia que pregunta. La otra
+    /// tiene que darse cuenta por su cuenta de que lo suyo se leyó con otro Tenant.
+    /// </summary>
+    [Fact]
+    public void Si_otra_instancia_se_entera_antes_del_cambio_de_Tenant_el_panel_tampoco_ensena_los_borradores()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
+        var panel = Abrir();
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+        panel.Find(".asistente-borrador-texto").TextContent.Should().Be("alta del centro de Hotel Mirador");
+
+        _tenantEfectivo.TenantId = TenantB;
+        var pantalla = Render<AsistenteIa>(p => p.Add(c => c.PantallaCompleta, true));
+        pantalla.WaitForAssertion(() => pantalla.Find(".vega-chip").TextContent.Should().Contain("Industrias Norte"));
+        panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Notificar());
+
+        panel.WaitForAssertion(() => panel.Markup.Should().NotContain("alta del centro de Hotel Mirador"));
+    }
+
+    /// <summary>Una lista de borradores que vuelve cuando el Tenant efectivo ya es otro no se pinta.</summary>
+    [Fact]
+    public void Los_borradores_que_vuelven_con_otro_Tenant_efectivo_no_se_pintan()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ =>
+        {
+            // La revalidación retira la Empresa gestionada mientras la lista viaja, y algo repinta Vega.
+            _tenantEfectivo.TenantId = TenantB;
+            Services.GetRequiredService<AsistenteIaService>().AsegurarTenant(TenantB);
+            return Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
+        };
+        var panel = Abrir();
+
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+
+        panel.Markup.Should().NotContain("alta del centro de Hotel Mirador");
+        panel.FindAll(".asistente-borrador-descartar").Should().BeEmpty();
+    }
+
+    /// <summary>Una respuesta de la Consulta PRL que vuelve cuando el Tenant efectivo ya es otro no entra en el hilo nuevo.</summary>
+    [Fact]
+    public void La_respuesta_que_vuelve_con_otro_Tenant_efectivo_no_entra_en_el_hilo_nuevo()
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ =>
+        {
+            _tenantEfectivo.TenantId = TenantB;
+            Services.GetRequiredService<AsistenteIaService>().AsegurarTenant(TenantB);
+            return Result.Exito("Respuesta con datos del primer Tenant.");
+        };
+        var panel = Abrir();
+
+        Enviar(panel, "¿Qué le falta a la primera?");
+
+        panel.Markup.Should().NotContain("Respuesta con datos del primer Tenant.");
+        Services.GetRequiredService<AsistenteIaService>().Historial.Should().BeEmpty();
+    }
+
     // ---- Teclado, foco y borrador ------------------------------------------------------------
 
     [Fact]

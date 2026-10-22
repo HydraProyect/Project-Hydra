@@ -100,6 +100,11 @@ public partial class AsistenteIa : IDisposable
     private ClienteAutorizadoDto? _empresa;
     private bool _empresaCargada;
 
+    /// <summary>El Tenant efectivo con el que esta instancia leyó la pastilla y los borradores (null: aún no leyó nada).</summary>
+    private TenantLeido? _tenantDeLoLeido;
+
+    private sealed record TenantLeido(Guid? TenantId);
+
     private bool _enRutaPantallaCompleta;
     private bool _abiertoReflejado;
     private AccionTrasRender _accionPendiente;
@@ -136,7 +141,16 @@ public partial class AsistenteIa : IDisposable
     /// <returns>true si el Tenant efectivo ha cambiado: quien llama no debe enviar nada.</returns>
     private bool TenantEfectivoCambiado()
     {
-        if (!AsistenteIaService.AsegurarTenant(TenantActual.TenantId))
+        var tenantEfectivo = TenantActual.TenantId;
+        var conversacionDeOtroTenant = AsistenteIaService.AsegurarTenant(tenantEfectivo);
+
+        // AsegurarTenant solo avisa a la primera instancia que pregunta (el panel del layout y
+        // la pantalla completa comparten la conversación): cada instancia compara además el
+        // Tenant con el que leyó lo suyo, o la otra seguiría enseñándolo.
+        var leidoEnOtroTenant = _tenantDeLoLeido is { } leido && leido.TenantId != tenantEfectivo;
+        _tenantDeLoLeido = new TenantLeido(tenantEfectivo);
+
+        if (!conversacionDeOtroTenant && !leidoEnOtroTenant)
             return false;
 
         OlvidarLoLeidoEnOtroTenant();
@@ -339,13 +353,9 @@ public partial class AsistenteIa : IDisposable
             return;
         }
 
+        TenantEfectivoCambiado();
         _empresa = empresa;
-        if (AsistenteIaService.AsegurarTenant(tenantEfectivo))
-        {
-            _borradores = null;
-            _verBorradores = false;
-            _mensajeError = Textos["EmpresaCambiada"];
-        }
+        _empresaCargada = true;
     }
 
     private void Plegar() => AsistenteIaService.Plegar();
@@ -450,6 +460,7 @@ public partial class AsistenteIa : IDisposable
         // Si el Tenant efectivo cambió, el hilo anterior ya se ha vaciado y este texto tampoco
         // sale: se escribió viendo otra Empresa. Se queda en la caja para revisarlo.
         if (TenantEfectivoCambiado()) return;
+        var tenant = TenantActual.TenantId;
 
         _mensajeError = null;
         Hilo.Add(new EntradaHilo(TipoEntradaHilo.Usuario, texto));
@@ -462,10 +473,18 @@ public partial class AsistenteIa : IDisposable
 
         try
         {
+            // El viaje al navegador también tarda: si el Tenant cambió en él, el texto vuelve a la caja y no sale.
+            if (VolvioDeOtroTenant(tenant))
+            {
+                _pregunta = texto;
+                _valorMostrado = texto;
+                return;
+            }
+
             if (EnModoGestion)
-                await EnviarOrdenAsync(texto);
+                await EnviarOrdenAsync(texto, tenant);
             else
-                await EnviarPreguntaAsync(texto);
+                await EnviarPreguntaAsync(texto, tenant);
         }
         catch (ValidationException ex)
         {
@@ -477,7 +496,17 @@ public partial class AsistenteIa : IDisposable
         }
     }
 
-    private async Task EnviarPreguntaAsync(string texto)
+    /// <summary>
+    /// La guarda al volver de una llamada que tarda. No basta con <see cref="TenantEfectivoCambiado"/>:
+    /// un pintado en mitad de la llamada ya pudo atar la conversación al Tenant nuevo, y entonces
+    /// lo que vuelve (del Tenant en el que se pidió) se pintaría en el nuevo. Por eso se compara
+    /// además con el Tenant de la petición. El operador | (no ||) hace que la comprobación del
+    /// hilo corra siempre.
+    /// </summary>
+    private bool VolvioDeOtroTenant(Guid? tenantDeLaPeticion) =>
+        TenantEfectivoCambiado() | TenantActual.TenantId != tenantDeLaPeticion;
+
+    private async Task EnviarPreguntaAsync(string texto, Guid? tenant)
     {
         var historial = AsistenteIaService.Historial;
         historial.Add(new MensajeChatDto(RolMensajeChat.Usuario, texto));
@@ -485,7 +514,7 @@ public partial class AsistenteIa : IDisposable
         var resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(historial.ToList()));
 
         // La respuesta es del Tenant en el que se preguntó: si cambió mientras tanto, no se pinta.
-        if (TenantEfectivoCambiado()) return;
+        if (VolvioDeOtroTenant(tenant)) return;
 
         if (resultado.EsExitoso)
         {
@@ -508,7 +537,7 @@ public partial class AsistenteIa : IDisposable
     /// pedir. Si el motor no propone nada (error o no entendido), la Tarea se descarta:
     /// no queda un borrador sin plan en el historial.
     /// </summary>
-    private async Task EnviarOrdenAsync(string texto)
+    private async Task EnviarOrdenAsync(string texto, Guid? tenant)
     {
         var creada = await Mediator.Send(new CrearTareaAsistenteCommand(texto, EnmascaradorIdentificadores.Enmascarar(texto).Texto));
         if (creada.EsFallido)
@@ -520,12 +549,12 @@ public partial class AsistenteIa : IDisposable
         // Cada vuelta de una llamada que tarda puede encontrar otro Tenant efectivo: entonces no
         // se pide el plan al proveedor ni se pinta nada (la Tarea, del Tenant anterior, queda
         // como borrador de ese Tenant, donde el servidor la sigue protegiendo por RLS).
-        if (TenantEfectivoCambiado()) return;
+        if (VolvioDeOtroTenant(tenant)) return;
 
         var tareaId = creada.Valor;
         var propuesta = await Mediator.Send(new ProponerPlanDeTareaAsistenteCommand(tareaId));
 
-        if (TenantEfectivoCambiado()) return;
+        if (VolvioDeOtroTenant(tenant)) return;
 
         if (propuesta.EsFallido)
         {
@@ -537,6 +566,7 @@ public partial class AsistenteIa : IDisposable
         if (propuesta.Valor.Situacion != SituacionPlan.Propuesto)
         {
             await Mediator.Send(new DescartarTareaAsistenteCommand(tareaId));
+            if (VolvioDeOtroTenant(tenant)) return;
             Hilo.Add(new EntradaHilo(TipoEntradaHilo.Aviso, TextoSinRespuestaSegura, Modo: ModoAsistente.Gestion));
             return;
         }
@@ -553,7 +583,7 @@ public partial class AsistenteIa : IDisposable
         }
 
         await GuardarPlanAsync(vista);
-        if (TenantEfectivoCambiado()) return;
+        if (VolvioDeOtroTenant(tenant)) return;
         Hilo.Add(new EntradaHilo(TipoEntradaHilo.Plan, texto, vista, ModoAsistente.Gestion));
     }
 
@@ -686,11 +716,17 @@ public partial class AsistenteIa : IDisposable
     {
         _borradores = null;
         if (TenantEfectivoCambiado()) return;
+        var tenant = TenantActual.TenantId;
 
         var resultado = await Mediator.Send(new ListarTareasAsistenteQuery());
 
         // La lista es del Tenant en el que se pidió: si cambió mientras tanto, no se pinta.
-        if (TenantEfectivoCambiado()) return;
+        if (VolvioDeOtroTenant(tenant))
+        {
+            _borradores = null;
+            _verBorradores = false;
+            return;
+        }
 
         if (resultado.EsExitoso)
             _borradores = resultado.Valor;

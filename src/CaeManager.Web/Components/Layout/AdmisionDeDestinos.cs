@@ -83,8 +83,10 @@ public static class AdmisionDeDestinos
         ["mi-firma"] = new(SoloAutenticado: true),
 
         // Vega a pantalla completa: cualquier cuenta con sesión salvo el rol Cliente, cuyo menú
-        // fijo no lo lleva (falla cerrado: ofrecérselo sería una decisión de producto que no está
-        // tomada). Lo que cada uno puede pedirle lo deciden los Commands, no la pantalla.
+        // fijo no lo lleva. Esto solo decide qué destinos se ofrecen (menú y paleta), no es una
+        // restricción: la página exige sesión y nada más, y el panel flotante del layout se le
+        // sigue enseñando al rol Cliente como antes. Si el rol Cliente debe tener Vega está por
+        // decidir. Lo que cada uno puede pedirle lo deciden los Commands, no la pantalla.
         ["asistente"] = new(SoloAutenticado: true, FueraDelMenuDeCliente: true),
     };
 
