@@ -66,9 +66,20 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
             orderby cambio.MomentoUtc descending
             select new
             {
-                cambio.Id, cambio.MomentoUtc, cambio.EstadoAnterior, cambio.Estado, cambio.Fecha, cambio.Motivo, cambio.Nota,
-                cambio.UsuarioId, cambio.DeshechoUtc, canal.ProveedorPlataformaCaeId,
-                documento.TipoDocumentoId, documento.TrabajadorId, documento.EmpresaId, documento.VehiculoId
+                cambio.Id,
+                cambio.MomentoUtc,
+                cambio.EstadoAnterior,
+                cambio.Estado,
+                cambio.Fecha,
+                cambio.Motivo,
+                cambio.Nota,
+                cambio.UsuarioId,
+                cambio.DeshechoUtc,
+                canal.ProveedorPlataformaCaeId,
+                documento.TipoDocumentoId,
+                documento.TrabajadorId,
+                documento.EmpresaId,
+                documento.VehiculoId
             })
             .Take(Math.Clamp(request.Maximo, 1, 200))
             .ToListAsync(cancellationToken);
