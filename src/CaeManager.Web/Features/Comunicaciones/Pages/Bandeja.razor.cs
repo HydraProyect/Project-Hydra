@@ -171,16 +171,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     // --- Detalle / centro ---
     private Guid? _conversacionSeleccionadaId;
     private ConversacionDetalleDto? _detalle;
-
-    /// <summary>
-    /// A quién sale el recordatorio propuesto: aprobarlo responde al último mensaje entrante del hilo
-    /// (ResponderConversacionCommandHandler), así que es su remitente.
-    /// </summary>
-    private string? DestinatarioRecordatorio => _detalle?.Mensajes
-        .Where(m => m.Direccion == DireccionMensaje.Entrante)
-        .OrderByDescending(m => m.FechaUtc)
-        .Select(m => m.Remitente)
-        .FirstOrDefault();
     private bool _cargandoDetalle;
     private ClienteDetalleDto? _clienteActivo;
     private IReadOnlyList<MacroListaDto> _macrosDisponibles = [];

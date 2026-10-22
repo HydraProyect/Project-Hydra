@@ -32,18 +32,17 @@ public class RecordatorioPropuestoTests : BunitContext
         Services.AddScoped<ToastService>();
     }
 
-    private IRenderedComponent<RecordatorioPropuesto> Renderizar(Action? alEnviar = null, string? destinatario = "cae@mnorte.example") =>
+    private IRenderedComponent<RecordatorioPropuesto> Renderizar(Action? alEnviar = null) =>
         Render<RecordatorioPropuesto>(p => p
             .Add(c => c.ConversacionId, _conversacionId)
             .Add(c => c.Asunto, "Documentación de octubre")
-            .Add(c => c.Destinatario, destinatario)
             .Add(c => c.Estado, EstadoConversacion.EsperandoRespuestaExterna)
             .Add(c => c.OnEnviado, () => alEnviar?.Invoke()));
 
     private RecordatorioPropuestoDto Proponer()
     {
         _mediator.Propuesta = new RecordatorioPropuestoDto(
-            Guid.NewGuid(), new DateTime(2026, 10, 16, 8, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 20, 5, 0, 0, DateTimeKind.Utc));
+            Guid.NewGuid(), new DateTime(2026, 10, 16, 8, 0, 0, DateTimeKind.Utc), new DateTime(2026, 10, 20, 5, 0, 0, DateTimeKind.Utc), "cae@mnorte.example");
         return _mediator.Propuesta;
     }
 
@@ -85,7 +84,7 @@ public class RecordatorioPropuestoTests : BunitContext
 
         Revisar(componente);
 
-        componente.Markup.Should().Contain("Propuesto por TALVEG el 20/10/2026 07:00", "hora peninsular, no la del servidor");
+        componente.Markup.Should().Contain("Propuesto por TALVEG el 20/10/2026 a las 07:00", "hora peninsular, no la del servidor");
         componente.Markup.Should().Contain("cae@mnorte.example").And.Contain("Sin respuesta desde el 16/10/2026")
             .And.Contain("RE: Documentación de octubre");
         componente.Find("textarea").TextContent.Should().Contain("Documentación de octubre");
@@ -169,10 +168,76 @@ public class RecordatorioPropuestoTests : BunitContext
             "Deshacer la devuelve a propuesta"));
     }
 
+    [Fact]
+    public void Deshacer_devuelve_el_texto_que_el_Gestor_CAE_habia_editado()
+    {
+        Proponer();
+        var componente = Renderizar();
+        Revisar(componente);
+        componente.Find("textarea").Input("Texto mío");
+        Pulsar(componente, "Descartar");
+
+        var aviso = Toasts.Mensajes.Single(t => t.Mensaje == "Recordatorio descartado.");
+        componente.InvokeAsync(() => aviso.OnAccion!()).GetAwaiter().GetResult();
+
+        Toasts.Mensajes.Should().Contain(t => t.Mensaje == "Recordatorio de nuevo propuesto.");
+        Revisar(componente);
+        componente.Find("textarea").TextContent.Should().Be("Texto mío");
+    }
+
+    [Fact]
+    public void Si_Deshacer_falla_lo_dice_y_no_vuelve_a_pintar_la_fila()
+    {
+        Proponer();
+        _mediator.ResultadoRestaurar = Result.Fallo(PropuestaRecordatorioConversacion.ErrorEsperaTerminada);
+        var componente = Renderizar();
+        Revisar(componente);
+        Pulsar(componente, "Descartar");
+
+        var aviso = Toasts.Mensajes.Single(t => t.Mensaje == "Recordatorio descartado.");
+        componente.InvokeAsync(() => aviso.OnAccion!()).GetAwaiter().GetResult();
+
+        Toasts.Mensajes.Should().Contain(t => t.Mensaje.Contains(PropuestaRecordatorioConversacion.ErrorEsperaTerminada.Mensaje));
+        Toasts.Mensajes.Should().NotContain(t => t.Mensaje == "Recordatorio de nuevo propuesto.");
+        componente.FindAll(".recordatorio-propuesto").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_la_propuesta_deja_de_estar_vigente_con_el_drawer_abierto_se_cierra_y_se_dice()
+    {
+        Proponer();
+        var componente = Renderizar();
+        Revisar(componente);
+        componente.Find("textarea").Input("A medias");
+
+        _mediator.Propuesta = null;
+        componente.Render(p => p.Add(c => c.Estado, EstadoConversacion.Abierta));
+
+        componente.FindAll(".drawer-pie").Should().BeEmpty();
+        Toasts.Mensajes.Should().Contain(t => t.Mensaje == "El recordatorio ya no está propuesto: la conversación ha cambiado.");
+    }
+
+    [Fact]
+    public void Mientras_se_envia_la_primaria_dice_Enviando()
+    {
+        Proponer();
+        var envio = new TaskCompletionSource<Result>();
+        _mediator.EnvioPendiente = envio;
+        var componente = Renderizar();
+        Revisar(componente);
+
+        Pulsar(componente, "Aprobar y enviar");
+
+        componente.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Contain("Enviando…");
+        componente.InvokeAsync(() => envio.SetResult(Result.Exito())).GetAwaiter().GetResult();
+    }
+
     private sealed class MediatorDeRecordatorio : IMediator
     {
         public RecordatorioPropuestoDto? Propuesta { get; set; }
         public Result ResultadoAprobar { get; set; } = Result.Exito();
+        public Result ResultadoRestaurar { get; set; } = Result.Exito();
+        public TaskCompletionSource<Result>? EnvioPendiente { get; set; }
         public List<object> Enviados { get; } = [];
         private RecordatorioPropuestoDto? _resuelta;
 
@@ -182,13 +247,21 @@ public class RecordatorioPropuestoTests : BunitContext
                 return Task.FromResult((TResponse)(object?)Propuesta!);
 
             Enviados.Add(request);
-            var resultado = request is AprobarRecordatorioConversacionCommand ? ResultadoAprobar : Result.Exito();
+            if (request is AprobarRecordatorioConversacionCommand && EnvioPendiente is { } pendiente)
+                return pendiente.Task.ContinueWith(t => (TResponse)(object)t.Result, TaskScheduler.Current);
+
+            var resultado = request switch
+            {
+                AprobarRecordatorioConversacionCommand => ResultadoAprobar,
+                RestaurarRecordatorioConversacionCommand => ResultadoRestaurar,
+                _ => Result.Exito()
+            };
             if (resultado.EsExitoso && request is AprobarRecordatorioConversacionCommand or DescartarRecordatorioConversacionCommand)
             {
                 _resuelta = Propuesta;
                 Propuesta = null;
             }
-            if (request is RestaurarRecordatorioConversacionCommand)
+            if (resultado.EsExitoso && request is RestaurarRecordatorioConversacionCommand)
                 Propuesta = _resuelta;
             return Task.FromResult((TResponse)(object)resultado);
         }

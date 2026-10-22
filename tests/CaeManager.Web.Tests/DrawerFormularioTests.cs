@@ -386,6 +386,15 @@ public class DrawerFormularioTests : BunitContext
         cut.Find(".drawer-pie .formulario-drawer-pie-izquierda").HasAttribute("disabled").Should().Be(guardando);
     }
 
+    [Fact]
+    public void TextoGuardando_cambia_la_etiqueta_de_la_primaria_mientras_dura_la_accion()
+    {
+        _guardando = true;
+        var cut = Renderizar(p => p.Add(x => x.TextoGuardando, "Enviando…"));
+
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Contain("Enviando…").And.NotContain("Guardando…");
+    }
+
     // ---- v2 (S12, lote 2b), T7: el cuerpo que aún no está listo.
 
     private static RenderFragment FragmentoVacio(string titulo) => b =>

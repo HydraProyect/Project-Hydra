@@ -279,6 +279,35 @@ public class RecordatorioConversacionCommandHandlerTests
             .Should().BeNull("la espera terminó aunque el proceso de fondo aún no la haya descartado");
     }
 
+    [Fact]
+    public async Task El_destinatario_es_el_remitente_del_ultimo_entrante_al_que_responde_el_envio()
+    {
+        // Los mensajes van antes de entrar en la espera: un entrante posterior la terminaría.
+        var conversacion = new Conversacion("Documentación pendiente", clienteId: _clienteId);
+        var contexto = new ComunicacionesQueryContextFalso();
+        var ahora = DateTime.UtcNow;
+        contexto.ListaMensajes.AddRange([
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "antiguo@empresa.example", "a",
+                ahora.AddDays(-12), "ext-1"),
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "real@empresa.example", "b",
+                ahora.AddDays(-11), "ext-2"),
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "sin-id@empresa.example", "c",
+                ahora.AddDays(-10.5)),
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "buzon@operador.example", "d",
+                ahora.AddDays(-10.2), "ext-3"),
+        ]);
+        conversacion.CambiarEstado(EstadoConversacion.EsperandoRespuestaExterna, ahora.AddDays(-10)).EsExitoso.Should().BeTrue();
+        var propuesta = PropuestaRecordatorioConversacion.ProponerSiCorresponde(conversacion, ahora, new CalendarioLaboralOperadorCae([]))!;
+        contexto.ListaConversaciones.Add(conversacion);
+        contexto.ListaPropuestasRecordatorioConversacion.Add(propuesta);
+
+        var dto = await new ObtenerRecordatorioPropuestoConversacionQueryHandler(contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerRecordatorioPropuestoConversacionQuery(conversacion.Id), CancellationToken.None);
+
+        dto!.Destinatario.Should().Be("real@empresa.example",
+            "el envío responde al último entrante con id externo: ni a uno sin id ni a un saliente");
+    }
+
     private sealed class PropuestasFalsas : IPropuestaRecordatorioConversacionRepository
     {
         public List<PropuestaRecordatorioConversacion> Lista { get; } = [];

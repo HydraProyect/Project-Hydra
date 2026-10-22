@@ -7,7 +7,11 @@ namespace CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropu
 
 public record ObtenerRecordatorioPropuestoConversacionQuery(Guid ConversacionId) : IRequest<RecordatorioPropuestoDto?>;
 
-public record RecordatorioPropuestoDto(Guid PropuestaId, DateTime EsperaDesdeUtc, DateTime PropuestaEnUtc);
+/// <param name="Destinatario">
+/// A quién sale si se aprueba: el remitente del último mensaje entrante con id externo, el mismo al que responde
+/// <see cref="Commands.ResponderConversacion.ResponderConversacionCommandHandler"/>. Nulo si no hay ninguno.
+/// </param>
+public record RecordatorioPropuestoDto(Guid PropuestaId, DateTime EsperaDesdeUtc, DateTime PropuestaEnUtc, string? Destinatario = null);
 
 /// <summary>
 /// La propuesta de recordatorio Pendiente de una conversación, si sigue vigente (ver
@@ -37,11 +41,25 @@ public class ObtenerRecordatorioPropuestoConversacionQueryHandler(
             return null;
 
         var estadoDesdeUtc = conversacion.EstadoDesdeUtc;
-        return await comunicacionesContext.PropuestasRecordatorioConversacion
+        var propuesta = await comunicacionesContext.PropuestasRecordatorioConversacion
             .Where(p => p.ConversacionId == request.ConversacionId
                         && p.Estado == EstadoPropuestaRecordatorio.Pendiente
                         && p.EsperaDesdeUtc == estadoDesdeUtc)
-            .Select(p => new RecordatorioPropuestoDto(p.Id, p.EsperaDesdeUtc, p.PropuestaEnUtc))
+            .Select(p => new RecordatorioPropuestoDto(p.Id, p.EsperaDesdeUtc, p.PropuestaEnUtc, null))
             .FirstOrDefaultAsync(cancellationToken);
+        if (propuesta is null)
+            return null;
+
+        // Mismo filtro que el envío (ResponderConversacionCommandHandler.EnviarPorGraphAsync): responde al último entrante
+        // con id externo, así que el «Para» que ve el Gestor CAE es el de verdad.
+        var destinatario = await comunicacionesContext.Mensajes
+            .Where(m => m.ConversacionId == request.ConversacionId
+                        && m.Direccion == DireccionMensaje.Entrante
+                        && m.MensajeExternoId != null)
+            .OrderByDescending(m => m.FechaUtc)
+            .Select(m => m.Remitente)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return propuesta with { Destinatario = destinatario };
     }
 }

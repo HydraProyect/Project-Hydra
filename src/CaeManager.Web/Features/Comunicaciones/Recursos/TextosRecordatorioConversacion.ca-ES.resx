@@ -31,7 +31,13 @@
     <value>Revisa</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
-    <value>Proposat per TALVEG el {0}</value>
+    <value>Proposat per TALVEG {0}</value>
+  </data>
+  <data name="Hoy" xml:space="preserve">
+    <value>avui {0}</value>
+  </data>
+  <data name="ElDia" xml:space="preserve">
+    <value>el {0} a les {1}</value>
   </data>
   <data name="EtiquetaPara" xml:space="preserve">
     <value>Per a</value>
@@ -73,8 +79,8 @@ Gràcies.</value>
   <data name="BotonDescartar" xml:space="preserve">
     <value>Descarta</value>
   </data>
-  <data name="MotivoSinPropuesta" xml:space="preserve">
-    <value>Aquest recordatori ja no està proposat.</value>
+  <data name="ToastYaNoPropuesto" xml:space="preserve">
+    <value>El recordatori ja no està proposat: la conversa ha canviat.</value>
   </data>
   <data name="MotivoDescartando" xml:space="preserve">
     <value>S&apos;està descartant el recordatori.</value>

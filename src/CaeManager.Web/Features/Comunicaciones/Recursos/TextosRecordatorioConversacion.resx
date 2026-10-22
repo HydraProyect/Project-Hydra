@@ -31,7 +31,13 @@
     <value>Revisar</value>
   </data>
   <data name="Subtitulo" xml:space="preserve">
-    <value>Propuesto por TALVEG el {0}</value>
+    <value>Propuesto por TALVEG {0}</value>
+  </data>
+  <data name="Hoy" xml:space="preserve">
+    <value>hoy {0}</value>
+  </data>
+  <data name="ElDia" xml:space="preserve">
+    <value>el {0} a las {1}</value>
   </data>
   <data name="EtiquetaPara" xml:space="preserve">
     <value>Para</value>
@@ -73,8 +79,8 @@ Gracias.</value>
   <data name="BotonDescartar" xml:space="preserve">
     <value>Descartar</value>
   </data>
-  <data name="MotivoSinPropuesta" xml:space="preserve">
-    <value>Este recordatorio ya no está propuesto.</value>
+  <data name="ToastYaNoPropuesto" xml:space="preserve">
+    <value>El recordatorio ya no está propuesto: la conversación ha cambiado.</value>
   </data>
   <data name="MotivoDescartando" xml:space="preserve">
     <value>Se está descartando el recordatorio.</value>
