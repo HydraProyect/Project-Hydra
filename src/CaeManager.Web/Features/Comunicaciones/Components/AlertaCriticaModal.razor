@@ -1,0 +1,126 @@
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
+@using CaeManager.Application.Comunicaciones.AlertasCriticas
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Incidencias
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosAlertasCriticas> Textos
+
+@* Maqueta «Flujos 13 Comunicaciones», flujo «Alerta crítica»: modal de 560 px que bloquea hasta decidir, con la segunda opinión de la IA
+   (coincide, no coincide o no disponible) y los dos desenlaces: «No es crítica» y «Registrar incidencia» (con Deshacer, que pinta el
+   toast de la pantalla). Es presentacional: la pantalla pone los datos y ejecuta los comandos. *@
+<div class="alerta-critica-modal">
+    <ModalFormulario Visible="Visible" VisibleChanged="_ => Task.CompletedTask" Titulo="@Textos["ModalTitulo"]"
+                     HayCambios="() => _centroId.Length > 0 || _trabajadorId.Length > 0" Bloqueante="true" Ancho="AnchoModal.Mediano"
+                     Cargando="Cargando" Guardando="Guardando" MensajeError="@MensajeError"
+                     MotivoGuardarDeshabilitado="@MotivoRegistrarDeshabilitado"
+                     TextoGuardar="@Textos["BotonRegistrarIncidencia"]" TextoCancelar="@Textos["BotonNoEsCritica"]"
+                     OnGuardar="RegistrarAsync">
+        <ChildContent>
+            @if (Alerta is not null)
+            {
+                <div class="alerta-critica-modal-cuerpo">
+                    <div class="alerta-critica-modal-cabecera">
+                        <Badge Tono="TonoBadge.Peligro">@Textos["ModalPill"]</Badge>
+                        @if (!string.IsNullOrWhiteSpace(Asunto))
+                        {
+                            <span class="alerta-critica-modal-asunto">@Asunto</span>
+                        }
+                    </div>
+                    <p>@Textos["ModalIntro"]</p>
+                    <blockquote class="alerta-critica-modal-texto">@Alerta.Texto</blockquote>
+
+                    @* La segunda opinión se calcula al recibir el mensaje; aquí solo se enseña, no se pide otra. *@
+                    @if (Alerta.ConfianzaIa is { } confianza)
+                    {
+                        if (Alerta.SegundaOpinionIa == true)
+                        {
+                            <div class="alerta-critica-modal-opinion alerta-critica-modal-opinion-info" role="status">
+                                <strong>@Textos["SegundaOpinionTitulo"]</strong>
+                                <span>@Textos["SegundaOpinionCoincide", confianza]</span>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alerta-critica-modal-opinion alerta-critica-modal-opinion-aviso" role="status">
+                                <strong>@Textos["SegundaOpinionNoCoincideTitulo"]</strong>
+                                <span>@Textos["SegundaOpinionNoCoincide", confianza]</span>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="alerta-critica-modal-opinion alerta-critica-modal-opinion-aviso" role="status">
+                            <strong>@Textos["SegundaOpinionNoDisponibleTitulo"]</strong>
+                            <span>@Textos["SegundaOpinionNoDisponible"]</span>
+                        </div>
+                    }
+
+                    <CampoSelect Etiqueta="@Textos["EtiquetaCentro"]" Valor="@_centroId" ValorChanged="v => _centroId = v">
+                        <option value="">@Textos["OpcionSeleccionaCentro"]</option>
+                        @foreach (var centro in Centros)
+                        {
+                            <option value="@centro.Id">@centro.Nombre (@centro.ClienteRazonSocial — @centro.EmpresaRazonSocial)</option>
+                        }
+                    </CampoSelect>
+                    <CampoSelect Etiqueta="@Textos["EtiquetaTrabajador"]" Valor="@_trabajadorId" ValorChanged="v => _trabajadorId = v">
+                        <option value="">@Textos["OpcionNingunTrabajador"]</option>
+                        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(Trabajadores))
+                        {
+                            <option value="@trabajador.Id">@trabajador.Texto</option>
+                        }
+                    </CampoSelect>
+                    <div class="alerta-critica-modal-par">
+                        <CampoSelect Etiqueta="@Textos["EtiquetaTipo"]" Valor="@_tipo" ValorChanged="v => _tipo = v">
+                            <option value="@nameof(TipoIncidencia.Accidente)">@Textos["TipoAccidente"]</option>
+                            <option value="@nameof(TipoIncidencia.Incumplimiento)">@Textos["TipoIncumplimiento"]</option>
+                        </CampoSelect>
+                        <CampoSelect Etiqueta="@Textos["EtiquetaGravedad"]" Valor="@_gravedad" ValorChanged="v => _gravedad = v">
+                            <option value="@nameof(GravedadIncidencia.Leve)">@Textos["GravedadLeve"]</option>
+                            <option value="@nameof(GravedadIncidencia.Grave)">@Textos["GravedadGrave"]</option>
+                            <option value="@nameof(GravedadIncidencia.MuyGrave)">@Textos["GravedadMuyGrave"]</option>
+                        </CampoSelect>
+                    </div>
+                </div>
+            }
+        </ChildContent>
+        <PieExtra>
+            <Boton Variante="VarianteBoton.Secundario" OnClick="() => OnNoEsCritica.InvokeAsync()">@Textos["BotonNoEsCritica"]</Boton>
+        </PieExtra>
+    </ModalFormulario>
+</div>
+
+@code {
+    /// <summary>Lo que el modal entrega al registrar: el Centro es obligatorio porque toda Incidencia pertenece a un Centro.</summary>
+    public sealed record DatosIncidencia(Guid CentroId, Guid? TrabajadorId, TipoIncidencia Tipo, GravedadIncidencia Gravedad);
+
+    private string _centroId = string.Empty;
+    private string _trabajadorId = string.Empty;
+    private string _tipo = nameof(TipoIncidencia.Incumplimiento);
+    private string _gravedad = nameof(GravedadIncidencia.Grave);
+
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public AlertaCriticaDto? Alerta { get; set; }
+
+    /// <summary>Asunto de la conversación, que es lo que la maqueta pone como subtítulo.</summary>
+    [Parameter] public string? Asunto { get; set; }
+    [Parameter] public IReadOnlyList<CentroSelectorDto> Centros { get; set; } = [];
+    [Parameter] public IReadOnlyList<TrabajadorSelectorDto> Trabajadores { get; set; } = [];
+    [Parameter] public bool Cargando { get; set; }
+    [Parameter] public bool Guardando { get; set; }
+    [Parameter] public string? MensajeError { get; set; }
+    [Parameter] public EventCallback<DatosIncidencia> OnRegistrar { get; set; }
+    [Parameter] public EventCallback OnNoEsCritica { get; set; }
+
+    private string? MotivoRegistrarDeshabilitado =>
+        Guid.TryParse(_centroId, out _) ? null : Textos["MotivoSinCentro"].Value;
+
+    private async Task RegistrarAsync()
+    {
+        if (!Guid.TryParse(_centroId, out var centroId)
+            || !Enum.TryParse<TipoIncidencia>(_tipo, out var tipo)
+            || !Enum.TryParse<GravedadIncidencia>(_gravedad, out var gravedad)) return;
+        Guid? trabajadorId = Guid.TryParse(_trabajadorId, out var t) ? t : null;
+        await OnRegistrar.InvokeAsync(new DatosIncidencia(centroId, trabajadorId, tipo, gravedad));
+    }
+}

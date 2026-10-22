@@ -5,10 +5,39 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
   <data name="Titulo" xml:space="preserve"><value>Posible caso crítico</value></data>
-  <data name="Confirmar" xml:space="preserve"><value>Confirmar y derivar</value></data>
-  <data name="Descartar" xml:space="preserve"><value>Descartar</value></data>
   <data name="PendienteDireccion" xml:space="preserve"><value>Pendiente de revisión por la Dirección CAE o el Coordinador CAE.</value></data>
   <data name="IaCoincide" xml:space="preserve"><value>La segunda opinión de IA coincide. Confianza: {0} %.</value></data>
   <data name="IaNoCoincide" xml:space="preserve"><value>La segunda opinión de IA discrepa. Confianza: {0} %.</value></data>
   <data name="ErrorResolver" xml:space="preserve"><value>No se pudo resolver la alerta. Recarga la conversación y vuelve a intentarlo.</value></data>
+  <data name="ModalTitulo" xml:space="preserve"><value>Alerta crítica</value></data>
+  <data name="ModalPill" xml:space="preserve"><value>Crítica</value></data>
+  <data name="ModalIntro" xml:space="preserve"><value>Se ha detectado en esta conversación un mensaje que puede ser un caso crítico. Decide antes de seguir.</value></data>
+  <data name="SegundaOpinionTitulo" xml:space="preserve"><value>Segunda opinión de la IA</value></data>
+  <data name="SegundaOpinionCoincide" xml:space="preserve"><value>Coincide: la segunda lectura también lo considera crítico. Confianza: {0} %.</value></data>
+  <data name="SegundaOpinionNoCoincideTitulo" xml:space="preserve"><value>La segunda opinión no coincide</value></data>
+  <data name="SegundaOpinionNoCoincide" xml:space="preserve"><value>La segunda lectura no lo considera crítico (confianza: {0} %). Lee el mensaje antes de decidir.</value></data>
+  <data name="SegundaOpinionNoDisponibleTitulo" xml:space="preserve"><value>Sin segunda opinión de la IA</value></data>
+  <data name="SegundaOpinionNoDisponible" xml:space="preserve"><value>No hay segunda opinión de la IA para este mensaje. Decide con el texto del mensaje.</value></data>
+  <data name="BotonNoEsCritica" xml:space="preserve"><value>No es crítica</value></data>
+  <data name="BotonRegistrarIncidencia" xml:space="preserve"><value>Registrar incidencia</value></data>
+  <data name="EtiquetaCentro" xml:space="preserve"><value>Centro de la incidencia</value></data>
+  <data name="OpcionSeleccionaCentro" xml:space="preserve"><value>Selecciona un Centro</value></data>
+  <data name="EtiquetaTrabajador" xml:space="preserve"><value>Trabajador implicado (opcional)</value></data>
+  <data name="OpcionNingunTrabajador" xml:space="preserve"><value>Ningún Trabajador</value></data>
+  <data name="EtiquetaTipo" xml:space="preserve"><value>Tipo</value></data>
+  <data name="TipoAccidente" xml:space="preserve"><value>Accidente</value></data>
+  <data name="TipoIncumplimiento" xml:space="preserve"><value>Incumplimiento</value></data>
+  <data name="EtiquetaGravedad" xml:space="preserve"><value>Gravedad</value></data>
+  <data name="GravedadLeve" xml:space="preserve"><value>Leve</value></data>
+  <data name="GravedadGrave" xml:space="preserve"><value>Grave</value></data>
+  <data name="GravedadMuyGrave" xml:space="preserve"><value>Muy grave</value></data>
+  <data name="MotivoSinCentro" xml:space="preserve"><value>Selecciona el Centro de la incidencia para registrarla.</value></data>
+  <data name="ErrorCargarFormulario" xml:space="preserve"><value>No se pudieron cargar los Centros y los Trabajadores. Recarga la conversación.</value></data>
+  <data name="DescripcionIncidencia" xml:space="preserve"><value>Alerta crítica detectada en la conversación «{0}»: {1}</value></data>
+  <data name="ErrorRegistrar" xml:space="preserve"><value>No se pudo registrar la incidencia. Inténtalo de nuevo.</value></data>
+  <data name="ToastIncidenciaRegistrada" xml:space="preserve"><value>Incidencia registrada.</value></data>
+  <data name="ToastIncidenciaRegistradaPara" xml:space="preserve"><value>Incidencia registrada para {0}.</value></data>
+  <data name="ToastAccionDeshacer" xml:space="preserve"><value>Deshacer</value></data>
+  <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidencia eliminada. La alerta sigue confirmada.</value></data>
+  <data name="ErrorDeshacer" xml:space="preserve"><value>No se pudo deshacer. Elimina la incidencia desde Incidencias.</value></data>
 </root>
