@@ -7,6 +7,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
@@ -101,6 +102,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _bloqueosLeidos;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -755,7 +757,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             partes.Add(Textos[bloqueados == 1 ? "DetalleTrabajadorBloqueadoUno" : "DetalleTrabajadoresBloqueados", bloqueados]);
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
-        return string.Join(" · ", partes);
+        return partes.Count == 0 ? Textos["CentroTodoValidado"].Value : string.Join(" · ", partes);
     }
 
     /// <summary>
@@ -914,7 +916,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (resultado.EsFallido)
                 _errorBaja = resultado.Error.Mensaje;
             else
+            {
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [detalle.Id]);
+                ToastService.Mostrar(Textos["ToastClienteBaja", detalle.RazonSocial].Value, TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerBajaAsync(detalle.Id));
                 NavigationManager.NavigateTo("/clientes");
+            }
         }
         catch (Exception)
         {
@@ -925,6 +932,26 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (generacion == _generacion)
                 _dandoDeBaja = false;
+        }
+    }
+
+    private async Task DeshacerBajaAsync(Guid id)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+            {
+                ToastService.Mostrar(Textos["ToastClienteRestaurado"].Value, TonoToast.Exito);
+                // Vuelve a la ficha: la lista de Clientes ya se cargó sin él y no se recargaría sola.
+                NavigationManager.NavigateTo($"/clientes/{id}");
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurarLote"].Value, TonoToast.Error);
         }
     }
 

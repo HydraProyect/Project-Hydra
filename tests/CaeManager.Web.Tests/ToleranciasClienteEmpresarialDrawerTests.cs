@@ -109,6 +109,8 @@ public class ToleranciasClienteEmpresarialDrawerTests : BunitContext
         selects[0].GetAttribute("value").Should().Be("10");
         selects[1].GetAttribute("value").Should().Be("0");
         cut.Markup.Should().Contain("Formación PRL").And.Contain("Seguro RC (de la Empresa)");
+        cut.Find(".texto-ayuda-campo").TextContent.Should()
+            .Be("Días que un documento vencido sigue admitiéndose en los centros de este Cliente.");
     }
 
     [Fact]
@@ -138,6 +140,8 @@ public class ToleranciasClienteEmpresarialDrawerTests : BunitContext
             .Which.Should().Be(new EstablecerToleranciaClienteEmpresarialCommand(ClienteEmpresarial, TipoSeguro, 20));
         visible.Should().BeFalse("guardado con éxito, el panel se cierra");
         guardado.Should().BeTrue();
+        Services.GetRequiredService<ToastService>().Mensajes.Should()
+            .ContainSingle(m => m.Mensaje == "Tolerancia de documentos guardada" && m.Tono == TonoToast.Exito);
     }
 
     [Fact]
