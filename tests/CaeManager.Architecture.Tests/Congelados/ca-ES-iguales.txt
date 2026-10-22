@@ -86,6 +86,7 @@ src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastCentroEl
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastCentroRestaurado = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastLoteRestauradosConErrores = 1
+src/CaeManager.Web/Features/Comunicaciones/Recursos/TextosAlertasCriticas.resx :: ModalTitulo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AriaConmutarTrabajo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AriaSeccionesHub = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AutomatizacionesEncabezado = 1
