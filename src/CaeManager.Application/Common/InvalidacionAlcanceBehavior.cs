@@ -1,4 +1,3 @@
-using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
 namespace CaeManager.Application.Common;
@@ -31,13 +30,14 @@ namespace CaeManager.Application.Common;
 /// solo afecta a la LECTURA lo acota la caducidad de la memoización (<c>CaducidadAlcanceOptions</c>).
 ///
 /// <para>
-/// Descarta también, en los mismos dos puntos, la lista memoizada de Tenants beneficiarios autorizados
-/// (<see cref="MemoClientesAutorizados"/>): un Command que la lea (p. ej. una reapertura del Cuadro de dirección que
-/// recorre los Tenants) la resuelve de nuevo, y la lectura siguiente ve lo que el propio Command cambió.
+/// Descarta también, en los mismos dos puntos, las lecturas memoizadas del layout (<see cref="IMemoPorContexto"/>:
+/// Tenants beneficiarios autorizados, perfil de vocabulario, rótulos en primera persona y participación en la
+/// incorporación a cartera): un Command que las lea (p. ej. una reapertura del Cuadro de dirección que recorre los
+/// Tenants) las resuelve de nuevo, y la lectura siguiente ve lo que el propio Command cambió.
 /// </para>
 /// </summary>
 public class InvalidacionAlcanceBehavior<TRequest, TResponse>(
-    IInvalidadorAlcance invalidador, MemoClientesAutorizados? memoClientesAutorizados = null)
+    IInvalidadorAlcance invalidador, IEnumerable<IMemoPorContexto>? memos = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -60,6 +60,6 @@ public class InvalidacionAlcanceBehavior<TRequest, TResponse>(
     private void Invalidar()
     {
         invalidador.Invalidar();
-        memoClientesAutorizados?.Invalidar();
+        foreach (var memo in memos ?? []) memo.Invalidar();
     }
 }

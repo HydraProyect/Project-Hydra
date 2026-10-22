@@ -20,7 +20,7 @@ public class MemoClientesAutorizadosTests
     private static readonly Guid Origen = Guid.NewGuid();
     private static readonly Guid Beneficiario = Guid.NewGuid();
 
-    private static readonly ClaveMemoClientesAutorizados Clave =
+    private static readonly ClaveContextoMemo Clave =
         new(Usuario, Origen, "GestorCae", Beneficiario, null);
 
     private sealed class Calculo
@@ -57,7 +57,7 @@ public class MemoClientesAutorizadosTests
         calculo.Veces.Should().Be(1, "es la misma visita, el mismo usuario y el mismo contexto");
     }
 
-    public static TheoryData<ClaveMemoClientesAutorizados> OtrosContextos() => new()
+    public static TheoryData<ClaveContextoMemo> OtrosContextos() => new()
     {
         Clave with { UsuarioId = Guid.NewGuid() },
         Clave with { TenantOrigenId = Guid.NewGuid() },
@@ -69,7 +69,7 @@ public class MemoClientesAutorizadosTests
 
     [Theory]
     [MemberData(nameof(OtrosContextos))]
-    public async Task Otro_usuario_Tenant_perfil_o_ambito_no_reutiliza_la_lista(ClaveMemoClientesAutorizados otra)
+    public async Task Otro_usuario_Tenant_perfil_o_ambito_no_reutiliza_la_lista(ClaveContextoMemo otra)
     {
         var memo = new MemoClientesAutorizados();
         var calculo = new Calculo();
@@ -163,7 +163,7 @@ public class MemoClientesAutorizadosTests
         var calculo = new Calculo();
 
         await memo.ObtenerOCalcularAsync(Clave, calculo.Calcular, CancellationToken.None);
-        reloj.Avanzar(MemoClientesAutorizados.Caducidad - TimeSpan.FromTicks(1));
+        reloj.Avanzar(MemoPorContexto.Caducidad - TimeSpan.FromTicks(1));
         await memo.ObtenerOCalcularAsync(Clave, calculo.Calcular, CancellationToken.None);
         calculo.Veces.Should().Be(1);
 

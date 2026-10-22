@@ -65,7 +65,7 @@ public class InvalidacionAlcanceBehaviorTests
     public async Task Un_Command_descarta_tambien_la_lista_memoizada_de_Tenants_autorizados_y_una_Query_no()
     {
         var memo = new MemoClientesAutorizados();
-        var clave = new ClaveMemoClientesAutorizados(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
         var lecturas = 0;
         Task<IReadOnlyList<ClienteAutorizadoDto>> Leer(CancellationToken _)
         {
@@ -74,13 +74,13 @@ public class InvalidacionAlcanceBehaviorTests
         }
 
         await memo.ObtenerOCalcularAsync(clave, Leer, CancellationToken.None);
-        await new InvalidacionAlcanceBehavior<FalsaQuery, string>(new InvalidadorContador(), memo)
+        await new InvalidacionAlcanceBehavior<FalsaQuery, string>(new InvalidadorContador(), [memo])
             .Handle(new FalsaQuery(), _ => Task.FromResult("ok"), CancellationToken.None);
         await memo.ObtenerOCalcularAsync(clave, Leer, CancellationToken.None);
         lecturas.Should().Be(1, "una Query no invalida");
 
         var leidasDentro = -1;
-        await new InvalidacionAlcanceBehavior<FalsoCommand, Result>(new InvalidadorContador(), memo)
+        await new InvalidacionAlcanceBehavior<FalsoCommand, Result>(new InvalidadorContador(), [memo])
             .Handle(new FalsoCommand(), async _ =>
             {
                 await memo.ObtenerOCalcularAsync(clave, Leer, CancellationToken.None);
