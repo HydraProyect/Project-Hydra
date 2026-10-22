@@ -56,58 +56,20 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "CambiosEstadoAcreditacionPlataforma",
                 columns: new[] { "TenantId", "AcreditacionId", "MomentoUtc" });
 
-                columns: new[] { "TenantId", "AcreditacionId", "MomentoUtc" });
-                table: "CambiosEstadoAcreditacionPlataforma",
-                name: "IX_CambiosEstadoAcreditacionPlataforma_TenantId_AcreditacionId~",
-            migrationBuilder.CreateIndex(
-
-                column: "AcreditacionId");
-                table: "CambiosEstadoAcreditacionPlataforma",
-                name: "IX_CambiosEstadoAcreditacionPlataforma_AcreditacionId",
-            migrationBuilder.CreateIndex(
-
-                });
-                        onDelete: ReferentialAction.Cascade);
-                        principalColumn: "Id",
-                        principalTable: "AcreditacionesDocumentoPlataforma",
-                        column: x => x.AcreditacionId,
-                        name: "FK_CambiosEstadoAcreditacionPlataforma_AcreditacionesDocumento~",
-                    table.ForeignKey(
-                    table.PrimaryKey("PK_CambiosEstadoAcreditacionPlataforma", x => x.Id);
-                {
-                constraints: table =>
-                },
-                    TenantId = table.Column<Guid>(type: "uuid", nullable: false)
-                    DeshechoUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    MomentoUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    UsuarioId = table.Column<Guid>(type: "uuid", nullable: true),
-                    Nota = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
-                    Motivo = table.Column<string>(type: "character varying(1000)", maxLength: 1000, nullable: true),
-                    Fecha = table.Column<DateOnly>(type: "date", nullable: false),
-                    Estado = table.Column<int>(type: "integer", nullable: false),
-                    FechaVencimientoAnterior = table.Column<DateOnly>(type: "date", nullable: true),
-                    EstadoVigenciaAnterior = table.Column<int>(type: "integer", nullable: false),
-                    EstadoAnterior = table.Column<int>(type: "integer", nullable: false),
-                    AcreditacionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                {
-                columns: table => new
-                name: "CambiosEstadoAcreditacionPlataforma",
-            migrationBuilder.CreateTable(
-        {
-        protected override void Up(MigrationBuilder migrationBuilder)
-        /// <inheritdoc />
-    {
-    public partial class AnadeCambiosEstadoAcreditacionPlataforma : Migration
-    /// <inheritdoc />
-{
-namespace CaeManager.Migrations.PostgreSQL.Migrations
-
-#nullable disable
-
-using Microsoft.EntityFrameworkCore.Migrations;
-using System;
-}
+            // Hija de AcreditacionesDocumentoPlataforma, como RechazosAcreditacionDocumentoPlataforma: RLS estándar por
+            // TenantId y los mismos privilegios que su hermana (el runtime marca un cambio deshecho con UPDATE y la baja
+            // de la acreditación lo arrastra en cascada; Soporte TALVEG solo lee, como el resto del historial).
+            migrationBuilder.Sql("""
+                ALTER TABLE public."CambiosEstadoAcreditacionPlataforma" ENABLE ROW LEVEL SECURITY;
+                ALTER TABLE ONLY public."CambiosEstadoAcreditacionPlataforma" FORCE ROW LEVEL SECURITY;
+                CREATE POLICY aislamiento_tenant ON public."CambiosEstadoAcreditacionPlataforma"
+                    USING (("TenantId" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid))
+                    WITH CHECK (("TenantId" = (NULLIF(current_setting('app.tenant_id'::text, true), ''::text))::uuid));
+                REVOKE ALL ON TABLE public."CambiosEstadoAcreditacionPlataforma" FROM cae_app_runtime;
+                GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public."CambiosEstadoAcreditacionPlataforma" TO cae_app_runtime;
+                REVOKE ALL ON TABLE public."CambiosEstadoAcreditacionPlataforma" FROM cae_app_soporte;
+                GRANT SELECT ON TABLE public."CambiosEstadoAcreditacionPlataforma" TO cae_app_soporte;
+                """);
         }
 
         /// <inheritdoc />
