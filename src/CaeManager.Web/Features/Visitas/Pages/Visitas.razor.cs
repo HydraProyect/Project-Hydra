@@ -43,7 +43,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private int _pagina;
     private int _tamanoPagina = 20;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private async Task CambiarPaginaAsync(int pagina)
     {
@@ -63,7 +66,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string _orden = string.Empty;
     private string _estadoFiltro = string.Empty;
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
-    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -340,7 +342,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
             SoloUrgentes: _soloUrgentes,
             Pagina: _pagina + 1,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
@@ -357,7 +359,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
-            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _elementosPagina = elementos;
             _preparaciones.Clear();
             _preparacionCargando.Clear();
@@ -1637,12 +1638,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1749,7 +1750,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         if (tecla == "e")
         {
@@ -1762,14 +1765,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

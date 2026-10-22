@@ -177,14 +177,15 @@
             <div class="lista-filas-acordeon" aria-busy="@(_cargando ? "true" : "false")">
                 @foreach (var grupo in GruposDePagina)
                 {
+                var grupoAbierto = _agruparPor is null || _gruposAbiertos.EstaAbierto(grupo.Clave);
                 <div class="grupo-subcontratas" @key="clavesDeGrupo.De(grupo.Clave)">
                 @if (_agruparPor is not null)
                 {
-                    <div class="cabecera-empresa-contratante">
-                        @grupo.Nombre <span>· @grupo.Filas.Count</span>
-                    </div>
+                    @* Grupo plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y, plegado, la pastilla roja. *@
+                    <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Filas.Count" Incidencias="grupo.Filas.Count(EsFilaRoja)"
+                                        Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
                 }
-                @foreach (var subcontrata in grupo.Filas)
+                @foreach (var subcontrata in grupoAbierto ? grupo.Filas : [])
                 {
                     var incidencias = Incidencias(subcontrata.Recuentos);
                     var expandido = _expandidos.Contains(subcontrata.Id) && incidencias.Count != 0;
@@ -382,7 +383,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }

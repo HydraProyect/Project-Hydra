@@ -413,6 +413,12 @@
   <data name="GrupoContadorParcial" xml:space="preserve">
     <value>{0} de {1}</value>
   </data>
+  <data name="GrupoConIncidencia" xml:space="preserve">
+    <value>{0} amb incidència</value>
+  </data>
+  <data name="GrupoConIncidencias" xml:space="preserve">
+    <value>{0} amb incidències</value>
+  </data>
   <data name="VerRestantes" xml:space="preserve">
     <value>Veure els {0} restants</value>
   </data>

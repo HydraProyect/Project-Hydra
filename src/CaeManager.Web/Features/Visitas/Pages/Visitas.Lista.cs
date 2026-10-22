@@ -81,12 +81,38 @@ public partial class Visitas
     [SupplyParameterFromQuery(Name = "agrupar")]
     public string? AgruparInicial { get; set; }
 
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva
+    /// (con «Cancelar visitas» detrás), el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<VisitaListaDto> FilasPintadas =>
+        _agruparPor == "cliente" ? _elementosPagina.Where(v => _gruposAbiertos.EstaAbierto(EmpresaTitularDe(v).ToString())).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(v => v.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(v => v.Id != enfocado)) _idEnfocado = null;
+    }
+
+    /// <summary>Fila en rojo: la que pinta <c>visitas-fila-peligro</c> (vencida o faltante, en un Centro con gestión CAE y sin cancelar).</summary>
+    private static bool EsFilaRoja(VisitaListaDto visita) =>
+        !visita.EstaCancelada && visita.CentroRequiereGestionCae
+        && EstadoDocumentoVisitaUi.TonoDeFila(EstadoDocumentalDe(visita)) == TonoFila.Peligro;
+
     private IEnumerable<IGrouping<Guid, VisitaListaDto>> GruposDeVisitas =>
         _elementosPagina.GroupBy(v => _agruparPor == "cliente" ? EmpresaTitularDe(v) : Guid.Empty);
 
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agruparPor = valor == "cliente" ? valor : null;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPor);
         await RecargarAsync();
     }

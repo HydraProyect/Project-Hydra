@@ -35,7 +35,9 @@ public partial class SubcontratasListaGen2Tests
         cut.Find(".celda-contratada-por").TextContent.Should().Be(empresa.RazonSocial);
         cut.Find("button[aria-label='Agrupar: no']").Click();
         cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Contains("Por empresa contratante")).Click();
-        cut.Find(".cabecera-empresa-contratante").TextContent.Should().Contain(empresa.RazonSocial);
+        cut.Find(".grupo-lista-nombre").TextContent.Should().Contain(empresa.RazonSocial);
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera").Should().BeEmpty("el grupo nace plegado: sus filas no se pintan");
+        cut.Find("button.grupo-lista-cabecera").Click();
         cut.FindAll(".tarjeta-fila-acordeon-cabecera").Should().ContainSingle();
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }
@@ -105,7 +107,11 @@ public partial class SubcontratasListaGen2Tests
             Contratantes = [new(Guid.NewGuid(), "Empresa A"), new(Guid.NewGuid(), "Empresa B")]
         };
         var cut = Renderizar(new MediatorFalso { Subcontratas = [fila] }, url: "subcontratas?agrupar=empresa");
-        cut.FindAll(".cabecera-empresa-contratante").Select(b => b.TextContent.Trim()).Should().Equal("Empresa A · 1", "Empresa B · 1");
+        cut.FindAll(".grupo-lista-nombre").Select(b => b.TextContent.Trim()).Should().Equal("Empresa A", "Empresa B");
+        cut.FindAll(".grupo-lista-contador").Select(b => b.TextContent.Trim()).Should().Equal("· 1", "· 1");
+        cut.FindAll(".tarjeta-fila-acordeon-cabecera").Should().BeEmpty("los grupos nacen plegados");
+        cut.FindAll("button.grupo-lista-cabecera")[0].Click();
+        cut.FindAll("button.grupo-lista-cabecera")[1].Click();
         cut.FindAll(".tarjeta-fila-acordeon-cabecera").Should().HaveCount(2);
         cut.Find(".cabecera-listado-contador").TextContent.Trim().Should().Be("1");
     }

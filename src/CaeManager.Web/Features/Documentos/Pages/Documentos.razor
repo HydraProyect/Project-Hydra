@@ -247,20 +247,18 @@
                             @foreach (var grupo in _elementosPagina.GroupBy(documento => _agruparPorAmbito ? documento.Ambito : default))
                             {
                                 <tbody @key="clavesGrupos.De(grupo.Key)">
+                                    @{ var grupoAbierto = !_agruparPorAmbito || _gruposAbiertos.EstaAbierto(grupo.Key.ToString()); }
                                     @if (_agruparPorAmbito)
                                     {
+                                        @* Grupo «Por Ámbito» plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y,
+                                           plegado, la pastilla roja de los Documentos en rojo. *@
                                         <tr class="documentos-cabecera-grupo"><th colspan="@(7 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))" scope="rowgroup">
-                                            <span class="documentos-grupo">
-                                                @EtiquetaAmbitoListado(grupo.Key)
-                                                @if (_resumenPorGrupo?.TryGetValue(grupo.Key.ToString(), out var resumen) == true)
-                                                {
-                                                    <span class="documentos-grupo-total">· @resumen.Total</span>
-                                                }
-                                            </span>
+                                            <CabeceraGrupoLista Nombre="@EtiquetaAmbitoListado(grupo.Key)" Total="grupo.Count()" Incidencias="grupo.Count(EsFilaRoja)"
+                                                                Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Key.ToString())" />
                                         </th></tr>
                                     }
                                     @{ var clavesFilas = new ClavesDeHermanos(); }
-                                    @foreach (var documento in grupo)
+                                    @foreach (var documento in grupoAbierto ? grupo : Enumerable.Empty<DocumentoListaDto>())
                                     {
                                         <tr @key="clavesFilas.De((documento.Id, false))" class="@ObtenerClaseFila(documento)">
                                             @if (_seleccionMultiple)
@@ -401,7 +399,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                           PaginaActualChanged="CambiarPaginaAsync"
-                                          TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                          TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="ElementosVisibles.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["e"])" /></Centro>
                 </PaginadorSimple>
         }

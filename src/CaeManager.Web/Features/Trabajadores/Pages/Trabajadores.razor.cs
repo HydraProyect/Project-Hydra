@@ -117,7 +117,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
     private int _pagina = 1;
     private int _tamanoPagina = TamanoPaginaMinimo;
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
     private bool _cargaPendiente = true;
     private bool _parametrosInicializados;
     private CancellationTokenSource? _peticionActiva;
@@ -583,7 +583,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             EmpresaId: Guid.TryParse(_filtroEmpresaId, out var empresaId) ? empresaId : null,
             SubcontrataId: Guid.TryParse(_filtroSubcontrataId, out var subcontrataId) ? subcontrataId : null,
             Pagina: _pagina,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             CentroId: Guid.TryParse(_filtroCentroId, out var centroId) ? centroId : null,
             DelegacionEmpresaId: Guid.TryParse(_filtroDelegacionEmpresaId, out var delegacionId) ? delegacionId : null,
             OficioEmpresaId: Guid.TryParse(_filtroOficioId, out var oficioId) ? oficioId : null,
@@ -612,8 +612,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             _elementosPagina = resultado.Elementos.ToList();
             if (conservarSeleccion)
             {
-                _seleccionados.IntersectWith(_elementosPagina.Select(t => t.Id));
-                if (_idEnfocado is { } enfocado && _elementosPagina.All(t => t.Id != enfocado)) _idEnfocado = null;
+                var pintadas = FilasPintadas;
+                _seleccionados.IntersectWith(pintadas.Select(t => t.Id));
+                if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
             }
             else
             {
@@ -672,6 +673,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agrupar = AgrupacionValida(valor);
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupado ? _agrupar : null);
         await RecargarAsync();
     }
@@ -691,27 +694,34 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// tienen Delegación u Oficio, al final, bajo «Sin delegación» / «Sin oficio»). <c>Cantidad</c> es cuántas filas
     /// tiene el grupo EN ESTA PÁGINA. Sin agrupar, ninguna fila lleva título.
     /// </summary>
-    private IEnumerable<(TrabajadorListaDto Trabajador, string? Grupo, int Cantidad)> FilasConGrupo()
-    {
-        if (!Agrupado)
-        {
-            foreach (var trabajador in _elementosPagina)
-                yield return (trabajador, null, 0);
-            yield break;
-        }
+    private IEnumerable<FilaDeGrupo<TrabajadorListaDto>> FilasConGrupo() =>
+        GruposDeLista.Agrupar(_elementosPagina, Agrupado, ClaveDeGrupo, (_, trabajador) => TituloDeGrupo(trabajador), EsFilaRoja, _gruposAbiertos);
 
-        var cantidades = _elementosPagina.GroupBy(ClaveDeGrupo).ToDictionary(g => g.Key, g => g.Count());
-        string? anterior = null;
-        foreach (var trabajador in _elementosPagina)
-        {
-            var clave = ClaveDeGrupo(trabajador);
-            var empiezaGrupo = anterior is null || clave != anterior;
-            anterior = clave;
-            yield return empiezaGrupo
-                ? (trabajador, TituloDeGrupo(trabajador), cantidades[clave])
-                : (trabajador, null, 0);
-        }
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<TrabajadorListaDto> FilasPintadas =>
+        Agrupado ? _elementosPagina.Where(t => _gruposAbiertos.EstaAbierto(ClaveDeGrupo(t))).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(t => t.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
     }
+
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila). «Sin confirmar» no cuenta.</summary>
+    private static bool EsFilaRoja(TrabajadorListaDto item) =>
+        EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
 
     /// <summary>Lo que identifica el grupo de una fila en la agrupación vigente (el Id del catálogo, no el nombre: dos Empresas pueden llamar igual a una Delegación).</summary>
     private string ClaveDeGrupo(TrabajadorListaDto t) => _agrupar switch
@@ -1562,12 +1572,13 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     // --- P3-31: selección múltiple ---
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
+        // Solo las filas pintadas: las de un grupo plegado no se ven y no se pueden seleccionar a ciegas.
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1797,20 +1808,22 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

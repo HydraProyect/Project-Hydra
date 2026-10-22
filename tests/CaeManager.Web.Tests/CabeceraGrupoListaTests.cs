@@ -48,7 +48,7 @@ public class CabeceraGrupoListaTests : BunitContext
             "blanca de serie: el tinte solo lo pone un grupo con problema");
         grupo.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim().Should().Be("Astilleros Orion");
         var contador = grupo.QuerySelector(".grupo-lista-contador")!;
-        contador.TextContent.Trim().Should().Be("12");
+        contador.TextContent.Trim().Should().Be("· 12");
         contador.GetAttribute("title").Should().Be("12 centro(s)");
         grupo.QuerySelectorAll(".grupo-lista-resumen").Should().BeEmpty("sin resumen no se pinta su hueco");
     }
@@ -170,6 +170,6 @@ public class CabeceraGrupoListaTests : BunitContext
     {
         var cut = Renderizar(total: 12, enPagina: enPagina);
 
-        cut.Find(".grupo-lista-contador").TextContent.Trim().Should().Be("12");
+        cut.Find(".grupo-lista-contador").TextContent.Trim().Should().Be("· 12");
     }
 }
