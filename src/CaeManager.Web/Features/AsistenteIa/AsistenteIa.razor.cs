@@ -139,10 +139,23 @@ public partial class AsistenteIa : IDisposable
         if (!AsistenteIaService.AsegurarTenant(TenantActual.TenantId))
             return false;
 
-        _empresa = null;
-        _empresaCargada = false;
+        OlvidarLoLeidoEnOtroTenant();
         _mensajeError = Textos["EmpresaCambiada"];
         return true;
+    }
+
+    /// <summary>
+    /// Todo lo que este componente leyó con el Tenant efectivo anterior: la pastilla y la lista
+    /// de borradores (con el texto en claro de cada orden). El hilo lo vacía
+    /// <see cref="AsistenteIaService.AsegurarTenant"/>; esto es lo que vive en el componente, y
+    /// sin borrarlo aquí la lista de borradores de una Empresa seguía en pantalla en la otra.
+    /// </summary>
+    private void OlvidarLoLeidoEnOtroTenant()
+    {
+        _empresa = null;
+        _empresaCargada = false;
+        _borradores = null;
+        _verBorradores = false;
     }
 
     /// <summary>La comprobación del pintado: el marcado nunca enumera un hilo de otro Tenant.</summary>
@@ -305,19 +318,34 @@ public partial class AsistenteIa : IDisposable
         _empresaCargada = true;
 
         var tenantEfectivo = TenantActual.TenantId;
+        ClienteAutorizadoDto? empresa;
         try
         {
             var autorizados = await Mediator.Send(new ObtenerClientesAutorizadosQuery());
-            _empresa = ClientesAutorizados.Activo(autorizados, tenantEfectivo);
+            empresa = ClientesAutorizados.Activo(autorizados, tenantEfectivo);
         }
         catch (Exception excepcion) when (excepcion is not OperationCanceledException)
         {
             // La pastilla solo informa: sin ella Vega sigue funcionando, y cada consulta y
             // cada escritura resuelven el Tenant por su cuenta (nunca desde esta coordenada).
-            _empresa = null;
+            empresa = null;
         }
+
+        // Si el Tenant efectivo cambió durante la lectura, lo leído es del anterior: ni se
+        // pinta ni vuelve a atar la conversación a él (el pintado siguiente la ata al vigente).
+        if (TenantActual.TenantId != tenantEfectivo)
+        {
+            _empresaCargada = false;
+            return;
+        }
+
+        _empresa = empresa;
         if (AsistenteIaService.AsegurarTenant(tenantEfectivo))
+        {
+            _borradores = null;
+            _verBorradores = false;
             _mensajeError = Textos["EmpresaCambiada"];
+        }
     }
 
     private void Plegar() => AsistenteIaService.Plegar();
@@ -657,7 +685,13 @@ public partial class AsistenteIa : IDisposable
     private async Task CargarBorradoresAsync()
     {
         _borradores = null;
+        if (TenantEfectivoCambiado()) return;
+
         var resultado = await Mediator.Send(new ListarTareasAsistenteQuery());
+
+        // La lista es del Tenant en el que se pidió: si cambió mientras tanto, no se pinta.
+        if (TenantEfectivoCambiado()) return;
+
         if (resultado.EsExitoso)
             _borradores = resultado.Valor;
         else
@@ -669,6 +703,8 @@ public partial class AsistenteIa : IDisposable
 
     private async Task DescartarBorradorAsync(Guid tareaId)
     {
+        if (TenantEfectivoCambiado()) return;
+
         var resultado = await Mediator.Send(new DescartarTareaAsistenteCommand(tareaId));
         if (resultado.EsFallido)
             _mensajeError = resultado.Error.Mensaje;

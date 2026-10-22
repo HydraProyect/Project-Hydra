@@ -1,4 +1,5 @@
 using CaeManager.Application.AsistenteIa.Candidatos;
+using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Domain.Common;
@@ -43,6 +44,30 @@ public class PreguntarAlAsistenteQueryHandler(
         if (cartera.ErrorSiFalta() is { } sinInstruccion)
             return Result.Fallo<string>(sinInstruccion);
 
-        return await asistenteIa.PreguntarAsync(request.Historial, cancellationToken);
+        return await asistenteIa.PreguntarAsync(Enmascarar(request.Historial), cancellationToken);
+    }
+
+    /// <summary>
+    /// Separador de turnos para enmascarar la conversación entera de una vez: ningún patrón de
+    /// <see cref="EnmascaradorIdentificadores"/> lo atraviesa, y nadie lo teclea.
+    /// </summary>
+    private const char SeparadorDeTurnos = '\u001E';
+
+    /// <summary>
+    /// Los DNI, NIE, pasaportes, CIF y correos no salen hacia el proveedor, igual que en la
+    /// orden del modo Operativo (<c>CrearTareaAsistenteCommand</c> recibe el texto ya
+    /// enmascarado). Se enmascara la conversación entera de una vez, y no turno a turno, para
+    /// que el mismo documento lleve el mismo marcador en todos los turnos y dos documentos
+    /// distintos nunca compartan <c>[DOC_1]</c>. La persona sigue viendo su texto en claro: lo
+    /// enmascarado es solo lo que viaja.
+    /// </summary>
+    private static IReadOnlyList<MensajeChatDto> Enmascarar(IReadOnlyList<MensajeChatDto> historial)
+    {
+        if (historial.Count == 0)
+            return historial;
+
+        var unidos = string.Join(SeparadorDeTurnos, historial.Select(m => m.Texto.Replace(SeparadorDeTurnos, ' ')));
+        var turnos = EnmascaradorIdentificadores.Enmascarar(unidos).Texto.Split(SeparadorDeTurnos);
+        return historial.Select((m, i) => m with { Texto = turnos[i] }).ToList();
     }
 }

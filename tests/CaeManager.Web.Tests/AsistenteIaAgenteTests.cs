@@ -594,6 +594,46 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.De<ConfirmarPlanTareaAsistenteCommand>().Should().BeEmpty();
     }
 
+    /// <summary>
+    /// La fuga: la lista de borradores vive en el componente, no en la conversación del
+    /// circuito, y enseña el texto en claro de cada orden. Leída con un Tenant efectivo, seguía
+    /// en pantalla (y se podía descartar) cuando el Tenant efectivo pasaba a ser otro.
+    /// </summary>
+    [Fact]
+    public void Si_el_Tenant_efectivo_cambia_los_borradores_del_anterior_dejan_de_verse()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
+        var panel = Abrir();
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+        panel.Find(".asistente-borrador-texto").TextContent.Should().Be("alta del centro de Hotel Mirador");
+
+        _tenantEfectivo.TenantId = TenantB;
+        panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Notificar());
+
+        panel.WaitForAssertion(() => panel.Markup.Should().NotContain("alta del centro de Hotel Mirador"));
+        panel.FindAll(".asistente-borrador-descartar").Should().BeEmpty();
+        _mediador.De<DescartarTareaAsistenteCommand>().Should().BeEmpty();
+    }
+
+    /// <summary>Sensibilidad del anterior: con el mismo Tenant efectivo, la lista se sigue viendo tras el mismo aviso.</summary>
+    [Fact]
+    public void Con_el_mismo_Tenant_efectivo_los_borradores_siguen_a_la_vista()
+    {
+        Configurar(anthropic: true, typeSafeActivo: true);
+        GuionDeAgente(PlanConfirmable());
+        var borradorDeA = new ResumenTareaAsistenteDto(TareaId, EstadoTareaAsistente.PlanEnBorrador, "alta del centro de Hotel Mirador", DateTime.UtcNow);
+        _mediador.Guion[typeof(ListarTareasAsistenteQuery)] = _ => Result.Exito<IReadOnlyList<ResumenTareaAsistenteDto>>([borradorDeA]);
+        var panel = Abrir();
+        panel.Find("button[aria-label='Borradores y conversaciones anteriores']").Click();
+
+        panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Notificar());
+
+        panel.WaitForAssertion(() => panel.Find(".asistente-borrador-texto").TextContent.Should().Be("alta del centro de Hotel Mirador"));
+    }
+
     // ---- Teclado, foco y borrador ------------------------------------------------------------
 
     [Fact]

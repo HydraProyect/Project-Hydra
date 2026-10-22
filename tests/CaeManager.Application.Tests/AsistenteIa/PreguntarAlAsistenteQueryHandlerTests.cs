@@ -51,6 +51,31 @@ public class PreguntarAlAsistenteQueryHandlerTests
     }
 
     [Fact]
+    public async Task Los_documentos_y_correos_no_salen_hacia_el_proveedor_y_el_mismo_documento_lleva_el_mismo_marcador()
+    {
+        var historial = new List<MensajeChatDto>
+        {
+            new(RolMensajeChat.Usuario, "¿Qué formación necesita el trabajador 12345678Z (ana.ruiz@ejemplo.es)?"),
+            new(RolMensajeChat.Asistente, "Depende del puesto."),
+            new(RolMensajeChat.Usuario, "El 12345678Z es soldador; ¿y X1234567L, de la contrata B12345674?"),
+        };
+        var servicio = new AsistenteIaServiceFalso(Result.Exito("…"));
+        var handler = new PreguntarAlAsistenteQueryHandler(
+            servicio, new InstruccionTratamientoIaFalsa(habilitada: true), new TenantActualFalso(TenantId), new CarteraFalsa());
+
+        await handler.Handle(new PreguntarAlAsistenteQuery(historial), CancellationToken.None);
+
+        var enviado = servicio.HistorialRecibido!;
+        enviado.Should().HaveCount(3);
+        enviado.Select(m => m.Rol).Should().Equal(RolMensajeChat.Usuario, RolMensajeChat.Asistente, RolMensajeChat.Usuario);
+        string.Concat(enviado.Select(m => m.Texto)).Should()
+            .NotContain("12345678Z").And.NotContain("ana.ruiz@ejemplo.es").And.NotContain("X1234567L").And.NotContain("B12345674");
+        enviado[0].Texto.Should().Contain("[DOC_1]").And.Contain("[CORREO_1]");
+        enviado[2].Texto.Should().StartWith("El [DOC_1] es soldador").And.Contain("[DOC_2]").And.Contain("[CIF_1]");
+        enviado[1].Texto.Should().Be("Depende del puesto.");
+    }
+
+    [Fact]
     public async Task Propaga_un_resultado_fallido_del_servicio_sin_modificarlo()
     {
         var error = Error.Crear("AsistenteIa.NoConfigurado", "El asistente no está disponible ahora mismo.");
