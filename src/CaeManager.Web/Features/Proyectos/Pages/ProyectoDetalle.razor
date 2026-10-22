@@ -214,6 +214,7 @@
     <CampoTexto Etiqueta="@(EsEvento ? Textos["EtiquetaFinEvento"] : Textos["EtiquetaFinPrevistoOpcional"])" Type="date" Valor="@_editFechaFinPrevista" ValorChanged="v => _editFechaFinPrevista = v" />
     <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_editNotas" ValorChanged="v => _editNotas = v"
                 MensajeError="@(_editErrores.GetValueOrDefault("Notas"))" />
+    <p class="texto-descriptivo">@Textos["AvisoEdicionClienteCentro"]</p>
 </DrawerFormulario>
 
 <DrawerFormulario Visible="_asignarVisible" VisibleChanged="CambiarVisibilidadAsignar" Titulo="@Textos["AccionAsignarTecnico"]"
@@ -323,15 +324,19 @@
 
     private RenderFragment PestanaDeEmpresasProyecto => __builder =>
     {
+        <p class="texto-descriptivo">@Textos["IntroEmpresasProyecto"]</p>
         if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
         else if (_errorEmpresasProyecto) { <EstadoVacio Titulo="@Textos["LecturaEmpresasProyectoError"]" /> }
+        else if (_empresasProyecto.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["EmpresasProyectoVacioTitulo"]" Descripcion="@Textos["EmpresasProyectoVacio"]" />
+        }
         else
         {
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaEmpresasProyecto"]">
                 <Encabezado>@Textos[_empresasProyecto.Count == 1 ? "ResumenEmpresaProyecto" : "ResumenEmpresasProyecto", _empresasProyecto.Count]</Encabezado>
                 <ChildContent>
-                    @if (_empresasProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["EmpresasProyectoVacio"]</p> }
-                    @foreach (var empresa in _empresasProyecto)
+                    @foreach (var empresa in _empresasProyecto.OrderBy(e => SeveridadDocumental(e.EstadoDocumental)))
                     {
                         <FilaRelacion @key="empresa.Id" Nombre="@empresa.RazonSocial" NombreIcono="empresas"
                                       Tono="@TonoDeEstadoDocumental(empresa.EstadoDocumental)"
@@ -361,15 +366,19 @@
 
     private RenderFragment PestanaDeVehiculosProyecto => __builder =>
     {
+        <p class="texto-descriptivo">@Textos["IntroVehiculosProyecto", _detalle!.CentroNombre]</p>
         if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
         else if (_errorVehiculosProyecto) { <EstadoVacio Titulo="@Textos["LecturaVehiculosProyectoError"]" /> }
+        else if (_vehiculosProyecto.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["VehiculosProyectoVacioTitulo"]" Descripcion="@Textos["VehiculosProyectoVacio"]" />
+        }
         else
         {
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaVehiculosProyecto"]">
                 <Encabezado>@Textos[_vehiculosProyecto.Count == 1 ? "ResumenVehiculoProyecto" : "ResumenVehiculosProyecto", _vehiculosProyecto.Count]</Encabezado>
                 <ChildContent>
-                    @if (_vehiculosProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["VehiculosProyectoVacio"]</p> }
-                    @foreach (var vehiculo in _vehiculosProyecto)
+                    @foreach (var vehiculo in _vehiculosProyecto.OrderBy(v => SeveridadDocumental(v.EstadoDocumental)))
                     {
                         <FilaRelacion @key="vehiculo.Id" Nombre="@vehiculo.Nombre" NombreIcono="vehiculos"
                                       Tono="@TonoDeEstadoDocumental(vehiculo.EstadoDocumental)"
@@ -398,15 +407,19 @@
 
     private RenderFragment PestanaDeVisitasProyecto => __builder =>
     {
+        <p class="texto-descriptivo">@Textos["IntroVisitasProyecto"]</p>
         if (_cargandoRelacionados) { <EstadoCargando Filas="3" /> }
         else if (_errorVisitasProyecto) { <EstadoVacio Titulo="@Textos["LecturaVisitasProyectoError"]" /> }
+        else if (_visitasProyecto.Count == 0)
+        {
+            <EstadoVacio Titulo="@Textos["VisitasProyectoVacioTitulo"]" Descripcion="@Textos["VisitasProyectoVacio"]" />
+        }
         else
         {
             <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaVisitasProyecto"]">
                 <Encabezado>@Textos[_visitasProyecto.Count == 1 ? "ResumenVisitaProyecto" : "ResumenVisitasProyecto", _visitasProyecto.Count]</Encabezado>
                 <ChildContent>
-                    @if (_visitasProyecto.Count == 0) { <p class="texto-vacio-seccion">@Textos["VisitasProyectoVacio"]</p> }
-                    @foreach (var visita in _visitasProyecto)
+                    @foreach (var visita in _visitasProyecto.OrderByDescending(v => v.FechaInicio).ThenByDescending(v => v.FechaFin))
                     {
                         <FilaRelacion @key="visita.Id" Nombre="@Textos["FechasVisitaProyecto", visita.FechaInicio.ToString("dd/MM/yyyy"), visita.FechaFin.ToString("dd/MM/yyyy")].Value"
                                       NombreIcono="visitas" Href="@($"/visitas/{visita.Id}")" OnAbrir360="() => IrAVisitaProyecto(visita.Id)">
@@ -536,6 +549,7 @@
     private RenderFragment PestanaDeDocumentos => __builder =>
     {
         <div class="proyecto360-documentos">
+            <p class="texto-descriptivo">@Textos["IntroDocumentosProyecto"]</p>
             <PestanaDocumentacion Ambito="AmbitoAplicacion.Proyecto" PropietarioId="_detalle!.Id" EnPagina="true" />
             @* «Subir documento» para un proyecto todavía no existe: la única vía sigue siendo Documentos. *@
             <p class="texto-vacio-seccion">@Textos["AyudaAdjuntarDocumento"]</p>

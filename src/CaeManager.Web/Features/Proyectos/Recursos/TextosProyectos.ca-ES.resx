@@ -373,6 +373,8 @@
   <data name="EtiquetaLateral" xml:space="preserve"><value>Context</value></data>
   <data name="EditarFlecha" xml:space="preserve"><value>Edita →</value></data>
   <data name="GlosaTecnicosActivos" xml:space="preserve"><value>tècnics actius</value></data>
+  <data name="GlosaTecnicosBloqueados" xml:space="preserve"><value>tècnics bloquejats</value></data>
+  <data name="GlosaEmpresasEnAlerta" xml:space="preserve"><value>empreses amb documentació en estat vermell</value></data>
   <data name="GlosaDocumentosGestionados" xml:space="preserve"><value>documents gestionats</value></data>
   <data name="ErrorTecnicosTitulo" xml:space="preserve"><value>No hem pogut carregar els tècnics</value></data>
   <data name="ListaTecnicos" xml:space="preserve"><value>Tècnics del projecte</value></data>
@@ -420,21 +422,29 @@
   <data name="PestanaVisitasProyecto" xml:space="preserve"><value>Visites</value></data>
   <data name="ListaEmpresasProyecto" xml:space="preserve"><value>Empreses ocupadores amb tècnics al Projecte</value></data>
   <data name="ListaVisitasProyecto" xml:space="preserve"><value>Visites del Centre durant el Projecte</value></data>
-  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empreses ocupadores · per nom</value></data>
+  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empreses ocupadores · del pitjor estat al millor</value></data>
   <data name="EmpresaProyectoUnTecnico" xml:space="preserve"><value>1 tècnic actiu al Projecte</value></data>
   <data name="EmpresaProyectoTecnicos" xml:space="preserve"><value>{0} tècnics actius al Projecte</value></data>
-  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visites · per data d’inici</value></data>
+  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visites · la més recent primer</value></data>
   <data name="FechasVisitaProyecto" xml:space="preserve"><value>{0} – {1}</value></data>
   <data name="VisitaProyectoUnTrabajador" xml:space="preserve"><value>1 treballador a la Visita</value></data>
   <data name="VisitaProyectoTrabajadores" xml:space="preserve"><value>{0} treballadors a la Visita</value></data>
   <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar una visita</value></data>
-  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sense Empreses ocupadores visibles amb tècnics actius.</value></data>
-  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sense visites visibles del Centre en aquest període.</value></data>
+  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Aquí apareixeran l’Empresa i les subcontractes amb tècnics al projecte.</value></data>
+  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Aquí apareixeran les visites del Centre dins de les dates del projecte.</value></data>
+  <data name="EmpresasProyectoVacioTitulo" xml:space="preserve"><value>Sense empreses al projecte</value></data>
+  <data name="VehiculosProyectoVacioTitulo" xml:space="preserve"><value>Sense vehicles assignats</value></data>
+  <data name="VisitasProyectoVacioTitulo" xml:space="preserve"><value>Sense visites en aquest període</value></data>
+  <data name="IntroEmpresasProyecto" xml:space="preserve"><value>Empreses amb tècnics al projecte · documentació d’empresa i subcontractes</value></data>
+  <data name="IntroVehiculosProyecto" xml:space="preserve"><value>Vehicles amb accés a {0} per a aquest projecte</value></data>
+  <data name="IntroDocumentosProyecto" xml:space="preserve"><value>Documents propis del projecte, del pitjor estat al millor</value></data>
+  <data name="IntroVisitasProyecto" xml:space="preserve"><value>Visites del projecte, la més recent primer</value></data>
+  <data name="AvisoEdicionClienteCentro" xml:space="preserve"><value>El Client i el Centre no es poden canviar després de crear el projecte.</value></data>
   <data name="NotaVisitasProyecto" xml:space="preserve"><value>Una visita no pertany a un projecte. Aquestes són les del mateix Centre dins de les dates del projecte.</value></data>
   <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Empreses ocupadores.</value></data>
   <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No s’han pogut carregar les Visites del període.</value></data>
-  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa ocupadora · per nom</value></data>
-  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · per data d’inici</value></data>
+  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa ocupadora · del pitjor estat al millor</value></data>
+  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · la més recent primer</value></data>
   <data name="EmpresaProyectoPapelDirecta" xml:space="preserve"><value>Empresa ocupadora directa</value></data>
   <data name="EmpresaProyectoPapelSubcontrata" xml:space="preserve"><value>Subcontracta</value></data>
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa ocupadora directa · Subcontracta</value></data>
@@ -442,9 +452,9 @@
   <data name="PestanaVehiculosProyecto" xml:space="preserve"><value>Vehicles</value></data>
   <data name="PestanaHistorialProyecto" xml:space="preserve"><value>Historial</value></data>
   <data name="ListaVehiculosProyecto" xml:space="preserve"><value>Vehicles de les Empreses ocupadores del Projecte</value></data>
-  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehicles · per nom</value></data>
-  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehicle · per nom</value></data>
-  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Sense vehicles visibles de les Empreses ocupadores amb tècnics actius.</value></data>
+  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehicles · del pitjor estat al millor</value></data>
+  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehicle · del pitjor estat al millor</value></data>
+  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Aquí apareixeran els vehicles de les Empreses amb tècnics al projecte.</value></data>
   <data name="LecturaVehiculosProyectoError" xml:space="preserve"><value>No s’han pogut carregar els vehicles de les Empreses ocupadores.</value></data>
   <data name="OrigenVehiculosProyecto" xml:space="preserve"><value>Un vehicle no s’assigna a un Projecte: aquests són els de les Empreses ocupadores derivades dels tècnics actius.</value></data>
   <data name="BadgeEvento" xml:space="preserve">

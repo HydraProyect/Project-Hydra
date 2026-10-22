@@ -37,8 +37,8 @@ namespace CaeManager.Web.Features.Proyectos.Pages;
 ///
 /// <para>
 /// Lo que el panel enseñaba como campo y aquí cambia de sitio: el estado va en la pastilla
-/// de la cabecera, «Técnicos activos» y «Documentos gestionados» en el contador de su
-/// pestaña y «Días abiertos» en la tarjeta Plazo.
+/// de la cabecera, los recuentos en las pestañas y «Días abiertos» en la tarjeta Plazo.
+/// Técnicos y Empresas cuentan solo los estados rojos cuando los hay; en otro caso muestran el total.
 /// </para>
 ///
 /// <para>
@@ -120,15 +120,30 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     [
         new(PestanaTecnicos, Textos["PestanaTecnicos"])
         {
-            Contador = _detalle is null ? null : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"])
+            Contador = _detalle is null ? null : TecnicosEnAlerta > 0
+                ? new ContadorPestana(TecnicosEnAlerta, Textos["GlosaTecnicosBloqueados"], EnAlerta: true)
+                : new ContadorPestana(TecnicosActivosAhora, Textos["GlosaTecnicosActivos"])
         },
-        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"]),
-        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"]),
+        new(PestanaEmpresas, Textos["PestanaEmpresasProyecto"])
+        {
+            Contador = _cargandoRelacionados || _errorEmpresasProyecto ? null : EmpresasEnAlerta > 0
+                ? new ContadorPestana(EmpresasEnAlerta, Textos["GlosaEmpresasEnAlerta"], EnAlerta: true)
+                : new ContadorPestana(_empresasProyecto.Count, Textos["PestanaEmpresasProyecto"])
+        },
+        new(PestanaVehiculos, Textos["PestanaVehiculosProyecto"])
+        {
+            Contador = _cargandoRelacionados || _errorVehiculosProyecto ? null
+                : new ContadorPestana(_vehiculosProyecto.Count, Textos["PestanaVehiculosProyecto"])
+        },
         new(PestanaDocumentos, Textos["PestanaDocumentos"])
         {
             Contador = _detalle is null ? null : new ContadorPestana(_detalle.DocumentosGestionados, Textos["GlosaDocumentosGestionados"])
         },
-        new(PestanaVisitas, Textos["PestanaVisitasProyecto"]),
+        new(PestanaVisitas, Textos["PestanaVisitasProyecto"])
+        {
+            Contador = _cargandoRelacionados || _errorVisitasProyecto ? null
+                : new ContadorPestana(_visitasProyecto.Count, Textos["PestanaVisitasProyecto"])
+        },
         // «Historial» va la última y «Ficha» justo antes, como en Centro 360.
         new(PestanaFicha, Comunes["PestanaFicha"]),
         new(PestanaHistorial, Textos["PestanaHistorialProyecto"])
@@ -140,6 +155,11 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     /// </summary>
     private int TecnicosActivosAhora =>
         _cargandoTecnicos || _errorTecnicos ? _detalle?.TecnicosActivos ?? 0 : _tecnicos.Count(t => t.EstaActivo);
+
+    private int TecnicosEnAlerta => _cargandoTecnicos || _errorTecnicos ? 0
+        : _tecnicos.Count(t => TonoDelTecnico(t) == TonoFila.Peligro);
+
+    private int EmpresasEnAlerta => _empresasProyecto.Count(e => TonoDeEstadoDocumental(e.EstadoDocumental) == TonoFila.Peligro);
 
     /// <summary>
     /// Con el proyecto cerrado las listas quedan en solo lectura, como dibuja el mockup: la
@@ -175,6 +195,9 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
         EstadoDocumento.EnTolerancia or EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.SinConfirmar => TonoFila.Advertencia,
         _ => null,
     };
+
+    private static int SeveridadDocumental(EstadoDocumento? estado) =>
+        estado is { } conocido ? SeveridadEstadoDocumento.Rango(conocido) : int.MaxValue;
 
     /// <summary>« · motivo» (el documento que causa el estado) para cerrar la línea de detalle; vacío si no hay incidencias.</summary>
     private static string MotivoDocumental(IReadOnlyList<IncidenciaDocumentalDto> incidencias) =>
