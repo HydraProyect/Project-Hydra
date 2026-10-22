@@ -1067,7 +1067,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Deshacer solo actúa si el panel sigue en la misma Visita: no quita la marca de otra.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception)
         {
@@ -1209,12 +1212,60 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (_trabajadorAQuitar is not { } trabajador)
             return;
 
+        var visitaId = _detalle?.Id ?? Guid.Empty;
+        // Versión que deja la baja del Trabajador: se lee del panel ya recargado y es la que Deshacer exige.
+        var versionTrasQuitar = Guid.Empty;
         await CambiarTrabajadoresAsync(
             detalle => new QuitarTrabajadorDeVisitaCommand(detalle.Id, trabajador.Id, detalle.Version),
-            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto]);
+            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto],
+            () => DeshacerQuitarTrabajadorAsync(visitaId, trabajador.Id, versionTrasQuitar));
+        if (_detalle is { } tras && tras.Id == visitaId)
+            versionTrasQuitar = tras.Version;
 
         _confirmarQuitarTrabajadorVisible = false;
         _trabajadorAQuitar = null;
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de quitar (maqueta «Flujos 06 Visitas», «Éxito · quitado»): vuelve a añadir al
+    /// Trabajador con la versión que dejó la baja (como el Deshacer de cancelar con el recibo): si alguien cambió la
+    /// Visita entretanto, el servidor lo rechaza y el aviso lo dice en vez de pisar ese cambio.
+    /// </summary>
+    private async Task DeshacerQuitarTrabajadorAsync(Guid visitaId, Guid trabajadorId, Guid versionTrasQuitar)
+    {
+        if (_cambiandoTrabajadores)
+            return;
+
+        if (visitaId == Guid.Empty || versionTrasQuitar == Guid.Empty)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+            return;
+        }
+
+        _cambiandoTrabajadores = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, versionTrasQuitar));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastTrabajadorDevuelto"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoTrabajadores = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == visitaId)
+            await AbrirDetalleAsync(visitaId, PestanaTrabajadores);
+
+        // El aviso llama desde fuera del ciclo de la página: sin esto el panel no se repinta con el Trabajador devuelto.
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -1222,7 +1273,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// la documentación y la versión de la Visita salen de lo guardado, no de lo que la pantalla
     /// creía tener. Tanto si sale bien como si falla (otra persona la cambió, se canceló).
     /// </summary>
-    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito)
+    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito, Func<Task>? deshacer = null)
     {
         if (_detalle is not { } detalle || _cambiandoTrabajadores)
             return;
@@ -1233,8 +1284,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(comando(detalle));
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
-            else
+            else if (deshacer is null)
                 ToastService.Mostrar(mensajeExito, TonoToast.Exito);
+            else
+                ToastService.Mostrar(mensajeExito, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, deshacer);
         }
         catch (Exception)
         {
@@ -1342,7 +1395,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (reactivar, cancelar
-    /// en lote) con un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
+    /// en lote) con un «Motivo» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
     /// también tras confirmar, el texto que quede en el campo ya no se puede perder) y un motivo en blanco no es nada escrito.
     /// </summary>
     private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>

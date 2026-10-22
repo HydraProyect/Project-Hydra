@@ -214,7 +214,7 @@
     <value>¿Cancelar la visita a {0}?</value>
   </data>
   <data name="ConfirmarCancelarMensaje" xml:space="preserve">
-    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después.</value>
+    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después. El motivo queda en el historial.</value>
   </data>
   <data name="ConfirmarCancelarLoteTitulo" xml:space="preserve">
     <value>¿Cancelar {0} visita(s)?</value>
@@ -329,6 +329,12 @@
   </data>
   <data name="BadgeCancelada" xml:space="preserve">
     <value>Cancelada</value>
+  </data>
+  <data name="EtiquetaMotivo" xml:space="preserve">
+    <value>Motiu (obligatori)</value>
+  </data>
+  <data name="ToastTrabajadorDevuelto" xml:space="preserve">
+    <value>Treballador tornat a la visita.</value>
   </data>
   <data name="EtiquetaMotivoOpcional" xml:space="preserve">
     <value>Motivo (opcional)</value>
