@@ -15,8 +15,9 @@ namespace CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExte
 /// <summary>
 /// Registra una comprobación manual del cumplimiento de una Subcontrata en la
 /// plataforma del titular de un Centro (ADR-005 § 2.3). Siempre crea un
-/// registro nuevo — las verificaciones son hechos, no un estado editable; el
-/// semáforo lo deriva la consulta de supervisión de la última no eliminada.
+/// registro nuevo; corregir uno ya registrado es otra orden
+/// (<c>ActualizarVerificacionExternaSubcontrataCommand</c>). El semáforo lo deriva la consulta de
+/// supervisión de la última no eliminada.
 /// </summary>
 public record RegistrarVerificacionExternaSubcontrataCommand(
     Guid SubcontrataId,

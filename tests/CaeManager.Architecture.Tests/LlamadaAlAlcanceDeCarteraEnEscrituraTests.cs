@@ -217,6 +217,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         // Subcontratas
         "Subcontratas.CambiarNivelServicioSubcontrataCommandHandler",
         "Subcontratas.CrearSubcontrataCommandHandler",
+        "Subcontratas.ActualizarVerificacionExternaSubcontrataCommandHandler",
         "Subcontratas.EditarSubcontrataCommandHandler",
         "Subcontratas.EliminarSubcontrataCommandHandler",
         "Subcontratas.EliminarSubcontratasCommandHandler",
@@ -225,6 +226,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Subcontratas.GuardarNotaInternaSubcontrataCommandHandler",
         "Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler",
         "Subcontratas.RestaurarSubcontrataCommandHandler",
+        "Subcontratas.RestaurarVerificacionExternaSubcontrataCommandHandler",
 
         // Telemetria
         "Telemetria.RegistrarTramoGestionCommandHandler",
