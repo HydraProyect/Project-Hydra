@@ -54,7 +54,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
     /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
     [Parameter] public string? NombrePlataforma { get; set; }
-    [Parameter] public RenderFragment? Busqueda { get; set; }
+    /// <summary>Barra de búsqueda de la página; recibe si la vista es «Vehículos» para rotular el buscador.</summary>
+    [Parameter] public RenderFragment<bool>? Busqueda { get; set; }
 
     // Internos: la vista «Vehículos» de Centro 360 (VehiculosCentro360) pinta la misma tabla de plataforma.
     internal static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>

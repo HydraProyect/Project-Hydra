@@ -91,6 +91,9 @@ public partial class Centro360Gen2Tests : BunitContext
         public Dictionary<Guid, List<TrabajadorAsignadoDto>> Empleadores { get; } = [];
         public Dictionary<Guid, List<DocumentoReclamableDto>> PorReclamar { get; } = [];
 
+        /// <summary>La vista «Vehículos» de Centro 360, por Centro.</summary>
+        public Dictionary<Guid, List<VehiculoDocumentacionCentroDto>> Vehiculos { get; } = [];
+
         /// <summary>Los bloqueos de acceso por Centro: responde a la consulta con SU Centro, como la real.</summary>
         public Dictionary<Guid, List<DocumentacionBloqueantePendienteDto>> Bloqueos { get; } = [];
 
@@ -144,6 +147,7 @@ public partial class Centro360Gen2Tests : BunitContext
                 (q.CentroId is { } id ? Bloqueos.GetValueOrDefault(id) ?? [] : Bloqueos.Values.SelectMany(b => b).ToList()),
             ObtenerTrabajadoresVisitaSinAsignacionQuery q => SinAsignacion.GetValueOrDefault(q.CentroId) ?? [],
             ObtenerTrabajadoresAsignadosDeCentroQuery q => (IReadOnlyList<TrabajadorAsignadoDto>)(Empleadores.GetValueOrDefault(q.CentroId) ?? []),
+            ObtenerDocumentacionVehiculosDeCentroQuery q => (IReadOnlyList<VehiculoDocumentacionCentroDto>)(Vehiculos.GetValueOrDefault(q.CentroId) ?? []),
             ObtenerDocumentosFaltantesParaAsignacionQuery => new List<DocumentoFaltanteDto>(),
             CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.ObtenerCambiosEstadoPlataformaDeCentroQuery =>
                 (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro.CambioEstadoPlataformaCentroDto>)[],

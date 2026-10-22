@@ -150,6 +150,56 @@ public class DocumentacionVehiculosCentroTests
     }
 
     [Fact]
+    public async Task El_Vehiculo_de_una_Subcontrata_fuera_de_cartera_no_sale_aunque_tenga_un_Trabajador_asignado_al_Centro()
+    {
+        _documentos.ListaDocumentos.Add(Documento.DeVehiculo(_grua.Id, Guid.NewGuid(), DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(90))));
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [_centro.Id], empresaIdsVisibles: [_contratista.Id],
+            subcontrataIdsVisibles: [], vehiculoIdsVisibles: [_furgoneta.Id]);
+
+        var filas = await Leer(alcance);
+
+        filas.Select(v => v.VehiculoId).Should().Equal(_furgoneta.Id);
+    }
+
+    [Fact]
+    public async Task Una_Relacion_Empresarial_cerrada_no_da_Empresa_contratista()
+    {
+        _empresas.ListaRelacionesEmpresariales.Single().Cerrar(DateTime.UtcNow);
+
+        var grua = (await Leer()).Single(v => v.VehiculoId == _grua.Id);
+
+        grua.EmpresaContratistaNombre.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Un_Cliente_empresarial_que_no_es_Empresa_propia_no_se_nombra_como_contratista()
+    {
+        _empresas.ListaRelacionesEmpresariales.Clear();
+        var cliente = Empresa.CrearComoCliente("Cliente externo", "B00000000", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        _empresas.ListaEmpresas.Add(cliente);
+        _empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(_subcontrata.Id, cliente.Id, DateTime.UtcNow.AddYears(-1)));
+
+        var grua = (await Leer()).Single(v => v.VehiculoId == _grua.Id);
+
+        grua.EmpresaContratistaNombre.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Entre_varias_contratistas_visibles_y_ninguna_en_el_Centro_se_nombran_todas_por_razon_social()
+    {
+        _empresas.ListaRelacionesEmpresariales.Clear();
+        var beta = new Empresa("Beta Obras");
+        var alfa = new Empresa("Alfa Montajes");
+        _empresas.ListaEmpresas.AddRange([beta, alfa]);
+        _empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(_subcontrata.Id, beta.Id, DateTime.UtcNow.AddYears(-1)));
+        _empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(_subcontrata.Id, alfa.Id, DateTime.UtcNow.AddYears(-1)));
+
+        var grua = (await Leer()).Single(v => v.VehiculoId == _grua.Id);
+
+        grua.EmpresaContratistaNombre.Should().Be("Alfa Montajes, Beta Obras");
+    }
+
+    [Fact]
     public async Task Cada_tipo_cuenta_una_vez_con_el_documento_efectivo_y_lo_peor_primero()
     {
         var hoy = DiaDeNegocio.Hoy();

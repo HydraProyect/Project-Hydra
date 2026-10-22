@@ -15,7 +15,8 @@ namespace CaeManager.Application.Centros.Queries;
 /// <para>
 /// Si la Subcontrata tiene varias contratistas vigentes, se quedan las que están en ESTE Centro (la Empresa
 /// configurada del Centro o la empleadora de algún Trabajador con Asignación activa en él); si ninguna lo está,
-/// todas. Varias se unen por coma, por razón social. Sin contratista visible, la Subcontrata no aparece en el
+/// todas. El desempate se hace solo entre las visibles: una contratista que el usuario no ve no cuenta ni para él,
+/// aunque esté en el Centro (se nombra entonces otra visible, nunca la oculta). Varias se unen por coma, por razón social. Sin contratista visible, la Subcontrata no aparece en el
 /// diccionario y la pantalla omite el subtítulo. Solo lee: no amplía qué Subcontratas, Trabajadores o Vehículos
 /// se enseñan, que lo decide la consulta que llama.
 /// </para>

@@ -123,14 +123,15 @@
                                                       MostrarTotales="true" MostrarEstadoPlataforma="true" NombrePlataforma="@NombrePlataformaCentro"
                                                       Bloqueos="_bloqueos"
                                                       OnCambio="CargarAsync">
-                            <Busqueda>
+                            <Busqueda Context="verVehiculos">
                                 @*
                                     Barra de trabajo del mockup (data-workbar). Filtra client-side lo
                                     que el acordeón ya cargó —ninguna consulta nueva— y los dos filtros
                                     viajan en la URL para que un centro filtrado se pueda enlazar.
+                                    En la vista «Vehículos» el mismo buscador filtra los Vehículos.
                                 *@
                                 <div class="barra-filtros" hidden="@(_pestana != PestanaTrabajadores)">
-                                    <CampoTexto Placeholder="@Textos["BuscarTrabajadorCentro360"]" Valor="@_busqueda" ValorChanged="Buscar" />
+                                    <CampoTexto Placeholder="@Textos[verVehiculos ? "BuscarVehiculo360" : "BuscarTrabajadorCentro360"]" Valor="@_busqueda" ValorChanged="Buscar" />
                                     @if (HayFiltrosActivos)
                                     {
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="LimpiarFiltros">@Textos["LimpiarFiltrosCentro360"]</Boton>

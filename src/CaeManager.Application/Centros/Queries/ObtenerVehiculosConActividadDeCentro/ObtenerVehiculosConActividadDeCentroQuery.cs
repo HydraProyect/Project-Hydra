@@ -19,7 +19,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerVehiculosConActividadDeC
 /// </summary>
 public record ObtenerVehiculosConActividadDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VehiculoConActividadDto>>;
 
-/// <param name="SubcontrataId">La Empresa titular cuando el Vehículo es de una Subcontrata (columna legacy
+/// <param name="SubcontrataId">La Empresa a la que pertenece el Vehículo cuando es de una Subcontrata (columna legacy
 /// <c>Vehiculo.SubcontrataId</c>, no un tipo de Empresa); <c>null</c> si es de una Empresa propia.</param>
 public record VehiculoConActividadDto(Guid Id, string Nombre, string Modelo, string NumeroPlaca, string EmpleadorNombre,
     Guid? SubcontrataId = null);

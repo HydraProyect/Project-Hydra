@@ -23,7 +23,8 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionVehiculosDe
 /// Qué Vehículos: exactamente los de <see cref="ObtenerVehiculosConActividadDeCentroQuery"/> (los de las Empresas
 /// empleadoras con algún Trabajador con Asignación activa en el Centro), con el mismo alcance que los Trabajadores
 /// del Centro: <see cref="IAlcanceDatosService.CentroVisibleAsync"/> más los filtros de Tenant propietario, baja lógica
-/// y RLS de los query contexts. Esta consulta no añade ni quita Vehículos: los pide a aquella.
+/// y RLS de los query contexts. Esta consulta no añade Vehículos: los pide a aquella y solo quita los que no están en
+/// <see cref="IAlcanceDatosService.ObtenerVehiculoIdsVisiblesAsync"/>, porque enseña sus Documentos.
 /// </para>
 ///
 /// <para>
@@ -34,7 +35,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerDocumentacionVehiculosDe
 /// </summary>
 public record ObtenerDocumentacionVehiculosDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<VehiculoDocumentacionCentroDto>>;
 
-/// <param name="SubcontrataId">La Subcontrata titular del Vehículo, si lo es (ver <see cref="VehiculoConActividadDto.SubcontrataId"/>).</param>
+/// <param name="SubcontrataId">La Subcontrata a la que pertenece el Vehículo, si es de una (ver <see cref="VehiculoConActividadDto.SubcontrataId"/>).</param>
 /// <param name="EmpresaContratistaNombre">Con <paramref name="SubcontrataId"/>: la Empresa contratista de la relación
 /// (ver <see cref="ContratistasDeSubcontratasEnCentro"/>); <c>null</c> si no hay ninguna visible.</param>
 /// <param name="Documentos">Uno por tipo, el efectivo, con sus acreditaciones en las plataformas de ESTE Centro.</param>
@@ -52,7 +53,15 @@ public class ObtenerDocumentacionVehiculosDeCentroQueryHandler(
     public async Task<IReadOnlyList<VehiculoDocumentacionCentroDto>> Handle(ObtenerDocumentacionVehiculosDeCentroQuery request, CancellationToken ct)
     {
         // El alcance (Centro visible, filtros de Tenant y baja lógica) lo aplica la consulta de Vehículos con actividad.
-        var vehiculos = await mediator.Send(new ObtenerVehiculosConActividadDeCentroQuery(request.CentroId), ct);
+        var conActividad = await mediator.Send(new ObtenerVehiculosConActividadDeCentroQuery(request.CentroId), ct);
+        if (conActividad.Count == 0) return [];
+
+        // Esta vista enseña los Documentos del Vehículo y deja cambiar su estado en la plataforma: se acota además a
+        // los Vehículos visibles (Empresa o Subcontrata visible), el mismo alcance que /documentos y que el comando
+        // que cambia el estado. Sin él, una Subcontrata fuera de cartera con un Trabajador asignado aquí enseñaría
+        // Documentos que el usuario no ve en ningún otro sitio. null = sin restricción.
+        var visibles = await alcance.ObtenerVehiculoIdsVisiblesAsync(ct);
+        var vehiculos = visibles is null ? conActividad : conActividad.Where(v => visibles.Contains(v.Id)).ToList();
         if (vehiculos.Count == 0) return [];
 
         var ids = vehiculos.Select(v => v.Id).ToList();
