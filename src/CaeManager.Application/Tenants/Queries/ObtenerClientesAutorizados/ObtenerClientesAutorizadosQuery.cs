@@ -159,7 +159,7 @@ public static class ClientesAutorizados
 
 /// <remarks>
 /// Con <see cref="MemoClientesAutorizados"/> y <see cref="ITenantActual"/> (la composición real los registra) la
-/// lista real se lee una vez por ámbito y contexto (<see cref="ClaveMemoClientesAutorizados"/>) dentro de su
+/// lista real se lee una vez por ámbito y contexto (<see cref="ClaveContextoMemo"/>) dentro de su
 /// caducidad; sin ellos (tests que construyen el handler a mano) se lee en cada llamada, como antes.
 /// </remarks>
 public class ObtenerClientesAutorizadosQueryHandler(
@@ -184,7 +184,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
 
         var reales = memo is not null && tenantActual is not null && !request.LecturaVigente
             ? await memo.ObtenerOCalcularAsync(
-                new ClaveMemoClientesAutorizados(
+                new ClaveContextoMemo(
                     usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, tenantActual.TenantId,
                     AmbitoTenantExplicito.TenantIdActual),
                 ct => CalcularAsync(usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, ct),

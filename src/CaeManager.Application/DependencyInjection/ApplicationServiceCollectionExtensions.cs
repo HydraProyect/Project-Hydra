@@ -82,9 +82,13 @@ public static class ApplicationServiceCollectionExtensions
         // Valor por defecto: la implementación real (Infrastructure) es la misma instancia scoped de
         // AlcanceDatosService, que es quien memoiza.
         services.TryAddScoped<IInvalidadorAlcance, InvalidadorAlcanceInerte>();
-        // Memoización de la lista de Tenants beneficiarios autorizados: Scoped (petición o circuito), nunca
-        // singleton, con clave por usuario y contexto. La invalida InvalidacionAlcanceBehavior en cada Command.
-        services.AddScoped<CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.MemoClientesAutorizados>();
+        // Memoizaciones de lectura del layout (MemoPorContexto): Scoped (petición o circuito), nunca singleton, con
+        // clave por usuario y contexto. Cada una se expone también como IMemoPorContexto, la MISMA instancia, para
+        // que InvalidacionAlcanceBehavior las descarte en cada Command.
+        AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados.MemoClientesAutorizados>(services);
+        AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual.MemoPerfilVocabularioActual>(services);
+        AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona.MemoRotulosPrimeraPersona>(services);
+        AgregarMemoPorContexto<CaeManager.Application.Operaciones.IncorporacionCartera.Queries.MemoParticipaEnIncorporacionCartera>(services);
         // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
         // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
         // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
@@ -219,5 +223,12 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IExtraccionMetadatosDocumentoIaService, RouterExtraccionMetadatosDocumentoIaService>();
 
         return services;
+    }
+
+    private static void AgregarMemoPorContexto<TMemo>(IServiceCollection services)
+        where TMemo : class, IMemoPorContexto
+    {
+        services.AddScoped<TMemo>();
+        services.AddScoped<IMemoPorContexto>(sp => sp.GetRequiredService<TMemo>());
     }
 }
