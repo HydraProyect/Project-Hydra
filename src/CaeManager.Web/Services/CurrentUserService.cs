@@ -102,6 +102,11 @@ public class CurrentUserService(
     public async Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => PerfilQueDecideAlcance(await ObtenerUsuarioAsync());
 
     /// <inheritdoc />
+    public async Task<string?> ObtenerPerfilAntesDeRestringirAsync() =>
+        (await ObtenerUsuarioAsync())?.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            is { Value.Length: > 0 } antes ? antes.Value : null;
+
+    /// <inheritdoc />
     public async Task<bool> OperaPorAsignacionDeOperacionAsync() =>
         await ResolverRolEfectivoAsync() is { PorOperacion: true, Rol: not null };
 
@@ -233,8 +238,8 @@ public class CurrentUserService(
     /// operación. No es rol efectivo: el rol sigue siendo <see cref="RolDeSesionEnOrigen"/>.
     ///
     /// <para>
-    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol y
-    /// el perfil es <c>null</c> (fallo cerrado), nunca el Consulta que la restricción le puso.
+    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol
+    /// conocido y el perfil es <c>null</c> (fallo cerrado), nunca el rol de sesión.
     /// Sin restricción, el rol de sesión en origen.
     /// </para>
     /// </summary>
