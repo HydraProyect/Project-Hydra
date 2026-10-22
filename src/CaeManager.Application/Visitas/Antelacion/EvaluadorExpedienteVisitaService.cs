@@ -67,7 +67,7 @@ public class EvaluadorExpedienteVisitaService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var hoy = DiaDeNegocio.Hoy();
 
-        if (!await ExpedienteCompletoAsync(visita, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias, cancellationToken))
+        if (!await ExpedienteCompletoAsync(visita, hoy, cancellationToken))
             return false;
 
         var ahora = DateTime.UtcNow;
@@ -139,7 +139,7 @@ public class EvaluadorExpedienteVisitaService(
     }
 
     private async Task<bool> ExpedienteCompletoAsync(
-        Visita visita, DateOnly hoy, int umbralAmbarDias, int umbralRojoDias, CancellationToken cancellationToken)
+        Visita visita, DateOnly hoy, CancellationToken cancellationToken)
     {
         var centro = await centrosContext.Centros
             .Where(c => c.Id == visita.CentroId)
@@ -175,10 +175,10 @@ public class EvaluadorExpedienteVisitaService(
 
         var documentosEmpresa = await documentosContext.Documentos.Operativos()
             .Where(d => d.EmpresaId == empresaId)
-            .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
-        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento)), hoy, umbralAmbarDias, umbralRojoDias))
+        if (!TiposCubiertos(tiposRequeridosEmpresa, documentosEmpresa.Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia)), hoy))
             return false;
 
         var trabajadorIds = await visitasContext.VisitasTrabajadores
@@ -192,7 +192,7 @@ public class EvaluadorExpedienteVisitaService(
 
         var documentosTrabajadores = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         var tipoContratacionPorTrabajador = await trabajadoresContext.Trabajadores
@@ -212,9 +212,9 @@ public class EvaluadorExpedienteVisitaService(
 
             var suyos = documentosTrabajadores
                 .Where(d => d.TrabajadorId == trabajadorId)
-                .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento));
+                .Select(d => (d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.EsRenuncia));
 
-            if (!TiposCubiertos(tiposRequeridosTrabajador, suyos, hoy, umbralAmbarDias, umbralRojoDias))
+            if (!TiposCubiertos(tiposRequeridosTrabajador, suyos, hoy))
                 return false;
         }
 
@@ -223,8 +223,8 @@ public class EvaluadorExpedienteVisitaService(
 
     private static bool TiposCubiertos(
         IReadOnlyCollection<Guid> tiposRequeridos,
-        IEnumerable<(Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento)> documentos,
-        DateOnly hoy, int umbralAmbarDias, int umbralRojoDias)
+        IEnumerable<(Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, bool EsRenuncia)> documentos,
+        DateOnly hoy)
     {
         if (tiposRequeridos.Count == 0) return true;
 
@@ -232,7 +232,9 @@ public class EvaluadorExpedienteVisitaService(
             // Solo Vencido (y la ausencia) dejan un tipo sin cubrir: un documento
             // sin vigencia confirmada existe y cuenta como papel entregado, que es
             // lo que mide el sello de antelación.
-            .Where(d => CalculadoraEstadoDocumento.Calcular(d.EstadoVigencia, d.FechaVencimiento, hoy, umbralAmbarDias, umbralRojoDias) != EstadoDocumento.Vencido)
+            // Un documento en renuncia (catálogo del 2026-10-17) tampoco cubre: no acredita, igual que en el resto de
+            // superficies (DocumentoEfectivo.ValidoHoy es la definición única).
+            .Where(d => DocumentoEfectivo.ValidoHoy(d.EstadoVigencia, d.FechaVencimiento, hoy, d.EsRenuncia))
             .Select(d => d.TipoDocumentoId)
             .ToHashSet();
 

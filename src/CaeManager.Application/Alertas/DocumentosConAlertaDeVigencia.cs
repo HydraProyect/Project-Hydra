@@ -34,7 +34,7 @@ public static class DocumentosConAlertaDeVigencia
             .Where(d => trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value))
             .Where(d => trabajadores.Trabajadores.Any(t => t.Id == d.TrabajadorId))
             .Where(d => voluntariosInactivos.Contains(d.TrabajadorId!.Value) == false)
-            .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId));
+            .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId && !t.Archivado));
     }
 
     // Solo documentos cuya Empresa y cuyo Tipo siguen existiendo (el filtro global oculta lo eliminado): una Empresa dada de baja
@@ -47,5 +47,5 @@ public static class DocumentosConAlertaDeVigencia
             .Where(d => empresaIdsVisibles == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value))
             .Where(d => d.FechaVencimiento != null && d.FechaVencimiento <= fechaLimite)
             .Where(d => empresas.Empresas.Any(e => e.Id == d.EmpresaId))
-            .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId));
+            .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId && !t.Archivado));
 }

@@ -405,7 +405,7 @@ public class CaminosDeAltaAcreditacionesTests
         public IQueryable<Vehiculo> Vehiculos => new Integraciones.TestAsyncQueryable<Vehiculo>(Array.Empty<Vehiculo>().AsQueryable());
     }
 
-    private sealed class ColaAnalisisSinUso : ITrabajoAnalisisDocumentoRepository
+    internal sealed class ColaAnalisisSinUso : ITrabajoAnalisisDocumentoRepository
     {
         public void Agregar(TrabajoAnalisisDocumento trabajo) =>
             throw new InvalidOperationException("Sin archivo no se encola ningún análisis.");
