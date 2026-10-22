@@ -29,7 +29,15 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 /// escribe también la delegación (<c>CatalogoIncorporacionCartera</c>).
 /// </para>
 /// </summary>
-public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>;
+public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>
+{
+    /// <summary>
+    /// Leer de la base aunque el ámbito tenga la lista memoizada (<see cref="MemoClientesAutorizados"/>), y no
+    /// guardarla. Para las puertas que fallan cerradas sobre la cartera (DEC-33, instrucción de IA), donde un
+    /// Tenant recién incorporado desde otro circuito no puede esperar a la caducidad.
+    /// </summary>
+    public bool LecturaVigente { get; init; }
+}
 
 /// <param name="EsGestionadoPorOperacion">
 /// El usuario gestiona ese Tenant por la vía de Operación (Asignación de Cartera
@@ -149,9 +157,15 @@ public static class ClientesAutorizados
     }
 }
 
+/// <remarks>
+/// Con <see cref="MemoClientesAutorizados"/> y <see cref="ITenantActual"/> (la composición real los registra) la
+/// lista real se lee una vez por ámbito y contexto (<see cref="ClaveMemoClientesAutorizados"/>) dentro de su
+/// caducidad; sin ellos (tests que construyen el handler a mano) se lee en cada llamada, como antes.
+/// </remarks>
 public class ObtenerClientesAutorizadosQueryHandler(
     ITenantsQueryContext dbContext, IOperacionesQueryContext operaciones,
-    ICurrentUserService currentUserService, IVistaDemoActual? vistaDemo = null)
+    ICurrentUserService currentUserService, IVistaDemoActual? vistaDemo = null,
+    ITenantActual? tenantActual = null, MemoClientesAutorizados? memo = null)
     : IRequestHandler<ObtenerClientesAutorizadosQuery, IReadOnlyList<ClienteAutorizadoDto>>
 {
     public async Task<IReadOnlyList<ClienteAutorizadoDto>> Handle(
@@ -163,11 +177,43 @@ public class ObtenerClientesAutorizadosQueryHandler(
         if (usuarioId is null || tenantOrigenId is null)
             return [];
 
+        // Decisión Chris 2026-10-20: el perfil de sesión en origen rige en todos los Tenants
+        // delegados. Administrador, Dirección CAE, Coordinador CAE y Consulta alcanzan los Tenants
+        // de las Asignaciones de Operación de su organización; el Gestor CAE, los de su cartera.
+        var rolDeOrigen = await currentUserService.ObtenerPerfilQueDecideAlcanceAsync();
+
+        var reales = memo is not null && tenantActual is not null && !request.LecturaVigente
+            ? await memo.ObtenerOCalcularAsync(
+                new ClaveMemoClientesAutorizados(
+                    usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, tenantActual.TenantId,
+                    AmbitoTenantExplicito.TenantIdActual),
+                ct => CalcularAsync(usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, ct),
+                cancellationToken)
+            : await CalcularAsync(usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, cancellationToken);
+
+        // Copia propia en cada llamada: la lente quita entradas y quien llama recibe una lista suya, nunca la
+        // memoizada.
+        var resultado = reales.ToList();
+
+        // Lente de demo Gestor: la lista multi-Tenant de ESE Gestor CAE son los Tenants donde tiene
+        // cartera vigente (más el propio, que siempre está autorizado sobre sí mismo). Solo QUITA
+        // entradas de la lista real — nunca añade un Tenant que la cuenta no alcanzara ya —, y
+        // el endpoint de cambio de Tenant activo sigue autorizando contra las carteras reales.
+        if (vistaDemo is not null && await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken) is { } acotados)
+            resultado.RemoveAll(c => !c.EsOrigen && !acotados.Contains(c.TenantId));
+
+        return resultado;
+    }
+
+    /// <summary>La lista real, sin lente de demo, leída de la base con el contexto actual.</summary>
+    private async Task<IReadOnlyList<ClienteAutorizadoDto>> CalcularAsync(
+        Guid usuarioId, Guid tenantOrigenId, string? rolDeOrigen, CancellationToken cancellationToken)
+    {
         var ahora = DateTime.UtcNow;
         var resultado = new List<ClienteAutorizadoDto>();
 
         var tenantOrigen = await dbContext.Tenants
-            .Where(t => t.Id == tenantOrigenId.Value)
+            .Where(t => t.Id == tenantOrigenId)
             .Select(t => new { t.Id, t.Nombre, t.LogoVersion })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -176,14 +222,10 @@ public class ObtenerClientesAutorizadosQueryHandler(
                 tenantOrigen.Id, tenantOrigen.Nombre, EsOrigen: true,
                 LogoVersion: tenantOrigen.LogoVersion,
                 EsGestionadoPorOperacion: await TenantsBeneficiariosAutorizados.OrigenGestionadoAsync(
-                    operaciones, usuarioId.Value, tenantOrigenId.Value, ahora, cancellationToken)));
+                    operaciones, usuarioId, tenantOrigenId, ahora, cancellationToken)));
 
-        // Decisión Chris 2026-10-20: el perfil de sesión en origen rige en todos los Tenants
-        // delegados. Administrador, Dirección CAE, Coordinador CAE y Consulta alcanzan los Tenants
-        // de las Asignaciones de Operación de su organización; el Gestor CAE, los de su cartera.
-        var rolDeOrigen = await currentUserService.ObtenerPerfilQueDecideAlcanceAsync();
         var porOperacion = (await TenantsBeneficiariosAutorizados
-            .OperacionesQueAutorizan(operaciones, usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, ahora)
+            .OperacionesQueAutorizan(operaciones, usuarioId, tenantOrigenId, rolDeOrigen, ahora)
             .Select(o => o.PropietarioTenantId)
             .ToListAsync(cancellationToken)).ToHashSet();
 
@@ -194,7 +236,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
             : [];
 
         var porDelegacion = await TenantsBeneficiariosAutorizados
-            .AsignacionesHeredadasVigentes(dbContext, usuarioId.Value, ahora)
+            .AsignacionesHeredadasVigentes(dbContext, usuarioId, ahora)
             .Select(v => v.Concesion.TenantClienteId)
             .ToListAsync(cancellationToken);
 
@@ -205,7 +247,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
         // y el E2E reventaba en modo estricto (FlujoSoporteTests). Se deduplica
         // por Id tras materializar: el conjunto es el de un único usuario.
         var externos = porOperacion.Concat(porDelegacion)
-            .Where(id => id != tenantOrigenId.Value)
+            .Where(id => id != tenantOrigenId)
             .ToHashSet();
 
         var nombres = await dbContext.Tenants
@@ -219,13 +261,6 @@ public class ObtenerClientesAutorizadosQueryHandler(
                 EsCarteraGestorCae: comoGestorCae.Contains(t.Id)))
             .OrderBy(c => c.Nombre)
             .ThenBy(c => c.TenantId));
-
-        // Lente de demo Gestor: la lista multi-Tenant de ESE Gestor CAE son los Tenants donde tiene
-        // cartera vigente (más el propio, que siempre está autorizado sobre sí mismo). Solo QUITA
-        // entradas de la lista real — nunca añade un Tenant que la cuenta no alcanzara ya —, y
-        // el endpoint de cambio de Tenant activo sigue autorizando contra las carteras reales.
-        if (vistaDemo is not null && await vistaDemo.ObtenerTenantIdsAcotadosAsync(cancellationToken) is { } acotados)
-            resultado.RemoveAll(c => !c.EsOrigen && !acotados.Contains(c.TenantId));
 
         return resultado;
     }
