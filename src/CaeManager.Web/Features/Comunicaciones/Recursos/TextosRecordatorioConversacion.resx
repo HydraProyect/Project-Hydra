@@ -15,11 +15,41 @@
   <data name="Titulo" xml:space="preserve">
     <value>Recordatorio propuesto</value>
   </data>
-  <data name="Explicacion" xml:space="preserve">
-    <value>Esta conversación lleva dos días laborables esperando respuesta. Revisa el borrador: no se enviará hasta que lo apruebes. Al aprobar se envía y no se puede deshacer.</value>
+  <data name="FilaTitulo" xml:space="preserve">
+    <value>Recordatorio · {0}</value>
+  </data>
+  <data name="FilaDetalle" xml:space="preserve">
+    <value>A {0} · propuesto por TALVEG · sin respuesta desde el {1}</value>
+  </data>
+  <data name="FilaDetalleSinDestinatario" xml:space="preserve">
+    <value>Propuesto por TALVEG · sin respuesta desde el {0}</value>
+  </data>
+  <data name="Pastilla" xml:space="preserve">
+    <value>Propuesto</value>
+  </data>
+  <data name="BotonRevisar" xml:space="preserve">
+    <value>Revisar</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Propuesto por TALVEG el {0}</value>
+  </data>
+  <data name="EtiquetaPara" xml:space="preserve">
+    <value>Para</value>
+  </data>
+  <data name="EtiquetaMotivo" xml:space="preserve">
+    <value>Motivo</value>
+  </data>
+  <data name="Motivo" xml:space="preserve">
+    <value>Sin respuesta desde el {0} (dos días laborables)</value>
+  </data>
+  <data name="EtiquetaAsunto" xml:space="preserve">
+    <value>Asunto</value>
+  </data>
+  <data name="AsuntoRespuesta" xml:space="preserve">
+    <value>RE: {0}</value>
   </data>
   <data name="EtiquetaBorrador" xml:space="preserve">
-    <value>Borrador del recordatorio</value>
+    <value>Texto</value>
   </data>
   <data name="BorradorPorDefecto" xml:space="preserve">
     <value>Hola:
@@ -28,22 +58,52 @@ Os escribimos de nuevo sobre «{0}». ¿Podéis confirmarnos si habéis podido r
 
 Gracias.</value>
   </data>
+  <data name="AvisoNoSeDeshace" xml:space="preserve">
+    <value>Al aprobar se envía. No se puede deshacer.</value>
+  </data>
   <data name="BotonAprobarYEnviar" xml:space="preserve">
     <value>Aprobar y enviar</value>
+  </data>
+  <data name="BotonEnviando" xml:space="preserve">
+    <value>Enviando…</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
   </data>
   <data name="BotonDescartar" xml:space="preserve">
     <value>Descartar</value>
   </data>
+  <data name="MotivoSinPropuesta" xml:space="preserve">
+    <value>Este recordatorio ya no está propuesto.</value>
+  </data>
+  <data name="MotivoDescartando" xml:space="preserve">
+    <value>Se está descartando el recordatorio.</value>
+  </data>
+  <data name="MotivoSinTexto" xml:space="preserve">
+    <value>Escribe el texto del recordatorio.</value>
+  </data>
+  <data name="ErrorNoEnviado" xml:space="preserve">
+    <value>No se ha enviado. El recordatorio sigue propuesto.</value>
+  </data>
+  <data name="ErrorNoDescartado" xml:space="preserve">
+    <value>No se ha descartado. Inténtalo de nuevo.</value>
+  </data>
   <data name="ToastEnviado" xml:space="preserve">
     <value>Recordatorio enviado.</value>
+  </data>
+  <data name="ToastEnviadoA" xml:space="preserve">
+    <value>Recordatorio enviado a {0}.</value>
   </data>
   <data name="ToastDescartado" xml:space="preserve">
     <value>Recordatorio descartado.</value>
   </data>
-  <data name="ToastErrorEnviar" xml:space="preserve">
-    <value>No se pudo enviar el recordatorio. Inténtalo de nuevo.</value>
+  <data name="ToastDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
   </data>
-  <data name="ToastErrorDescartar" xml:space="preserve">
-    <value>No se pudo descartar el recordatorio. Inténtalo de nuevo.</value>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Recordatorio de nuevo propuesto.</value>
+  </data>
+  <data name="ToastErrorDeshacer" xml:space="preserve">
+    <value>No se pudo deshacer el descarte. Inténtalo de nuevo.</value>
   </data>
 </root>

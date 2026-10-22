@@ -367,6 +367,25 @@ public class DrawerFormularioTests : BunitContext
         cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Añadir otro", "Guardar");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void La_accion_de_la_izquierda_va_antes_de_Cancelar_y_se_deshabilita_mientras_se_guarda(bool guardando)
+    {
+        _guardando = guardando;
+        var cut = Renderizar(p => p.Add(x => x.PieIzquierda, (RenderFragment)(b =>
+        {
+            b.OpenComponent<Boton>(0);
+            b.AddComponentParameter(1, nameof(Boton.Variante), VarianteBoton.Fantasma);
+            b.AddComponentParameter(2, nameof(Boton.ChildContent), (RenderFragment)(c => c.AddContent(0, "Descartar")));
+            b.CloseComponent();
+        })));
+
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should()
+            .Equal("Descartar", "Cancelar", guardando ? "Guardando…" : "Guardar");
+        cut.Find(".drawer-pie .formulario-drawer-pie-izquierda").HasAttribute("disabled").Should().Be(guardando);
+    }
+
     // ---- v2 (S12, lote 2b), T7: el cuerpo que aún no está listo.
 
     private static RenderFragment FragmentoVacio(string titulo) => b =>

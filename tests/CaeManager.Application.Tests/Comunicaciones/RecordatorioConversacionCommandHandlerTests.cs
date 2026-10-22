@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Comunicaciones.Commands.RestaurarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
@@ -215,6 +216,45 @@ public class RecordatorioConversacionCommandHandlerTests
         propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
         conversacion.Mensajes.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Restaurar_deshace_el_descarte_y_exige_la_cartera()
+    {
+        var (conversacion, propuesta) = Sembrar();
+        (await CrearDescartar().Handle(
+            new DescartarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var denegado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, SinCarteraSobreElCliente(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None);
+        denegado.EsFallido.Should().BeTrue();
+        denegado.Error.Codigo.Should().Be("Conversacion.NoEncontrada", "fuera de cartera no se delata la conversación");
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
+
+        var resultado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, new AlcanceDatosServiceFalso(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Pendiente);
+        conversacion.Mensajes.Should().BeEmpty("deshacer el descarte no envía nada");
+        _unitOfWork.VecesGuardado.Should().Be(2, "un guardado del descarte y otro de la restauración");
+    }
+
+    [Fact]
+    public async Task Restaurar_una_propuesta_de_otra_conversacion_falla()
+    {
+        var (_, propuesta) = Sembrar();
+        var (otra, _) = Sembrar();
+        propuesta.Descartar(DateTime.UtcNow).EsExitoso.Should().BeTrue();
+
+        var resultado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, new AlcanceDatosServiceFalso(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(otra.Id, propuesta.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Recordatorio.NoEncontrado");
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
     }
 
     [Fact]

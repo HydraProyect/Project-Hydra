@@ -1,17 +1,25 @@
 @*
     Recordatorio que TALVEG propone cuando la conversación lleva dos días laborables esperando respuesta externa
-    (decisión de producto del 2026-10-17). Nada se envía solo: el Gestor CAE revisa el borrador y lo aprueba (sale por
-    el camino normal de respuesta del hilo) o lo descarta. La maqueta vigente de Comunicaciones no dibuja este bloque;
-    se compone con piezas del kit que ya usa la pantalla (Tarjeta, CampoTextarea, Boton).
+    (decisión de producto del 2026-10-17). Nada se envía solo: el Gestor CAE lo revisa y lo aprueba (sale por el camino
+    normal de respuesta del hilo, en respuesta al último mensaje entrante) o lo descarta, con «Deshacer».
+
+    Maqueta Flujos 13 Comunicaciones, flujo «Recordatorio propuesto»: una fila «Propuesto» con «Revisar» y un DrawerFormulario
+    de 640 px con Para, Motivo y Asunto, el texto editable, el aviso de que lo enviado no se recupera y el pie con «Descartar» a
+    la izquierda. Diferencias deliberadas con la maqueta: la fila vive en el hilo abierto, no en una pestaña «Propuestas» (la
+    propuesta es de la conversación, no de un vencimiento); el asunto no se edita porque el recordatorio es una respuesta del
+    hilo; y «Centros» no se pinta porque la conversación no lo sabe.
 *@
 @using CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion
 @using CaeManager.Application.Comunicaciones.Commands.DescartarRecordatorioConversacion
+@using CaeManager.Application.Comunicaciones.Commands.RestaurarRecordatorioConversacion
 @using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion
+@using CaeManager.Domain.Common
 @using CaeManager.Domain.Comunicaciones
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using FluentValidation
 @using MediatR
 @using Microsoft.Extensions.Localization
+@implements IDisposable
 @inject IMediator Mediator
 @inject ToastService ToastService
 @inject IStringLocalizer<TextosRecordatorioConversacion> Textos
@@ -19,25 +27,51 @@
 
 @if (_propuesta is not null)
 {
-    <Tarjeta Titulo="@Textos["Titulo"]" NivelTitulo="3" Compacta="true" Class="recordatorio-propuesto">
-        <p class="recordatorio-propuesto-explicacion">@Textos["Explicacion"]</p>
-        <CampoTextarea Etiqueta="@Textos["EtiquetaBorrador"]" Valor="@_borrador" ValorChanged="v => _borrador = v" Filas="5"
-                       Deshabilitado="_ocupado" />
-        <div class="recordatorio-propuesto-acciones">
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_ocupado" OnClick="DescartarAsync">
-                @Textos["BotonDescartar"]
-            </Boton>
-            <Boton Variante="VarianteBoton.Primario" Cargando="_enviando"
-                   Deshabilitado="@(_ocupado || string.IsNullOrWhiteSpace(_borrador))" OnClick="AprobarAsync">
-                @Textos["BotonAprobarYEnviar"]
-            </Boton>
+    <section class="recordatorio-propuesto" aria-label="@Textos["Titulo"]">
+        <div class="recordatorio-propuesto-texto">
+            <span class="recordatorio-propuesto-titulo">@Textos["FilaTitulo", Asunto]</span>
+            <span class="recordatorio-propuesto-detalle">@Detalle</span>
         </div>
-    </Tarjeta>
+        <Badge Tono="TonoBadge.Info" Tamano="TamanoBadge.Pequeno">@Textos["Pastilla"]</Badge>
+        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="Abrir">@Textos["BotonRevisar"]</Boton>
+    </section>
 }
+
+<DrawerFormulario Visible="_abierto" VisibleChanged="v => _abierto = v" Titulo="@Textos["Titulo"]" Subtitulo="@Subtitulo"
+                  Ancho="AnchoDrawer.Ancho" HayCambios="() => _abierto && _borrador != _borradorInicial"
+                  Guardando="_enviando" MensajeError="@_mensajeError" OnGuardar="AprobarAsync"
+                  MotivoGuardarDeshabilitado="@MotivoAprobarDeshabilitado"
+                  TextoGuardar="@Textos["BotonAprobarYEnviar"]" TextoGuardando="@Textos["BotonEnviando"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <ChildContent>
+        @if (_propuesta is not null)
+        {
+            <RejillaDatos>
+                @if (!string.IsNullOrWhiteSpace(Destinatario))
+                {
+                    <DatoRejilla Etiqueta="@Textos["EtiquetaPara"]" Valor="@Destinatario" />
+                }
+                <DatoRejilla Etiqueta="@Textos["EtiquetaMotivo"]" Valor="@Textos["Motivo", FormatearFecha(_propuesta.EsperaDesdeUtc)]" />
+                <DatoRejilla Etiqueta="@Textos["EtiquetaAsunto"]" Valor="@Textos["AsuntoRespuesta", Asunto]" Ancho="true" />
+            </RejillaDatos>
+            <CampoTextarea Etiqueta="@Textos["EtiquetaBorrador"]" Valor="@_borrador" ValorChanged="v => _borrador = v" Filas="9"
+                           Deshabilitado="_ocupado" />
+            <p class="recordatorio-propuesto-aviso" role="note">@Textos["AvisoNoSeDeshace"]</p>
+        }
+    </ChildContent>
+    <PieIzquierda>
+        <span class="recordatorio-propuesto-pie">
+            <Boton Variante="VarianteBoton.Fantasma" class="recordatorio-propuesto-descartar" Cargando="_descartando"
+                   Deshabilitado="_ocupado" OnClick="DescartarAsync">@Textos["BotonDescartar"]</Boton>
+        </span>
+    </PieIzquierda>
+</DrawerFormulario>
 
 @code {
     [Parameter, EditorRequired] public Guid ConversacionId { get; set; }
     [Parameter, EditorRequired] public string Asunto { get; set; } = string.Empty;
+
+    /// <summary>A quién sale: el remitente del último mensaje entrante, al que responde el envío. Nulo, la fila «Para» no se pinta.</summary>
+    [Parameter] public string? Destinatario { get; set; }
 
     /// <summary>Junto con <see cref="FechaUltimoMensajeUtc"/>, lo que hace volver a preguntar por la propuesta.</summary>
     [Parameter] public EstadoConversacion Estado { get; set; }
@@ -48,30 +82,69 @@
 
     private RecordatorioPropuestoDto? _propuesta;
     private string _borrador = string.Empty;
+    private string _borradorInicial = string.Empty;
+    private bool _abierto;
     private bool _enviando;
     private bool _descartando;
+    private string? _mensajeError;
+    private bool _desechado;
     private bool _ocupado => _enviando || _descartando;
     private (Guid, EstadoConversacion, DateTime)? _cargadoPara;
+
+    private string Detalle => string.IsNullOrWhiteSpace(Destinatario)
+        ? Textos["FilaDetalleSinDestinatario", FormatearFecha(_propuesta!.EsperaDesdeUtc)]
+        : Textos["FilaDetalle", Destinatario, FormatearFecha(_propuesta!.EsperaDesdeUtc)];
+
+    private string? Subtitulo => _propuesta is null ? null : Textos["Subtitulo", FormatearFechaHora(_propuesta.PropuestaEnUtc)];
+
+    private string? MotivoAprobarDeshabilitado =>
+        _propuesta is null ? Textos["MotivoSinPropuesta"]
+        : _descartando ? Textos["MotivoDescartando"]
+        : string.IsNullOrWhiteSpace(_borrador) ? Textos["MotivoSinTexto"]
+        : null;
+
+    private static string FormatearFecha(DateTime utc) => utc.EnHoraPeninsular().ToString("dd/MM/yyyy");
+    private static string FormatearFechaHora(DateTime utc) => utc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm");
 
     protected override async Task OnParametersSetAsync()
     {
         var clave = (ConversacionId, Estado, FechaUltimoMensajeUtc);
         if (_cargadoPara == clave) return;
 
-        // Al cambiar de hilo la tarjeta del anterior no se queda pintada mientras llega la consulta del nuevo.
+        // Al cambiar de hilo la fila y el drawer del anterior no se quedan pintados mientras llega la consulta del nuevo.
         if (_cargadoPara?.Item1 != ConversacionId)
         {
             _propuesta = null;
-            _borrador = string.Empty;
+            _abierto = false;
+            _mensajeError = null;
+            FijarBorrador(string.Empty);
         }
 
         var propuesta = await Mediator.Send(new ObtenerRecordatorioPropuestoConversacionQuery(ConversacionId));
         // Si los parámetros cambiaron durante la espera, esta respuesta ya no es la del hilo abierto.
         if (clave != (ConversacionId, Estado, FechaUltimoMensajeUtc)) return;
         _cargadoPara = clave;
+        AplicarPropuesta(propuesta);
+    }
+
+    private void AplicarPropuesta(RecordatorioPropuestoDto? propuesta)
+    {
         if (propuesta?.PropuestaId != _propuesta?.PropuestaId)
-            _borrador = propuesta is null ? string.Empty : string.Format(Textos["BorradorPorDefecto"], Asunto);
+            FijarBorrador(propuesta is null ? string.Empty : string.Format(Textos["BorradorPorDefecto"], Asunto));
         _propuesta = propuesta;
+        if (propuesta is null) _abierto = false;
+    }
+
+    private void FijarBorrador(string texto)
+    {
+        _borrador = texto;
+        _borradorInicial = texto;
+    }
+
+    private void Abrir()
+    {
+        _mensajeError = null;
+        _abierto = true;
     }
 
     private async Task AprobarAsync()
@@ -80,30 +153,36 @@
         if (_ocupado || _propuesta is null || string.IsNullOrWhiteSpace(_borrador)) return;
 
         _enviando = true;
+        _mensajeError = null;
         try
         {
             var resultado = await Mediator.Send(
                 new AprobarRecordatorioConversacionCommand(ConversacionId, _propuesta.PropuestaId, _borrador));
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
+                if (_propuesta is null)
+                    ToastService.MostrarError(resultado.Error);
+                else
+                    _mensajeError = $"{Textos["ErrorNoEnviado"]} {resultado.Error.Mensaje}";
                 return;
             }
 
             _propuesta = null;
-            _borrador = string.Empty;
-            ToastService.Mostrar(Textos["ToastEnviado"], TonoToast.Exito);
+            FijarBorrador(string.Empty);
+            _abierto = false;
+            ToastService.Mostrar(string.IsNullOrWhiteSpace(Destinatario)
+                ? Textos["ToastEnviado"] : Textos["ToastEnviadoA", Destinatario], TonoToast.Exito);
             await OnEnviado.InvokeAsync();
         }
         catch (ValidationException ex)
         {
-            ToastService.Mostrar(string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct()), TonoToast.Error);
+            _mensajeError = string.Join(" ", ex.Errors.Select(e => e.ErrorMessage).Distinct());
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error al aprobar el recordatorio de la conversación {ConversacionId}.", ConversacionId);
-            ToastService.Mostrar(Textos["ToastErrorEnviar"], TonoToast.Error);
+            _mensajeError = Textos["ErrorNoEnviado"];
         }
         finally
         {
@@ -115,30 +194,64 @@
     {
         if (_ocupado || _propuesta is null) return;
 
+        var conversacionId = ConversacionId;
+        var propuestaId = _propuesta.PropuestaId;
         _descartando = true;
+        _mensajeError = null;
         try
         {
-            var resultado = await Mediator.Send(
-                new DescartarRecordatorioConversacionCommand(ConversacionId, _propuesta.PropuestaId));
+            var resultado = await Mediator.Send(new DescartarRecordatorioConversacionCommand(conversacionId, propuestaId));
             if (resultado.EsFallido)
             {
-                ToastService.MostrarError(resultado.Error);
                 await RecargarAsync();
+                if (_propuesta is null)
+                    ToastService.MostrarError(resultado.Error);
+                else
+                    _mensajeError = resultado.Error.Mensaje;
                 return;
             }
 
             _propuesta = null;
-            _borrador = string.Empty;
-            ToastService.Mostrar(Textos["ToastDescartado"], TonoToast.Exito);
+            FijarBorrador(string.Empty);
+            _abierto = false;
+            ToastService.Mostrar(Textos["ToastDescartado"], TonoToast.Exito, Textos["ToastDeshacer"],
+                () => DeshacerDescarteAsync(conversacionId, propuestaId));
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error al descartar el recordatorio de la conversación {ConversacionId}.", ConversacionId);
-            ToastService.Mostrar(Textos["ToastErrorDescartar"], TonoToast.Error);
+            Logger.LogError(ex, "Error al descartar el recordatorio de la conversación {ConversacionId}.", conversacionId);
+            _mensajeError = Textos["ErrorNoDescartado"];
         }
         finally
         {
             _descartando = false;
+        }
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de descartado. Los Ids van capturados: si el Gestor CAE ya abrió otro hilo, se restaura el del
+    /// descarte igualmente, pero la fila solo vuelve a pintarse si este componente sigue mostrando esa conversación.
+    /// </summary>
+    private async Task DeshacerDescarteAsync(Guid conversacionId, Guid propuestaId)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarRecordatorioConversacionCommand(conversacionId, propuestaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastRestaurado"], TonoToast.Exito);
+            if (_desechado || ConversacionId != conversacionId) return;
+            AplicarPropuesta(await Mediator.Send(new ObtenerRecordatorioPropuestoConversacionQuery(conversacionId)));
+            if (!_desechado && ConversacionId == conversacionId) await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error al deshacer el descarte del recordatorio de la conversación {ConversacionId}.", conversacionId);
+            ToastService.Mostrar(Textos["ToastErrorDeshacer"], TonoToast.Error);
         }
     }
 
@@ -149,7 +262,10 @@
         if (propuesta is null)
         {
             _propuesta = null;
-            _borrador = string.Empty;
+            FijarBorrador(string.Empty);
+            _abierto = false;
         }
     }
+
+    public void Dispose() => _desechado = true;
 }
