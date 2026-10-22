@@ -917,6 +917,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
                 _errorBaja = resultado.Error.Mensaje;
             else
             {
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [detalle.Id]);
                 ToastService.Mostrar(Textos["ToastClienteBaja", detalle.RazonSocial].Value, TonoToast.Exito,
                     Textos["ToastAccionDeshacer"].Value, () => DeshacerBajaAsync(detalle.Id));
                 NavigationManager.NavigateTo("/clientes");
@@ -942,7 +943,11 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
+            {
                 ToastService.Mostrar(Textos["ToastClienteRestaurado"].Value, TonoToast.Exito);
+                // Vuelve a la ficha: la lista de Clientes ya se cargó sin él y no se recargaría sola.
+                NavigationManager.NavigateTo($"/clientes/{id}");
+            }
         }
         catch (Exception)
         {
