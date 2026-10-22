@@ -90,6 +90,14 @@
   --color-system-indicator: #0e96b4; /* 3.48:1 sobre Surface ✓ (3:1) */
   --color-system-tint: color-mix(in srgb, var(--color-system-indicator) 10%, transparent);
 
+  /* Vega, el asistente IA (marco-talveg.js, 2026-10-21): el círculo turquesa del
+     icono, la etiqueta de modo y el aviso fijo. Turquesa = «lo ha hecho la máquina»,
+     el mismo código que Revisión IA; las acciones de la persona siguen en azul primario.
+     --vg-fg sobre --vg-tint, con la fórmula WCAG: ≈4,9:1 en claro y ≈8,4:1 en oscuro. */
+  --vg-tint: #e3f6fa;
+  --vg-fg: #0b748e;
+  --vg-ancho: 400px;
+
   /* Superficie / texto (tema claro por defecto) */
   /* Canvas — fondo de página (02 § 4.1). #E9EEF4 desde el 2026-10-08 (diseños
      aprobados de listados y fichas 360, DDL-081): el lienzo se separa de Surface a
@@ -439,6 +447,8 @@
      valor porque sobre fondo oscuro el brillante ya cumple 4.5:1 (>8:1). */
   --color-system-text: #2bd4f0;
   --color-system-indicator: #2bd4f0;
+  --vg-tint: #0d2a33;
+  --vg-fg: #2bd4f0;
 
   /* Tintes de estado de la paleta G, con su -700 encima: éxito 8,84:1,
      aviso 8,84:1, peligro 6,03:1, tolerancia 7,16:1. El texto secundario
@@ -562,6 +572,8 @@
 
   --color-system-text: #0b748e;
   --color-system-indicator: #0e96b4;
+  --vg-tint: #e3f6fa;
+  --vg-fg: #0b748e;
 
   --color-success-50: #eefdf3;
   --color-warning-50: #fff8eb;
