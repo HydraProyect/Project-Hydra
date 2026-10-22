@@ -1,10 +1,16 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma;
+using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.MultiTenancy;
+using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
@@ -100,6 +106,98 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
             transformado.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
                 .Should().BeFalse($"rol real {rolReal}");
         }
+    }
+
+    /// <summary>
+    /// La invariante sobre el alcance de datos real (<see cref="AlcanceDatosService"/>), en el Tenant de
+    /// origen: si la sesión limitada alcanza el Tenant entero, la misma cuenta sin limitar también. Antes
+    /// del arreglo, Cliente y la cuenta sin rol (por el rol Consulta) y Gestor CAE y Coordinador CAE (por
+    /// <c>RolQueDecideAlcanceAsync</c>, que solo miraba el perfil anterior por la vía de Operación) la
+    /// rompían: con su rol real dependen de su Cliente empresarial o de su Asignación de Cartera.
+    /// </summary>
+    [Fact]
+    public async Task En_el_Tenant_de_origen_la_sesion_limitada_nunca_alcanza_el_Tenant_entero_si_el_rol_real_no_lo_alcanza()
+    {
+        var tenant = Guid.NewGuid();
+        foreach (var rolReal in Roles.Todos.Append(SinRol).Append("RolInexistente"))
+        {
+            var real = await AccesoTotalAsync(entraConfigurado: false, rolReal, tenant);
+            var limitado = await AccesoTotalAsync(entraConfigurado: true, rolReal, tenant);
+
+            if (!real) limitado.Should().BeFalse($"rol real {rolReal}: la restricción solo quita escritura");
+        }
+    }
+
+    [Theory]
+    [InlineData(Roles.Administrador, true)]
+    [InlineData(Roles.DireccionCae, true)]
+    [InlineData(Roles.Consulta, true)]
+    [InlineData(Roles.GestorCae, false)]
+    [InlineData(Roles.CoordinadorCae, false)]
+    [InlineData(Roles.Cliente, false)]
+    [InlineData(SinRol, false)]
+    public async Task En_el_Tenant_de_origen_el_acceso_total_de_la_sesion_limitada_es_el_del_rol_real(string rolReal, bool esperado)
+    {
+        var tenant = Guid.NewGuid();
+
+        (await AccesoTotalAsync(entraConfigurado: true, rolReal, tenant)).Should().Be(esperado);
+        (await AccesoTotalAsync(entraConfigurado: false, rolReal, tenant)).Should().Be(esperado, "control: el rol real");
+    }
+
+    /// <summary>La transformación puede correr dos veces sobre el mismo principal: la segunda no cambia nada.</summary>
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.Consulta)]
+    [InlineData(Roles.Cliente)]
+    [InlineData(SinRol)]
+    [InlineData("RolInexistente")]
+    public async Task Es_idempotente_en_cada_rol(string rolReal)
+    {
+        var transformacion = Transformacion(entraConfigurado: true);
+        var primera = await transformacion.TransformAsync(Principal(esSso: false, rolReal));
+        var roles = primera.FindAll(ClaimTypes.Role).Select(c => c.Value).ToList();
+        var perfil = primera.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir).Select(c => c.Value).ToList();
+
+        var segunda = await transformacion.TransformAsync(primera);
+
+        segunda.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal(roles);
+        segunda.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir).Select(c => c.Value)
+            .Should().Equal(perfil).And.ContainSingle();
+    }
+
+    /// <summary>Varios roles a la vez no debería existir; si existe, gana el más acotado y nunca se amplía.</summary>
+    [Theory]
+    [InlineData(new[] { Roles.DireccionCae, Roles.Cliente }, new[] { Roles.Cliente }, Roles.Cliente)]
+    [InlineData(new[] { Roles.Cliente, "RolInexistente" }, new[] { Roles.Cliente }, Roles.Cliente)]
+    [InlineData(new[] { Roles.Consulta, Roles.Cliente }, new[] { Roles.Cliente }, Roles.Cliente)]
+    [InlineData(new[] { Roles.GestorCae, "RolInexistente" }, new[] { Roles.Consulta }, Roles.GestorCae)]
+    [InlineData(new[] { Roles.Administrador, Roles.Cliente }, new[] { Roles.Administrador, Roles.Cliente }, null)]
+    public async Task Con_varios_roles_la_restriccion_no_amplia(string[] rolesReales, string[] rolesEsperados, string? perfilEsperado)
+    {
+        var identidad = new ClaimsIdentity(authenticationType: "Prueba");
+        foreach (var rol in rolesReales) identidad.AddClaim(new Claim(ClaimTypes.Role, rol));
+
+        var resultado = await Transformacion(entraConfigurado: true).TransformAsync(new ClaimsPrincipal(identidad));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal(rolesEsperados);
+        var perfil = resultado.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)?.Value;
+        perfil.Should().Be(perfilEsperado, "Administrador es la vía de escape y no se restringe");
+    }
+
+    private static async Task<bool> AccesoTotalAsync(bool entraConfigurado, string rolReal, Guid tenantOrigen)
+    {
+        var principal = Principal(esSso: false, rolReal);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()));
+        var servicio = Servicio(await Transformacion(entraConfigurado).TransformAsync(principal));
+
+        var tenantActual = new TenantActualAmbiental { TenantId = tenantOrigen };
+        // Sin proveedor de base de datos a propósito: decidir el acceso total no puede consultar la base.
+        var contexto = new CaeManagerDbContext(new DbContextOptionsBuilder<CaeManagerDbContext>().Options,
+            DataProtectionProvider.Create(nameof(RestriccionLoginLocalNoAmpliaElRolTests)), tenantActual);
+        var alcance = new AlcanceDatosService(contexto, servicio, tenantActual, new SesionPrivilegiadaAusente());
+
+        return await alcance.TieneAccesoTotalAsync();
     }
 
     private static string? Nulo(string rol) => rol.Length == 0 ? null : rol;
