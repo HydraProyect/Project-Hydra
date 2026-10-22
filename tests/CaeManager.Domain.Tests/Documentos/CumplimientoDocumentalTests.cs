@@ -127,7 +127,7 @@ public class CumplimientoDocumentalTests
     private static readonly Guid TrabajadorSinEmpresa = Guid.NewGuid();
 
     private static ParDocumentalExigido Par(Guid centro, Guid cliente, Guid? empresa, Guid trabajador, EstadoDocumento estado) =>
-        new(centro, cliente, empresa, trabajador, Guid.NewGuid(), estado, PendienteEnPlataforma: false);
+        new(centro, cliente, empresa, trabajador, Guid.NewGuid(), estado, PendienteEnPlataforma: false, EsRenuncia: false);
 
     /// <summary>
     /// Centro A (Cliente X): Uno (Empresa P) tiene dos pares, uno al día y uno faltante; Dos (Empresa Q) uno vencido.
@@ -244,5 +244,29 @@ public class CumplimientoDocumentalTests
         var accion = () => CumplimientoDocumental.De((ContextoCumplimiento)99, Guid.NewGuid(), Pares);
 
         accion.Should().Throw<ArgumentOutOfRangeException>();
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-17: un documento en renuncia (renuncia al reconocimiento médico) nunca es conforme, en ningún
+    /// contexto ni por ninguna vía de cálculo, aunque su estado de vigencia sea al día.
+    /// </summary>
+    [Theory]
+    [InlineData(ContextoCumplimiento.Centro)]
+    [InlineData(ContextoCumplimiento.Trabajador)]
+    [InlineData(ContextoCumplimiento.Empresa)]
+    [InlineData(ContextoCumplimiento.ClienteEmpresarial)]
+    public void Un_documento_en_renuncia_nunca_esta_al_dia(ContextoCumplimiento contexto)
+    {
+        var vigente = Par(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.Vigente);
+        var enRenuncia = vigente with { EsRenuncia = true };
+
+        CumplimientoDocumental.EsConforme(vigente, contexto).Should().BeTrue("control: el mismo par sin renuncia está al día");
+        CumplimientoDocumental.EsConforme(enRenuncia, contexto).Should().BeFalse();
+        CumplimientoDocumental.Evaluar([enRenuncia, vigente], contexto).Should().Be(new FraccionCumplimiento(1, 2));
+        CumplimientoDocumental.Evaluar([(EstadoDocumento.Vigente, true), (EstadoDocumento.Vigente, false)])
+            .Should().Be(new FraccionCumplimiento(1, 2));
+        CumplimientoDocumental.EsConforme(
+            new ParDocumentalDeEmpresaExigido(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), EstadoDocumento.SinCaducidad, false, EsRenuncia: true))
+            .Should().BeFalse();
     }
 }

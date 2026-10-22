@@ -64,19 +64,19 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     [
         (7, "Certificado de aptitud médica"), // G: Fecha
         (10, "Entrega de EPI"),                // J: Fecha firma
-        (13, "Formación 60h (base convenio)"),// M: Fecha
-        (14, "Formación 20h"),                // N: Fecha
-        (15, "Formación 6h"),                 // O: Fecha
-        (16, "Reciclaje 4h"),                 // P: Fecha
-        (19, "Información Art. 18"),          // S: Fecha
-        (20, "Formación Art. 19"),            // T: Fecha
+        (13, "Formación PRL de convenio"),     // M: Fecha (antes «Formación 60h (base convenio)»)
+        (14, "Formación PRL de convenio por oficio"), // N: Fecha (antes «Formación 20h»)
+        (15, "Formación PRL de convenio por oficio, módulo específico"), // O: Fecha (antes «Formación 6h»)
+        (16, "Reciclaje PRL"),                 // P: Fecha (antes «Reciclaje 4h»)
+        (19, "Información de riesgos del puesto"), // S: Fecha (antes «Información Art. 18»)
+        (20, "Formación PRL del puesto"),      // T: Fecha (antes «Formación Art. 19»)
         (23, "Carretillas elevadoras"),       // W: Fecha
         (24, "PEMP (plataformas elevadoras)"),// X: Fecha
-        (25, "LOTO (4h)"),                    // Y: Fecha
+        (25, "Bloqueo y etiquetado (LOTO)"),   // Y: Fecha (antes «LOTO (4h)»)
         (26, "Seguridad alimentaria"),        // Z: Fecha
         (27, "Primeros auxilios"),            // AA: Fecha
         (28, "Espacios confinados"),          // AB: Fecha
-        (29, "Trabajos en altura (8h)"),      // AC: Fecha
+        (29, "Trabajos en altura"),           // AC: Fecha (antes «Trabajos en altura (8h)»)
     ];
 
     private static readonly string[] MarcadoresRevisionManual = ["genérico", "sin confirmar", "todos los centros"];

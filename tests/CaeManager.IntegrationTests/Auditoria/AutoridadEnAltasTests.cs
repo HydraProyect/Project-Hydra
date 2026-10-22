@@ -112,7 +112,7 @@ public class AutoridadEnAltasTests : IAsyncLifetime
         var handler = new CrearProyectoCommandHandler(
             new ProyectoRepository(contextoAlta), contextoAlta,
             new AlcanceDatosServiceFalso(clienteIds: [Guid.NewGuid()]), contextoAlta,
-            contextoAlta, contextoAlta, new ProyectoRequisitoRepository(contextoAlta));
+            contextoAlta, contextoAlta, new ProyectoRequisitoRepository(contextoAlta), contextoAlta);
 
         var resultado = await handler.Handle(
             new CrearProyectoCommand(clienteId, centroId, "Proyecto Ajeno", new DateOnly(2026, 1, 1), null, null),

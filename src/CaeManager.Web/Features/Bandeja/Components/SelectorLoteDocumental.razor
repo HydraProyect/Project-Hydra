@@ -218,7 +218,7 @@
         StateHasChanged();
         try
         {
-            _tiposDelAmbito = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito));
+            _tiposDelAmbito = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: ambito, ParaAltaNueva: true));
 
             if (ambito == AmbitoAplicacion.Trabajador && _trabajadoresDisponibles.Count == 0)
                 _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));

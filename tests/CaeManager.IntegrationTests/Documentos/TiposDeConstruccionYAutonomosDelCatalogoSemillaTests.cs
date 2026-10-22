@@ -15,7 +15,7 @@ public class TiposDeConstruccionYAutonomosDelCatalogoSemillaTests
 {
     private const string NombreRea = "Certificado de inscripción en el REA";
     private const string NombreLibro = "Libro de Subcontratación";
-    private const string NombreReta = "Recibo de cuota de autónomos (RETA)";
+    private const string NombreReta = "Recibo de cuota de autónomos";
 
     private static readonly Guid IdRea = new("80000000-0000-0000-0000-000000000001");
     private static readonly Guid IdLibro = new("80000000-0000-0000-0000-000000000002");

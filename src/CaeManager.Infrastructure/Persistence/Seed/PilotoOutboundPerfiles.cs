@@ -328,8 +328,8 @@ public static class CatalogoPilotoOutbound
 
     public const string AptitudMedica = "Certificado de aptitud médica";
     public const string EntregaEpi = "Entrega de EPI";
-    public const string FormacionArt19 = "Formación Art. 19";
-    public const string InformacionArt18 = "Información Art. 18";
+    public const string FormacionArt19 = "Formación PRL del puesto";
+    public const string InformacionArt18 = "Información de riesgos del puesto";
     public const string DocumentoIdentidad = "Documento de identidad";
 
     /// <summary>Un tipo de ámbito Trabajador que NO se exige por defecto: solo lo pide el Centro que lo incluye.</summary>
@@ -342,7 +342,7 @@ public static class CatalogoPilotoOutbound
     /// (<see cref="FechasPilotoOutbound.EnRegla"/>).
     /// </summary>
     public static IReadOnlyList<string> TiposQueNoCaducan { get; } =
-        ["Formación 60h (base convenio)", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social", LibroDeSubcontratacion];
+        ["Formación PRL de convenio", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social", LibroDeSubcontratacion];
 
     /// <summary>Los cinco tipos de ámbito Trabajador exigidos por defecto. La siembra comprueba que el catálogo del Tenant dice lo mismo antes de escribir.</summary>
     public static IReadOnlyList<string> TiposExigidosDeTrabajador { get; } =
@@ -356,7 +356,7 @@ public static class CatalogoPilotoOutbound
 
     /// <summary>Lo que cada Subcontrata tiene de su propia Empresa.</summary>
     public static IReadOnlyList<string> TiposDeDocumentoDeSubcontrata { get; } =
-        ["Seguro de Responsabilidad Civil + recibo de pago", "Evaluación de Riesgos Laborales", "Modalidad Preventiva"];
+        ["Seguro de Responsabilidad Civil", "Evaluación de Riesgos Laborales", "Modalidad Preventiva"];
 
     /// <summary>
     /// El Registro de Empresas Acreditadas (Ley 32/2006): un tipo de Empresa que no se exige por defecto ni cuenta para el
@@ -368,15 +368,15 @@ public static class CatalogoPilotoOutbound
     public const string LibroDeSubcontratacion = "Libro de Subcontratación";
 
     /// <summary>El justificante mensual de la cuota del autónomo: el autónomo es su propia Empresa, y sus Centros se lo piden.</summary>
-    public const string ReciboDeAutonomos = "Recibo de cuota de autónomos (RETA)";
+    public const string ReciboDeAutonomos = "Recibo de cuota de autónomos";
 
     /// <summary>Los dos certificados mensuales de la Empresa: coherentes con su tipo solo pueden estar «Próximo», y tiñen de ámbar todo Centro que los exige.</summary>
     public static IReadOnlyList<string> CertificadosMensualesDeEmpresa { get; } =
-        ["Certificado de estar al corriente con la Seguridad Social", "ITA"];
+        ["Certificado de estar al corriente con la Seguridad Social", "Informe de trabajadores en alta"];
 
     /// <summary>Lo que un autónomo sin plantilla no tiene: ni RLC, ni RNT, ni ITA.</summary>
     public static IReadOnlyList<string> TiposDeEmpresaDePlantilla { get; } =
-        ["RLC", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago", "RNT", "ITA"];
+        ["RLC (TC1)", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago", "RNT", "Informe de trabajadores en alta"];
 
     private static readonly ZonaPilotoOutbound? SinZona = null;
 

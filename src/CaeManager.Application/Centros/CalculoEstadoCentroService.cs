@@ -812,13 +812,13 @@ public class CalculoEstadoCentroService(
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
         var documentosExistentes = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value) && tipoIds.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
         var efectivos = DocumentoEfectivo.UnoPorClave(
-                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy)
             .ToDictionary(
                 p => p.Key,
-                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                p => (Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias), p.Value.EsRenuncia));
         var pendientesDeTrabajador = pendientes
             .Where(p => p.TrabajadorId is not null)
             .Select(p => (p.CentroId, TrabajadorId: p.TrabajadorId!.Value, p.TipoDocumentoId))
@@ -828,11 +828,12 @@ public class CalculoEstadoCentroService(
             .Where(r => clientePorCentro.ContainsKey(r.CentroId))
             .Select(r =>
             {
-                var tieneEfectivo = efectivos.TryGetValue((r.TrabajadorId, r.TipoDocumentoId), out var estado);
+                var tieneEfectivo = efectivos.TryGetValue((r.TrabajadorId, r.TipoDocumentoId), out var efectivo);
                 return new ParDocumentalExigido(
                     r.CentroId, clientePorCentro[r.CentroId], r.EmpresaId, r.TrabajadorId, r.TipoDocumentoId,
-                    tieneEfectivo ? estado : EstadoDocumento.Faltante,
-                    tieneEfectivo && pendientesDeTrabajador.Contains((r.CentroId, r.TrabajadorId, r.TipoDocumentoId)));
+                    tieneEfectivo ? efectivo.Estado : EstadoDocumento.Faltante,
+                    tieneEfectivo && pendientesDeTrabajador.Contains((r.CentroId, r.TrabajadorId, r.TipoDocumentoId)),
+                    tieneEfectivo && efectivo.EsRenuncia);
             })
             .ToList();
     }
@@ -886,13 +887,13 @@ public class CalculoEstadoCentroService(
             .Where(d => d.TrabajadorId == null && d.EmpresaId != null
                 && empresaIds.Contains(d.EmpresaId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { EmpresaId = d.EmpresaId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
         var efectivos = DocumentoEfectivo.UnoPorClave(
-                documentos, d => (d.EmpresaId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
+                documentos, d => (d.EmpresaId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy)
             .ToDictionary(
                 p => p.Key,
-                p => CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias));
+                p => (Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias), p.Value.EsRenuncia));
 
         var pendientesDeEmpresa = pendientes
             .Where(p => p.TrabajadorId is null && p.EmpresaId is not null)
@@ -907,11 +908,12 @@ public class CalculoEstadoCentroService(
                 if (!ResolucionTipoDocumentoCentro.Aplica(filasPorPar, tipo.Id, centroId, tipo.CuentaParaCumplimiento))
                     continue;
 
-                var tieneEfectivo = efectivos.TryGetValue((empresaId, tipo.Id), out var estadoEfectivo);
+                var tieneEfectivo = efectivos.TryGetValue((empresaId, tipo.Id), out var efectivo);
                 pares.Add(new ParDocumentalDeEmpresaExigido(
                     centroId, empresaId, tipo.Id,
-                    tieneEfectivo ? estadoEfectivo : EstadoDocumento.Faltante,
-                    tieneEfectivo && pendientesDeEmpresa.Contains((centroId, empresaId, tipo.Id))));
+                    tieneEfectivo ? efectivo.Estado : EstadoDocumento.Faltante,
+                    tieneEfectivo && pendientesDeEmpresa.Contains((centroId, empresaId, tipo.Id)),
+                    tieneEfectivo && efectivo.EsRenuncia));
             }
         }
 
@@ -960,17 +962,17 @@ public class CalculoEstadoCentroService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsCandidatos.Contains(d.TipoDocumentoId))
-            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { TrabajadorId = d.TrabajadorId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         // Un solo documento operativo por par en el caso normal (el vencido y su renovación ya no coexisten: el
         // anterior pasa al historial); con duplicados aún sin resolver manda el documento efectivo (DocumentoEfectivo),
         // el mismo que elige el paquete de acreditación de la Visita.
         var efectivos = DocumentoEfectivo.UnoPorClave(
-                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy)
+                documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy)
             .ToDictionary(
                 p => p.Key,
-                p => (p.Value.Id, Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)));
+                p => (p.Value.Id, Estado: CalculadoraEstadoDocumento.Calcular(p.Value.EstadoVigencia, p.Value.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias), p.Value.EsRenuncia));
 
         var pendientesQueBajanElPorcentaje = pendientes
             .Where(p => p.TrabajadorId is not null)
@@ -996,7 +998,7 @@ public class CalculoEstadoCentroService(
 
                 pares.Add(new ParDocumentalExigido(
                     asignacion.CentroId, clientePorCentro[asignacion.CentroId], asignacion.EmpresaId, asignacion.TrabajadorId, tipo.Id, estado,
-                    pendienteEnPlataforma));
+                    pendienteEnPlataforma, tieneEfectivo && efectivo.EsRenuncia));
             }
         }
 

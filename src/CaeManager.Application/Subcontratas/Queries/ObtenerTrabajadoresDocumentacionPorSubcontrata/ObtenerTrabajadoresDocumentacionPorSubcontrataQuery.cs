@@ -165,15 +165,15 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
         var tipoIdsRequeridosGlobal = tiposRequeridosPorTrabajador.Values.SelectMany(t => t).Distinct().ToList();
 
         var documentosPorTrabajador = tipoIdsRequeridosGlobal.Count == 0
-            ? new Dictionary<Guid, List<(Guid Id, Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, DateOnly FechaEmision, DateTime CreadoEnUtc)>>()
+            ? new Dictionary<Guid, List<(Guid Id, Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia, DateOnly? FechaVencimiento, DateOnly FechaEmision, DateTime CreadoEnUtc, bool EsRenuncia)>>()
             : (await documentosContext.Documentos.Operativos()
                 .Where(d => d.TrabajadorId != null
                     && trabajadorIds.Contains(d.TrabajadorId!.Value)
                     && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-                .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+                .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
                 .ToListAsync(cancellationToken))
                 .GroupBy(d => d.TrabajadorId)
-                .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc)).ToList());
+                .ToDictionary(g => g.Key, g => g.Select(d => (d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia)).ToList());
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
@@ -208,12 +208,12 @@ public class ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(
 
             // Un documento por tipo exigido (el efectivo), igual que el % de la Subcontrata.
             var preferidosPorTipo = DocumentoEfectivo.UnoPorClave(
-                documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+                documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
             var cumplimiento = CumplimientoDocumental.Evaluar(tiposRequeridosPorTrabajador[trabajador.Id].Select(tipoId =>
                 preferidosPorTipo.TryGetValue(tipoId, out var preferido)
-                    ? CalculadoraEstadoDocumento.Calcular(
-                        preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
-                    : EstadoDocumento.Faltante));
+                    ? (CalculadoraEstadoDocumento.Calcular(
+                        preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias), preferido.EsRenuncia)
+                    : (EstadoDocumento.Faltante, false)));
 
             resultado.Add(new TrabajadorDocumentacionSubcontrataDto(
                 trabajador.Id, trabajador.Nombre, trabajador.Dni, peorEstado, ordenados, cumplimiento));

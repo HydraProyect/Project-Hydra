@@ -459,7 +459,7 @@ public class EscenariosDireccionDemoTests(EscenariosDireccionDemoFixture fixture
             // y la formación por su vigencia, y los huecos que el propio servicio
             // de centros marca como Faltante.
             var estadosPlantilla = documentos
-                .Where(d => tipos[d.TipoDocumentoId] is "Certificado de aptitud médica" or "Formación Art. 19")
+                .Where(d => tipos[d.TipoDocumentoId] is "Certificado de aptitud médica" or "Formación PRL del puesto")
                 .Select(Estado).ToList();
             if (resultado.Values.SelectMany(r => r.Causas).Any(c => c.Estado == EstadoDocumento.Faltante))
                 estadosPlantilla.Add(EstadoDocumento.Faltante);

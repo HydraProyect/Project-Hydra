@@ -194,7 +194,7 @@ public class ValoracionOperadorCaeTests
         var otroCentro = Guid.NewGuid();
         var otraPropia = Guid.NewGuid();
         ParDocumentalExigido Par(Guid? empresa, EstadoDocumento estado, Guid? enCentro = null) =>
-            new(enCentro ?? centro, Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), estado, PendienteEnPlataforma: false);
+            new(enCentro ?? centro, Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), estado, PendienteEnPlataforma: false, EsRenuncia: false);
 
         var pares = new[]
         {

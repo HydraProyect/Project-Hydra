@@ -144,11 +144,11 @@ internal static class PendientesEnPlataformaDeCentros
             .Where(d => tipoIds.Contains(d.TipoDocumentoId)
                 && ((d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId!.Value))
                     || (d.EmpresaId != null && empresaIds.Contains(d.EmpresaId!.Value))))
-            .Select(d => new { d.Id, d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
         var efectivos = DocumentoEfectivo.UnoPorClave(
             copias, d => (d.TrabajadorId, d.EmpresaId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
-            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         // La vigencia que cuenta es la del requisito en ESE Centro: periodicidad especial y tolerancia (VigenciaEnCentro).
         var centroIdsConFilas = filas.Select(f => f.CentroId).Distinct().ToList();

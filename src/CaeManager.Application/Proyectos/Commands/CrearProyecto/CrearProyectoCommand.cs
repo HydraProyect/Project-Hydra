@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Proyectos;
 using FluentValidation;
@@ -37,7 +38,8 @@ public class CrearProyectoCommandValidator : AbstractValidator<CrearProyectoComm
 public class CrearProyectoCommandHandler(
     IProyectoRepository repositorio, ICentrosQueryContext dbContext,
     IAlcanceDatosService alcanceDatos, IUnitOfWork unitOfWork,
-    IProyectosQueryContext proyectosContext, IRequisitosEventoQueryContext requisitosContext, IProyectoRequisitoRepository requisitos)
+    IProyectosQueryContext proyectosContext, IRequisitosEventoQueryContext requisitosContext, IProyectoRequisitoRepository requisitos,
+    ITiposDocumentoQueryContext tiposDocumentoContext)
     : IRequestHandler<CrearProyectoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearProyectoCommand request, CancellationToken cancellationToken)
@@ -71,6 +73,8 @@ public class CrearProyectoCommandHandler(
         if (tipoDocumentoIds is null)
             return Result.Fallo<Guid>(Error.Crear("Proyecto.OrigenRequisitosNoEncontrado", "No encontramos el evento o la plantilla de origen."));
 
+        tipoDocumentoIds = await VigentesAsync(tipoDocumentoIds, cancellationToken);
+
         var proyecto = Proyecto.Crear(request.ClienteId, request.CentroId, request.Nombre, request.FechaInicio, request.FechaFinPrevista, request.Notas, request.Tipo);
         repositorio.Agregar(proyecto);
         foreach (var tipoDocumentoId in tipoDocumentoIds)
@@ -79,6 +83,27 @@ public class CrearProyectoCommandHandler(
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito(proyecto.Id);
+    }
+
+    /// <summary>
+    /// Lo que se copia se pide hoy: un tipo archivado (catálogo del 2026-10-17) se sustituye por su sustituto, que es
+    /// del mismo Tenant propietario, y uno archivado sin sustituto no se copia (ya no se puede pedir ni dar de alta).
+    /// </summary>
+    private async Task<IReadOnlyList<Guid>> VigentesAsync(IReadOnlyList<Guid> tipoDocumentoIds, CancellationToken cancellationToken)
+    {
+        if (tipoDocumentoIds.Count == 0)
+            return tipoDocumentoIds;
+
+        var tipos = await tiposDocumentoContext.TiposDocumento
+            .Where(t => tipoDocumentoIds.Contains(t.Id))
+            .Select(t => new { t.Id, t.Archivado, t.SustitutoId })
+            .ToListAsync(cancellationToken);
+
+        return tipos
+            .Select(t => t.Archivado ? t.SustitutoId : t.Id)
+            .OfType<Guid>()
+            .Distinct()
+            .ToList();
     }
 
     /// <returns>Los Tipos de Documento a copiar (vacío si no hay origen), o null si el origen no es visible.</returns>

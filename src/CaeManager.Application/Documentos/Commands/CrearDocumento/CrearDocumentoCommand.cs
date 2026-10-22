@@ -80,6 +80,13 @@ public class CrearDocumentoCommandHandler(
         if (tipoDocumento is null)
             return Result.Fallo<Guid>(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos este tipo de documento."));
 
+        // Un tipo archivado (catálogo revisado el 2026-10-17) ya no admite altas: lo conservan los Documentos que
+        // lo usaban, y lo nuevo se sube con su sustituto. El selector de alta ya no lo ofrece; esto cierra la API.
+        if (tipoDocumento.Archivado)
+            return Result.Fallo<Guid>(Error.Crear(
+                "Documento.TipoDocumentoArchivado",
+                $"\"{tipoDocumento.Nombre}\" está archivado y ya no admite documentos nuevos."));
+
         var ambitoSolicitado = request.TrabajadorId is not null ? AmbitoAplicacion.Trabajador
             : request.ClienteId is not null ? AmbitoAplicacion.Cliente
             : request.VehiculoId is not null ? AmbitoAplicacion.Vehiculo

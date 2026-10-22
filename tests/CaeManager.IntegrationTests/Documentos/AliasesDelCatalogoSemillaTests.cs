@@ -47,8 +47,8 @@ public class AliasesDelCatalogoSemillaTests : IAsyncLifetime
     [InlineData("Certificado de aptitud médica", "Apto médico laboral")]
     [InlineData("Entrega de EPI", "EPIS (firma)")]
     [InlineData("Documento de identidad", "DNI o NIE en vigor")]
-    [InlineData("RLC", "RLC/TC1")]
-    [InlineData("RLC", "TC1")]
+    [InlineData("RLC (TC1)", "RLC/TC1")]
+    [InlineData("RLC (TC1)", "TC1")]
     [InlineData("RNT", "RNT/TC2")]
     [InlineData("RNT", "TC2")]
     [InlineData("Servicio de Prevención Ajeno", "SPA")]
@@ -56,6 +56,15 @@ public class AliasesDelCatalogoSemillaTests : IAsyncLifetime
     [InlineData("Planificación de la Actividad Preventiva", "PAP")]
     [InlineData("Tarjeta de identificación fiscal", "Tarjeta CIF")]
     [InlineData("Tarjeta de identificación fiscal", "CIF")]
+    // Revisión del catálogo del 2026-10-17: el nombre anterior de cada tipo renombrado queda como alias.
+    [InlineData("RLC (TC1)", "RLC")]
+    [InlineData("RLC (TC1)", "RLC/TC1 + Recibo de pago")]
+    [InlineData("Formación PRL de convenio", "Formación 60h (base convenio)")]
+    [InlineData("Formación PRL del puesto", "Formación Art. 19")]
+    [InlineData("Información de riesgos del puesto", "Información Art. 18")]
+    [InlineData("Seguro de Responsabilidad Civil", "Seguro de Responsabilidad Civil + recibo de pago")]
+    [InlineData("Mutua de Accidentes", "Mutua")]
+    [InlineData("Informe de trabajadores en alta", "ITA")]
     public async Task El_nombre_nuevo_conserva_el_contaminado_como_alias_buscable(string nombreNuevo, string aliasEsperado)
     {
         var tipo = await _dbContext.TiposDocumento.SingleAsync(t => t.Nombre == nombreNuevo);
@@ -77,13 +86,30 @@ public class AliasesDelCatalogoSemillaTests : IAsyncLifetime
     [Theory]
     [InlineData("RLC/TC1 + Recibo de pago")]
     [InlineData("Recibo de pago RLC/TC1")]
-    [InlineData("Mutua")]
+    [InlineData("Formación EPIs")]
     public async Task Lo_que_T3_no_toca_no_adquiere_alias(string nombreSinTocar)
     {
         var tipo = await _dbContext.TiposDocumento.SingleAsync(t => t.Nombre == nombreSinTocar);
 
         var tieneAlias = await _dbContext.TiposDocumentoAlias.AnyAsync(a => a.TipoDocumentoId == tipo.Id);
 
-        tieneAlias.Should().BeFalse($"\"{nombreSinTocar}\" queda fuera del alcance de T3 (patrón F o problema de fondo)");
+        tieneAlias.Should().BeFalse($"\"{nombreSinTocar}\" está archivado y su nombre vive como alias de su sustituto, no del propio tipo");
+    }
+
+    /// <summary>
+    /// Los 16 alias originales de T3 conservan su Id (90000000-…-000000000001 a …016): la revisión del 2026-10-17
+    /// añade los suyos en el bloque 90000001-… sin borrar ni reinsertar ninguno de los ya sembrados.
+    /// </summary>
+    [Fact]
+    public async Task Los_alias_originales_conservan_su_Id_y_los_nuevos_van_en_su_propio_bloque()
+    {
+        var aliases = await _dbContext.TiposDocumentoAlias.Select(a => new { a.Id, a.Texto }).ToListAsync();
+        var porId = aliases.ToDictionary(a => a.Id, a => a.Texto);
+
+        porId[new Guid("90000000-0000-0000-0000-000000000001")].Should().Be("Apto médico laboral");
+        porId[new Guid("90000000-0000-0000-0000-000000000003")].Should().Be("DNI o NIE en vigor");
+        porId[new Guid("90000000-0000-0000-0000-000000000016")].Should().Be("CIF");
+        aliases.Count(a => a.Id.ToString().StartsWith("90000000-", StringComparison.Ordinal)).Should().Be(16);
+        porId[new Guid("90000001-0000-0000-0000-000000000001")].Should().Be("Reconocimiento médico");
     }
 }

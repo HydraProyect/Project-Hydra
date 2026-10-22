@@ -61,7 +61,7 @@ public class ObtenerDocumentacionRequeridaDeCentroQueryTests : IAsyncLifetime
     [Theory]
     [InlineData("Designación de Recursos Preventivos", false)]
     [InlineData("Procedimiento de Coordinación de Actividades Empresariales", false)]
-    [InlineData("Mutua", false)]
+    [InlineData("Mutua de Accidentes", false)]
     [InlineData("Traducción jurada", false)]
     public async Task Los_cuatro_tipos_corregidos_dejan_de_aplicar_por_defecto(string nombre, bool aplicaEsperado)
     {
