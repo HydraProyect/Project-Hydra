@@ -244,3 +244,13 @@
         align-items: flex-start;
     }
 }
+/* Cabecera del desplegable de una Subcontrata en «Documentación Empresa»: a todo lo ancho de la tarjeta, sobre el relleno de la tabla. */
+.centro-documentacion-grupo {
+    margin: 0 calc(-1 * var(--space-4));
+    border-top: 1px solid var(--color-border);
+}
+
+.centro-documentacion-grupo ::deep .grupo-lista {
+    border: 0;
+    border-radius: 0;
+}

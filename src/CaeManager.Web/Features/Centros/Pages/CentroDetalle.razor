@@ -199,52 +199,38 @@
                                     </div>
                                     @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                     @* Como la maqueta del 20-10: una sola lista, lo que bloquea primero y luego lo pendiente de validar. *@
-                                    @foreach (var (empresa, documento) in DocumentosEmpresaOrdenados)
+                                    @foreach (var (empresa, documento) in DocumentosEmpresaOrdenados.Where(x => !x.Empresa.DesdeRelacionSubcontrata))
                                     {
-                                            <div class="centro-documentacion-fila @(BloqueaPlataforma(documento) ? "centro-documentacion-bloquea" : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? "centro-documentacion-pendiente" : null)" role="row" @key="clavesDocumentos.De((empresa.EmpresaId, documento.TipoDocumentoId))">
-                                                <span role="cell" class="centro-documentacion-identidad">
-                                                    <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
-                                                    <span class="centro-documentacion-nombre">
-                                                        <span>@documento.Nombre</span>
-                                                        <span class="centro-documentacion-empresa">
-                                                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</button>
-                                                            <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
-                                                        </span>
-                                                    </span>
-                                                </span>
-                                                <span role="cell" class="centro-documentacion-plataforma">
-                                                    @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
-                                                    {
-                                                        @Textos["PlataformaSinDatos360"]
-                                                    }
-                                                    else
-                                                    {
-                                                        @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
-                                                        {
-                                                            <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
-                                                            <span>@acreditacion.NombrePlataforma</span>
-                                                            <AnotacionEstadoPlataforma Acreditacion="acreditacion" />
-                                                        }
-                                                    }
-                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
-                                                </span>
-                                                <span role="cell" class="centro-documentacion-fecha">
-                                                    <TextoFechaCopiable Fecha="documento.FechaVencimiento" FechaEmision="documento.FechaEmision">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
-                                                </span>
-                                                <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
-                                                @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia en Centro 360. *@
-                                                <span role="cell" class="celda-accion-plataforma">
-                                                    @if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
-                                                    {
-                                                        @foreach (var acreditacion in acreditacionesAccion)
-                                                        {
-                                                            <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@_detalle.Nombre"
-                                                                                    Acreditacion="acreditacion" DocumentoNombre="@documento.Nombre"
-                                                                                    TitularNombre="@empresa.Nombre" OnCambio="RecargarTrasCambioPlataformaAsync" />
-                                                        }
-                                                    }
-                                                </span>
+                                        @FilaDocumentoEmpresa((empresa, documento, clavesDocumentos))
+                                    }
+                                    @*
+                                        Bloque 4 del 21-10: la documentación de cada Empresa subcontratada (Subcontrata) va en un
+                                        desplegable propio, plegado por defecto, tras la de las Empresas del Centro. Misma cabecera que
+                                        «Agrupar» (#1570) y el mismo «Ver los N restantes» de las filas largas.
+                                    *@
+                                    @foreach (var subcontrata in SubcontratasConDocumentos)
+                                    {
+                                        var claveSubcontrata = "docs:" + subcontrata.EmpresaId;
+                                        var subcontrataAbierta = _subcontratasAbiertas.EstaAbierto(claveSubcontrata);
+                                        <div role="row" class="centro-documentacion-grupo" @key="clavesDocumentos.De(claveSubcontrata)" data-subcontrata-docs>
+                                            <div role="cell">
+                                                <CabeceraGrupoLista Nombre="@subcontrata.Nombre" Total="subcontrata.Documentos.Count"
+                                                                    Incidencias="subcontrata.Documentos.Count(DocumentoConIncidencia)"
+                                                                    Abierto="subcontrataAbierta" OnAlternar="() => _subcontratasAbiertas.Alternar(claveSubcontrata)" />
                                             </div>
+                                        </div>
+                                        @if (subcontrataAbierta)
+                                        {
+                                            var documentosSubcontrata = subcontrata.Documentos.OrderBy(OrdenDocumentoSubcontrata).ToList();
+                                            @foreach (var documento in VerRestantes.Recortar(documentosSubcontrata, _subcontratasCompletas.Contains(subcontrata.EmpresaId)))
+                                            {
+                                                @FilaDocumentoEmpresa((subcontrata, documento, clavesDocumentos))
+                                            }
+                                            <div role="row"><div role="cell">
+                                                <VerRestantes Total="documentosSubcontrata.Count" Completa="_subcontratasCompletas.Contains(subcontrata.EmpresaId)"
+                                                          OnVerRestantes="() => _subcontratasCompletas.Add(subcontrata.EmpresaId)" />
+                                            </div></div>
+                                        }
                                     }
                                     @foreach (var empresaSinDocumentos in _documentacionEmpresas.Where(e => e.Documentos.Count == 0))
                                     {
@@ -341,6 +327,55 @@
 </LimiteDeErrores>
 
 @code {
+    /// <summary>Una fila de la tabla de documentación de Empresa (la de una Empresa del Centro o la de una Subcontrata).</summary>
+    private RenderFragment<(DocumentacionEmpresaCentroDto Empresa, DocumentoEmpresaCentroDto Documento, ClavesDeHermanos Claves)> FilaDocumentoEmpresa => fila => @<text>
+        @{ var (empresa, documento, clavesDocumentos) = fila; }
+                                            <div class="centro-documentacion-fila @(BloqueaPlataforma(documento) ? "centro-documentacion-bloquea" : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? "centro-documentacion-pendiente" : null)" role="row" @key="clavesDocumentos.De((empresa.EmpresaId, documento.TipoDocumentoId))">
+                                                <span role="cell" class="centro-documentacion-identidad">
+                                                    <span class="centro-documentacion-t" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                                    <span class="centro-documentacion-nombre">
+                                                        <span>@documento.Nombre</span>
+                                                        <span class="centro-documentacion-empresa">
+                                                            <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirEmpresaDocumentacion(empresa)">@empresa.Nombre</button>
+                                                            <Boton360 Nombre="@empresa.Nombre" OnClick="() => IrAEmpresaDocumentacion(empresa)" />
+                                                        </span>
+                                                    </span>
+                                                </span>
+                                                <span role="cell" class="centro-documentacion-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+                                                    {
+                                                        @Textos["PlataformaSinDatos360"]
+                                                    }
+                                                    else
+                                                    {
+                                                        @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
+                                                        {
+                                                            <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
+                                                            <span>@acreditacion.NombrePlataforma</span>
+                                                            <AnotacionEstadoPlataforma Acreditacion="acreditacion" />
+                                                        }
+                                                    }
+                                                    <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
+                                                </span>
+                                                <span role="cell" class="centro-documentacion-fecha">
+                                                    <TextoFechaCopiable Fecha="documento.FechaVencimiento" FechaEmision="documento.FechaEmision">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
+                                                </span>
+                                                <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
+                                                @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia en Centro 360. *@
+                                                <span role="cell" class="celda-accion-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
+                                                    {
+                                                        @foreach (var acreditacion in acreditacionesAccion)
+                                                        {
+                                                            <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@_detalle!.Nombre"
+                                                                                    Acreditacion="acreditacion" DocumentoNombre="@documento.Nombre"
+                                                                                    TitularNombre="@empresa.Nombre" OnCambio="RecargarTrasCambioPlataformaAsync" />
+                                                        }
+                                                    }
+                                                </span>
+                                            </div>
+    </text>;
+
     private RenderFragment CanalesDeGestion => __builder =>
     {
         if (_detalle is not null)

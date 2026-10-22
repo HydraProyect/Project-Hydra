@@ -109,8 +109,31 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     private IEnumerable<(DocumentacionEmpresaCentroDto Empresa, DocumentoEmpresaCentroDto Documento)> DocumentosEmpresaOrdenados =>
         _documentacionEmpresas
             .SelectMany(e => e.Documentos.Select(d => (Empresa: e, Documento: d)))
-            .OrderBy(x => BloqueaPlataforma(x.Documento) ? 0
-                : x.Documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? 1 : 2);
+            .OrderBy(x => OrdenDocumentoEmpresa(x.Documento));
+
+    private static int OrdenDocumentoEmpresa(DocumentoEmpresaCentroDto documento) => BloqueaPlataforma(documento) ? 0
+        : documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true ? 1 : 2;
+
+    /// <summary>
+    /// Bloque 4 del 21-10: las Empresas subcontratadas con documentación exigida en el Centro, cada una en su desplegable de
+    /// «Documentación Empresa». Salen tras las Empresas del Centro, en el orden en que las devuelve la consulta.
+    /// </summary>
+    private IEnumerable<DocumentacionEmpresaCentroDto> SubcontratasConDocumentos =>
+        _documentacionEmpresas.Where(e => e.DesdeRelacionSubcontrata && e.Documentos.Count > 0);
+
+    /// <summary>Desplegables de Subcontrata abiertos mientras dure la vista: todos nacen plegados, como los grupos de «Agrupar».</summary>
+    private readonly GruposAbiertos _subcontratasAbiertas = new();
+
+    /// <summary>Subcontratas cuya lista de documentos ya se pidió completa («Ver los N restantes»).</summary>
+    private readonly HashSet<Guid> _subcontratasCompletas = [];
+
+    /// <summary>Orden dentro de una Subcontrata: lo que cuenta la pastilla de incidencias va primero, para que «Ver los N restantes» nunca esconda un rojo.</summary>
+    private static int OrdenDocumentoSubcontrata(DocumentoEmpresaCentroDto documento) =>
+        DocumentoConIncidencia(documento) ? 0 : OrdenDocumentoEmpresa(documento);
+
+    /// <summary>Un documento «con incidencia» es el que bloquea en la plataforma o está en rojo en TALVEG (vencido o faltante).</summary>
+    private static bool DocumentoConIncidencia(DocumentoEmpresaCentroDto documento) =>
+        BloqueaPlataforma(documento) || EstadoDocumentoFicha360.Tono(documento.Estado) == TonoBadge.Peligro;
 
     private IReadOnlyList<PestanaDefinicion> Pestanas =>
     [
@@ -307,6 +330,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         InvalidarCargas();
 
         _documentacionEmpresas = [];
+        _subcontratasAbiertas.PlegarTodos();
+        _subcontratasCompletas.Clear();
         _requisitosCentro = [];
         _lecturaDocumentacionCentro = null;
         _lecturaRequisitosCentro = null;
