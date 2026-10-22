@@ -583,6 +583,8 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agruparPorCliente = valor == ValorAgruparPorCliente;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPorCliente ? ValorAgruparPorCliente : null);
         await CargarAsync(resetPagina: true);
     }

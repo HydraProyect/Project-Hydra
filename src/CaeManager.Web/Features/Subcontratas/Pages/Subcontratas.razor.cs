@@ -172,6 +172,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void CambiarAgrupacion(string? valor)
     {
         _agruparPor = valor;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear();
+        _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
     }
 
@@ -185,11 +188,15 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// con dos Empresas contratantes sale en los dos). La selección masiva, el foco y los atajos operan sobre estas, nunca
     /// sobre filas ocultas por un grupo plegado.
     /// </summary>
+    /// <remarks>
+    /// Agrupada, sale de <see cref="GruposDePagina"/> y en su orden (grupos por nombre de Empresa contratante), para que
+    /// j/k recorran las filas en el mismo orden en que se pintan; una Subcontrata que sale en dos grupos abiertos cuenta una
+    /// vez, en el primero.
+    /// </remarks>
     private List<SubcontrataListaDto> FilasPintadas => _agruparPor is null
         ? _elementosPagina
-        : _elementosPagina.Where(s => (s.Contratantes.Count == 0
-            ? _gruposAbiertos.EstaAbierto(string.Empty)
-            : s.Contratantes.Any(e => _gruposAbiertos.EstaAbierto(e.Id.ToString())))).ToList();
+        : GruposDePagina.Where(g => _gruposAbiertos.EstaAbierto(g.Clave))
+            .SelectMany(g => g.Filas).DistinctBy(s => s.Id).ToList();
 
     /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
     private void AlternarGrupo(string clave)

@@ -111,6 +111,8 @@ public partial class Visitas
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agruparPor = valor == "cliente" ? valor : null;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", _agruparPor);
         await RecargarAsync();
     }

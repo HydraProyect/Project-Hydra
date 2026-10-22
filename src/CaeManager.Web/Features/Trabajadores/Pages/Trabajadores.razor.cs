@@ -673,6 +673,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private async Task CambiarAgrupacionAsync(string? valor)
     {
         _agrupar = AgrupacionValida(valor);
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupado ? _agrupar : null);
         await RecargarAsync();
     }

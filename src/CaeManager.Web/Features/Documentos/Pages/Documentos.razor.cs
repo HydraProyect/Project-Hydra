@@ -834,6 +834,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private async Task CambiarAgrupacionAsync(bool agrupar)
     {
         _agruparPorAmbito = agrupar;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         await RecargarAsync();
     }
     private string _ambitoFiltro = string.Empty;
