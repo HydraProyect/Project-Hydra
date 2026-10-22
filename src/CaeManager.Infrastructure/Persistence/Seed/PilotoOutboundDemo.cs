@@ -212,6 +212,14 @@ public sealed record FechasPilotoOutbound(DateOnly FechaDemostracion)
     public DateOnly Vigente(int i) => FechaDemostracion.AddDays(75 + Positivo(i) % 240);
     public DateOnly Proximo(int i) => FechaDemostracion.AddDays(20 + Positivo(i) % 2);
     public DateOnly Urgente(int i) => FechaDemostracion.AddDays(5 + Positivo(i) % 2);
+
+    /// <summary>
+    /// Si un vencimiento fijo a <paramref name="dias"/> días de D está «Urgente» todos los días en que se puede sembrar,
+    /// de D−<see cref="OpcionesPilotoOutbound.MargenMaximoDias"/> a D: no ha vencido el día D y, sembrado el primer día
+    /// del margen, ya queda dentro del umbral rojo. Con el margen de nueve días y el umbral de quince, de D+1 a D+6.
+    /// </summary>
+    public static bool EsUrgenteEnTodoElMargen(int dias) =>
+        dias >= 1 && dias + OpcionesPilotoOutbound.MargenMaximoDias <= UmbralRojoDias;
     public DateOnly Vencido(int i) => FechaDemostracion.AddDays(-(10 + Positivo(i) % 81));
 
     /// <summary>Emisión de un documento que no caduca o que nadie ha confirmado: no hay vencimiento del que calcularla.</summary>

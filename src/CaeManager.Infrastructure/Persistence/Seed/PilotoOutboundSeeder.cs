@@ -33,8 +33,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de
-/// demostración con Asignación de Operación sobre siete Tenants propietarios
-/// (<see cref="CatalogoPilotoOutbound"/>), cada uno con un estado objetivo
+/// demostración con Asignación de Operación sobre cada Tenant propietario del catálogo
+/// (<see cref="CatalogoPilotoOutbound.Tenants"/>), cada uno con un estado objetivo
 /// declarado y comprobable el día de la demostración. No retoca ninguna otra
 /// siembra: es un lote aparte, con sus propios Tenants.
 ///
@@ -77,7 +77,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </para>
 ///
 /// <para>
-/// <b>Instrucción de tratamiento de IA.</b> Los siete Tenants reciben una, vigente y
+/// <b>Instrucción de tratamiento de IA.</b> Todos los Tenants del lote reciben una, vigente y
 /// marcada como borrador de demostración (<see cref="SembrarInstruccionTratamientoIaAsync"/>):
 /// sin ella el Asistente IA falla cerrado para toda cuenta que los tenga en su cartera.
 /// La autoverificación lo exige para la Gestora CAE y la Coordinadora CAE del piloto.
@@ -238,7 +238,7 @@ public static class PilotoOutboundSeeder
                 dbContext, tenantPropietarioId, tenant.Nombre, equipo.Administrador.Id, logger, cancellationToken);
 
             await AbrirOperacionExternaAsync(
-                dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo, logger, cancellationToken);
+                dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo, parametros.FechaDemostracion, logger, cancellationToken);
 
             await SembrarTarifasDelOperadorAsync(
                 dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador.Id, ++ordinalDeTarifa, cancellationToken);
@@ -558,7 +558,7 @@ public static class PilotoOutboundSeeder
     /// <b>Es un borrador de demostración, nunca una aceptación real.</b> Mismas versiones
     /// Draft y mismo origen que la siembra de demo
     /// (<see cref="DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync"/>):
-    /// ningún Tenant propietario del piloto ha aceptado nada, y los siete llevan el marcador
+    /// ningún Tenant propietario del piloto ha aceptado nada, y todos llevan el marcador
     /// de datos de demo. Como allí, «quien la registró» es una cuenta de la propia siembra
     /// —aquí, el Administrador del Tenant del Operador CAE externo—, no un Actor de
     /// Plataforma TALVEG.
@@ -683,7 +683,7 @@ public static class PilotoOutboundSeeder
     /// </summary>
     private static async Task AbrirOperacionExternaAsync(
         CaeManagerDbContext dbContext, TenantPilotoOutbound tenant, Guid tenantPropietarioId, Guid tenantOperadorId,
-        Equipo equipo, ILogger logger, CancellationToken cancellationToken)
+        Equipo equipo, DateOnly fechaDemostracion, ILogger logger, CancellationToken cancellationToken)
     {
         await DelegacionDemoSeeder.CrearDelegacionAsync(
             dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador, logger, tenant.Nombre, cancellationToken);
@@ -716,7 +716,7 @@ public static class PilotoOutboundSeeder
                 dbContext, new TenantActualAmbiental { TenantId = tenantPropietarioId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
 
             await writer.AbrirOperacionDelegadaAsync(
-                tenantPropietarioId, tenantOperadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                tenantPropietarioId, tenantOperadorId, InicioDeLaOperacionExterna(fechaDemostracion), vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var gestorId in gestores)
@@ -731,6 +731,32 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
+    /// Desde cuándo opera el Operador CAE externo cada Tenant beneficiario del lote: doce meses antes de la demostración
+    /// (decisión de la coordinadora, 2026-10-22, opción C). Es anterior a toda alta de Centro que la siembra reparte
+    /// (<see cref="AltaDeCentro"/>, como mucho a <see cref="DiasMaximosDeAltaDeCentro"/> días de hoy),
+    /// así que «Centros nuevos» de la facturación del Cuadro de dirección, que solo cuenta las altas dentro de la vigencia
+    /// de la Asignación de Operación, las ve todas. Es solo la vigencia sembrada: la siembra es idempotente y a una
+    /// operación ya abierta no la toca.
+    /// </summary>
+    public static DateTime InicioDeLaOperacionExterna(DateOnly fechaDemostracion) =>
+        fechaDemostracion.AddMonths(-12).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+    /// <summary>A cuántos días de hoy, como mucho, se da de alta un Centro del lote.</summary>
+    public const int DiasMaximosDeAltaDeCentro = 199;
+
+    /// <summary>
+    /// Cuándo se dio de alta el Centro <paramref name="numero"/> (desde 1) de un Tenant: el primero, hoy, para que el mes
+    /// de la siembra tenga «Centros nuevos»; el resto, a <c>(numero−1)·53 mód 200</c> días, en meses distintos. Si la
+    /// demostración cae en el mes siguiente al de la siembra (se siembra hasta nueve días antes), su mes sale con 0
+    /// Centros nuevos: un alta no puede ser futura. Para enseñarlo, sembrar en el mismo mes que la demostración. Nunca antes de su Cliente empresarial (200 días o más) ni
+    /// del inicio de la Asignación de Operación (<see cref="InicioDeLaOperacionExterna"/>).
+    /// </summary>
+    public static DateTime AltaDeCentro(int numero, DateTime ahora) =>
+        numero < 1
+            ? throw new ArgumentOutOfRangeException(nameof(numero), numero, "Los Centros se numeran desde 1.")
+            : ahora.AddDays(-((numero - 1) * 53 % (DiasMaximosDeAltaDeCentro + 1)));
+
+    /// <summary>
     /// Referencia a la cláusula que lleva el Encargo de administración sembrado. Dice lo que es: no hay contrato
     /// detrás, y la cláusula contractual sigue pendiente de revisión legal (no vale con datos reales).
     /// </summary>
@@ -742,7 +768,7 @@ public static class PilotoOutboundSeeder
     /// Administrador propio (decisión de Chris, 2026-10-16, opción A). Dos piezas, las dos idempotentes:
     /// <list type="number">
     /// <item><b>Su Asignación de Cartera</b> del Tenant entero, con rol Coordinador CAE y sin marca de principal,
-    /// en los ocho Tenants. Es la misma que emite el producto al escalar o asumir el principal
+    /// en todos los Tenants beneficiarios del lote. Es la misma que emite el producto al escalar o asumir el principal
     /// (<c>EscaladoDePrincipalDeCartera</c>). Desde la decisión Chris 2026-10-20 ni la cartera ni el encargo deciden
     /// su rol: el Administrador del Operador CAE externo entra como Administrador, con todos sus poderes, en todos los
     /// Tenants de la Asignación de Operación de su organización, también en C, que tiene Administrador propio. La
@@ -810,7 +836,19 @@ public static class PilotoOutboundSeeder
         try
         {
             await constructor.ConstruirAsync();
-            await dbContext.SaveChangesAsync(cancellationToken);
+
+            // El guardado y el retroceso de las fechas de vida, en una sola transacción: si el retroceso falla a mitad, el
+            // Tenant no queda guardado con parte de sus altas en hoy, sino sin datos (y la limpieza de abajo quita sus PDF).
+            // Dentro de la estrategia de reintento, como TransaccionDeComando; sin aceptar los cambios hasta confirmar, para
+            // que un reintento vuelva a insertar lo que la transacción deshecha no dejó escrito.
+            await dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async ct =>
+            {
+                await using var transaccion = await dbContext.Database.BeginTransactionAsync(ct);
+                await dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: false, ct);
+                await RetrocederFechasDeVidaAsync(dbContext, constructor.FechasDeVida, gestoraPrimeraId, ct);
+                await transaccion.CommitAsync(ct);
+            }, cancellationToken);
+            dbContext.ChangeTracker.AcceptAllChanges();
         }
         catch
         {
@@ -830,10 +868,6 @@ public static class PilotoOutboundSeeder
             dbContext.ChangeTracker.Clear();
             throw;
         }
-
-        // Fuera del bloque que limpia los PDF: lo guardado ya los referencia. Si esto fallara, el Tenant queda sembrado con
-        // las altas de hoy, que es lo que había antes de repartirlas.
-        await RetrocederFechasDeVidaAsync(dbContext, constructor.FechasDeVida, gestoraPrimeraId, cancellationToken);
 
         recuento.Documentos += constructor.Documentos;
         recuento.Pdf += constructor.ClavesDePdf.Count;
@@ -1002,7 +1036,7 @@ public static class PilotoOutboundSeeder
                         IdentidadesPilotoOutbound.Direccion(numero, especificacionCentro.Localidad),
                         contratoVigenteHasta: D.AddDays(300 + numero * 20));
                     dbContext.Centros.Add(centro);
-                    FechasDeVida[centro.Id] = (typeof(Centro), ahora.AddDays(-(30 + numero * 53 % 170)), null);
+                    FechasDeVida[centro.Id] = (typeof(Centro), AltaDeCentro(numero, ahora), null);
                     centros.Add(centro);
                     _clienteEmpresarialDelCentro[centro.Id] = clienteEmpresarial.Id;
 
@@ -1959,9 +1993,10 @@ public static class PilotoOutboundSeeder
         private DateOnly VencimientoUrgente()
         {
             if (tenant.UrgentesVencenALosDias is not { } dias) return _fechas.Urgente(Siguiente());
-            if (dias is < 1 or > 15)
+            if (!FechasPilotoOutbound.EsUrgenteEnTodoElMargen(dias))
                 throw new InvalidOperationException(
-                    $"{tenant.Clave}: un vencimiento a {dias} días de la demostración no es «Urgente» (de uno a quince días).");
+                    $"{tenant.Clave}: un vencimiento a {dias} días de la demostración no es «Urgente» todos los días en que se " +
+                    $"puede sembrar (de D−{OpcionesPilotoOutbound.MargenMaximoDias} a D).");
             return D.AddDays(dias);
         }
 
