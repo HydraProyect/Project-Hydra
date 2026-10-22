@@ -118,6 +118,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.CrearMacroCommandHandler",
         "Comunicaciones.CrearNotaInternaConversacionCommandHandler",
         "Comunicaciones.DescartarRecordatorioConversacionCommandHandler",
+        "Comunicaciones.RestaurarRecordatorioConversacionCommandHandler",
         "Comunicaciones.DescartarSugerenciaGestionCorreoCommandHandler",
         "Comunicaciones.DescartarSugerenciaVisitaCorreoCommandHandler",
         "Comunicaciones.EditarMacroCommandHandler",
