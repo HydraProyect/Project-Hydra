@@ -38,7 +38,11 @@ else
                 <Badge Tono="@(registro.Accion switch { "Creado" => TonoBadge.Exito, "Eliminado" => TonoBadge.Peligro, _ => TonoBadge.Advertencia })">
                     @registro.Accion
                 </Badge>
-                <span class="workspace-historial-usuario" title="@NombreUsuario(registro.UsuarioId)">@NombreUsuario(registro.UsuarioId)</span>
+                <span class="workspace-historial-autor">
+                    <AvatarUsuario Nombre="@NombreUsuario(registro.UsuarioId)" Variante="@VarianteUsuario(registro.UsuarioId)"
+                                   Tamano="TamanoAvatarUsuario.Pequeno" UsarIniciales="true" />
+                    <span class="workspace-historial-usuario" title="@NombreUsuario(registro.UsuarioId)">@NombreUsuario(registro.UsuarioId)</span>
+                </span>
                 <span class="workspace-historial-fecha">@registro.FechaUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</span>
             </li>
         }
@@ -51,6 +55,7 @@ else
 
     private IReadOnlyList<RegistroAuditoriaListaDto> _registros = [];
     private readonly Dictionary<Guid, string> _usuariosPorId = new();
+    private readonly HashSet<Guid> _usuariosEliminados = [];
     private bool _cargando = true;
     private bool _error;
     private (string EntidadTipo, Guid EntidadId)? _claveCargada;
@@ -92,6 +97,8 @@ else
                 {
                     var usuario = await UserManager.FindByIdAsync(id.ToString());
                     _usuariosPorId[id] = usuario?.NombreCompleto ?? usuario?.Email ?? "(usuario eliminado)";
+                    if (usuario is null)
+                        _usuariosEliminados.Add(id);
                 }
             });
         }
@@ -104,6 +111,10 @@ else
             _cargando = false;
         }
     }
+
+    private VarianteAvatarUsuario VarianteUsuario(Guid? usuarioId) =>
+        usuarioId is null ? VarianteAvatarUsuario.Sistema :
+        _usuariosEliminados.Contains(usuarioId.Value) ? VarianteAvatarUsuario.Eliminado : VarianteAvatarUsuario.Persona;
 
     private string NombreUsuario(Guid? usuarioId) =>
         usuarioId is null ? "Sistema" : _usuariosPorId.GetValueOrDefault(usuarioId.Value, "—");

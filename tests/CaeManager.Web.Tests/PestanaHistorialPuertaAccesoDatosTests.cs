@@ -34,7 +34,7 @@ namespace CaeManager.Web.Tests;
 /// precondición (esperar la puerta), no la excepción de EF.
 /// </para>
 /// </summary>
-public class PestanaHistorialPuertaAccesoDatosTests : BunitContext
+public partial class PestanaHistorialPuertaAccesoDatosTests : BunitContext
 {
     private sealed class MediatorHistorial(IReadOnlyList<RegistroAuditoriaListaDto> filas) : IMediator
     {
