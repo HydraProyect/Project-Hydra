@@ -53,7 +53,7 @@ namespace CaeManager.Web.Tests;
 /// que delega en <c>PestanaDocumentacion</c> (aquí sustituida por un doble).
 /// </para>
 /// </summary>
-public class Proyecto360PaginaTests : BunitContext
+public partial class Proyecto360PaginaTests : BunitContext
 {
     public Proyecto360PaginaTests()
     {
@@ -105,11 +105,13 @@ public class Proyecto360PaginaTests : BunitContext
         public bool TecnicoSinAsignarAlCentro { get; set; }
         public bool FallarDocumentacionPorCentro { get; set; }
         public FraccionCumplimiento FraccionDelTecnico { get; set; } = new(5, 5);
+        public List<TecnicoProyectoDto> TecnicosAdicionales { get; } = [];
+        public Dictionary<Guid, EstadoDocumento> EstadosPorTrabajador { get; } = [];
 
-        private IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.CentroDocumentacionTrabajadorDto> DocumentacionPorCentro() =>
+        private IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.CentroDocumentacionTrabajadorDto> DocumentacionPorCentro(Guid trabajadorId) =>
             TecnicoSinAsignarAlCentro ? [] :
             [new(Guid.NewGuid(), CentroId, "Sede Sevilla", ClienteId, "Umbrella Corporation Ibérica S.A.", new DateOnly(2026, 6, 2),
-                EstadoDelTecnico ?? EstadoDocumento.Vigente, [], FraccionDelTecnico, FraccionDelTecnico)];
+                EstadosPorTrabajador.GetValueOrDefault(trabajadorId, EstadoDelTecnico ?? EstadoDocumento.Vigente), [], FraccionDelTecnico, FraccionDelTecnico)];
 
         public List<RequisitoEventoDto> Requisitos { get; } = [];
         public List<TipoDocumentoListaDto> TiposDocumento { get; } = [];
@@ -145,6 +147,7 @@ public class Proyecto360PaginaTests : BunitContext
                     new DateOnly(2026, 6, 2), DiaDeNegocio.Hoy(), EstaActivo: false)
                 : new TecnicoProyectoDto(TecnicoActivoId, TrabajadorActivoId, "Salas Moreno, Javier",
                     new DateOnly(2026, 6, 2), null, EstaActivo: true),
+            .. TecnicosAdicionales,
         ];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -174,7 +177,7 @@ public class Proyecto360PaginaTests : BunitContext
                 ObtenerTecnicosProyectoQuery when FallarTecnicos => throw new InvalidOperationException("fallo simulado de los técnicos"),
                 ObtenerTecnicosProyectoQuery => Tecnicos(),
                 CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery when FallarDocumentacionPorCentro => throw new InvalidOperationException("fallo simulado de la documentación por Centro"),
-                CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery => DocumentacionPorCentro(),
+                CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroDeTrabajador.ObtenerDocumentacionPorCentroDeTrabajadorQuery q => DocumentacionPorCentro(q.TrabajadorId),
                 ObtenerEmpresasProyectoQuery q => Empresas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerVisitasProyectoQuery q => Visitas.GetValueOrDefault(q.ProyectoId) ?? [],
                 ObtenerVehiculosProyectoQuery q => Vehiculos.GetValueOrDefault(q.ProyectoId) ?? [],
@@ -819,7 +822,7 @@ public class Proyecto360PaginaTests : BunitContext
         await fila.QuerySelector(".fila-relacion-nombre")!.ClickAsync(new MouseEventArgs());
         Services.GetRequiredService<ContextWorkspaceService>().FrameActual.Should().Be(new WorkspaceFrame(desdeEmpresaDirecta ? EntidadWorkspace.Empresa : EntidadWorkspace.Subcontrata, empresaId, "Empresa empleadora A", "informacion"));
         var consultas = _mediador.Enviados.Count;
-        await cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Visitas").ClickAsync(new MouseEventArgs());
+        await cut.Find("[role=tab][id$='-tab-visitas']").ClickAsync(new MouseEventArgs());
         Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("pestana=visitas").And.Contain("extra=conservar");
         _mediador.Enviados.Should().HaveCount(consultas);
         await cut.InvokeAsync(() => patron.OnAbrir360.InvokeAsync());
@@ -898,7 +901,7 @@ public class Proyecto360PaginaTests : BunitContext
     public void Visitas_sin_resultados_declara_el_periodo_visible()
     {
         var cut = Renderizar(AbiertoId, "?pestana=visitas");
-        cut.Markup.Should().Contain("Sin visitas visibles del Centro en este periodo.");
+        cut.Markup.Should().Contain("Sin visitas en este periodo");
     }
 
     [Fact]
@@ -923,10 +926,11 @@ public class Proyecto360PaginaTests : BunitContext
         var rotulos = cut.FindAll("[role=tab]").Select(t => t.TextContent.Trim()).ToList();
         rotulos.Should().HaveCount(7);
         rotulos[0].Should().StartWith("Técnicos");
-        rotulos[1].Should().Be("Empresas");
-        rotulos[2].Should().Be("Vehículos");
+        rotulos[1].Should().StartWith("Empresas");
+        rotulos[2].Should().StartWith("Vehículos");
         rotulos[3].Should().StartWith("Documentos");
-        rotulos.Skip(4).Should().Equal("Visitas", "Ficha", "Historial");
+        rotulos[4].Should().StartWith("Visitas");
+        rotulos.Skip(5).Should().Equal("Ficha", "Historial");
     }
 
     [Fact]
@@ -973,7 +977,7 @@ public class Proyecto360PaginaTests : BunitContext
     {
         var cut = Renderizar(CerradoId, "?pestana=vehiculos");
 
-        cut.Markup.Should().Contain("Sin vehículos visibles de las Empresas empleadoras con técnicos activos.");
+        cut.Markup.Should().Contain("Sin vehículos asignados");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain(t => t.Contains("Asignar vehículo"));
     }
 
@@ -984,7 +988,7 @@ public class Proyecto360PaginaTests : BunitContext
         var cut = Renderizar(AbiertoId, "?pestana=vehiculos");
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("No se han podido cargar los vehículos de las Empresas empleadoras."));
-        cut.FindAll("[role=tab]").Single(t => t.TextContent.Trim() == "Empresas").Click();
+        cut.Find("[role=tab][id$='-tab-empresas']").Click();
         cut.Markup.Should().NotContain("No se han podido cargar las Empresas empleadoras.");
     }
 
