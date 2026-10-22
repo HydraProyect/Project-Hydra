@@ -118,6 +118,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.CrearMacroCommandHandler",
         "Comunicaciones.CrearNotaInternaConversacionCommandHandler",
         "Comunicaciones.DescartarRecordatorioConversacionCommandHandler",
+        "Comunicaciones.RestaurarRecordatorioConversacionCommandHandler",
         "Comunicaciones.DescartarSugerenciaGestionCorreoCommandHandler",
         "Comunicaciones.DescartarSugerenciaVisitaCorreoCommandHandler",
         "Comunicaciones.EditarMacroCommandHandler",
@@ -150,6 +151,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.RenovarDocumentoCommandHandler",
         "Documentos.ResolverRevisionIaDocumentoCommandHandler",
         "Documentos.RestaurarAnotacionAcreditacionCommandHandler",
+        "Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler",
+        "Documentos.DeshacerCambioEstadoAcreditacionCommandHandler",
         "Documentos.RestaurarDocumentoCommandHandler",
 
         // Empresas
@@ -215,6 +218,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         // Subcontratas
         "Subcontratas.CambiarNivelServicioSubcontrataCommandHandler",
         "Subcontratas.CrearSubcontrataCommandHandler",
+        "Subcontratas.ActualizarVerificacionExternaSubcontrataCommandHandler",
         "Subcontratas.EditarSubcontrataCommandHandler",
         "Subcontratas.EliminarSubcontrataCommandHandler",
         "Subcontratas.EliminarSubcontratasCommandHandler",
@@ -223,6 +227,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Subcontratas.GuardarNotaInternaSubcontrataCommandHandler",
         "Subcontratas.RegistrarVerificacionExternaSubcontrataCommandHandler",
         "Subcontratas.RestaurarSubcontrataCommandHandler",
+        "Subcontratas.RestaurarVerificacionExternaSubcontrataCommandHandler",
 
         // Telemetria
         "Telemetria.RegistrarTramoGestionCommandHandler",

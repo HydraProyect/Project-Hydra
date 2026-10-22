@@ -35,6 +35,13 @@ public class AcreditacionDocumentoPlataformaConfiguration : IEntityTypeConfigura
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(a => a.HistorialRechazos).UsePropertyAccessMode(PropertyAccessMode.Field);
 
+        // Cambios de estado anotados a mano desde Centro 360: mismo patrón que el historial de rechazos.
+        builder.HasMany(a => a.CambiosEstado)
+            .WithOne()
+            .HasForeignKey(c => c.AcreditacionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(a => a.CambiosEstado).UsePropertyAccessMode(PropertyAccessMode.Field);
+
         // Vigencia en esta plataforma: dos columnas, porque son dos datos. La
         // propiedad Vigencia que las une es una vista de solo lectura que valida
         // la coherencia al leer, no una tercera columna.

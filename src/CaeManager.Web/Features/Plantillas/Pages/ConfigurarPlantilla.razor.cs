@@ -245,7 +245,7 @@ public partial class ConfigurarPlantilla : CaeManager.Web.Components.PaginaInter
 
     private async Task CargarTiposDocumentoAsync()
     {
-        _tiposDocumentoDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: _ambitoAplicacion));
+        _tiposDocumentoDisponibles = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: _ambitoAplicacion, ParaAltaNueva: true));
         if (_tipoDocumentoId is { } id && _tiposDocumentoDisponibles.All(t => t.Id != id))
             _tipoDocumentoId = null;
     }

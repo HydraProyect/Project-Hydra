@@ -245,14 +245,14 @@ public class CalculoEstadoSubcontrataService(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridosGlobal.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
 
         // Un documento operativo por par en el caso normal; con duplicados sin resolver manda el efectivo.
         var documentosPorPar = DocumentoEfectivo.UnoPorClave(
-            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         foreach (var trabajadorId in trabajadorIds)
         {
@@ -266,7 +266,7 @@ public class CalculoEstadoSubcontrataService(
                     ? CalculadoraEstadoDocumento.Calcular(documento!.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                     : EstadoDocumento.Faltante;
 
-                var alDia = actual.AlDia + (CumplimientoDocumental.EsConforme(estado) ? 1 : 0);
+                var alDia = actual.AlDia + (CumplimientoDocumental.EsConforme(estado, tieneDocumento && documento!.EsRenuncia) ? 1 : 0);
                 actual = (alDia, actual.Requeridos + 1);
 
                 // Sin vigencia confirmada no cuenta como al día en el porcentaje (no suma arriba) pero

@@ -111,7 +111,7 @@ public class SugerenciaGestionCorreoService(
             .ToListAsync(cancellationToken);
 
         var tiposDocumento = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Trabajador && !t.Archivado)
             .Select(t => new TipoDocumentoCandidatoGestionDto(t.Id, t.Nombre))
             .ToListAsync(cancellationToken);
 

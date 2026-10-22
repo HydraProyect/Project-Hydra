@@ -61,6 +61,13 @@ public class DocumentoConfiguration : IEntityTypeConfiguration<Documento>
         builder.Property(d => d.ArchivoUrl).HasMaxLength(Documento.LongitudMaximaArchivoUrl);
         builder.Property(d => d.Comentarios).HasMaxLength(Documento.LongitudMaximaComentarios);
 
+        // Datos adicionales del catálogo aprobado el 2026-10-17. El rango de Horas (1–999) lo guarda también la base,
+        // no solo el dominio. Nivel como cadena, igual que el resto de enums persistidos de la casa.
+        builder.Property(d => d.Nivel).HasConversion<string>().HasMaxLength(20);
+        builder.ToTable(t => t.HasCheckConstraint(
+            "CK_Documentos_HorasEnRango",
+            $"\"Horas\" IS NULL OR (\"Horas\" >= {Documento.HorasMinimas} AND \"Horas\" <= {Documento.HorasMaximas})"));
+
         // Perfilado con datos sintéticos a escala (20 tenants, ~24k Documentos,
         // EXPLAIN (ANALYZE, BUFFERS) real — auditoría Módulo 8, 2026-08-31):
         // estos cinco SÍ se usan, y solo para el punto de escritura "¿ya existe

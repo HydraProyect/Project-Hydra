@@ -17,7 +17,7 @@ namespace CaeManager.Application.Documentos;
 /// <para>
 /// Orden (el primero es el efectivo):
 /// <list type="number">
-/// <item><b>Válido hoy</b> antes que vencido — vencido es <c>FechaVencimiento &lt; hoy</c> según
+/// <item><b>Válido hoy</b> (<see cref="ValidoHoy"/>; un documento en renuncia nunca lo es) antes que vencido — vencido es <c>FechaVencimiento &lt; hoy</c> según
 /// <see cref="CalculadoraEstadoDocumento"/>; los umbrales ámbar/rojo no intervienen (Próximo y Urgente valen).
 /// «Sin confirmar» y «No caduca» no están vencidos.</item>
 /// <item><b>Nominativo antes que general</b> (D3): el emitido a nombre del Cliente empresarial del requisito gana al
@@ -42,10 +42,12 @@ public static class DocumentoEfectivo
     /// <summary>
     /// ¿Vale hoy? No está vencido: sin fecha (No caduca o Sin confirmar) o con fecha &gt;= hoy. Es la definición única de
     /// «vencido» para elegir y para decidir qué viaja en el paquete; no incluye tolerancia ni periodicidad del Centro.
+    /// Un documento en renuncia (<see cref="Documento.EsRenuncia"/>, catálogo del 2026-10-17) nunca vale: no sustituye al
+    /// apto, así que pierde frente a cualquier documento que valga y no viaja en el paquete como si acreditara.
     /// </summary>
-    public static bool ValidoHoy(EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly hoy) =>
+    public static bool ValidoHoy(EstadoVigenciaDocumento estadoVigencia, DateOnly? fechaVencimiento, DateOnly hoy, bool esRenuncia) =>
         // Los umbrales no afectan a "Vencido"; 0/0 basta y evita leer ParametrosSistema.
-        CalculadoraEstadoDocumento.Calcular(estadoVigencia, fechaVencimiento, hoy, 0, 0) != EstadoDocumento.Vencido;
+        !esRenuncia && CalculadoraEstadoDocumento.Calcular(estadoVigencia, fechaVencimiento, hoy, 0, 0) != EstadoDocumento.Vencido;
 
     /// <summary>Los candidatos en orden de preferencia: el primero es el efectivo.</summary>
     public static IOrderedEnumerable<T> Ordenar<T>(
@@ -55,10 +57,11 @@ public static class DocumentoEfectivo
         Func<T, DateOnly> fechaEmision,
         Func<T, DateTime> creadoEnUtc,
         Func<T, Guid> id,
+        Func<T, bool> esRenuncia,
         DateOnly hoy,
         Func<T, bool>? esNominativo = null) =>
         candidatos
-            .OrderByDescending(d => ValidoHoy(estadoVigencia(d), fechaVencimiento(d), hoy))
+            .OrderByDescending(d => ValidoHoy(estadoVigencia(d), fechaVencimiento(d), hoy, esRenuncia(d)))
             .ThenByDescending(d => esNominativo?.Invoke(d) ?? false)
             .ThenByDescending(fechaEmision)
             .ThenByDescending(d => estadoVigencia(d) != EstadoVigenciaDocumento.SinConfirmar)
@@ -74,9 +77,10 @@ public static class DocumentoEfectivo
         Func<T, DateOnly> fechaEmision,
         Func<T, DateTime> creadoEnUtc,
         Func<T, Guid> id,
+        Func<T, bool> esRenuncia,
         DateOnly hoy,
         Func<T, bool>? esNominativo = null) where TClave : notnull =>
         candidatos
             .GroupBy(clave)
-            .ToDictionary(g => g.Key, g => Ordenar(g, estadoVigencia, fechaVencimiento, fechaEmision, creadoEnUtc, id, hoy, esNominativo).First());
+            .ToDictionary(g => g.Key, g => Ordenar(g, estadoVigencia, fechaVencimiento, fechaEmision, creadoEnUtc, id, esRenuncia, hoy, esNominativo).First());
 }

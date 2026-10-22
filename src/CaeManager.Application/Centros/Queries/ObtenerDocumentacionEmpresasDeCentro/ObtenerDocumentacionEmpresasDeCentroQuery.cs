@@ -65,7 +65,7 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
         var situacion = await situacionDocumentos.CargarAsync([request.CentroId], docs.Select(d => d.Id).ToList(), [], [], ct);
         var efectivos = DocumentoEfectivo.UnoPorClave<Documento, (Guid, Guid)>(docs,
             d => (d.EmpresaId!.Value, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
-            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
         var parametros = await configuracion.ParametrosSistema.SingleAsync(ct);
         var resultado = new List<DocumentacionEmpresaCentroDto>();
         foreach (var empresa in empleadoras)

@@ -254,7 +254,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         {
             var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), token);
             if (!EsVigente(carga)) return;
-            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador), token);
+            var tipos = await Mediator.Send(new ObtenerTiposDocumentoQuery(AmbitoAplicacion: AmbitoAplicacion.Trabajador, ParaAltaNueva: true), token);
             if (!EsVigente(carga)) return;
             _trabajadoresDisponibles = trabajadores;
             _tiposDisponibles = tipos;

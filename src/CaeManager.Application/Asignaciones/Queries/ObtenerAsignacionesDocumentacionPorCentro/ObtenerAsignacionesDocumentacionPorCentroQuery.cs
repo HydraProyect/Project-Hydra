@@ -173,7 +173,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
             .Where(d => d.TrabajadorId != null
                 && trabajadorIds.Contains(d.TrabajadorId!.Value)
                 && tipoIdsRequeridos.Contains(d.TipoDocumentoId))
-            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, TrabajadorId = d.TrabajadorId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -190,7 +190,7 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
 
         // El documento que representa a cada par Trabajador×Tipo: el mismo que usa el % del Centro.
         var preferidosPorPar = DocumentoEfectivo.UnoPorClave(
-            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            documentosExistentes, d => (d.TrabajadorId, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         var documentosPorTrabajador = documentosExistentes
             .GroupBy(d => d.TrabajadorId)
@@ -279,7 +279,8 @@ public class ObtenerAsignacionesDocumentacionPorCentroQueryHandler(
                         ? CalculadoraEstadoDocumento.Calcular(
                             preferido.EstadoVigencia, preferido.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias)
                         : EstadoDocumento.Faltante,
-                    pendientesQueBajanElPorcentaje.Contains((asignacion.TrabajadorId, tipo.Id)))),
+                    pendientesQueBajanElPorcentaje.Contains((asignacion.TrabajadorId, tipo.Id)),
+                    preferido is { EsRenuncia: true })),
                 ContextoCumplimiento.Centro);
 
             resultado.Add(new TrabajadorAsignacionDocumentacionDto(

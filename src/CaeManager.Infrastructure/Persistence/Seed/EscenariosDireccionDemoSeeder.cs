@@ -324,7 +324,7 @@ public static class EscenariosDireccionDemoSeeder
 
     private const string AptitudMedica = "Certificado de aptitud médica";
     private const string EntregaEpi = "Entrega de EPI";
-    private const string FormacionArt19 = "Formación Art. 19";
+    private const string FormacionArt19 = "Formación PRL del puesto";
     private const string DocumentoIdentidad = "Documento de identidad";
     private const string PermisoResidencia = "Permiso de residencia";
     private const string RegistroUe = "Certificado de Registro de Ciudadano de la UE";

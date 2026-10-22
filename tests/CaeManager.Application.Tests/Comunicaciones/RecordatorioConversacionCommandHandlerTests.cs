@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Commands.AprobarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Commands.DescartarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
+using CaeManager.Application.Comunicaciones.Commands.RestaurarRecordatorioConversacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerRecordatorioPropuestoConversacion;
 using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
@@ -218,6 +219,45 @@ public class RecordatorioConversacionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Restaurar_deshace_el_descarte_y_exige_la_cartera()
+    {
+        var (conversacion, propuesta) = Sembrar();
+        (await CrearDescartar().Handle(
+            new DescartarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None)).EsExitoso.Should().BeTrue();
+
+        var denegado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, SinCarteraSobreElCliente(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None);
+        denegado.EsFallido.Should().BeTrue();
+        denegado.Error.Codigo.Should().Be("Conversacion.NoEncontrada", "fuera de cartera no se delata la conversación");
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
+
+        var resultado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, new AlcanceDatosServiceFalso(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(conversacion.Id, propuesta.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Pendiente);
+        conversacion.Mensajes.Should().BeEmpty("deshacer el descarte no envía nada");
+        _unitOfWork.VecesGuardado.Should().Be(2, "un guardado del descarte y otro de la restauración");
+    }
+
+    [Fact]
+    public async Task Restaurar_una_propuesta_de_otra_conversacion_falla()
+    {
+        var (_, propuesta) = Sembrar();
+        var (otra, _) = Sembrar();
+        propuesta.Descartar(DateTime.UtcNow).EsExitoso.Should().BeTrue();
+
+        var resultado = await new RestaurarRecordatorioConversacionCommandHandler(
+                _conversaciones, _propuestas, new AlcanceDatosServiceFalso(), _unitOfWork, _descarte)
+            .Handle(new RestaurarRecordatorioConversacionCommand(otra.Id, propuesta.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Recordatorio.NoEncontrado");
+        propuesta.Estado.Should().Be(EstadoPropuestaRecordatorio.Descartada);
+    }
+
+    [Fact]
     public async Task La_consulta_solo_devuelve_la_propuesta_vigente_y_dentro_de_cartera()
     {
         var (conversacion, propuesta) = Sembrar();
@@ -237,6 +277,35 @@ public class RecordatorioConversacionCommandHandlerTests
         (await new ObtenerRecordatorioPropuestoConversacionQueryHandler(contexto, new AlcanceDatosServiceFalso())
                 .Handle(new ObtenerRecordatorioPropuestoConversacionQuery(conversacion.Id), CancellationToken.None))
             .Should().BeNull("la espera terminó aunque el proceso de fondo aún no la haya descartado");
+    }
+
+    [Fact]
+    public async Task El_destinatario_es_el_remitente_del_ultimo_entrante_al_que_responde_el_envio()
+    {
+        // Los mensajes van antes de entrar en la espera: un entrante posterior la terminaría.
+        var conversacion = new Conversacion("Documentación pendiente", clienteId: _clienteId);
+        var contexto = new ComunicacionesQueryContextFalso();
+        var ahora = DateTime.UtcNow;
+        contexto.ListaMensajes.AddRange([
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "antiguo@empresa.example", "a",
+                ahora.AddDays(-12), "ext-1"),
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "real@empresa.example", "b",
+                ahora.AddDays(-11), "ext-2"),
+            conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "sin-id@empresa.example", "c",
+                ahora.AddDays(-10.5)),
+            conversacion.AgregarMensaje(DireccionMensaje.Saliente, CanalConversacion.Correo, "buzon@operador.example", "d",
+                ahora.AddDays(-10.2), "ext-3"),
+        ]);
+        conversacion.CambiarEstado(EstadoConversacion.EsperandoRespuestaExterna, ahora.AddDays(-10)).EsExitoso.Should().BeTrue();
+        var propuesta = PropuestaRecordatorioConversacion.ProponerSiCorresponde(conversacion, ahora, new CalendarioLaboralOperadorCae([]))!;
+        contexto.ListaConversaciones.Add(conversacion);
+        contexto.ListaPropuestasRecordatorioConversacion.Add(propuesta);
+
+        var dto = await new ObtenerRecordatorioPropuestoConversacionQueryHandler(contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerRecordatorioPropuestoConversacionQuery(conversacion.Id), CancellationToken.None);
+
+        dto!.Destinatario.Should().Be("real@empresa.example",
+            "el envío responde al último entrante con id externo: ni a uno sin id ni a un saliente");
     }
 
     private sealed class PropuestasFalsas : IPropuestaRecordatorioConversacionRepository

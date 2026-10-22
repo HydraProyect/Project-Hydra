@@ -218,6 +218,14 @@ public partial class VisitasGen2Tests
             .HasAttribute("checked").Should().BeTrue("la casilla de la fila marcada queda a la vista"));
 
         await cut.FindAll(".barra-acciones-lote button").First(b => b.TextContent.Trim() == "Cancelar seleccionadas").ClickAsync(new MouseEventArgs());
+
+        // Maqueta «Flujos 06 Visitas»: el motivo es obligatorio; sin él, el botón del diálogo está desactivado y no manda nada.
+        var confirmar = cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar seleccionadas");
+        confirmar.HasAttribute("disabled").Should().BeTrue("sin motivo no se cancela");
+        await confirmar.ClickAsync(new MouseEventArgs());
+        mediator.Comandos.OfType<CancelarVisitasCommand>().Should().BeEmpty();
+
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "El Cliente aplaza la parada" });
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar seleccionadas").ClickAsync(new MouseEventArgs());
 
         mediator.Comandos.OfType<CancelarVisitasCommand>().Should().ContainSingle().Which.Ids.Should().Equal(norte.Id);

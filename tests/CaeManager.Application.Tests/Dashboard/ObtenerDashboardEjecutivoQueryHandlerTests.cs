@@ -18,10 +18,13 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         int incidenciasAbiertas = 0, IReadOnlyList<GravedadIncidenciaConteoDto>? incidenciasPorGravedad = null,
         double? tiempoMedioResolucionDias = null, int totalIncidenciasResueltas = 0,
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
-        decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null, decimal? presupuestoMensualIaUsd = null) =>
+        decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null, decimal? presupuestoMensualIaUsd = null,
+        int empresaVencidos = 0, int empresaUrgentes = 0, int empresaProximos = 0) =>
         new(
             Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0,
-                DocumentosSinConfirmar: sinConfirmar, DocumentosSinCaducidad: sinCaducidad),
+                DocumentosSinConfirmar: sinConfirmar, DocumentosSinCaducidad: sinCaducidad,
+                DocumentosEmpresaVencidos: empresaVencidos, DocumentosEmpresaUrgentes: empresaUrgentes,
+                DocumentosEmpresaProximos: empresaProximos),
             TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos + sinConfirmar + sinCaducidad,
             PorcentajeCumplimientoDocumental: porcentajeCumplimientoDocumental,
             TotalRequeridosCumplimiento: totalRequeridosCumplimiento,
@@ -93,6 +96,27 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
 
         resultado.TasaCumplimiento.Should().Be(9);
         resultado.TasaCumplimiento.Should().NotBe(45);
+    }
+
+    [Fact]
+    public void Vencidos_urgentes_y_proximos_suman_los_de_Empresa_como_en_Alertas_pero_la_tasa_solo_mide_los_de_Trabajador()
+    {
+        // Mismo criterio que Inicio y Visión de cartera (KpisDashboardDto.*ComoEnAlertas): el recuento de un Tenant
+        // beneficiario incluye los Documentos de Empresa que avisan; la tasa sigue sobre los de Trabajador.
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Ibertec"), Valores(vigentes: 8, vencidos: 2, empresaVencidos: 3, empresaUrgentes: 1, empresaProximos: 4)),
+            (Cliente("EcoPlant"), Valores(vigentes: 10, urgentes: 1, empresaVencidos: 2)),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.DocumentosVencidos.Should().Be(2 + 3 + 2);
+        resultado.DocumentosUrgentes.Should().Be(1 + 1);
+        resultado.DocumentosProximos.Should().Be(4);
+        resultado.DocumentosVigentes.Should().Be(18);
+        // Al día de Trabajador: 8 + 10 + 1 (el urgente) = 19 de 21; los de Empresa no entran ni en el numerador ni en el denominador.
+        resultado.TasaCumplimiento.Should().Be((int)Math.Round(19 * 100m / 21m));
     }
 
     // La tasa fusionada usa la definición única de CumplimientoDocumental (decisiones del propietario, 2026-10-03):

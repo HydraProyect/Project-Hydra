@@ -82,7 +82,7 @@ public static class GestorCaeCarteraMultiTenantSeeder
     public const string NombreGestorCaeDeApoyo = "Iván Roca (Gestor CAE de apoyo, E2E)";
 
     private const string AptitudMedica = "Certificado de aptitud médica";
-    private const string FormacionArt19 = "Formación Art. 19";
+    private const string FormacionArt19 = "Formación PRL del puesto";
 
     /// <summary>Días hasta el vencimiento del documento «a punto de vencer»: dentro del umbral ámbar (30) y fuera del rojo (15).</summary>
     private const int DiasProximo = 27;

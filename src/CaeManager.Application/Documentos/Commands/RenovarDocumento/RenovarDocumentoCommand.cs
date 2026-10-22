@@ -82,6 +82,14 @@ public class RenovarDocumentoCommandHandler(
         if (tipoDocumento is null)
             return Result.Fallo<Guid>(Error.Crear("Documento.TipoDocumentoNoEncontrado", "No encontramos el tipo de documento asociado."));
 
+        // Mismo cierre que CrearDocumentoCommand: un tipo archivado (catálogo revisado el 2026-10-17) ya no admite
+        // documentos nuevos, y renovar con archivo crea uno; corregir fechas del mismo registro tampoco se reabre.
+        // Lo nuevo se sube con el tipo sustituto.
+        if (tipoDocumento.Archivado)
+            return Result.Fallo<Guid>(Error.Crear(
+                "Documento.TipoDocumentoArchivado",
+                $"\"{tipoDocumento.Nombre}\" está archivado y ya no admite documentos nuevos: sube el documento con su tipo sustituto."));
+
         var vigencia = CalculadoraEstadoDocumento.ResolverVigencia(
             tipoDocumento.AplicaVencimientoAutomatico, tipoDocumento.VigenciaMeses,
             request.FechaEmision, request.FechaVencimientoManual, request.NoCaduca);

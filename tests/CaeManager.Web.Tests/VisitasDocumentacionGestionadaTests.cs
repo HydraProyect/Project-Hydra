@@ -204,6 +204,11 @@ public class VisitasDocumentacionGestionadaTests : BunitContext
             BotonesMarcar(cut).Should().BeEmpty("ya gestionada, no se ofrece marcarla otra vez");
             cut.Find(".drawer-panel").TextContent.Should().Contain("Gestionada el");
         });
+
+        // Maqueta «Flujos 06 Visitas», «Éxito · gestionada»: el aviso ofrece Deshacer y Deshacer quita la marca.
+        var aviso = Services.GetRequiredService<ToastService>().Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+        mediator.MarcasQuitadas.Should().ContainSingle();
     }
 
     /// <summary>
