@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
@@ -33,7 +34,8 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandlerTests
         resultado.EsExitoso.Should().BeTrue();
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
         var cambio = escenario.Acreditacion.CambiosEstado.Should().ContainSingle().Subject;
-        resultado.Valor.Should().Be(cambio.Id);
+        resultado.Valor.CambioId.Should().Be(cambio.Id);
+        resultado.Valor.Version.Should().Be(escenario.Acreditacion.Version);
         cambio.UsuarioId.Should().Be(usuario);
         cambio.EstadoAnterior.Should().Be(EstadoAcreditacion.Subida);
         cambio.Nota.Should().Be("Validado por teléfono");
@@ -89,7 +91,8 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandlerTests
     public async Task Un_documento_fuera_de_la_cartera_no_se_toca()
     {
         var escenario = Escenario.Crear();
-        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()], centroIdsParaGestion: [escenario.CentroId]);
+        // El documento es de un Trabajador: lo que lo saca de la cartera es que su Trabajador no se ve.
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()], centroIdsParaGestion: [escenario.CentroId]);
         var (handler, unitOfWork) = escenario.Handler(alcance);
 
         var resultado = await handler.Handle(
@@ -112,7 +115,9 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandlerTests
         var (deshacer, unitOfWork) = escenario.HandlerDeshacer();
 
         var resultado = await deshacer.Handle(
-            new DeshacerCambioEstadoAcreditacionCommand(escenario.CentroId, escenario.Acreditacion.Id, marcado.Valor), CancellationToken.None);
+            new DeshacerCambioEstadoAcreditacionCommand(
+                escenario.CentroId, escenario.Acreditacion.Id, marcado.Valor.CambioId, marcado.Valor.Version),
+            CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Rechazada);
@@ -134,11 +139,74 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandlerTests
         var (deshacer, unitOfWork) = escenario.HandlerDeshacer();
 
         var resultado = await deshacer.Handle(
-            new DeshacerCambioEstadoAcreditacionCommand(escenario.CentroId, escenario.Acreditacion.Id, primero.Valor), CancellationToken.None);
+            new DeshacerCambioEstadoAcreditacionCommand(
+                escenario.CentroId, escenario.Acreditacion.Id, primero.Valor.CambioId, escenario.Acreditacion.Version),
+            CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be(DeshacerCambioEstadoAcreditacionCommandHandler.CodigoYaNoSePuedeDeshacer);
         escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
         unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Deshacer_con_una_version_que_ya_no_es_la_de_la_acreditacion_falla_por_concurrencia_sin_escribir()
+    {
+        var escenario = Escenario.Crear();
+        var (handler, _) = escenario.Handler();
+        var marcado = await handler.Handle(
+            new CambiarEstadoAcreditacionEnCentroCommand(escenario.CentroId, escenario.Acreditacion.Id, EstadoAcreditacion.Subida, Hoy, null, null),
+            CancellationToken.None);
+        var (deshacer, unitOfWork) = escenario.HandlerDeshacer();
+
+        // Otra persona tocó la acreditación después (A → B → A): la versión que devolvió el cambio ya no vale.
+        var resultado = await deshacer.Handle(
+            new DeshacerCambioEstadoAcreditacionCommand(
+                escenario.CentroId, escenario.Acreditacion.Id, marcado.Valor.CambioId, Guid.NewGuid()),
+            CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    public static TheoryData<string> AlcancesQueNoDejanDeshacer => ["otro Centro", "Centro no gestionado", "documento fuera de cartera"];
+
+    /// <summary>El Deshacer comparte la carga con alcance del comando de cambiar: fuera del alcance, «no encontrada» y sin escribir.</summary>
+    [Theory]
+    [MemberData(nameof(AlcancesQueNoDejanDeshacer))]
+    public async Task Deshacer_fuera_del_alcance_no_toca_la_acreditacion(string caso)
+    {
+        var escenario = Escenario.Crear();
+        var (handler, _) = escenario.Handler();
+        var marcado = await handler.Handle(
+            new CambiarEstadoAcreditacionEnCentroCommand(escenario.CentroId, escenario.Acreditacion.Id, EstadoAcreditacion.Subida, Hoy, null, null),
+            CancellationToken.None);
+        var centroId = caso == "otro Centro" ? Guid.NewGuid() : escenario.CentroId;
+        var alcance = caso switch
+        {
+            "Centro no gestionado" => new AlcanceDatosServiceFalso(centroIdsParaGestion: [Guid.NewGuid()]),
+            "documento fuera de cartera" => new AlcanceDatosServiceFalso(
+                tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()], centroIdsParaGestion: [escenario.CentroId]),
+            _ => new AlcanceDatosServiceFalso(),
+        };
+        var (deshacer, unitOfWork) = escenario.HandlerDeshacer(alcance);
+
+        var resultado = await deshacer.Handle(
+            new DeshacerCambioEstadoAcreditacionCommand(centroId, escenario.Acreditacion.Id, marcado.Valor.CambioId, marcado.Valor.Version),
+            CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
+        escenario.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public void Deshacer_sin_version_esperada_no_pasa_la_validacion()
+    {
+        var validador = new DeshacerCambioEstadoAcreditacionCommandValidator();
+
+        validador.Validate(new DeshacerCambioEstadoAcreditacionCommand(Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.Empty))
+            .IsValid.Should().BeFalse();
     }
 
     [Theory]
@@ -197,11 +265,11 @@ public class CambiarEstadoAcreditacionEnCentroCommandHandlerTests
                 new CurrentUserServiceFalso(usuarioId ?? Guid.NewGuid()), unitOfWork), unitOfWork);
         }
 
-        public (DeshacerCambioEstadoAcreditacionCommandHandler, UnitOfWorkFalso) HandlerDeshacer()
+        public (DeshacerCambioEstadoAcreditacionCommandHandler, UnitOfWorkFalso) HandlerDeshacer(AlcanceDatosServiceFalso? alcance = null)
         {
             var (acreditaciones, documentos, unitOfWork) = Repositorios();
             return (new DeshacerCambioEstadoAcreditacionCommandHandler(
-                acreditaciones, documentos, Centros, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork), unitOfWork);
+                acreditaciones, documentos, Centros, alcance ?? new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork), unitOfWork);
         }
 
         private (AcreditacionDocumentoPlataformaRepositorioFalso, DocumentoRepositorioFalso, UnitOfWorkFalso) Repositorios()

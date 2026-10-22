@@ -10,6 +10,7 @@ using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Centros.Components;
@@ -33,11 +34,14 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
 {
     public GestionarAcreditacionEnPlataformaTests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
+    private string _rol = Roles.GestorCae;
+
     private sealed class MediatorFalso : IMediator
     {
         public IReadOnlyList<TrabajadorAsignacionDocumentacionDto> Trabajadores { get; init; } = [];
         public List<object> Enviados { get; } = [];
         public static readonly Guid CambioId = Guid.NewGuid();
+        public static readonly Guid Version = Guid.NewGuid();
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -47,7 +51,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
                 ObtenerAsignacionesDocumentacionPorCentroQuery => Trabajadores,
                 MarcarAcreditacionAceptadaCommand c => Result.Exito(new ResultadoAnotacionAcreditacionDto(
                     c.AcreditacionId, EstadoAcreditacion.Subida, VigenciaEnPlataforma.SinConfirmar, Guid.NewGuid())),
-                CambiarEstadoAcreditacionEnCentroCommand => Result.Exito(CambioId),
+                CambiarEstadoAcreditacionEnCentroCommand => Result.Exito(new CambioEstadoAnotadoDto(CambioId, Version)),
                 _ when typeof(TResponse) == typeof(Result) => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
@@ -75,7 +79,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
     {
         var mediator = new MediatorFalso { Trabajadores = trabajadores };
         Services.AddLocalization();
-        this.ConRolDeEscritura();
+        this.ConRolDeEscritura(_rol);
         Services.AddScoped<IMediator>(_ => mediator);
         Services.AddScoped<ToastService>();
         Services.AddScoped<ContextWorkspaceService>();
@@ -205,7 +209,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         // Fila 8 del probador (ILL-01): el chip decía «0 Bloqueado» mientras la vista enseñaba los bloqueos de plataforma.
         Registrar(Trabajador(EstadoDocumento.Vigente, Guid.NewGuid(), Acreditacion(estado)));
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(a => a.CentroId, Guid.NewGuid()).Add(a => a.CentroNombre, "Centro Norte")
-            .Add(a => a.MostrarEstadoPlataforma, true).Add(a => a.NombrePlataforma, "Nalanda")
+            .Add(a => a.MostrarEstadoPlataforma, true).Add(a => a.MostrarTotales, true).Add(a => a.NombrePlataforma, "Nalanda")
             .Add(a => a.Bloqueos, Array.Empty<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto>()));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
 
@@ -219,7 +223,7 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
     {
         Registrar(Trabajador(EstadoDocumento.Vigente, Guid.NewGuid(), Acreditacion(EstadoAcreditacion.Aceptada)));
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(a => a.CentroId, Guid.NewGuid()).Add(a => a.CentroNombre, "Centro Norte")
-            .Add(a => a.MostrarEstadoPlataforma, true).Add(a => a.NombrePlataforma, "Nalanda")
+            .Add(a => a.MostrarEstadoPlataforma, true).Add(a => a.MostrarTotales, true).Add(a => a.NombrePlataforma, "Nalanda")
             .Add(a => a.Bloqueos, Array.Empty<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto>()));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ruiz Peña, Ana"));
 
@@ -227,8 +231,10 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         await Task.CompletedTask;
     }
 
-    private (IRenderedComponent<AccionEstadoPlataforma>, MediatorFalso, AcreditacionResumenDto, List<int>) Accion(EstadoAcreditacion estado)
+    private (IRenderedComponent<AccionEstadoPlataforma>, MediatorFalso, AcreditacionResumenDto, List<int>) Accion(
+        EstadoAcreditacion estado, string rol = Roles.GestorCae)
     {
+        _rol = rol;
         var mediator = Registrar();
         var acreditacion = Acreditacion(estado);
         var recargas = new List<int>();
@@ -267,7 +273,39 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         var deshacer = mediator.Enviados.OfType<DeshacerCambioEstadoAcreditacionCommand>().Should().ContainSingle().Subject;
         deshacer.AcreditacionId.Should().Be(acreditacion.Id);
         deshacer.CambioId.Should().Be(MediatorFalso.CambioId);
+        deshacer.VersionEsperada.Should().Be(MediatorFalso.Version, "el Deshacer lleva la versión que devolvió el cambio");
         recargas.Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// Alcance por rol: Consulta ve el estado en la plataforma pero no tiene ni el botón rápido ni «Cambiar». La
+    /// autorización real la pone el comando (AutorizacionEscrituraBehavior); esto solo comprueba que la pantalla no
+    /// ofrece lo que el rol no puede usar.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoAcreditacion.PendienteDeSubir)]
+    [InlineData(EstadoAcreditacion.Subida)]
+    [InlineData(EstadoAcreditacion.Rechazada)]
+    [InlineData(EstadoAcreditacion.Aceptada)]
+    public void Con_rol_de_Consulta_no_hay_boton_rapido_ni_Cambiar(EstadoAcreditacion estado)
+    {
+        var (cut, mediator, _, _) = Accion(estado, Roles.Consulta);
+
+        cut.FindAll("[data-acciones-plataforma]").Should().BeEmpty();
+        cut.FindAll("[data-accion=marcar-rapido-plataforma]").Should().BeEmpty();
+        cut.FindAll("[data-accion=cambiar-estado-plataforma]").Should().BeEmpty();
+        mediator.Enviados.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(Roles.GestorCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    public void Con_rol_de_escritura_hay_boton_rapido_y_Cambiar(string rol)
+    {
+        var (cut, _, _, _) = Accion(EstadoAcreditacion.PendienteDeSubir, rol);
+
+        cut.FindAll("[data-accion=marcar-rapido-plataforma]").Should().ContainSingle();
+        cut.FindAll("[data-accion=cambiar-estado-plataforma]").Should().ContainSingle();
     }
 
     [Fact]
@@ -291,6 +329,10 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         cut.FindAll("[data-campo=motivo-rechazo]").Should().BeEmpty("el motivo solo se pide para un rechazo");
     }
 
+    /// <summary>ModalFormulario no envuelve el contenido en un form: se guarda con su botón primario.</summary>
+    private static Task GuardarEstadoAsync(IRenderedComponent<AccionEstadoPlataforma> cut) =>
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Guardar estado").ClickAsync(new MouseEventArgs());
+
     [Fact]
     public async Task Rechazado_sin_motivo_no_se_envia_y_con_motivo_envia_fecha_motivo_y_nota()
     {
@@ -298,14 +340,14 @@ public class GestionarAcreditacionEnPlataformaTests : BunitContext
         await cut.Find("[data-accion=cambiar-estado-plataforma]").ClickAsync(new MouseEventArgs());
         await cut.Find("[data-estado-plataforma=Rechazada] input").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "on" });
 
-        await cut.Find("[data-modal-estado-plataforma]").Closest("form")!.SubmitAsync();
+        await GuardarEstadoAsync(cut);
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Escribe el motivo"));
         mediator.Enviados.OfType<CambiarEstadoAcreditacionEnCentroCommand>().Should().BeEmpty();
 
         await cut.Find("[data-campo=motivo-rechazo] input, input[data-campo=motivo-rechazo]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "Falta la firma" });
         await cut.Find("[data-campo=nota-estado] input, input[data-campo=nota-estado]").InputAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = "Solicitud 4711" });
-        await cut.Find("[data-modal-estado-plataforma]").Closest("form")!.SubmitAsync();
+        await GuardarEstadoAsync(cut);
 
         cut.WaitForAssertion(() => mediator.Enviados.OfType<CambiarEstadoAcreditacionEnCentroCommand>().Should().ContainSingle());
         var enviado = mediator.Enviados.OfType<CambiarEstadoAcreditacionEnCentroCommand>().Single();
