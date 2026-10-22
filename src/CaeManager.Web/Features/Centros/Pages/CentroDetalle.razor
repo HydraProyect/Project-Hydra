@@ -221,13 +221,15 @@
                                         </div>
                                         @if (subcontrataAbierta)
                                         {
-                                            var documentosSubcontrata = subcontrata.Documentos.OrderBy(OrdenDocumentoEmpresa).ToList();
+                                            var documentosSubcontrata = subcontrata.Documentos.OrderBy(OrdenDocumentoSubcontrata).ToList();
                                             @foreach (var documento in VerRestantes.Recortar(documentosSubcontrata, _subcontratasCompletas.Contains(subcontrata.EmpresaId)))
                                             {
                                                 @FilaDocumentoEmpresa((subcontrata, documento, clavesDocumentos))
                                             }
-                                            <VerRestantes Total="documentosSubcontrata.Count" Completa="_subcontratasCompletas.Contains(subcontrata.EmpresaId)"
+                                            <div role="row"><div role="cell">
+                                                <VerRestantes Total="documentosSubcontrata.Count" Completa="_subcontratasCompletas.Contains(subcontrata.EmpresaId)"
                                                           OnVerRestantes="() => _subcontratasCompletas.Add(subcontrata.EmpresaId)" />
+                                            </div></div>
                                         }
                                     }
                                     @foreach (var empresaSinDocumentos in _documentacionEmpresas.Where(e => e.Documentos.Count == 0))

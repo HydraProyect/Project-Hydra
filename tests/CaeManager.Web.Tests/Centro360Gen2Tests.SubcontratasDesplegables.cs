@@ -98,6 +98,23 @@ public partial class Centro360Gen2Tests
     }
 
     [Fact]
+    public async Task Los_documentos_con_incidencia_de_una_Subcontrata_salen_los_primeros_aunque_haya_mas_de_diez()
+    {
+        var id = Guid.NewGuid();
+        var documentos = Enumerable.Range(1, 12).Select(n => DocumentoVigente($"Documento {n:00}")).ToList();
+        documentos.Add(DocumentoVencido("Seguro vencido"));
+        var cut = await AbrirDocumentacionAsync(id, new DocumentacionEmpresaCentroDto(Guid.NewGuid(), "Montajes Jalón", true, documentos));
+
+        await cut.Find("[data-subcontrata-docs] button.grupo-lista-cabecera").ClickAsync(new MouseEventArgs());
+
+        var filas = cut.FindAll(".centro-documentacion-fila");
+        filas.Should().HaveCount(10);
+        filas[0].QuerySelector(".centro-documentacion-nombre > span")!.TextContent.Trim().Should().Be("Seguro vencido");
+        cut.Find("[data-subcontrata-docs] + [role=row] button[data-accion=ver-restantes], [role=row] > [role=cell] > button[data-accion=ver-restantes]")
+            .Should().NotBeNull();
+    }
+
+    [Fact]
     public async Task Sin_Subcontratas_no_aparece_ningun_desplegable()
     {
         var id = Guid.NewGuid();

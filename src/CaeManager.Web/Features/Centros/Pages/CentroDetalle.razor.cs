@@ -127,6 +127,10 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
     /// <summary>Subcontratas cuya lista de documentos ya se pidió completa («Ver los N restantes»).</summary>
     private readonly HashSet<Guid> _subcontratasCompletas = [];
 
+    /// <summary>Orden dentro de una Subcontrata: lo que cuenta la pastilla de incidencias va primero, para que «Ver los N restantes» nunca esconda un rojo.</summary>
+    private static int OrdenDocumentoSubcontrata(DocumentoEmpresaCentroDto documento) =>
+        DocumentoConIncidencia(documento) ? 0 : OrdenDocumentoEmpresa(documento);
+
     /// <summary>Un documento «con incidencia» es el que bloquea en la plataforma o está en rojo en TALVEG (vencido o faltante).</summary>
     private static bool DocumentoConIncidencia(DocumentoEmpresaCentroDto documento) =>
         BloqueaPlataforma(documento) || EstadoDocumentoFicha360.Tono(documento.Estado) == TonoBadge.Peligro;
@@ -326,6 +330,8 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         InvalidarCargas();
 
         _documentacionEmpresas = [];
+        _subcontratasAbiertas.PlegarTodos();
+        _subcontratasCompletas.Clear();
         _requisitosCentro = [];
         _lecturaDocumentacionCentro = null;
         _lecturaRequisitosCentro = null;
