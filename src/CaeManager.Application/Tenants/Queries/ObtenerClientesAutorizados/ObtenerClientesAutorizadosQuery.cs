@@ -29,7 +29,15 @@ namespace CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 /// escribe también la delegación (<c>CatalogoIncorporacionCartera</c>).
 /// </para>
 /// </summary>
-public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>;
+public record ObtenerClientesAutorizadosQuery : IRequest<IReadOnlyList<ClienteAutorizadoDto>>
+{
+    /// <summary>
+    /// Leer de la base aunque el ámbito tenga la lista memoizada (<see cref="MemoClientesAutorizados"/>), y no
+    /// guardarla. Para las puertas que fallan cerradas sobre la cartera (DEC-33, instrucción de IA), donde un
+    /// Tenant recién incorporado desde otro circuito no puede esperar a la caducidad.
+    /// </summary>
+    public bool LecturaVigente { get; init; }
+}
 
 /// <param name="EsGestionadoPorOperacion">
 /// El usuario gestiona ese Tenant por la vía de Operación (Asignación de Cartera
@@ -174,7 +182,7 @@ public class ObtenerClientesAutorizadosQueryHandler(
         // de las Asignaciones de Operación de su organización; el Gestor CAE, los de su cartera.
         var rolDeOrigen = await currentUserService.ObtenerPerfilQueDecideAlcanceAsync();
 
-        var reales = memo is not null && tenantActual is not null
+        var reales = memo is not null && tenantActual is not null && !request.LecturaVigente
             ? await memo.ObtenerOCalcularAsync(
                 new ClaveMemoClientesAutorizados(
                     usuarioId.Value, tenantOrigenId.Value, rolDeOrigen, tenantActual.TenantId,

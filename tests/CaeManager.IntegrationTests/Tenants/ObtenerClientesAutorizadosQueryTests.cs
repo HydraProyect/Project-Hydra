@@ -103,13 +103,29 @@ public class ObtenerClientesAutorizadosQueryTests : IAsyncLifetime
         contador.Total.Should().Be(lecturasDeUna, "las cinco peticiones de la visita comparten una sola lectura");
         ultima.Should().HaveCount(2);
 
+        var antes = contador.Total;
         tenantActual.TenantId = _clienteDelegante;
         await handler.Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
-        contador.Total.Should().Be(2 * lecturasDeUna, "otro Tenant efectivo es otro contexto RLS: se lee de nuevo");
+        contador.Total.Should().BeGreaterThan(antes, "otro Tenant efectivo es otro contexto RLS: se lee de nuevo");
+        tenantActual.TenantId = _consultora;
 
+        antes = contador.Total;
+        using (AmbitoTenantExplicito.Establecer(_clienteDelegante))
+            await handler.Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
+        contador.Total.Should().BeGreaterThan(antes, "un fan-out con ámbito explícito es otro contexto");
+
+        antes = contador.Total;
+        await handler.Handle(new ObtenerClientesAutorizadosQuery { LecturaVigente = true }, CancellationToken.None);
+        contador.Total.Should().BeGreaterThan(antes, "la lectura vigente de las puertas que fallan cerradas no usa el memo");
+
+        antes = contador.Total;
         memo.Invalidar();
         await handler.Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
-        contador.Total.Should().Be(3 * lecturasDeUna, "tras un Command se lee de nuevo");
+        contador.Total.Should().BeGreaterThan(antes, "tras un Command se lee de nuevo");
+
+        antes = contador.Total;
+        await handler.Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
+        contador.Total.Should().Be(antes, "y lo releído vuelve a servir al resto de la visita");
 
         var otroUsuario = await new ObtenerClientesAutorizadosQueryHandler(
                 contexto, contexto, new CurrentUserServiceFalso(Guid.NewGuid(), _consultora), null, tenantActual, memo)

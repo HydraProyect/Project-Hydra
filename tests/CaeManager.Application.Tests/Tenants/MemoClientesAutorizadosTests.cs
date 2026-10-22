@@ -1,5 +1,9 @@
+using CaeManager.Application.Common;
+using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Domain.Common;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Tenants;
@@ -88,6 +92,38 @@ public class MemoClientesAutorizadosTests
         await new MemoClientesAutorizados().ObtenerOCalcularAsync(Clave, calculo.Calcular, CancellationToken.None);
 
         calculo.Veces.Should().Be(2, "la memoización es de la instancia Scoped (petición o circuito), no global");
+    }
+
+    private sealed record ComandoFalso : ICommand;
+
+    /// <summary>
+    /// La composición real: Scoped (un singleton serviría la lista de un usuario a otro ámbito y un Invalidar de
+    /// uno vaciaría el de todos; un Transient dejaría al behavior invalidando otra instancia que la del handler).
+    /// </summary>
+    [Fact]
+    public async Task Con_AddApplication_es_una_instancia_por_ambito_y_la_misma_que_invalida_el_behavior()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        servicios.Single(d => d.ServiceType == typeof(MemoClientesAutorizados)).Lifetime
+            .Should().Be(ServiceLifetime.Scoped);
+
+        await using var proveedor = servicios.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        await using var ambito = proveedor.CreateAsyncScope();
+        await using var otroAmbito = proveedor.CreateAsyncScope();
+        var memo = ambito.ServiceProvider.GetRequiredService<MemoClientesAutorizados>();
+
+        ambito.ServiceProvider.GetRequiredService<MemoClientesAutorizados>().Should().BeSameAs(memo);
+        otroAmbito.ServiceProvider.GetRequiredService<MemoClientesAutorizados>().Should().NotBeSameAs(memo);
+
+        var calculo = new Calculo();
+        await memo.ObtenerOCalcularAsync(Clave, calculo.Calcular, CancellationToken.None);
+        var behavior = ActivatorUtilities.CreateInstance<InvalidacionAlcanceBehavior<ComandoFalso, Result>>(
+            ambito.ServiceProvider);
+        await behavior.Handle(new ComandoFalso(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+        await memo.ObtenerOCalcularAsync(Clave, calculo.Calcular, CancellationToken.None);
+
+        calculo.Veces.Should().Be(2, "el Command invalidó el memo del mismo ámbito que usa el handler");
     }
 
     [Fact]

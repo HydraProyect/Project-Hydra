@@ -50,7 +50,9 @@ public class ComprobarInstruccionIaCarteraQueryHandler(
 {
     public async Task<InstruccionIaCarteraDto> Handle(ComprobarInstruccionIaCarteraQuery request, CancellationToken cancellationToken)
     {
-        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        // Lectura vigente, sin la memoización del ámbito: esta puerta falla cerrada y un Tenant que acaba de
+        // entrar en la cartera desde otro circuito tiene que comprobarse ya, no al caducar la lista memoizada.
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery { LecturaVigente = true }, cancellationToken);
 
         var con = new List<TenantDeCarteraDto>();
         var sin = new List<TenantDeCarteraDto>();
