@@ -508,7 +508,7 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
 
     private string? ObtenerError(string campo) => _erroresCampo.GetValueOrDefault(campo);
 
-    private async Task CambiarResueltaAsync(Guid id, bool resuelta)
+    private async Task CambiarResueltaAsync(Guid id, bool resuelta, bool ofrecerDeshacer = true)
     {
         try
         {
@@ -520,7 +520,14 @@ public partial class Incidencias : CaeManager.Web.Components.PaginaInteractiva
             }
             else
             {
-                ToastService.Mostrar(resuelta ? Textos["ToastMarcadaResuelta"].Value : Textos["ToastReabierta"].Value, TonoToast.Exito);
+                // Maqueta «Flujos 10 Incidencias y Gestiones»: resolver y reabrir ofrecen Deshacer (la acción contraria).
+                // El propio Deshacer no encadena otro aviso con Deshacer.
+                var aviso = resuelta ? Textos["ToastMarcadaResuelta"].Value : Textos["ToastReabierta"].Value;
+                if (ofrecerDeshacer)
+                    ToastService.Mostrar(aviso, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value,
+                        () => CambiarResueltaAsync(id, !resuelta, ofrecerDeshacer: false));
+                else
+                    ToastService.Mostrar(aviso, TonoToast.Exito);
                 await RecargarAsync();
             }
         }

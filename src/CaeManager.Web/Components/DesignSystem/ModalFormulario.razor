@@ -32,6 +32,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 
 <Modal @ref="_modal" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" HayCambios="HayCambios"
+       Sobretitulo="@Sobretitulo" Subtitulo="@Subtitulo"
        Ancho="Ancho" Bloqueante="Bloqueante"
        CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
        Aviso="@(TieneAviso ? AvisoRender : null)">
@@ -85,6 +86,9 @@
     [Parameter] public bool Visible { get; set; }
     [Parameter] public EventCallback<bool> VisibleChanged { get; set; }
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
+    /// <summary>Antetítulo y subtítulo de la cabecera, los mismos que los de <see cref="Modal"/>.</summary>
+    [Parameter] public string? Sobretitulo { get; set; }
+    [Parameter] public string? Subtitulo { get; set; }
 
     /// <summary>
     /// Obligatorio: si el formulario tiene algo que se perdería al cerrar o salir. Una instantánea de los campos al abrir

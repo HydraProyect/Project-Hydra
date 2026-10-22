@@ -1,6 +1,7 @@
 using CaeManager.Application.Dashboard;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Domain.Dashboard;
+using CaeManager.Domain.Documentos;
 using FluentAssertions;
 using Xunit;
 
@@ -166,6 +167,52 @@ public class ValoracionOperadorCaeTests
 
         cifras.ObrasNuevas!.Valor.Should().Be(3);
         cifras.CentrosNuevosPorCliente!.Select(c => (c.ClienteNombre, c.Centros)).Should().Equal(("Cliente B", 4), ("Cliente A", 3));
+    }
+
+    /// <summary>
+    /// El cumplimiento de contexto Empresa (pares exigidos) se suma por pares, nunca como media de porcentajes; si un Tenant
+    /// no lo trae, el total no se inventa.
+    /// </summary>
+    [Fact]
+    public void El_cumplimiento_de_pares_exigidos_suma_pares_y_sin_dato_de_un_Tenant_queda_a_null()
+    {
+        var a = Medicion() with { CumplimientoExigido = new FraccionCumplimiento(25, 100) };
+        var b = Medicion() with { CumplimientoExigido = new FraccionCumplimiento(9, 10) };
+
+        ObtenerCuadroDireccionQueryHandler.Cifras([a, b], EstadoCifraMensual.Parcial, Marzo).Cumplimiento.Exigido!.Porcentaje
+            .Should().Be(31, "34 de 110 pares, no la media de 25 % y 90 %");
+        ObtenerCuadroDireccionQueryHandler.Cifras([a, Medicion()], EstadoCifraMensual.Parcial, Marzo).Cumplimiento.Exigido
+            .Should().BeNull();
+    }
+
+    [Fact]
+    public void El_cumplimiento_exigido_del_Tenant_solo_cuenta_los_pares_de_sus_Empresas_propias_como_el_listado_de_Empresas()
+    {
+        var propia = Guid.NewGuid();
+        var subcontrata = Guid.NewGuid();
+        var centro = Guid.NewGuid();
+        var otroCentro = Guid.NewGuid();
+        var otraPropia = Guid.NewGuid();
+        ParDocumentalExigido Par(Guid? empresa, EstadoDocumento estado, Guid? enCentro = null) =>
+            new(enCentro ?? centro, Guid.NewGuid(), empresa, Guid.NewGuid(), Guid.NewGuid(), estado, PendienteEnPlataforma: false);
+
+        var pares = new[]
+        {
+            Par(propia, EstadoDocumento.Vigente),
+            Par(propia, EstadoDocumento.Faltante),
+            Par(propia, EstadoDocumento.Vencido),
+            Par(propia, EstadoDocumento.Faltante),
+        }.Concat(Enumerable.Range(0, 20).Select(_ => Par(subcontrata, EstadoDocumento.Vigente)))
+         .Append(Par(null, EstadoDocumento.Vigente))
+         .Append(Par(otraPropia, EstadoDocumento.Faltante, otroCentro))
+         .Append(Par(propia, EstadoDocumento.Vigente, otroCentro));
+        var centrosPorEmpresa = new HashSet<(Guid, Guid)> { (propia, centro), (otraPropia, otroCentro) };
+
+        var fraccion = ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, centrosPorEmpresa);
+
+        fraccion.Should().Be(new FraccionCumplimiento(1, 5),
+            "la subcontrata que comparte Centro, el Trabajador sin Empresa y el par de un evento en el Centro de otra Empresa propia no entran: es la suma de las filas de Empresa 360");
+        ObtenerCumplimientoExigidoTenantQueryHandler.DeEmpresasPropias(pares, new HashSet<(Guid, Guid)>()).Requeridos.Should().Be(0);
     }
 
     [Fact]

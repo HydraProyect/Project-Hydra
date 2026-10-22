@@ -189,7 +189,16 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente.DocumentacionBloqueantePendienteDto> BloqueosEfectivos =>
         Bloqueos ?? _bloqueosPropios;
 
-    private bool EstaBloqueado(Guid trabajadorId) => BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId);
+    /// <summary>
+    /// «Bloqueado» del Trabajador: un bloqueo de acceso del Centro o, en Centro 360, un documento que bloquea en la plataforma
+    /// CAE del Cliente (Rechazado o Pendiente de subir, bloque 3 del 21-10). Con la misma regla cuentan la fila, su pastilla
+    /// «Bloquea acceso», el orden y el filtro con su contador: un rechazo de la plataforma deja al Trabajador bloqueado.
+    /// </summary>
+    private bool EstaBloqueado(Guid trabajadorId) =>
+        BloqueosEfectivos.Any(b => b.TrabajadorId == trabajadorId) || BloqueaEnPlataforma(trabajadorId);
+
+    private bool BloqueaEnPlataforma(Guid trabajadorId) =>
+        MostrarEstadoPlataforma && _trabajadores.Any(t => t.TrabajadorId == trabajadorId && t.Documentos.Any(BloqueaPlataforma));
 
     private IReadOnlyList<DocumentacionBloqueantePendienteDto> BloqueosDe(Guid trabajadorId) =>
         BloqueosEfectivos.Where(b => b.TrabajadorId == trabajadorId).ToList();
@@ -269,7 +278,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     /// </summary>
     private readonly HashSet<Guid> _expandidosTrabajador = [];
 
-    /// <summary>Fila plegable de la Empresa: desplegada de entrada, porque el bloque solo existe cuando hay incidencias que resolver.</summary>
+    /// <summary>
+    /// Fila plegable de la Empresa. En Centro 360 va desplegada de entrada, porque el bloque solo existe cuando hay incidencias que
+    /// resolver. Dentro de la fila desplegada de /centros (ModoListado) nace contraída, como todo lo desplegable de los listados
+    /// (decisión 2026-10-21, #1530): se abre con su chevron.
+    /// </summary>
     private bool _empresaDesplegada = true;
 
     private IReadOnlyList<TrabajadorSinAsignacionDto> _trabajadoresVisitaSinAsignacion = [];
@@ -282,7 +295,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        _empresaDesplegada = !ModoListado;
+    }
 
     /// <summary>
     /// Apagar "Selección múltiple" limpia la selección de trabajadores — mismo
@@ -590,7 +607,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     // La fila compacta no repite el estado en el motivo; la gestión conserva el desglose existente.
     private string MotivoTrabajadorListado(TrabajadorAsignacionDocumentacionDto trabajador)
     {
-        if (EstaBloqueado(trabajador.TrabajadorId)) return DescripcionBloqueo(trabajador.TrabajadorId);
+        if (BloqueosDe(trabajador.TrabajadorId).Count > 0) return DescripcionBloqueo(trabajador.TrabajadorId);
         var documentos = trabajador.Documentos.Where(d =>
             EstadoDocumentoFicha360.Clave(d.Estado) == EstadoDocumentoFicha360.Clave(trabajador.PeorEstado)).ToList();
         if (documentos.Count > 1) return Textos["ListadoDocumentosIncidencia", documentos.Count];

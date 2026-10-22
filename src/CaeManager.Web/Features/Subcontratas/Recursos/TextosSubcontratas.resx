@@ -478,7 +478,7 @@
     <value>Evidencia</value>
   </data>
   <data name="AyudaEvidenciaVerificacion" xml:space="preserve">
-    <value>Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Opcional.</value>
+    <value>Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Obligatoria.</value>
   </data>
   <data name="ToastVerificacionGuardada" xml:space="preserve">
     <value>Verificación de «{0}» guardada.</value>
@@ -964,4 +964,12 @@
   <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Todo lo exigido está validado en las plataformas de sus Clientes.</value></data>
   <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360</value></data>
   <data name="AriaIrAlCentro360" xml:space="preserve"><value>Ir al Centro 360 de {0}</value></data>
+  <data name="TituloDrawerVerificacionEdicion" xml:space="preserve"><value>Verificación externa</value></data>
+  <data name="BotonEditarVerificacion" xml:space="preserve"><value>Editar</value></data>
+  <data name="AriaEditarVerificacion" xml:space="preserve"><value>Editar la verificación de {0} en {1}</value></data>
+  <data name="ErrorEvidenciaObligatoria" xml:space="preserve"><value>Adjunta la captura o el PDF del registro.</value></data>
+  <data name="EvidenciaActualVerificacion" xml:space="preserve"><value>Evidencia actual: {0}. Elige otro archivo para sustituirla.</value></data>
+  <data name="ErrorActualizarVerificacion" xml:space="preserve"><value>No pudimos guardar los cambios de la verificación. Intenta nuevamente en unos segundos.</value></data>
+  <data name="ToastVerificacionRecuperada" xml:space="preserve"><value>Verificación de «{0}» recuperada.</value></data>
+  <data name="ToastErrorDeshacerVerificacion" xml:space="preserve"><value>No pudimos deshacer el cambio de la verificación.</value></data>
 </root>

@@ -462,12 +462,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             // en paralelo con los componentes del layout (ver PuertaAccesoDatos).
             await PuertaAccesoDatos.EjecutarAsync(async () =>
             {
-                // Para un Operador Delegado se muestra el rol de la asignación
-                // (Consulta/GestorCae/CoordinadorCae), no su rol de origen: un
-                // operador de soporte es Administrador en el tenant de
-                // plataforma, pero CurrentUserService.ObtenerRolEfectivoAsync ya
-                // lo acota al operar aquí — mostrar "Administrador" contradice
-                // esa restricción y alarma sin motivo a quien lo ve.
+                // Para un Operador Delegado se muestra el rol que ejerce aquí, con la
+                // misma regla que /delegaciones (TenantsBeneficiariosAutorizados.
+                // RolEjercidoEnTenantBeneficiario, decisión Chris 2026-10-20): su perfil de
+                // origen si su organización opera el Tenant entero; si no, o si es Soporte
+                // TALVEG, el rol de la asignación. Lo decide DirectorioUsuariosTenant.
                 var rolesDelegados = await ObtenerRolesDelegadosAsync(token);
 
                 // Dos consultas para toda la página, no una por fila: las
@@ -615,8 +614,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>
     /// El rol que entra aquí es el <b>efectivo en esta organización</b>: para
-    /// un Operador Delegado, el de su asignación aquí y no el de su tenant de
-    /// origen. Es el mismo que se pinta en la columna Rol, y tiene que serlo —
+    /// un Operador Delegado, el que ejerce aquí
+    /// (<c>DirectorioUsuariosTenant.ObtenerRolesDeOperadoresDelegadosAsync</c>). Es el mismo que se pinta en la columna Rol, y tiene que serlo —
     /// decir "Administrador" en una columna y calcular el alcance con otra
     /// cosa sería peor que no decir nada.
     /// </summary>

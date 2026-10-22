@@ -3,6 +3,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Empresas.Pages;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components;
@@ -66,7 +67,7 @@ public partial class EmpresasListaGen2Tests
         UltimaConsulta(e.Mediador).ClienteEmpresarialId.Should().BeNull("la URL no activa el filtro");
         UltimaConsulta(e.Mediador).ConClientePrincipal.Should().BeFalse();
         cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(3, "control positivo: la lista de sus Empresas se ve entera");
-        cut.FindAll(".cabecera-grupo-empresas").Should().BeEmpty();
+        cut.FindAll("[data-grupo-cliente]").Should().BeEmpty();
     }
 
     [Fact]
@@ -153,7 +154,7 @@ public partial class EmpresasListaGen2Tests
     {
         var e = ConClientes();
         var cut = Renderizar(e.Mediador);
-        cut.FindAll(".cabecera-grupo-empresas").Should().BeEmpty("sin agrupar no hay títulos de grupo");
+        cut.FindAll("[data-grupo-cliente]").Should().BeEmpty("sin agrupar no hay títulos de grupo");
 
         await ElegirEnLaPastilla(cut, "Agrupar", "Por Cliente");
 
@@ -161,15 +162,19 @@ public partial class EmpresasListaGen2Tests
         consulta.OrdenarPor.Should().Be(nameof(EmpresaListaDto.ClientePrincipal));
         consulta.ConClientePrincipal.Should().BeTrue();
         ParametroDeUrl(cut, "agrupar").Should().Be("cliente");
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-empresas").Select(g => g.TextContent.Trim()).Should().Equal(
-            ["Cyberdyne Iberica S.A.· 2", "Sin Cliente visible· 1"],
+        cut.WaitForAssertion(() => cut.TitulosDeGrupo().Should().Equal(
+            ["Cyberdyne Iberica S.A. · 2", "Sin Cliente visible · 1"],
             "Aragon sirve a dos Clientes y sale una sola vez, bajo el primero por razón social; las sin Cliente, al final"));
+        consulta.TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada,
+            "agrupada, la pantalla pide todas las filas filtradas: el tamaño de página no corta los grupos");
+        RazonesSociales(cut).Should().BeEmpty("los grupos nacen plegados: sus Empresas no se pintan");
+        cut.AbrirGrupos();
         RazonesSociales(cut).Should().Equal(["Aragon Montajes S.L.", "Basauri Obras S.L.", "Castro Servicios S.L."]);
         cut.Find("header.cabecera-pagina a[data-keytip=X]").GetAttribute("href").Should().NotContain("agrupar");
 
         await ElegirEnLaPastilla(cut, "Agrupar", "Sin agrupar");
 
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-empresas").Should().BeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("[data-grupo-cliente]").Should().BeEmpty());
         UltimaConsulta(e.Mediador).ConClientePrincipal.Should().BeFalse();
         ParametroDeUrl(cut, "agrupar").Should().BeEmpty();
     }
@@ -181,7 +186,7 @@ public partial class EmpresasListaGen2Tests
         var cut = Renderizar(e.Mediador, "empresas?agrupar=cliente");
 
         UltimaConsulta(e.Mediador).ConClientePrincipal.Should().BeTrue();
-        cut.FindAll(".cabecera-grupo-empresas").Should().HaveCount(2);
+        cut.FindAll("[data-grupo-cliente]").Should().HaveCount(2);
     }
 
     /// <summary>
@@ -199,7 +204,9 @@ public partial class EmpresasListaGen2Tests
         cut.WaitForAssertion(() => RazonesSociales(cut).Should().Equal(["Aragon Montajes S.L."]));
 
         await ElegirEnLaPastilla(cut, "Agrupar", "Por Cliente");
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-empresas").Select(g => g.TextContent.Trim()).Should().Equal(["Cyberdyne Iberica S.A.· 1"]));
+        cut.WaitForAssertion(() => cut.TitulosDeGrupo().Should().Equal(["Cyberdyne Iberica S.A. · 1"]));
+        cut.AbrirGrupos();
+        RazonesSociales(cut).Should().Equal(["Aragon Montajes S.L."]);
         cut.Markup.Should().NotContain("Basauri Obras S.L.");
     }
 
@@ -213,6 +220,6 @@ public partial class EmpresasListaGen2Tests
 
         cut.WaitForAssertion(() => UltimaConsulta(e.Mediador).EmpresaId.Should().Be(e.Aragon.Id));
         UltimaConsulta(e.Mediador).ConClientePrincipal.Should().BeTrue("la fila refrescada sigue bajo su grupo");
-        cut.FindAll(".cabecera-grupo-empresas").Should().HaveCount(2);
+        cut.FindAll("[data-grupo-cliente]").Should().HaveCount(2);
     }
 }

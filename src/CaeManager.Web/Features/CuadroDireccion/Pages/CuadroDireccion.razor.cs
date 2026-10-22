@@ -104,6 +104,12 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     private bool _errorSerie;
     private ComunicacionesCuadroDireccionDto? _comunicaciones;
     private bool _cargandoComunicaciones;
+    private bool _cargandoExtranjeros;
+    private bool _errorExtranjeros;
+    private bool _cargandoGestiones;
+    private bool _errorGestiones;
+    private bool _errorAnual;
+    private bool _errorAnualFacturacion;
     private GestionesPorDiaCuadroDireccionDto? _gestionesDia;
     private SerieCuadroDireccionDto? _anual;
     private bool _cargandoAnual;
@@ -231,6 +237,19 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     /// <summary>Mientras el mes se calcula (el cuadro o su serie), no se cambia de mes: dos cargas a la vez se pisarían.</summary>
     private bool Cargando => (_cuadro is null && !_error) || _cargandoSerie;
 
+    /// <summary>
+    /// ¿Sigue en vuelo alguna parte del cuadro (el mes, la serie, los extranjeros, las conversaciones o las gestiones por día)?
+    /// Es lo que mantiene la barra de progreso de la cabecera: en cuanto la última llega o falla, la barra se completa y se retira.
+    /// </summary>
+    private bool CargandoAlgo =>
+        (_cuadro is null && !_error) || _cargandoSerie || _cargandoExtranjeros || _cargandoComunicaciones || _cargandoGestiones;
+
+    // Las fases del texto de la barra, ya localizadas. Se resuelven una vez por página.
+    private IReadOnlyList<string>? _mensajesCarga;
+
+    private IReadOnlyList<string> MensajesCarga => _mensajesCarga ??=
+        [Textos["CargaFaseEmpresas"].Value, Textos["SerieCargando"].Value, Textos["CargaFasePreparando"].Value];
+
     private bool EsVigente(int version) => !_desechado && version == _versionCarga;
 
     private async Task CargarAsync()
@@ -246,6 +265,10 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         _gestionesDia = null;
         _anual = null;
         _anualFacturacion = null;
+        // Una carga que se sustituye en vuelo no deja encendido el estado de la anterior: las suyas las enciende CargarSecundariosAsync.
+        _cargandoSerie = _cargandoComunicaciones = _cargandoExtranjeros = _cargandoGestiones = false;
+        _cargandoAnual = _cargandoAnualFacturacion = false;
+        _errorSerie = _errorExtranjeros = _errorGestiones = _errorAnual = _errorAnualFacturacion = false;
         StateHasChanged();
 
         CuadroDireccionDto cuadro;
@@ -278,6 +301,8 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
     {
         _cargandoSerie = true;
         _cargandoComunicaciones = true;
+        _cargandoExtranjeros = true;
+        _cargandoGestiones = true;
         _errorSerie = false;
         StateHasChanged();
 
@@ -291,11 +316,12 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Logger.LogError(ex, "Error al cargar la serie del Cuadro de dirección.");
-            _errorSerie = true;
+            if (EsVigente(version)) _errorSerie = true;
         }
         finally
         {
-            _cargandoSerie = false;
+            // Una carga que ya no es la vigente no apaga el «Calculando» (ni enciende el error) de la que la sustituyó.
+            if (EsVigente(version)) _cargandoSerie = false;
         }
 
         // La serie se pinta en cuanto llega o falla: las piezas que siguen (extranjeros, conversaciones, gestiones por
@@ -317,7 +343,16 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Logger.LogError(ex, "Error al contar los Trabajadores extranjeros del mes.");
+            if (EsVigente(version)) _errorExtranjeros = true;
         }
+        finally
+        {
+            if (EsVigente(version)) _cargandoExtranjeros = false;
+        }
+
+        // El KPI de extranjeros se pinta en cuanto llega su cifra, sin esperar a las conversaciones.
+        if (!EsVigente(version)) return;
+        StateHasChanged();
 
         try
         {
@@ -348,6 +383,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             Logger.LogError(ex, "Error al cargar las gestiones por día del Cuadro de dirección.");
+            if (EsVigente(version)) _errorGestiones = true;
+        }
+        finally
+        {
+            if (EsVigente(version)) _cargandoGestiones = false;
         }
 
         if (EsVigente(version))
@@ -363,6 +403,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
         if (_pestana == "demanda" && _anual is null && !_cargandoAnual)
         {
             _cargandoAnual = true;
+            _errorAnual = false;
             try
             {
                 var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, MesesAnual), _ciclo.Token);
@@ -371,15 +412,17 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Logger.LogError(ex, "Error al cargar los 24 meses de la Demanda.");
+                if (EsVigente(version)) _errorAnual = true;
             }
             finally
             {
-                _cargandoAnual = false;
+                if (EsVigente(version)) _cargandoAnual = false;
             }
         }
         else if (_pestana == "comparativa" && _anualFacturacion is null && !_cargandoAnualFacturacion)
         {
             _cargandoAnualFacturacion = true;
+            _errorAnualFacturacion = false;
             try
             {
                 var serie = await Mediator.Send(new ObtenerSerieCuadroDireccionQuery(_anyo, _mes, MesesAnual, ConFacturacion: true), _ciclo.Token);
@@ -388,10 +431,11 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 Logger.LogError(ex, "Error al cargar la Comparativa anual.");
+                if (EsVigente(version)) _errorAnualFacturacion = true;
             }
             finally
             {
-                _cargandoAnualFacturacion = false;
+                if (EsVigente(version)) _cargandoAnualFacturacion = false;
             }
         }
     }
@@ -935,9 +979,17 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
 
     private sealed record AlertaCuadro(string Empresa, int Porcentaje, int Prioridad);
 
+    /// <summary>
+    /// El cumplimiento de una fila de Empresa: contexto Empresa (pares exigidos a sus Trabajadores en sus Centros, los que
+    /// faltan en contra), el mismo número que /empresas y Empresa 360. No es el «documentos de Trabajador al día» del KPI
+    /// global, que sigue igual a Inicio (decisión de Coordinación, 2026-10-21). Null sin pares exigidos.
+    /// </summary>
+    private static int? CumplimientoEmpresa(CumplimientoActualDto cumplimiento) => cumplimiento.Exigido?.Porcentaje;
+
     private IReadOnlyList<AlertaCuadro> Alertas => EmpresasVisibles
-        .Where(e => !e.Cifras.Cumplimiento.SinDatos && e.Cifras.Cumplimiento.Porcentaje < 80)
-        .Select(e => new AlertaCuadro(e.TenantNombre, e.Cifras.Cumplimiento.Porcentaje, e.Cifras.Cumplimiento.Porcentaje < 70 ? 1 : 2))
+        .Select(e => (e.TenantNombre, Porcentaje: CumplimientoEmpresa(e.Cifras.Cumplimiento)))
+        .Where(e => e.Porcentaje < 80)
+        .Select(e => new AlertaCuadro(e.TenantNombre, e.Porcentaje!.Value, e.Porcentaje < 70 ? 1 : 2))
         .OrderBy(a => a.Prioridad).ThenBy(a => a.Porcentaje)
         .Take(8)
         .ToList();
@@ -966,7 +1018,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             "rotacion" => f.Rotacion,
             "facturacion" => (double)f.Facturacion,
             "ingreso" => f.IngresoPorGestion,
-            "cumplimiento" => f.Empresa.Cifras.Cumplimiento.SinDatos ? null : f.Empresa.Cifras.Cumplimiento.Porcentaje,
+            "cumplimiento" => CumplimientoEmpresa(f.Empresa.Cifras.Cumplimiento),
             _ => null,
         };
 
@@ -1382,7 +1434,7 @@ public partial class CuadroDireccion : CaeManager.Web.Components.PaginaInteracti
             f.Empresa.TenantNombre, Numero(f.Empresa.Cifras.TrabajadoresActivos.Valor),
             Numero(f.Empresa.Cifras.CentrosActivos.Valor), f.Rotacion is { } r ? Porcentaje(r) : "—", ImporteOSinDato(f.Facturacion),
             f.IngresoPorGestion is { } i ? Importe((decimal)i) : "—",
-            f.Empresa.Cifras.Cumplimiento.SinDatos ? "—" : f.Empresa.Cifras.Cumplimiento.Porcentaje + " %"])));
+            CumplimientoEmpresa(f.Empresa.Cifras.Cumplimiento) is { } cumplimiento ? cumplimiento + " %" : "—"])));
 
     private Task ExportarCarteraAsync() => DescargarCsvAsync("cartera",
         new[] { (IReadOnlyList<string>)[Textos["ColumnaGestorCae"].Value, Textos["ColumnaEquipo"].Value, Textos["ColumnaEmpresas"].Value, Textos["ColumnaEmpresasTitulares"].Value, Textos["ColumnaCentros"].Value, Textos["ColumnaTrabajadores"].Value, Textos["ColumnaExtranjeros"].Value, Textos["ColumnaGestiones"].Value, Textos["ColumnaMayorEmpresa"].Value, Textos["ColumnaIndice"].Value] }

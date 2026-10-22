@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -655,18 +655,24 @@
   <data name="DocumentosExigidosError" xml:space="preserve"><value>No pudimos cargar los documentos exigidos</value></data>
   <data name="DocumentosExigidosErrorDescripcion" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ListaDocumentosExigidos" xml:space="preserve"><value>Documentos que exige el Cliente</value></data>
-  <data name="ListaEmpresasCertificado" xml:space="preserve"><value>Empresas del Cliente y su certificado de la Seguridad Social</value></data>
-  <data name="CertificadoEmpresasUna" xml:space="preserve"><value>{0} Empresa</value></data>
-  <data name="CertificadoEmpresasVarias" xml:space="preserve"><value>{0} Empresas</value></data>
   <data name="SolicitudesCero" xml:space="preserve"><value>Sin solicitudes</value></data>
   <data name="SolicitudesUna" xml:space="preserve"><value>1 solicitud</value></data>
   <data name="SolicitudesVarias" xml:space="preserve"><value>{0} solicitudes</value></data>
   <data name="ExigidoEnCentroUnico" xml:space="preserve"><value>En su Centro</value></data>
   <data name="ExigidoEnCentros" xml:space="preserve"><value>En {0} de {1} Centros</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
-  <data name="RequisitoAmbitoEmpresa" xml:space="preserve"><value>Empresa empleadora</value></data>
-  <data name="RequisitoAmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
   <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="RequisitoCertificadoDetalle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="RequisitoSeExige" xml:space="preserve"><value>Se exige</value></data>
+  <data name="RequisitoVerHistorial" xml:space="preserve"><value>Ver historial</value></data>
+  <data name="RequisitoVerCentros" xml:space="preserve"><value>Ver Centros</value></data>
+  <data name="RequisitoGrupoEmpresa" xml:space="preserve"><value>Lo que exige a la Empresa empleadora</value></data>
+  <data name="RequisitoGrupoTrabajador" xml:space="preserve"><value>Lo que exige a los Trabajadores</value></data>
+  <data name="RequisitoGrupoUno" xml:space="preserve"><value>1 documento</value></data>
+  <data name="RequisitoGrupoVarios" xml:space="preserve"><value>{0} documentos</value></data>
+  <data name="RequisitoGrupoBloqueaUno" xml:space="preserve"><value>1 bloquea el acceso</value></data>
+  <data name="RequisitoGrupoBloqueanVarios" xml:space="preserve"><value>{0} bloquean el acceso</value></data>
+  <data name="RequisitoGrupoSinBloqueos" xml:space="preserve"><value>Sin bloqueos</value></data>
   <data name="CertificadoSinSolicitar" xml:space="preserve"><value>Sin solicitar</value></data>
   <data name="CertificadoPendienteTgss" xml:space="preserve"><value>Pendiente TGSS</value></data>
   <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silencio)</value></data>

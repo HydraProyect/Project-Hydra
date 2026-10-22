@@ -263,7 +263,7 @@ else
                         }
                     </JuntoAlNombre>
                     <Detalle>
-                        @if (EstaBloqueado(trabajador.TrabajadorId))
+                        @if (BloqueosDe(trabajador.TrabajadorId).Count > 0)
                         {
                             <MotivoBloqueoTrabajador TrabajadorId="trabajador.TrabajadorId"
                                                      Bloqueos="BloqueosDe(trabajador.TrabajadorId)"
@@ -327,6 +327,7 @@ else
                                             <span role="columnheader">@(NombrePlataforma is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
                                             <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
                                             <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
+                                            <span role="columnheader" class="cabecera-accion-plataforma">@Textos["AccionColumna360"]</span>
                                         </div>
                                         @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                         @foreach (var documento in trabajador.Documentos.OrderBy(OrdenPlataforma))
@@ -347,12 +348,17 @@ else
                                                         {
                                                             <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
                                                             <span class="nombre-plataforma-centro">@acreditacion.NombrePlataforma</span>
+                                                            <AnotacionEstadoPlataforma Acreditacion="acreditacion" />
                                                         }
                                                     }
                                                     <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
-                                                    @* La maqueta del 20-10 no pinta acción por documento, pero la regla del 2026-10-19 (#1475) sigue vigente:
-                                                       desde un Centro no se sube nada; si falta en TALVEG, la acción lleva a la ficha 360 del Trabajador y,
-                                                       si no, «Gestionar» abre el panel que cambia solo el estado en la plataforma. Solo con escritura. *@
+                                                </span>
+                                                <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
+                                                <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
+                                                @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia aquí, en Centro 360. Desde un
+                                                   Centro no se sube nada a TALVEG (regla del 2026-10-19, #1475): si falta en TALVEG, la acción lleva a la ficha 360
+                                                   del Trabajador; si no, «Marcar subido / validado» y «Cambiar» anotan el estado en la plataforma de ESTE Centro. *@
+                                                <span role="cell" class="celda-accion-plataforma">
                                                     @if (GestionarEnPlataforma.FaltaEnTalveg(documento.DocumentoId, documento.Estado))
                                                     {
                                                         <SoloConEscritura>
@@ -363,21 +369,17 @@ else
                                                             </Boton>
                                                         </SoloConEscritura>
                                                     }
-                                                    else
+                                                    else if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
                                                     {
-                                                        <SoloConEscritura>
-                                                            <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
-                                                                   class="@(GestionarEnPlataforma.AmbosAlDia(documento.Estado, documento.AcreditacionesEnElCentro) ? $"accion-fila-enlace {EstadoDocumentoFicha360.ClaseGestionarDiscreto}" : "accion-fila-enlace")"
-                                                                   data-accion="gestionar-acreditacion"
-                                                                   aria-label="@EstadoDocumentoFicha360.TextoAccionAccesible(documento.TipoDocumentoNombre, trabajador.TrabajadorNombre)"
-                                                                   OnClick="() => GestionarAcreditacion(trabajador, documento)">
-                                                                @Textos["GestionarDocumento360"]
-                                                            </Boton>
-                                                        </SoloConEscritura>
+                                                        @foreach (var acreditacion in acreditacionesAccion)
+                                                        {
+                                                            <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@CentroNombre"
+                                                                                    Acreditacion="acreditacion" DocumentoNombre="@documento.TipoDocumentoNombre"
+                                                                                    TitularNombre="@trabajador.TrabajadorNombre" OnCambio="ManejarDocumentoGuardadoAsync"
+                                                                                    OnConfirmarVigencia="() => GestionarAcreditacion(trabajador, documento)" />
+                                                        }
                                                     }
                                                 </span>
-                                                <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@TextoVigencia(documento)</TextoFechaCopiable></span>
-                                                <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
                                             </div>
                                         }
                                     </div>

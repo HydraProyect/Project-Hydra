@@ -397,6 +397,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/RegistroAccesoDocumentoSensibleService.cs"] = 1,
+        // Historial de Centro 360 (bloque 3 del 21-10): un cambio de estado anotado sobre una versión ya renovada sigue
+        // siendo un hecho del Historial; el Documento solo da su tipo y su titular, no decide estado ni cifras.
+        ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,

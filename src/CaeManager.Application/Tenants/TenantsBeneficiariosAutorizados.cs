@@ -150,8 +150,9 @@ public static class TenantsBeneficiariosAutorizados
     /// El predicado de <see cref="OperacionesDelTenantEnteroDeLaOrganizacion"/> sin fijar la
     /// organización: vigentes, externas, no raíz y sin ninguna dimensión de ámbito. Lo usa
     /// también <c>ObtenerDelegacionesQuery</c> para rotular el rol que se ejerce, en los dos
-    /// sentidos de la delegación; una sola definición para que la etiqueta y el acceso no
-    /// diverjan.
+    /// sentidos de la delegación, y <c>DirectorioUsuariosTenant.ObtenerRolesDeOperadoresDelegadosAsync</c>
+    /// para la columna Rol de <c>/usuarios</c>; una sola definición para que la etiqueta y el
+    /// acceso no diverjan.
     /// </summary>
     public static IQueryable<AsignacionOperacion> OperacionesDelTenantEntero(
         IOperacionesQueryContext operaciones, DateTime ahora) =>
@@ -240,7 +241,8 @@ public static class TenantsBeneficiariosAutorizados
 
     /// <summary>
     /// El rol que una persona del Operador CAE externo <b>ejerce</b> en el Tenant beneficiario de
-    /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c>: el mismo
+    /// una delegación, para enseñarlo en la lista de personas de <c>/delegaciones</c> y en la
+    /// columna Rol de <c>/usuarios</c> (<c>DirectorioUsuariosTenant</c>), que no pueden discrepar: el mismo
     /// criterio que <see cref="RolEnTenantDelegadoAsync"/> (decisión Chris 2026-10-20):
     /// <list type="bullet">
     /// <item>Perfil de origen en <see cref="RolesConAccesoPorOperacion"/> y operación vigente del

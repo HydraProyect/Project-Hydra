@@ -599,3 +599,40 @@
 .cuadro-indice-valor { font-weight: 600; text-align: left; }
 .cuadro-indice-media { height: 22px; color: var(--color-text-muted); }
 .cuadro-indice-media > span { grid-column: 2; position: relative; left: var(--media); transform: translateX(-50%); width: max-content; }
+
+/* La barra de progreso de la carga: sobre el margen superior de la pantalla (24 px), fuera del flujo del grid. */
+.cuadro { position: relative; }
+.cuadro-progreso { position: absolute; top: 2px; left: 0; right: 0; padding-inline: 24px; pointer-events: none; }
+
+/* ---------------------------------------------------------------- carga (esqueletos)
+   Mientras llega el mes: el hueco de seis KPI y dos gráficas con las mismas rejillas que el cuadro real (cuadro-kpis y cuadro-ancha),
+   para que al llegar los datos nada se mueva. Los bloques son del kit (Esqueleto); aquí solo se les da el alto de un KPI real. */
+.cuadro-carga { container-type: inline-size; min-width: 0; display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+.cuadro-carga-graficas { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+.cuadro-carga-kpi ::deep .esqueleto-tarjeta { min-height: 140px; }
+
+@media (max-width: 640px) {
+    .cuadro-carga-kpi { flex: 0 0 78%; }
+}
+
+/* Lo que ocupa el valor y el minigráfico de un KPI mientras su consulta sigue en vuelo: el alto de lo que van a ser (36 y 32 px). */
+.cuadro-kpi-carga,
+.cuadro-kpi-spark-carga {
+    display: block;
+    border-radius: var(--radius-sm);
+    background: var(--color-esqueleto-base);
+    animation: cuadro-carga-pulso 1.4s ease-in-out infinite;
+}
+
+.cuadro-kpi-carga { height: 24px; width: 55%; margin-block: 6px; }
+.cuadro-kpi-spark-carga { height: 28px; margin-top: 6px; }
+
+@keyframes cuadro-carga-pulso {
+    0%, 100% { opacity: 1; }
+    50% { opacity: .45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cuadro-kpi-carga,
+    .cuadro-kpi-spark-carga { animation: none; }
+}

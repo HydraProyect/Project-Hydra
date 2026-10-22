@@ -63,6 +63,15 @@ public interface ICurrentUserService
     Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => ObtenerRolEfectivoAsync();
 
     /// <summary>
+    /// El perfil que la sesión traía antes de quedar limitada a solo lectura por login local, o
+    /// <c>null</c> si la sesión no está limitada (o no traía rol conocido). No es rol efectivo ni
+    /// autoriza nada: solo permite que el alcance de datos siga siendo el del rol real, para que la
+    /// restricción nunca lo amplíe (un Gestor CAE en Consulta seguiría viendo el Tenant entero).
+    /// La implementación por defecto, sin restricción, solo sirve a dobles de prueba.
+    /// </summary>
+    Task<string?> ObtenerPerfilAntesDeRestringirAsync() => Task.FromResult<string?>(null);
+
+    /// <summary>
     /// Alias obsoleto de <see cref="ObtenerRolEfectivoAsync"/> (decisión P7,
     /// 2026-09-23). El nombre no decía qué rol devolvía y dejó que algún
     /// consumidor lo leyera como el rol de origen.

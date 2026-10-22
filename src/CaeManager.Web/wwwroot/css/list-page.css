@@ -401,6 +401,19 @@
     color: var(--color-text-muted);
 }
 
+/* Pastilla roja del grupo plegado con filas en rojo («2 con incidencias»), como la maqueta. */
+.grupo-lista-incidencias {
+    margin-left: var(--space-2);
+    padding: 0 8px;
+    border-radius: var(--radius-full);
+    background: var(--color-danger-50);
+    color: var(--color-danger-700);
+    font: var(--font-caption);
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+}
+
 /* Variante de Centros: identidad y recuento juntos; resumen a la derecha. El modo
    habitual de los otros listados conserva su distribución. */
 .grupo-lista-identidad {

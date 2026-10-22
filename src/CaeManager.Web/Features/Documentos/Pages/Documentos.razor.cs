@@ -700,7 +700,16 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
 
     // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/02-clientes.md): paginador único en español, ver Clientes.razor.cs.
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_paginacion.ItemsPerPage));
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorAmbito, _paginacion.ItemsPerPage);
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
+
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(DocumentoListaDto item) => item.Estado is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
 
     private Task CambiarPaginaAsync(int pagina) => _paginacion.SetCurrentPageIndexAsync(pagina - 1);
 
@@ -782,7 +791,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Documentos desplegados a los que se pidió «Ver los N restantes»: el resto enseña solo los primeros destinos.</summary>
     private readonly HashSet<Guid> _destinosCompletos = [];
 
-    private List<DocumentoListaDto> ElementosVisibles => _elementosPagina;
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<DocumentoListaDto> ElementosVisibles =>
+        _agruparPorAmbito ? _elementosPagina.Where(d => _gruposAbiertos.EstaAbierto(d.Ambito.ToString())).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var visibles = ElementosVisibles;
+        _seleccionados.IntersectWith(visibles.Select(d => d.Id));
+        if (_idEnfocado is { } enfocado && visibles.All(d => d.Id != enfocado)) _idEnfocado = null;
+    }
     private bool HayDestinos => _elementosPagina.Any(d => d.DestinosEnCentros is { Count: > 0 });
 
     private void AlternarDocumento(Guid id)
@@ -811,6 +834,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     private async Task CambiarAgrupacionAsync(bool agrupar)
     {
         _agruparPorAmbito = agrupar;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear(); _idEnfocado = null;
         await RecargarAsync();
     }
     private string _ambitoFiltro = string.Empty;
@@ -827,7 +852,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Documentos por estado para la franja, sin el filtro de estado aplicado. <c>null</c> hasta la primera carga.</summary>
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
-    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
 
     /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
     private DateOnly _hoy = DiaDeNegocio.Hoy();
@@ -876,7 +900,8 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
         try
         {
-            var pagina = (request.StartIndex / _paginacion.ItemsPerPage) + 1;
+            // Agrupada, se piden todas las filas filtradas: el tamaño de página no corta los grupos.
+            var pagina = _agruparPorAmbito ? 1 : (request.StartIndex / _paginacion.ItemsPerPage) + 1;
             _ultimaColumnaOrden = request.SortByColumn;
             _ultimoOrdenAscendente = request.SortByAscending;
             var (ordenarPor, descendente) = LecturaOrden.Leer(request);
@@ -895,7 +920,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
                 Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
                 Estado: null,
                 Pagina: pagina,
-                TamanoPagina: _paginacion.ItemsPerPage,
+                TamanoPagina: TamanoPedido,
                 PropietarioId: Guid.TryParse(_propietarioFiltro, out var entidadFiltro) ? entidadFiltro : null,
                 OrdenarPor: ordenarPor,
                 Descendente: descendente,
@@ -916,7 +941,6 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _totalElementos = resultado.TotalElementos;
             _totalConocido = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
-            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _hoy = DiaDeNegocio.Hoy();
 
             var elementos = resultado.Elementos.ToList();

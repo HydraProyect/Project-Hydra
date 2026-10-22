@@ -97,7 +97,10 @@
     <value>{0}% de cumplimiento documental promedio</value>
   </data>
   <data name="DetalleMedia" xml:space="preserve">
-    <value>Media ponderada por el volumen de documentos con vencimiento de cada organización; tasas de las {0} que la forman: {1}%.</value>
+    <value>Media ponderada por el volumen de documentos con vencimiento de cada una de las organizaciones que la forman ({0}).</value>
+  </data>
+  <data name="CalculoMediaTitulo" xml:space="preserve">
+    <value>Cómo se calcula</value>
   </data>
   <data name="DetalleTasaOrganizacion" xml:space="preserve">
     <value>Tasa de cada organización: documentos que aún no han entrado en su umbral próximo, sobre todos los que tienen fecha de vencimiento. Es solo documental: los Trabajadores bloqueados y los Centros de Trabajo con bloqueo de la plataforma CAE se cuentan aparte y una organización con alguno no está en verde. Sin ningún documento, la tasa es 0 % si sus Centros de Trabajo exigen documentación; si no exigen ninguna, la organización sale «sin datos».</value>

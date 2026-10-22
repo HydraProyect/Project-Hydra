@@ -114,4 +114,19 @@
   <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
     <value>Centros con bloqueo</value>
   </data>
+  <data name="AnilloAlDiaDetalle" xml:space="preserve">
+    <value>{0} de {1} documentos de Trabajador al día (vigentes, por vencer y sin caducidad)</value>
+  </data>
+  <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
+    <value>1 centro con trabajadores bloqueados</value>
+  </data>
+  <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
+    <value>{0} centros con trabajadores bloqueados</value>
+  </data>
+  <data name="KpiVigentesAlDia" xml:space="preserve">
+    <value>{0} más al día (por vencer o sin caducidad)</value>
+  </data>
+  <data name="KpiVigentesNoAlDia" xml:space="preserve">
+    <value>{0} no al día (vencidos o sin confirmar)</value>
+  </data>
 </root>

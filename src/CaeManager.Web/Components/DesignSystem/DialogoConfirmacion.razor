@@ -11,7 +11,7 @@
         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="EnProgreso" OnClick="CancelarAsync">
             @TextoBotonDescartar
         </Boton>
-        <Boton Variante="VarianteConfirmar" Cargando="EnProgreso" OnClick="ConfirmarAsync">
+        <Boton Variante="VarianteConfirmar" Cargando="EnProgreso" Deshabilitado="ConfirmarDeshabilitado" OnClick="ConfirmarAsync">
             @TextoBotonConfirmar
         </Boton>
     </Pie>
@@ -51,6 +51,12 @@
     /// </summary>
     [Parameter] public Func<bool>? HayCambios { get; set; }
 
+    /// <summary>
+    /// Desactiva el botón de confirmar mientras falte un dato que la acción exige (p. ej. el motivo de
+    /// cancelar una Visita, obligatorio en la maqueta «Flujos 06 Visitas»). Aditivo: por defecto, activo.
+    /// </summary>
+    [Parameter] public bool ConfirmarDeshabilitado { get; set; }
+
     private Modal? _modal;
 
     // El botón de salida cierra «como la X» (D-05): con cambios pregunta, sin ellos cierra. No llama a VisibleChanged
@@ -71,7 +77,7 @@
 
     private async Task ConfirmarAsync()
     {
-        if (EnProgreso || _confirmando)
+        if (EnProgreso || _confirmando || ConfirmarDeshabilitado)
             return;
 
         _confirmando = true;

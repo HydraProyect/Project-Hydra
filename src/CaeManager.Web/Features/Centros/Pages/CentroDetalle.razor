@@ -195,6 +195,7 @@
                                         <span role="columnheader">@(NombrePlataformaCentro is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
                                         <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
                                         <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
+                                        <span role="columnheader" class="cabecera-accion-plataforma">@Textos["AccionColumna360"]</span>
                                     </div>
                                     @{ var clavesDocumentos = new ClavesDeHermanos(); }
                                     @* Como la maqueta del 20-10: una sola lista, lo que bloquea primero y luego lo pendiente de validar. *@
@@ -222,6 +223,7 @@
                                                         {
                                                             <Badge Tono="TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@TextoPlataforma(acreditacion.Estado)</Badge>
                                                             <span>@acreditacion.NombrePlataforma</span>
+                                                            <AnotacionEstadoPlataforma Acreditacion="acreditacion" />
                                                         }
                                                     }
                                                     <CaeManager.Web.Features.Documentos.Components.LineaPlataformaYReclamacion UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
@@ -230,6 +232,18 @@
                                                     <TextoFechaCopiable Fecha="documento.FechaVencimiento" FechaEmision="documento.FechaEmision">@(documento.FechaVencimiento?.ToString("dd/MM/yyyy") ?? "—")</TextoFechaCopiable>
                                                 </span>
                                                 <span role="cell">@(documento.AcreditacionesEnElCentro is { Count: > 0 } ? Textos[BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value : "—")</span>
+                                                @* Columna «Acción» (bloque 3 del 21-10): el estado en la plataforma solo se cambia en Centro 360. *@
+                                                <span role="cell" class="celda-accion-plataforma">
+                                                    @if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
+                                                    {
+                                                        @foreach (var acreditacion in acreditacionesAccion)
+                                                        {
+                                                            <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@_detalle.Nombre"
+                                                                                    Acreditacion="acreditacion" DocumentoNombre="@documento.Nombre"
+                                                                                    TitularNombre="@empresa.Nombre" OnCambio="RecargarTrasCambioPlataformaAsync" />
+                                                        }
+                                                    }
+                                                </span>
                                             </div>
                                     }
                                     @foreach (var empresaSinDocumentos in _documentacionEmpresas.Where(e => e.Documentos.Count == 0))
@@ -266,6 +280,10 @@
                     @if (_pestana == PestanaHistorial)
                     {
                         <h3 class="centro-historial-titulo">@Textos["HistorialCambios360"]</h3>
+                        @* En su propio contenedor: dos hermanos con la misma @key (CentroId) rompen el render. *@
+                        <div class="centro-historial-plataforma">
+                            <HistorialEstadoPlataformaCentro @key="CentroId" CentroId="CentroId" />
+                        </div>
                         <PestanaHistorial @key="CentroId" EntidadTipo="Centro" EntidadId="CentroId" />
                     }
                 </Pestanas>

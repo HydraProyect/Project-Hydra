@@ -76,8 +76,18 @@ public partial class CuadroDireccionTests : BunitContext
         public TaskCompletionSource<SerieCuadroDireccionDto>? SeriePendiente { get; init; }
         public TaskCompletionSource<ComunicacionesCuadroDireccionDto>? ComunicacionesPendientes { get; init; }
 
+        /// <summary>Si se fijan, el cuadro del mes y las gestiones por día responden cuando el test complete su tarea (pantalla de carga).</summary>
+        public TaskCompletionSource<CuadroDireccionDto>? CuadroPendiente { get; init; }
+        public TaskCompletionSource<GestionesPorDiaCuadroDireccionDto>? GestionesPendientes { get; init; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerCuadroDireccionQuery && CuadroPendiente is { } cuadroPendiente)
+                return (Task<TResponse>)(object)cuadroPendiente.Task;
+
+            if (request is ObtenerGestionesPorDiaCuadroDireccionQuery && GestionesPendientes is { } gestionesPendientes)
+                return (Task<TResponse>)(object)gestionesPendientes.Task;
+
             if (request is ObtenerSerieCuadroDireccionQuery serieEnVuelo && SeriePendiente is { } seriePendiente)
             {
                 SeriesPedidas.Add(serieEnVuelo);
@@ -144,7 +154,7 @@ public partial class CuadroDireccionTests : BunitContext
             Solicitudes: new SolicitudesDelMesDto(
                 c(solicitudes),
                 franjas ?? [new FranjaSolicitudesDto(DayOfWeek.Monday, 9, 30), new FranjaSolicitudesDto(DayOfWeek.Tuesday, 10, 90)]),
-            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow),
+            Cumplimiento: new CumplimientoActualDto(90, 5, 3, 2, 0, 0, 0, 92, false, DateTime.UtcNow, Exigido: new(92, 100)),
             Gestiones: c(42),
             Extranjeros: c(7));
     }
@@ -458,7 +468,7 @@ public partial class CuadroDireccionTests : BunitContext
     public void El_contador_de_alertas_concuerda_en_singular_y_plural(int empresasEnAlerta, string glosa)
     {
         var baseCuadro = Cuadro(EstadoCifraMensual.Parcial);
-        var bajo = baseCuadro.Tenants[0].Cifras with { Cumplimiento = new CumplimientoActualDto(60, 5, 3, 2, 0, 0, 0, 60, false, DateTime.UtcNow) };
+        var bajo = baseCuadro.Tenants[0].Cifras with { Cumplimiento = new CumplimientoActualDto(60, 5, 3, 2, 0, 0, 0, 60, false, DateTime.UtcNow, Exigido: new(60, 100)) };
         var cuadro = baseCuadro with
         {
             Tenants =

@@ -8,7 +8,10 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
+using CaeManager.Application.Subcontratas.Commands.ActualizarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.RestaurarVerificacionExterna;
+using Microsoft.AspNetCore.Components.Forms;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.RegistrarVerificacionExterna;
@@ -143,7 +146,8 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerDobleFactorPropioQuery => DobleFactor,
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or RestaurarSubcontrataCommand
-                or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand => Result.Exito(),
+                or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand
+                or ActualizarVerificacionExternaSubcontrataCommand or RestaurarVerificacionExternaSubcontrataCommand => Result.Exito(),
             GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -923,9 +927,17 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
         mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "un clic solo abre el formulario");
 
+        // Sin evidencia no se guarda (Flujos 09): el error sale en el campo y no se envía nada.
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+        cut.Find(".drawer-panel").TextContent.Should().Contain("Adjunta la captura o el PDF del registro.");
+        mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "la evidencia es obligatoria");
+
+        cut.FindComponent<InputFile>().UploadFiles(InputFileContent.CreateFromBinary([1, 2, 3], "rea.pdf", contentType: "application/pdf"));
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().NotContain("Adjunta la captura o el PDF del registro."));
         await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
 
         var comando = mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.EvidenciaNombreArchivo.Should().Be("rea.pdf");
         comando.SubcontrataId.Should().Be(SubcontrataId);
         comando.CentroId.Should().Be(CentroId, "el Centro de la fila llega elegido");
         comando.TipoDocumentoId.Should().Be(tipo.Id, "el tipo de la fila llega elegido");
@@ -952,7 +964,7 @@ public class Subcontrata360PaginaTests : BunitContext
         MostrarTodoPlataformas(cut);
 
         cut.Find(".fila-relacion .menu-acciones-disparador").Click();
-        cut.Find(".fila-relacion .menu-acciones-item").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
 
         mediador.Enviadas.Should().NotContain(p => p is EliminarVerificacionExternaSubcontrataCommand, "eliminar pregunta antes");
         cut.FindAll("button").Last(b => b.ClassList.Any(c => c.Contains("destructivo"))).Click();
@@ -1014,7 +1026,7 @@ public class Subcontrata360PaginaTests : BunitContext
         var panel = cut.Find(".drawer-panel");
         panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Registrar verificación");
         panel.TextContent.Should().Contain("Transportes Terminator S.L. · B70005204")
-            .And.Contain("Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Opcional.");
+            .And.Contain("Captura o PDF del registro consultado. PDF, JPG o PNG, hasta 10 MB. Obligatoria.");
         cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Guardar verificación").And.NotContain("Registrar");
     }
 
@@ -1026,7 +1038,7 @@ public class Subcontrata360PaginaTests : BunitContext
         MostrarTodoPlataformas(cut);
 
         cut.Find(".fila-relacion .menu-acciones-disparador").Click();
-        cut.Find(".fila-relacion .menu-acciones-item").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
 
         var dialogo = cut.Find("[role=dialog]").TextContent;
         dialogo.Should().Contain("¿Eliminar la verificación de «Aptitud médica»?")
@@ -1036,6 +1048,63 @@ public class Subcontrata360PaginaTests : BunitContext
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle());
         Services.GetRequiredService<ToastService>().Mensajes.Should()
             .Contain(t => t.Mensaje == "Verificación de «Aptitud médica» eliminada.");
+    }
+
+    [Fact]
+    public async Task Eliminar_una_verificacion_ofrece_Deshacer_que_la_restaura()
+    {
+        var mediador = Montar();
+        var verificacion = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!.Id;
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Eliminar").Click();
+        await cut.FindAll("button").Last(b => b.TextContent.Trim() == "Eliminar verificación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => mediador.Enviadas.OfType<EliminarVerificacionExternaSubcontrataCommand>().Should().ContainSingle());
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        mediador.Enviadas.OfType<RestaurarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Which.Id.Should().Be(verificacion);
+        avisos.Mensajes.Should().Contain(m => m.Mensaje == "Verificación de «Aptitud médica» recuperada.");
+    }
+
+    [Fact]
+    public async Task Editar_una_verificacion_abre_el_formulario_con_sus_valores_y_guarda_con_la_evidencia_que_ya_tenia()
+    {
+        var mediador = Montar();
+        var anterior = mediador.Supervision.Centros[0].Tipos[1].UltimaVerificacion!;
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Editar").Click();
+
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-panel").Should().ContainSingle());
+        var panel = cut.Find(".drawer-panel");
+        panel.QuerySelector("h2")!.TextContent.Trim().Should().Be("Verificación externa");
+        panel.TextContent.Should().Contain("Aptitud médica").And.Contain("Evidencia actual: captura.png");
+        panel.QuerySelectorAll("select").Where(s => s.HasAttribute("disabled")).Should().HaveCount(2, "el Centro y el tipo no se cambian al editar");
+        cut.Find(".drawer-pie").QuerySelectorAll("button").Select(b => b.TextContent.Trim()).Should().Contain("Eliminar verificación");
+
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+
+        var comando = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
+        comando.Id.Should().Be(anterior.Id);
+        comando.EvidenciaContenido.Should().BeNull("sin archivo nuevo se conserva la evidencia");
+        mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "editar no crea otra verificación");
+
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+        mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().HaveCount(2);
+        var deshecho = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Last();
+        deshecho.FechaVerificacion.Should().Be(anterior.FechaVerificacion);
+        deshecho.Resultado.Should().Be(anterior.Resultado);
+        deshecho.ValidoHasta.Should().Be(anterior.ValidoHasta, "Deshacer devuelve también la validez declarada");
+        deshecho.Observaciones.Should().Be(anterior.Observaciones);
     }
 
     [Fact]

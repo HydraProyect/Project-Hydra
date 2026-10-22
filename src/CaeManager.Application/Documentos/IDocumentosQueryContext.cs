@@ -14,4 +14,5 @@ public interface IDocumentosQueryContext
     IQueryable<SelloEmpresa> SellosEmpresa { get; }
     IQueryable<AcreditacionDocumentoPlataforma> AcreditacionesDocumentoPlataforma { get; }
     IQueryable<RechazoAcreditacionDocumentoPlataforma> RechazosAcreditacionDocumentoPlataforma { get; }
+    IQueryable<CambioEstadoAcreditacionPlataforma> CambiosEstadoAcreditacionPlataforma { get; }
 }

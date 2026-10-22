@@ -237,7 +237,7 @@
                         }
                         else
                         {
-                            <p class="dashboard-resumen-anillo-detalle">@_kpis.Fraccion.AlDia.ToString("N0") de @_kpis.Fraccion.Requeridos.ToString("N0") documentos al día en cartera</p>
+                            <p class="dashboard-resumen-anillo-detalle">@Textos["AnilloAlDiaDetalle", _kpis.Fraccion.AlDia.ToString("N0"), _kpis.Fraccion.Requeridos.ToString("N0")]</p>
                         }
                     }
                     @if (_kpis.TrabajadoresBloqueados > 0)
@@ -252,17 +252,21 @@
                        (no hay vista de cumplimiento agrupada por cliente para este rol —
                        Visión de cartera exige Coordinador+; Reportes, P-14, es de todo el
                        tenant sin filtro). Enlaza al informe más cercano que existe hoy en
-                       vez de a un enlace roto; construir el desglose real queda pendiente. *@
-                    <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                       vez de a un enlace roto; construir el desglose real queda pendiente. Solo con más de un
+                       Cliente empresarial en el alcance (MostrarDesglosePorCliente). *@
+                    @if (MostrarDesglosePorCliente)
+                    {
+                        <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                    }
                 </div>
             </div>
             <div class="rejilla-kpis-secundarios contenido-entra">
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Trabajadores activos" Valor="@_kpis.TrabajadoresActivos.ToString()" NombreIcono="trabajadores" Enlace="/trabajadores"
                                  Pista="@(_kpis.TrabajadoresNuevosEsteMes > 0 ? $"{_kpis.TrabajadoresNuevosEsteMes} nuevos este mes" : null)" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Centros / plataformas" Valor="@_kpis.Centros.ToString()" NombreIcono="centros" Enlace="/centros"
-                                 Pista="@(TrabajadoresBloqueados > 0 ? $"{TrabajadoresBloqueados} trabajador{(TrabajadoresBloqueados == 1 ? "" : "es")} bloqueado{(TrabajadoresBloqueados == 1 ? "" : "s")}" : null)" />
+                                 Pista="@(_kpis.CentrosBloqueados == 0 ? null : _kpis.CentrosBloqueados == 1 ? Textos["KpiCentrosBloqueadosUno"].Value : Textos["KpiCentrosBloqueadosVarios", _kpis.CentrosBloqueados].Value)" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Vigentes" Valor="@_kpis.DocumentosVigentes.ToString()" NombreIcono="check" Enlace="/documentos?estado=Vigente"
-                                 Pista="@(DocumentosFueraDeVigencia > 0 ? $"{DocumentosFueraDeVigencia} fuera de vigencia" : null)" />
+                                 Pista="@PistaVigentes" />
                 <TarjetaMetrica Discreta="true" ContarHastaValor="true" Etiqueta="Visitas programadas" Valor="@_kpis.VisitasProgramadas.ToString()" NombreIcono="visitas" Enlace="/visitas"
                                  Pista="@(_proximamente.Count > 0 ? $"próxima el {_proximamente[0].FechaInicio:dd/MM}" : null)" />
             </div>

@@ -1,3 +1,4 @@
+/* Botón flotante de Vega (marco-talveg.js, .tvm-fab): píldora de 48 px abajo a la derecha. */
 .boton-asistente-ia {
     position: fixed;
     right: var(--space-6);
@@ -5,22 +6,76 @@
     z-index: 40;
     display: flex;
     align-items: center;
-    justify-content: center;
-    width: 56px;
-    height: 56px;
+    gap: 10px;
+    height: 48px;
+    padding: 0 14px 0 6px;
     border-radius: var(--radius-full);
-    border: none;
-    background-color: var(--color-primario-fondo);
-    color: var(--color-primario-texto);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    font: 600 14px/20px var(--font-family);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16);
     cursor: pointer;
     transition: transform var(--motion-fast) var(--ease-standard),
         box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .boton-asistente-ia:hover {
-    transform: scale(1.05);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+}
+
+.boton-asistente-ia kbd {
+    font: 600 11px/14px var(--font-family);
+    padding: 1px 5px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: 4px;
+    color: var(--color-text-muted);
+}
+
+.vega-avatar {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--vg-tint);
+    color: var(--vg-fg);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Pista de primera vez, encima del botón (.vg-pista). */
+.vega-pista {
+    position: fixed;
+    right: var(--space-6);
+    bottom: 84px;
+    z-index: 45;
+    width: 280px;
+    padding: 14px 16px;
+    border-radius: var(--radius-lg);
+    background: var(--color-text);
+    color: var(--color-surface);
+    font: 400 13px/18px var(--font-family);
+    box-shadow: var(--shadow-overlay);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.vega-pista b {
+    font-weight: 600;
+}
+
+.vega-pista-entendido {
+    align-self: flex-end;
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    background: none;
+    color: inherit;
+    border-radius: var(--radius-full);
+    padding: 3px 12px;
+    font: 600 12px/16px var(--font-family);
+    cursor: pointer;
 }
 
 @media (prefers-reduced-motion: reduce) {

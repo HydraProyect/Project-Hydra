@@ -63,7 +63,15 @@ public record ObtenerDocumentosQuery(
 }
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
-public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
+/// <param name="Anotacion">
+/// Lo último que se anotó a mano desde Centro 360 para este estado (fecha, motivo, nota y usuario), que se pinta bajo la
+/// pastilla. Solo lo carga la lectura por Centro (<c>SituacionDocumentosEnCentrosService</c>), y solo si sigue
+/// describiendo el estado actual: si otra vía cambió el estado después, la anotación ya no es de este estado y va null.
+/// </param>
+public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado, AnotacionEstadoPlataformaDto? Anotacion = null);
+
+/// <summary>Un cambio de estado anotado a mano en Centro 360; <see cref="CambioId"/> es lo que «Deshacer» identifica.</summary>
+public record AnotacionEstadoPlataformaDto(Guid CambioId, DateOnly Fecha, string? Motivo, string? Nota, string? UsuarioNombre);
 
 public record DocumentoListaDto(
     Guid Id,
@@ -561,25 +569,25 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
     {
         if (documentoIds.Count == 0) return [];
 
+        // El LEFT JOIN conserva los canales sin proveedor (p. ej. por correo), que se rotulan «Plataforma».
+        // Proyectar el nombre aquí evita una segunda lectura secuencial por página.
         var crudas = await (
             from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
             where documentoIds.Contains(acreditacion.DocumentoId)
             join canal in centrosContext.CanalesGestionDocumental on acreditacion.CanalGestionDocumentalId equals canal.Id
-            select new { acreditacion.DocumentoId, acreditacion.Id, acreditacion.Estado, canal.ProveedorPlataformaCaeId })
-            .ToListAsync(cancellationToken);
+            join proveedor in proveedoresContext.ProveedoresPlataformaCae
+                on canal.ProveedorPlataformaCaeId equals (Guid?)proveedor.Id into proveedores
+            from proveedor in proveedores.DefaultIfEmpty()
+            select new
+            {
+                acreditacion.DocumentoId,
+                acreditacion.Id,
+                acreditacion.Estado,
+                NombrePlataforma = proveedor == null ? "Plataforma" : proveedor.Nombre
+            }).ToListAsync(cancellationToken);
 
-        var proveedorIds = crudas.Where(c => c.ProveedorPlataformaCaeId is not null)
-            .Select(c => c.ProveedorPlataformaCaeId!.Value).Distinct().ToList();
-        var nombresProveedor = await proveedoresContext.ProveedoresPlataformaCae
-            .Where(p => proveedorIds.Contains(p.Id))
-            .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
-
-        return crudas
-            .GroupBy(c => c.DocumentoId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Select(c => new AcreditacionResumenDto(
-                    c.Id, c.ProveedorPlataformaCaeId is { } id ? nombresProveedor.GetValueOrDefault(id, "Plataforma") : "Plataforma", c.Estado))
-                    .ToList());
+        return crudas.GroupBy(c => c.DocumentoId).ToDictionary(
+            g => g.Key,
+            g => g.Select(c => new AcreditacionResumenDto(c.Id, c.NombrePlataforma, c.Estado)).ToList());
     }
 }

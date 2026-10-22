@@ -271,16 +271,6 @@
                     }
                     else
                     {
-                        <div class="separador-ambito">@Textos["SeparadorDocumentacionPorCentro"]</div>
-                        @*
-                            Mockup Gen 2 § Centros: lo primero que hay que
-                            entender de esta lista es por qué el mismo
-                            trabajador puede estar completo en una fila y
-                            bloqueado en la de al lado.
-                        *@
-                        <p class="texto-descriptivo">
-                            @Textos["TextoExigenciaPorCentro"]
-                        </p>
                         <div class="trabajador360-centros">
                             <FranjaEstado Opciones="OpcionesCentros" Valor="@string.Join(',', _estadosCentros)" ValorChanged="CambiarEstadoCentros"
                                           Recuentos="RecuentosCentros" TotalTodos="_centros.Count" />

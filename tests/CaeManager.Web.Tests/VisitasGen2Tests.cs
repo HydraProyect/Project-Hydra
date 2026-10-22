@@ -1102,6 +1102,7 @@ public partial class VisitasGen2Tests : BunitContext
         var cut = Renderizar(mediator);
 
         await AbrirCancelarPorSeleccionAsync(cut, "Planta Zaragoza");
+        await cut.Find("[role=dialog] textarea").InputAsync(new ChangeEventArgs { Value = "Obra aplazada" });
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar seleccionadas").ClickAsync(new MouseEventArgs());
         var versionDelRecibo = mediator.Visitas[0].Version;
 

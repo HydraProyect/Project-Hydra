@@ -285,12 +285,6 @@
   <data name="VacioAsignacionesDescripcion" xml:space="preserve">
     <value>Este trabajador no tiene ninguna asignación activa a un centro.</value>
   </data>
-  <data name="SeparadorDocumentacionPorCentro" xml:space="preserve">
-    <value>Documentación por centro</value>
-  </data>
-  <data name="TextoExigenciaPorCentro" xml:space="preserve">
-    <value>La exigencia documental es por centro: el mismo trabajador puede estar completo en un centro y bloqueado en otro, porque cada centro pide cosas distintas.</value>
-  </data>
   <data name="TextoCentroSinExigencia" xml:space="preserve">
     <value>Este centro no exige documentación específica a este trabajador.</value>
   </data>

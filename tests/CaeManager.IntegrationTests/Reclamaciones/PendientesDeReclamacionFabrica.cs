@@ -8,8 +8,8 @@ namespace CaeManager.IntegrationTests.Reclamaciones;
 
 /// <summary>
 /// Monta el <see cref="PendientesDeReclamacionService"/> REAL sobre un contexto de pruebas (con sus dos dependencias reales: el
-/// cálculo de faltantes de Trabajador y la evaluación de acceso por Centro), para los handlers de reclamación que lo necesitan.
-/// Los tests de integración no usan dobles de esta pieza: lo que prueban es justamente que la consulta traduce a SQL.
+/// cálculo de faltantes de Trabajador y los pares de Empresa exigidos del Centro 360), para los handlers de reclamación que lo
+/// necesitan. Los tests de integración no usan dobles de esta pieza: lo que prueban es justamente que la consulta traduce a SQL.
 /// </summary>
 internal static class PendientesDeReclamacionFabrica
 {
@@ -17,6 +17,6 @@ internal static class PendientesDeReclamacionFabrica
         new PendientesDeReclamacionService(
             c, c, c, c, c, c,
             new DocumentosFaltantesService(c, c, c),
-            new EvaluacionDeAccesoPorCentroService(c, c, c, c, c, alcance),
+            new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c),
             alcance);
 }

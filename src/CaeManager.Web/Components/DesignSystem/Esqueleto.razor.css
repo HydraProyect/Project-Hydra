@@ -105,6 +105,18 @@
     width: 45%;
 }
 
+/* La gráfica ya vive dentro de una tarjeta de la pantalla: el hueco no lleva marco propio. */
+.esqueleto-grafica .esqueleto-tarjeta {
+    padding: 0;
+    border: 0;
+    background: transparent;
+}
+
+.esqueleto-lienzo {
+    height: var(--esqueleto-alto, 240px);
+    width: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .esqueleto-bloque {
         animation: none;

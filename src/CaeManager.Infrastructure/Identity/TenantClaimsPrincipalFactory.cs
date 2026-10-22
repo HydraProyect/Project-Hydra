@@ -25,6 +25,9 @@ public class TenantClaimsPrincipalFactory(
 {
     public const string TipoClaimTenantId = "tenant_id";
 
+    /// <summary>El nombre completo de la cuenta, para mostrar. No es autoridad: nada autoriza ni deniega por su valor.</summary>
+    public const string TipoClaimNombreCompleto = "nombre_completo";
+
     /// <summary>
     /// La cuenta tiene una obligación pendiente que la deja a medio activar:
     /// una contraseña temporal sin cambiar, o el rol Administrador sin la
@@ -80,6 +83,11 @@ public class TenantClaimsPrincipalFactory(
             return principal;
 
         identidad.AddClaim(new Claim(TipoClaimTenantId, user.TenantId.ToString()));
+
+        // Solo para mostrar (el saludo de Inicio): nada autoriza por él. Viaja en el ticket para que el saludo no dependa de
+        // releer la cuenta en el DbContext del circuito, que compite con el resto del shell durante la carga.
+        if (!string.IsNullOrWhiteSpace(user.NombreCompleto))
+            identidad.AddClaim(new Claim(TipoClaimNombreCompleto, user.NombreCompleto));
 
         if (user.PermisoConsultarAccesoDocumentosSensibles)
             identidad.AddClaim(new Claim(TipoClaimPermisoConsultarAccesoDocumentosSensibles, "true"));

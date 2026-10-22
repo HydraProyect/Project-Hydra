@@ -139,15 +139,22 @@
                         <th scope="col"></th>
                     </tr></thead>
                     <tbody>
-                    @{ var claves = new ClavesDeHermanos(); string? grupoAnterior = null; }
-                    @foreach (var context in _elementosPagina)
+                    @{ var claves = new ClavesDeHermanos(); }
+                    @foreach (var filaDeGrupo in FilasConGrupo())
                     {
-                        @if (_agruparPorEmpresa && context.EmpleadorNombre != grupoAnterior)
+                        var context = filaDeGrupo.Fila;
+                        @if (filaDeGrupo.Cabecera is { } grupo)
                         {
-                            grupoAnterior = context.EmpleadorNombre;
-                            var enGrupo = VehiculosDelGrupo(context.EmpleadorNombre);
-                            @* Título del grupo «Por Empresa» (maqueta de Vehículos): la Empresa y cuántos Vehículos suyos hay en esta página. *@
-                            <tr @key='claves.De((context.EmpleadorNombre, "grupo"))' class="vehiculo-grupo" data-grupo-empresa="@context.EmpleadorNombre"><td colspan="@(_seleccionMultiple ? 6 : 5)">@context.EmpleadorNombre<span class="vehiculo-grupo-recuento">@enGrupo</span></td></tr>
+                            @* Grupo «Por Empresa» (maqueta de Vehículos), plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado,
+                               con «· N» y, plegado, la pastilla roja de los Vehículos en rojo. *@
+                            <tr @key='claves.De((grupo.Clave, "grupo"))' class="vehiculo-grupo" data-grupo-empresa="@grupo.Nombre"><td colspan="@(_seleccionMultiple ? 6 : 5)">
+                                <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                    Abierto="filaDeGrupo.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
+                            </td></tr>
+                        }
+                        @if (filaDeGrupo.Oculta)
+                        {
+                            continue;
                         }
                         <tr @key="claves.De(context.Id)" class="@ObtenerClaseFila(context)">
                             @if (_seleccionMultiple)
@@ -306,7 +313,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="@_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }
