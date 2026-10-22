@@ -45,6 +45,27 @@ public class ObtenerCuadroDireccionQueryHandlerTests
     }
 
     [Fact]
+    public void Los_vencidos_de_Empresa_no_mueven_la_tasa_del_Cuadro_ni_las_cifras_que_se_facturan()
+    {
+        // La tasa del Cuadro es la de Inicio: Documentos de Trabajador. Los de Empresa que avisan cuentan en el recuento
+        // de Alertas (KpisDashboardDto.VencidosComoEnAlertas), no en el porcentaje ni en las unidades que se cobran.
+        var sinEmpresa = Medicion(altasCentros: 2, vigentes: 9, vencidos: 1, extranjeros: 3) with { ObrasNuevas = 1 };
+        var conEmpresa = sinEmpresa with
+        {
+            Documental = sinEmpresa.Documental with { DocumentosEmpresaVencidos = 5, DocumentosEmpresaUrgentes = 2 }
+        };
+
+        var totalSinEmpresa = Fusionar(EnOctubre, (Tenant("Ibertec"), sinEmpresa)).Total;
+        var resultado = Fusionar(EnOctubre, (Tenant("Ibertec"), conEmpresa)).Total;
+
+        resultado.Cumplimiento.Porcentaje.Should().Be(totalSinEmpresa.Cumplimiento.Porcentaje).And.Be(90);
+        resultado.Cumplimiento.Vencidos.Should().Be(1);
+        resultado.AltasCentros.Valor.Should().Be(2);
+        resultado.Extranjeros!.Valor.Should().Be(3);
+        resultado.ObrasNuevas!.Valor.Should().Be(1);
+    }
+
+    [Fact]
     public void Cada_Tenant_conserva_sus_propias_cifras_y_salen_ordenados_por_nombre()
     {
         var ibertec = Tenant("Ibertec");
