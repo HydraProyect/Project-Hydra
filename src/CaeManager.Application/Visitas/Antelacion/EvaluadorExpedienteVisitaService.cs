@@ -158,7 +158,8 @@ public class EvaluadorExpedienteVisitaService(
         Guid? empresaId = centro.EmpresaId;
 
         var tipos = await tiposDocumentoContext.TiposDocumento
-            .Where(t => t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador)
+            // Un tipo archivado ya no se exige (como en EvaluacionDeAccesoPorCentroService): no admite documentos nuevos.
+            .Where(t => (t.AmbitoAplicacion == AmbitoAplicacion.Empresa || t.AmbitoAplicacion == AmbitoAplicacion.Trabajador) && !t.Archivado)
             .Select(t => new { t.Id, t.AmbitoAplicacion, CuentaParaCumplimiento = t.Requerido == RequisitoDocumental.Si, t.TiposContratacionDeSerie })
             .ToListAsync(cancellationToken);
 

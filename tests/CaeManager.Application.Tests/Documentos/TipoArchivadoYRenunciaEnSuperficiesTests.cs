@@ -224,6 +224,48 @@ public class TipoArchivadoYRenunciaEnSuperficiesTests
             : "control: el mismo documento sin renuncia sí cubre el tipo");
     }
 
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task El_expediente_de_la_visita_no_exige_un_tipo_archivado_aunque_el_centro_lo_incluya(bool archivado, bool completoEsperado)
+    {
+        var titular = Empresa.CrearComoCliente("Titular Demo SA", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var proveedora = new Empresa("Contratista Demo SL", "B12345674");
+        var centro = new Centro(titular.Id, proveedora.Id, "Nave Norte");
+        var trabajador = Trabajador.DeEmpresa(proveedora.Id, "Ana", "García", "12345678Z");
+        var tipo = new TipoDocumento(
+            "Formación EPIs", vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1,
+            AmbitoAplicacion.Trabajador, RequisitoDocumental.No);
+        if (archivado)
+            tipo.Archivar(null);
+
+        var centros = new CentrosQueryContextFalso();
+        centros.ListaCentros.Add(centro);
+        var tipos = new TiposDocumentoQueryContextFalso();
+        tipos.ListaTiposDocumento.Add(tipo);
+        tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(tipo.Id, centro.Id, incluido: true));
+        var trabajadores = new TrabajadoresQueryContextFalso();
+        trabajadores.ListaTrabajadores.Add(trabajador);
+        var configuracion = new ConfiguracionQueryContextFalso();
+        configuracion.ListaParametrosSistema.Add(new ParametroSistema(umbralAmbarDias: 30, umbralRojoDias: 7));
+        var visita = new Visita(centro.Id, Hoy.AddDays(3), Hoy.AddDays(3), null);
+        visita.RegistrarOrigenSolicitud(Guid.NewGuid(), DateTime.UtcNow.AddHours(-1));
+        var visitas = new VisitasQueryContextFalso();
+        visitas.ListaVisitas.Add(visita);
+        visitas.ListaVisitasTrabajadores.Add(new VisitaTrabajador(visita.Id, trabajador.Id));
+        var repositorio = new VisitaRepositorioFalso();
+        repositorio.Visitas.Add(visita);
+
+        var sellado = await new EvaluadorExpedienteVisitaService(
+                visitas, centros, new DocumentosQueryContextFalso(), tipos, trabajadores, configuracion, repositorio, new UnitOfWorkFalso(),
+                NullLogger<EvaluadorExpedienteVisitaService>.Instance)
+            .EvaluarAsync(visita.Id);
+
+        sellado.Should().Be(completoEsperado, archivado
+            ? "un tipo archivado no admite documentos nuevos: exigirlo dejaría el expediente sin completar nunca"
+            : "control: el mismo tipo sin archivar, incluido por el Centro y sin documento, deja el expediente incompleto");
+    }
+
     private sealed class VisitasQueryContextFalso : IVisitasQueryContext
     {
         public List<Visita> ListaVisitas { get; } = [];
