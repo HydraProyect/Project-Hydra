@@ -183,7 +183,7 @@
                 {
                     @* Grupo plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y, plegado, la pastilla roja. *@
                     <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Filas.Count" Incidencias="grupo.Filas.Count(EsFilaRoja)"
-                                        Abierto="grupoAbierto" OnAlternar="() => _gruposAbiertos.Alternar(grupo.Clave)" />
+                                        Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
                 }
                 @foreach (var subcontrata in grupoAbierto ? grupo.Filas : [])
                 {
@@ -383,7 +383,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }

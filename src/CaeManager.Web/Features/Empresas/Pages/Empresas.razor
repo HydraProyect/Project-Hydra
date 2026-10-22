@@ -245,7 +245,7 @@
                            con «· N» y, plegado, la pastilla roja de las Empresas en rojo. *@
                         <div data-grupo-cliente="@grupo.Nombre" @key="clavesDeGrupo.De(grupo.Clave)">
                             <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
-                                                Abierto="filaDeGrupo.Abierto" OnAlternar="() => _gruposAbiertos.Alternar(grupo.Clave)" />
+                                                Abierto="filaDeGrupo.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
                         </div>
                     }
                     @if (filaDeGrupo.Oculta)
@@ -470,7 +470,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                   PaginaActualChanged="CambiarPaginaAsync"
-                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_elementosPagina.Count">
+                                  TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista /></Centro>
                 </PaginadorSimple>
         }
