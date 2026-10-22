@@ -37,9 +37,14 @@
     private bool _guardando;
     private string? _error;
 
+    private Guid _cargada;
+
     protected override async Task OnParametersSetAsync()
     {
+        // Solo cambia de conversación recarga: un Asunto que se refresca no debe desmontar el modal ni borrar lo elegido.
         var id = ConversacionId;
+        if (id == _cargada) return;
+        _cargada = id;
         _alerta = null;
         _error = null;
         var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
@@ -84,7 +89,29 @@
             _error = resultado.EsFallido ? Textos["ErrorResolver"].Value : null;
             _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
         }
-        finally { _guardando = false; }
+        catch (Exception)
+        {
+            _error = Textos["ErrorResolver"].Value;
+        }
+        finally
+        {
+            _guardando = false;
+            AvisarSiElModalYaNoEsta();
+        }
+    }
+
+    /// <summary>El error solo se pinta dentro del modal: si otra persona resolvió la alerta, el modal ya no está y el aviso sale en un toast.</summary>
+    private void AvisarSiElModalYaNoEsta()
+    {
+        if (_error is null || _alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true }) return;
+        ToastService.Mostrar(_error, TonoToast.Error);
+        _error = null;
+    }
+
+    private async Task<bool> RetirarIncidenciaAsync(Guid incidenciaId)
+    {
+        try { return (await Mediator.Send(new EliminarIncidenciaCommand(incidenciaId))).EsExitoso; }
+        catch (Exception) { return false; }
     }
 
     /// <summary>
@@ -102,7 +129,13 @@
         try
         {
             var descripcion = Textos["DescripcionIncidencia", Asunto ?? string.Empty, texto].Value;
-            if (descripcion.Length > Incidencia.LongitudMaximaDescripcion) descripcion = descripcion[..Incidencia.LongitudMaximaDescripcion];
+            if (descripcion.Length > Incidencia.LongitudMaximaDescripcion)
+            {
+                // Sin partir un par sustituto (un emoji del correo): Npgsql no codifica un sustituto huérfano.
+                var corte = Incidencia.LongitudMaximaDescripcion;
+                if (char.IsHighSurrogate(descripcion[corte - 1])) corte--;
+                descripcion = descripcion[..corte];
+            }
 
             var creada = await Mediator.Send(new CrearIncidenciaCommand(
                 datos.CentroId, datos.TrabajadorId, datos.Tipo, datos.Gravedad, DiaDeNegocio.Hoy(), descripcion));
@@ -112,17 +145,21 @@
                 return;
             }
 
-            var resuelta = await Mediator.Send(new ResolverAlertaCriticaCommand(id, true));
-            if (resuelta.EsFallido)
+            var incidenciaId = creada.Valor;
+            bool confirmada;
+            try { confirmada = (await Mediator.Send(new ResolverAlertaCriticaCommand(id, true))).EsExitoso; }
+            catch (Exception) { confirmada = false; }
+
+            if (!confirmada)
             {
-                await Mediator.Send(new EliminarIncidenciaCommand(creada.Valor));
+                var retirada = await RetirarIncidenciaAsync(incidenciaId);
                 if (ConversacionId != id) return;
-                _error = Textos["ErrorResolver"].Value;
-                _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
+                _error = Textos[retirada ? "ErrorResolver" : "ErrorResolverIncidenciaQuedada"].Value;
+                try { _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id)); }
+                catch (Exception) { /* el modal sigue con lo que tenía: la alerta no cambió */ }
                 return;
             }
 
-            var incidenciaId = creada.Valor;
             var trabajador = datos.TrabajadorId is { } trabajadorId
                 ? EtiquetasSelectorTrabajador.Construir(_trabajadores).FirstOrDefault(t => t.Id == trabajadorId)?.Texto
                 : null;
@@ -130,13 +167,20 @@
                 trabajador is null ? Textos["ToastIncidenciaRegistrada"].Value : Textos["ToastIncidenciaRegistradaPara", trabajador].Value,
                 TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(incidenciaId));
             if (ConversacionId != id) return;
-            _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
+            // Ya está confirmada y la Incidencia creada: el modal se cierra aunque el refresco falle.
+            _alerta = _alerta with { Estado = EstadoAlertaCritica.ConfirmadaYDerivada, PuedeResolver = false };
+            try { _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id)) ?? _alerta; }
+            catch (Exception) { /* se conserva el estado local */ }
         }
         catch (Exception)
         {
             _error = Textos["ErrorRegistrar"].Value;
         }
-        finally { _guardando = false; }
+        finally
+        {
+            _guardando = false;
+            AvisarSiElModalYaNoEsta();
+        }
     }
 
     private async Task DeshacerAsync(Guid incidenciaId)

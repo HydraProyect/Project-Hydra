@@ -39,5 +39,6 @@
   <data name="ToastIncidenciaRegistradaPara" xml:space="preserve"><value>Incidència registrada per a {0}.</value></data>
   <data name="ToastAccionDeshacer" xml:space="preserve"><value>Desfés</value></data>
   <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidència eliminada. L’alerta continua confirmada.</value></data>
+  <data name="ErrorResolverIncidenciaQuedada" xml:space="preserve"><value>No s’ha pogut confirmar l’alerta i la incidència creada no s’ha pogut retirar. Revisa-la a Incidències.</value></data>
   <data name="ErrorDeshacer" xml:space="preserve"><value>No s’ha pogut desfer. Elimina la incidència des d’Incidències.</value></data>
 </root>

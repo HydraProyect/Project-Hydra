@@ -40,6 +40,11 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
     {
         public AlertaCriticaDto Alerta { get; set; } = new("Trabajador sin curso de altura en cubierta", EstadoAlertaCritica.Pendiente, true, true, 91);
         public bool ResolverFalla { get; set; }
+        public bool ResolverLanza { get; set; }
+        public bool EliminarFalla { get; set; }
+
+        /// <summary>Otra persona resolvió la alerta entre tanto: Resolver falla y la alerta ya no está pendiente.</summary>
+        public bool OtraPersonaResolvio { get; set; }
         public List<object> Enviados { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
@@ -51,7 +56,7 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
                 ObtenerCentrosParaSelectorQuery => (IReadOnlyList<CentroSelectorDto>)[new CentroSelectorDto(CentroId, "Centro Norte", "Constructora Norte", "Cubiertas Arrieta")],
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
                 CrearIncidenciaCommand => Result.Exito(IncidenciaId),
-                EliminarIncidenciaCommand => Result.Exito(),
+                EliminarIncidenciaCommand => EliminarFalla ? Result.Fallo(Error.Crear("Incidencia.NoEncontrada", "No encontramos esta incidencia.")) : Result.Exito(),
                 ResolverAlertaCriticaCommand resolver => Resolver(resolver),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
@@ -60,6 +65,13 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
 
         private Result Resolver(ResolverAlertaCriticaCommand comando)
         {
+            if (ResolverLanza) throw new InvalidOperationException("Fallo de base de datos simulado.");
+            if (OtraPersonaResolvio)
+            {
+                Alerta = Alerta with { Estado = EstadoAlertaCritica.Descartada, PuedeResolver = false };
+                return Result.Fallo(Error.Crear("AlertaCritica.NoPendiente", "La alerta ya está resuelta."));
+            }
+
             if (ResolverFalla) return Result.Fallo(Error.Crear("AlertaCritica.NoPendiente", "La alerta ya está resuelta."));
             Alerta = Alerta with { Estado = comando.ConfirmarYDerivar ? EstadoAlertaCritica.ConfirmadaYDerivada : EstadoAlertaCritica.Descartada, PuedeResolver = false };
             return Result.Exito();
@@ -150,6 +162,74 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
         cut.Find("h2").TextContent.Trim().Should().Be("Alerta crítica");
         cut.Markup.Should().Contain("No se pudo resolver la alerta");
         _toasts.Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_confirmar_la_alerta_lanza_una_excepcion_tambien_se_retira_la_incidencia()
+    {
+        _mediator.ResolverLanza = true;
+        var cut = Renderizar();
+
+        ElegirCentroYRegistrar(cut);
+
+        cut.WaitForAssertion(() => _mediator.Enviados.OfType<EliminarIncidenciaCommand>().Should().ContainSingle());
+        cut.Markup.Should().Contain("No se pudo resolver la alerta");
+        _toasts.Mensajes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_la_incidencia_no_se_puede_retirar_el_aviso_lo_dice()
+    {
+        _mediator.ResolverFalla = true;
+        _mediator.EliminarFalla = true;
+        var cut = Renderizar();
+
+        ElegirCentroYRegistrar(cut);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("no se pudo retirar").And.Contain("Revísala en Incidencias"));
+    }
+
+    [Fact]
+    public void Si_otra_persona_ya_resolvio_la_alerta_el_error_sale_en_un_toast_porque_el_modal_desaparece()
+    {
+        _mediator.OtraPersonaResolvio = true;
+        var cut = Renderizar();
+
+        ElegirCentroYRegistrar(cut);
+
+        cut.WaitForAssertion(() => cut.FindAll("h2").Should().BeEmpty());
+        _toasts.Mensajes.Should().ContainSingle().Which.Tono.Should().Be(TonoToast.Error);
+        _toasts.Mensajes[0].Mensaje.Should().Contain("No se pudo resolver la alerta");
+    }
+
+    [Fact]
+    public void La_descripcion_no_pasa_de_2000_caracteres_ni_parte_un_par_sustituto()
+    {
+        const string prefijo = "Alerta crítica detectada en la conversación «Obra Centro Norte»: ";
+        // El primer sustituto del emoji cae justo en el carácter 2000: cortar ahí dejaría un sustituto huérfano.
+        _mediator.Alerta = _mediator.Alerta with { Texto = new string('a', Incidencia.LongitudMaximaDescripcion - 1 - prefijo.Length) + "😀zzz" };
+        var cut = Renderizar();
+
+        ElegirCentroYRegistrar(cut);
+
+        cut.WaitForAssertion(() => _mediator.Enviados.OfType<CrearIncidenciaCommand>().Should().ContainSingle());
+        var descripcion = _mediator.Enviados.OfType<CrearIncidenciaCommand>().Single().Descripcion;
+        descripcion.Length.Should().BeLessThanOrEqualTo(Incidencia.LongitudMaximaDescripcion);
+        char.IsHighSurrogate(descripcion[^1]).Should().BeFalse();
+    }
+
+    [Fact]
+    public void Refrescarse_el_asunto_no_desmonta_el_modal_ni_borra_el_Centro_elegido()
+    {
+        var cut = Renderizar();
+        cut.FindAll("select")[0].Change(CentroId.ToString());
+
+        cut.Render(p => p
+            .Add(c => c.ConversacionId, ConversacionId)
+            .Add(c => c.Asunto, "Obra Centro Norte (2)"));
+
+        cut.FindAll("select")[0].GetAttribute("value").Should().Be(CentroId.ToString());
+        _mediator.Enviados.OfType<ObtenerAlertaCriticaQuery>().Should().ContainSingle();
     }
 
     [Fact]
