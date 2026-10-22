@@ -23,6 +23,8 @@ public partial class UsuariosGen2Tests
         var cut = Renderizar();
         await cut.Find(".acciones-cabecera button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
+        await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Nuria Sanz");
         cut.Find(".drawer-pie .boton-primario").HasAttribute("disabled").Should().BeFalse("sin búsqueda en vuelo se puede guardar");
 
         // La consulta queda retenida: no se espera la escritura entera.

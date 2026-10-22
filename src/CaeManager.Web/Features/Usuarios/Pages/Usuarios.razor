@@ -165,16 +165,16 @@
                                    ver PendienteActivacion. *@
                                 <Badge Tono="TonoBadge.Advertencia"
                                        title="Nunca se estableció una contraseña. Puede que el correo de activación no haya llegado.">
-                                    Pendiente de activar
+                                    @TextosUsuarios["EstadoPendiente"]
                                 </Badge>
                             }
                             else if (usuario.Activo)
                             {
-                                <Badge Tono="TonoBadge.Exito">Activo</Badge>
+                                <Badge Tono="TonoBadge.Exito">@TextosUsuarios["EstadoActivo"]</Badge>
                             }
                             else
                             {
-                                <Badge Tono="TonoBadge.Peligro">Desactivado</Badge>
+                                <Badge Tono="TonoBadge.Peligro">@TextosUsuarios["EstadoDesactivado"]</Badge>
                             }
                         </td>
                         <td class="columna-accion">
@@ -252,13 +252,41 @@
 @* «Guardar» queda deshabilitado mientras viaja la comprobación del CIF: guardar en ese instante decidiría con un resultado que
    todavía no ha llegado. El kit ya impide el doble clic en el cliente; GuardarAsync lo impide además en el servidor, que es
    donde cuenta. *@
+@* Flujos 14: el alta termina en «Crear y enviar enlace», deshabilitado (con su motivo) mientras no haya nombre y correo; la
+   edición lleva en la cabecera el estado de la cuenta (BajoTitulo) y, arriba del cuerpo, el último acceso y la 2FA, con
+   «Generar enlace nuevo» si la cuenta sigue pendiente. *@
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
-                 Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")"
+                 Titulo="@(_editandoId is null ? TextosUsuarios["AltaTitulo"].Value : TextosUsuarios["EditarTitulo"].Value)"
+                 Subtitulo="@FilaEnEdicion?.NombreCompleto" BajoTitulo="@BajoTituloEdicion"
                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
-                 MotivoGuardarDeshabilitado="@(_buscandoCliente ? TextosUsuarios["GuardarComprobandoCif"].Value : null)"
+                 MotivoGuardarDeshabilitado="@MotivoGuardarUsuarioDeshabilitado"
                  OnGuardar="GuardarAsync" AlDescartarPorNavegacion="CerrarFormulariosDescartandoAsync"
-                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
+                 TextoGuardar="@TextoGuardarUsuario" TextoCancelar="@TextosUsuarios["FormularioCancelar"].Value">
     <ChildContent>
+        @if (FilaEnEdicion is { } ficha)
+        {
+            <div class="datos-ficha-usuario">
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@TextosUsuarios["UltimoAcceso"].Value" Valor="@TextoUltimoAcceso(ficha)" />
+                    <DatoRejilla Etiqueta="@TextosUsuarios["DosFactores"].Value" Valor="@TextoDosFactores(ficha)" />
+                </RejillaDatos>
+            </div>
+
+            @if (ficha.PendienteActivacion)
+            {
+                @* Solo mientras la cuenta sigue pendiente: Application vuelve a comprobarlo y rechaza el enlace a una cuenta
+                   que ya tiene contraseña (GenerarActivacionUsuarioCommand). *@
+                <div class="aviso-pendiente-activacion" role="group" aria-label="@TextosUsuarios["PendienteAvisoTitulo"]">
+                    <p class="aviso-pendiente-titulo">@TextosUsuarios["PendienteAvisoTitulo"]</p>
+                    <p class="texto-ayuda-campo">@TextosUsuarios["PendienteAvisoTexto"]</p>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                           Cargando="_generandoEnlaceNuevo" Deshabilitado="_guardando" OnClick="GenerarEnlaceNuevoAsync">
+                        @TextosUsuarios["GenerarEnlaceNuevo"]
+                    </Boton>
+                </div>
+            }
+        }
+
         <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         @if (_editandoId is not null)
         {
@@ -401,27 +429,39 @@
    quien elegía la contraseña inicial—. Lo que sí evita es que un correo
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
-       VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Enlace de activación")">
+       VisibleChanged="@(v => { if (!v) CerrarEnlaceActivacion(); })"
+       Titulo="@TituloEnlaceActivacion">
     <ChildContent>
-        @if (_reenvioEnCurso && _reenvioFallido)
+        @if (_enlaceNuevoGenerado)
         {
-            <p>No pudimos enviarle el correo. Puedes hacerle llegar tú este enlace para que establezca su contraseña:</p>
+            @* Flujos 14, «Enlace nuevo»: lo importante es que el anterior ya no vale. No se ha enviado ningún correo. *@
+            <p><strong>@TextosUsuarios["EnlaceNuevoAvisoTitulo"]</strong> @TextosUsuarios["EnlaceNuevoAvisoTexto"]</p>
+            <p>@TextosUsuarios["EnlaceCaducidad", MinutosCaducidadActivacion]</p>
+        }
+        else if (_reenvioEnCurso && _reenvioFallido)
+        {
+            <p>@TextosUsuarios["EnlaceCuerpoFallido"]</p>
         }
         else
         {
             <p>
-                Le hemos enviado por correo un enlace para que establezca su contraseña.
-                Caduca en @MinutosCaducidadActivacion minutos y solo puede usarse una vez.
+                @TextosUsuarios["EnlaceCuerpoEnviado"]
+                @TextosUsuarios["EnlaceCaducidad", MinutosCaducidadActivacion]
             </p>
-            <p>Si el correo no le llega, puedes hacerle llegar tú este enlace:</p>
+            <p>@TextosUsuarios["EnlaceCuerpoSiNoLlega"]</p>
         }
         <p class="enlace-activacion">@_enlaceActivacion</p>
-        <p class="nota-cuenta-sin-contrasena">Cuenta creada sin contraseña: nadie más que la persona llega a conocerla.</p>
+        @if (!_enlaceNuevoGenerado)
+        {
+            <p class="nota-cuenta-sin-contrasena">@TextosUsuarios["EnlaceNotaSinContrasena"]</p>
+        }
     </ChildContent>
     <Pie>
-        <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" Etiqueta="el enlace de activación" />
-        <Boton Variante="VarianteBoton.Primario" OnClick="() => _enlaceActivacion = null">Hecho</Boton>
+        @* Maqueta Flujos 14: «Cerrar» secundario a la izquierda y «Copiar enlace» primario, que confirma «✓ Copiado» 2 s. *@
+        <Boton Variante="VarianteBoton.Secundario" OnClick="CerrarEnlaceActivacion">@TextosUsuarios["EnlaceCerrar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="CopiarEnlaceAsync">
+            @(_enlaceCopiado ? TextosUsuarios["EnlaceCopiado"].Value : TextosUsuarios["EnlaceCopiar"].Value)
+        </Boton>
     </Pie>
 </Modal>
 
@@ -536,3 +576,16 @@
                       TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
                       OnConfirmar="RestablecerSegundoFactorAsync" />
 </LimiteDeErrores>
+
+@code {
+    /// <summary>Pastilla de estado de la cuenta (Activo, Desactivado, Pendiente de activar) bajo el título de la ficha; sin ficha en edición, nada.</summary>
+    private RenderFragment? BajoTituloEdicion
+    {
+        get
+        {
+            if (FilaEnEdicion is not { } ficha) return null;
+            var (tono, texto) = EstadoDeLaFicha(ficha);
+            return @<Badge Tono="tono" Tamano="TamanoBadge.Pequeno">@texto</Badge>;
+        }
+    }
+}

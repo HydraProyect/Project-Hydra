@@ -30,7 +30,7 @@
 @inject IJSRuntime JS
 @inject IStringLocalizer<TextosComunes> Comunes
 
-<Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Subtitulo="@Subtitulo" Ancho="Ancho" HayCambios="HayCambios"
+<Drawer @ref="_drawer" Visible="Visible" VisibleChanged="VisibleChanged" Titulo="@Titulo" Subtitulo="@Subtitulo" BajoTitulo="BajoTitulo" Ancho="Ancho" HayCambios="HayCambios"
         Pasos="@(EnPasos ? PasosRender : null)"
         CerrarAlHacerClicFuera="@(!Guardando && string.IsNullOrWhiteSpace(MensajeError) && !HayErroresDeCampo)"
         Aviso="@(string.IsNullOrWhiteSpace(MensajeError) ? null : AvisoRender)">
@@ -188,6 +188,9 @@
 
     /// <summary>Contexto bajo el título (p. ej. «Empresa: Montajes Levante S.L.»). Opcional.</summary>
     [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>Contenido bajo título y subtítulo (la pastilla de estado de la ficha que se edita). Opcional.</summary>
+    [Parameter] public RenderFragment? BajoTitulo { get; set; }
 
     /// <summary>Estandar (480 px, por defecto) o Ancho (640 px, para dos columnas de campos). En móvil el panel ocupa la pantalla.</summary>
     [Parameter] public AnchoDrawer Ancho { get; set; } = AnchoDrawer.Estandar;

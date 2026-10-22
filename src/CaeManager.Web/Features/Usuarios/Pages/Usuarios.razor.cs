@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Usuarios.Pages;
 
@@ -52,9 +53,14 @@ namespace CaeManager.Web.Features.Usuarios.Pages;
 /// decide <c>RestablecerSegundoFactorCommand</c>.
 /// </param>
 /// <param name="Avatar">Clave del avatar elegido por esa persona (<c>CatalogoAvatares</c>), o <c>null</c>: iniciales.</param>
+/// <param name="UltimaActividadUtc">
+/// Última interacción autenticada de la cuenta (<c>ApplicationUser.UltimaActividadUtc</c>), que la cabecera de la ficha de
+/// edición enseña como «Último acceso». <c>null</c>: nunca ha entrado.
+/// </param>
 public record UsuarioListaDto(
     Guid Id, string Email, string NombreCompleto, string Rol, bool Activo, bool EsOperadorDelegado,
-    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false, string? Avatar = null);
+    bool PendienteActivacion, AlcanceUsuarioDto Alcance, bool DosFactoresActivo = false, string? Avatar = null,
+    DateTime? UltimaActividadUtc = null);
 
 /// <summary>
 /// Qué alcanza una cuenta, ya resuelto a texto. Es presentación y por eso vive
@@ -85,6 +91,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     [Inject] private IEmailService EmailService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ILogger<Usuarios> Logger { get; set; } = default!;
+    [Inject] private Microsoft.JSInterop.IJSRuntime Js { get; set; } = default!;
 
     private int _tamanoPagina = 20;
 
@@ -511,7 +518,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                         EsPendienteActivacion(usuario, idsConLoginExterno),
                         CalcularAlcance(usuario, rol, carteras, empresasGestionadas, gestoresPorCoordinador),
                         usuario.TwoFactorEnabled,
-                        usuario.Avatar));
+                        usuario.Avatar,
+                        usuario.UltimaActividadUtc));
                 }
             }, token);
 
@@ -1118,6 +1126,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
         var creado = resultado.Valor;
         _reenvioEnCurso = false;
+        _enlaceNuevoGenerado = false;
         _enlaceActivacion = EnlaceActivacion(creado.UsuarioId, creado.TokenActivacion);
 
         // La cuenta ya quedó creada —el alta sí tuvo éxito—, así que un fallo del
@@ -1244,6 +1253,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
             _reenvioEnCurso = true;
             _reenvioTrasCorregirCorreo = false;
+            _enlaceNuevoGenerado = false;
             _enlaceActivacion = enlace;
         }
         catch (OperationCanceledException)
@@ -1332,6 +1342,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             _reenvioFallido = envio.EsFallido;
             _reenvioTrasCorregirCorreo = true;
             _reenvioEnCurso = true;
+            _enlaceNuevoGenerado = false;
             _enlaceActivacion = enlace;
             await CargarAsync();
         }
@@ -1806,6 +1817,151 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// pero el modal repetía la afirmación contraria.
     /// </summary>
     private bool _reenvioFallido;
+
+    // ── Ficha de edición (Flujos 14): cabecera, enlace nuevo y modal del enlace ──
+
+    /// <summary>La fila de la lista que se está editando: de ella salen el estado, el último acceso y la 2FA de la cabecera.</summary>
+    private UsuarioListaDto? FilaEnEdicion =>
+        _editandoId is { } id ? _usuarios.FirstOrDefault(u => u.Id == id) : null;
+
+    private bool _generandoEnlaceNuevo;
+
+    /// <summary>
+    /// El modal del enlace viene de «Generar enlace nuevo» en la ficha: no se ha enviado ningún correo, y lo que
+    /// importa es que el enlace anterior ya no vale. Distinto del reenvío (que sí envía) y del alta.
+    /// </summary>
+    private bool _enlaceNuevoGenerado;
+
+    private bool _enlaceCopiado;
+    private int _versionCopia;
+
+    private (TonoBadge Tono, string Texto) EstadoDeLaFicha(UsuarioListaDto fila) =>
+        fila.PendienteActivacion ? (TonoBadge.Advertencia, TextosUsuarios["EstadoPendiente"].Value)
+        : fila.Activo ? (TonoBadge.Exito, TextosUsuarios["EstadoActivo"].Value)
+        : (TonoBadge.Peligro, TextosUsuarios["EstadoDesactivado"].Value);
+
+    /// <summary>«Hoy 08:02», «Ayer 18:40» o la fecha completa, en hora peninsular; sin actividad registrada, «Aún no ha entrado».</summary>
+    private string TextoUltimoAcceso(UsuarioListaDto fila)
+    {
+        if (fila.UltimaActividadUtc is not { } utc)
+            return TextosUsuarios["UltimoAccesoNunca"].Value;
+
+        var local = utc.EnHoraPeninsular();
+        var hoy = DateTime.UtcNow.EnHoraPeninsular().Date;
+        var hora = local.ToString("HH:mm", CultureInfo.InvariantCulture);
+        if (local.Date == hoy) return TextosUsuarios["UltimoAccesoHoy", hora].Value;
+        if (local.Date == hoy.AddDays(-1)) return TextosUsuarios["UltimoAccesoAyer", hora].Value;
+        return local.ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+    }
+
+    private string TextoDosFactores(UsuarioListaDto fila) =>
+        fila.DosFactoresActivo ? TextosUsuarios["DosFactoresActivado"].Value : TextosUsuarios["DosFactoresNoActivado"].Value;
+
+    private string TituloEnlaceActivacion =>
+        _reenvioEnCurso && !_enlaceNuevoGenerado
+            ? (_reenvioFallido ? TextosUsuarios["EnlaceTituloFallido"].Value
+                : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value
+                : TextosUsuarios["EnlaceTituloReenviado"].Value)
+            : TextosUsuarios["EnlaceTitulo"].Value;
+
+    private string TextoGuardarUsuario =>
+        _editandoId is null ? TextosUsuarios["AltaGuardar"].Value : TextosUsuarios["FormularioGuardar"].Value;
+
+    /// <summary>
+    /// Por qué «Crear y enviar enlace» no se puede pulsar todavía (estado «Vacío» de la maqueta): sin nombre y correo no hay
+    /// a quién enviar el enlace. En la edición no aplica (el correo es el de la cuenta). Antes, la comprobación del CIF.
+    /// </summary>
+    private string? MotivoGuardarUsuarioDeshabilitado =>
+        _buscandoCliente ? TextosUsuarios["GuardarComprobandoCif"].Value
+        : _editandoId is null && (string.IsNullOrWhiteSpace(_email) || string.IsNullOrWhiteSpace(_nombreCompleto))
+            ? TextosUsuarios["AltaGuardarSinDatos"].Value
+        : null;
+
+    /// <summary>
+    /// «Generar enlace nuevo» desde la ficha de una cuenta pendiente. Mismo <see cref="GenerarActivacionUsuarioCommand"/>
+    /// que «Reenviar correo de activación», sin enviar correo: el enlace anterior deja de valer (Application cambia el
+    /// sello de seguridad) y el nuevo se enseña en el modal para entregarlo por otra vía. Application revalida que la
+    /// cuenta siga pendiente y quién puede.
+    /// </summary>
+    private async Task GenerarEnlaceNuevoAsync()
+    {
+        if (_generandoEnlaceNuevo || _editandoId is not { } id) return;
+        _generandoEnlaceNuevo = true;
+
+        try
+        {
+            var activacion = await Mediator.Send(new GenerarActivacionUsuarioCommand(id), _ciclo.Token);
+            if (activacion.EsFallido)
+            {
+                ToastService.MostrarError(activacion.Error);
+                // La persona se activó entretanto: la ficha ya no tiene nada que ofrecer.
+                if (activacion.Error.Codigo == GenerarActivacionUsuarioCommandHandler.YaActivada.Codigo)
+                    await CargarAsync();
+                return;
+            }
+
+            _reenvioEnCurso = false;
+            _reenvioFallido = false;
+            _reenvioTrasCorregirCorreo = false;
+            _enlaceNuevoGenerado = true;
+            _enlaceActivacion = EnlaceActivacion(id, activacion.Valor);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            _generandoEnlaceNuevo = false;
+        }
+    }
+
+    private void CerrarEnlaceActivacion()
+    {
+        _enlaceActivacion = null;
+        _enlaceNuevoGenerado = false;
+        _enlaceCopiado = false;
+        _versionCopia++;
+    }
+
+    /// <summary>
+    /// «Copiar enlace»: portapapeles por el módulo común, aviso y el botón confirma «✓ Copiado» durante 2 s (maqueta).
+    /// </summary>
+    private async Task CopiarEnlaceAsync()
+    {
+        if (string.IsNullOrEmpty(_enlaceActivacion)) return;
+
+        try
+        {
+            await using var modulo = await Js.InvokeAsync<Microsoft.JSInterop.IJSObjectReference>("import", "./js/clipboard.js");
+            await modulo.InvokeVoidAsync("copiarAlPortapapeles", _enlaceActivacion);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(TextosUsuarios["EnlaceNoCopiado"], TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar(TextosUsuarios["EnlaceCopiadoAviso"], TonoToast.Exito);
+        _enlaceCopiado = true;
+        _ = RestablecerCopiaAsync(++_versionCopia);
+    }
+
+    private async Task RestablecerCopiaAsync(int version)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), _ciclo.Token);
+            await InvokeAsync(() =>
+            {
+                if (version != _versionCopia) return;
+                _enlaceCopiado = false;
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
+    }
 
     private UsuarioListaDto? _usuarioAEliminar;
     private bool _eliminandoUsuario;
