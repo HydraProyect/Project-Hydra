@@ -32,6 +32,12 @@ public record SolicitudesDelMesDto(CifraMensual Total, IReadOnlyList<FranjaSolic
 /// Trabajador operativos, clasificados con la calculadora única) y el porcentaje sale de
 /// <see cref="KpisDashboardDto.FraccionDe"/> y <see cref="KpisDashboardDto.SinDocumentos"/>, la misma
 /// definición que Inicio y el Dashboard ejecutivo.
+/// <para>
+/// <paramref name="Proximos"/>, <paramref name="Urgentes"/> y <paramref name="Vencidos"/> son solo las entradas de la tasa
+/// (Documentos de Trabajador) y el Cuadro no los pinta como recuento: no son la cifra de vencidos y por vencer de
+/// Alertas, Mi trabajo e Inicio, que suma también los de Empresa (<see cref="KpisDashboardDto.VencidosComoEnAlertas"/>).
+/// Quien quiera mostrar un recuento de vencidos en el Cuadro lo toma de ahí, no de estos campos.
+/// </para>
 /// </summary>
 public record CumplimientoActualDto(
     int Vigentes, int Proximos, int Urgentes, int Vencidos, int SinConfirmar, int SinCaducidad,
