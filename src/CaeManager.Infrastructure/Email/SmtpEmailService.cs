@@ -83,10 +83,22 @@ public class SmtpEmailService(
 
             return Result.Exito();
         }
-        catch (Exception ex) when (ex is TimeoutException || (ex is OperationCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
         {
-            // Si cancela quien llama, la cancelación se propaga como siempre;
-            // aquí solo cae el vencimiento de nuestro propio tope.
+            // Cancela quien llama: se propaga siempre como OperationCanceledException, sea cual
+            // sea la excepción con la que MailKit haya abortado la operación en curso (al cancelar
+            // cierra el socket y puede lanzar IOException, SocketException o TimeoutException en
+            // vez de OperationCanceledException). Sin esta rama la cancelación se disfrazaba de
+            // «error de red» y el llamador la trataba como un envío fallido más.
+            if (ex is OperationCanceledException)
+                throw;
+
+            throw new OperationCanceledException("El envío del correo se canceló.", ex, cancellationToken);
+        }
+        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException)
+        {
+            // Aquí solo cae el vencimiento de nuestro propio tope: la cancelación
+            // de quien llama ya se propagó en la rama anterior.
             logger.LogError(ex, "El servidor SMTP no respondió en {Segundos} s al enviar correo.", tiempoMaximo.TotalSeconds);
             return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
