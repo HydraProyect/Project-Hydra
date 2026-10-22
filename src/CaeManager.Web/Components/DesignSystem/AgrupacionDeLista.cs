@@ -25,7 +25,9 @@ public sealed class AgrupacionDeLista(string? claveDeFabrica, params string[] cl
 
     /// <summary>
     /// Filas que pide una pantalla agrupada: todas las que pasan los filtros. Los grupos se calculan sobre todas las
-    /// filas visibles, así que el tamaño de página (20/50/100) no puede cortarlos.
+    /// filas visibles, así que el tamaño de página (20/50/100) no puede cortarlos. Es un tope, no «sin límite»: con más
+    /// filas filtradas que este tope la pantalla pagina y un grupo puede quedar partido entre páginas. Límite conocido,
+    /// improbable en el piloto.
     /// </summary>
     public const int TamanoPaginaAgrupada = 5000;
 

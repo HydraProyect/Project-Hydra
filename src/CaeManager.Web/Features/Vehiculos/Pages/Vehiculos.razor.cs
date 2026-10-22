@@ -453,8 +453,9 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             if (conservarSeleccion)
             {
                 // Lo que ya no está en la página (la corrección lo sacó del filtro) deja de estar seleccionado.
-                _seleccionados.IntersectWith(elementos.Select(v => v.Id));
-                if (_idEnfocado is { } enfocado && elementos.All(v => v.Id != enfocado))
+                var pintadas = FilasPintadas;
+                _seleccionados.IntersectWith(pintadas.Select(v => v.Id));
+                if (_idEnfocado is { } enfocado && pintadas.All(v => v.Id != enfocado))
                     _idEnfocado = null;
             }
             else
@@ -514,6 +515,22 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// <summary>Cuántos Vehículos de la Empresa hay en esta página (agrupar es ordenar en servidor: el recuento es el de la página).</summary>
     /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
     private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<VehiculoListaDto> FilasPintadas =>
+        _agruparPorEmpresa ? _elementosPagina.Where(v => _gruposAbiertos.EstaAbierto(v.EmpleadorNombre)).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(v => v.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(v => v.Id != enfocado)) _idEnfocado = null;
+    }
 
     /// <summary>Las filas con la cabecera del grupo «Por Empresa» en la primera de cada uno; los grupos plegados las ocultan.</summary>
     private IEnumerable<FilaDeGrupo<VehiculoListaDto>> FilasConGrupo() =>
@@ -921,12 +938,12 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1030,20 +1047,22 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
             return;
         }
 
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

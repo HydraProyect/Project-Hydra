@@ -791,7 +791,21 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// <summary>Documentos desplegados a los que se pidió «Ver los N restantes»: el resto enseña solo los primeros destinos.</summary>
     private readonly HashSet<Guid> _destinosCompletos = [];
 
-    private List<DocumentoListaDto> ElementosVisibles => _elementosPagina;
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, solo las de los grupos abiertos. La selección masiva,
+    /// el foco y los atajos operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    private List<DocumentoListaDto> ElementosVisibles =>
+        _agruparPorAmbito ? _elementosPagina.Where(d => _gruposAbiertos.EstaAbierto(d.Ambito.ToString())).ToList() : _elementosPagina;
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var visibles = ElementosVisibles;
+        _seleccionados.IntersectWith(visibles.Select(d => d.Id));
+        if (_idEnfocado is { } enfocado && visibles.All(d => d.Id != enfocado)) _idEnfocado = null;
+    }
     private bool HayDestinos => _elementosPagina.Any(d => d.DestinosEnCentros is { Count: > 0 });
 
     private void AlternarDocumento(Guid id)
