@@ -224,6 +224,82 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryTests
         unico.Should().ContainSingle().Which.Id.Should().Be(segundo.Id);
     }
 
+    [Fact]
+    public async Task Una_lista_sin_restriccion_de_un_tipo_de_titular_no_deja_entrar_a_los_otros_tipos_fuera_de_cartera()
+    {
+        var escenario = new Escenario();
+        var canal = escenario.Canal();
+        var ana = escenario.ConTrabajador("Ana");
+        var empresaOculta = escenario.ConEmpresa("Contrata Oculta S.L.");
+        var empresaVisible = escenario.ConEmpresa("Contrata Visible S.L.");
+        escenario.Cambio(escenario.DocumentoDe(ana), canal, EstadoAcreditacion.Subida, Ahora);
+        escenario.Cambio(
+            Documento.DeEmpresa(empresaOculta.Id, escenario.Tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca),
+            canal, EstadoAcreditacion.Subida, Ahora.AddMinutes(1));
+        escenario.Cambio(
+            Documento.DeEmpresa(empresaVisible.Id, escenario.Tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca),
+            canal, EstadoAcreditacion.Subida, Ahora.AddMinutes(2));
+        // Trabajadores sin restricción (null) y Empresas restringidas: la rama «sin restricción» es solo de los Trabajadores.
+        var alcance = new AlcanceDatosServiceFalso(
+            tieneAccesoTotal: false, centroIdsVisibles: [escenario.CentroId], trabajadorIdsVisibles: null,
+            empresaIdsVisibles: [empresaVisible.Id]);
+
+        var resultado = await escenario.Handler(alcance).Handle(new ObtenerCambiosEstadoPlataformaDeCentroQuery(escenario.CentroId), CancellationToken.None);
+
+        resultado.Select(c => c.TitularNombre).Should().BeEquivalentTo("Ana Pérez", "Contrata Visible S.L.");
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-5)]
+    public async Task Un_maximo_no_positivo_devuelve_como_minimo_el_ultimo_cambio(int maximo)
+    {
+        var escenario = new Escenario();
+        var canal = escenario.Canal();
+        var ana = escenario.ConTrabajador("Ana");
+        escenario.Cambio(escenario.DocumentoDe(ana), canal, EstadoAcreditacion.Subida, Ahora);
+        var reciente = escenario.Cambio(escenario.DocumentoDe(ana), canal, EstadoAcreditacion.Subida, Ahora.AddMinutes(1));
+
+        var resultado = await escenario.Handler().Handle(new ObtenerCambiosEstadoPlataformaDeCentroQuery(escenario.CentroId, maximo), CancellationToken.None);
+
+        resultado.Should().ContainSingle().Which.Id.Should().Be(reciente.Id);
+    }
+
+    [Fact]
+    public async Task Un_maximo_enorme_se_acota_a_doscientos()
+    {
+        var escenario = new Escenario();
+        var canal = escenario.Canal();
+        var ana = escenario.ConTrabajador("Ana");
+        for (var i = 0; i < 205; i++)
+            escenario.Cambio(escenario.DocumentoDe(ana), canal, EstadoAcreditacion.Subida, Ahora.AddMinutes(i));
+
+        var resultado = await escenario.Handler().Handle(new ObtenerCambiosEstadoPlataformaDeCentroQuery(escenario.CentroId, 10_000), CancellationToken.None);
+
+        resultado.Should().HaveCount(200);
+    }
+
+    [Fact]
+    public async Task Un_autor_que_el_directorio_no_resuelve_deja_el_cambio_sin_nombre_pero_con_su_detalle()
+    {
+        var escenario = new Escenario();
+        var ana = escenario.ConTrabajador("Ana");
+        escenario.Cambio(
+            escenario.DocumentoDe(ana), escenario.Canal(), EstadoAcreditacion.Rechazada, Ahora,
+            motivo: "Falta la firma", nota: "Solicitud 4411");
+        var handler = new ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
+            escenario.Documentos, escenario.Centros, escenario.Tipos, escenario.Trabajadores, escenario.Empresas, escenario.Vehiculos,
+            escenario.Proveedores, new AlcanceDatosServiceFalso(), new DirectorioUsuariosServiceFalso(esVisible: false),
+            new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"));
+
+        var resultado = await handler.Handle(new ObtenerCambiosEstadoPlataformaDeCentroQuery(escenario.CentroId), CancellationToken.None);
+
+        var cambio = resultado.Should().ContainSingle().Subject;
+        cambio.UsuarioNombre.Should().BeNull();
+        cambio.Motivo.Should().Be("Falta la firma");
+        cambio.Nota.Should().Be("Solicitud 4411");
+    }
+
     public static TheoryData<string> RolesDeGestion => ["Administrador", "DireccionCae", "CoordinadorCae", "GestorCae"];
 
     [Theory]
