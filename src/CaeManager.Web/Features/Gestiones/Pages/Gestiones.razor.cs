@@ -436,10 +436,6 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         estado == EstadoGestion.Completada ? Textos["EstadoCompletada"] : Textos["EstadoPendiente"];
 
     /// <summary>
-    /// Motivo bajo la pastilla de estado: cuánto lleva abierta una Gestión pendiente. La completada no
-    /// lleva motivo (no pide acción).
-    /// </summary>
-    /// <summary>
     /// Pastilla de la cabecera de la vista rápida (maqueta «Flujos 10»): «Abierta hace N días» en ámbar desde
     /// 5 días y en rojo desde 10; por debajo de 5, la pastilla de estado de siempre. La completada no cambia.
     /// </summary>
@@ -457,6 +453,10 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         };
     }
 
+    /// <summary>
+    /// Motivo bajo la pastilla de estado: cuánto lleva abierta una Gestión pendiente. La completada no
+    /// lleva motivo (no pide acción).
+    /// </summary>
     private string? MotivoEstado(GestionListaDto gestion)
     {
         if (gestion.Estado != EstadoGestion.Pendiente)

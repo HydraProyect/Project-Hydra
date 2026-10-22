@@ -1277,6 +1277,25 @@ public partial class GestionesListaGen2Tests : BunitContext
             .Should().Be("Pendiente", "el motivo va debajo de la pastilla, no en su lugar");
     }
 
+    /// <summary>Maqueta «Flujos 10»: la pastilla de la vista rápida dice «Abierta hace N días», ámbar desde 5 y roja desde 10.</summary>
+    [Theory]
+    [InlineData(4, "Pendiente", "badge-advertencia")]
+    [InlineData(5, "Abierta hace 5 días", "badge-advertencia")]
+    [InlineData(9, "Abierta hace 9 días", "badge-advertencia")]
+    [InlineData(10, "Abierta hace 10 días", "badge-peligro")]
+    public async Task La_vista_rapida_de_una_gestion_pendiente_dice_cuanto_lleva_abierta_con_su_tono(int diasAtras, string texto, string clase)
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = MediodiaUtc.AddDays(-diasAtras) } } };
+        var cut = Renderizar(m);
+
+        await NombreEnLaFila(cut, "Juan Pérez Ibarra").ClickAsync(new MouseEventArgs());
+
+        var pastilla = cut.Find("aside.vista-rapida-gestion .meta-vista-rapida-gestion .badge");
+        pastilla.TextContent.Trim().Should().Be(texto);
+        pastilla.ClassList.Should().Contain(clase);
+    }
+
     [Fact]
     public void La_gestion_completada_no_lleva_motivo_aunque_lleve_dias_creada()
     {
