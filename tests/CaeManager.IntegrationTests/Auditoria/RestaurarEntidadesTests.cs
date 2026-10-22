@@ -8,6 +8,7 @@ using CaeManager.Application.Empresas.Commands.RestaurarEmpresa;
 using CaeManager.Application.Gestiones.Commands.RestaurarGestion;
 using CaeManager.Application.Proyectos.Commands.RestaurarProyecto;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
+using CaeManager.Application.Subcontratas.Commands.RestaurarVerificacionExterna;
 using CaeManager.Application.Trabajadores.Commands.RestaurarTrabajador;
 using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Domain.Documentos;
@@ -772,6 +773,51 @@ public class RestaurarEntidadesTests : IAsyncLifetime
 
         resultado.EsFallido.Should().BeTrue();
         (await contextoRestaurar.Empresas.IgnoreQueryFilters().SingleAsync(e => e.Id == clienteId)).EstaEliminado.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Restaura_una_verificacion_externa_eliminada_y_no_la_de_otro_tenant()
+    {
+        Guid verificacionId;
+        await using (var contexto = CrearContexto(_tenant))
+        {
+            var cliente = Empresa.CrearComoCliente("Cliente de la Verificacion S.L.", "B12345674", false, null, null);
+            var subcontrata = new Empresa("Subcontrata de la Verificacion S.L.", "B87654323");
+            var tipo = new TipoDocumento("Registro de verificacion", null, false, 1, AmbitoAplicacion.Empresa);
+            contexto.Empresas.Add(cliente);
+            contexto.Empresas.Add(subcontrata);
+            contexto.TiposDocumento.Add(tipo);
+            await contexto.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, subcontrata.Id, "Centro de la verificacion");
+            contexto.Centros.Add(centro);
+            await contexto.SaveChangesAsync();
+
+            var verificacion = new CaeManager.Domain.Subcontratas.VerificacionExternaSubcontrata(
+                subcontrata.Id, centro.Id, tipo.Id, new DateOnly(2026, 1, 1),
+                CaeManager.Domain.Subcontratas.ResultadoVerificacionExterna.Valido, Guid.NewGuid());
+            contexto.VerificacionesExternaSubcontrata.Add(verificacion);
+            await contexto.SaveChangesAsync();
+            verificacion.MarcarComoEliminado(Guid.NewGuid());
+            await contexto.SaveChangesAsync();
+            verificacionId = verificacion.Id;
+        }
+
+        await using (var contextoAtacante = CrearContexto(_otroTenant))
+        {
+            var ajeno = await new RestaurarVerificacionExternaSubcontrataCommandHandler(
+                contextoAtacante, new TenantActualAmbiental { TenantId = _otroTenant }, new AlcanceDatosServiceFalso(), contextoAtacante)
+                .Handle(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId), CancellationToken.None);
+            ajeno.EsFallido.Should().BeTrue();
+        }
+
+        await using var contextoRestaurar = CrearContexto(_tenant);
+        var resultado = await new RestaurarVerificacionExternaSubcontrataCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar)
+            .Handle(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        (await contextoRestaurar.VerificacionesExternaSubcontrata.SingleAsync(v => v.Id == verificacionId)).EstaEliminado.Should().BeFalse();
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)

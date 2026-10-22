@@ -77,6 +77,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las dos consultas van acotadas al Tenant actual.
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Subcontratas/Commands/RestaurarVerificacionExterna/RestaurarVerificacionExternaSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Gestiones/Commands/RestaurarGestion/RestaurarGestionCommand.cs", ".IgnoreQueryFilters()")] = 1,
