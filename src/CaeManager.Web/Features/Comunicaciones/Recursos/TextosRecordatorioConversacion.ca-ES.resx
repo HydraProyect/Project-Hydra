@@ -15,11 +15,47 @@
   <data name="Titulo" xml:space="preserve">
     <value>Recordatori proposat</value>
   </data>
-  <data name="Explicacion" xml:space="preserve">
-    <value>Aquesta conversa porta dos dies laborables esperant resposta. Revisa l'esborrany: no s'enviarà fins que l'aprovis. En aprovar-lo s'envia i no es pot desfer.</value>
+  <data name="FilaTitulo" xml:space="preserve">
+    <value>Recordatori · {0}</value>
+  </data>
+  <data name="FilaDetalle" xml:space="preserve">
+    <value>A {0} · proposat per TALVEG · sense resposta des del {1}</value>
+  </data>
+  <data name="FilaDetalleSinDestinatario" xml:space="preserve">
+    <value>Proposat per TALVEG · sense resposta des del {0}</value>
+  </data>
+  <data name="Pastilla" xml:space="preserve">
+    <value>Proposat</value>
+  </data>
+  <data name="BotonRevisar" xml:space="preserve">
+    <value>Revisa</value>
+  </data>
+  <data name="Subtitulo" xml:space="preserve">
+    <value>Proposat per TALVEG {0}</value>
+  </data>
+  <data name="Hoy" xml:space="preserve">
+    <value>avui {0}</value>
+  </data>
+  <data name="ElDia" xml:space="preserve">
+    <value>el {0} a les {1}</value>
+  </data>
+  <data name="EtiquetaPara" xml:space="preserve">
+    <value>Per a</value>
+  </data>
+  <data name="EtiquetaMotivo" xml:space="preserve">
+    <value>Motiu</value>
+  </data>
+  <data name="Motivo" xml:space="preserve">
+    <value>Sense resposta des del {0} (dos dies laborables)</value>
+  </data>
+  <data name="EtiquetaAsunto" xml:space="preserve">
+    <value>Assumpte</value>
+  </data>
+  <data name="AsuntoRespuesta" xml:space="preserve">
+    <value>RE: {0}</value>
   </data>
   <data name="EtiquetaBorrador" xml:space="preserve">
-    <value>Esborrany del recordatori</value>
+    <value>Text</value>
   </data>
   <data name="BorradorPorDefecto" xml:space="preserve">
     <value>Hola:
@@ -28,22 +64,52 @@ Us tornem a escriure sobre «{0}». Ens podeu confirmar si ho heu pogut revisar?
 
 Gràcies.</value>
   </data>
+  <data name="AvisoNoSeDeshace" xml:space="preserve">
+    <value>En aprovar-lo s&apos;envia. No es pot desfer.</value>
+  </data>
   <data name="BotonAprobarYEnviar" xml:space="preserve">
     <value>Aprova i envia</value>
+  </data>
+  <data name="BotonEnviando" xml:space="preserve">
+    <value>Enviant…</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
   </data>
   <data name="BotonDescartar" xml:space="preserve">
     <value>Descarta</value>
   </data>
+  <data name="ToastYaNoPropuesto" xml:space="preserve">
+    <value>El recordatori ja no està proposat: la conversa ha canviat.</value>
+  </data>
+  <data name="MotivoDescartando" xml:space="preserve">
+    <value>S&apos;està descartant el recordatori.</value>
+  </data>
+  <data name="MotivoSinTexto" xml:space="preserve">
+    <value>Escriu el text del recordatori.</value>
+  </data>
+  <data name="ErrorNoEnviado" xml:space="preserve">
+    <value>No s&apos;ha enviat. El recordatori continua proposat.</value>
+  </data>
+  <data name="ErrorNoDescartado" xml:space="preserve">
+    <value>No s&apos;ha descartat. Torna-ho a provar.</value>
+  </data>
   <data name="ToastEnviado" xml:space="preserve">
     <value>Recordatori enviat.</value>
+  </data>
+  <data name="ToastEnviadoA" xml:space="preserve">
+    <value>Recordatori enviat a {0}.</value>
   </data>
   <data name="ToastDescartado" xml:space="preserve">
     <value>Recordatori descartat.</value>
   </data>
-  <data name="ToastErrorEnviar" xml:space="preserve">
-    <value>No s'ha pogut enviar el recordatori. Torna-ho a provar.</value>
+  <data name="ToastDeshacer" xml:space="preserve">
+    <value>Desfés</value>
   </data>
-  <data name="ToastErrorDescartar" xml:space="preserve">
-    <value>No s'ha pogut descartar el recordatori. Torna-ho a provar.</value>
+  <data name="ToastRestaurado" xml:space="preserve">
+    <value>Recordatori proposat de nou.</value>
+  </data>
+  <data name="ToastErrorDeshacer" xml:space="preserve">
+    <value>No s&apos;ha pogut desfer el descart. Torna-ho a provar.</value>
   </data>
 </root>

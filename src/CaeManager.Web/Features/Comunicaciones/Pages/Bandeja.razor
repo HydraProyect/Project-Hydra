@@ -384,7 +384,7 @@
                     </div>
                 </div>
 
-                <AlertaCriticaConversacionPanel @key="_detalle.Id" ConversacionId="_detalle.Id" />
+                <AlertaCriticaConversacionPanel @key="_detalle.Id" ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" />
                 <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes" Eventos="_detalle.Eventos"
                                   NotasInternas="_notasInternas" AutoresNotas="_autoresNotas" AvataresNotas="_avataresNotas"
                                   OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" OnConfirmarRuido="ConfirmarRuidoAsync" />
@@ -392,8 +392,7 @@
                 @if (_vista == "clientes")
                 {
                   <SoloConEscritura>
-                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"
-                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
+                    <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
 
                     <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
                         <button type="button" aria-pressed="@(!_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = false">@TextosLista["RespuestaPublica"]</button>

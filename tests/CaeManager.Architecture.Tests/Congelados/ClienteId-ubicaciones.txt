@@ -65,6 +65,7 @@ src/CaeManager.Application/Comunicaciones/Commands/MigrarConversacionACorreo/Mig
 src/CaeManager.Application/Comunicaciones/Commands/PedirPrioridadValidacion/PedirPrioridadValidacionCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Comunicaciones/Commands/ResponderConversacion/ResponderConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ResponderConversacionWhatsApp/ResponderConversacionWhatsAppCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Commands/RestaurarRecordatorioConversacion/RestaurarRecordatorioConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/VincularConversacionCommand.cs :: ClienteId = 4
 src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/VincularConversacionCommand.cs :: clienteId = 2
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: ClienteId = 1
