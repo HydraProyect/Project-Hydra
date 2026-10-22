@@ -770,8 +770,10 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
                 ToastService.MostrarError(resultado.Error);
             else
                 // Maqueta «Flujos 06 Visitas», «Éxito · gestionada»: el aviso ofrece Deshacer, que quita la marca.
+                // La página reutiliza la instancia al cambiar de Visita: Deshacer solo actúa sobre la misma.
                 ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
-                    Textos["ToastAccionDeshacer"].Value, QuitarMarcaDocumentacionGestionadaAsync);
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -794,7 +796,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Regla del 2026-09-29 (toda pérdida de edición pregunta): un diálogo de confirmación con
-    /// un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo
+    /// un «Motivo» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo
     /// abierto, y un motivo en blanco no es nada escrito.
     /// </summary>
     private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>

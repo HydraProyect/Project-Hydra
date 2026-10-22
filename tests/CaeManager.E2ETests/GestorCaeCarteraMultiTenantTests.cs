@@ -205,6 +205,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var panel = page.Locator(".drawer-panel");
         await panel.GetByRole(AriaRole.Button, new() { Name = "Cancelar visita", Exact = true }).ClickAsync();
         var confirmacion = page.GetByRole(AriaRole.Dialog, new() { Name = "¿Cancelar 1 visita(s)?", Exact = true });
+        // El motivo es obligatorio (maqueta «Flujos 06 Visitas»): sin él el botón está desactivado.
+        await confirmacion.GetByRole(AriaRole.Textbox).FillAsync("El Cliente aplaza la parada");
         await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Cancelar visita", Exact = true }).ClickAsync();
         await Expect(page.GetByText("Visita cancelada.", new() { Exact = true })).ToBeVisibleAsync();
         // Con «Solo activas» (marcado por defecto) la cancelada sale del listado. Barrera
