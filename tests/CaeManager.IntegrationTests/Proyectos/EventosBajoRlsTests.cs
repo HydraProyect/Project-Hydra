@@ -235,7 +235,7 @@ public class EventosBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_Centro_no_muestra_a_quien_solo_entro_por_un_evento_terminado_y_si_al_de_un_evento_vigente()
     {
-        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
+        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(), _runtime)
             .Handle(new ObtenerTrabajadoresAsignadosDeCentroQuery(_estadio), CancellationToken.None);
 
         filas.Select(f => f.TrabajadorId).Should().NotContain(_voluntarioSoloPasado,
@@ -257,7 +257,7 @@ public class EventosBajoRlsTests : IAsyncLifetime
             await _propietario.SaveChangesAsync();
         }
 
-        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
+        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(), _runtime)
             .Handle(new ObtenerTrabajadoresAsignadosDeCentroQuery(_estadio), CancellationToken.None);
 
         filas.Select(f => f.TrabajadorId).Should().Equal(_asignadoYVoluntario);
@@ -277,7 +277,7 @@ public class EventosBajoRlsTests : IAsyncLifetime
             await _propietario.SaveChangesAsync();
         }
 
-        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso())
+        var filas = await new ObtenerTrabajadoresAsignadosDeCentroQueryHandler(_runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(), _runtime)
             .Handle(new ObtenerTrabajadoresAsignadosDeCentroQuery(_estadio), CancellationToken.None);
 
         filas.Should().ContainSingle(f => f.TrabajadorId == _voluntarioSoloPasado).Which.EventoNombre.Should().Be("Jornada 2");

@@ -1,0 +1,217 @@
+@*
+    Vista «Vehículos» de la pestaña Trabajadores de Centro 360 (maqueta del 21-10, bloque 4): los Vehículos con
+    actividad en el Centro con la misma fila que un Trabajador (estado en la plataforma del Centro, «n de m» validados
+    y, al desplegar, sus Documentos con la columna «Acción»). Los de las Empresas del Centro van primero; los de cada
+    Subcontrata, en un desplegable propio, plegado de serie, con «Subcontrata de …» debajo del nombre.
+
+    No carga nada: AcordeonAsignacionesCentro lee ObtenerDocumentacionVehiculosDeCentroQuery (el mismo alcance que
+    los Trabajadores del Centro) y le pasa la lista ya filtrada por el buscador.
+*@
+@using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro
+@using CaeManager.Application.Centros.Queries.ObtenerDocumentacionVehiculosDeCentro
+@using CaeManager.Domain.Documentos
+@using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Centros.Recursos
+@using CaeManager.Web.Features.Documentos
+@using CaeManager.Web.Features.Documentos.Components
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCentros> Textos
+@inject ContextWorkspaceService WorkspaceService
+
+@if (Vehiculos.Count == 0)
+{
+    <EstadoVacio Titulo="@Textos["VehiculosSinActividad360"]" Descripcion="@Textos["VehiculosSinActividadDescripcion360"]" />
+}
+else
+{
+    var (principales, subcontratas) = Reparto();
+    <div class="lista-trabajadores-acordeon" data-vehiculos-centro>
+        <ListaRelaciones Etiqueta="@($"{Textos["UnidadVehiculos360"]} · {CentroNombre}")" EnTarjeta="true">
+            @foreach (var vehiculo in principales)
+            {
+                @FilaVehiculo(vehiculo)
+            }
+            @{ var clavesGrupos = new ClavesDeHermanos(); }
+            @foreach (var grupo in subcontratas)
+            {
+                var clave = "veh:" + grupo.SubcontrataId;
+                var abierto = _abiertos.EstaAbierto(clave);
+                <li class="fila-grupo-subcontrata" @key="clavesGrupos.De(clave)" data-subcontrata-grupo>
+                    <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Filas.Count"
+                                        UnidadContador="@Textos[grupo.Filas.Count == 1 ? "UnidadVehiculo360" : "UnidadVehiculos360"]"
+                                        Subtitulo="@(grupo.EmpresaContratistaNombre is { } contratista ? Textos["SubcontrataDe360", contratista].Value : null)"
+                                        Incidencias="grupo.Filas.Count(ConIncidencia)"
+                                        Abierto="abierto" OnAlternar="() => _abiertos.Alternar(clave)" />
+                </li>
+                @if (abierto)
+                {
+                    @foreach (var vehiculo in grupo.Filas)
+                    {
+                        @FilaVehiculo(vehiculo)
+                    }
+                }
+            }
+        </ListaRelaciones>
+    </div>
+}
+
+@code {
+    private (IReadOnlyList<VehiculoDocumentacionCentroDto> Principales, IReadOnlyList<GrupoSubcontrata<VehiculoDocumentacionCentroDto>> Subcontratas) Reparto() =>
+        GruposPorSubcontrata.Repartir(Vehiculos, v => v.SubcontrataId, v => v.EmpleadorNombre, v => v.EmpresaContratistaNombre);
+
+    [Parameter, EditorRequired] public Guid CentroId { get; set; }
+    [Parameter, EditorRequired] public string CentroNombre { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public IReadOnlyList<VehiculoDocumentacionCentroDto> Vehiculos { get; set; } = [];
+    /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
+    [Parameter] public string? NombrePlataforma { get; set; }
+    /// <summary>Tras cambiar el estado de un Documento en la plataforma: quien carga la lista la vuelve a leer.</summary>
+    [Parameter] public EventCallback OnCambio { get; set; }
+
+    private readonly GruposAbiertos _abiertos = new();
+    private readonly HashSet<Guid> _desplegados = [];
+
+    /// <summary>Estado en la plataforma del Centro, como la maqueta: bloquea si algún Documento bloquea; si no, pendiente si alguno espera validación.</summary>
+    private enum EstadoEnPlataforma { SinDatos, Validado, Pendiente, Bloquea }
+
+    private static EstadoEnPlataforma EstadoDe(VehiculoDocumentacionCentroDto vehiculo) =>
+        vehiculo.Documentos.Any(AcordeonAsignacionesCentro.BloqueaPlataforma) ? EstadoEnPlataforma.Bloquea
+        : vehiculo.Documentos.Any(AcordeonAsignacionesCentro.TienePendienteValidacion) ? EstadoEnPlataforma.Pendiente
+        : vehiculo.Documentos.Any(d => d.AcreditacionesEnElCentro is { Count: > 0 }) ? EstadoEnPlataforma.Validado
+        : EstadoEnPlataforma.SinDatos;
+
+    /// <summary>La pastilla «N con incidencias» de la Subcontrata cuenta lo que no está validado en la plataforma.</summary>
+    private static bool ConIncidencia(VehiculoDocumentacionCentroDto vehiculo) =>
+        EstadoDe(vehiculo) is EstadoEnPlataforma.Bloquea or EstadoEnPlataforma.Pendiente;
+
+    private static int Validados(VehiculoDocumentacionCentroDto vehiculo) =>
+        vehiculo.Documentos.Count(d => d.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Aceptada) == true);
+
+    private static string NombreVisible(VehiculoDocumentacionCentroDto vehiculo) =>
+        string.Join(" · ", new[] { vehiculo.NumeroPlaca, vehiculo.Nombre }.Where(p => !string.IsNullOrWhiteSpace(p)));
+
+    private static string Iniciales(VehiculoDocumentacionCentroDto vehiculo) => string.Concat(
+        (string.IsNullOrWhiteSpace(vehiculo.Nombre) ? vehiculo.NumeroPlaca : vehiculo.Nombre)
+            .Split([' ', '-'], StringSplitOptions.RemoveEmptyEntries).Take(2).Select(p => char.ToUpperInvariant(p[0])));
+
+    private string Motivo(VehiculoDocumentacionCentroDto vehiculo)
+    {
+        if (vehiculo.Documentos.Count == 0) return Textos["SinDocumentosVehiculo360"];
+        var conProblema = vehiculo.Documentos.Where(AcordeonAsignacionesCentro.BloqueaPlataforma)
+            .Concat(vehiculo.Documentos.Where(d => !AcordeonAsignacionesCentro.BloqueaPlataforma(d) && AcordeonAsignacionesCentro.TienePendienteValidacion(d)))
+            .ToList();
+        if (conProblema.Count == 0)
+        {
+            return EstadoDe(vehiculo) == EstadoEnPlataforma.SinDatos ? Textos["PlataformaSinDatos360"]
+                : NombrePlataforma is { } plataforma ? Textos["MotivoTodoValidado360", plataforma] : Textos["MotivoTodoValidadoSinNombre360"];
+        }
+        var primero = conProblema[0];
+        var estado = primero.AcreditacionesEnElCentro!.OrderBy(a => AcordeonAsignacionesCentro.TonoPlataforma(a.Estado) == TonoBadge.Peligro ? 0 : 1).First().Estado;
+        var texto = Textos[AcordeonAsignacionesCentro.ClaveTextoPlataforma(estado)].Value.ToLower(System.Globalization.CultureInfo.CurrentCulture);
+        return conProblema.Count > 1
+            ? Textos["MotivoPlataformaYMas360", primero.TipoDocumentoNombre, texto, conProblema.Count - 1]
+            : Textos["MotivoPlataforma360", primero.TipoDocumentoNombre, texto];
+    }
+
+    private (TonoBadge Tono, string Texto) Pastilla(VehiculoDocumentacionCentroDto vehiculo) => EstadoDe(vehiculo) switch
+    {
+        EstadoEnPlataforma.Bloquea => (TonoBadge.Peligro, Textos["EstadoBloqueaAcceso360"].Value),
+        EstadoEnPlataforma.Pendiente => (TonoBadge.Advertencia, Textos["PlataformaPendienteValidacion360"].Value),
+        EstadoEnPlataforma.Validado => (TonoBadge.Exito, Textos["PlataformaValidado360"].Value),
+        _ => vehiculo.Documentos.Count == 0
+            ? (TonoBadge.Neutro, Textos["SinDocumentosVehiculo360"].Value)
+            : (EstadoDocumentoFicha360.Tono(PeorEstado(vehiculo)), EstadoDocumentoFicha360.Texto(PeorEstado(vehiculo))),
+    };
+
+    private static EstadoDocumento PeorEstado(VehiculoDocumentacionCentroDto vehiculo) =>
+        vehiculo.Documentos.MinBy(d => SeveridadEstadoDocumento.Rango(d.Estado))?.Estado ?? EstadoDocumento.Vigente;
+
+    private TonoFila? TonoDe(VehiculoDocumentacionCentroDto vehiculo) => EstadoDe(vehiculo) switch
+    {
+        EstadoEnPlataforma.Bloquea => TonoFila.Peligro,
+        EstadoEnPlataforma.Pendiente => TonoFila.Advertencia,
+        _ => vehiculo.Documentos.Count == 0 ? null : EstadoDocumentoFicha360.TonoFila(PeorEstado(vehiculo)),
+    };
+
+    private void Alternar(Guid vehiculoId)
+    {
+        if (!_desplegados.Remove(vehiculoId)) _desplegados.Add(vehiculoId);
+    }
+
+    private Task AbrirAsync(VehiculoDocumentacionCentroDto vehiculo) =>
+        WorkspaceService.NavegarAAsync(EntidadWorkspace.Vehiculo, vehiculo.VehiculoId, NombreVisible(vehiculo), "informacion");
+
+    private RenderFragment FilaVehiculo(VehiculoDocumentacionCentroDto vehiculo) => __builder =>
+    {
+        var desplegado = _desplegados.Contains(vehiculo.VehiculoId);
+        var pastilla = Pastilla(vehiculo);
+        <FilaRelacion @key="vehiculo.VehiculoId" Nombre="@NombreVisible(vehiculo)" Iniciales="@Iniciales(vehiculo)" Tono="TonoDe(vehiculo)"
+                      OnNombre="() => AbrirAsync(vehiculo)" OnAbrir360="() => AbrirAsync(vehiculo)"
+                      Desplegada="desplegado" DesplegadaChanged="_ => Alternar(vehiculo.VehiculoId)"
+                      EtiquetaDesplegar="@Textos["AriaDocumentosVehiculo360", NombreVisible(vehiculo)]">
+            <JuntoAlNombre><span class="fila-trabajador-empleador" data-empleador>@vehiculo.EmpleadorNombre</span></JuntoAlNombre>
+            <Detalle><span>@Motivo(vehiculo)</span></Detalle>
+            <Cifra><span class="fila-trabajador-fraccion" data-fraccion-validados>@(vehiculo.Documentos.Count == 0 ? "—" : Textos["FraccionDocumental360", Validados(vehiculo), vehiculo.Documentos.Count].Value)</span></Cifra>
+            <Estado><Badge Tono="pastilla.Tono">@pastilla.Texto</Badge></Estado>
+            <Desplegable>
+                @if (desplegado)
+                {
+                    @if (vehiculo.Documentos.Count == 0)
+                    {
+                        <p class="texto-vacio-seccion">@Textos["VehiculoSinDocumentos360"]</p>
+                    }
+                    else
+                    {
+                        <div class="tabla-plataforma-centro" role="table" aria-label="@Textos["AriaDocumentosVehiculo360", NombreVisible(vehiculo)]">
+                            <div class="cabecera-plataforma-centro" role="row">
+                                <span role="columnheader">@Textos["DocumentoColumna360"]</span>
+                                <span role="columnheader">@(NombrePlataforma is { } plataformaCabecera ? Textos["PlataformaEstadoCabeceraNombre360", plataformaCabecera] : Textos["PlataformaEstadoCabecera360"])</span>
+                                <span role="columnheader">@Textos["PlataformaCaducidad360"]</span>
+                                <span role="columnheader">@Textos["PlataformaBloquea360"]</span>
+                                <span role="columnheader" class="cabecera-accion-plataforma">@Textos["AccionColumna360"]</span>
+                            </div>
+                            @foreach (var documento in vehiculo.Documentos.OrderBy(AcordeonAsignacionesCentro.OrdenPlataforma))
+                            {
+                                <div class="fila-plataforma-centro @(AcordeonAsignacionesCentro.BloqueaPlataforma(documento) ? "fila-plataforma-bloquea" : AcordeonAsignacionesCentro.TienePendienteValidacion(documento) ? "fila-plataforma-pendiente" : null)" role="row" @key="documento.DocumentoId">
+                                    <span role="cell" class="identidad-documento-plataforma">
+                                        <span class="indicador-talveg" data-estado="@EstadoDocumentoFicha360.Tono(documento.Estado)" title="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]" aria-label="@Textos["PlataformaTalveg360", EstadoDocumentoFicha360.Texto(documento.Estado)]">T</span>
+                                        <span>@documento.TipoDocumentoNombre</span>
+                                    </span>
+                                    <span role="cell" class="estado-documento-plataforma">
+                                        @if (documento.AcreditacionesEnElCentro is not { Count: > 0 })
+                                        {
+                                            <span>@Textos["PlataformaSinDatos360"]</span>
+                                        }
+                                        else
+                                        {
+                                            @foreach (var acreditacion in documento.AcreditacionesEnElCentro)
+                                            {
+                                                <Badge Tono="AcordeonAsignacionesCentro.TonoPlataforma(acreditacion.Estado)" Tamano="TamanoBadge.Pequeno">@Textos[AcordeonAsignacionesCentro.ClaveTextoPlataforma(acreditacion.Estado)]</Badge>
+                                                <span class="nombre-plataforma-centro">@acreditacion.NombrePlataforma</span>
+                                                <AnotacionEstadoPlataforma Acreditacion="acreditacion" />
+                                            }
+                                        }
+                                        <LineaPlataformaYReclamacion Acreditaciones="null" UltimaReclamacion="documento.UltimaReclamacion" Estado="documento.Estado" LaFilaYaDiceLaPlataforma="false" />
+                                    </span>
+                                    <span role="cell"><TextoFechaCopiable Fecha="documento.FechaVencimiento">@DetalleVigenciaDocumentoUi.DeFicha360(documento.Estado, documento.FechaVencimiento, documento.TipoDocumentoNombre)</TextoFechaCopiable></span>
+                                    <span role="cell">@(documento.AcreditacionesEnElCentro is not { Count: > 0 } ? "—" : Textos[AcordeonAsignacionesCentro.BloqueaPlataforma(documento) ? "PlataformaBloqueaSi360" : "PlataformaBloqueaNo360"].Value)</span>
+                                    @* Columna de acción: como en los Trabajadores, el estado en la plataforma solo se cambia en Centro 360. *@
+                                    <span role="cell" class="celda-accion-plataforma">
+                                        @if (documento.AcreditacionesEnElCentro is { Count: > 0 } acreditacionesAccion)
+                                        {
+                                            @foreach (var acreditacion in acreditacionesAccion)
+                                            {
+                                                <AccionEstadoPlataforma @key="acreditacion.Id" CentroId="CentroId" CentroNombre="@CentroNombre"
+                                                                        Acreditacion="acreditacion" DocumentoNombre="@documento.TipoDocumentoNombre"
+                                                                        TitularNombre="@NombreVisible(vehiculo)" OnCambio="OnCambio" />
+                                            }
+                                        }
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+            </Desplegable>
+        </FilaRelacion>
+    };
+}

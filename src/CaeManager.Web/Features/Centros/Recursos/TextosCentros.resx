@@ -716,4 +716,27 @@
   </data>
   <data name="FechaPlaceholder360" xml:space="preserve"><value>dd/mm/aaaa</value></data>
   <data name="ConfirmarVigencia360" xml:space="preserve"><value>Vigencia en la plataforma: confirmar o corregir</value></data>
+  <data name="SubcontrataDe360" xml:space="preserve"><value>Subcontrata de {0}</value></data>
+  <data name="UnidadDocumento360" xml:space="preserve"><value>documento</value></data>
+  <data name="UnidadDocumentos360" xml:space="preserve"><value>documentos</value></data>
+  <data name="UnidadTrabajador360" xml:space="preserve"><value>trabajador</value></data>
+  <data name="UnidadTrabajadores360" xml:space="preserve"><value>trabajadores</value></data>
+  <data name="UnidadVehiculo360" xml:space="preserve"><value>vehículo</value></data>
+  <data name="UnidadVehiculos360" xml:space="preserve"><value>vehículos</value></data>
+  <data name="QueMostrar360" xml:space="preserve"><value>Qué mostrar</value></data>
+  <data name="RecursoTrabajadores360" xml:space="preserve"><value>Trabajadores · {0}</value></data>
+  <data name="RecursoVehiculos360" xml:space="preserve"><value>Vehículos · {0}</value></data>
+  <data name="VehiculosSinActividad360" xml:space="preserve"><value>Ningún vehículo con actividad en este Centro</value></data>
+  <data name="VehiculosSinActividadDescripcion360" xml:space="preserve"><value>Aquí aparecen los vehículos de las Empresas con Trabajadores asignados a este Centro.</value></data>
+  <data name="VehiculosErrorCarga360" xml:space="preserve"><value>No pudimos cargar los vehículos</value></data>
+  <data name="VehiculoSinDocumentos360" xml:space="preserve"><value>Este vehículo no tiene documentos registrados.</value></data>
+  <data name="EstadoBloqueaAcceso360" xml:space="preserve"><value>Bloquea acceso</value></data>
+  <data name="MotivoTodoValidado360" xml:space="preserve"><value>Todo validado en {0}</value></data>
+  <data name="MotivoTodoValidadoSinNombre360" xml:space="preserve"><value>Todo validado en la plataforma</value></data>
+  <data name="MotivoPlataforma360" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="MotivoPlataformaYMas360" xml:space="preserve"><value>{0} · {1} y {2} más</value></data>
+  <data name="SinDocumentosVehiculo360" xml:space="preserve"><value>Sin documentos registrados</value></data>
+  <data name="BuscarVehiculo360" xml:space="preserve"><value>Buscar vehículo por matrícula o modelo…</value></data>
+  <data name="AriaDocumentosVehiculo360" xml:space="preserve"><value>Documentos de {0}</value></data>
+  <data name="VehiculosErrorCargaDescripcion360" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
 </root>

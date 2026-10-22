@@ -18,8 +18,12 @@ public record ObtenerDocumentacionEmpresasDeCentroQuery(Guid CentroId) : IReques
 public record DocumentoEmpresaCentroDto(Guid TipoDocumentoId, string Nombre, Guid? DocumentoId,
     EstadoDocumento Estado, DateOnly? FechaVencimiento, bool BloqueaAcceso, DateOnly? FechaEmision = null, DateOnly? EnToleranciaHasta = null,
     IReadOnlyList<AcreditacionResumenDto>? AcreditacionesEnElCentro = null, UltimaReclamacionDocumentoDto? UltimaReclamacion = null);
+/// <param name="EmpresaContratistaNombre">
+/// Solo con <paramref name="DesdeRelacionSubcontrata"/>: la Empresa contratista de la relación, para el subtítulo
+/// «Subcontrata de …» (ver <see cref="ContratistasDeSubcontratasEnCentro"/>). <c>null</c> si no hay ninguna visible.
+/// </param>
 public record DocumentacionEmpresaCentroDto(Guid EmpresaId, string Nombre, bool DesdeRelacionSubcontrata,
-    IReadOnlyList<DocumentoEmpresaCentroDto> Documentos);
+    IReadOnlyList<DocumentoEmpresaCentroDto> Documentos, string? EmpresaContratistaNombre = null);
 
 /// <summary>
 /// Documentación exigida a la Empresa configurada en ESTE Centro y a las Empresas empleadoras con Asignaciones activas.
@@ -67,6 +71,8 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
             d => (d.EmpresaId!.Value, d.TipoDocumentoId), d => d.EstadoVigencia, d => d.FechaVencimiento,
             d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
         var parametros = await configuracion.ParametrosSistema.SingleAsync(ct);
+        var contratistas = await ContratistasDeSubcontratasEnCentro.CargarAsync(request.CentroId,
+            empleadoras.Where(e => e.DesdeRelacionSubcontrata).Select(e => e.Id).ToList(), centros, asignaciones, trabajadores, empresas, alcance, ct);
         var resultado = new List<DocumentacionEmpresaCentroDto>();
         foreach (var empresa in empleadoras)
         {
@@ -85,7 +91,8 @@ public class ObtenerDocumentacionEmpresasDeCentroQueryHandler(
                     doc is null ? null : situacion.UltimaReclamacionDe(doc.Id)));
             }
             resultado.Add(new(empresa.Id, empresa.RazonSocial, empresa.DesdeRelacionSubcontrata,
-                filas.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.Nombre).ToList()));
+                filas.OrderBy(d => SeveridadEstadoDocumento.Rango(d.Estado)).ThenBy(d => d.Nombre).ToList(),
+                empresa.DesdeRelacionSubcontrata ? contratistas.GetValueOrDefault(empresa.Id) : null));
         }
         return resultado.OrderBy(e => e.Nombre).ToList();
     }

@@ -9,6 +9,7 @@ using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesPara
 using CaeManager.Application.Asignaciones.Queries.ObtenerTrabajadoresVisitaSinAsignacion;
 using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
+using CaeManager.Application.Centros.Queries.ObtenerDocumentacionVehiculosDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeCentro;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -53,15 +54,18 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         MostrarEstadoPlataforma && _empleadoresPorTrabajador.TryGetValue(trabajadorId, out var empleador) ? empleador : null;
     /// <summary>Plataforma CAE del primer canal de gestión por plataforma del Centro; rotula la columna de estado.</summary>
     [Parameter] public string? NombrePlataforma { get; set; }
-    [Parameter] public RenderFragment? Busqueda { get; set; }
+    /// <summary>Barra de búsqueda de la página; recibe si la vista es «Vehículos» para rotular el buscador.</summary>
+    [Parameter] public RenderFragment<bool>? Busqueda { get; set; }
 
-    private static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
+    // Internos: la vista «Vehículos» de Centro 360 (VehiculosCentro360) pinta la misma tabla de plataforma.
+    internal static bool BloqueaPlataforma(DocumentoRequeridoDto documento) =>
         documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
-    private static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
+    internal static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
         documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true;
-    private static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
+    internal static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
         BloqueaPlataforma(documento) ? 0 : TienePendienteValidacion(documento) ? 1 : 2;
-    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[estado switch
+    private string TextoPlataforma(EstadoAcreditacion estado) => Textos[ClaveTextoPlataforma(estado)];
+    internal static string ClaveTextoPlataforma(EstadoAcreditacion estado) => estado switch
     {
         EstadoAcreditacion.Rechazada => "PlataformaRechazado360",
         EstadoAcreditacion.PendienteDeSubir => "PlataformaPendienteSubir360",
@@ -69,8 +73,8 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         EstadoAcreditacion.Aceptada => "PlataformaValidado360",
         EstadoAcreditacion.NoRequerida => "PlataformaNoExigido360",
         _ => "PlataformaSinDatos360"
-    }];
-    private static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
+    };
+    internal static TonoBadge TonoPlataforma(EstadoAcreditacion estado) => estado switch
     {
         EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir => TonoBadge.Peligro,
         EstadoAcreditacion.Subida => TonoBadge.Advertencia,
@@ -342,6 +346,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _trabajadores = [];
         _trabajadoresVisitaSinAsignacion = [];
         _bloqueosPropios = [];
+        _vehiculos = [];
+        _errorVehiculos = false;
+        _verVehiculos = false;
+        _subcontratasAbiertas.PlegarTodos();
         _errorCarga = false;
         _seleccionados.Clear();
         _expandidosTrabajador.Clear();
@@ -376,7 +384,11 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             if (carga != _cargaLista) return;
             _trabajadoresVisitaSinAsignacion = sinAsignacion;
             if (MostrarEstadoPlataforma)
+            {
                 await CargarEmpleadoresAsync(carga, centroId);
+                if (!ModoListado)
+                    await CargarVehiculosAsync(carga, centroId);
+            }
             await OnResumenCargado.InvokeAsync((centroId, _trabajadores.Count));
         }
         catch (Exception)
@@ -407,13 +419,92 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             _empleadoresPorTrabajador = asignados
                 .GroupBy(a => a.TrabajadorId)
                 .ToDictionary(g => g.Key, g => g.First().EmpleadorNombre);
+            _subcontrataPorTrabajador = asignados
+                .Where(a => a.SubcontrataId is not null)
+                .GroupBy(a => a.TrabajadorId)
+                .ToDictionary(g => g.Key, g => (g.First().SubcontrataId!.Value, g.First().EmpleadorNombre, g.First().EmpresaContratistaNombre));
         }
         catch (Exception)
         {
             if (carga == _cargaLista)
+            {
                 _empleadoresPorTrabajador = new Dictionary<Guid, string>();
+                _subcontrataPorTrabajador = new Dictionary<Guid, (Guid, string, string?)>();
+            }
         }
     }
+
+    /// <summary>
+    /// Los Vehículos de la vista «Vehículos» de Centro 360. Si no se pueden leer, la vista lo dice; la de Trabajadores
+    /// no se ve afectada.
+    /// </summary>
+    private async Task CargarVehiculosAsync(int carga, Guid centroId)
+    {
+        try
+        {
+            var vehiculos = await Mediator.Send(new ObtenerDocumentacionVehiculosDeCentroQuery(centroId), _cancelacion);
+            if (carga != _cargaLista) return;
+            _vehiculos = vehiculos;
+            _errorVehiculos = false;
+        }
+        catch (Exception)
+        {
+            if (carga == _cargaLista)
+            {
+                _vehiculos = [];
+                _errorVehiculos = true;
+            }
+        }
+    }
+
+    // ── Centro 360, bloque 4 del 21-10: Trabajadores | Vehículos y Subcontratas desplegables ──
+    private IReadOnlyDictionary<Guid, (Guid SubcontrataId, string Nombre, string? Contratista)> _subcontrataPorTrabajador =
+        new Dictionary<Guid, (Guid, string, string?)>();
+    private IReadOnlyList<VehiculoDocumentacionCentroDto> _vehiculos = [];
+    private bool _errorVehiculos;
+    private bool _verVehiculos;
+    private readonly GruposAbiertos _subcontratasAbiertas = new();
+
+    private bool VerVehiculos => MostrarEstadoPlataforma && !ModoListado && _verVehiculos;
+
+    private void ElegirRecurso(bool vehiculos) => _verVehiculos = vehiculos;
+
+    /// <summary>El buscador de la barra de Centro 360 también filtra los Vehículos: matrícula, nombre, modelo o titular.</summary>
+    private IReadOnlyList<VehiculoDocumentacionCentroDto> VehiculosFiltrados =>
+        string.IsNullOrWhiteSpace(TextoBusqueda) ? _vehiculos
+        : _vehiculos.Where(v => $"{v.NumeroPlaca} {v.Nombre} {v.Modelo} {v.EmpleadorNombre}".Contains(TextoBusqueda, StringComparison.OrdinalIgnoreCase)).ToList();
+
+    /// <summary>Una entrada de la lista de Trabajadores: un Trabajador o la cabecera de una Subcontrata.</summary>
+    private sealed record EntradaLista(TrabajadorAsignacionDocumentacionDto? Trabajador, GrupoSubcontrata<TrabajadorAsignacionDocumentacionDto>? Grupo = null, string? Clave = null);
+
+    /// <summary>
+    /// Fuera de Centro 360, la lista tal cual. En Centro 360, primero los Trabajadores de las Empresas del Centro y después
+    /// una cabecera por Subcontrata con los suyos debajo solo si está abierta (maqueta del 21-10, bloque 4).
+    /// </summary>
+    private IEnumerable<EntradaLista> EntradasLista
+    {
+        get
+        {
+            if (!MostrarEstadoPlataforma || ModoListado)
+                return TrabajadoresFiltrados.Select(t => new EntradaLista(t));
+            var (principales, grupos) = GruposPorSubcontrata.Repartir(TrabajadoresFiltrados,
+                t => _subcontrataPorTrabajador.TryGetValue(t.TrabajadorId, out var s) ? s.SubcontrataId : null,
+                t => _subcontrataPorTrabajador[t.TrabajadorId].Nombre,
+                t => _subcontrataPorTrabajador[t.TrabajadorId].Contratista);
+            return principales.Select(t => new EntradaLista(t)).Concat(grupos.SelectMany(g =>
+            {
+                var clave = "trab:" + g.SubcontrataId;
+                var cabecera = new EntradaLista(null, g, clave);
+                return _subcontratasAbiertas.EstaAbierto(clave)
+                    ? g.Filas.Select(t => new EntradaLista(t)).Prepend(cabecera)
+                    : [cabecera];
+            }));
+        }
+    }
+
+    /// <summary>La pastilla «N con incidencias» de una Subcontrata: Trabajadores con algo que bloquea o espera validación en la plataforma.</summary>
+    private bool TrabajadorConIncidenciaEnPlataforma(TrabajadorAsignacionDocumentacionDto trabajador) =>
+        EstaBloqueado(trabajador.TrabajadorId) || trabajador.Documentos.Any(d => BloqueaPlataforma(d) || TienePendienteValidacion(d));
 
     /// <summary>
     /// Los bloqueos son un adorno de la fila: si no se pueden leer, la fila se enseña sin el distintivo
