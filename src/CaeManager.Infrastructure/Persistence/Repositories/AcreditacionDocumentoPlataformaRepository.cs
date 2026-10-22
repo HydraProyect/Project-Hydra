@@ -8,6 +8,8 @@ public class AcreditacionDocumentoPlataformaRepository(CaeManagerDbContext dbCon
     public Task<AcreditacionDocumentoPlataforma?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
         dbContext.AcreditacionesDocumentoPlataforma
             .Include(a => a.HistorialRechazos)
+            .Include(a => a.CambiosEstado)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
 
     public async Task<AcreditacionDocumentoPlataforma?> ObtenerPorIdActualizadoAsync(Guid id, CancellationToken cancellationToken = default)
@@ -19,6 +21,7 @@ public class AcreditacionDocumentoPlataformaRepository(CaeManagerDbContext dbCon
             var entrada = dbContext.Entry(acreditacion);
             await entrada.ReloadAsync(cancellationToken);
             await entrada.Collection(a => a.HistorialRechazos).LoadAsync(cancellationToken);
+            await entrada.Collection(a => a.CambiosEstado).LoadAsync(cancellationToken);
         }
 
         return acreditacion;
