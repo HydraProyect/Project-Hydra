@@ -912,8 +912,13 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         ToastService.Mostrar(Textos["ToastVerificacionEliminadaDeTipo", tipoDocumentoNombre], TonoToast.Exito,
             Textos["ToastAccionDeshacer"].Value, () => DeshacerEliminarVerificacionAsync(verificacionId, tipoDocumentoNombre));
 
+    private bool _restaurandoVerificacion;
+
     private async Task DeshacerEliminarVerificacionAsync(Guid verificacionId, string tipoDocumentoNombre)
     {
+        if (_restaurandoVerificacion) return;
+        _restaurandoVerificacion = true;
+
         try
         {
             var resultado = await Mediator.Send(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId));
@@ -930,6 +935,10 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         catch (Exception)
         {
             ToastService.Mostrar(Textos["ToastErrorDeshacerVerificacion"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoVerificacion = false;
         }
     }
 

@@ -812,6 +812,14 @@ public class RestaurarEntidadesTests : IAsyncLifetime
         }
 
         await using var contextoRestaurar = CrearContexto(_tenant);
+
+        // Sin gestión de esa Subcontrata (solo lectura) tampoco se restaura: borrar y deshacer son un acto de gestión.
+        var sinGestion = await new RestaurarVerificacionExternaSubcontrataCommandHandler(
+            contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant },
+            new AlcanceDatosServiceFalso(subcontrataIds: [], subcontrataIdsParaGestion: []), contextoRestaurar)
+            .Handle(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId), CancellationToken.None);
+        sinGestion.EsFallido.Should().BeTrue();
+
         var resultado = await new RestaurarVerificacionExternaSubcontrataCommandHandler(
             contextoRestaurar, new TenantActualAmbiental { TenantId = _tenant }, new AlcanceDatosServiceFalso(), contextoRestaurar)
             .Handle(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId), CancellationToken.None);

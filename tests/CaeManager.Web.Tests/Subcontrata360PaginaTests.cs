@@ -1103,6 +1103,8 @@ public class Subcontrata360PaginaTests : BunitContext
         var deshecho = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Last();
         deshecho.FechaVerificacion.Should().Be(anterior.FechaVerificacion);
         deshecho.Resultado.Should().Be(anterior.Resultado);
+        deshecho.ValidoHasta.Should().Be(anterior.ValidoHasta, "Deshacer devuelve también la validez declarada");
+        deshecho.Observaciones.Should().Be(anterior.Observaciones);
     }
 
     [Fact]
