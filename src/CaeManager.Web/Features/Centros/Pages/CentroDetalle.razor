@@ -280,11 +280,11 @@
                     @if (_pestana == PestanaHistorial)
                     {
                         <h3 class="centro-historial-titulo">@Textos["HistorialCambios360"]</h3>
-                        @* Las dos secciones se rehacen al cambiar de Centro: dos hermanos con la misma @key hacen fallar el
-                           render, y ClavesDeHermanos numera la repetición. *@
-                        var clavesHistorial = new ClavesDeHermanos();
-                        <HistorialEstadoPlataformaCentro @key="clavesHistorial.De(CentroId)" CentroId="CentroId" />
-                        <PestanaHistorial @key="clavesHistorial.De(CentroId)" EntidadTipo="Centro" EntidadId="CentroId" />
+                        @* En su propio contenedor: dos hermanos con la misma @key (CentroId) rompen el render. *@
+                        <div class="centro-historial-plataforma">
+                            <HistorialEstadoPlataformaCentro @key="CentroId" CentroId="CentroId" />
+                        </div>
+                        <PestanaHistorial @key="CentroId" EntidadTipo="Centro" EntidadId="CentroId" />
                     }
                 </Pestanas>
             </ChildContent>
