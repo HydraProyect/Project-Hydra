@@ -833,7 +833,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // otro flujo. Sin filtro de Cliente, pero sí de cartera (el mismo que
             // usa ese modal): CrearGestionesParaTrabajador rechaza un
             // Trabajador fuera de la Asignación de Cartera del Gestor CAE.
-            var tiposDocumento = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
+            var tiposDocumento = await Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), _ciclo.Token);
             var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             if (carga != _cargaDetalleVigente) return;
 
@@ -1356,7 +1356,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         try
         {
-            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(), _ciclo.Token);
+            _tiposDocumentoSelector = await Mediator.Send(new ObtenerTiposDocumentoQuery(ParaAltaNueva: true), _ciclo.Token);
             _trabajadoresSelector = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera), _ciclo.Token);
             _empresasSelector = await Mediator.Send(new ObtenerEmpresasParaSelectorQuery(_detalle?.ClienteId), _ciclo.Token);
 

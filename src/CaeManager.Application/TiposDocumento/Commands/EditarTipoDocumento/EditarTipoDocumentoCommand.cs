@@ -77,6 +77,11 @@ public class EditarTipoDocumentoCommandHandler(
         if (await repositorio.ExisteConNombreAsync(request.Nombre, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("TipoDocumento.NombreDuplicado", "Ya existe un tipo de documento con este nombre."));
 
+        // Un tipo archivado no se pide: ni de serie (TipoDocumento.Actualizar lo impide) ni en Centros nuevos (mismo
+        // criterio que EstablecerDocumentacionRequeridaCentroCommand). Se rechaza aquí como Result, antes de mutar nada.
+        if (tipoDocumento.Archivado && request.Requerido != RequisitoDocumental.No)
+            return Result.Fallo(Error.Crear("TipoDocumento.Archivado", "Este tipo de documento está archivado y no se pide de serie; pide su sustituto."));
+
         tipoDocumento.Actualizar(
             request.Nombre,
             request.VigenciaMeses,
@@ -123,6 +128,8 @@ public class EditarTipoDocumentoCommandHandler(
         // podía desmarcar no se interpreta como quitado.
         var centrosDeGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
         var centroIdsNuevos = deseados.Except(actualesCentroIds).ToList();
+        if (tipoDocumento.Archivado && centroIdsNuevos.Count > 0)
+            return Result.Fallo(Error.Crear("TipoDocumento.Archivado", "Este tipo de documento está archivado; exige su sustituto en los Centros."));
         if (await centrosContext.Centros.Where(c => centroIdsNuevos.Contains(c.Id)).CountAsync(cancellationToken) != centroIdsNuevos.Count
             || (centrosDeGestion is not null && !centroIdsNuevos.All(centrosDeGestion.Contains)))
             return Result.Fallo(Error.Crear("TipoDocumento.CentroNoEncontrado", "Alguno de los centros seleccionados no existe."));

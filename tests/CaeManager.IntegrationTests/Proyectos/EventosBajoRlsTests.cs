@@ -348,7 +348,7 @@ public class EventosBajoRlsTests : IAsyncLifetime
         var ctx = contexto ?? _runtime;
         var hoy = DiaDeNegocio.Hoy();
         return new CrearProyectoCommandHandler(
-                new ProyectoRepository(ctx), ctx, alcance ?? new AlcanceDatosServiceFalso(), ctx, ctx, ctx, new ProyectoRequisitoRepository(ctx))
+                new ProyectoRepository(ctx), ctx, alcance ?? new AlcanceDatosServiceFalso(), ctx, ctx, ctx, new ProyectoRequisitoRepository(ctx), ctx)
             .Handle(new CrearProyectoCommand(_cliente, _estadio, nombre, hoy.AddDays(30), hoy.AddDays(30), null,
                 TipoProyecto.Evento, copiarDe, plantilla), CancellationToken.None);
     }

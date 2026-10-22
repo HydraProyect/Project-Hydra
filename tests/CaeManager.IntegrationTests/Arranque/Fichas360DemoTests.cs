@@ -275,8 +275,8 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
                 ("RNT", "Almacén Vigo", ResultadoVerificacionExterna.NoValido, -6),
                 ("Certificado de estar al corriente con la Seguridad Social", "Almacén Vigo", ResultadoVerificacionExterna.Valido, -36),
                 ("Evaluación de Riesgos Laborales", "Almacén Vigo", ResultadoVerificacionExterna.Valido, -36),
-                ("Seguro de Responsabilidad Civil + recibo de pago", "Almacén Vigo", ResultadoVerificacionExterna.Valido, -36),
-                ("Seguro de Responsabilidad Civil + recibo de pago", "Planta Bilbao", ResultadoVerificacionExterna.Valido, -36),
+                ("Seguro de Responsabilidad Civil", "Almacén Vigo", ResultadoVerificacionExterna.Valido, -36),
+                ("Seguro de Responsabilidad Civil", "Planta Bilbao", ResultadoVerificacionExterna.Valido, -36),
                 ("Certificado de aptitud médica", "Planta Bilbao", ResultadoVerificacionExterna.NoValido, -23),
                 ("Certificado de aptitud médica", "Almacén Vigo", ResultadoVerificacionExterna.Valido, -36),
             });
@@ -288,9 +288,9 @@ public class Fichas360DemoTests(Fichas360DemoFixture fixture) : IClassFixture<Fi
                 ["Certificado de estar al corriente con la Seguridad Social"] = EstadoDocumento.Urgente,
                 ["Evaluación de Riesgos Laborales"] = EstadoDocumento.SinConfirmar,
                 ["Certificado de estar al corriente con Hacienda"] = EstadoDocumento.Vigente,
-                ["RLC"] = EstadoDocumento.Vigente,
+                ["RLC (TC1)"] = EstadoDocumento.Vigente,
                 ["Servicio de Prevención Ajeno"] = EstadoDocumento.Vigente,
-                ["Seguro de Responsabilidad Civil + recibo de pago"] = EstadoDocumento.Vigente,
+                ["Seguro de Responsabilidad Civil"] = EstadoDocumento.Vigente,
             },
             "MEDIDO: siete documentos y ninguna Planificación de la Actividad Preventiva, que en la maqueta «se exige y no hay documento»");
     }

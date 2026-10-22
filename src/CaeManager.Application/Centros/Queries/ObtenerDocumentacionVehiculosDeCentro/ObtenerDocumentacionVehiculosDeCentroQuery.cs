@@ -67,11 +67,11 @@ public class ObtenerDocumentacionVehiculosDeCentroQueryHandler(
         var ids = vehiculos.Select(v => v.Id).ToList();
         var docs = await documentos.Documentos.Operativos()
             .Where(d => d.VehiculoId != null && ids.Contains(d.VehiculoId.Value))
-            .Select(d => new { d.Id, VehiculoId = d.VehiculoId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, VehiculoId = d.VehiculoId!.Value, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(ct);
         var hoy = DiaDeNegocio.Hoy();
         var efectivos = DocumentoEfectivo.UnoPorClave(docs, d => (d.VehiculoId, d.TipoDocumentoId), d => d.EstadoVigencia,
-            d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
         var tipoIds = efectivos.Values.Select(d => d.TipoDocumentoId).Distinct().ToList();
         var nombresTipo = await tiposDocumento.TiposDocumento.Where(t => tipoIds.Contains(t.Id))
             .ToDictionaryAsync(t => t.Id, t => t.Nombre, ct);

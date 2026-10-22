@@ -635,6 +635,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),
+        // Al copiar requisitos de otro evento o de una plantilla, un tipo archivado pasa a su sustituto (catálogo 2026-10-17).
+        ("Proyectos.CrearProyectoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IClientesQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IDocumentosQueryContext"),

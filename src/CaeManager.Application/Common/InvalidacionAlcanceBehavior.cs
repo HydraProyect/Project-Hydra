@@ -1,3 +1,4 @@
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using MediatR;
 
 namespace CaeManager.Application.Common;
@@ -28,8 +29,15 @@ namespace CaeManager.Application.Common;
 /// Límite conocido: solo cubre escrituras que pasan por MediatR. Una escritura directa sobre el
 /// DbContext desde un componente, o un seeder, no invalida. Lo que se revoca desde otro circuito y
 /// solo afecta a la LECTURA lo acota la caducidad de la memoización (<c>CaducidadAlcanceOptions</c>).
+///
+/// <para>
+/// Descarta también, en los mismos dos puntos, la lista memoizada de Tenants beneficiarios autorizados
+/// (<see cref="MemoClientesAutorizados"/>): un Command que la lea (p. ej. una reapertura del Cuadro de dirección que
+/// recorre los Tenants) la resuelve de nuevo, y la lectura siguiente ve lo que el propio Command cambió.
+/// </para>
 /// </summary>
-public class InvalidacionAlcanceBehavior<TRequest, TResponse>(IInvalidadorAlcance invalidador)
+public class InvalidacionAlcanceBehavior<TRequest, TResponse>(
+    IInvalidadorAlcance invalidador, MemoClientesAutorizados? memoClientesAutorizados = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -38,14 +46,20 @@ public class InvalidacionAlcanceBehavior<TRequest, TResponse>(IInvalidadorAlcanc
     {
         if (request is not ICommandBase) return await next(cancellationToken);
 
-        invalidador.Invalidar();
+        Invalidar();
         try
         {
             return await next(cancellationToken);
         }
         finally
         {
-            invalidador.Invalidar();
+            Invalidar();
         }
+    }
+
+    private void Invalidar()
+    {
+        invalidador.Invalidar();
+        memoClientesAutorizados?.Invalidar();
     }
 }

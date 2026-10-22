@@ -25,8 +25,8 @@ public class NaturalezaDelCatalogoSemillaTests
     [InlineData("Planificación de la Actividad Preventiva")]
     [InlineData("Plan de Prevención")]
     [InlineData("Modalidad Preventiva")]
-    [InlineData("Información Art. 18")]
-    [InlineData("Formación Art. 19")]
+    [InlineData("Información de riesgos del puesto")]
+    [InlineData("Formación PRL del puesto")]
     public void Las_obligaciones_legales_verificadas_se_declaran_como_tales(string nombre)
     {
         Buscar(nombre).Naturaleza.Should().Be(NaturalezaJuridica.ObligacionLegal);
@@ -54,7 +54,7 @@ public class NaturalezaDelCatalogoSemillaTests
     /// </summary>
     [Theory]
     [InlineData("Certificado de aptitud médica", "someterse a la vigilancia de la salud requiere el consentimiento del trabajador (art. 22.1 LPRL)")]
-    [InlineData("Seguro de Responsabilidad Civil + recibo de pago", "no existe obligación legal general de RC en España")]
+    [InlineData("Seguro de Responsabilidad Civil", "no existe obligación legal general de RC en España")]
     public void Lo_que_no_es_obligacion_legal_no_se_rotula_como_tal(string nombre, string porque)
     {
         Buscar(nombre).Naturaleza.Should().NotBe(NaturalezaJuridica.ObligacionLegal, porque);

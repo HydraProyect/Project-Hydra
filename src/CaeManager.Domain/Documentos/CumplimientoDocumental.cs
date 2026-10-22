@@ -36,6 +36,10 @@ public enum ContextoCumplimiento
 /// (<see cref="TipoDocumentoCentro.BloqueaAcceso"/>): solo lo obligatorio baja el porcentaje; un Pendiente de un tipo sin esa
 /// marca deja el par al día. Siempre <c>false</c> en un Centro sin plataforma.
 /// </param>
+/// <param name="EsRenuncia">
+/// El documento efectivo del par está en renuncia (<see cref="Documento.EsRenuncia"/>): nunca es conforme, sea cual sea
+/// su estado de vigencia. <c>false</c> si el par no tiene documento.
+/// </param>
 public readonly record struct ParDocumentalExigido(
     Guid CentroId,
     Guid ClienteEmpresarialId,
@@ -43,7 +47,8 @@ public readonly record struct ParDocumentalExigido(
     Guid TrabajadorId,
     Guid TipoDocumentoId,
     EstadoDocumento Estado,
-    bool PendienteEnPlataforma);
+    bool PendienteEnPlataforma,
+    bool EsRenuncia);
 
 /// <summary>
 /// Un par Empresa × TipoDocumento de ámbito Empresa que un Centro exige hoy a una Empresa con Trabajadores de Asignación
@@ -57,12 +62,14 @@ public readonly record struct ParDocumentalExigido(
 /// <param name="TipoDocumentoId">Tipo de ámbito Empresa exigido.</param>
 /// <param name="Estado">Estado del documento efectivo del par, o Faltante.</param>
 /// <param name="PendienteEnPlataforma">Mismo significado que en <see cref="ParDocumentalExigido.PendienteEnPlataforma"/>.</param>
+/// <param name="EsRenuncia">Mismo significado que en <see cref="ParDocumentalExigido.EsRenuncia"/>.</param>
 public readonly record struct ParDocumentalDeEmpresaExigido(
     Guid CentroId,
     Guid EmpresaId,
     Guid TipoDocumentoId,
     EstadoDocumento Estado,
-    bool PendienteEnPlataforma);
+    bool PendienteEnPlataforma,
+    bool EsRenuncia);
 
 /// <summary>
 /// Fracción de cumplimiento: cuántos de los requeridos están al día. <see cref="Porcentaje"/> es <c>null</c> cuando no
@@ -127,6 +134,13 @@ public static class CumplimientoDocumental
         EstadoDocumento.SinCaducidad or EstadoDocumento.Vigente or EstadoDocumento.Proximo or EstadoDocumento.Urgente;
 
     /// <summary>
+    /// El numerador para el documento que representa a un requisito: su estado cuenta como «al día» y no está en renuncia
+    /// (<see cref="Documento.EsRenuncia"/>, decisión del 2026-10-17: la renuncia al reconocimiento médico no sustituye al
+    /// apto). Úsalo en toda fracción cuyo documento pueda estar en renuncia.
+    /// </summary>
+    public static bool EsConforme(EstadoDocumento estado, bool esRenuncia) => !esRenuncia && EsConforme(estado);
+
+    /// <summary>
     /// El numerador para un par concreto, con su contexto: el ÚNICO sitio que decide si un par exigido está al día en un
     /// porcentaje de un contexto (<see cref="De"/> y <see cref="PorContexto"/> pasan por aquí). Hoy depende solo del
     /// estado. Aquí es donde entra, cuando exista su dato, el periodo de tolerancia del Cliente empresarial (con override
@@ -136,14 +150,15 @@ public static class CumplimientoDocumental
     /// par (los recuentos por estado de los KPI no tienen fecha ni Centro y siguen usando <see cref="EsConforme(EstadoDocumento)"/>).
     /// Ya depende también del contexto en un punto: en el del Centro, un par pendiente en la plataforma de ese Centro no es
     /// conforme si además el Centro marca el tipo como bloqueante (<see cref="ParDocumentalExigido.PendienteEnPlataforma"/>);
-    /// en los demás contextos no cuenta.
+    /// en los demás contextos no cuenta. Y en todos los contextos, un documento en renuncia
+    /// (<see cref="ParDocumentalExigido.EsRenuncia"/>, decisión del 2026-10-17) nunca es conforme: no sustituye al apto.
     /// </summary>
     public static bool EsConforme(ParDocumentalExigido par, ContextoCumplimiento contexto) =>
-        EsConforme(par.Estado) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);
+        EsConforme(par.Estado, par.EsRenuncia) && !(contexto == ContextoCumplimiento.Centro && par.PendienteEnPlataforma);
 
-    /// <summary>El numerador para un par de Empresa: la misma regla del contexto Centro que <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/> (el estado vale y no está pendiente en la plataforma).</summary>
+    /// <summary>El numerador para un par de Empresa: la misma regla del contexto Centro que <see cref="EsConforme(ParDocumentalExigido, ContextoCumplimiento)"/> (no está en renuncia, el estado vale y no está pendiente en la plataforma).</summary>
     public static bool EsConforme(ParDocumentalDeEmpresaExigido par) =>
-        EsConforme(par.Estado) && !par.PendienteEnPlataforma;
+        EsConforme(par.Estado, par.EsRenuncia) && !par.PendienteEnPlataforma;
 
     /// <summary>
     /// La fracción de cada Centro con sus dos universos: los pares Trabajador × Tipo y los pares Empresa × Tipo
@@ -188,6 +203,20 @@ public static class CumplimientoDocumental
         {
             requeridos++;
             if (EsConforme(estado)) alDia++;
+        }
+
+        return new FraccionCumplimiento(alDia, requeridos);
+    }
+
+    /// <summary>Lo mismo, con el estado y la renuncia del documento de cada requisito (<see cref="EsConforme(EstadoDocumento, bool)"/>).</summary>
+    public static FraccionCumplimiento Evaluar(IEnumerable<(EstadoDocumento Estado, bool EsRenuncia)> documentos)
+    {
+        var alDia = 0;
+        var requeridos = 0;
+        foreach (var (estado, esRenuncia) in documentos)
+        {
+            requeridos++;
+            if (EsConforme(estado, esRenuncia)) alDia++;
         }
 
         return new FraccionCumplimiento(alDia, requeridos);

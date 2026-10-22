@@ -336,6 +336,63 @@ public class Documento : EntidadBase
 
     public void ActualizarComentarios(string? comentarios) => Comentarios = comentarios;
 
+    public const int HorasMinimas = 1;
+    public const int HorasMaximas = 999;
+
+    /// <summary>
+    /// Horas de la formación que acredita, entero de 1 a 999, o nulo si el certificado no las dice. Solo en tipos que
+    /// admiten <see cref="DatosAdicionalesDocumento.Horas"/> (catálogo aprobado el 2026-10-17: las horas salen del nombre
+    /// del tipo y pasan a ser dato del documento).
+    /// </summary>
+    public int? Horas { get; private set; }
+
+    /// <summary>Nivel de la formación PRL (básico o intermedio), solo en tipos que admiten <see cref="DatosAdicionalesDocumento.Nivel"/>.</summary>
+    public NivelFormacionPrl? Nivel { get; private set; }
+
+    /// <summary>
+    /// El Trabajador ha renunciado al reconocimiento médico (art. 22.1 LPRL). Solo en tipos que admiten
+    /// <see cref="DatosAdicionalesDocumento.Renuncia"/> (el Certificado de aptitud médica). Registra únicamente la
+    /// conclusión, nunca datos de salud, y no sustituye al apto donde la vigilancia de la salud es obligatoria: por eso
+    /// un documento en renuncia nunca cuenta como conforme para el cumplimiento (ver <c>CumplimientoDocumental</c>); el
+    /// Gestor CAE lo ve con su estado y decide.
+    /// </summary>
+    public bool EsRenuncia { get; private set; }
+
+    /// <summary>
+    /// Fija los datos adicionales del documento. <paramref name="tipo"/> tiene que ser su propio tipo, y cada dato con
+    /// valor tiene que estar admitido por él: un dato que el tipo no admite se rechaza en lugar de guardarse en silencio.
+    /// </summary>
+    public void EstablecerDatosAdicionales(TipoDocumento tipo, int? horas, NivelFormacionPrl? nivel, bool esRenuncia)
+    {
+        ArgumentNullException.ThrowIfNull(tipo);
+        ExigirNoSustituido(nameof(EstablecerDatosAdicionales));
+        if (tipo.Id != TipoDocumentoId)
+            throw new ArgumentException("El tipo no es el del documento.", nameof(tipo));
+
+        if (horas is { } h)
+        {
+            if (!tipo.Admite(DatosAdicionalesDocumento.Horas))
+                throw new ArgumentException($"El tipo «{tipo.Nombre}» no admite horas.", nameof(horas));
+            if (h is < HorasMinimas or > HorasMaximas)
+                throw new ArgumentOutOfRangeException(nameof(horas), h, $"Las horas van de {HorasMinimas} a {HorasMaximas}.");
+        }
+
+        if (nivel is { } n)
+        {
+            if (!tipo.Admite(DatosAdicionalesDocumento.Nivel))
+                throw new ArgumentException($"El tipo «{tipo.Nombre}» no admite nivel.", nameof(nivel));
+            if (!Enum.IsDefined(n))
+                throw new ArgumentOutOfRangeException(nameof(nivel), n, "Nivel de formación desconocido.");
+        }
+
+        if (esRenuncia && !tipo.Admite(DatosAdicionalesDocumento.Renuncia))
+            throw new ArgumentException($"El tipo «{tipo.Nombre}» no admite el estado «Renuncia».", nameof(esRenuncia));
+
+        Horas = horas;
+        Nivel = nivel;
+        EsRenuncia = esRenuncia;
+    }
+
     /// <summary>
     /// Cuándo se purgó el contenido, o null si sigue completo.
     /// </summary>
