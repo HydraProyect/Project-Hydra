@@ -342,24 +342,28 @@
         }
     }
 
-    /// <summary>Un badge de recuento por cada tono de severidad presente en el grupo — reutiliza TipoItemBandejaUi, mismo vocabulario que cada PanelResolverItem individual. Conserva los items del tono para que la VentanaContexto pueda desglosarlos (DDL-033).</summary>
+    /// <summary>
+    /// Un badge de recuento por cada clase de pendiente presente en el grupo (ClaseDeRecuento): «vencidos» solo cuenta lo
+    /// que venció, nunca un documento que falta. Antes se agrupaba por tono y todo lo rojo —un faltante, un Trabajador
+    /// bloqueado, un rechazo de la plataforma— salía como «vencidos», con otra cifra que Alertas y Mi trabajo para la misma
+    /// Empresa. Conserva los items de la clase para que la VentanaContexto pueda desglosarlos (DDL-033).
+    /// </summary>
     private IEnumerable<(TonoBadge Tono, string Etiqueta, int Cantidad, IReadOnlyList<ItemBandejaDto> Items)> Recuentos =>
         Grupo.Items
-            .GroupBy(i => TipoItemBandejaUi.Tono(i))
-            .Select(g => (Tono: g.Key, Etiqueta: EtiquetaTono(g.Key), Cantidad: g.Count(), Items: (IReadOnlyList<ItemBandejaDto>)g.ToList()))
-            .OrderByDescending(r => r.Tono == TonoBadge.Peligro)
-            .ThenByDescending(r => r.Cantidad);
-
-    private static string EtiquetaTono(TonoBadge tono) => tono switch
-    {
-        TonoBadge.Peligro => "vencidos",
-        TonoBadge.Advertencia => "próximos",
-        _ => "pendientes"
-    };
+            .GroupBy(i => TipoItemBandejaUi.ClaseDeRecuento(i.Tipo))
+            .OrderBy(g => g.Key.Orden)
+            .Select(g =>
+            {
+                var items = g.ToList();
+                var tonos = items.Select(TipoItemBandejaUi.Tono).ToList();
+                return (
+                    Tono: tonos.Contains(TonoBadge.Peligro) ? TonoBadge.Peligro : tonos[0],
+                    Etiqueta: Textos[items.Count == 1 ? g.Key.ClaveUno : g.Key.ClaveVarios].Value,
+                    Cantidad: items.Count,
+                    Items: (IReadOnlyList<ItemBandejaDto>)items);
+            });
 
     /// <summary>Nombre accesible de la ventana de contexto — lo único que oye un lector de pantalla, así que dice lo mismo que el Detalle en una frase (mismo criterio que DescribirRecuentoTrabajador en AcordeonAsignacionesCentro).</summary>
     private static string DescribirRecuento((TonoBadge Tono, string Etiqueta, int Cantidad, IReadOnlyList<ItemBandejaDto> Items) recuento) =>
-        recuento.Cantidad == 1
-            ? $"1 {recuento.Etiqueta.TrimEnd('s')}: {recuento.Items[0].Titulo}"
-            : $"{recuento.Cantidad} {recuento.Etiqueta}: {string.Join(", ", recuento.Items.Select(i => i.Titulo))}";
+        $"{recuento.Cantidad} {recuento.Etiqueta}: {string.Join(", ", recuento.Items.Select(i => i.Titulo))}";
 }

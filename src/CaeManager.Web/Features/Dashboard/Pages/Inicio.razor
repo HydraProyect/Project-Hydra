@@ -252,8 +252,12 @@
                        (no hay vista de cumplimiento agrupada por cliente para este rol —
                        Visión de cartera exige Coordinador+; Reportes, P-14, es de todo el
                        tenant sin filtro). Enlaza al informe más cercano que existe hoy en
-                       vez de a un enlace roto; construir el desglose real queda pendiente. *@
-                    <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                       vez de a un enlace roto; construir el desglose real queda pendiente. Solo con más de un
+                       Cliente empresarial en el alcance (MostrarDesglosePorCliente). *@
+                    @if (MostrarDesglosePorCliente)
+                    {
+                        <a class="dashboard-resumen-anillo-enlace" href="/reportes">Desglosar por Cliente →</a>
+                    }
                 </div>
             </div>
             <div class="rejilla-kpis-secundarios contenido-entra">

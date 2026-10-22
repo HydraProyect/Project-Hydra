@@ -713,8 +713,8 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Las cifras cuadran: el anillo mide 132 documentos de Trabajador y «Vigentes» (80) explica el resto con sus dos pistas
-    /// (25 vencidos o por vencer + 27 sin confirmar o sin caducidad), sin hueco entre ambos rótulos.
+    /// Las cifras cuadran y separan conformes de no conformes: el anillo dice 105 al día de 132; «Vigentes» (80) + 25 más al
+    /// día (5 urgentes + 10 próximos + 10 sin caducidad) = 105, y + 27 no al día (10 vencidos + 17 sin confirmar) = 132.
     /// </summary>
     [Fact]
     public void La_pista_de_vigentes_reparte_el_resto_de_los_documentos_que_mide_el_anillo()
@@ -732,8 +732,43 @@ public class InicioGen2Tests : BunitContext
             }
         });
 
-        PistaDelKpi(cut, "Vigentes").Should().Be("25 vencidos o por vencer · 27 sin confirmar o sin caducidad");
+        PistaDelKpi(cut, "Vigentes").Should().Be("25 más al día (por vencer o sin caducidad) · 27 no al día (vencidos o sin confirmar)");
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim().Should().StartWith("105 de 132 documentos de Trabajador al día");
+    }
+
+    /// <summary>«Desglosar por Cliente» solo con más de un Cliente empresarial: con uno repetiría la misma cifra.</summary>
+    [Theory]
+    [InlineData(1, Roles.Cliente, false)]
+    [InlineData(1, Roles.GestorCae, false)]
+    [InlineData(2, Roles.GestorCae, true)]
+    public void Desglosar_por_Cliente_solo_aparece_con_mas_de_un_Cliente_empresarial(int clientes, string rol, bool aparece)
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with { ClientesEmpresarialesEnAlcance = clientes }
+        }, rol: rol);
+
+        cut.FindAll(".dashboard-resumen-anillo-enlace").Any(a => a.TextContent.Contains("Desglosar por Cliente")).Should().Be(aparece);
+    }
+
+    /// <summary>El saludo toma el nombre de la sesión (claim de TenantClaimsPrincipalFactory) sin releer la cuenta.</summary>
+    [Fact]
+    public void El_saludo_lleva_el_nombre_de_pila_que_trae_la_sesion()
+    {
+        var cut = Renderizar(new MediadorDeInicio(), autenticacion: new AutenticacionConNombre("Ramón Ibáñez Cuesta"), rol: Roles.Cliente);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(", Ramón"));
+    }
+
+    private sealed class AutenticacionConNombre(string nombre) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "ramon"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, Roles.Cliente),
+                new System.Security.Claims.Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto, nombre)
+            ], "prueba"))));
     }
 
     /// <summary>La cola cuenta Trabajadores bloqueados: un mismo Trabajador en dos Centros es UN Trabajador (cabecera «M bloquean acceso»).</summary>
