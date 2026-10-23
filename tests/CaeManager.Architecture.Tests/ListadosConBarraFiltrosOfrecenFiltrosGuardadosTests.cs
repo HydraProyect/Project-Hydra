@@ -27,7 +27,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
     /// </summary>
     private static readonly string[] AunSinFiltrosGuardados = [];
 
-    /// <summary>Los once que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
+    /// <summary>Los doce que ya los tienen: control positivo de que el recorrido ve lo que dice ver.</summary>
     private static readonly string[] ListadosConocidos =
     [
         CarpetaDeFeatures + "Centros/Pages/Centros.razor",
@@ -36,6 +36,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Empresas/Pages/Empresas.razor",
         CarpetaDeFeatures + "Gestiones/Pages/Gestiones.razor",
         CarpetaDeFeatures + "Incidencias/Pages/Incidencias.razor",
+        CarpetaDeFeatures + "Delegaciones/Pages/Delegaciones.razor",
         CarpetaDeFeatures + "Proyectos/Pages/Proyectos.razor",
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Trabajadores/Pages/Trabajadores.razor",
@@ -50,6 +51,7 @@ public class ListadosConBarraFiltrosOfrecenFiltrosGuardadosTests
         CarpetaDeFeatures + "Empresas/Pages/Empresas.razor",
         CarpetaDeFeatures + "Gestiones/Pages/Gestiones.razor",
         CarpetaDeFeatures + "Incidencias/Pages/Incidencias.razor",
+        CarpetaDeFeatures + "Delegaciones/Pages/Delegaciones.razor",
         CarpetaDeFeatures + "Proyectos/Pages/Proyectos.razor",
         CarpetaDeFeatures + "Subcontratas/Pages/Subcontratas.razor",
         CarpetaDeFeatures + "Vehiculos/Pages/Vehiculos.razor",

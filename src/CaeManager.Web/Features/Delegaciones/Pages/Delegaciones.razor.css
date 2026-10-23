@@ -14,8 +14,47 @@
 }
 
 .delegaciones-lista {
-    display: grid;
-    gap: var(--space-4);
+    width: 100%;
+}
+
+.tarjeta-listado-pie-separado {
+    padding: 0;
+    border-top: 0;
+}
+
+.delegaciones-abrir {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    border: 0;
+    background: none;
+    color: var(--color-text);
+    font: var(--font-label);
+    text-align: left;
+    cursor: pointer;
+}
+
+.delegaciones-abrir:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 3px;
+}
+
+.delegaciones-detalle > td {
+    background: var(--color-surface-subtle);
+    padding: var(--space-4);
+}
+
+.delegaciones-detalle .delegaciones-tarjeta {
+    border: 0;
+    box-shadow: none;
+}
+
+@media (max-width: 640px) {
+    .delegaciones-lista th,
+    .delegaciones-lista td {
+        padding: var(--space-2);
+        overflow-wrap: anywhere;
+    }
 }
 
 .delegaciones-tarjeta {

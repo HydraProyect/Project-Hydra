@@ -29,6 +29,8 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 
 public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "tipo", "agrupar"];
+
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAutorizarOperadorCaeExterno> TextosAutorizar { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAccesosSoporteTalveg> TextosAccesos { get; set; } = default!;
@@ -218,6 +220,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
         var version = ++_versionCarga;
         var token = _cicloCarga.Token;
+        _seleccionLista.Clear();
         _cargando = true;
         _error = false;
         StateHasChanged();
@@ -277,6 +280,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     /// </summary>
     protected override void OnParametersSet()
     {
+        SincronizarParametrosLista();
         if (OperadorSugeridoId != _sugerenciaVista)
         {
             _sugerenciaVista = OperadorSugeridoId;

@@ -177,12 +177,12 @@ public class VistaRecordadaTests
     }
 
     [Fact]
-    public void El_validador_admite_las_once_pantallas_y_ninguna_otra()
+    public void El_validador_admite_las_doce_pantallas_y_ninguna_otra()
     {
         var validador = new GuardarVistaRecordadaCommandValidator();
 
         PantallasConVistaRecordada.Admitidas.Should().BeEquivalentTo(
-            "Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias");
+            "Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias", "Delegaciones");
         foreach (var pantalla in PantallasConVistaRecordada.Admitidas)
             validador.Validate(new GuardarVistaRecordadaCommand(pantalla, "{}")).IsValid.Should().BeTrue(pantalla);
 
