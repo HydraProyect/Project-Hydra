@@ -219,8 +219,6 @@
     overflow-wrap: anywhere;
 }
 .documentos-propietario { max-width: 100%; min-width: 0; }
-/* Maqueta: el título del documento va en seminegrita y el propietario, en peso normal. */
-.documentos-propietario .documentos-propietario-nombre { font-weight: 400; }
 .documentos-vigencia { white-space: normal; }
 .documentos-tabla-desplazable ::deep .documentos-celda-expandir,
 .documentos-tabla-desplazable ::deep .documentos-celda-seleccion { width: 40px; }
@@ -228,4 +226,6 @@
 .documentos-vigencia { display: flex; flex-direction: column; gap: 2px; font: var(--font-body-md); color: var(--color-text); }
 .documentos-tabla-visible ::deep .nombre-abre-vista-rapida { font: var(--font-body-md); font-weight: 600; color: var(--color-text); }
 .documentos-tabla-visible ::deep .nombre-abre-vista-rapida:hover { color: var(--color-primary-500); }
+/* Maqueta: el título del documento va en seminegrita y el propietario, en peso normal. Más específico que la regla de arriba, que va antes y tiene la misma especificidad. */
+.documentos-tabla-visible ::deep .nombre-abre-vista-rapida.documentos-propietario-nombre { font-weight: 400; }
 .documentos-tabla-desplazable ::deep .documentos-acciones-fila { gap: 6px; }
