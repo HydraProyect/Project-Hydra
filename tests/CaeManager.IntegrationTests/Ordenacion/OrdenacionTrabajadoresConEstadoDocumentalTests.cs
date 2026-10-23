@@ -1,4 +1,6 @@
 using CaeManager.Application.Alertas;
+using CaeManager.Domain.Asignaciones;
+using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -204,6 +206,74 @@ public class OrdenacionTrabajadoresConEstadoDocumentalTests : IAsyncLifetime
 
         resultado.Elementos.Should().HaveCount(2);
         resultado.TotalElementos.Should().Be(TrabajadoresVencidos);
+    }
+
+    /// <summary>
+    /// Decisiones del 2026-10-23, en SQL: primero lo que va en rojo por un requisito obligatorio de Centro (vencido, luego
+    /// ausente), después el vencido de un Tipo que el Centro exige sin marcarlo «bloquea el acceso» (aviso), y luego lo demás.
+    /// El filtro y el recuento de Vencido llevan el rojo y el aviso. Los Trabajadores del arranque no tienen Asignación, así
+    /// que el filtro por Centro aísla los de este test.
+    /// </summary>
+    [Fact]
+    public async Task Rojo_obligatorio_antes_que_Pendiente_antes_que_el_vencido_que_solo_avisa_antes_que_Urgente()
+    {
+        Guid centroId;
+        Guid[] ids;
+        await using (var c = CrearContexto())
+        {
+            var cliente = await c.Empresas.SingleAsync(e => e.RazonSocial == "Alfa Montajes S.L.");
+            var propia = new Empresa("Gestora Propia S.L.");
+            c.Empresas.Add(propia);
+            await c.SaveChangesAsync();
+
+            var centro = new Centro(cliente.Id, propia.Id, "Centro del orden");
+            var aptitud = new TipoDocumento("Aptitud obligatoria", null, false, 2, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+            var formacion = new TipoDocumento("Formacion solo exigida", null, false, 3, AmbitoAplicacion.Trabajador, RequisitoDocumental.Si);
+            c.AddRange(centro, aptitud, formacion);
+            await c.SaveChangesAsync();
+            c.TiposDocumentoCentros.AddRange(
+                new TipoDocumentoCentro(aptitud.Id, centro.Id, incluido: true, bloqueaAcceso: true),
+                new TipoDocumentoCentro(formacion.Id, centro.Id, incluido: true, bloqueaAcceso: false));
+
+            Trabajador T(string nombre, string dni) => Trabajador.DeEmpresa(propia.Id, nombre, "Orden", dni);
+            var rojo = T("A", "45678912S");
+            var pendiente = T("B", "12345678Z");
+            var aviso = T("C", "77189989B");
+            var urgente = T("D", "44444444A");
+            var vigente = T("E", "55555555K");
+            c.Trabajadores.AddRange(rojo, pendiente, aviso, urgente, vigente);
+            await c.SaveChangesAsync();
+            foreach (var t in new[] { rojo, pendiente, aviso, urgente, vigente })
+                c.Asignaciones.Add(new Asignacion(t.Id, centro.Id, _hoy.AddDays(-30)));
+
+            Documento D(Trabajador t, TipoDocumento tipo, int dias) =>
+                Documento.DeTrabajador(t.Id, tipo.Id, _hoy.AddDays(-400), VigenciaDocumento.VenceEl(_hoy.AddDays(dias)));
+            c.Documentos.AddRange(
+                D(rojo, aptitud, -1),                           // obligatorio vencido: Vencido en rojo
+                                                                // pendiente: sin aptitud, obligatorio ausente
+                D(aviso, aptitud, 90), D(aviso, formacion, -1), // vencido no obligatorio: Vencido de aviso
+                D(urgente, aptitud, 5),
+                D(vigente, aptitud, 90));
+            await c.SaveChangesAsync();
+            (centroId, ids) = (centro.Id, [rojo.Id, pendiente.Id, aviso.Id, urgente.Id, vigente.Id]);
+        }
+
+        await using var contexto = CrearContexto();
+        var resultado = await CrearHandler(contexto).Handle(new ObtenerTrabajadoresQuery(
+            null, CentroId: centroId, OrdenarPor: nameof(TrabajadorListaDto.EstadoDocumental), ConRecuentosPorEstado: true),
+            CancellationToken.None);
+
+        resultado.Elementos.Select(t => t.Id).Should().Equal(ids);
+        resultado.Elementos.Select(t => t.EstadoDocumental).Should().Equal(
+            EstadoDocumento.Vencido, EstadoDocumento.Faltante, EstadoDocumento.Vencido, EstadoDocumento.Urgente, EstadoDocumento.Vigente);
+        resultado.Elementos.Select(t => t.VencidoSinBloqueo).Should().Equal(false, false, true, false, false);
+        resultado.Elementos[1].DocumentosFaltantes.Should().Equal("Aptitud obligatoria");
+        resultado.RecuentosPorEstado![nameof(EstadoDocumento.Vencido)].Should().Be(2, "el rojo y el aviso");
+        resultado.RecuentosPorEstado[nameof(EstadoDocumento.Faltante)].Should().Be(1);
+
+        var soloVencido = await CrearHandler(contexto).Handle(new ObtenerTrabajadoresQuery(
+            null, CentroId: centroId, EstadoDocumental: nameof(EstadoDocumento.Vencido)), CancellationToken.None);
+        soloVencido.Elementos.Select(t => t.Id).Should().BeEquivalentTo([ids[0], ids[2]]);
     }
 
     private static IEnumerable<IComparable?> ClaveDe(IEnumerable<TrabajadorListaDto> elementos, string columna) =>

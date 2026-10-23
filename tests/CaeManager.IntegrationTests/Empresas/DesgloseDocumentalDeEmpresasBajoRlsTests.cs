@@ -208,6 +208,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         montajes.Incidencias[0].DocumentoId.Should().Be(_seguroVencido, "la incidencia lleva el Id del documento que se abre al pulsarla");
         montajes.Incidencias[1].FechaVencimiento.Should().Be(DiaDeNegocio.Hoy().AddDays(5));
         montajes.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        montajes.VencidoSinBloqueo.Should().BeTrue("ningún Centro marca obligatorio el documento vencido de Montajes: avisa, no va en rojo");
 
         resultado.Elementos.Single(e => e.Id == _reformas).Incidencias.Should().BeEmpty("sin documentos no hay incidencias");
         resultado.Elementos.Should().NotContain(e => e.Id == _elevaciones || e.Id == _aislamientos);

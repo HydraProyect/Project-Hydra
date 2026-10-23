@@ -140,6 +140,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         nora.DocumentosRegistrados.Should().Be(4, "vencido, urgente, sin confirmar y vigente: ni el eliminado ni el sustituido ni los dos del gemelo ajeno");
         nora.DocumentosVigentes.Should().Be(2, "el urgente sigue valiendo hoy y el vigente; el vencido y el sin confirmar no");
         nora.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        nora.VencidoSinBloqueo.Should().BeFalse("su aptitud vencida es obligatoria en un Centro donde está asignada: va en rojo");
 
         var ana = resultado.Elementos.Single(t => t.Id == _ana);
         ana.Incidencias.Should().BeEmpty();

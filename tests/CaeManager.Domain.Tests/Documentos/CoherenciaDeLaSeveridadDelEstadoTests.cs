@@ -61,6 +61,43 @@ public class CoherenciaDeLaSeveridadDelEstadoTests
         SeveridadEstadoDocumento.ConFaltantes(null, hayFaltantes: false).Should().BeNull();
     }
 
+    /// <summary>
+    /// Decisiones del 2026-10-23: el estado de una Empresa o de un Trabajador va en rojo solo por lo que bloquea el acceso.
+    /// Un obligatorio vencido es Vencido; uno que falta, Pendiente, aunque haya un vencido de algo no obligatorio; sin
+    /// obligatorios incumplidos manda la vigencia de sus documentos.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vigente, true, false, EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Vencido, true, true, EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Vencido, false, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Urgente, false, true, EstadoDocumento.Faltante)]
+    [InlineData(EstadoDocumento.Vencido, false, false, EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Urgente, false, false, EstadoDocumento.Urgente)]
+    public void En_rojo_solo_lo_obligatorio_y_un_obligatorio_vencido_manda_sobre_uno_que_falta(
+        EstadoDocumento peorVigencia, bool obligatorioVencido, bool obligatorioAusente, EstadoDocumento esperado) =>
+        SeveridadEstadoDocumento.ConRequisitosObligatorios(peorVigencia, obligatorioVencido, obligatorioAusente).Should().Be(esperado);
+
+    [Fact]
+    public void Sin_documentos_y_sin_obligatorios_incumplidos_no_hay_estado()
+    {
+        SeveridadEstadoDocumento.ConRequisitosObligatorios(null, false, false).Should().BeNull();
+        SeveridadEstadoDocumento.ConRequisitosObligatorios(null, false, true).Should().Be(EstadoDocumento.Faltante);
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-23: un documento vencido que ningún Centro marca obligatorio deja de pintar en rojo; es un aviso.
+    /// Lo es solo cuando el Vencido no viene de un obligatorio y no hay un obligatorio que falte.
+    /// </summary>
+    [Theory]
+    [InlineData(EstadoDocumento.Vencido, false, false, true)]
+    [InlineData(EstadoDocumento.Vencido, true, false, false)]
+    [InlineData(EstadoDocumento.Vencido, false, true, false)]
+    [InlineData(EstadoDocumento.Urgente, false, false, false)]
+    [InlineData(EstadoDocumento.Vigente, true, false, false)]
+    public void Un_vencido_no_obligatorio_es_aviso_y_uno_obligatorio_no(
+        EstadoDocumento peorVigencia, bool obligatorioVencido, bool obligatorioAusente, bool esAviso) =>
+        SeveridadEstadoDocumento.EsVencidoSinBloqueo(peorVigencia, obligatorioVencido, obligatorioAusente).Should().Be(esAviso);
+
     [Fact]
     public void Cada_valor_del_enum_tiene_un_rango_propio_y_la_tabla_los_cubre_todos()
     {
