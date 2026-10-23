@@ -202,6 +202,7 @@ public class RevalidacionCircuitoActivoHandlerTests : IAsyncLifetime
             contexto,
             contexto,
             SinSesionPrivilegiada,
+            new PuertaAccesoDatos(),
             configuracion,
             NullLogger<RevalidacionCircuitoActivoHandler>.Instance);
     }

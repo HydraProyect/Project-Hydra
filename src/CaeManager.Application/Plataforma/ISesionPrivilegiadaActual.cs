@@ -13,23 +13,30 @@ namespace CaeManager.Application.Plataforma;
 /// Lo que los distingue es <b>cuándo</b> esa consulta es la última palabra
 /// (REC-067). <see cref="ObtenerAsync"/> memoiza por ámbito de DI —petición
 /// en HTTP, circuito entero en Blazor Server— así que una concesión que se
-/// revoca <i>después</i> de la primera llamada de ese ámbito puede seguir
-/// resolviendo en las siguientes: es el mismo error de forma que en su día
-/// dejaba vivo el acceso de un operador retirado de una cartera, comprobar el
-/// contenedor y no el permiso, aceptado aquí solo para <b>lectura</b>.
-/// <see cref="RevalidarAsync"/> no tiene esa ventana: vuelve a preguntar
-/// siempre, y es el único de los dos que un punto de mutación puede usar.
+/// revoca, o una sesión que se cierra desde otra pestaña, <i>después</i> de la
+/// primera llamada de ese ámbito puede seguir resolviendo en las siguientes
+/// hasta que alguien llame a <see cref="RevalidarAsync"/>. La caducidad no
+/// tiene esa ventana: la memo guarda el primer vencimiento de la sesión o de
+/// su concesión y deja de valer al pasarlo (Z2-1, revisión extensa
+/// 2026-10-23). <see cref="RevalidarAsync"/> vuelve a preguntar siempre, y es
+/// el único de los dos que pueden usar un punto de mutación y la revalidación
+/// periódica del circuito.
 /// </summary>
 public interface ISesionPrivilegiadaActual
 {
     /// <summary>
     /// Resolución memoizada por ámbito de DI (REC-067): la primera llamada
     /// dentro de una petición HTTP o un circuito de Blazor Server consulta la
-    /// base; las siguientes reutilizan ese resultado sin volver a preguntar.
-    /// Correcto para <b>lectura</b> — el enforcement que de verdad cierra ese
-    /// hueco es la capa de datos (rol de solo lectura + RLS, ADR-011 §
-    /// 4bis.7.4) — pero nunca debe usarse para decidir si una escritura se
-    /// autoriza: usa <see cref="RevalidarAsync"/> en el punto de mutación.
+    /// base; las siguientes reutilizan ese resultado sin volver a preguntar,
+    /// salvo que la ventana memoizada haya vencido según el reloj o que la
+    /// selección del ámbito ya no nombre la misma sesión.
+    /// Vale para <b>lectura</b> porque la revalidación periódica del circuito
+    /// (<c>RevalidacionCircuitoActivoHandler</c>, 60 s por defecto) llama a
+    /// <see cref="RevalidarAsync"/> y retira la selección si la sesión se
+    /// revocó o se cerró: no hay enforcement en la capa de datos que acote la
+    /// vigencia de la sesión, el rol de solo lectura y RLS solo acotan el
+    /// Tenant objetivo. Nunca debe usarse para decidir si una escritura se
+    /// autoriza ni para revalidar: usa <see cref="RevalidarAsync"/>.
     /// </summary>
     Task<SesionPrivilegiadaActiva?> ObtenerAsync(CancellationToken cancellationToken = default);
 
