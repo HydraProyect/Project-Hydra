@@ -126,10 +126,12 @@ public class RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests : IAsyncL
 
         await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
         foreach (var sensibilidad in sensibilidades)
-        foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>())
         {
-            (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), sensibilidad.ToString(), tipoAcceso.ToString()))
-                .Should().Be("registrado", $"{sensibilidad} × {tipoAcceso} es un acceso sensible que se registra");
+            foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>())
+            {
+                (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), sensibilidad.ToString(), tipoAcceso.ToString()))
+                    .Should().Be("registrado", $"{sensibilidad} × {tipoAcceso} es un acceso sensible que se registra");
+            }
         }
     }
 
