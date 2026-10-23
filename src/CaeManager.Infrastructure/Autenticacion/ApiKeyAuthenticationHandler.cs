@@ -28,6 +28,32 @@ public class ApiKeyAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// Siempre <see cref="Roles.Consulta"/>: una clave de la API pública nunca
 /// tiene más permiso que solo lectura en v1, sea cual sea el rol de quien la
 /// generó.
+///
+/// <para>
+/// Una clave solo autentica si, todo a la vez: no está revocada, no ha llegado a su
+/// <see cref="ClaveApi.CaducaEnUtc"/> y en su Tenant propietario existe una delegación de
+/// propósito Soporte desde la organización de origen de la cuenta que la emitió
+/// (<see cref="CriterioSoporteClaveApi.PuedeAutenticar"/>). Al autenticar no se exige que esa
+/// delegación esté activa ni vigente: lo exige la emisión
+/// (<see cref="CriterioSoporteClaveApi.PuedeEmitir"/> en <c>GenerarClaveApiCommand</c>), y la
+/// ventana de <c>AbrirAccesoSoporteCommand</c> dura horas, así que exigirla aquí dejaría la
+/// clave en 401 fuera de ella. Hoy una delegación retirada y una con la ventana cerrada no se
+/// distinguen (las dos están inactivas y las dos dejan autenticar); distinguirlas para que
+/// retirar el soporte invalide sus claves queda como incremento aparte.
+/// </para>
+///
+/// <para>
+/// Cuenta emisora: si se elimina, la clave deja de autenticar, porque
+/// <c>app_tenant_de_cuenta</c> devuelve null y no hay origen con el que buscar la delegación.
+/// Si solo se desactiva o se bloquea, la clave sigue autenticando hasta su caducidad o su
+/// revocación: aquí no se comprueba el estado de la cuenta.
+/// </para>
+///
+/// <para>
+/// Nunca más amplio que antes de exigir caducidad y delegación: las condiciones de arriba se
+/// añaden a las que ya había (hash resuelto a un Tenant, fila visible en ese Tenant y no
+/// revocada); ninguna sustituye a otra.
+/// </para>
 /// </summary>
 public class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationSchemeOptions> options,
@@ -74,7 +100,9 @@ public class ApiKeyAuthenticationHandler(
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(tenantId.Value);
 
         var clave = await claveRepositorio.ObtenerPorHashAsync(hash, Context.RequestAborted);
-        if (clave is null || !clave.EstaActiva)
+        var ahora = DateTime.UtcNow;
+        if (clave is null || !clave.EstaVigente(ahora)
+            || !await claveRepositorio.ExisteSoporteDelOrigenEmisorAsync(tenantId.Value, clave.CreadaPorUsuarioId, Context.RequestAborted))
             return AuthenticateResult.Fail("Clave inválida o revocada.");
 
         await RegistrarUsoAsync(clave);

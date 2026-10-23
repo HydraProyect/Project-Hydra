@@ -1,3 +1,5 @@
+using CaeManager.Application.AsistenteIa;
+using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Plataforma;
@@ -116,6 +118,36 @@ public class ApplicationServiceCollectionExtensionsTests
 
         proveedor.GetRequiredService<ISesionPrivilegiadaActual>()
             .Should().BeOfType<SesionPrivilegiadaFalsaDePrueba>();
+    }
+
+    [Fact]
+    public void El_limitador_de_Consulta_IA_es_singleton_y_dos_scopes_comparten_la_misma_cuota()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+
+        using var primero = proveedor.CreateScope();
+        using var segundo = proveedor.CreateScope();
+
+        var delPrimero = primero.ServiceProvider.GetRequiredService<LimitadorConsultaIa>();
+        delPrimero.Should().BeSameAs(segundo.ServiceProvider.GetRequiredService<LimitadorConsultaIa>(),
+            "una instancia por scope (por circuito) dejaría la cuota por usuario y por Tenant sin efecto");
+        servicios.Single(d => d.ServiceType == typeof(LimitadorConsultaIa))
+            .Lifetime.Should().Be(ServiceLifetime.Singleton);
+    }
+
+    [Fact]
+    public void La_pregunta_al_asistente_se_valida_en_el_pipeline_y_no_en_el_handler()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+
+        proveedor.GetServices<FluentValidation.IValidator<PreguntarAlAsistenteQuery>>()
+            .Should().ContainSingle().Which.Should().BeOfType<PreguntarAlAsistenteQueryValidator>();
+        servicios.Should().Contain(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>)
+            && d.ImplementationType == typeof(ValidationBehavior<,>));
     }
 
     private sealed class SesionPrivilegiadaFalsaDePrueba : ISesionPrivilegiadaActual

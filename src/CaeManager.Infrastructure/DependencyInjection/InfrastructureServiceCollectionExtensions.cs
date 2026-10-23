@@ -689,6 +689,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Transitorio: AddHttpMessageHandler<T> resuelve una instancia por cliente HTTP.
         services.AddTransient<ContadorLlamadasProveedorIaHandler>();
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
+        services.AddOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>()
+            .Bind(configuration.GetSection(CaeManager.Application.AsistenteIa.AsistenteConsultaOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(), "Los límites de Consulta deben ser positivos y el historial debe admitir la pregunta.")
+            .ValidateOnStart();
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));

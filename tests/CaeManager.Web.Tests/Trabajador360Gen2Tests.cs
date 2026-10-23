@@ -88,6 +88,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
         public Result ResultadoCorregirDocumento { get; set; } = Result.Exito();
         public Dictionary<Guid, List<CentroDocumentacionTrabajadorDto>> Centros { get; } = [];
         public List<ContactoAgendaDto> Contactos { get; } = [];
+
+        /// <summary>Lo que ofrece el selector de «Asignar a un centro» y los documentos que faltarían en el Centro elegido.</summary>
+        public List<CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector.CentroSelectorDto> CentrosParaAsignar { get; } = [];
+        public List<CaeManager.Application.Alertas.DocumentoFaltanteDto> FaltantesAlAsignar { get; } = [];
         public Dictionary<Guid, List<GestionListaDto>> Gestiones { get; } = [];
         public List<TipoDocumentoListaDto> Tipos { get; } = [];
         public List<TrabajadorSelectorDto> Selector { get; } = [];
@@ -158,6 +162,12 @@ public partial class Trabajador360Gen2Tests : BunitContext
                 ? new ResultadoPaginado<TrabajadorListaDto>([fila], 1, q.Pagina, q.TamanoPagina)
                 : new ResultadoPaginado<TrabajadorListaDto>([], 0, q.Pagina, q.TamanoPagina),
             ObtenerAgendaContactosQuery => Contactos,
+            CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector.ObtenerCentrosParaSelectorQuery =>
+                (IReadOnlyList<CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector.CentroSelectorDto>)CentrosParaAsignar,
+            CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion.ObtenerDocumentosFaltantesParaAsignacionQuery =>
+                (IReadOnlyList<CaeManager.Application.Alertas.DocumentoFaltanteDto>)FaltantesAlAsignar,
+            CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.CrearAsignacionesCommand c =>
+                Result.Exito(new CaeManager.Application.Asignaciones.Commands.CrearAsignaciones.ResultadoAsignacionLoteDto(c.TrabajadorIds.Count * c.CentroIds.Count, 0, 0, [])),
             CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.ObtenerDeteccionesPorEmpresaQuery =>
                 Result.Exito<IReadOnlyList<CaeManager.Application.Trabajadores.Queries.ObtenerDeteccionesPorEmpresa.DeteccionTrabajadorDto>>(Detecciones),
             CaeManager.Application.Trabajadores.Commands.ResolverDeteccionAusente.ResolverDeteccionAusenteCommand =>

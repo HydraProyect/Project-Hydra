@@ -37,14 +37,14 @@
                         <TarjetaListado>
                     <Contenido>
 <table class="tabla-datos claves-api-tabla">
-                            <thead><tr><th>Nombre</th><th>Prefijo</th><th>Creada</th><th>Último uso</th><th>Estado</th><th><span class="solo-lector">Acciones</span></th></tr></thead>
+                            <thead><tr><th>Nombre</th><th>Prefijo</th><th>Creada</th><th>@Textos["Caducidad"]</th><th>Último uso</th><th>Estado</th><th><span class="solo-lector">Acciones</span></th></tr></thead>
                             <tbody>
                             @foreach (var clave in _claves)
                             {
                                 <tr class="@ClaseFila(clave.Id)">
                                     <td class="claves-api-nombre">@clave.NombreDescriptivo</td><td><code title="Prefijo visible de la clave">@clave.PrefijoVisible…</code></td>
-                                    <td>@clave.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td><td>@(clave.UltimoUsoUtc?.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
-                                    <td><Badge Tono="@(clave.EstaActiva ? TonoBadge.Exito : TonoBadge.Neutro)">@(clave.EstaActiva ? "Activa" : "Revocada")</Badge></td>
+                                    <td>@clave.CreadaEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</td><td>@UltimoDiaValido(clave)</td><td>@(clave.UltimoUsoUtc?.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm") ?? "Nunca")</td>
+                                    <td><Badge Tono="@(EstaVigente(clave) ? TonoBadge.Exito : TonoBadge.Neutro)">@TextoEstado(clave)</Badge></td>
                                     <td class="claves-api-accion">@if (clave.EstaActiva) { <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo" OnClick="() => PedirRevocacion(clave)" Cargando="@(_procesandoId == clave.Id)">Revocar</Boton> }</td>
                                 </tr>
                             }
@@ -59,16 +59,19 @@
     }
 </div>
 
-@* «Generar clave» es un formulario de un campo: ModalFormulario (guardián, «Cancelar» como la X, primario único con su estado, aviso del
+@* «Generar clave» usa ModalFormulario (guardián, «Cancelar» como la X, primario único con su estado, aviso del
    formulario y aviso de navegación vienen del kit). «Clave generada» (abajo) es de solo lectura y no es un formulario. *@
 @* Solo existe mientras está abierto: cambiar de organización descarta la generación en vuelo de la anterior (la página la deja morir, ver GenerarAsync)
    y, con el kit siempre montado, su guarda de doble clic seguiría retenida por esa operación y la generación nueva no podría empezar. *@
 @if (_mostrarFormularioGenerar)
 {
     <ModalFormulario Visible="true" VisibleChanged="CerrarFormularioGenerar" Titulo="Generar clave" Ancho="AnchoModal.Pequeno"
-                     HayCambios="() => !_generando && !string.IsNullOrWhiteSpace(_nombreNuevaClave)"
+                     HayCambios="() => HayCambiosGeneracion"
                      Guardando="_generando" MensajeError="@_errorGenerar" OnGuardar="GenerarAsync" TextoGuardar="Generar" TextoCancelar="Cancelar">
         <CampoTexto Etiqueta="Nombre" Valor="@_nombreNuevaClave" ValorChanged="CambiarNombreNuevaClave" Placeholder="Integración con el ERP" />
+        <CampoTexto Etiqueta="@Textos["Motivo"]" Valor="@_motivoNuevaClave" ValorChanged="CambiarMotivoNuevaClave" maxlength="500" required />
+        <CampoTexto Etiqueta="@Textos["Caducidad"]" Type="date" Valor="@_caducidadNuevaClave" ValorChanged="CambiarCaducidadNuevaClave" required />
+        <p>@Textos["LimiteCaducidad"]</p>
     </ModalFormulario>
 }
 

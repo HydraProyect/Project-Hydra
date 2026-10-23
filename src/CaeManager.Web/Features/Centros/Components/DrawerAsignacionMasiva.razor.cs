@@ -68,8 +68,15 @@ public partial class DrawerAsignacionMasiva : ComponentBase
     /// lista — la matriz no se recorta después: el gestor puede seguir
     /// añadiendo trabajadores o centros libremente (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.1).
     /// </summary>
-    public async Task AbrirAsync(IReadOnlyCollection<Guid>? centroIdsPreseleccionados = null)
+    public async Task AbrirAsync(
+        IReadOnlyCollection<Guid>? centroIdsPreseleccionados = null, IReadOnlySet<Guid>? trabajadoresYaAsignados = null)
     {
+        // Los ya asignados son los del único Centro con el que se abre (Centro 360); con varios Centros, o sin dato, no se marca ninguno.
+        _centroAnfitrion = centroIdsPreseleccionados is { Count: 1 } && trabajadoresYaAsignados is { Count: > 0 }
+            ? centroIdsPreseleccionados.Single()
+            : null;
+        _yaAsignadosAlAnfitrion = _centroAnfitrion is null ? new HashSet<Guid>() : trabajadoresYaAsignados!.ToHashSet();
+
         _trabajadoresDisponibles = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
         _centrosDisponibles = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
 
@@ -91,8 +98,31 @@ public partial class DrawerAsignacionMasiva : ComponentBase
         StateHasChanged();
     }
 
+    private Guid? _centroAnfitrion;
+    private HashSet<Guid> _yaAsignadosAlAnfitrion = [];
+
+    /// <summary>
+    /// Los Trabajadores que ya están asignados al Centro desde el que se abrió, mientras ese sea el único Centro marcado: se ven
+    /// marcados y no se pueden tocar. Si el gestor añade otro Centro, ya no hay nada que bloquear (la combinación con el Centro
+    /// anfitrión se omite sola como «ya activa»).
+    /// </summary>
+    private IReadOnlySet<Guid> _trabajadoresBloqueados =>
+        _centroAnfitrion is { } anfitrion && _centroIdsSeleccionados.Count == 1 && _centroIdsSeleccionados.Contains(anfitrion)
+            ? _yaAsignadosAlAnfitrion
+            : new HashSet<Guid>();
+
+    /// <summary>
+    /// El aviso habla de lo que se va a crear: quita las parejas (Trabajador, Centro anfitrión) que ya estaban asignadas, para que no se
+    /// mezclen con las nuevas.
+    /// </summary>
+    private bool EsParejaNueva(DocumentoFaltanteDto faltante) =>
+        !(faltante.CentroId == _centroAnfitrion && _yaAsignadosAlAnfitrion.Contains(faltante.TrabajadorId));
+
     private async Task AlternarTrabajadorAsync(Guid trabajadorId, bool marcado)
     {
+        if (marcado && _trabajadoresBloqueados.Contains(trabajadorId))
+            return;
+
         if (marcado)
             _trabajadorIdsSeleccionados.Add(trabajadorId);
         else
@@ -114,6 +144,11 @@ public partial class DrawerAsignacionMasiva : ComponentBase
             _celdasExcluidas.RemoveWhere(c => c.CentroId == centroId);
         }
 
+        // Tras cualquier cambio de Centros los ya asignados pueden volver a estar bloqueados (el Centro anfitrión de nuevo solo): un
+        // bloqueado se ve marcado y deshabilitado, así que no puede seguir en la selección, donde nadie podría quitarlo.
+        var bloqueados = _trabajadoresBloqueados;
+        _trabajadorIdsSeleccionados.RemoveWhere(bloqueados.Contains);
+
         await ActualizarPreflightAsync();
     }
 
@@ -133,8 +168,9 @@ public partial class DrawerAsignacionMasiva : ComponentBase
             return;
         }
 
-        _documentosFaltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery(
+        var faltantes = await Mediator.Send(new ObtenerDocumentosFaltantesParaAsignacionQuery(
             _trabajadorIdsSeleccionados.ToList(), _centroIdsSeleccionados.ToList()));
+        _documentosFaltantes = faltantes.Where(EsParejaNueva).ToList();
     }
 
     private async Task GuardarAsync()

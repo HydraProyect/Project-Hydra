@@ -34,6 +34,7 @@
                 <SelectorMultiple Etiqueta="Trabajadores"
                                    Elementos="@_trabajadoresComoOpciones"
                                    Seleccionados="@_trabajadorIdsSeleccionados"
+                                   Bloqueados="@_trabajadoresBloqueados" EtiquetaBloqueado="· ya asignado a este centro"
                                    OnAlternar="args => AlternarTrabajadorAsync(args.Id, args.Marcado)"
                                    TextoVacio="No hay trabajadores dados de alta." />
 
