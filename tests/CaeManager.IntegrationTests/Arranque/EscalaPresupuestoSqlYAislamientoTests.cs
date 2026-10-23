@@ -584,7 +584,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Inicio: KPIs", 26, true }, // medido: 23
         { "Inicio: próximas visitas", 10, true }, // medido: 8
         { "Inicio: bandeja agrupada", 33, true }, // medido: 30
-        { "Buscador global", 8, false }, // medido: 6; «ser» no encuentra nada en el Tenant medido
+        { "Buscador global", 8, true }, // medido: 6 en CI, donde «ser» sí encuentra resultados en el Tenant medido
         { "Centro 360", 7, true }, // medido: 5
         { "Centro 360: documentación de Empresas", 20, true }, // medido: 18
         { "Centro 360: documentación requerida", 6, true }, // medido: 4
