@@ -29,6 +29,8 @@ namespace CaeManager.Web.Features.Delegaciones.Pages;
 
 public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    private bool HayFiltrosActivos => !string.IsNullOrWhiteSpace(BusquedaLista) || !string.IsNullOrEmpty(EstadoLista) || !string.IsNullOrEmpty(TipoLista);
+
     public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "estado", "tipo", "agrupar"];
 
     [Inject] private IMediator Mediator { get; set; } = default!;
@@ -220,7 +222,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
         var version = ++_versionCarga;
         var token = _cicloCarga.Token;
-        _seleccionLista.Clear();
+
         _cargando = true;
         _error = false;
         StateHasChanged();
@@ -249,6 +251,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             _tenantPropietarioAutorizante = tenantPropietarioAutorizante;
             _accesosSoporteTalveg = accesosSoporteTalveg;
             _delegaciones = delegaciones;
+            _paginaLista = Math.Clamp(_paginaLista, 1, TotalPaginasLista);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -540,26 +543,6 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         NombreRol(_rolMostradoPorAsignacionId.GetValueOrDefault(persona.AsignacionId, persona.Rol));
     private static string TituloDe(bool somosLaConsultora, string clienteNombre, string consultoraNombre) =>
         somosLaConsultora ? $"Gestionamos a {clienteNombre}" : $"{consultoraNombre} nos gestiona";
-
-    private static string TextoEstado(bool esSoporte, bool accesoVigente, bool ventanaCaducada, bool activa) => esSoporte
-        ? accesoVigente
-            ? "Acceso abierto"
-            : ventanaCaducada
-                ? "Ventana caducada"
-                : "Sin abrir"
-        : activa
-            ? "Activa"
-            : "Revocada";
-
-    private static TonoBadge TonoEstado(bool esSoporte, bool accesoVigente, bool ventanaCaducada, bool activa) => esSoporte
-        ? accesoVigente
-            ? TonoBadge.Exito
-            : ventanaCaducada
-                ? TonoBadge.Advertencia
-                : TonoBadge.Neutro
-        : activa
-            ? TonoBadge.Exito
-            : TonoBadge.Neutro;
 
     private int PrepararEntidad(Guid id)
     {

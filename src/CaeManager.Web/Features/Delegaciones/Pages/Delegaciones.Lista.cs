@@ -21,8 +21,8 @@ public partial class Delegaciones
     private readonly GruposAbiertos _gruposLista = new();
     private readonly HashSet<Guid> _detallesLista = [];
     private readonly HashSet<Guid> _personasCompletas = [];
-    private readonly HashSet<Guid> _seleccionLista = [];
-    private bool _seleccionMultipleLista;
+
+
     private int _paginaLista = 1;
     private int _tamanoLista = 20;
     private bool Agrupada => AgrupacionLista == "tipo";
@@ -36,19 +36,27 @@ public partial class Delegaciones
         if (firma == _parametrosListaVistos) return;
         _parametrosListaVistos = firma;
         _paginaLista = 1;
-        _seleccionLista.Clear();
+
         _detallesLista.Clear();
         _personasCompletas.Clear();
     }
-    private bool HayFiltrosLista => !string.IsNullOrWhiteSpace(BusquedaLista) || !string.IsNullOrEmpty(EstadoLista) || !string.IsNullOrEmpty(TipoLista);
+
     private string TipoDeLista(DelegacionDto d) => d.EsSoporte ? "Soporte" : "OperadorExterno";
     private string EstadoDeLista(DelegacionDto d) => d.EsSoporte
         ? d.AccesoVigente ? "Abierto" : d.VentanaCaducada ? "Caducada" : "SinAcceso"
         : d.Activa ? "Activa" : "Revocada";
     private string NombreLista(DelegacionDto d) => d.SomosLaConsultora ? d.ClienteNombre : d.ConsultoraNombre;
+    private int TotalPaginasLista => Agrupada ? 1 : Math.Max(1, (int)Math.Ceiling((double)FilasFiltradas.Count / _tamanoLista));
+    private string TextoPersonasLista(int cantidad) => cantidad == 1 ? TextosLista["Persona"] : TextosLista["Personas", cantidad];
+    private string PermisoSoporteLista(DelegacionDto d)
+    {
+        var permiso = string.Join(", ", d.Operadores.Select(RolCaeMostrado).Where(r => !string.IsNullOrWhiteSpace(r)).Distinct());
+        return string.IsNullOrWhiteSpace(permiso) ? "—" : permiso;
+    }
+    private TonoBadge TonoEstadoLista(DelegacionDto d) => EstadosLista.Single(e => e.Valores.Contains(EstadoDeLista(d))).Tono;
     private string TextoEstadoLista(DelegacionDto d) => TextosLista[EstadoDeLista(d)];
     private IEnumerable<DelegacionDto> FilasSinEstado => _delegaciones.Where(d =>
-        (string.IsNullOrWhiteSpace(BusquedaLista) || (d.ClienteNombre + " " + d.ConsultoraNombre).Contains(BusquedaLista.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrWhiteSpace(BusquedaLista) || NombreLista(d).Contains(BusquedaLista.Trim(), StringComparison.OrdinalIgnoreCase)) &&
         (string.IsNullOrEmpty(TipoLista) || TipoDeLista(d) == TipoLista));
     private IReadOnlyList<DelegacionDto> FilasFiltradas => FilasSinEstado.Where(d =>
         string.IsNullOrEmpty(EstadoLista) || SeleccionEstados.Separar(EstadoLista).Contains(EstadoDeLista(d))).ToList();
@@ -65,20 +73,9 @@ public partial class Delegaciones
         Agrupada ? FilasFiltradas : FilasFiltradas.Skip((_paginaLista - 1) * _tamanoLista).Take(_tamanoLista),
         Agrupada, TipoDeLista, (clave, _) => TextosLista[clave], _ => false, _gruposLista);
     private IReadOnlyList<DelegacionDto> FilasVisiblesLista => BloquesLista.Where(f => !f.Oculta).Select(f => f.Fila).ToList();
-    private bool TodasSeleccionadasLista => FilasVisiblesLista.Count > 0 && FilasVisiblesLista.All(d => _seleccionLista.Contains(d.Id));
-    private void AlternarSeleccionLista(Guid id) { if (!_seleccionLista.Remove(id)) _seleccionLista.Add(id); }
-    private void SeleccionarVisiblesLista(bool valor)
-    {
-        _seleccionLista.Clear();
-        if (valor) _seleccionLista.UnionWith(FilasVisiblesLista.Select(d => d.Id));
-    }
-    private void AlternarGrupoLista(string clave)
-    {
-        _gruposLista.Alternar(clave);
-        _seleccionLista.IntersectWith(FilasVisiblesLista.Select(d => d.Id));
-    }
+    private void AlternarGrupoLista(string clave) => _gruposLista.Alternar(clave);
     private void AlternarDetalleLista(Guid id) { if (!_detallesLista.Remove(id)) _detallesLista.Add(id); }
-    private void CambiarPaginaLista(int pagina) { _paginaLista = pagina; _seleccionLista.Clear(); }
+    private void CambiarPaginaLista(int pagina) => _paginaLista = Math.Clamp(pagina, 1, TotalPaginasLista);
     private void CambiarTamanoLista(int tamano) { _tamanoLista = tamano; CambiarPaginaLista(1); }
     private Task BuscarListaAsync(string valor) => CambiarFiltroLista("q", valor);
     private Task CambiarEstadoListaAsync(string? valor) => CambiarFiltroLista("estado", valor);
@@ -95,7 +92,7 @@ public partial class Delegaciones
         EstadoLista = SeleccionEstados.Unir(SeleccionEstados.Separar(vista.GetValueOrDefault("estado")).Where(v => EstadosLista.Any(o => o.Valores.Contains(v))));
         TipoLista = vista.GetValueOrDefault("tipo") is "Soporte" or "OperadorExterno" ? vista["tipo"] : null;
         AgrupacionLista = vista.GetValueOrDefault("agrupar") == "tipo" ? "tipo" : null;
-        _seleccionLista.Clear();
+
         _detallesLista.Clear();
         _personasCompletas.Clear();
         _paginaLista = 1;

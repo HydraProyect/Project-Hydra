@@ -17,11 +17,6 @@
     width: 100%;
 }
 
-.tarjeta-listado-pie-separado {
-    padding: 0;
-    border-top: 0;
-}
-
 .delegaciones-abrir {
     display: inline-flex;
     align-items: center;

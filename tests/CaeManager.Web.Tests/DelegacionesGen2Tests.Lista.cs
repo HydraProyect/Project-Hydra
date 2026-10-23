@@ -48,21 +48,18 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
-    public async Task La_franja_filtra_sin_perder_los_recuentos_y_limpia_la_seleccion()
+    public async Task La_franja_filtra_sin_perder_los_recuentos()
     {
         _abrirDetalles = false;
         var (cut, _, _) = Renderizar(Delegacion(), Delegacion(soporte: true));
-        await cut.InvokeAsync(() => cut.FindComponent<CabeceraListado>().Instance.SeleccionMultipleChanged.InvokeAsync(true));
-        cut.Find("thead input").Change(true);
         await cut.InvokeAsync(() => cut.FindComponent<FranjaEstado>().Instance.ValorChanged.InvokeAsync("Abierto"));
         cut.FindAll(".delegaciones-fila").Should().ContainSingle().Which.TextContent.Should().Contain("Soporte");
-        cut.FindAll("tbody input:checked").Should().BeEmpty();
         cut.FindComponent<FranjaEstado>().Instance.Recuentos.Should().Contain("Activa", 1).And.Contain("Abierto", 1);
         cut.FindComponent<FranjaEstado>().Instance.Valor.Should().Be("Abierto");
     }
 
     [Fact]
-    public async Task Agrupar_no_corta_grupos_por_pagina_y_solo_selecciona_filas_visibles()
+    public async Task Agrupar_no_corta_grupos_por_pagina_y_recuerda_los_abiertos()
     {
         _abrirDetalles = false;
         var filas = Enumerable.Range(0, 25).Select(_ => Delegacion()).Append(Delegacion(soporte: true)).ToArray();
@@ -72,17 +69,10 @@ public partial class DelegacionesGen2Tests
         await cut.InvokeAsync(() => agrupar.Instance.ValorChanged.InvokeAsync("tipo"));
         cut.FindAll(".grupo-lista-cabecera").Should().HaveCount(2).And.OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
         cut.FindAll(".delegaciones-fila").Should().BeEmpty();
-        await cut.InvokeAsync(() => cut.FindComponent<CabeceraListado>().Instance.SeleccionMultipleChanged.InvokeAsync(true));
-        cut.Find("thead input").Change(true);
-        cut.FindAll("tbody input:checked").Should().BeEmpty();
         cut.FindAll(".grupo-lista-cabecera")[0].Click();
         cut.FindAll(".delegaciones-fila").Should().HaveCount(25);
-        cut.Find("thead input").Change(true);
-        cut.FindAll("tbody input:checked").Should().HaveCount(25);
         cut.FindAll(".grupo-lista-cabecera")[0].Click();
-        cut.FindAll("tbody input:checked").Should().BeEmpty();
         cut.FindAll(".grupo-lista-cabecera")[0].Click();
-        cut.FindAll("tbody input:checked").Should().BeEmpty();
         await cut.InvokeAsync(() => cut.FindComponent<FranjaEstado>().Instance.ValorChanged.InvokeAsync("Activa"));
         cut.FindAll(".delegaciones-fila").Should().HaveCount(25, "filtrar conserva los grupos abiertos durante esta visita");
     }

@@ -75,4 +75,7 @@
   <data name="SinResultados" xml:space="preserve">
     <value>Ninguna delegación con estos filtros</value>
   </data>
+  <data name="SinResultadosDescripcion" xml:space="preserve"><value>Cambia o borra los filtros para encontrar delegaciones.</value></data>
+  <data name="SinDelegacionesDescripcion" xml:space="preserve"><value>Esta organización no presta ni recibe servicio CAE delegado.</value></data>
+  <data name="Persona" xml:space="preserve"><value>1 persona autorizada</value></data>
 </root>

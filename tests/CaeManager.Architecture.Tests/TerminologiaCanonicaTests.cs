@@ -457,7 +457,11 @@ public class TerminologiaCanonicaTests
         // DirectorioUsuariosTenant.OperadoresDelegadosVigentes, para que Soporte TALVEG conserve su rol guardado
         // igual que en /delegaciones. Es el enum de dominio que ya existe, sin nombre canónico; renombrarlo es un
         // incremento propio.
-        ["Delegacion"] = 351,
+        // 351 → 375 (2026-10-23, listado nuevo de la pantalla ya existente): recuento de la suite completa.
+        // Son referencias al DTO DelegacionDto, a la página y a sus recursos/constantes de preferencias,
+        // no tipos de dominio nuevos. La deuda sigue representando Asignación de Operación; se conservan
+        // los nombres de productores y consumidores existentes, cuyo renombrado exige otro incremento.
+        ["Delegacion"] = 375,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

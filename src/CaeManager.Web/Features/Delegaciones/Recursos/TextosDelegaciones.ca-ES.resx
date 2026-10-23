@@ -75,4 +75,7 @@
   <data name="SinResultados" xml:space="preserve">
     <value>Cap delegació amb aquests filtres</value>
   </data>
+  <data name="SinResultadosDescripcion" xml:space="preserve"><value>Canvia o esborra els filtres per trobar delegacions.</value></data>
+  <data name="SinDelegacionesDescripcion" xml:space="preserve"><value>Aquesta organització no presta ni rep servei CAE delegat.</value></data>
+  <data name="Persona" xml:space="preserve"><value>1 persona autoritzada</value></data>
 </root>
