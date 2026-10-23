@@ -87,7 +87,10 @@ public class ObtenerCentrosCumplimientoDeLaPaginaTests : IAsyncLifetime
     {
         var esperado = new Dictionary<Guid, int?>
         {
-            [_alDia] = 100, [_sinDocumento] = 0, [_aMedias] = 50, [_sinRequisitos] = null
+            [_alDia] = 100,
+            [_sinDocumento] = 0,
+            [_aMedias] = 50,
+            [_sinRequisitos] = null
         };
 
         var sinEstado = await PorcentajesAsync(new ObtenerCentrosQuery(null, null, TamanoPagina: 50));
@@ -116,19 +119,57 @@ public class ObtenerCentrosCumplimientoDeLaPaginaTests : IAsyncLifetime
         descendente.Should().Equal(_alDia, _aMedias, _sinDocumento, _sinRequisitos);
     }
 
+    /// <summary>
+    /// La propiedad que cambia el coste: con estado y sin ordenar por cumplimiento, el cálculo del cumplimiento
+    /// recibe solo los Centros de la página; ordenando por él, todos los que pasan los filtros.
+    /// </summary>
+    [Fact]
+    public async Task Con_estado_el_cumplimiento_se_pide_solo_para_la_pagina_salvo_al_ordenar_por_el()
+    {
+        var conEstado = new List<int>();
+        await EjecutarAsync(new ObtenerCentrosQuery(null, null, TamanoPagina: 2, ConRecuentosPorEstado: true), conEstado);
+        var ordenando = new List<int>();
+        await EjecutarAsync(new ObtenerCentrosQuery(
+            null, null, OrdenarPor: nameof(CentroListaDto.CumplimientoPorcentaje), TamanoPagina: 2, ConRecuentosPorEstado: true), ordenando);
+
+        conEstado.Should().Equal([2], "una sola llamada, con los dos Centros de la página");
+        ordenando.Should().Equal([4], "una sola llamada, con los cuatro Centros, antes de paginar");
+    }
+
     private async Task<Dictionary<Guid, int?>> PorcentajesAsync(ObtenerCentrosQuery consulta) =>
         (await EjecutarAsync(consulta)).ToDictionary(c => c.Id, c => c.CumplimientoPorcentaje);
 
     private async Task<List<Guid>> IdsAsync(ObtenerCentrosQuery consulta) =>
         (await EjecutarAsync(consulta)).Select(c => c.Id).ToList();
 
-    private async Task<IReadOnlyList<CentroListaDto>> EjecutarAsync(ObtenerCentrosQuery consulta)
+    private async Task<IReadOnlyList<CentroListaDto>> EjecutarAsync(ObtenerCentrosQuery consulta, List<int>? centrosPorLlamadaDeCumplimiento = null)
     {
         await using var contexto = CrearContexto();
-        var handler = new ObtenerCentrosQueryHandler(
-            contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+        var calculo = new CalculoContado(
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto),
+            centrosPorLlamadaDeCumplimiento ?? []);
+        var handler = new ObtenerCentrosQueryHandler(contexto, contexto, new AlcanceDatosServiceFalso(), calculo);
         return (await handler.Handle(consulta, CancellationToken.None)).Elementos;
+    }
+
+    /// <summary>El cálculo real, apuntando cuántos Centros recibe cada llamada a <c>CalcularCumplimientoAsync</c>.</summary>
+    private sealed class CalculoContado(ICalculoEstadoCentroService real, List<int> centrosPorLlamada) : ICalculoEstadoCentroService
+    {
+        public Task<IReadOnlyDictionary<Guid, ResultadoEstadoCentro>> CalcularAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => real.CalcularAsync(centroIds, cancellationToken);
+
+        public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken)
+        {
+            centrosPorLlamada.Add(centroIds.Count);
+            return real.CalcularCumplimientoAsync(centroIds, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => real.ObtenerParesExigidosAsync(centroIds, cancellationToken);
+
+        public Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
+            IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => real.ObtenerParesDeEmpresaExigidosAsync(centroIds, cancellationToken);
     }
 
     private CaeManagerDbContext CrearContexto()

@@ -115,7 +115,9 @@ public class ObtenerClientesFiltroEstadoPaginacionEnSqlTests : IAsyncLifetime
         var visible = Empresa.CrearComoCliente("Alfa Vencido S.L.", "", false, null, null);
         var fueraDeCartera = Empresa.CrearComoCliente("Beta Vencido S.L.", "", false, null, null);
         var visibleAlCorriente = Empresa.CrearComoCliente("Gamma Al Corriente S.L.", "", false, null, null);
-        _dbContext.Empresas.AddRange(visible, fueraDeCartera, visibleAlCorriente);
+        // Sin alertas y fuera de cartera: la rama «Al corriente» del filtro es «no tiene alertas», y solo el alcance lo deja fuera.
+        var fueraDeCarteraAlCorriente = Empresa.CrearComoCliente("Delta Al Corriente S.L.", "", false, null, null);
+        _dbContext.Empresas.AddRange(visible, fueraDeCartera, visibleAlCorriente, fueraDeCarteraAlCorriente);
         await _dbContext.SaveChangesAsync();
         _alertas.Add(Alerta(visible.Id, EstadoDocumento.Vencido));
         _alertas.Add(Alerta(fueraDeCartera.Id, EstadoDocumento.Vencido));
@@ -132,6 +134,7 @@ public class ObtenerClientesFiltroEstadoPaginacionEnSqlTests : IAsyncLifetime
         conVencidos.RecuentosPorEstado![nameof(EstadoDocumento.Vencido)].Should().Be(1,
             "la cifra de la franja y el filtro cuentan lo mismo, dentro de la cartera");
         alCorriente.Elementos.Select(c => c.Id).Should().Equal(visibleAlCorriente.Id);
+        alCorriente.TotalElementos.Should().Be(1, "«Delta…» no tiene alertas, pero está fuera de la cartera");
     }
 
     /// <summary>
@@ -162,25 +165,25 @@ public class ObtenerClientesFiltroEstadoPaginacionEnSqlTests : IAsyncLifetime
         ];
 
         foreach (var filtro in filtros)
-        foreach (var (ordenarPor, descendente) in ordenes)
-        foreach (var tamano in new[] { 2, 3, 50 })
-        {
-            var esperado = ReferenciaEnMemoria(sembrados, filtro, ordenarPor, descendente);
-            var obtenido = new List<Guid>();
-            var paginas = Math.Max(1, (int)Math.Ceiling(esperado.Count / (double)tamano));
-            for (var pagina = 1; pagina <= paginas + 1; pagina++)
-            {
-                var resultado = await EjecutarAsync(new ObtenerClientesQuery(
-                    Busqueda: null, SoloCriticos: null, EstadosDocumentales: filtro,
-                    OrdenarPor: ordenarPor, Descendente: descendente, Pagina: pagina, TamanoPagina: tamano));
-                resultado.TotalElementos.Should().Be(esperado.Count,
-                    $"filtro {string.Join(",", filtro)}, orden {ordenarPor ?? "por defecto"} {(descendente ? "desc" : "asc")}, página {pagina} de {tamano}");
-                obtenido.AddRange(resultado.Elementos.Select(c => c.Id));
-            }
+            foreach (var (ordenarPor, descendente) in ordenes)
+                foreach (var tamano in new[] { 2, 3, 50 })
+                {
+                    var esperado = ReferenciaEnMemoria(sembrados, filtro, ordenarPor, descendente);
+                    var obtenido = new List<Guid>();
+                    var paginas = Math.Max(1, (int)Math.Ceiling(esperado.Count / (double)tamano));
+                    for (var pagina = 1; pagina <= paginas + 1; pagina++)
+                    {
+                        var resultado = await EjecutarAsync(new ObtenerClientesQuery(
+                            Busqueda: null, SoloCriticos: null, EstadosDocumentales: filtro,
+                            OrdenarPor: ordenarPor, Descendente: descendente, Pagina: pagina, TamanoPagina: tamano));
+                        resultado.TotalElementos.Should().Be(esperado.Count,
+                            $"filtro {string.Join(",", filtro)}, orden {ordenarPor ?? "por defecto"} {(descendente ? "desc" : "asc")}, página {pagina} de {tamano}");
+                        obtenido.AddRange(resultado.Elementos.Select(c => c.Id));
+                    }
 
-            obtenido.Should().Equal(esperado,
-                $"filtro {string.Join(",", filtro)}, orden {ordenarPor ?? "por defecto"} {(descendente ? "desc" : "asc")}, tamaño {tamano}");
-        }
+                    obtenido.Should().Equal(esperado,
+                        $"filtro {string.Join(",", filtro)}, orden {ordenarPor ?? "por defecto"} {(descendente ? "desc" : "asc")}, tamaño {tamano}");
+                }
     }
 
     /// <summary>
@@ -258,8 +261,12 @@ public class ObtenerClientesFiltroEstadoPaginacionEnSqlTests : IAsyncLifetime
     private static AlertaDto Alerta(Guid clienteId, EstadoDocumento estado) =>
         new(Guid.NewGuid(), Guid.NewGuid(), "Trabajador", Guid.NewGuid(), "Tipo", null, estado, null, null, ClienteId: clienteId);
 
+    private ServiceProvider? _sinRestriccion;
+
+    /// <summary>Un proveedor por alcance: las alertas se comparten por referencia, así que reutilizarlo no congela nada.</summary>
     private Task<ResultadoPaginado<ClienteListaDto>> EjecutarAsync(ObtenerClientesQuery consulta, IAlcanceDatosService? alcance = null) =>
-        Servicios(alcance ?? new AlcanceDatosServiceFalso()).GetRequiredService<IMediator>().Send(consulta);
+        (alcance is null ? _sinRestriccion ??= Servicios(new AlcanceDatosServiceFalso()) : Servicios(alcance))
+            .GetRequiredService<IMediator>().Send(consulta);
 
     private ServiceProvider Servicios(IAlcanceDatosService alcance)
     {

@@ -15,8 +15,8 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 /// <param name="OrdenarPor">
 /// Nombre de una propiedad de <see cref="ClienteListaDto"/>. <c>EstadoDocumentalPeor</c> ordena por
 /// el peor estado documental (ascendente: el peor primero; empates por razón social), exacto para
-/// toda la cartera; solo combinado con <paramref name="EstadoDocumental"/> hereda el tope de 2000
-/// candidatos de ese filtro. Sin valor, por razón social.
+/// toda la cartera, también combinado con <paramref name="EstadoDocumental"/> (el filtro va en SQL, sin tope
+/// de candidatos). Sin valor, por razón social.
 /// </param>
 /// <param name="EstadosDocumentales">
 /// Varios estados a la vez (la franja de estado del listado deja marcar más de uno): pasa el Cliente empresarial

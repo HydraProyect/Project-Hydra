@@ -204,17 +204,15 @@ public partial class ClientesListaGen2Tests : BunitContext
         /// <summary>Cuántas consultas de Centros con estado fallan antes de responder (la fila lo dice y deja reintentar).</summary>
         public int CentrosConEstadoQueFallan { get; set; }
 
-        /// <summary>Mismo tope que <c>limiteCandidatosConFiltroCalculado</c> del handler.</summary>
-        public const int LimiteCandidatosConFiltroDeEstado = 2000;
+        /// <summary>Tamaño de cartera por encima del tope de candidatos que tuvo el filtro por estado del handler.</summary>
+        public const int CarteraMayorQueElTopeAntiguo = 2000;
 
         /// <summary>
         /// Filtra, ordena y pagina en el mismo orden de pasos que
         /// <c>ObtenerClientesQueryHandler</c>: primero los filtros que el handler
         /// resuelve en SQL (búsqueda, críticos, ejecutivo), luego el orden con su
-        /// desempate por Id y, solo si se filtra por estado documental, el tope
-        /// de <see cref="LimiteCandidatosConFiltroDeEstado"/> candidatos ANTES de
-        /// filtrar por estado: el total con ese filtro es el de los que
-        /// coinciden entre esos candidatos, no en toda la cartera.
+        /// desempate por Id y el filtro por estado documental sobre la cartera
+        /// entera (el handler lo aplica en SQL, sin tope de candidatos).
         /// </summary>
         public ResultadoPaginado<ClienteListaDto> Filtrar(ObtenerClientesQuery q)
         {
@@ -230,7 +228,7 @@ public partial class ClientesListaGen2Tests : BunitContext
 
             // Orden por Estado documental (el de por defecto de la pantalla desde el rediseño de
             // listados, fase 1): como el handler, con OrderBy estable (la razón social queda como
-            // desempate) y sobre la cartera entera; solo con filtro de estado hereda su tope.
+            // desempate) y sobre la cartera entera, también con filtro de estado.
             var ordenarPorEstado = q.OrdenarPor == nameof(ClienteListaDto.EstadoDocumentalPeor);
             // Como el handler: los estados de la franja (EstadosDocumentales) y el de un solo valor se suman en
             // un mismo conjunto, y pasa el Cliente empresarial que cumpla CUALQUIERA de ellos.
@@ -240,9 +238,7 @@ public partial class ClientesListaGen2Tests : BunitContext
 
             if (ordenarPorEstado)
             {
-                var candidatos = estadosPedidos.Count == 0
-                    ? ordenados.ToList()
-                    : ordenados.Take(LimiteCandidatosConFiltroDeEstado).ToList();
+                var candidatos = ordenados.ToList();
                 ordenados = q.Descendente
                     ? candidatos.OrderByDescending(Prioridad).ToList()
                     : candidatos.OrderBy(Prioridad).ToList();
@@ -252,7 +248,6 @@ public partial class ClientesListaGen2Tests : BunitContext
             var coincidentes = estadosPedidos.Count == 0
                 ? ordenados.ToList()
                 : ordenados
-                    .Take(LimiteCandidatosConFiltroDeEstado)
                     .Where(c => c.EstadoDocumentalPeor is null
                         ? estadosPedidos.Contains(EstadoDocumento.Vigente)
                         : Presentes(c).Overlaps(estadosPedidos))
@@ -2216,25 +2211,25 @@ public partial class ClientesListaGen2Tests : BunitContext
     // ------------------------------------------- El propio doble de la consulta
 
     /// <summary>
-    /// Con filtro de estado, el handler solo calcula el agregado de los 2.000
-    /// primeros candidatos en orden: un cliente con vencidos más allá no cuenta.
-    /// Cliente 0001 es el control positivo (dentro del tope, sí cuenta).
+    /// Con filtro de estado, el handler filtra en SQL sobre la cartera entera
+    /// (ObtenerClientesFiltroEstadoPaginacionEnSqlTests lo fija contra PostgreSQL):
+    /// un cliente con vencidos más allá del candidato 2.000 también cuenta.
     /// </summary>
     [Fact]
-    public void El_doble_con_filtro_de_estado_solo_mira_los_primeros_2000_candidatos_como_el_handler()
+    public void El_doble_con_filtro_de_estado_recorre_la_cartera_entera_como_el_handler()
     {
         var mediador = new MediatorFalso();
         mediador.Almacen.Add(Cliente("Cliente 0001", peor: EstadoDocumento.Vencido, cantidad: 1));
-        for (var i = 2; i <= MediatorFalso.LimiteCandidatosConFiltroDeEstado; i++)
+        for (var i = 2; i <= MediatorFalso.CarteraMayorQueElTopeAntiguo; i++)
             mediador.Almacen.Add(Cliente($"Cliente {i:0000}"));
         mediador.Almacen.Add(Cliente("Cliente 9999", peor: EstadoDocumento.Vencido, cantidad: 1));
 
         var conEstado = mediador.Filtrar(new ObtenerClientesQuery(null, null, EstadoDocumental: EstadoDocumento.Vencido));
 
-        conEstado.TotalElementos.Should().Be(1, "Cliente 9999 es el candidato 2.001 y queda fuera del tope");
-        conEstado.Elementos.Select(c => c.RazonSocial).Should().Equal(["Cliente 0001"]);
+        conEstado.TotalElementos.Should().Be(2, "Cliente 9999 es el candidato 2.001 y el filtro ya no tiene tope");
+        conEstado.Elementos.Select(c => c.RazonSocial).Should().Equal(["Cliente 0001", "Cliente 9999"]);
         mediador.Filtrar(new ObtenerClientesQuery(null, null)).TotalElementos
-            .Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado + 1, "sin filtro de estado no hay tope");
+            .Should().Be(MediatorFalso.CarteraMayorQueElTopeAntiguo + 1);
     }
 
     /// <summary>
@@ -2246,14 +2241,14 @@ public partial class ClientesListaGen2Tests : BunitContext
     public void El_doble_con_orden_por_estado_ordena_la_cartera_entera_como_el_handler()
     {
         var mediador = new MediatorFalso();
-        for (var i = 1; i <= MediatorFalso.LimiteCandidatosConFiltroDeEstado; i++)
+        for (var i = 1; i <= MediatorFalso.CarteraMayorQueElTopeAntiguo; i++)
             mediador.Almacen.Add(Cliente($"Cliente {i:0000}"));
         mediador.Almacen.Add(Cliente("Cliente 9999", peor: EstadoDocumento.Vencido, cantidad: 1));
         mediador.Almacen.Add(Cliente("Aaa Primero", peor: EstadoDocumento.Faltante, cantidad: 1));
 
         var ordenados = mediador.Filtrar(new ObtenerClientesQuery(null, null, OrdenarPor: nameof(ClienteListaDto.EstadoDocumentalPeor)));
 
-        ordenados.TotalElementos.Should().Be(MediatorFalso.LimiteCandidatosConFiltroDeEstado + 2);
+        ordenados.TotalElementos.Should().Be(MediatorFalso.CarteraMayorQueElTopeAntiguo + 2);
         ordenados.Elementos.Select(c => c.RazonSocial).Should().StartWith(["Cliente 9999", "Aaa Primero", "Cliente 0001"],
             "el Vencido va primero aunque por nombre sea el candidato 2.002; después el Faltante (Vencido pesa más desde el 2026-10-03) y el resto por razón social");
     }
