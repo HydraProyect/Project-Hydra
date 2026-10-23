@@ -980,7 +980,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
         AuthenticationStateProvider Estado, CaeManagerDbContext Contexto)
     {
         public RevalidacionCircuitoActivoHandler Revalidacion(int intervaloSegundos) =>
-            new(Seleccion, Usuario, Usuario, Estado, Contexto, Contexto, new SesionPrivilegiadaAusente(),
+            new(Seleccion, Usuario, Usuario, Estado, Contexto, Contexto, new SesionPrivilegiadaAusente(), new PuertaAccesoDatos(),
                 new ConfigurationBuilder()
                     .AddInMemoryCollection(new Dictionary<string, string?>
                     {

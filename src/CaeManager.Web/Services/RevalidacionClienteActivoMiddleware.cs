@@ -325,11 +325,16 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
         // probar suerte con la delegación heredada del mismo usuario.
         return usuarioId is not null && (
             clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
-                // ObtenerAsync ya comprueba las cuatro condiciones: sesión
-                // abierta y en ventana, ligada a este usuario, concesión
-                // vigente, y tenant todavía en su alcance y coherente con el
-                // que el token declara.
-                ? await sesionPrivilegiadaActual.ObtenerAsync(cancellationToken) is not null
+                // RevalidarAsync comprueba las cuatro condiciones contra la
+                // base: sesión abierta y en ventana, ligada a este usuario,
+                // concesión vigente, y tenant todavía en su alcance y coherente
+                // con el que el token declara. RevalidarAsync y no ObtenerAsync:
+                // en un circuito de Blazor Server la memo de ObtenerAsync dura lo
+                // que el circuito, y este método es justo el que tiene que ver
+                // la revocación o el cierre desde otra pestaña ocurridos después
+                // de memoizar (Z2-1, revisión extensa 2026-10-23). En HTTP la
+                // memo es de la petición y el coste es, como mucho, una consulta.
+                ? await sesionPrivilegiadaActual.RevalidarAsync(cancellationToken) is not null
                 : clienteActivoSeleccionado.AsignacionOperacionIdSeleccionada is { } asignacionOperacionId
                     ? await currentUserService.ObtenerTenantOrigenIdAsync() is { } tenantOrigenId
                       && await TenantsBeneficiariosAutorizados.SigueAutorizadoPorOperacionAsync(

@@ -65,6 +65,14 @@ namespace CaeManager.Web.Services;
 /// selección, el mismo tratamiento que una cartera revocada: al volver a entrar
 /// lo hace con el rol de cartera. El principal del circuito se lee de
 /// <see cref="AuthenticationStateProvider"/>, igual que <see cref="CurrentUserService"/>.
+///
+/// Cuarta, con la Sesión Privilegiada (Z2-1, revisión extensa 2026-10-23): el
+/// circuito de Soporte TALVEG que la abrió sigue leyendo el Tenant objetivo
+/// mientras viva. Cada tick la revalida contra la base
+/// (<c>ISesionPrivilegiadaActual.RevalidarAsync</c>, nunca la memo del circuito)
+/// y retira la selección si caducó (DEC-43, 4 h como máximo), si su concesión
+/// se revocó o si se cerró desde otra pestaña: el corte llega como tarde en el
+/// tick siguiente.
 /// </summary>
 public class RevalidacionCircuitoActivoHandler(
     IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -74,8 +82,10 @@ public class RevalidacionCircuitoActivoHandler(
     ITenantsQueryContext dbContext,
     IOperacionesQueryContext operacionesContext,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
+    PuertaAccesoDatos puertaAccesoDatos,
     IConfiguration configuracion,
-    ILogger<RevalidacionCircuitoActivoHandler> logger) : CircuitHandler, IAsyncDisposable
+    ILogger<RevalidacionCircuitoActivoHandler> logger,
+    TimeProvider? reloj = null) : CircuitHandler, IAsyncDisposable
 {
     /// <summary>
     /// Intervalo por defecto de la revalidación del circuito (invariante I3 del contrato del
@@ -172,7 +182,9 @@ public class RevalidacionCircuitoActivoHandler(
 
     private async Task EjecutarBucleAsync(TimeSpan intervalo, CancellationToken cancellationToken)
     {
-        using var temporizador = new PeriodicTimer(intervalo);
+        // Con el TimeProvider del contenedor: los tests de caducidad avanzan un
+        // reloj manual en vez de esperar minutos de reloj de pared.
+        using var temporizador = new PeriodicTimer(intervalo, reloj ?? TimeProvider.System);
         try
         {
             while (await temporizador.WaitForNextTickAsync(cancellationToken))
@@ -192,10 +204,15 @@ public class RevalidacionCircuitoActivoHandler(
         bool sigueAutorizado;
         try
         {
-            sigueAutorizado = await RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync(
-                clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
-                tenantSeleccionado, cancellationToken)
-                && !await ElEncargoDelCircuitoDejoDeElevarAsync();
+            // Por la puerta de acceso a datos del circuito: el tick consulta el mismo
+            // DbContext scoped que el renderizado, y un DbContext no admite dos
+            // operaciones en vuelo. Con la puerta cerrada (el circuito se cierra)
+            // lanza OperationCanceledException, que termina el bucle.
+            sigueAutorizado = await puertaAccesoDatos.EjecutarAsync(async () =>
+                await RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync(
+                    clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
+                    tenantSeleccionado, cancellationToken)
+                && !await ElEncargoDelCircuitoDejoDeElevarAsync(), cancellationToken);
         }
         catch (OperationCanceledException)
         {
