@@ -139,7 +139,11 @@ public partial class Cliente360PaginaTests
     [Theory]
     [InlineData(EstadoCentro.Bloqueado)]
     [InlineData(EstadoCentro.Pendiente)]
-    public void Un_estado_de_plataforma_sin_causa_en_los_recuentos_calla_en_vez_de_afirmar_que_todo_esta_validado(EstadoCentro estado)
+    [InlineData(EstadoCentro.Vencido)]
+    [InlineData(EstadoCentro.Faltante)]
+    [InlineData(EstadoCentro.Urgente)]
+    [InlineData(EstadoCentro.Proximo)]
+    public void Un_estado_con_problema_sin_causa_en_los_recuentos_calla_en_vez_de_afirmar_que_todo_esta_validado(EstadoCentro estado)
     {
         var (id, mediador) = ClienteBase();
         mediador.Centros.Add(Centro("Planta sin detalle", estado));

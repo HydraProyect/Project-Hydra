@@ -748,8 +748,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// Motivos documentales, rechazos y pendientes de la plataforma CAE y Trabajadores bloqueados, sin partes en cero ni
     /// confundir pendientes con vencidos. Sale de los mismos recuentos que el estado del Centro
     /// (<c>CalculoEstadoCentroService</c> → <see cref="CentroListaDto.Recuentos"/>), así que lo que el estado cuenta aquí se
-    /// nombra. «Todo validado en la plataforma» solo se afirma de un Centro con gestión CAE cuyo estado no es de plataforma
-    /// (Bloqueado, Pendiente): estado TALVEG ≠ estado en la plataforma. Vacío si no hay nada que decir.
+    /// nombra. «Todo validado en la plataforma» solo se afirma de un Centro Vigente sin ninguna causa: estado TALVEG ≠ estado
+    /// en la plataforma. Vacío si no hay nada que decir.
     /// </summary>
     private string MotivosCentro(CentroListaDto centro)
     {
@@ -771,10 +771,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
         if (partes.Count > 0)
             return string.Join(" · ", partes);
-        // Un estado de plataforma sin causa en los recuentos no es «validado»: se calla en vez de afirmarlo.
-        return centro.Estado is EstadoCentro.Bloqueado or EstadoCentro.Pendiente
-            ? string.Empty
-            : Textos["CentroTodoValidado"].Value;
+        // Lista positiva: solo un Centro Vigente está validado. Cualquier otro estado sin causa en los recuentos se calla
+        // en vez de afirmarlo.
+        return centro.Estado == EstadoCentro.Vigente ? Textos["CentroTodoValidado"].Value : string.Empty;
     }
 
     /// <summary>
