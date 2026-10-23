@@ -1386,4 +1386,54 @@ public static class Ayudas
         await boton.ClickAsync();
         await Assertions.Expect(page.Locator("#menu-cuenta-panel.abierto")).ToBeVisibleAsync();
     }
+
+    /// <summary>
+    /// Pulsa el «Guardar» de un formulario en Drawer. Si el botón no llega a existir, el fallo trae el
+    /// estado del DOM en ese instante en vez del escueto «waiting for locator».
+    ///
+    /// <para><b>Por qué existe.</b> <c>EncargoAdministracionE2ETests</c> (alta de Administrador) y
+    /// <c>VinculacionUsuarioClienteRelacionEmpresarialE2ETests</c> fallaron 16 veces cada uno en 7 días de CI,
+    /// siempre con el mismo mensaje: «Timeout 30000ms … waiting for» el «Guardar» del formulario «Nuevo usuario»,
+    /// con el drawer ya abierto y los campos ya rellenos en el paso anterior. La traza de Playwright no
+    /// distingue las hipótesis que quedan —el drawer se cerró solo, el circuito se reinició y el DOM es otro, el
+    /// botón cambió de rótulo, un diálogo lo tapa— y el log de Serilog del job (artefacto
+    /// <c>logs-caemanager-web-e2e-bloque-N</c>) muestra el circuito vivo y sin una sola línea durante los 30 s.
+    /// Sin estos datos, el siguiente fallo costaría otra vuelta de CI sin respuesta: el helper los deja en el
+    /// propio mensaje. No reintenta ni cambia lo que se mide: la causa se arregla cuando se vea.</para>
+    /// </summary>
+    public static async Task PulsarGuardarDelDrawerAsync(IPage page, ILocator guardar)
+    {
+        try
+        {
+            await guardar.ClickAsync();
+        }
+        catch (TimeoutException excepcion)
+        {
+            var estado = await DescribirEstadoDelDrawerAsync(page);
+            throw new TimeoutException(
+                "No se pudo pulsar «Guardar» del drawer. Estado del DOM en ese instante: " + estado, excepcion);
+        }
+    }
+
+    private static async Task<string> DescribirEstadoDelDrawerAsync(IPage page)
+    {
+        try
+        {
+            return await page.EvaluateAsync<string>(@"() => JSON.stringify({
+                url: location.href,
+                drawers: document.querySelectorAll('.drawer-panel').length,
+                titulosDeDialogo: [...document.querySelectorAll('[role=dialog]')].map(d => (d.querySelector('h2, h1')?.textContent || d.getAttribute('aria-label') || '').trim()),
+                pies: [...document.querySelectorAll('.drawer-pie')].map(p => p.innerText.replace(/\s+/g, ' ').trim()),
+                dialogosNativosAbiertos: document.querySelectorAll('dialog[open]').length,
+                avisoDeErrorDeBlazor: getComputedStyle(document.getElementById('blazor-error-ui') || document.body).display,
+                clasesDeReconexion: [...document.querySelectorAll('[class*=components-reconnect]')].map(e => e.className).slice(0, 3),
+                aviso: (document.querySelector('.drawer-aviso')?.innerText || '').trim().slice(0, 200),
+                texto: document.body.innerText.replace(/\s+/g, ' ').trim().slice(0, 400)
+            })");
+        }
+        catch (Exception excepcion) when (excepcion is PlaywrightException or TimeoutException)
+        {
+            return "no se pudo leer el DOM (" + excepcion.GetType().Name + ")";
+        }
+    }
 }
