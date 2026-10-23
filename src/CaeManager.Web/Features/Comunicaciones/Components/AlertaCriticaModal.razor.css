@@ -1,0 +1,62 @@
+/* «Alerta crítica» (maqueta Flujos 13 Comunicaciones): 560 px. El kit solo tiene 420/520/720, así que el ancho se fija aquí
+   como hace «Detalle del día»; el resto es el kit (ModalFormulario). */
+.alerta-critica-modal ::deep .modal-contenido { max-width: 560px; }
+
+.alerta-critica-modal-cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.alerta-critica-modal-cuerpo p { margin: 0; }
+
+.alerta-critica-modal-cabecera {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.alerta-critica-modal-asunto {
+    color: var(--color-text-muted);
+    font: var(--font-body-md);
+    overflow-wrap: anywhere;
+}
+
+.alerta-critica-modal-texto {
+    margin: 0;
+    padding: var(--space-3);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 10rem;
+    overflow: auto;
+}
+
+.alerta-critica-modal-opinion {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px 14px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font: var(--font-body-md);
+}
+
+.alerta-critica-modal-opinion-info {
+    background: var(--color-info-50);
+    border-color: color-mix(in srgb, var(--color-info-500) 35%, transparent);
+}
+
+.alerta-critica-modal-opinion-aviso {
+    background: var(--color-warning-50);
+    border-color: color-mix(in srgb, var(--color-warning-700) 35%, transparent);
+}
+
+.alerta-critica-modal-par {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}

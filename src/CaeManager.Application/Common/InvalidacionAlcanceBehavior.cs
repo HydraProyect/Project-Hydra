@@ -28,8 +28,16 @@ namespace CaeManager.Application.Common;
 /// Límite conocido: solo cubre escrituras que pasan por MediatR. Una escritura directa sobre el
 /// DbContext desde un componente, o un seeder, no invalida. Lo que se revoca desde otro circuito y
 /// solo afecta a la LECTURA lo acota la caducidad de la memoización (<c>CaducidadAlcanceOptions</c>).
+///
+/// <para>
+/// Descarta también, en los mismos dos puntos, las lecturas memoizadas del layout (<see cref="IMemoPorContexto"/>:
+/// Tenants beneficiarios autorizados, perfil de vocabulario, rótulos en primera persona y participación en la
+/// incorporación a cartera): un Command que las lea (p. ej. una reapertura del Cuadro de dirección que recorre los
+/// Tenants) las resuelve de nuevo, y la lectura siguiente ve lo que el propio Command cambió.
+/// </para>
 /// </summary>
-public class InvalidacionAlcanceBehavior<TRequest, TResponse>(IInvalidadorAlcance invalidador)
+public class InvalidacionAlcanceBehavior<TRequest, TResponse>(
+    IInvalidadorAlcance invalidador, IEnumerable<IMemoPorContexto>? memos = null)
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : notnull
 {
@@ -38,14 +46,20 @@ public class InvalidacionAlcanceBehavior<TRequest, TResponse>(IInvalidadorAlcanc
     {
         if (request is not ICommandBase) return await next(cancellationToken);
 
-        invalidador.Invalidar();
+        Invalidar();
         try
         {
             return await next(cancellationToken);
         }
         finally
         {
-            invalidador.Invalidar();
+            Invalidar();
         }
+    }
+
+    private void Invalidar()
+    {
+        invalidador.Invalidar();
+        foreach (var memo in memos ?? []) memo.Invalidar();
     }
 }

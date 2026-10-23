@@ -44,7 +44,7 @@
                 }
                 else if (EnCurso)
                 {
-                    @(Progreso is null ? Comunes["EsperaGuardando"].Value : string.Format(Comunes["EsperaGuardandoPorcentaje"].Value, PorcentajeTexto))
+                    @(Progreso is null ? (TextoEnCurso ?? Comunes["EsperaGuardando"].Value) : string.Format(Comunes["EsperaGuardandoPorcentaje"].Value, PorcentajeTexto))
                 }
                 else
                 {
@@ -85,6 +85,9 @@
 
     /// <summary>La operación está en curso. Pasa de true a false cuando termina, con éxito o sin él (<see cref="Fallido"/>).</summary>
     [Parameter] public bool Guardando { get; set; }
+
+    /// <summary>Etiqueta mientras dura la operación cuando no es guardar («Enviando…»). Nula, «Guardando…».</summary>
+    [Parameter] public string? TextoEnCurso { get; set; }
 
     /// <summary>
     /// Porcentaje real (0-100), solo donde exista un total: subida de ficheros, importaciones, generación de paquetes. Nulo en un

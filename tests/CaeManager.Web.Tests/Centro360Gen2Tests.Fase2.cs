@@ -37,7 +37,7 @@ public partial class Centro360Gen2Tests
         cut.Find(".barra-filtros").HasAttribute("hidden").Should().BeTrue();
         var tabla = cut.Find(".centro-documentacion-tabla");
         tabla.QuerySelectorAll("[role=columnheader]").Select(c => c.TextContent.Trim())
-            .Should().Equal("Documento", "Estado en la plataforma", "Caducidad", "Bloquea");
+            .Should().Equal("Documento", "Estado en la plataforma", "Caducidad", "Bloquea", "Acción");
         var filas = cut.FindAll(".centro-documentacion-fila");
         filas.Should().HaveCount(2);
         filas.Select(f => f.QuerySelector(".centro-documentacion-nombre > span")!.TextContent.Trim())

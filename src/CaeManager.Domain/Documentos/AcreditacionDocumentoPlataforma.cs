@@ -52,6 +52,19 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// <summary>Nunca se sobreescribe ni se borra — invariante explícita del plan. El rechazo vigente (si Estado es Rechazada) es siempre el último de la lista.</summary>
     public IReadOnlyList<RechazoAcreditacionDocumentoPlataforma> HistorialRechazos => _historialRechazos.AsReadOnly();
 
+    private readonly List<CambioEstadoAcreditacionPlataforma> _cambiosEstado = [];
+
+    /// <summary>Cambios de estado anotados a mano desde Centro 360 (<see cref="CambiarEstadoAMano"/>), deshechos incluidos.</summary>
+    public IReadOnlyList<CambioEstadoAcreditacionPlataforma> CambiosEstado => _cambiosEstado.AsReadOnly();
+
+    /// <summary>
+    /// El cambio a mano que dejó el estado actual, si lo último que le pasó al estado fue ese cambio. Cualquier otra
+    /// vía que toque el estado (panel «Gestionar», extensión, renovación del Documento, «Deshacer») lo vacía: así la
+    /// anotación de Centro 360 nunca describe otro estado ni otra versión del documento, y «Deshacer» solo deshace el
+    /// cambio que sigue en pie. Confirmar la vigencia no cambia el estado y no lo vacía.
+    /// </summary>
+    public Guid? UltimoCambioEstadoAManoId { get; private set; }
+
     private AcreditacionDocumentoPlataforma()
     {
     }
@@ -77,6 +90,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         if (Estado == EstadoAcreditacion.Aceptada)
             AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
         Estado = EstadoAcreditacion.Subida;
+        UltimoCambioEstadoAManoId = null;
     }
 
     /// <summary>
@@ -93,6 +107,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     public void MarcarAceptada(VigenciaEnPlataforma vigencia)
     {
         Estado = EstadoAcreditacion.Aceptada;
+        UltimoCambioEstadoAManoId = null;
         AnotarVigencia(vigencia);
     }
 
@@ -154,6 +169,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
             throw new InvalidOperationException("Esta acreditación no puede devolverse a ese estado y vigencia.");
 
         Estado = estadoPrevio;
+        UltimoCambioEstadoAManoId = null;
         AnotarVigencia(vigenciaPrevia);
         _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }
@@ -168,14 +184,23 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         return accion;
     }
 
-    public void MarcarNoRequerida() => Estado = EstadoAcreditacion.NoRequerida;
+    public void MarcarNoRequerida()
+    {
+        Estado = EstadoAcreditacion.NoRequerida;
+        UltimoCambioEstadoAManoId = null;
+    }
 
     /// <summary>
     /// «Pendiente de subir» del panel «Gestionar acreditación en plataforma»: el Gestor CAE ha mirado la
     /// plataforma y la versión vigente en TALVEG no está allí (se dio por subida o validada y no lo estaba, o la
-    /// plataforma sigue mostrando la anterior). Solo desde Subida o Aceptada: una Rechazada sale con una versión
-    /// corregida (<see cref="ReiniciarPorRenovacionDocumento"/>), no marcándola pendiente sin papel nuevo, y una
-    /// NoRequerida no es trabajo de nadie. La vigencia confirmada se pierde por el mismo motivo que al renovar.
+    /// plataforma sigue mostrando la anterior). En ESTE panel, solo desde Subida o Aceptada: una Rechazada sale con
+    /// una versión corregida (<see cref="ReiniciarPorRenovacionDocumento"/>), y una NoRequerida no es trabajo de nadie.
+    /// La vigencia confirmada se pierde por el mismo motivo que al renovar.
+    /// <para>
+    /// Desde el bloque 3 de la sesión del 21-10, «Cambiar» de Centro 360 (<see cref="CambiarEstadoAMano"/>) sí lleva
+    /// una Rechazada a Pendiente de subir: el Gestor CAE anota lo que ve en la plataforma del Cliente, también cuando
+    /// corrige un rechazo marcado por error. Esta regla no limita esa vía.
+    /// </para>
     /// </summary>
     public bool PuedeDevolverAPendienteDeSubir =>
         Estado is EstadoAcreditacion.Subida or EstadoAcreditacion.Aceptada;
@@ -186,6 +211,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
             throw new InvalidOperationException("Solo una acreditación subida o validada vuelve a quedar pendiente de subir.");
 
         Estado = EstadoAcreditacion.PendienteDeSubir;
+        UltimoCambioEstadoAManoId = null;
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
     }
 
@@ -201,11 +227,95 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     {
         var rechazo = new RechazoAcreditacionDocumentoPlataforma(Id, causa, motivoLiteral, fechaUtc);
         Estado = EstadoAcreditacion.Rechazada;
+        UltimoCambioEstadoAManoId = null;
         // Lo que se hubiera confirmado se refería a un documento que esta
         // plataforma ya no acepta: conservarlo dejaría una fecha de vigencia
         // respaldando algo que no está acreditado.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
         _historialRechazos.Add(rechazo);
+    }
+
+    /// <summary>
+    /// Estados que el Gestor CAE puede anotar a mano desde Centro 360 (bloque 3 de la sesión del 21-10): los cuatro de la
+    /// plataforma del Cliente. «No requerida» no es algo que diga la plataforma, y no se anota desde ahí.
+    /// </summary>
+    public static bool EsEstadoAnotableAMano(EstadoAcreditacion estado) =>
+        estado is EstadoAcreditacion.PendienteDeSubir or EstadoAcreditacion.Subida
+            or EstadoAcreditacion.Aceptada or EstadoAcreditacion.Rechazada;
+
+    /// <summary>
+    /// «Marcar subido», «Marcar validado» y «Cambiar» de Centro 360: el Gestor CAE anota el estado que ve en la
+    /// plataforma, con la fecha, el motivo (obligatorio si es un rechazo), una nota opcional, quién y cuándo. A
+    /// diferencia de <see cref="DevolverAPendienteDeSubir"/>, desde aquí cualquier estado lleva a cualquiera de los
+    /// cuatro: el modal sirve también para corregir un estado marcado por error.
+    /// <list type="bullet">
+    /// <item>Rechazada añade el rechazo al historial (causa <see cref="CausaRechazoAcreditacion.Otro"/>: el modal pide
+    /// el motivo literal, no la clasificación).</item>
+    /// <item>La vigencia confirmada se pierde salvo al volver a anotar Validado sobre algo que ya lo estaba: la misma
+    /// regla que <see cref="MarcarSubida"/>, <see cref="Rechazar"/> y <see cref="DevolverAPendienteDeSubir"/>.</item>
+    /// </list>
+    /// Devuelve el cambio, que es lo que «Deshacer» identifica.
+    /// </summary>
+    public CambioEstadoAcreditacionPlataforma CambiarEstadoAMano(
+        EstadoAcreditacion destino, DateOnly fecha, string? motivo, string? nota, Guid? usuarioId, DateTime momentoUtc)
+    {
+        if (!EsEstadoAnotableAMano(destino))
+            throw new ArgumentException("Ese estado no se anota a mano en la plataforma.", nameof(destino));
+
+        // Se construye ANTES de tocar nada: si el motivo o la nota no validan, la acreditación queda como estaba.
+        var cambio = new CambioEstadoAcreditacionPlataforma(
+            Id, Estado, Vigencia, destino, fecha, motivo, nota, usuarioId, momentoUtc);
+
+        switch (destino)
+        {
+            case EstadoAcreditacion.Rechazada:
+                Rechazar(CausaRechazoAcreditacion.Otro, cambio.Motivo!, momentoUtc);
+                break;
+            case EstadoAcreditacion.Subida:
+                MarcarSubida();
+                break;
+            case EstadoAcreditacion.Aceptada:
+                MarcarAceptada(Estado == EstadoAcreditacion.Aceptada ? Vigencia : VigenciaEnPlataforma.SinConfirmar);
+                break;
+            default:
+                Estado = EstadoAcreditacion.PendienteDeSubir;
+                AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);
+                break;
+        }
+
+        _cambiosEstado.Add(cambio);
+        UltimoCambioEstadoAManoId = cambio.Id;
+        // El cambio vive en otra tabla y el estado puede no variar (Validado sobre Validado): sin tocar la raíz, el
+        // token de concurrencia no se renovaría y el «Deshacer» de un cambio anterior no vería que hubo otro después.
+        RenovarVersion();
+        return cambio;
+    }
+
+    /// <summary>
+    /// ¿Se puede deshacer este cambio? Solo si es el que dejó el estado actual (<see cref="UltimoCambioEstadoAManoId"/>):
+    /// si después la cambió otra vía (otra pestaña, la extensión, una renovación) o se anotó otro cambio, deshacer
+    /// pisaría ese cambio. El llamador comprueba además la versión que vio (concurrencia optimista).
+    /// </summary>
+    public bool PuedeDeshacerCambioEstado(Guid cambioId) =>
+        UltimoCambioEstadoAManoId == cambioId
+        && _cambiosEstado.Any(c => c.Id == cambioId && !c.EstaDeshecho && c.Estado == Estado);
+
+    /// <summary>
+    /// «Deshacer» del aviso que sale tras «Marcar subido» o «Marcar validado»: devuelve el estado y la vigencia que
+    /// guardó el propio cambio (nunca los que mande el llamador) y lo marca deshecho, sin borrarlo. El historial de
+    /// rechazos no se toca. La fila de auditoría sale como <see cref="RegistroAuditoria.AccionRestaurado"/>.
+    /// </summary>
+    public void DeshacerCambioEstado(Guid cambioId, DateTime momentoUtc)
+    {
+        if (!PuedeDeshacerCambioEstado(cambioId))
+            throw new InvalidOperationException("Este cambio de estado ya no se puede deshacer.");
+
+        var cambio = _cambiosEstado.Single(c => c.Id == cambioId);
+        Estado = cambio.EstadoAnterior;
+        UltimoCambioEstadoAManoId = null;
+        AnotarVigencia(cambio.VigenciaAnterior);
+        cambio.MarcarDeshecho(momentoUtc);
+        _accionAuditoria = RegistroAuditoria.AccionRestaurado;
     }
 
     /// <summary>
@@ -217,6 +327,7 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     public void ReiniciarPorRenovacionDocumento()
     {
         Estado = EstadoAcreditacion.PendienteDeSubir;
+        UltimoCambioEstadoAManoId = null;
         // La vigencia confirmada era la del documento anterior. Heredarla daría
         // por acreditado en la plataforma un papel que todavía no se ha subido.
         AnotarVigencia(VigenciaEnPlataforma.SinConfirmar);

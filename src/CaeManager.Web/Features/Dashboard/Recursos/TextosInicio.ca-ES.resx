@@ -114,4 +114,19 @@
   <data name="CarteraColumnaCentrosBloqueados" xml:space="preserve">
     <value>Centres amb bloqueig</value>
   </data>
+  <data name="AnilloAlDiaDetalle" xml:space="preserve">
+    <value>{0} de {1} documents de Treballador al dia (vigents, per vèncer i sense caducitat)</value>
+  </data>
+  <data name="KpiCentrosBloqueadosUno" xml:space="preserve">
+    <value>1 centre amb treballadors bloquejats</value>
+  </data>
+  <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
+    <value>{0} centres amb treballadors bloquejats</value>
+  </data>
+  <data name="KpiVigentesAlDia" xml:space="preserve">
+    <value>{0} més al dia (per vèncer o sense caducitat)</value>
+  </data>
+  <data name="KpiVigentesNoAlDia" xml:space="preserve">
+    <value>{0} no al dia (vençuts o sense confirmar)</value>
+  </data>
 </root>

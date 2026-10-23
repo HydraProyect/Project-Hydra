@@ -280,7 +280,7 @@ public static class PilotoOutboundAutoverificacion
                     Discrepa(contador, Texto(medido), Texto(esperado));
             }
 
-            // Comunes a los siete: la cola se pudo consultar, cada documento abre como PDF, tiene las fechas que el
+            // Comunes a todos los Tenants del lote: la cola se pudo consultar, cada documento abre como PDF, tiene las fechas que el
             // producto le habría dado y «Pedir» tiene a quién escribir.
             Exige("Mi trabajo · Tenant presente en la cartera de la Gestora CAE", m.MiTrabajoPresente, true);
             Exige("Mi trabajo · cola que no se pudo consultar", m.MiTrabajoNoConsultado, false);

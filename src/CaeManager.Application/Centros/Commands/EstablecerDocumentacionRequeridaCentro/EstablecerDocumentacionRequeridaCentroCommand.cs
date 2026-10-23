@@ -61,8 +61,17 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
             || !await alcanceDatos.CentroParaGestionVisibleAsync(request.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.CentroNoEncontrado", "No encontramos este centro."));
 
-        if (!await tiposDocumentoContext.TiposDocumento.AnyAsync(t => t.Id == request.TipoDocumentoId, cancellationToken))
+        var tipo = await tiposDocumentoContext.TiposDocumento
+            .Where(t => t.Id == request.TipoDocumentoId)
+            .Select(t => new { t.Archivado })
+            .FirstOrDefaultAsync(cancellationToken);
+        if (tipo is null)
             return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.TipoDocumentoNoEncontrado", "No encontramos este tipo de documento."));
+
+        // Un tipo archivado (catálogo revisado el 2026-10-17) no se empieza a exigir en un Centro: se exige su
+        // sustituto. Dejar de exigirlo sí se permite, para poder limpiar la configuración que ya lo tenía.
+        if (tipo.Archivado && request.Incluido)
+            return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.TipoDocumentoArchivado", "Ese tipo de documento está archivado; exige su sustituto."));
 
         var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
 

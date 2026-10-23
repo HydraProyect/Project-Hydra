@@ -208,7 +208,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await PanelVisita(page).GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
         var confirmacion = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "¿Cancelar 1 visita(s)?", Exact = true });
         await Expect(confirmacion).ToBeVisibleAsync();
-        await confirmacion.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Motivo (opcional)", Exact = true }).FillAsync(motivo);
+        await confirmacion.GetByRole(AriaRole.Textbox, new LocatorGetByRoleOptions { Name = "Motivo (obligatorio)", Exact = true }).FillAsync(motivo);
         await confirmacion.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Cancelar visita", Exact = true }).ClickAsync();
         await Expect(confirmacion).ToBeHiddenAsync();
 

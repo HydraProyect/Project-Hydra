@@ -343,6 +343,14 @@ public partial class GestionesListaGen2Tests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("tbody [data-pieza=estado-correcto]").Select(b => b.TextContent.Trim())
             .Should().Equal(["Completada"], "la fila recargada trae el estado nuevo"));
         cut.FindAll("tbody .badge").Select(b => b.TextContent.Trim()).Should().Equal(["Pendiente"], "la otra no cambia");
+
+        // Maqueta «Flujos 10»: el aviso de completar ofrece Deshacer, que manda la acción contraria sin encadenar otro aviso.
+        var toasts = Services.GetRequiredService<ToastService>();
+        var aviso = toasts.Mensajes.Single(m => m.Mensaje == "Gestión completada." && m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+        mediador.Enviadas.OfType<CompletarGestionCommand>().Should().Equal(
+            [new CompletarGestionCommand(abierta.Id, true), new CompletarGestionCommand(abierta.Id, false)]);
+        toasts.Mensajes.Should().Contain(m => m.Mensaje == "Gestión reabierta." && m.TextoAccion == null);
     }
 
     [Fact]
@@ -391,7 +399,7 @@ public partial class GestionesListaGen2Tests : BunitContext
 
         Services.GetRequiredService<ToastService>().Mensajes.Should()
             .ContainSingle(m => m.Mensaje == motivo && m.Tono == TonoToast.Error);
-        EstadoEnLaVistaRapida(cut).Should().Be("Pendiente", "el comando no cambió nada");
+        EstadoEnLaVistaRapida(cut).Should().StartWith("Abierta hace", "el comando no cambió nada: sigue pendiente, y desde 5 días la pastilla dice cuánto lleva abierta (maqueta Flujos 10)");
     }
 
     [Fact]
@@ -409,7 +417,7 @@ public partial class GestionesListaGen2Tests : BunitContext
 
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle(m =>
             m.Mensaje == "No pudimos actualizar el estado. Intenta nuevamente en unos segundos." && m.Tono == TonoToast.Error);
-        EstadoEnLaVistaRapida(cut).Should().Be("Pendiente");
+        EstadoEnLaVistaRapida(cut).Should().StartWith("Abierta hace");
         BotonDeLaVistaRapida(cut, "Marcar completada").HasAttribute("disabled").Should().BeFalse(
             "tras el fallo el botón vuelve a estar disponible para reintentar");
     }
@@ -442,7 +450,7 @@ public partial class GestionesListaGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find("aside.vista-rapida-gestion .nombre-vista-rapida-gestion")
             .TextContent.Trim().Should().Be("Nuria Salas Ortiz"));
-        EstadoEnLaVistaRapida(cut).Should().Be("Pendiente", "el comando era de Juan, no de Nuria");
+        EstadoEnLaVistaRapida(cut).Should().StartWith("Abierta hace", "el comando era de Juan, no de Nuria");
     }
 
     /// <summary>
@@ -1267,6 +1275,25 @@ public partial class GestionesListaGen2Tests : BunitContext
         MotivoDeLaFila(cut, "Juan Pérez Ibarra").Should().Be(motivo);
         FilaGestionFase1(cut, "Juan Pérez Ibarra").QuerySelector("td.col-estado .badge")!.TextContent.Trim()
             .Should().Be("Pendiente", "el motivo va debajo de la pastilla, no en su lugar");
+    }
+
+    /// <summary>Maqueta «Flujos 10»: la pastilla de la vista rápida dice «Abierta hace N días», ámbar desde 5 y roja desde 10.</summary>
+    [Theory]
+    [InlineData(4, "Pendiente", "badge-advertencia")]
+    [InlineData(5, "Abierta hace 5 días", "badge-advertencia")]
+    [InlineData(9, "Abierta hace 9 días", "badge-advertencia")]
+    [InlineData(10, "Abierta hace 10 días", "badge-peligro")]
+    public async Task La_vista_rapida_de_una_gestion_pendiente_dice_cuanto_lleva_abierta_con_su_tono(int diasAtras, string texto, string clase)
+    {
+        using var reloj = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojFijo(MediodiaUtc));
+        var m = new MediatorFalso { Almacen = { Gestion("Juan Pérez Ibarra") with { CreadoEnUtc = MediodiaUtc.AddDays(-diasAtras) } } };
+        var cut = Renderizar(m);
+
+        await NombreEnLaFila(cut, "Juan Pérez Ibarra").ClickAsync(new MouseEventArgs());
+
+        var pastilla = cut.Find("aside.vista-rapida-gestion .meta-vista-rapida-gestion .badge");
+        pastilla.TextContent.Trim().Should().Be(texto);
+        pastilla.ClassList.Should().Contain(clase);
     }
 
     [Fact]

@@ -1,39 +1,217 @@
+@using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector
 @using CaeManager.Application.Comunicaciones.AlertasCriticas
+@using CaeManager.Application.Incidencias.Commands.CrearIncidencia
+@using CaeManager.Application.Incidencias.Commands.EliminarIncidencia
+@using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Domain.Common
+@using CaeManager.Domain.Incidencias
 @using CaeManager.Web.Features.Comunicaciones.Recursos
 @using MediatR
 @using Microsoft.Extensions.Localization
 @inject IMediator Mediator
+@inject ToastService ToastService
 @inject IStringLocalizer<TextosAlertasCriticas> Textos
 
-<BannerAlertaCritica Alerta="_alerta" Guardando="_guardando" Error="_error" OnResolver="ResolverAsync" />
+<BannerAlertaCritica Alerta="_alerta" />
+
+@* Quien puede decidir (Dirección CAE o Coordinador CAE) entra en la conversación y se encuentra el modal, que bloquea hasta decidir. *@
+@* Solo se monta mientras hay algo que decidir: el modal lleva su propio aviso de navegación y no debe estar en el árbol de cada conversación. *@
+@if (_alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true })
+{
+    <AlertaCriticaModal Visible="true" Alerta="_alerta" Asunto="@Asunto"
+                        Centros="_centros" Trabajadores="_trabajadores" Cargando="_cargandoListas" Guardando="_guardando"
+                        MensajeError="@_error" OnRegistrar="RegistrarIncidenciaAsync" OnNoEsCritica="NoEsCriticaAsync" />
+}
 
 @code {
     [Parameter] public Guid ConversacionId { get; set; }
+
+    /// <summary>Asunto de la conversación: subtítulo del modal y contexto de la descripción de la Incidencia.</summary>
+    [Parameter] public string? Asunto { get; set; }
+
     private AlertaCriticaDto? _alerta;
+    private IReadOnlyList<CentroSelectorDto> _centros = [];
+    private IReadOnlyList<TrabajadorSelectorDto> _trabajadores = [];
+    private bool _cargandoListas;
     private bool _guardando;
     private string? _error;
 
+    private Guid _cargada;
+
     protected override async Task OnParametersSetAsync()
     {
+        // Solo cambia de conversación recarga: un Asunto que se refresca no debe desmontar el modal ni borrar lo elegido.
         var id = ConversacionId;
+        if (id == _cargada) return;
+        _cargada = id;
         _alerta = null;
         _error = null;
         var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
-        if (ConversacionId == id) _alerta = alerta;
+        if (ConversacionId != id) return;
+        _alerta = alerta;
+        if (alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true })
+            await CargarListasAsync(id);
     }
 
-    private async Task ResolverAsync(bool confirmar)
+    private async Task CargarListasAsync(Guid id)
+    {
+        _cargandoListas = true;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery());
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
+            if (ConversacionId != id) return;
+            _centros = centros;
+            _trabajadores = trabajadores;
+        }
+        catch (Exception)
+        {
+            // «No es crítica» sigue disponible sin las listas; solo registrar la incidencia necesita un Centro.
+            if (ConversacionId == id) _error = Textos["ErrorCargarFormulario"].Value;
+        }
+        finally
+        {
+            if (ConversacionId == id) _cargandoListas = false;
+        }
+    }
+
+    private async Task NoEsCriticaAsync()
     {
         if (_guardando || _alerta?.PuedeResolver != true) return;
         _guardando = true;
         var id = ConversacionId;
         try
         {
-            var resultado = await Mediator.Send(new ResolverAlertaCriticaCommand(id, confirmar));
+            var resultado = await Mediator.Send(new ResolverAlertaCriticaCommand(id, _alerta.Id, false));
             if (ConversacionId != id) return;
             _error = resultado.EsFallido ? Textos["ErrorResolver"].Value : null;
             _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
         }
-        finally { _guardando = false; }
+        catch (Exception)
+        {
+            _error = Textos["ErrorResolver"].Value;
+        }
+        finally
+        {
+            _guardando = false;
+            AvisarSiElModalYaNoEsta();
+        }
+    }
+
+    /// <summary>El error solo se pinta dentro del modal: si otra persona resolvió la alerta, el modal ya no está y el aviso sale en un toast.</summary>
+    private void AvisarSiElModalYaNoEsta()
+    {
+        if (_error is null || _alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true }) return;
+        ToastService.Mostrar(_error, TonoToast.Error);
+        _error = null;
+    }
+
+    private async Task<bool> RetirarIncidenciaAsync(Guid incidenciaId)
+    {
+        try { return (await Mediator.Send(new EliminarIncidenciaCommand(incidenciaId))).EsExitoso; }
+        catch (Exception) { return false; }
+    }
+
+    /// <summary>
+    /// «Registrar incidencia»: crea la Incidencia del Centro y confirma la alerta atándola a ella. Si confirmar falla, la Incidencia
+    /// recién creada se retira para no dejar una sin alerta que la explique. «Deshacer» elimina la Incidencia, devuelve la alerta a
+    /// Pendiente y retira los avisos «derivado» en una sola transacción (DeshacerDerivacionAlertaCriticaCommand).
+    /// </summary>
+    private async Task RegistrarIncidenciaAsync(AlertaCriticaModal.DatosIncidencia datos)
+    {
+        if (_guardando || _alerta?.PuedeResolver != true) return;
+        _guardando = true;
+        _error = null;
+        var id = ConversacionId;
+        var alertaId = _alerta.Id;
+        var texto = _alerta.Texto;
+        try
+        {
+            var descripcion = Textos["DescripcionIncidencia", Asunto ?? string.Empty, texto].Value;
+            if (descripcion.Length > Incidencia.LongitudMaximaDescripcion)
+            {
+                // Sin partir un par sustituto (un emoji del correo): Npgsql no codifica un sustituto huérfano.
+                var corte = Incidencia.LongitudMaximaDescripcion;
+                if (char.IsHighSurrogate(descripcion[corte - 1])) corte--;
+                descripcion = descripcion[..corte];
+            }
+
+            var creada = await Mediator.Send(new CrearIncidenciaCommand(
+                datos.CentroId, datos.TrabajadorId, datos.Tipo, datos.Gravedad, DiaDeNegocio.Hoy(), descripcion));
+            if (creada.EsFallido)
+            {
+                _error = creada.Error.Mensaje;
+                return;
+            }
+
+            var incidenciaId = creada.Valor;
+            bool confirmada;
+            try { confirmada = (await Mediator.Send(new ResolverAlertaCriticaCommand(id, alertaId, true, incidenciaId))).EsExitoso; }
+            catch (Exception) { confirmada = false; }
+
+            if (!confirmada)
+            {
+                var retirada = await RetirarIncidenciaAsync(incidenciaId);
+                if (ConversacionId != id) return;
+                _error = Textos[retirada ? "ErrorResolver" : "ErrorResolverIncidenciaQuedada"].Value;
+                try { _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id)); }
+                catch (Exception) { /* el modal sigue con lo que tenía: la alerta no cambió */ }
+                return;
+            }
+
+            var trabajador = datos.TrabajadorId is { } trabajadorId
+                ? EtiquetasSelectorTrabajador.Construir(_trabajadores).FirstOrDefault(t => t.Id == trabajadorId)?.Texto
+                : null;
+            ToastService.Mostrar(
+                trabajador is null ? Textos["ToastIncidenciaRegistrada"].Value : Textos["ToastIncidenciaRegistradaPara", trabajador].Value,
+                TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(id, alertaId, incidenciaId));
+            if (ConversacionId != id) return;
+            // Ya está confirmada y la Incidencia creada: el modal se cierra aunque el refresco falle.
+            _alerta = _alerta with { Estado = EstadoAlertaCritica.ConfirmadaYDerivada, PuedeResolver = false };
+            try { _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id)) ?? _alerta; }
+            catch (Exception) { /* se conserva el estado local */ }
+        }
+        catch (Exception)
+        {
+            _error = Textos["ErrorRegistrar"].Value;
+        }
+        finally
+        {
+            _guardando = false;
+            AvisarSiElModalYaNoEsta();
+        }
+    }
+
+    private async Task DeshacerAsync(Guid conversacionId, Guid alertaId, Guid incidenciaId)
+    {
+        Result resultado;
+        try { resultado = await Mediator.Send(new DeshacerDerivacionAlertaCriticaCommand(conversacionId, alertaId, incidenciaId)); }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorDeshacer"].Value, TonoToast.Error);
+            return;
+        }
+
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(Textos[resultado.Error.Codigo == "AlertaCritica.OtraPendiente" ? "ErrorDeshacerOtraPendiente" : "ErrorDeshacer"].Value, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar(Textos["ToastIncidenciaEliminada"].Value, TonoToast.Info);
+        // La alerta vuelve a Pendiente: si la conversación sigue abierta, el modal reaparece para decidir de nuevo. Un fallo de este
+        // refresco no convierte en «No se pudo deshacer» un Deshacer que ya se guardó; la alerta se verá al reabrir la conversación.
+        if (ConversacionId != conversacionId) return;
+        try
+        {
+            var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(conversacionId));
+            if (ConversacionId != conversacionId) return;
+            _alerta = alerta;
+            if (alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true }) await CargarListasAsync(conversacionId);
+        }
+        catch (Exception) { /* se conserva lo que había */ }
+        await InvokeAsync(StateHasChanged);
     }
 }

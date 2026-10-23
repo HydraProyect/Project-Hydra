@@ -15,7 +15,9 @@ public record DashboardEjecutivoDto(
     int Centros,
     int VisitasProgramadas,
     int VisitasUrgentes,
+    // Documentos de Trabajador y de Empresa vigentes, con la misma selección que el resto del semáforo.
     int DocumentosVigentes,
+    // Próximos, urgentes y vencidos como en Alertas y Mi trabajo: de Trabajador y de Empresa (KpisDashboardDto.*ComoEnAlertas).
     int DocumentosProximos,
     int DocumentosUrgentes,
     int DocumentosVencidos,
@@ -92,16 +94,25 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentU
         IReadOnlyList<(ClienteAutorizadoDto Cliente, CatalogoKpisValoresDto Valores)> porTenant,
         bool conImporteDeFacturacion = true)
     {
-        var vigentes = porTenant.Sum(p => p.Valores.Documental.DocumentosVigentes);
-        var proximos = porTenant.Sum(p => p.Valores.Documental.DocumentosProximos);
-        var urgentes = porTenant.Sum(p => p.Valores.Documental.DocumentosUrgentes);
-        var vencidos = porTenant.Sum(p => p.Valores.Documental.DocumentosVencidos);
-        // La tasa es la de CumplimientoDocumental sobre los recuentos de todos los Tenants sumados (misma definición que
-        // la de Inicio, incluidos «Sin confirmar» en el denominador y «Sin caducidad» en los dos lados).
+        var vigentesTrabajador = porTenant.Sum(p => p.Valores.Documental.DocumentosVigentes);
+        var vigentes = vigentesTrabajador + porTenant.Sum(p => p.Valores.Documental.DocumentosEmpresaVigentes);
+        // La tasa es la de CumplimientoDocumental sobre los recuentos de Documentos de Trabajador de todos los Tenants
+        // sumados (misma definición que la de Inicio, incluidos «Sin confirmar» en el denominador y «Sin caducidad» en los
+        // dos lados). Por eso usa los recuentos de Trabajador y no los «ComoEnAlertas» de abajo.
         var tasaCumplimiento = KpisDashboardDto.FraccionDe(
-            vigentes, proximos, urgentes, vencidos,
+            vigentesTrabajador,
+            porTenant.Sum(p => p.Valores.Documental.DocumentosProximos),
+            porTenant.Sum(p => p.Valores.Documental.DocumentosUrgentes),
+            porTenant.Sum(p => p.Valores.Documental.DocumentosVencidos),
             porTenant.Sum(p => p.Valores.Documental.DocumentosSinConfirmar),
             porTenant.Sum(p => p.Valores.Documental.DocumentosSinCaducidad)).Porcentaje ?? 100;
+
+        // Próximos, urgentes y vencidos como los cuentan Alertas, Mi trabajo, Inicio y Visión de cartera (de Trabajador y de
+        // Empresa, con la selección de DocumentosConAlertaDeVigencia): sumados por Tenant beneficiario, el mismo Tenant da la
+        // misma cifra aquí que en esas pantallas.
+        var proximos = porTenant.Sum(p => p.Valores.Documental.ProximosComoEnAlertas);
+        var urgentes = porTenant.Sum(p => p.Valores.Documental.UrgentesComoEnAlertas);
+        var vencidos = porTenant.Sum(p => p.Valores.Documental.VencidosComoEnAlertas);
 
         var centrosConMenorCumplimiento = porTenant
             .SelectMany(p => p.Valores.CentrosConMenorCumplimiento.Select(c =>

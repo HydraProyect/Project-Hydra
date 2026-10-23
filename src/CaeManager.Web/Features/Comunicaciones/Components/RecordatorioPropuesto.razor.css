@@ -1,13 +1,57 @@
-.recordatorio-propuesto-explicacion {
-    margin: 0 0 var(--space-3);
-    font: var(--font-body-sm);
-    color: var(--color-text-muted);
+/* Fila «Propuesto» sobre el composer del hilo (maqueta Flujos 13, fila de Propuestas): título, detalle, pastilla y «Revisar». */
+.recordatorio-propuesto {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
 }
 
-.recordatorio-propuesto-acciones {
+.recordatorio-propuesto-texto {
     display: flex;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: var(--space-2);
-    margin-top: var(--space-3);
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.recordatorio-propuesto-titulo {
+    font: var(--font-body-sm);
+    font-weight: 600;
+    color: var(--color-text);
+    overflow-wrap: anywhere;
+}
+
+.recordatorio-propuesto-detalle {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+/* Aviso previo a aprobar, tono advertencia: lo enviado no se recupera. */
+.recordatorio-propuesto-aviso {
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    background-color: var(--color-warning-50);
+    color: var(--color-warning-700);
+    font: var(--font-body-sm);
+}
+
+/* «Descartar» del pie: texto en tono peligro, sin relleno (maqueta: botón de texto a la izquierda). */
+.recordatorio-propuesto-pie ::deep .recordatorio-propuesto-descartar:not(:disabled) {
+    color: var(--color-danger-700);
+}
+
+@media (max-width: 640px) {
+    .recordatorio-propuesto {
+        flex-wrap: wrap;
+    }
+
+    .recordatorio-propuesto-texto {
+        flex-basis: 100%;
+    }
 }

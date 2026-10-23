@@ -31,7 +31,27 @@ public enum PerfilPilotoOutbound
     /// H · Eventos con voluntarios: pocos Trabajadores fijos y muchos voluntarios que entran por Proyectos de tipo Evento
     /// (uno terminado, uno en curso y uno futuro); los que solo estuvieron en el terminado quedan inactivos.
     /// </summary>
-    EventosConVoluntarios
+    EventosConVoluntarios,
+
+    /// <summary>
+    /// I · Escaparate al día: una Empresa grande (plantilla, Subcontratas con sus Trabajadores, Vehículos y maquinaria,
+    /// Proyectos, Visitas, plataforma y canal por correo) con todo vigente: ningún documento vencido, ninguno que venza en
+    /// los próximos treinta días y ninguno que falte.
+    /// </summary>
+    EscaparateAlDia,
+
+    /// <summary>
+    /// J · Escaparate por vencer: todo vigente salvo un grupo de documentos (de Trabajador, de la Empresa propia, de un
+    /// Vehículo y de una Subcontrata) que vence exactamente a los <see cref="TenantPilotoOutbound.UrgentesVencenALosDias"/>
+    /// días de la demostración.
+    /// </summary>
+    EscaparatePorVencer,
+
+    /// <summary>
+    /// K · Escaparate con pocos vencidos: todo en orden salvo unos pocos documentos vencidos (de Trabajador, de un Vehículo
+    /// y de una Subcontrata), los de Trabajador con su reclamación.
+    /// </summary>
+    EscaparatePocosVencidos
 }
 
 /// <summary>
@@ -60,7 +80,7 @@ public sealed record EventoPilotoOutbound(
 /// <summary>La plantilla de requisitos que comparten los eventos de un Cliente empresarial: nombres de Tipo de documento.</summary>
 public sealed record PlantillaEventoPilotoOutbound(string Nombre, IReadOnlyList<string> Tipos);
 
-/// <param name="Clave">Letra del perfil (A..G): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
+/// <param name="Clave">Letra del perfil (A..K): va en los mensajes de la autoverificación y de la siembra, nunca en un dato que se vea en pantalla.</param>
 /// <param name="Nombre">Nombre del Tenant propietario y razón social de su Empresa propia (la única con EsPropia).</param>
 /// <param name="Cartera">El Gestor CAE que lo lleva en su cartera, o los dos si es el compartido.</param>
 /// <param name="Trabajadores">Trabajadores de la Empresa propia; los de cada Subcontrata se suman a continuación.</param>
@@ -137,6 +157,33 @@ public sealed record TenantPilotoOutbound(
     /// </summary>
     public bool EmpresaSinPlantilla { get; init; }
 
+    /// <summary>
+    /// Si se fija, todo lo «Urgente» del Tenant —los documentos de Trabajador de la receta, el del Vehículo, el de la
+    /// Empresa propia y el de la Subcontrata— vence exactamente este número de días después de la demostración, en vez
+    /// de repartirse entre D+5 y D+6. Tiene que ser «Urgente» cualquier día en que se pueda sembrar, de D−9 a D
+    /// (<see cref="FechasPilotoOutbound.EsUrgenteEnTodoElMargen"/>): de D+1 a D+6.
+    /// </summary>
+    public int? UrgentesVencenALosDias { get; init; }
+
+    /// <summary>
+    /// Situación del primer documento exigido de la Empresa propia que no es mensual (los mensuales solo pueden estar
+    /// «Próximo»); <c>null</c> = en regla, como todos los demás.
+    /// </summary>
+    public SituacionDocumentoPilotoOutbound? SituacionDocumentoDeEmpresa { get; init; }
+
+    /// <summary>
+    /// En el Centro con plataforma, los documentos de Empresa —los de la propia y los de cada Subcontrata— también se
+    /// acreditan, y quedan aceptados: el Cliente empresarial los tiene validados en su portal.
+    /// </summary>
+    public bool AcreditaDocumentosDeEmpresa { get; init; }
+
+    /// <summary>
+    /// Trabajadores que causaron baja en la Empresa en el último año: se siembran aparte (no cuentan en
+    /// <see cref="Trabajadores"/>), dados de baja en meses anteriores, para que la rotación del Cuadro de dirección tenga
+    /// bajas además de altas.
+    /// </summary>
+    public int BajasDelUltimoAno { get; init; }
+
     public int ReclamacionesSinRespuesta { get; init; }
     public int ReclamacionesRespondidas { get; init; }
     public int GestionesPendientes { get; init; }
@@ -175,7 +222,9 @@ public sealed record TenantPilotoOutbound(
 /// <param name="Trabajadores">Trabajadores de la Subcontrata: ninguna Subcontrata del piloto es decorativa.</param>
 /// <param name="Supervisada">Nivel de servicio Supervisada: TALVEG verifica su documentación en la plataforma del Cliente empresarial.</param>
 /// <param name="ContratadaPor">Posición, en la lista de Subcontratas, de la que la contrata (cadena); <c>null</c> = la contrata la Empresa propia.</param>
-public sealed record SubcontrataPilotoOutbound(string RazonSocial, int Trabajadores, bool Supervisada = false, int? ContratadaPor = null);
+/// <param name="Situacion">Situación del primer documento de su Empresa (<see cref="CatalogoPilotoOutbound.TiposDeDocumentoDeSubcontrata"/>); <c>null</c> = en regla.</param>
+public sealed record SubcontrataPilotoOutbound(
+    string RazonSocial, int Trabajadores, bool Supervisada = false, int? ContratadaPor = null, SituacionDocumentoPilotoOutbound? Situacion = null);
 
 /// <param name="Situacion">Situación del primer documento exigido del Vehículo (la ITC); <c>null</c> = en regla.</param>
 public sealed record VehiculoPilotoOutbound(
@@ -238,7 +287,7 @@ public sealed record EsperadoPilotoOutbound(
 
 /// <summary>
 /// El catálogo declarativo de la siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de
-/// demostración y ocho Tenants beneficiarios (A..H), uno por perfil. Todos los nombres propios viven aquí; el
+/// demostración y once Tenants beneficiarios: A..H, uno por perfil, e I, J y K, el escaparate comercial. Todos los nombres propios viven aquí; el
 /// sembrador, la autoverificación y los tests los referencian por constante. Las razones sociales y las personas son
 /// inventadas y no coinciden con ninguna empresa ni persona real conocida.
 /// </summary>
@@ -254,6 +303,9 @@ public static class CatalogoPilotoOutbound
     public const string NombreTenantF = "Instalaciones y Montajes Pelvira, S.A.";
     public const string NombreTenantG = "Reformas y Pavimentos Quiroga, S.L.";
     public const string NombreTenantH = "Eventos Deportivos Valmora, S.L.";
+    public const string NombreTenantI = "Mantenimientos Integrales Corvesta, S.A.";
+    public const string NombreTenantJ = "Instalaciones Térmicas Albrenza, S.L.";
+    public const string NombreTenantK = "Servicios Industriales Quelvara, S.L.";
 
     /// <summary>
     /// Los nombres de los seis Tenants de la versión anterior del piloto. Ya no se siembran, pero la retirada del lote
@@ -276,8 +328,8 @@ public static class CatalogoPilotoOutbound
 
     public const string AptitudMedica = "Certificado de aptitud médica";
     public const string EntregaEpi = "Entrega de EPI";
-    public const string FormacionArt19 = "Formación Art. 19";
-    public const string InformacionArt18 = "Información Art. 18";
+    public const string FormacionArt19 = "Formación PRL del puesto";
+    public const string InformacionArt18 = "Información de riesgos del puesto";
     public const string DocumentoIdentidad = "Documento de identidad";
 
     /// <summary>Un tipo de ámbito Trabajador que NO se exige por defecto: solo lo pide el Centro que lo incluye.</summary>
@@ -290,7 +342,7 @@ public static class CatalogoPilotoOutbound
     /// (<see cref="FechasPilotoOutbound.EnRegla"/>).
     /// </summary>
     public static IReadOnlyList<string> TiposQueNoCaducan { get; } =
-        ["Formación 60h (base convenio)", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social", LibroDeSubcontratacion];
+        ["Formación PRL de convenio", InformacionArt18, CarretillasElevadoras, "Contrato de Trabajo", "Alta en Seguridad Social", LibroDeSubcontratacion];
 
     /// <summary>Los cinco tipos de ámbito Trabajador exigidos por defecto. La siembra comprueba que el catálogo del Tenant dice lo mismo antes de escribir.</summary>
     public static IReadOnlyList<string> TiposExigidosDeTrabajador { get; } =
@@ -304,7 +356,7 @@ public static class CatalogoPilotoOutbound
 
     /// <summary>Lo que cada Subcontrata tiene de su propia Empresa.</summary>
     public static IReadOnlyList<string> TiposDeDocumentoDeSubcontrata { get; } =
-        ["Seguro de Responsabilidad Civil + recibo de pago", "Evaluación de Riesgos Laborales", "Modalidad Preventiva"];
+        ["Seguro de Responsabilidad Civil", "Evaluación de Riesgos Laborales", "Modalidad Preventiva"];
 
     /// <summary>
     /// El Registro de Empresas Acreditadas (Ley 32/2006): un tipo de Empresa que no se exige por defecto ni cuenta para el
@@ -316,15 +368,15 @@ public static class CatalogoPilotoOutbound
     public const string LibroDeSubcontratacion = "Libro de Subcontratación";
 
     /// <summary>El justificante mensual de la cuota del autónomo: el autónomo es su propia Empresa, y sus Centros se lo piden.</summary>
-    public const string ReciboDeAutonomos = "Recibo de cuota de autónomos (RETA)";
+    public const string ReciboDeAutonomos = "Recibo de cuota de autónomos";
 
     /// <summary>Los dos certificados mensuales de la Empresa: coherentes con su tipo solo pueden estar «Próximo», y tiñen de ámbar todo Centro que los exige.</summary>
     public static IReadOnlyList<string> CertificadosMensualesDeEmpresa { get; } =
-        ["Certificado de estar al corriente con la Seguridad Social", "ITA"];
+        ["Certificado de estar al corriente con la Seguridad Social", "Informe de trabajadores en alta"];
 
     /// <summary>Lo que un autónomo sin plantilla no tiene: ni RLC, ni RNT, ni ITA.</summary>
     public static IReadOnlyList<string> TiposDeEmpresaDePlantilla { get; } =
-        ["RLC", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago", "RNT", "ITA"];
+        ["RLC (TC1)", "Recibo de pago RLC/TC1", "RLC/TC1 + Recibo de pago", "RNT", "Informe de trabajadores en alta"];
 
     private static readonly ZonaPilotoOutbound? SinZona = null;
 
@@ -447,6 +499,11 @@ public static class CatalogoPilotoOutbound
     ])
     {
         TrabajadoresPorCentro = [8, 7, 5],
+        Extranjeros =
+        [
+            new(1, "Peruana", "Autorización de residencia y trabajo por cuenta ajena", 210),
+            new(9, "Rumana", "Autorización de residencia y trabajo por cuenta ajena", 95)
+        ],
         Vehiculos =
         [
             new("Camión grúa", "Camión grúa articulada", "3412JKL", "Camión", "Propiedad", "Aseguradora Nortia", [0, 1],
@@ -501,6 +558,7 @@ public static class CatalogoPilotoOutbound
     {
         TrabajadoresPorCentro = [5, 5, 4],
         DeBaja = [13],
+        Extranjeros = [new(2, "Paraguaya", "Autorización de residencia y trabajo por cuenta ajena", 120)],
         Subcontratas =
         [
             new("Andamios Torrevia, S.L.", 6),
@@ -572,14 +630,172 @@ public static class CatalogoPilotoOutbound
         ]
     };
 
-    /// <summary>A..H, en el orden de los perfiles.</summary>
-    public static IReadOnlyList<TenantPilotoOutbound> Tenants { get; } = [A, B, C, D, E, F, G, H];
+    /// <summary>
+    /// I · Escaparate al día: tres Clientes empresariales con cinco Centros, sesenta y cuatro Trabajadores propios y tres
+    /// Subcontratas con los suyos, Vehículos y maquinaria, dos Proyectos, Visitas, un Centro con plataforma (con los
+    /// documentos de Empresa también acreditados) y otro por correo. Nada vencido, nada que venza en treinta días y nada
+    /// que falte: los certificados mensuales no se exigen en sus Centros, porque uno coherente solo puede estar «Próximo»;
+    /// sin Subcontrata Supervisada, porque su verificación externa trae un «no válido».
+    /// </summary>
+    public static TenantPilotoOutbound I { get; } = new("I", NombreTenantI, PerfilPilotoOutbound.EscaparateAlDia, CarteraPilotoOutbound.GestoraPrimera, 64,
+    [
+        new("Distribución Alimentaria Pradoverde, S.A.",
+        [
+            Centro("Plataforma de frío de Valdemoro", "Valdemoro"), Centro("Almacén regional de Zaragoza", "Zaragoza")
+        ]),
+        new("Hospitales Sanvitra, S.A.",
+        [
+            Centro("Hospital Sanvitra de Valladolid", "Valladolid"), Centro("Clínica Sanvitra de Burgos", "Burgos")
+        ]),
+        new("Automoción Ferrelda, S.A.", [Centro("Planta de montaje de Vigo", "Vigo")])
+    ])
+    {
+        TrabajadoresPorCentro = [16, 12, 14, 10, 12],
+        DeBaja = [63],
+        DobleAsignacion = [(0, 1), (30, 3)],
+        Subcontratas =
+        [
+            new("Andamios Pelaguera, S.L.", 6),
+            new("Electricidad Industrial Sorvento, S.L.", 5),
+            new("Soldaduras Cantabrana, S.L.", 3, ContratadaPor: 0)
+        ],
+        Extranjeros =
+        [
+            new(20, "Colombiana", "Autorización de residencia y trabajo por cuenta ajena", 290),
+            new(45, "Peruana", "Autorización de residencia y trabajo por cuenta ajena", 210)
+        ],
+        Vehiculos =
+        [
+            new("Furgón de mantenimiento 1", "Furgón de carga media", "5162LRT", "Furgoneta", "Propiedad", "Aseguradora Nortia", [0, 1]),
+            new("Furgón de mantenimiento 2", "Furgón de carga media", "5164LRT", "Furgoneta", "Propiedad", "Aseguradora Nortia", [16, 17]),
+            new("Furgoneta de guardia", "Furgoneta compacta", "7748LSV", "Furgoneta", "Renting", "Seguros Almenara", [28]),
+            new("Camión taller", "Camión ligero de taller", "3381LTZ", "Camión", "Propiedad", "Aseguradora Nortia", [52, 53]),
+            new("Plataforma elevadora", "Plataforma elevadora de tijera", "E4471BKP", "Maquinaria de obra", "Alquiler", "Seguros Almenara", [42]),
+            new("Pick-up de coordinación", "Pick-up doble cabina", "2093MBC", "Turismo", "Renting", "Seguros Almenara", [2])
+        ],
+        Obras =
+        [
+            new("Renovación de la climatización del bloque quirúrgico", 2, -60, 8, 4),
+            new("Ampliación de la línea de pintura", 4, -30, 6, 3)
+        ],
+        CentroConPlataforma = 2,
+        CentroPorCorreo = 4,
+        AcreditaDocumentosDeEmpresa = true,
+        TiposDeEmpresaNoExigidos = CertificadosMensualesDeEmpresa,
+        ConSenalesDeIa = true,
+        ConDocumentoRenovado = true,
+        BajasDelUltimoAno = 6,
+        Visitas =
+        [
+            new(0, 12, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión trimestral de las cámaras de frío"),
+            new(2, 25, 2, EstadoVisitaPilotoOutbound.Futura, "Parada programada de las unidades de tratamiento de aire"),
+            new(4, 6, 1, EstadoVisitaPilotoOutbound.Futura, "Mantenimiento preventivo de los robots de pintura", PorCorreo: true),
+            new(3, -10, 14, EstadoVisitaPilotoOutbound.EnCurso, "Sustitución de las enfriadoras de la clínica"),
+            new(1, -20, 1, EstadoVisitaPilotoOutbound.Realizada, "Revisión anual de los muelles de carga"),
+            new(2, -40, 1, EstadoVisitaPilotoOutbound.Realizada, "Inspección de la instalación de gases medicinales")
+        ]
+    };
 
     /// <summary>
-    /// El orden en que se siembran: los pequeños primero y C el último, para que una ejecución en un servidor con poca
-    /// memoria haya dejado hecho lo más posible si se interrumpe en el mayor.
+    /// J · Escaparate por vencer: dos Clientes empresariales con tres Centros y dos Subcontratas. Todo vigente salvo seis
+    /// documentos de Trabajador, el primero del primer Vehículo, uno de la Empresa propia y uno de la segunda Subcontrata,
+    /// que vencen exactamente a los cuatro días de la demostración; una Visita entra el día antes.
     /// </summary>
-    public static IReadOnlyList<TenantPilotoOutbound> EnOrdenDeSiembra { get; } = [E, B, G, A, F, H, D, C];
+    public static TenantPilotoOutbound J { get; } = new("J", NombreTenantJ, PerfilPilotoOutbound.EscaparatePorVencer, CarteraPilotoOutbound.GestorSegundo, 26,
+    [
+        new("Supermercados Garvesa, S.A.",
+        [
+            Centro("Supermercado de Alcorcón", "Alcorcón"), Centro("Centro logístico de Arganda", "Arganda del Rey")
+        ]),
+        new("Residencias Almenor, S.L.", [Centro("Residencia de mayores de Toledo", "Toledo")])
+    ])
+    {
+        TrabajadoresPorCentro = [10, 8, 8],
+        Subcontratas =
+        [
+            new("Montajes de Andamios Uxarra, S.L.", 4),
+            new("Electricidad Brezalva, S.L.", 3, Situacion: SituacionDocumentoPilotoOutbound.Urgente)
+        ],
+        Vehiculos =
+        [
+            new("Furgoneta de instalación", "Furgoneta de carga media", "6235KZB", "Furgoneta", "Propiedad", "Aseguradora Nortia", [0, 1],
+                SituacionDocumentoPilotoOutbound.Urgente),
+            new("Furgoneta de guardia", "Furgoneta compacta", "1879LPD", "Furgoneta", "Renting", "Seguros Almenara", [10]),
+            new("Plataforma elevadora", "Plataforma elevadora de tijera", "E2846BHJ", "Maquinaria de obra", "Alquiler", "Seguros Almenara", [18])
+        ],
+        Obras = [new("Renovación de la climatización de la residencia", 2, -45, 5, 3)],
+        Receta = new(Urgentes: 6),
+        UrgentesVencenALosDias = 4,
+        SituacionDocumentoDeEmpresa = SituacionDocumentoPilotoOutbound.Urgente,
+        CentroConPlataforma = 0,
+        AcreditaDocumentosDeEmpresa = true,
+        TiposDeEmpresaNoExigidos = CertificadosMensualesDeEmpresa,
+        ConSenalesDeIa = true,
+        ConDocumentoRenovado = true,
+        BajasDelUltimoAno = 2,
+        Visitas =
+        [
+            new(0, 3, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión de los equipos de frío del obrador"),
+            new(2, 15, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión de la caldera y del agua caliente sanitaria"),
+            new(1, -14, 1, EstadoVisitaPilotoOutbound.Realizada, "Mantenimiento de las cámaras del centro logístico")
+        ]
+    };
+
+    /// <summary>
+    /// K · Escaparate con pocos vencidos: dos Clientes empresariales con tres Centros y dos Subcontratas. Todo en orden
+    /// salvo cinco documentos vencidos: tres de Trabajador (los tres con su reclamación, dos sin respuesta y una
+    /// respondida), el primero del primer Vehículo y el primero de la primera Subcontrata.
+    /// </summary>
+    public static TenantPilotoOutbound K { get; } = new("K", NombreTenantK, PerfilPilotoOutbound.EscaparatePocosVencidos, CarteraPilotoOutbound.GestoraPrimera, 24,
+    [
+        new("Cementos Valdurna, S.A.",
+        [
+            Centro("Fábrica de cemento de Morata", "Morata de Tajuña"), Centro("Cantera de Chinchón", "Chinchón")
+        ]),
+        new("Aguas Depuradas Lirvana, S.A.", [Centro("Depuradora de Aranjuez", "Aranjuez")])
+    ])
+    {
+        TrabajadoresPorCentro = [9, 8, 7],
+        Subcontratas =
+        [
+            new("Montajes Galdarra, S.L.", 3, Situacion: SituacionDocumentoPilotoOutbound.Vencido),
+            new("Electricidad Ribalmo, S.L.", 3)
+        ],
+        Vehiculos =
+        [
+            new("Camión taller", "Camión ligero de taller", "4410JTV", "Camión", "Propiedad", "Aseguradora Nortia", [0, 1],
+                SituacionDocumentoPilotoOutbound.Vencido),
+            new("Furgoneta de mantenimiento", "Furgón de carga media", "8053KSC", "Furgoneta", "Propiedad", "Seguros Almenara", [9]),
+            new("Pick-up de guardia", "Pick-up doble cabina", "9127LGR", "Turismo", "Renting", "Seguros Almenara", [17])
+        ],
+        Obras = [new("Sustitución de la cinta transportadora de la cantera", 1, -20, 3, 3)],
+        Receta = new(Vencidos: 3),
+        CentroConPlataforma = 2,
+        AcreditaDocumentosDeEmpresa = true,
+        TiposDeEmpresaNoExigidos = CertificadosMensualesDeEmpresa,
+        ConSenalesDeIa = true,
+        ReclamacionesSinRespuesta = 2,
+        ReclamacionesRespondidas = 1,
+        BajasDelUltimoAno = 3,
+        Visitas =
+        [
+            new(0, 9, 1, EstadoVisitaPilotoOutbound.Futura, "Revisión del horno y de la torre de intercambiadores"),
+            new(2, 20, 2, EstadoVisitaPilotoOutbound.Futura, "Limpieza de los decantadores"),
+            new(1, -16, 1, EstadoVisitaPilotoOutbound.Realizada, "Revisión de la machacadora primaria")
+        ]
+    };
+
+    /// <summary>Los tres Tenants escaparate: el grande al día, el que tiene cosas por vencer y el que tiene unas pocas vencidas.</summary>
+    public static IReadOnlyList<TenantPilotoOutbound> Escaparate { get; } = [I, J, K];
+
+    /// <summary>A..K, en el orden de los perfiles.</summary>
+    public static IReadOnlyList<TenantPilotoOutbound> Tenants { get; } = [A, B, C, D, E, F, G, H, I, J, K];
+
+    /// <summary>
+    /// El orden en que se siembran: los pequeños primero y los grandes al final (C y el escaparate al día), para que una
+    /// ejecución en un servidor con poca memoria haya dejado hecho lo más posible si se interrumpe en el mayor.
+    /// </summary>
+    public static IReadOnlyList<TenantPilotoOutbound> EnOrdenDeSiembra { get; } = [E, B, G, A, F, H, D, K, J, C, I];
 
     /// <summary>
     /// El Tenant que lleva además las cuentas propias del piloto (un Administrador del Tenant y un Usuario de Cliente de su
@@ -737,6 +953,9 @@ public static class CatalogoPilotoOutbound
             PerfilPilotoOutbound.ConSubcontratas => new(new(60, 100), new(60, 95)),
             PerfilPilotoOutbound.Bloqueada => new(new(0, 60), new(0, 60)),
             PerfilPilotoOutbound.EventosConVoluntarios => new(new(60, 100), new(60, 100)),
+            PerfilPilotoOutbound.EscaparateAlDia => new(new(100, 100), new(100, 100), CentrosVigentesMinimo: 5),
+            PerfilPilotoOutbound.EscaparatePorVencer => new(new(90, 100), new(80, 100)),
+            PerfilPilotoOutbound.EscaparatePocosVencidos => new(new(85, 99), new(75, 100)),
             _ => throw new ArgumentOutOfRangeException(nameof(tenant))
         };
 }

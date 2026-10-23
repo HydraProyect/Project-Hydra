@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Centros.Queries.ObtenerCentros;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionExigidaDeCliente;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionBloqueantePendiente;
 using CaeManager.Application.Contactos.Queries.ObtenerAgendaContactos;
@@ -7,6 +7,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerEmpresasDeCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Clientes.Queries.ObtenerSubcontratasDeCliente;
 using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerToleranciasClienteEmpresarial;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Centros;
@@ -101,6 +102,7 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
     private bool _bloqueosLeidos;
 
     [Inject] private IMediator Mediator { get; set; } = default!;
+    [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
 
@@ -684,7 +686,8 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             exigida = await Mediator.Send(new ObtenerDocumentacionExigidaDeClienteQuery(detalle.Id), _cancelacion);
             if (exigida is not null)
-                documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } ? 1 : 0);
+                // El certificado de la Seguridad Social ya es un requisito del catálogo: solo suma si ningún Centro lo exige.
+                documentacion = exigida.Requisitos.Count + (_empresas is { Count: > 0 } && !exigida.Requisitos.Any(r => r.EsCertificadoTgss) ? 1 : 0);
         }
         catch (Exception)
         {
@@ -741,30 +744,50 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             ? Textos["EmpresasDelCentro", centro.EmpresaRazonSocial].Value
             : null;
 
-    /// <summary>Motivos documentales, bloqueos de plataforma y Trabajadores bloqueados, sin partes en cero ni confundir pendientes con vencidos.</summary>
+    /// <summary>
+    /// Motivos documentales, rechazos y pendientes de la plataforma CAE y Trabajadores bloqueados, sin partes en cero ni
+    /// confundir pendientes con vencidos. Sale de los mismos recuentos que el estado del Centro
+    /// (<c>CalculoEstadoCentroService</c> → <see cref="CentroListaDto.Recuentos"/>), así que lo que el estado cuenta aquí se
+    /// nombra. «Todo validado en la plataforma» solo se afirma de un Centro Vigente sin ninguna causa: estado TALVEG ≠ estado
+    /// en la plataforma. Vacío si no hay nada que decir.
+    /// </summary>
     private string MotivosCentro(CentroListaDto centro)
     {
+        if (centro.Estado == EstadoCentro.SinGestionCae)
+            return string.Empty;
         var partes = new List<string>();
         if (centro.Recuentos.VencidasPorFecha.Count > 0)
             partes.Add(Plural(centro.Recuentos.VencidasPorFecha.Count, "DetalleVencidosUno", "DetalleVencidosVarios"));
         if (centro.Recuentos.Pendientes.Count > 0)
             partes.Add(Textos[centro.Recuentos.Pendientes.Count == 1 ? "DetallePendienteUno" : "DetallePendientes", centro.Recuentos.Pendientes.Count]);
+        if (centro.Recuentos.Bloqueos.Count > 0)
+            partes.Add(Plural(centro.Recuentos.Bloqueos.Count, "DetalleBloqueaAccesoUno", "DetalleBloqueanAccesoVarios"));
+        if (centro.Recuentos.TotalPendientesEnPlataforma > 0)
+            partes.Add(Plural(centro.Recuentos.TotalPendientesEnPlataforma, "DetallePendienteValidacionUno", "DetallePendientesValidacionVarios"));
         var bloqueados = _bloqueos.Where(b => b.CentroId == centro.Id).Select(b => b.TrabajadorId).Distinct().Count();
         if (bloqueados > 0)
             partes.Add(Textos[bloqueados == 1 ? "DetalleTrabajadorBloqueadoUno" : "DetalleTrabajadoresBloqueados", bloqueados]);
         if (centro.Recuentos.TotalProximas > 0)
             partes.Add(Plural(centro.Recuentos.TotalProximas, "DetalleProximosUno", "DetalleProximosVarios"));
-        return string.Join(" · ", partes);
+        if (partes.Count > 0)
+            return string.Join(" · ", partes);
+        // Lista positiva: solo un Centro Vigente está validado. Cualquier otro estado sin causa en los recuentos se calla
+        // en vez de afirmarlo.
+        return centro.Estado == EstadoCentro.Vigente ? Textos["CentroTodoValidado"].Value : string.Empty;
     }
 
     /// <summary>
-    /// Maqueta vigente: Empresas y recuentos en líneas distintas; el bloqueo de la plataforma CAE se rotula junto al nombre.
+    /// Maqueta 21-10: Empresas y recuentos en líneas distintas; el bloqueo de la plataforma CAE se rotula junto al nombre.
+    /// Un Centro sin gestión CAE lleva solo «Sin gestión CAE».
     /// </summary>
     private IReadOnlyList<string> LineasDetalleCentro(CentroListaDto centro)
     {
         var lineas = new List<string>();
         if (centro.Estado == EstadoCentro.SinGestionCae)
+        {
             lineas.Add(Textos["CentroSinGestionCaeLinea"].Value);
+            return lineas;
+        }
         if (EmpresasDelCentro(centro) is { } contratista)
             lineas.Add(contratista);
         var motivos = MotivosCentro(centro);
@@ -913,7 +936,12 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
             if (resultado.EsFallido)
                 _errorBaja = resultado.Error.Mensaje;
             else
+            {
+                WorkspaceService.RetirarSiEstaAbierto(EntidadWorkspace.Cliente, [detalle.Id]);
+                ToastService.Mostrar(Textos["ToastClienteBaja", detalle.RazonSocial].Value, TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerBajaAsync(detalle.Id));
                 NavigationManager.NavigateTo("/clientes");
+            }
         }
         catch (Exception)
         {
@@ -924,6 +952,26 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (generacion == _generacion)
                 _dandoDeBaja = false;
+        }
+    }
+
+    private async Task DeshacerBajaAsync(Guid id)
+    {
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarClienteCommand(id));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+            {
+                ToastService.Mostrar(Textos["ToastClienteRestaurado"].Value, TonoToast.Exito);
+                // Vuelve a la ficha: la lista de Clientes ya se cargó sin él y no se recargaría sola.
+                NavigationManager.NavigateTo($"/clientes/{id}");
+            }
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorRestaurarLote"].Value, TonoToast.Error);
         }
     }
 

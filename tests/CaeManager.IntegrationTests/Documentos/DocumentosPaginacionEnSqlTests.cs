@@ -1,4 +1,6 @@
-﻿using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+﻿using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
@@ -148,12 +150,70 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         resultado.Elementos.Should().HaveCount(2);
     }
 
-    private CaeManagerDbContext CrearContexto()
+    [Theory]
+    [InlineData(1)]
+    [InlineData(6)]
+    public async Task La_pagina_y_sus_acreditaciones_usan_cuatro_lecturas_sin_consulta_separada_de_proveedores(int tamano)
+    {
+        var contador = new ContadorLecturas();
+        await using var contexto = CrearContexto(contador);
+        var handler = new ObtenerDocumentosQueryHandler(
+            contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+            new AlcanceDatosServiceFalso(), contexto, contexto);
+
+        var resultado = await handler.Handle(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: tamano), default);
+
+        resultado.Elementos.Should().HaveCount(tamano);
+        contador.Total.Should().Be(4, "parámetros, total, página y acreditaciones con nombre de plataforma");
+    }
+
+    [Theory]
+    [InlineData]
+    [InlineData(EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Vencido, EstadoDocumento.Urgente)]
+    [InlineData(EstadoDocumento.EnTolerancia)]
+    public async Task Con_recuentos_el_total_sale_de_ellos_sin_otra_lectura_del_universo_y_no_cambia(params EstadoDocumento[] filtro)
+    {
+        // El listado pide siempre la franja de recuentos: el total se deriva de ella en vez de contar otra vez la
+        // unión de las cinco ramas. El total y la página tienen que ser los mismos que sin recuentos.
+        IReadOnlyList<EstadoDocumento>? estados = filtro.Length == 0 ? null : filtro;
+        await using var referencia = CrearContexto();
+        var sinRecuentos = await new ObtenerDocumentosQueryHandler(
+                referencia, referencia, referencia, referencia, referencia, referencia, referencia,
+                new AlcanceDatosServiceFalso(), referencia, referencia)
+            .Handle(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 2, Estados: estados), default);
+
+        var contador = new ContadorLecturas();
+        await using var contexto = CrearContexto(contador);
+        var conRecuentos = await new ObtenerDocumentosQueryHandler(
+                contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+                new AlcanceDatosServiceFalso(), contexto, contexto)
+            .Handle(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 2, Estados: estados, ConRecuentosPorEstado: true), default);
+
+        conRecuentos.TotalElementos.Should().Be(sinRecuentos.TotalElementos);
+        conRecuentos.Elementos.Select(d => d.Id).Should().Equal(sinRecuentos.Elementos.Select(d => d.Id));
+        contador.Total.Should().Be(sinRecuentos.Elementos.Count == 0 ? 3 : 4,
+            "parámetros, recuentos, página y (si hay filas) acreditaciones: el total ya no es una lectura aparte");
+    }
+
+    private sealed class ContadorLecturas : DbCommandInterceptor
+    {
+        public int Total { get; private set; }
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Total++;
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    private CaeManagerDbContext CrearContexto(DbCommandInterceptor? contador = null)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
+            .AddInterceptors(contador is null ? [new TenantSelladoInterceptor(tenantActual)] : [new TenantSelladoInterceptor(tenantActual), contador])
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);

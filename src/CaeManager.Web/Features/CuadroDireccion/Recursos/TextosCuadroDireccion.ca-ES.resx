@@ -121,7 +121,7 @@
     <value>{0} altas este mes</value>
   </data>
   <data name="KpiCumplimiento" xml:space="preserve">
-    <value>Cumplimiento documental</value>
+    <value>Documents de Treballador al dia</value>
   </data>
   <data name="KpiCumplimientoSub" xml:space="preserve">
     <value>foto de hoy, no se reconstruye en meses pasados</value>
@@ -650,6 +650,18 @@
   </data>
   <data name="Cargando" xml:space="preserve">
     <value>Calculando…</value>
+  </data>
+  <data name="CargaFaseEmpresas" xml:space="preserve">
+    <value>Reunint les dades de les Empreses gestionades…</value>
+  </data>
+  <data name="CargaFasePreparando" xml:space="preserve">
+    <value>Preparant el quadre…</value>
+  </data>
+  <data name="ExtranjerosError" xml:space="preserve">
+    <value>No hem pogut comptar els Treballadors estrangers. Torna-ho a provar.</value>
+  </data>
+  <data name="GestionesError" xml:space="preserve">
+    <value>No hem pogut calcular les gestions per dia. Torna-ho a provar.</value>
   </data>
   <data name="EtiquetaMes" xml:space="preserve">
     <value>Mes</value>
@@ -1187,5 +1199,8 @@
   </data>
   <data name="TarifasPie" xml:space="preserve">
     <value>Els canvis s&apos;apliquen des del mes en curs. Els mesos tancats conserven les unitats i la tarifa que tenien en tancar-se. El Client empresarial nou no es cobra.</value>
+  </data>
+  <data name="TituloColumnaCumplimiento" xml:space="preserve">
+    <value>Documents exigits als seus Treballadors als seus Centres que estan al dia; els que falten compten en contra (el mateix que el llistat d'Empreses)</value>
   </data>
 </root>

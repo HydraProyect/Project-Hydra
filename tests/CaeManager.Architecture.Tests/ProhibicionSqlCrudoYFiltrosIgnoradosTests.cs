@@ -77,6 +77,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // las dos consultas van acotadas al Tenant actual.
         [("src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs", ".IgnoreQueryFilters()")] = 2,
         [("src/CaeManager.Application/Subcontratas/Commands/RestaurarSubcontrata/RestaurarSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Application/Subcontratas/Commands/RestaurarVerificacionExterna/RestaurarVerificacionExternaSubcontrataCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Vehiculos/Commands/RestaurarVehiculo/RestaurarVehiculoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Proyectos/Commands/RestaurarProyecto/RestaurarProyectoCommand.cs", ".IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Application/Gestiones/Commands/RestaurarGestion/RestaurarGestionCommand.cs", ".IgnoreQueryFilters()")] = 1,
@@ -149,6 +150,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
             """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
 
+        // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
+        // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
+        // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
+        // usuario del contexto firmado, y deja la traza. Solo los identificadores del contrato y del Documento, parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaAutorizacion>($"SELECT * FROM app_inbound_autorizacion_del_contrato({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
@@ -171,6 +183,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
+            ".SqlQuery<string>(")] = 1,
+
+        // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
+        // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
+        // conexión lleva cae_app_soporte (solo SELECT sobre RegistrosAccesoDocumentoSensible),
+        // así que la única puerta es la función SECURITY DEFINER
+        // app_registrar_acceso_documento_sensible_por_soporte (migración
+        // RegistraAccesoDocumentoSensiblePorSoporte), ejecutable solo por ese rol, que vuelve
+        // a comprobar la sesión y la concesión contra el contexto RLS firmado y pone ella
+        // Tenant, actor y vía. No lee filas: devuelve un código. Los cinco valores van
+        // parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RegistroAccesoDocumentoSensibleRepository.cs",
             ".SqlQuery<string>(")] = 1,
 
         // Anonimizar a un Trabajador enmascara sus datos personales en el historial de

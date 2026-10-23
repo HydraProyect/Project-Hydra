@@ -30,7 +30,10 @@ namespace CaeManager.Web.Components.Layout;
 public static class AdmisionDeDestinos
 {
     /// <summary>Cómo se decide si un destino se ofrece: por un enlace del catálogo, por una subopción, o por roles propios.</summary>
-    private sealed record Regla(string? EnlaceId = null, string? SubopcionId = null, string? Roles = null, bool SoloAutenticado = false);
+    /// <param name="FueraDelMenuDeCliente">El rol Cliente no lo recibe aunque la regla lo admita: su menú es fijo (ver <see cref="RutasDelMenuDeCliente"/>).</param>
+    private sealed record Regla(
+        string? EnlaceId = null, string? SubopcionId = null, string? Roles = null, bool SoloAutenticado = false,
+        bool FueraDelMenuDeCliente = false);
 
     // Las claves son rutas sin barra inicial ni query: lo que devuelve Normalizar.
     private static readonly Dictionary<string, Regla> Reglas = new(StringComparer.OrdinalIgnoreCase)
@@ -78,6 +81,13 @@ public static class AdmisionDeDestinos
         // Páginas personales: las abre cualquier cuenta con sesión, sea cual sea su rol.
         ["mi-avatar"] = new(SoloAutenticado: true),
         ["mi-firma"] = new(SoloAutenticado: true),
+
+        // Vega a pantalla completa: cualquier cuenta con sesión salvo el rol Cliente, cuyo menú
+        // fijo no lo lleva. Esto solo decide qué destinos se ofrecen (menú y paleta), no es una
+        // restricción: la página exige sesión y nada más, y el panel flotante del layout se le
+        // sigue enseñando al rol Cliente como antes. Si el rol Cliente debe tener Vega está por
+        // decidir. Lo que cada uno puede pedirle lo deciden los Commands, no la pantalla.
+        ["asistente"] = new(SoloAutenticado: true, FueraDelMenuDeCliente: true),
     };
 
     /// <summary>
@@ -136,6 +146,8 @@ public static class AdmisionDeDestinos
 
             if (esCliente && RutasDelMenuDeCliente.Contains(ruta))
                 return true;
+            if (esCliente && regla.FueraDelMenuDeCliente)
+                return false;
 
             if (regla.EnlaceId is not null)
                 return enlaces.Contains(regla.EnlaceId);

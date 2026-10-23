@@ -16,14 +16,14 @@
 <span class="@Clases" aria-hidden="true">
     @if (Variante == VarianteAvatarUsuario.Sistema)
     {
-        @* El rombo no es texto que haya que leer: «Sistema» lo dice el texto de al lado. *@
-        <span class="avatar-usuario-marca">◆</span>
+        @* La marca es decorativa: «Sistema» lo dice el texto de al lado. *@
+        <span class="avatar-usuario-marca">@(UsarIniciales ? "S" : "◆")</span>
     }
     else if (Variante == VarianteAvatarUsuario.Eliminado)
     {
-        <span class="avatar-usuario-marca">?</span>
+        <span class="avatar-usuario-marca">@(UsarIniciales ? "—" : "?")</span>
     }
-    else if (_elegido is not null)
+    else if (_elegido is not null && !UsarIniciales)
     {
         <span class="avatar-usuario-glifo">@_elegido.Motivo.Emoji</span>
     }
@@ -41,6 +41,9 @@
 
     /// <summary>Clave del avatar elegido (<c>zorro-verde</c>), o <c>null</c> para pintar las iniciales.</summary>
     [Parameter] public string? Avatar { get; set; }
+
+    /// <summary>Pinta iniciales, «S» para Sistema y «—» para una cuenta eliminada.</summary>
+    [Parameter] public bool UsarIniciales { get; set; }
 
     [Parameter] public TamanoAvatarUsuario Tamano { get; set; } = TamanoAvatarUsuario.Medio;
 
@@ -74,7 +77,7 @@
 
             // Las iniciales van siempre sobre el par azul, el único medido como texto sobre fondo.
             // El emoji lleva además el anillo interior (--color-avatar-anillo).
-            var tono = _elegido is null ? string.Empty : $" avatar-usuario-emoji avatar-usuario-tono-{_elegido.Tono}";
+            var tono = _elegido is null || UsarIniciales ? string.Empty : $" avatar-usuario-emoji avatar-usuario-tono-{_elegido.Tono}";
             return $"avatar-usuario{tamano}{tono}";
         }
     }

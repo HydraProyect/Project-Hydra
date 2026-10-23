@@ -32,7 +32,7 @@
         {
             <div class="plan-aviso" role="status">
                 <span>@Textos["Plan_TextoNombraOtroTenant", recomendado.Nombre]</span>
-                <button type="button" class="plan-opcion" @onclick="() => ElegirTenant(recomendado.TenantId)" @onkeydown:stopPropagation="true">
+                <button type="button" class="plan-opcion" @onclick="() => ElegirTenant(recomendado.TenantId)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
                     @Textos["Plan_CambiarA", recomendado.Nombre]
                 </button>
             </div>
@@ -45,7 +45,7 @@
                 {
                     var pulsado = Vista.Plan.Destino?.Tenant?.TenantId == tenant.TenantId;
                     <button type="button" class="plan-opcion" aria-pressed="@(pulsado ? "true" : "false")" disabled="@Ocupado"
-                            @onclick="() => ElegirTenant(tenant.TenantId)" @onkeydown:stopPropagation="true">
+                            @onclick="() => ElegirTenant(tenant.TenantId)" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
                         @tenant.Nombre
                     </button>
                 }
@@ -108,10 +108,10 @@
         }
 
         <div class="plan-acciones">
-            <button type="button" class="plan-confirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown:stopPropagation="true">
+            <button type="button" class="plan-confirmar" @ref="_botonConfirmar" aria-disabled="@(Vista.PuedeConfirmar && !Ocupado ? "false" : "true")" @onclick="ConfirmarAsync" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
                 @TextoBotonConfirmar<span class="plan-kbd" aria-hidden="true">@Textos["Plan_TeclaEnter"]</span>
             </button>
-            <button type="button" class="plan-descartar" disabled="@(Ocupado || Vista.TareaId is null)" @onclick="DescartarAsync" @onkeydown:stopPropagation="true">
+            <button type="button" class="plan-descartar" disabled="@(Ocupado || Vista.TareaId is null)" @onclick="DescartarAsync" @onkeydown="TeclaEnBotonAsync" @onkeydown:stopPropagation="true">
                 @Textos["Plan_Descartar"]
             </button>
         </div>
@@ -129,7 +129,7 @@ else if (Vista.Estado == EstadoVistaPlan.Confirmado)
 }
 else
 {
-    <div class="plan plan-cerrado" role="group" aria-label="@Titulo">
-        <p class="plan-nota" role="status">@Textos["Plan_Descartado", Titulo]</p>
+    <div class="plan plan-cerrado plan-anulado" role="group" aria-label="@Titulo">
+        <p class="plan-nota" role="status">@Textos["Plan_Descartado"]</p>
     </div>
 }

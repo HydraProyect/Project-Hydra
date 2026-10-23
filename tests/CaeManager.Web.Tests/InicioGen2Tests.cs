@@ -687,13 +687,93 @@ public class InicioGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Bloqueado» es un estado del Trabajador, no del Centro (corrección del propietario, 2026-10-03): la pista del KPI
-    /// cuenta Trabajadores bloqueados, no Centros. Un mismo Trabajador bloqueado en dos Centros (o por dos requisitos) es UN
-    /// Trabajador; dos Trabajadores bloqueados en el mismo Centro son dos. Un recién dado de alta sin documentación cuenta
-    /// igual que cualquier otro.
+    /// La pista del KPI «Centros / plataformas» habla de Centros (revisión 1:1 del 2026-10-21): dice los Centros de Trabajo con
+    /// bloqueo de la plataforma, nunca «N trabajadores bloqueados». Los Trabajadores bloqueados siguen diciéndose bajo el anillo
+    /// y en la cola («Bloquea acceso»), donde el propietario los quiere (2026-10-03).
     /// </summary>
     [Fact]
-    public void La_pista_del_kpi_cuenta_trabajadores_bloqueados_no_centros()
+    public void La_pista_del_kpi_de_centros_cuenta_centros_bloqueados_no_trabajadores()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 2, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 centros con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void La_pista_del_kpi_de_centros_concuerda_en_singular()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 1 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 centro con trabajadores bloqueados");
+    }
+
+    [Fact]
+    public void Sin_centros_bloqueados_el_kpi_de_centros_no_lleva_pista_aunque_haya_trabajadores_bloqueados()
+    {
+        var cut = Renderizar(new MediadorDeInicio { Kpis = new MediadorDeInicio().Kpis with { CentrosBloqueados = 0, TrabajadoresBloqueados = 3 } });
+        PistaDelKpi(cut, "Centros / plataformas").Should().BeNull();
+    }
+
+    /// <summary>
+    /// Las cifras cuadran y separan conformes de no conformes: el anillo dice 105 al día de 132; «Vigentes» (80) + 25 más al
+    /// día (5 urgentes + 10 próximos + 10 sin caducidad) = 105, y + 27 no al día (10 vencidos + 17 sin confirmar) = 132.
+    /// </summary>
+    [Fact]
+    public void La_pista_de_vigentes_reparte_el_resto_de_los_documentos_que_mide_el_anillo()
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with
+            {
+                DocumentosVigentes = 80,
+                DocumentosVencidos = 10,
+                DocumentosUrgentes = 5,
+                DocumentosProximos = 10,
+                DocumentosSinConfirmar = 17,
+                DocumentosSinCaducidad = 10
+            }
+        });
+
+        PistaDelKpi(cut, "Vigentes").Should().Be("25 más al día (por vencer o sin caducidad) · 27 no al día (vencidos o sin confirmar)");
+        cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim().Should().StartWith("105 de 132 documentos de Trabajador al día");
+    }
+
+    /// <summary>«Desglosar por Cliente» solo con más de un Cliente empresarial: con uno repetiría la misma cifra.</summary>
+    [Theory]
+    [InlineData(1, Roles.Cliente, false)]
+    [InlineData(1, Roles.GestorCae, false)]
+    [InlineData(2, Roles.GestorCae, true)]
+    public void Desglosar_por_Cliente_solo_aparece_con_mas_de_un_Cliente_empresarial(int clientes, string rol, bool aparece)
+    {
+        var cut = Renderizar(new MediadorDeInicio
+        {
+            Kpis = new MediadorDeInicio().Kpis with { ClientesEmpresarialesEnAlcance = clientes }
+        }, rol: rol);
+
+        cut.FindAll(".dashboard-resumen-anillo-enlace").Any(a => a.TextContent.Contains("Desglosar por Cliente")).Should().Be(aparece);
+    }
+
+    /// <summary>El saludo toma el nombre de la sesión (claim de TenantClaimsPrincipalFactory) sin releer la cuenta.</summary>
+    [Fact]
+    public void El_saludo_lleva_el_nombre_de_pila_que_trae_la_sesion()
+    {
+        var cut = Renderizar(new MediadorDeInicio(), autenticacion: new AutenticacionConNombre("Ramón Ibáñez Cuesta"), rol: Roles.Cliente);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(", Ramón"));
+    }
+
+    private sealed class AutenticacionConNombre(string nombre) : AuthenticationStateProvider
+    {
+        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
+            Task.FromResult(new AuthenticationState(new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(
+            [
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, "ramon"),
+                new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, Roles.Cliente),
+                new System.Security.Claims.Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto, nombre)
+            ], "prueba"))));
+    }
+
+    /// <summary>La cola cuenta Trabajadores bloqueados: un mismo Trabajador en dos Centros es UN Trabajador (cabecera «M bloquean acceso»).</summary>
+    [Fact]
+    public void La_cabecera_de_la_cola_cuenta_trabajadores_bloqueados_no_centros()
     {
         var ana = Guid.NewGuid();
         var beto = Guid.NewGuid();
@@ -710,7 +790,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("2 trabajadores bloqueados");
     }
 
     /// <summary>
@@ -729,7 +808,6 @@ public class InicioGen2Tests : BunitContext
 
         MetaDeSeccion(cut, "Requiere atención").Should().Be("1 grupo · 1 bloquea acceso");
         cut.Markup.Should().Contain("Bloquea acceso");
-        PistaDelKpi(cut, "Centros / plataformas").Should().Be("1 trabajador bloqueado");
     }
 
     /// <summary>
@@ -1018,7 +1096,7 @@ public class InicioGen2Tests : BunitContext
         var cut = Renderizar(new MediadorDeInicio());
 
         cut.Find(".dashboard-resumen-anillo-detalle").TextContent.Trim()
-            .Should().Be("3.983 de 4.383 documentos al día en cartera");
+            .Should().Be("3.983 de 4.383 documentos de Trabajador al día (vigentes, por vencer y sin caducidad)");
 
         DestinoDelKpi(cut, "Trabajadores activos").Should().Be("/trabajadores");
         DestinoDelKpi(cut, "Centros / plataformas").Should().Be("/centros");

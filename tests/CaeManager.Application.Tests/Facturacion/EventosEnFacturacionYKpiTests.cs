@@ -247,5 +247,6 @@ public class EventosEnFacturacionYKpiTests
         IQueryable<SelloEmpresa> IDocumentosQueryContext.SellosEmpresa => throw new NotSupportedException();
         IQueryable<AcreditacionDocumentoPlataforma> IDocumentosQueryContext.AcreditacionesDocumentoPlataforma => throw new NotSupportedException();
         IQueryable<RechazoAcreditacionDocumentoPlataforma> IDocumentosQueryContext.RechazosAcreditacionDocumentoPlataforma => throw new NotSupportedException();
+        IQueryable<CambioEstadoAcreditacionPlataforma> IDocumentosQueryContext.CambiosEstadoAcreditacionPlataforma => throw new NotSupportedException();
     }
 }

@@ -83,6 +83,30 @@ public partial class VisitasGen2Tests
         mediator.Comandos.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Humo del bloque 1 de CAMBIOS-SESION-2026-10-21 en Visitas: el grupo nace plegado (sin filas), su cabecera es un botón con
+    /// aria-expanded, dice «· N», agrupada se pide todo (el tamaño de página no corta los grupos) y un clic lo abre.
+    /// </summary>
+    [Fact]
+    public async Task Agrupar_nace_plegado_con_cabecera_boton_y_se_abre_con_un_clic()
+    {
+        var mediator = new MediatorVisitas { Visitas = { Visita("Centro Norte") } };
+        var cut = Renderizar(mediator);
+        FiltrosVisitasDePrueba.Pastilla(cut, "Agrupar").Click();
+        await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por Cliente").ClickAsync(new MouseEventArgs());
+
+        mediator.ConsultasDeLista.Last().TamanoPagina.Should().BeGreaterThan(100, "agrupada se piden todas las filas filtradas");
+        var cabecera = cut.Find(".visitas-grupo button.grupo-lista-cabecera");
+        cabecera.GetAttribute("aria-expanded").Should().Be("false");
+        cut.Find(".visitas-grupo .grupo-lista-contador").TextContent.Trim().Should().Be("· 1");
+        cut.FindAll("tr[data-id]").Should().BeEmpty("todos los grupos empiezan plegados");
+
+        await cabecera.ClickAsync(new MouseEventArgs());
+
+        cut.Find(".visitas-grupo button.grupo-lista-cabecera").GetAttribute("aria-expanded").Should().Be("true");
+        cut.FindAll("tr[data-id]").Should().ContainSingle();
+    }
+
     [Fact]
     public async Task Ventana_se_aplica_en_consulta_y_se_quita_con_su_chip()
     {

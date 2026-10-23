@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -334,7 +334,7 @@
     <value>Cancel·lar</value>
   </data>
   <data name="ToleranciaIntro" xml:space="preserve">
-    <value>Dies que cada document continua valent per accedir als centres d'aquest Client després del seu venciment. Cada centre hereta aquest valor tret que fixi el seu en els seus requisits; 0 és sense tolerància.</value>
+    <value>Dies que un document vençut continua admetent-se als centres d'aquest Client.</value>
   </data>
   <data name="ToleranciaOpcionSin" xml:space="preserve">
     <value>Sense tolerància (0 dies)</value>
@@ -358,7 +358,7 @@
     <value>No has canviat cap tolerància.</value>
   </data>
   <data name="ToleranciaGuardada" xml:space="preserve">
-    <value>Toleràncies del Client actualitzades.</value>
+    <value>Tolerància de documents desada</value>
   </data>
   <data name="ToleranciaErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar les toleràncies. Torna-ho a provar en uns segons.</value>
@@ -412,7 +412,7 @@
     <value>Sense alertes de vigència obertes entre els seus treballadors</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
-    <value>Deshacer</value>
+    <value>Desfer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} Client(s) restaurat(s).</value>
@@ -499,6 +499,10 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 treballador bloquejat</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloquejat per la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloquejats per la plataforma</value></data>
+  <data name="DetalleBloqueaAccesoUno" xml:space="preserve"><value>1 document bloqueja l'accés</value></data>
+  <data name="DetalleBloqueanAccesoVarios" xml:space="preserve"><value>{0} documents bloquegen l'accés</value></data>
+  <data name="DetallePendienteValidacionUno" xml:space="preserve"><value>1 pendent de validació</value></data>
+  <data name="DetallePendientesValidacionVarios" xml:space="preserve"><value>{0} pendents de validació</value></data>
   <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centre</value></data>
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centre amb gestió CAE sense incidències</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centres sense gestió CAE</value></data>
@@ -637,18 +641,24 @@
   <data name="DocumentosExigidosError" xml:space="preserve"><value>No hem pogut carregar els documents exigits</value></data>
   <data name="DocumentosExigidosErrorDescripcion" xml:space="preserve"><value>Torna-ho a provar d’aquí a uns segons.</value></data>
   <data name="ListaDocumentosExigidos" xml:space="preserve"><value>Documents que exigeix el Client</value></data>
-  <data name="ListaEmpresasCertificado" xml:space="preserve"><value>Empreses del Client i el seu certificat de la Seguretat Social</value></data>
-  <data name="CertificadoEmpresasUna" xml:space="preserve"><value>{0} Empresa</value></data>
-  <data name="CertificadoEmpresasVarias" xml:space="preserve"><value>{0} Empreses</value></data>
   <data name="SolicitudesCero" xml:space="preserve"><value>Sense sol·licituds</value></data>
   <data name="SolicitudesUna" xml:space="preserve"><value>1 sol·licitud</value></data>
   <data name="SolicitudesVarias" xml:space="preserve"><value>{0} sol·licituds</value></data>
   <data name="ExigidoEnCentroUnico" xml:space="preserve"><value>Al seu Centre</value></data>
   <data name="ExigidoEnCentros" xml:space="preserve"><value>A {0} de {1} Centres</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestiona</value></data>
-  <data name="RequisitoAmbitoEmpresa" xml:space="preserve"><value>Empresa ocupadora</value></data>
-  <data name="RequisitoAmbitoTrabajador" xml:space="preserve"><value>Treballador</value></data>
   <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloqueja l’accés</value></data>
+  <data name="RequisitoCertificadoDetalle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="RequisitoSeExige" xml:space="preserve"><value>S’exigeix</value></data>
+  <data name="RequisitoVerHistorial" xml:space="preserve"><value>Veure historial</value></data>
+  <data name="RequisitoVerCentros" xml:space="preserve"><value>Veure Centres</value></data>
+  <data name="RequisitoGrupoEmpresa" xml:space="preserve"><value>El que exigeix a l’Empresa ocupadora</value></data>
+  <data name="RequisitoGrupoTrabajador" xml:space="preserve"><value>El que exigeix als Treballadors</value></data>
+  <data name="RequisitoGrupoUno" xml:space="preserve"><value>1 document</value></data>
+  <data name="RequisitoGrupoVarios" xml:space="preserve"><value>{0} documents</value></data>
+  <data name="RequisitoGrupoBloqueaUno" xml:space="preserve"><value>1 bloqueja l’accés</value></data>
+  <data name="RequisitoGrupoBloqueanVarios" xml:space="preserve"><value>{0} bloquegen l’accés</value></data>
+  <data name="RequisitoGrupoSinBloqueos" xml:space="preserve"><value>Sense bloquejos</value></data>
   <data name="CertificadoSinSolicitar" xml:space="preserve"><value>Sense sol·licitar</value></data>
   <data name="CertificadoPendienteTgss" xml:space="preserve"><value>Pendent TGSS</value></data>
   <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silenci)</value></data>
@@ -669,4 +679,11 @@
   <data name="BajaTitulo" xml:space="preserve"><value>Dona de baixa el Client</value></data>
   <data name="BajaMensaje" xml:space="preserve"><value>Es donarà de baixa {0}. Vols continuar?</value></data>
   <data name="BajaError" xml:space="preserve"><value>No hem pogut donar de baixa el Client. Torna-ho a provar en uns segons.</value></data>
+  <data name="ToastClienteBaja" xml:space="preserve"><value>{0} donat de baixa</value></data>
+  <data name="ToastClienteRestaurado" xml:space="preserve"><value>Baixa del Client desfeta</value></data>
+  <data name="CentroTodoValidado" xml:space="preserve"><value>Tot validat a la plataforma</value></data>
+  <data name="InformacionGuardada" xml:space="preserve"><value>Informació desada</value></data>
+  <data name="NotaInternaGuardada" xml:space="preserve"><value>Nota interna desada</value></data>
+  <data name="CifCopiado" xml:space="preserve"><value>CIF {0} copiat al porta-retalls</value></data>
+  <data name="CodigoClienteCopiado" xml:space="preserve"><value>Codi de client copiat al porta-retalls</value></data>
 </root>

@@ -40,10 +40,24 @@ public static class TipoItemBandejaUi
         _ => TonoBadge.Neutro
     };
 
-    /// <summary>Overload por tipo puro — usado donde no hay un ítem concreto a mano (p. ej. agrupar recuentos por severidad en GrupoCola).</summary>
-    public static TonoBadge Tono(TipoItemBandeja tipo) => Tono(new ItemBandejaDto(
-        Id: "", Tipo: tipo, Titulo: "", Subtitulo: "", Fecha: null,
-        TrabajadorId: null, CentroId: null, DocumentoId: null, TipoDocumentoId: null, RequisitoId: null));
+    /// <summary>
+    /// Clase de un pendiente para los recuentos de un grupo de la cola (GrupoCola): su orden y la clave de su rótulo en
+    /// TextosMiTrabajo (en singular y en plural). «vencido» es solo lo que venció en TALVEG, lo mismo que
+    /// cuentan Inicio y Alertas; lo que la plataforma CAE da por vencido se rotula aparte («vencido en la plataforma»)
+    /// porque ni Inicio ni Alertas lo cuentan como vencido. Un documento que nunca se aportó es «faltante», el mismo nombre
+    /// que su grupo en Alertas, y un Trabajador sin acceso a un Centro es un «bloqueo de acceso».
+    /// </summary>
+    public static (int Orden, string ClaveUno, string ClaveVarios) ClaseDeRecuento(TipoItemBandeja tipo) => tipo switch
+    {
+        TipoItemBandeja.Vencido => (0, "RecuentoVencidoUno", "RecuentoVencidoVarios"),
+        TipoItemBandeja.Faltante => (1, "RecuentoFaltanteUno", "RecuentoFaltanteVarios"),
+        TipoItemBandeja.RequisitoPendiente => (2, "RecuentoBloqueoUno", "RecuentoBloqueoVarios"),
+        TipoItemBandeja.PlataformaVencida => (3, "RecuentoVencidoEnPlataformaUno", "RecuentoVencidoEnPlataformaVarios"),
+        TipoItemBandeja.PlataformaRechazada => (4, "RecuentoRechazadoUno", "RecuentoRechazadoVarios"),
+        TipoItemBandeja.SugerenciaVisitaUrgente or TipoItemBandeja.VisitaUrgente => (5, "RecuentoVisitaUno", "RecuentoVisitaVarios"),
+        TipoItemBandeja.Urgente or TipoItemBandeja.VencimientoProximo => (6, "RecuentoPorVencerUno", "RecuentoPorVencerVarios"),
+        _ => (7, "RecuentoPendienteUno", "RecuentoPendienteVarios")
+    };
 
     public static string Texto(ItemBandejaDto item) => item.Tipo switch
     {

@@ -135,11 +135,9 @@ public class ObtenerAlertasQueryHandler(
         var voluntariosInactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
 
         var vigenciaFilas = await (
-            from documento in documentosContext.Documentos.Operativos()
-            where documento.TrabajadorId != null
-            where trabajadorIdsVisibles == null || trabajadorIdsVisibles.Contains(documento.TrabajadorId!.Value)
+            from documento in DocumentosConAlertaDeVigencia.DeTrabajador(
+                documentosContext, trabajadoresContext, tiposDocumentoContext, proyectosContext, trabajadorIdsVisibles, hoy)
             join trabajador in trabajadoresContext.Trabajadores on documento.TrabajadorId!.Value equals trabajador.Id
-            where voluntariosInactivos.Contains(trabajador.Id) == false
             join tipoDocumento in tiposDocumentoContext.TiposDocumento on documento.TipoDocumentoId equals tipoDocumento.Id
             where documento.FechaVencimiento != null && documento.FechaVencimiento <= fechaLimiteAlerta
             select new

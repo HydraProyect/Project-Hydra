@@ -24,11 +24,27 @@ namespace CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 /// </summary>
 public record UsaRotulosPrimeraPersonaQuery : IRequest<bool>;
 
+/// <remarks>
+/// Con <see cref="MemoRotulosPrimeraPersona"/> y la vista previa de vocabulario (la composición real los registra) la
+/// respuesta se calcula una vez por ámbito y contexto (<see cref="ClaveContextoMemo"/>) dentro de su caducidad: el
+/// menú lateral y las migas la piden en el prerenderizado y otra vez en el circuito. Con una vista previa de
+/// Administrador activa no se memoiza, porque el perfil forzado no entra en la clave.
+/// </remarks>
 public class UsaRotulosPrimeraPersonaQueryHandler(
-    ISender mediator, ITenantActual tenantActual, ICurrentUserService currentUser)
+    ISender mediator, ITenantActual tenantActual, ICurrentUserService currentUser,
+    IVistaVocabularioPreviewService? vistaPreview = null, MemoRotulosPrimeraPersona? memo = null)
     : IRequestHandler<UsaRotulosPrimeraPersonaQuery, bool>
 {
     public async Task<bool> Handle(UsaRotulosPrimeraPersonaQuery request, CancellationToken cancellationToken)
+    {
+        if (memo is not null && vistaPreview is { PerfilForzado: null }
+            && await ClaveContextoMemo.ResolverAsync(currentUser, tenantActual) is { } clave)
+            return await memo.ObtenerOCalcularAsync(clave, CalcularAsync, cancellationToken);
+
+        return await CalcularAsync(cancellationToken);
+    }
+
+    private async Task<bool> CalcularAsync(CancellationToken cancellationToken)
     {
         var perfil = await mediator.Send(new ObtenerPerfilVocabularioActualQuery(), cancellationToken);
         if (perfil != PerfilVocabularioTenant.ClienteDirecto) return false;
@@ -37,3 +53,6 @@ public class UsaRotulosPrimeraPersonaQueryHandler(
         return origen is { } o && tenantActual.TenantId is { } activo && o == activo;
     }
 }
+
+/// <summary>Memoización Scoped de <see cref="UsaRotulosPrimeraPersonaQuery"/> (<see cref="MemoPorContexto{TValor}"/>).</summary>
+public sealed class MemoRotulosPrimeraPersona(TimeProvider? reloj = null) : MemoPorContexto<bool>(reloj);

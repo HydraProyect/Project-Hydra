@@ -51,7 +51,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private int _totalElementos;
     private int _pagina = 1;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>
+    /// Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos
+    /// (bloque 1 de CAMBIOS-SESION 2026-10-21).
+    /// </summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    /// <summary>Con qué agrupación se cargaron las filas de pantalla: al cambiarla hay que volver a pedirlas.</summary>
+    private bool _cargadoAgrupado;
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private IReadOnlyList<ClienteSelectorDto> _clientesDisponibles = [];
     private IReadOnlyList<EmpresaSelectorDto> _empresasDisponibles = [];
@@ -163,10 +172,43 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void CambiarAgrupacion(string? valor)
     {
         _agruparPor = valor;
+        // Al agrupar todo nace plegado: la selección y el foco previos apuntarían a filas que ya no se ven.
+        _seleccionados.Clear();
+        _idEnfocado = null;
         NavigationManager.ActualizarFiltroEnUrl("agrupar", Agrupacion.ParaUrl(valor));
     }
 
     private sealed record GrupoContratante(string Clave, string Nombre, IReadOnlyList<SubcontrataListaDto> Filas);
+
+    /// <summary>Los grupos abiertos de la vista: todos nacen plegados y se recuerdan hasta recargar.</summary>
+    private readonly GruposAbiertos _gruposAbiertos = new();
+
+    /// <summary>
+    /// Las filas que se ven: sin agrupar, las de la página; agrupada, las que salen en algún grupo abierto (una Subcontrata
+    /// con dos Empresas contratantes sale en los dos). La selección masiva, el foco y los atajos operan sobre estas, nunca
+    /// sobre filas ocultas por un grupo plegado.
+    /// </summary>
+    /// <remarks>
+    /// Agrupada, sale de <see cref="GruposDePagina"/> y en su orden (grupos por nombre de Empresa contratante), para que
+    /// j/k recorran las filas en el mismo orden en que se pintan; una Subcontrata que sale en dos grupos abiertos cuenta una
+    /// vez, en el primero.
+    /// </remarks>
+    private List<SubcontrataListaDto> FilasPintadas => _agruparPor is null
+        ? _elementosPagina
+        : GruposDePagina.Where(g => _gruposAbiertos.EstaAbierto(g.Clave))
+            .SelectMany(g => g.Filas).DistinctBy(s => s.Id).ToList();
+
+    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar seleccionadas y enfocadas.</summary>
+    private void AlternarGrupo(string clave)
+    {
+        _gruposAbiertos.Alternar(clave);
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(s => s.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(s => s.Id != enfocado)) _idEnfocado = null;
+    }
+
+    /// <summary>Fila en rojo: su peor documento es faltante o vencido (el tinte de peligro de la fila).</summary>
+    private static bool EsFilaRoja(SubcontrataListaDto fila) => ClaseTinte(fila.Recuentos).Contains("peligro", StringComparison.Ordinal);
 
     private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
         ? [new(string.Empty, string.Empty, _elementosPagina)]
@@ -272,6 +314,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         await CargarContratantesParaFiltroAsync();
         _contratadaPorFiltro = ContratadaPorValida(ContratadaPorInicial);
+        _agruparPor = Agrupacion.Leer(AgruparInicial);
         await CargarAsync();
 
         if (Accion == "crear")
@@ -291,7 +334,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         var contratadaPorDeLaUrl = ContratadaPorValida(ContratadaPorInicial);
         var cambiaElOrden = _orden.Leer(OrdenInicial);
         if (deLaUrl == _busqueda && nivelDeLaUrl == _nivelFiltro && estadoDeLaUrl == _estadoFiltro
-            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden)
+            && contratadaPorDeLaUrl == _contratadaPorFiltro && !cambiaElOrden
+            && (_agruparPor is not null) == _cargadoAgrupado)
             return;
 
         _busqueda = deLaUrl;
@@ -321,7 +365,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private ObtenerSubcontratasQuery ConsultaDePaginaActual() => new(
         Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
         Pagina: _pagina,
-        TamanoPagina: _tamanoPagina,
+        TamanoPagina: TamanoPedido,
         NivelServicio: NivelSeleccionado,
         OrdenarPor: _orden.Propiedad,
         Descendente: _orden.Direccion == SortDirection.Descending,
@@ -409,7 +453,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             // retrocede a la última página que existe en vez de enseñar «ninguna coincide».
             if (resultado.Elementos.Count == 0 && resultado.TotalElementos > 0 && _pagina > 1)
             {
-                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)_tamanoPagina));
+                _pagina = Math.Max(1, (int)Math.Ceiling(resultado.TotalElementos / (double)TamanoPedido));
                 resultado = await Mediator.Send(ConsultaDePaginaActual());
             }
         }
@@ -424,7 +468,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         _totalElementos = resultado.TotalElementos;
         _elementosPagina = resultado.Elementos.ToList();
         _recuentosPorEstado = resultado.RecuentosPorEstado;
-        _seleccionados.IntersectWith(_elementosPagina.Select(s => s.Id));
+        var pintadas = FilasPintadas;
+        _seleccionados.IntersectWith(pintadas.Select(s => s.Id));
+        if (_idEnfocado is { } enfocado && pintadas.All(s => s.Id != enfocado)) _idEnfocado = null;
         _expandidos.Clear(); _incidenciasCompletas.Clear();
         StateHasChanged();
     }
@@ -440,6 +486,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
+            _cargadoAgrupado = _agruparPor is not null;
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
 
             _totalElementos = resultado.TotalElementos;
@@ -764,7 +811,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private bool TodosExpandidos => HayFilasDesplegables
         && _elementosPagina.Where(e => Incidencias(e.Recuentos).Count > 0).All(e => _expandidos.Contains(e.Id));
@@ -786,7 +833,7 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -876,20 +923,22 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         switch (tecla)
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

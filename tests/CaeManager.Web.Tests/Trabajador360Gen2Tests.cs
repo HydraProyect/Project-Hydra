@@ -1141,8 +1141,10 @@ public partial class Trabajador360Gen2Tests : BunitContext
         var cut = Renderizar(id);
         AbrirCentros(cut);
 
-        cut.Markup.Should().Contain("La exigencia documental es por centro",
-            "es lo primero que explica por qué el mismo trabajador sale completo en una fila y bloqueado en la de al lado");
+        cut.Markup.Should().NotContain("La exigencia documental es por centro",
+            "la pestaña Centros empieza por los chips de filtro, sin antetítulo ni párrafo explicativo (captura de staging)");
+        cut.Markup.Should().NotContain("Documentación por centro");
+        cut.FindAll(".separador-ambito, p.texto-descriptivo").Should().BeEmpty("los chips de filtro son lo primero de la pestaña");
 
         var tarjetas = cut.FindAll(".trabajador360-centros > div > ul > .fila-relacion");
         tarjetas.Should().HaveCount(2);

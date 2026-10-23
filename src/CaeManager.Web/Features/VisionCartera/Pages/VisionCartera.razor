@@ -108,16 +108,17 @@
                     {
                         <AnilloCumplimiento Porcentaje="_kpis.TasaCumplimientoDocumentalPromedio" Tamano="TamanoAnillo.Grande" Leyenda="@Textos["LeyendaAnillo"]"
                                             Etiqueta="@Textos["CumplimientoPromedioFrase", _kpis.TasaCumplimientoDocumentalPromedio]" />
-                        <div>
+                        @* Bajo el anillo, solo la frase corta (Visión de cartera de la maqueta). El cálculo —la
+                           ponderación, quién no entra y qué mide la tasa— vive en una ventana de contexto junto al
+                           título: las tasas por organización ya son la tabla «Organizaciones con más riesgo» y los
+                           bloqueos los cuenta «Trabajadores bloqueados», así que no se repiten aquí. *@
+                        <div class="anillo-cartera-pie">
                             <p class="dashboard-resumen-anillo-titulo">@Textos["CumplimientoPromedioFrase", _kpis.TasaCumplimientoDocumentalPromedio]</p>
-                            <p class="dashboard-resumen-anillo-detalle detalle-media-cartera">@DetalleMedia</p>
-                            @if (DetalleBloqueos is { } bloqueos)
-                            {
-                                <p class="dashboard-resumen-anillo-detalle detalle-bloqueos-cartera">@bloqueos</p>
-                            }
-                            <p class="dashboard-resumen-anillo-detalle detalle-tasa-cartera">
-                                @Textos["DetalleTasaOrganizacion"]
-                            </p>
+                            <VentanaContexto class="anillo-cartera-calculo" Etiqueta="@DetalleCalculoMedia" Titulo="@Textos["CalculoMediaTitulo"]"
+                                             Colocacion="VentanaContextoColocacion.AbajoFin">
+                                <Disparador><Icono Nombre="info" Tamano="TamanoIcono.Pequeno" /></Disparador>
+                                <Detalle>@DetalleCalculoMedia</Detalle>
+                            </VentanaContexto>
                         </div>
                     }
                     else

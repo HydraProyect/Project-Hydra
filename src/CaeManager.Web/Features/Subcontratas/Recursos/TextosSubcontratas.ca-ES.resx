@@ -478,7 +478,7 @@
     <value>Evidència</value>
   </data>
   <data name="AyudaEvidenciaVerificacion" xml:space="preserve">
-    <value>Captura o PDF del registre consultat. PDF, JPG o PNG, fins a 10 MB. Opcional.</value>
+    <value>Captura o PDF del registre consultat. PDF, JPG o PNG, fins a 10 MB. Obligatòria.</value>
   </data>
   <data name="ToastVerificacionGuardada" xml:space="preserve">
     <value>Verificació de «{0}» desada.</value>
@@ -964,4 +964,12 @@
   <data name="PlataformasVacioDescripcion" xml:space="preserve"><value>Tot el que s'exigeix està validat a les plataformes dels seus Clients.</value></data>
   <data name="EnlaceIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360</value></data>
   <data name="AriaIrAlCentro360" xml:space="preserve"><value>Anar al Centre 360 de {0}</value></data>
+  <data name="TituloDrawerVerificacionEdicion" xml:space="preserve"><value>Verificació externa</value></data>
+  <data name="BotonEditarVerificacion" xml:space="preserve"><value>Edita</value></data>
+  <data name="AriaEditarVerificacion" xml:space="preserve"><value>Edita la verificació de {0} a {1}</value></data>
+  <data name="ErrorEvidenciaObligatoria" xml:space="preserve"><value>Adjunta la captura o el PDF del registre.</value></data>
+  <data name="EvidenciaActualVerificacion" xml:space="preserve"><value>Evidència actual: {0}. Tria un altre arxiu per substituir-la.</value></data>
+  <data name="ErrorActualizarVerificacion" xml:space="preserve"><value>No hem pogut desar els canvis de la verificació. Torna-ho a provar d'aquí a uns segons.</value></data>
+  <data name="ToastVerificacionRecuperada" xml:space="preserve"><value>Verificació de «{0}» recuperada.</value></data>
+  <data name="ToastErrorDeshacerVerificacion" xml:space="preserve"><value>No hem pogut desfer el canvi de la verificació.</value></data>
 </root>

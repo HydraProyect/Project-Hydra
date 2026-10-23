@@ -106,6 +106,9 @@ public class DocumentosTablaDesplazableE2ETests(WebAppFixtureListados fixture, I
             Assert.True(desbordados.Count == 0,
                 $"{donde} el listado desplaza en horizontal a sus antepasados (la página entera):{Environment.NewLine}{string.Join(Environment.NewLine, desbordados)}");
 
+            if (anchoVentana == 1440 && !seleccionMultiple)
+                Assert.True(porDesplazar <= 1, $"{donde} Acciones debe caber sin desplazamiento horizontal.");
+
             if (porDesplazar > 0)
             {
                 var ultimaFuera = medicion.GetProperty("ultimaFuera").GetDouble();

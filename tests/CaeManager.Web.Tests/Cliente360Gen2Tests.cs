@@ -386,7 +386,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         comando.EsCritico.Should().BeTrue();
         comando.Version.Should().Be(version);
         Services.GetRequiredService<ToastService>().Mensajes.Should()
-            .ContainSingle(m => m.Mensaje == "Nota de Refrielectric S.A. guardada." && m.Tono == TonoToast.Exito);
+            .ContainSingle(m => m.Mensaje == "Nota interna guardada" && m.Tono == TonoToast.Exito);
     }
 
     /// <summary>
@@ -665,10 +665,10 @@ public partial class Cliente360Gen2Tests : BunitContext
         await deA;
 
         // El desenlace no se calla por haber cambiado de ficha: se anuncia
-        // nombrando a A, que es de quien era. Lo que no puede es tocar B.
+        // sin modificar la ficha B que está abierta.
         Services.GetRequiredService<ToastService>().Mensajes.Should().ContainSingle()
-            .Which.Mensaje.Should().Be("Nota de Refrielectric S.A. guardada.",
-                "el guardado de A terminó cuando en pantalla ya estaba B: lo cuenta, y dice que era de A");
+            .Which.Mensaje.Should().Be("Nota interna guardada",
+                "el guardado de A terminó cuando en pantalla ya estaba B: avisa del guardado sin modificar B");
 
         // Si el finally de A hubiera apagado la bandera, este clic mandaría un
         // segundo comando de B. SIN await y con la cuenta tomada antes de

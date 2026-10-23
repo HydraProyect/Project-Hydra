@@ -6,6 +6,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Contactos;
 using CaeManager.Domain.Cumplimiento;
+using CaeManager.Domain.Dashboard;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Gestiones;
@@ -32,8 +33,8 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 
 /// <summary>
 /// Siembra del piloto del Servicio TALVEG Outbound: un Operador CAE externo de
-/// demostración con Asignación de Operación sobre siete Tenants propietarios
-/// (<see cref="CatalogoPilotoOutbound"/>), cada uno con un estado objetivo
+/// demostración con Asignación de Operación sobre cada Tenant propietario del catálogo
+/// (<see cref="CatalogoPilotoOutbound.Tenants"/>), cada uno con un estado objetivo
 /// declarado y comprobable el día de la demostración. No retoca ninguna otra
 /// siembra: es un lote aparte, con sus propios Tenants.
 ///
@@ -76,7 +77,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </para>
 ///
 /// <para>
-/// <b>Instrucción de tratamiento de IA.</b> Los siete Tenants reciben una, vigente y
+/// <b>Instrucción de tratamiento de IA.</b> Todos los Tenants del lote reciben una, vigente y
 /// marcada como borrador de demostración (<see cref="SembrarInstruccionTratamientoIaAsync"/>):
 /// sin ella el Asistente IA falla cerrado para toda cuenta que los tenga en su cartera.
 /// La autoverificación lo exige para la Gestora CAE y la Coordinadora CAE del piloto.
@@ -218,6 +219,7 @@ public static class PilotoOutboundSeeder
         await SembrarInstruccionTratamientoIaAsync(
             dbContext, tenantOperadorId, CatalogoPilotoOutbound.NombreTenantOperador, equipo.Administrador.Id, logger, cancellationToken);
 
+        var ordinalDeTarifa = -1;
         foreach (var tenant in CatalogoPilotoOutbound.EnOrdenDeSiembra)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -236,7 +238,10 @@ public static class PilotoOutboundSeeder
                 dbContext, tenantPropietarioId, tenant.Nombre, equipo.Administrador.Id, logger, cancellationToken);
 
             await AbrirOperacionExternaAsync(
-                dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo, logger, cancellationToken);
+                dbContext, tenant, tenantPropietarioId, tenantOperadorId, equipo, parametros.FechaDemostracion, logger, cancellationToken);
+
+            await SembrarTarifasDelOperadorAsync(
+                dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador.Id, ++ordinalDeTarifa, cancellationToken);
 
             if (ReferenceEquals(tenant, CatalogoPilotoOutbound.TenantConCuentasPropias))
                 await CrearCuentaAsync(
@@ -553,7 +558,7 @@ public static class PilotoOutboundSeeder
     /// <b>Es un borrador de demostración, nunca una aceptación real.</b> Mismas versiones
     /// Draft y mismo origen que la siembra de demo
     /// (<see cref="DatosPruebaSeeder.SembrarInstruccionTratamientoIaTenantPrincipalAsync"/>):
-    /// ningún Tenant propietario del piloto ha aceptado nada, y los siete llevan el marcador
+    /// ningún Tenant propietario del piloto ha aceptado nada, y todos llevan el marcador
     /// de datos de demo. Como allí, «quien la registró» es una cuenta de la propia siembra
     /// —aquí, el Administrador del Tenant del Operador CAE externo—, no un Actor de
     /// Plataforma TALVEG.
@@ -637,6 +642,38 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
+    /// Las tarifas que el Operador CAE externo aplica a un Tenant beneficiario (plano Comercial; sin ellas Facturación y el
+    /// Cuadro de dirección enseñan «Sin tarifa» en todas las Empresas gestionadas). Una versión por concepto, vigente desde
+    /// ahora y activa; el precio varía con el ordinal del Tenant para que las Empresas no salgan idénticas. Idempotente: si
+    /// el Operador ya tiene alguna tarifa para ese Tenant, no escribe. Solo se alcanza si la siembra no se salta el lote
+    /// (fecha de demostración dentro de margen); los extranjeros y sus Visitas solo se escriben en Tenants nuevos, así que en
+    /// un entorno ya sembrado «Facturación concuerda» exige retirar y resembrar. Las tarifas nuevas rigen desde ahora: los
+    /// meses anteriores siguen en «Sin tarifa».
+    /// </summary>
+    private static async Task SembrarTarifasDelOperadorAsync(
+        CaeManagerDbContext dbContext, Guid tenantOperadorId, Guid tenantPropietarioId, Guid registradaPorUsuarioId, int ordinal,
+        CancellationToken cancellationToken)
+    {
+        using var ambito = AmbitoTenantExplicito.Establecer(tenantOperadorId);
+
+        if (await dbContext.TarifasOperadorCae.AnyAsync(t => t.PropietarioTenantId == tenantPropietarioId, cancellationToken))
+            return;
+
+        var ahora = DateTime.UtcNow;
+        var precios = new (ConceptoTarifaOperadorCae Concepto, decimal Precio)[]
+        {
+            (ConceptoTarifaOperadorCae.VisitaTrabajadorExtranjero, 25m + ordinal % 3 * 5m),
+            (ConceptoTarifaOperadorCae.CentroNuevo, 60m + ordinal % 4 * 10m),
+            (ConceptoTarifaOperadorCae.ObraNueva, 90m + ordinal % 2 * 30m),
+        };
+        foreach (var (concepto, precio) in precios)
+            dbContext.TarifasOperadorCae.Add(
+                TarifaOperadorCae.Registrar(tenantPropietarioId, concepto, precio, "EUR", activa: true, registradaPorUsuarioId, ahora));
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
     /// La Asignación de Operación Outbound del Operador CAE externo sobre el Tenant
     /// propietario, en sus dos capas y en este orden: la heredada, bajo el ámbito
     /// del Operador CAE externo, y la del catálogo de asignaciones, bajo el del
@@ -646,7 +683,7 @@ public static class PilotoOutboundSeeder
     /// </summary>
     private static async Task AbrirOperacionExternaAsync(
         CaeManagerDbContext dbContext, TenantPilotoOutbound tenant, Guid tenantPropietarioId, Guid tenantOperadorId,
-        Equipo equipo, ILogger logger, CancellationToken cancellationToken)
+        Equipo equipo, DateOnly fechaDemostracion, ILogger logger, CancellationToken cancellationToken)
     {
         await DelegacionDemoSeeder.CrearDelegacionAsync(
             dbContext, tenantOperadorId, tenantPropietarioId, equipo.Administrador, logger, tenant.Nombre, cancellationToken);
@@ -679,7 +716,7 @@ public static class PilotoOutboundSeeder
                 dbContext, new TenantActualAmbiental { TenantId = tenantPropietarioId }, new EscenariosDireccionDemoSeeder.ActorDeSiembra());
 
             await writer.AbrirOperacionDelegadaAsync(
-                tenantPropietarioId, tenantOperadorId, DateTime.UtcNow.AddDays(-30), vigenciaHasta: null, cancellationToken);
+                tenantPropietarioId, tenantOperadorId, InicioDeLaOperacionExterna(fechaDemostracion), vigenciaHasta: null, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
 
             foreach (var gestorId in gestores)
@@ -694,6 +731,32 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
+    /// Desde cuándo opera el Operador CAE externo cada Tenant beneficiario del lote: doce meses antes de la demostración
+    /// (decisión de la coordinadora, 2026-10-22, opción C). Es anterior a toda alta de Centro que la siembra reparte
+    /// (<see cref="AltaDeCentro"/>, como mucho a <see cref="DiasMaximosDeAltaDeCentro"/> días de hoy),
+    /// así que «Centros nuevos» de la facturación del Cuadro de dirección, que solo cuenta las altas dentro de la vigencia
+    /// de la Asignación de Operación, las ve todas. Es solo la vigencia sembrada: la siembra es idempotente y a una
+    /// operación ya abierta no la toca.
+    /// </summary>
+    public static DateTime InicioDeLaOperacionExterna(DateOnly fechaDemostracion) =>
+        fechaDemostracion.AddMonths(-12).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+    /// <summary>A cuántos días de hoy, como mucho, se da de alta un Centro del lote.</summary>
+    public const int DiasMaximosDeAltaDeCentro = 199;
+
+    /// <summary>
+    /// Cuándo se dio de alta el Centro <paramref name="numero"/> (desde 1) de un Tenant: el primero, hoy, para que el mes
+    /// de la siembra tenga «Centros nuevos»; el resto, a <c>(numero−1)·53 mód 200</c> días, en meses distintos. Si la
+    /// demostración cae en el mes siguiente al de la siembra (se siembra hasta nueve días antes), su mes sale con 0
+    /// Centros nuevos: un alta no puede ser futura. Para enseñarlo, sembrar en el mismo mes que la demostración. Nunca antes de su Cliente empresarial (200 días o más) ni
+    /// del inicio de la Asignación de Operación (<see cref="InicioDeLaOperacionExterna"/>).
+    /// </summary>
+    public static DateTime AltaDeCentro(int numero, DateTime ahora) =>
+        numero < 1
+            ? throw new ArgumentOutOfRangeException(nameof(numero), numero, "Los Centros se numeran desde 1.")
+            : ahora.AddDays(-((numero - 1) * 53 % (DiasMaximosDeAltaDeCentro + 1)));
+
+    /// <summary>
     /// Referencia a la cláusula que lleva el Encargo de administración sembrado. Dice lo que es: no hay contrato
     /// detrás, y la cláusula contractual sigue pendiente de revisión legal (no vale con datos reales).
     /// </summary>
@@ -705,7 +768,7 @@ public static class PilotoOutboundSeeder
     /// Administrador propio (decisión de Chris, 2026-10-16, opción A). Dos piezas, las dos idempotentes:
     /// <list type="number">
     /// <item><b>Su Asignación de Cartera</b> del Tenant entero, con rol Coordinador CAE y sin marca de principal,
-    /// en los ocho Tenants. Es la misma que emite el producto al escalar o asumir el principal
+    /// en todos los Tenants beneficiarios del lote. Es la misma que emite el producto al escalar o asumir el principal
     /// (<c>EscaladoDePrincipalDeCartera</c>). Desde la decisión Chris 2026-10-20 ni la cartera ni el encargo deciden
     /// su rol: el Administrador del Operador CAE externo entra como Administrador, con todos sus poderes, en todos los
     /// Tenants de la Asignación de Operación de su organización, también en C, que tiene Administrador propio. La
@@ -773,7 +836,19 @@ public static class PilotoOutboundSeeder
         try
         {
             await constructor.ConstruirAsync();
-            await dbContext.SaveChangesAsync(cancellationToken);
+
+            // El guardado y el retroceso de las fechas de vida, en una sola transacción: si el retroceso falla a mitad, el
+            // Tenant no queda guardado con parte de sus altas en hoy, sino sin datos (y la limpieza de abajo quita sus PDF).
+            // Dentro de la estrategia de reintento, como TransaccionDeComando; sin aceptar los cambios hasta confirmar, para
+            // que un reintento vuelva a insertar lo que la transacción deshecha no dejó escrito.
+            await dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async ct =>
+            {
+                await using var transaccion = await dbContext.Database.BeginTransactionAsync(ct);
+                await dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: false, ct);
+                await RetrocederFechasDeVidaAsync(dbContext, constructor.FechasDeVida, gestoraPrimeraId, ct);
+                await transaccion.CommitAsync(ct);
+            }, cancellationToken);
+            dbContext.ChangeTracker.AcceptAllChanges();
         }
         catch
         {
@@ -800,6 +875,44 @@ public static class PilotoOutboundSeeder
     }
 
     /// <summary>
+    /// Pone a cada Trabajador, Centro y Cliente empresarial recién guardado la fecha en que «entró» (y al Trabajador de
+    /// baja, la de su baja), que el guardado había dejado en hoy. Va por <c>ExecuteUpdate</c> porque <c>CreadoEnUtc</c> y
+    /// <c>EliminadoEnUtc</c> no los cambia ningún método de dominio; filtra por los identificadores recién creados, con los
+    /// filtros de consulta y dentro del ámbito del Tenant propietario (RLS sigue aplicando). El Trabajador de baja se
+    /// guardó vivo y aquí queda eliminado como lo haría <see cref="EntidadBase.MarcarComoEliminado"/>, con la fecha de su baja.
+    /// </summary>
+    private static async Task RetrocederFechasDeVidaAsync(
+        CaeManagerDbContext dbContext, IReadOnlyDictionary<Guid, (Type Entidad, DateTime Creado, DateTime? Eliminado)> fechas,
+        Guid eliminadoPor, CancellationToken cancellationToken)
+    {
+        foreach (var grupo in fechas.GroupBy(f => f.Value))
+        {
+            var ids = grupo.Select(f => f.Key).ToList();
+            var (entidad, creado, eliminado) = grupo.Key;
+            var filas = entidad == typeof(Trabajador) ? await RetrocederAsync(dbContext.Trabajadores, ids, creado, eliminado, eliminadoPor, cancellationToken)
+                : entidad == typeof(Centro) ? await RetrocederAsync(dbContext.Centros, ids, creado, eliminado, eliminadoPor, cancellationToken)
+                : entidad == typeof(Empresa) ? await RetrocederAsync(dbContext.Empresas, ids, creado, eliminado, eliminadoPor, cancellationToken)
+                : throw new InvalidOperationException($"La siembra del piloto no sabe retroceder la fecha de alta de «{entidad.Name}».");
+            if (filas != ids.Count)
+                throw new InvalidOperationException($"La siembra del piloto quería fechar {ids.Count} filas de «{entidad.Name}» y el UPDATE alcanzó {filas}.");
+        }
+    }
+
+    private static Task<int> RetrocederAsync<T>(
+        DbSet<T> conjunto, List<Guid> ids, DateTime creado, DateTime? eliminado, Guid eliminadoPor, CancellationToken cancellationToken)
+        where T : EntidadBase
+    {
+        var filas = conjunto.Where(x => ids.Contains(x.Id));
+        return eliminado is { } baja
+            ? filas.ExecuteUpdateAsync(s => s
+                .SetProperty(x => x.CreadoEnUtc, creado)
+                .SetProperty(x => x.EstaEliminado, true)
+                .SetProperty(x => x.EliminadoEnUtc, (DateTime?)baja)
+                .SetProperty(x => x.EliminadoPorUsuarioId, (Guid?)eliminadoPor), cancellationToken)
+            : filas.ExecuteUpdateAsync(s => s.SetProperty(x => x.CreadoEnUtc, creado), cancellationToken);
+    }
+
+    /// <summary>
     /// Añade al contexto, sin guardar, todo lo de un Tenant propietario según su
     /// escenario. Una clase y no métodos sueltos para que el estado (contadores,
     /// claves de PDF, tipos) no viaje por veinte parámetros. Determinista: los
@@ -811,6 +924,7 @@ public static class PilotoOutboundSeeder
         Guid gestoraPrimeraId, CancellationToken cancellationToken)
     {
         private readonly FechasPilotoOutbound _fechas = new(parametros.FechaDemostracion);
+        private readonly DateTime _ahora = DateTime.UtcNow;
         private readonly int _indiceTenant = CatalogoPilotoOutbound.Tenants.ToList().IndexOf(tenant);
         private readonly List<string> _clavesDePdf = [];
         private readonly Dictionary<Guid, Guid> _clienteEmpresarialDelCentro = [];
@@ -908,6 +1022,7 @@ public static class PilotoOutboundSeeder
                 var especificacion = tenant.ClientesEmpresariales[i];
                 var clienteEmpresarial = CrearClienteEmpresarial(especificacion.RazonSocial, Cif(i + 1));
                 dbContext.Empresas.Add(clienteEmpresarial);
+                FechasDeVida[clienteEmpresarial.Id] = (typeof(Empresa), ahora.AddDays(-(200 + i * 41 % 150)), null);
                 dbContext.RelacionesEmpresariales.Add(RelacionEmpresarial.Crear(propia.Id, clienteEmpresarial.Id, ahora));
                 AnadirContacto(ContactoDelClienteEmpresarial(
                     clienteEmpresarial.Id, Persona(50 + i),
@@ -921,6 +1036,7 @@ public static class PilotoOutboundSeeder
                         IdentidadesPilotoOutbound.Direccion(numero, especificacionCentro.Localidad),
                         contratoVigenteHasta: D.AddDays(300 + numero * 20));
                     dbContext.Centros.Add(centro);
+                    FechasDeVida[centro.Id] = (typeof(Centro), AltaDeCentro(numero, ahora), null);
                     centros.Add(centro);
                     _clienteEmpresarialDelCentro[centro.Id] = clienteEmpresarial.Id;
 
@@ -958,9 +1074,11 @@ public static class PilotoOutboundSeeder
                 var trabajador = Trabajador.DeEmpresa(
                     propia.Id, nombre, apellidos, DniDe(i), fechaNacimiento: NacimientoDe(i), puesto: IdentidadesPilotoOutbound.Puesto(tenant, i));
                 dbContext.Trabajadores.Add(trabajador);
+                AltaRepartida(typeof(Trabajador), trabajador.Id, i, _ahora);
                 trabajadores.Add(trabajador);
             }
 
+            BajasDelUltimoAno(propia, _ahora);
             return trabajadores;
         }
 
@@ -1058,7 +1176,7 @@ public static class PilotoOutboundSeeder
                     var vencimientoDeDiseno = situacion switch
                     {
                         SituacionDocumentoPilotoOutbound.Vencido => _fechas.Vencido(Siguiente()),
-                        SituacionDocumentoPilotoOutbound.Urgente => _fechas.Urgente(Siguiente()),
+                        SituacionDocumentoPilotoOutbound.Urgente => VencimientoUrgente(),
                         SituacionDocumentoPilotoOutbound.Proximo => _fechas.Proximo(Siguiente()),
                         _ => throw new InvalidOperationException($"{tenant.Clave}: situación de documento sin fecha: {situacion}.")
                     };
@@ -1104,17 +1222,33 @@ public static class PilotoOutboundSeeder
             if (conPdfPesado.FirstOrDefault(n => tiposDeEmpresa.All(t => t.Nombre != n)) is { } ajeno)
                 throw new InvalidOperationException($"{tenant.Clave}: «{ajeno}», que iba a llevar un PDF pesado, ya no se exige por defecto a una Empresa.");
 
+            // El documento que el perfil pone fuera de «en regla»: el primero que caduca y no es mensual.
+            var conSituacion = tenant.SituacionDocumentoDeEmpresa is null ? -1 : tiposDeEmpresa.FindIndex(AdmiteSituacionDeEmpresa);
+            if (tenant.SituacionDocumentoDeEmpresa is not null && conSituacion < 0)
+                throw new InvalidOperationException($"{tenant.Clave}: ningún documento exigido de la Empresa propia caduca sin ser mensual.");
+
             for (var i = 0; i < tiposDeEmpresa.Count; i++)
             {
                 var tipo = tiposDeEmpresa[i];
-                int? semillaDeVencimiento = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? Siguiente() : null;
-                var (emision, vence) = _fechas.EnRegla(tipo, Siguiente(), semillaDeVencimiento);
+                (DateOnly Emision, DateOnly? Vence) fechas;
+                if (i == conSituacion)
+                {
+                    fechas = FechasDeEmpresaEn(tipo, tenant.SituacionDocumentoDeEmpresa!.Value);
+                }
+                else
+                {
+                    int? semillaDeVencimiento = tipo.AplicaVencimientoAutomatico || i % 2 == 0 ? Siguiente() : null;
+                    fechas = _fechas.EnRegla(tipo, Siguiente(), semillaDeVencimiento);
+                }
+
+                var (emision, vence) = fechas;
                 var clave = await GuardarPdfAsync(tipo.Nombre, tenant.Nombre, emision, vence, pesado: conPdfPesado.Contains(tipo.Nombre));
                 var documentoDeEmpresa = Documento.DeEmpresa(propia.Id, tipo.Id, emision, Vigencia(vence), clave);
                 Anadir(documentoDeEmpresa);
                 creados.Add(documentoDeEmpresa);
             }
 
+            _documentosDeEmpresa.AddRange(creados);
             return creados;
         }
 
@@ -1148,7 +1282,7 @@ public static class PilotoOutboundSeeder
                     var (emision, vence) = situacion switch
                     {
                         SituacionDocumentoPilotoOutbound.Vencido => _fechas.ConVencimiento(tipo, _fechas.Vencido(Siguiente())),
-                        SituacionDocumentoPilotoOutbound.Urgente => _fechas.ConVencimiento(tipo, _fechas.Urgente(Siguiente())),
+                        SituacionDocumentoPilotoOutbound.Urgente => _fechas.ConVencimiento(tipo, VencimientoUrgente()),
                         SituacionDocumentoPilotoOutbound.Proximo => _fechas.ConVencimiento(tipo, _fechas.Proximo(Siguiente())),
                         _ => _fechas.EnRegla(tipo, semillaDeVencimiento: Siguiente(), semillaDeEmision: Siguiente())
                     };
@@ -1262,14 +1396,25 @@ public static class PilotoOutboundSeeder
             // los primeros tenant.Trabajadores; los de detrás son de Subcontrata y no dan actividad a la Empresa propia.
             if (activas.Any(a => a.Key < tenant.Trabajadores && a.Value.Contains(c)))
                 foreach (var documento in documentosDeEmpresa)
-                {
-                    var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
-                    acreditacion.MarcarSubida();
-                    acreditacion.MarcarAceptada(documento.FechaVencimiento is { } vence
-                        ? VigenciaEnPlataforma.VenceEl(vence)
-                        : VigenciaEnPlataforma.NoVenceAqui);
-                    dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
-                }
+                    AceptarEnPlataforma(documento, canal.Id);
+
+            // En el escaparate, también los de cada Subcontrata, aceptados en el portal con la caducidad que tienen aquí.
+            if (tenant.AcreditaDocumentosDeEmpresa)
+            {
+                var propios = documentosDeEmpresa.Select(d => d.Id).ToHashSet();
+                foreach (var documento in _documentosDeEmpresa.Where(d => !propios.Contains(d.Id)))
+                    AceptarEnPlataforma(documento, canal.Id);
+            }
+
+            void AceptarEnPlataforma(Documento documento, Guid canalId)
+            {
+                var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canalId);
+                acreditacion.MarcarSubida();
+                acreditacion.MarcarAceptada(documento.FechaVencimiento is { } vence
+                    ? VigenciaEnPlataforma.VenceEl(vence)
+                    : VigenciaEnPlataforma.NoVenceAqui);
+                dbContext.AcreditacionesDocumentoPlataforma.Add(acreditacion);
+            }
 
             if (rechazadas != tenant.Receta.AcreditacionesRechazadas || subidas != tenant.Receta.AcreditacionesSubidas)
                 throw new InvalidOperationException(
@@ -1381,6 +1526,12 @@ public static class PilotoOutboundSeeder
         {
             var antesDeSembrar = D.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias - 1).ToDateTime(new TimeOnly(16, 0), DateTimeKind.Utc);
 
+            // Los extranjeros del perfil cuentan como extranjeros cobrables (casilla a mano: su documento es un NIE de la
+            // siembra, no un Pasaporte) ANTES de asignarlos a ninguna Visita, porque la asignación guarda la foto del
+            // Trabajador (VisitaTrabajador.EsExtranjeroCobrable) y Facturación y el Excel del mes leen esa foto.
+            foreach (var extranjero in tenant.Extranjeros)
+                trabajadores[extranjero.Trabajador].FijarMarcaExtranjeroCobrable(true);
+
             foreach (var especificacion in tenant.Visitas)
             {
                 var inicio = D.AddDays(especificacion.DiasDesdeLaDemostracion);
@@ -1398,8 +1549,14 @@ public static class PilotoOutboundSeeder
                 if (especificacion.PorCorreo && acuden.Count < 2)
                     throw new InvalidOperationException(
                         $"{tenant.Clave}: la Visita por correo necesita dos Trabajadores del Centro {especificacion.Centro} sin ninguna desviación y solo hay {acuden.Count}.");
+                // Los extranjeros del Centro acuden también a las Visitas que no viajan por correo (esa lleva exactamente
+                // a dos Trabajadores sin desviaciones): sin ellos, Facturación enseñaría 0 extranjeros en todas las Empresas.
+                if (!especificacion.PorCorreo)
+                    acuden.AddRange(tenant.Extranjeros
+                        .Select(e => e.Trabajador)
+                        .Where(t => !acuden.Contains(t) && activas.TryGetValue(t, out var lista) && lista.Contains(especificacion.Centro)));
                 foreach (var t in acuden)
-                    dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajadores[t].Id));
+                    dbContext.VisitasTrabajadores.Add(AsignacionSembrada.De(visita, trabajadores[t]));
 
                 switch (especificacion.Estado)
                 {
@@ -1715,12 +1872,16 @@ public static class PilotoOutboundSeeder
                     subcontrata.Id, Persona(45 + i), parametros.Contactos.DireccionDe(IdentidadesPilotoOutbound.EtiquetaDePrevencion(especificacion.RazonSocial)),
                     cargo: "Responsable de prevención", esPredeterminado: true), RolContacto.ResponsablePrl);
 
-                foreach (var nombreTipo in CatalogoPilotoOutbound.TiposDeDocumentoDeSubcontrata)
+                for (var j = 0; j < CatalogoPilotoOutbound.TiposDeDocumentoDeSubcontrata.Count; j++)
                 {
-                    var tipo = Tipo(nombreTipo);
-                    var (emision, vence) = _fechas.EnRegla(tipo, semillaDeEmision: Siguiente(), semillaDeVencimiento: Siguiente());
+                    var tipo = Tipo(CatalogoPilotoOutbound.TiposDeDocumentoDeSubcontrata[j]);
+                    var (emision, vence) = j == 0 && especificacion.Situacion is { } situacion
+                        ? FechasDeEmpresaEn(tipo, situacion)
+                        : _fechas.EnRegla(tipo, semillaDeEmision: Siguiente(), semillaDeVencimiento: Siguiente());
                     var clave = await GuardarPdfAsync(tipo.Nombre, especificacion.RazonSocial, emision, vence, pesado: false);
-                    Anadir(Documento.DeEmpresa(subcontrata.Id, tipo.Id, emision, Vigencia(vence), clave));
+                    var documento = Documento.DeEmpresa(subcontrata.Id, tipo.Id, emision, Vigencia(vence), clave);
+                    Anadir(documento);
+                    _documentosDeEmpresa.Add(documento);
                 }
 
                 for (var k = 0; k < especificacion.Trabajadores; k++)
@@ -1731,6 +1892,7 @@ public static class PilotoOutboundSeeder
                         subcontrata.Id, nombre, apellidos, DniDe(indice), fechaNacimiento: NacimientoDe(indice),
                         puesto: IdentidadesPilotoOutbound.Puesto(tenant, indice));
                     dbContext.Trabajadores.Add(trabajador);
+                    AltaRepartida(typeof(Trabajador), trabajador.Id, indice, _ahora);
                     trabajadores.Add(trabajador);
                 }
             }
@@ -1823,6 +1985,73 @@ public static class PilotoOutboundSeeder
 
         /// <summary>Un entero creciente para repartir las fechas dentro de sus márgenes sin azar.</summary>
         private int Siguiente() => _semilla++ * 37 + _indiceTenant * 11;
+
+        /// <summary>
+        /// El vencimiento de un documento «Urgente»: el día fijo del perfil si lo declara
+        /// (<see cref="TenantPilotoOutbound.UrgentesVencenALosDias"/>), y si no, entre D+5 y D+6.
+        /// </summary>
+        private DateOnly VencimientoUrgente()
+        {
+            if (tenant.UrgentesVencenALosDias is not { } dias) return _fechas.Urgente(Siguiente());
+            if (!FechasPilotoOutbound.EsUrgenteEnTodoElMargen(dias))
+                throw new InvalidOperationException(
+                    $"{tenant.Clave}: un vencimiento a {dias} días de la demostración no es «Urgente» todos los días en que se " +
+                    $"puede sembrar (de D−{OpcionesPilotoOutbound.MargenMaximoDias} a D).");
+            return D.AddDays(dias);
+        }
+
+        /// <summary>Las fechas de un documento de Empresa en la situación que fija el perfil.</summary>
+        private (DateOnly Emision, DateOnly? Vence) FechasDeEmpresaEn(TipoDocumento tipo, SituacionDocumentoPilotoOutbound situacion) => situacion switch
+        {
+            SituacionDocumentoPilotoOutbound.Vencido => _fechas.ConVencimiento(tipo, _fechas.Vencido(Siguiente())),
+            SituacionDocumentoPilotoOutbound.Urgente => _fechas.ConVencimiento(tipo, VencimientoUrgente()),
+            SituacionDocumentoPilotoOutbound.Proximo => _fechas.ConVencimiento(tipo, _fechas.Proximo(Siguiente())),
+            _ => throw new InvalidOperationException($"{tenant.Clave}: un documento de Empresa no se siembra «{situacion}».")
+        };
+
+        /// <summary>Si un documento de este tipo puede estar vencido o por vencer a propósito: caduca y no es mensual (un mensual solo puede estar «Próximo»).</summary>
+        private static bool AdmiteSituacionDeEmpresa(TipoDocumento tipo) =>
+            !CatalogoPilotoOutbound.TiposQueNoCaducan.Contains(tipo.Nombre)
+            && !(tipo.AplicaVencimientoAutomatico && tipo.VigenciaMeses is <= 1);
+
+        /// <summary>Los documentos de Empresa (de la propia y de sus Subcontratas) que se acreditan en la plataforma del Centro.</summary>
+        private readonly List<Documento> _documentosDeEmpresa = [];
+
+        /// <summary>
+        /// Cuándo «entró» en TALVEG cada Trabajador, Centro y Cliente empresarial, y cuándo salió el que causó baja: la
+        /// rotación del Cuadro de dirección cuenta altas y bajas por <c>CreadoEnUtc</c> y <c>EliminadoEnUtc</c>, que el
+        /// guardado pone a hoy. Se aplican tras guardar (<see cref="RetrocederFechasDeVidaAsync"/>).
+        /// </summary>
+        public Dictionary<Guid, (Type Entidad, DateTime Creado, DateTime? Eliminado)> FechasDeVida { get; } = [];
+
+        /// <summary>
+        /// Reparte las altas en el último año, sin azar: el ordinal <paramref name="i"/> entra hace <c>i·53 mód 365</c> días,
+        /// así que el primero entra hoy y el resto cae en meses distintos.
+        /// </summary>
+        private void AltaRepartida(Type entidad, Guid id, int i, DateTime ahora) =>
+            FechasDeVida[id] = (entidad, ahora.AddDays(-(i * 53 % 365)), null);
+
+        /// <summary>
+        /// Los Trabajadores que causaron baja en el último año: sin documentos ni Asignaciones vivas, eliminados como lo
+        /// haría la pantalla, en meses anteriores. No cuentan en <see cref="TenantPilotoOutbound.Trabajadores"/>.
+        /// </summary>
+        private void BajasDelUltimoAno(Empresa propia, DateTime ahora)
+        {
+            for (var k = 0; k < tenant.BajasDelUltimoAno; k++)
+            {
+                var (nombre, apellidos) = IdentidadesPilotoOutbound.TrabajadorDeBaja(tenant, k);
+                var trabajador = Trabajador.DeEmpresa(
+                    propia.Id, nombre, apellidos, IdentidadesPilotoOutbound.DniDeBaja(tenant, k),
+                    fechaNacimiento: NacimientoDe(tenant.Trabajadores + k), puesto: IdentidadesPilotoOutbound.Puesto(tenant, k));
+                // Se guarda viva y la elimina RetrocederFechasDeVidaAsync, con la fecha de su baja: eliminada antes de guardar,
+                // el filtro de borrado lógico la escondería del UPDATE que le pone esa fecha.
+                dbContext.Trabajadores.Add(trabajador);
+
+                // Treinta y cinco días o más: siempre en un mes anterior al de la siembra, y dentro del último año.
+                var baja = ahora.AddDays(-(35 + k * 47 % 300));
+                FechasDeVida[trabajador.Id] = (typeof(Trabajador), baja.AddDays(-(150 + k * 31 % 200)), baja);
+            }
+        }
 
         /// <summary>Con lo que acaba el código de una plataforma que el catálogo conserva solo por sus accesos antiguos: la demostración no abre canales en ella.</summary>
         private const string SufijoDePlataformaRetirada = "-legacy";

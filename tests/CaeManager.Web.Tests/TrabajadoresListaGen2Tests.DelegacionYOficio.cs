@@ -340,8 +340,8 @@ public partial class TrabajadoresListaGen2Tests
 
         cut.WaitForAssertion(() => UltimaConsulta(mediador).OrdenarPor.Should().Be(nameof(TrabajadorListaDto.DelegacionEmpresaNombre)));
         UriActual.Should().Contain("agrupar=delegacion");
-        cut.WaitForAssertion(() => TitulosDeGrupo(cut).Should().Equal("Bilbao· 1", "Madrid· 1", "Sin delegación· 1"));
-        cut.FindAll(".cabecera-grupo-trabajadores")[0].GetAttribute("data-agrupar").Should().Be("delegacion");
+        cut.WaitForAssertion(() => TitulosDeGrupo(cut).Should().Equal("Bilbao · 1", "Madrid · 1", "Sin delegación · 1"));
+        cut.FindAll("[data-grupo]")[0].GetAttribute("data-agrupar").Should().Be("delegacion");
     }
 
     [Fact]
@@ -352,7 +352,7 @@ public partial class TrabajadoresListaGen2Tests
 
         await ElegirEnLaPastilla(cut, "Agrupar", "Por Oficio");
 
-        cut.WaitForAssertion(() => TitulosDeGrupo(cut).Should().Equal("Andamiero· 1", "Soldador· 1", "Sin oficio· 1"));
+        cut.WaitForAssertion(() => TitulosDeGrupo(cut).Should().Equal("Andamiero · 1", "Soldador · 1", "Sin oficio · 1"));
         UriActual.Should().Contain("agrupar=oficio");
     }
 
@@ -363,10 +363,10 @@ public partial class TrabajadoresListaGen2Tests
         var cut = Renderizar(ConCatalogos(), "trabajadores?agrupar=delegacion");
 
         TitulosDeGrupo(cut).Should().Equal(
-            "Bilbao · Montajes Ebro S.L.· 1",
-            "Madrid · Dexter Industrial S.A.· 1",
-            "Madrid · Montajes Ebro S.L.· 1",
-            "Sin delegación· 2");
+            "Bilbao · Montajes Ebro S.L. · 1",
+            "Madrid · Dexter Industrial S.A. · 1",
+            "Madrid · Montajes Ebro S.L. · 1",
+            "Sin delegación · 2");
     }
 
     [Fact]
@@ -374,8 +374,9 @@ public partial class TrabajadoresListaGen2Tests
     {
         var cut = Renderizar(ConCatalogos(), "trabajadores?agrupar=oficio");
 
-        var sinOficio = cut.FindAll(".cabecera-grupo-trabajadores").Single(g => g.TextContent.StartsWith("Sin oficio"));
-        sinOficio.TextContent.Should().Contain("3", "Carla, Dani y Eva, la de la Subcontrata");
+        var sinOficio = cut.FindAll("[data-grupo]").Single(g => g.GetAttribute("data-grupo") == "Sin oficio");
+        sinOficio.QuerySelector(".grupo-lista-contador")!.TextContent.Trim().Should().Be("· 3", "Carla, Dani y Eva, la de la Subcontrata");
+        cut.AbrirGrupos();
         FilasDeDatos(cut).Select(f => TextoDelNombre(f)).Should().Contain("Eva Esteban");
     }
 
@@ -394,11 +395,11 @@ public partial class TrabajadoresListaGen2Tests
     public async Task Ordenar_por_una_columna_deja_de_agrupar_por_DelegacionEmpresa()
     {
         var cut = Renderizar(ConCatalogos(), "trabajadores?agrupar=delegacion");
-        cut.FindAll(".cabecera-grupo-trabajadores").Should().NotBeEmpty();
+        cut.FindAll("[data-grupo]").Should().NotBeEmpty();
 
         await cut.FindAll(".cabecera-columnas-trabajadores button").First(b => b.TextContent.Contains("Trabajador")).ClickAsync(new MouseEventArgs());
 
-        cut.WaitForAssertion(() => cut.FindAll(".cabecera-grupo-trabajadores").Should().BeEmpty());
+        cut.WaitForAssertion(() => cut.FindAll("[data-grupo]").Should().BeEmpty());
         UriActual.Should().NotContain("agrupar=");
     }
 
@@ -407,7 +408,7 @@ public partial class TrabajadoresListaGen2Tests
     {
         var cut = Renderizar(ConCatalogos(), "trabajadores?agrupar=sector");
 
-        cut.FindAll(".cabecera-grupo-trabajadores").Should().BeEmpty();
+        cut.FindAll("[data-grupo]").Should().BeEmpty();
     }
 
     [Fact]
@@ -421,5 +422,5 @@ public partial class TrabajadoresListaGen2Tests
         enlace.Should().Contain($"delegacion={DelegacionEmpresaMadrid}").And.Contain($"oficio={OficioSoldador}");
     }
     private static List<string> TitulosDeGrupo(IRenderedComponent<CaeManager.Web.Features.Trabajadores.Pages.Trabajadores> cut) =>
-        cut.FindAll(".cabecera-grupo-trabajadores").Select(g => g.TextContent.Trim()).ToList();
+        cut.TitulosDeGrupo();
 }

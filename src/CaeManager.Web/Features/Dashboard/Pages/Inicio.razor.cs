@@ -249,7 +249,13 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
     private async Task ResolverSaludoAsync(CancellationToken token)
     {
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var nombrePila = await PuertaAccesoDatos.EjecutarAsync(async () =>
+
+        // Primero el nombre que ya trae la sesión (TenantClaimsPrincipalFactory): no lee la base, así que no depende de la
+        // carrera con el resto del shell por el DbContext del circuito. La cuenta solo se relee para un ticket emitido antes
+        // de que existiera ese claim.
+        var nombreDelTicket = estadoAutenticacion.User.FindFirst(
+            CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimNombreCompleto)?.Value;
+        var nombrePila = nombreDelTicket is { Length: > 0 } ? NombreDePila(nombreDelTicket) : await PuertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await UserManager.GetUserAsync(estadoAutenticacion.User);
             // Identity.Name es el email de acceso (mismo dato que usa el enlace "Mi
@@ -259,9 +265,7 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             // caer en el email — "Buenos días, refri.gestorcae1@..." es peor que no
             // personalizar. Solo el nombre de pila, como en el mockup ("Buenos días,
             // Marta") — el nombre completo en un saludo de cabecera lee como un formulario.
-            return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto
-                ? nombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
-                : null;
+            return usuario?.NombreCompleto is { Length: > 0 } nombreCompleto ? NombreDePila(nombreCompleto) : null;
         }, token);
 
         if (_desechado)
@@ -273,6 +277,9 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
             StateHasChanged();
         }
     }
+
+    private static string? NombreDePila(string nombreCompleto) =>
+        nombreCompleto.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
 
     private string Saludo => _nombrePila is { Length: > 0 }
         ? $"{SaludoBase}, {_nombrePila}"
@@ -492,8 +499,33 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         return (empresas, activoEsOrigen);
     }
 
-    private int DocumentosFueraDeVigencia => _kpis is null ? 0
-        : _kpis.DocumentosVencidos + _kpis.DocumentosUrgentes + _kpis.DocumentosProximos;
+    /// <summary>
+    /// Pista de «Vigentes»: reparte el resto de los Documentos de Trabajador medidos por conformidad, con la única definición
+    /// de <see cref="CaeManager.Domain.Documentos.CumplimientoDocumental"/>. Vigentes + «más al día» = el «al día» del anillo,
+    /// y + «no al día» = su denominador (<see cref="KpisDashboardDto.Fraccion"/>): las tres cifras cuadran a la vista. Antes
+    /// se repartía por cercanía a la fecha («vencidos o por vencer», «sin confirmar o sin caducidad») y cada parte mezclaba
+    /// documentos al día con otros que no lo están.
+    /// </summary>
+    private string? PistaVigentes
+    {
+        get
+        {
+            if (_kpis is null) return null;
+            var fraccion = _kpis.Fraccion;
+            var masAlDia = fraccion.AlDia - _kpis.DocumentosVigentes;
+            var noAlDia = fraccion.Requeridos - fraccion.AlDia;
+            var partes = new List<string>();
+            if (masAlDia > 0) partes.Add(Textos["KpiVigentesAlDia", masAlDia].Value);
+            if (noAlDia > 0) partes.Add(Textos["KpiVigentesNoAlDia", noAlDia].Value);
+            return partes.Count == 0 ? null : string.Join(" · ", partes);
+        }
+    }
+
+    /// <summary>
+    /// «Desglosar por Cliente» solo con más de un Cliente empresarial en el alcance: con uno —siempre el caso del usuario de
+    /// Cliente empresarial— el desglose repetiría la misma cifra y además lleva a un informe que ese rol no puede abrir.
+    /// </summary>
+    private bool MostrarDesglosePorCliente => _kpis is { ClientesEmpresarialesEnAlcance: > 1 };
 
     /// <summary>
     /// Todo lo que el panel resume está a cero <b>y</b> nada espera en las colas:
@@ -516,23 +548,6 @@ public partial class Inicio : CaeManager.Web.Components.PaginaInteractiva, IDisp
         && _sinRespuesta.Count == 0 && _proximamente.Count == 0
         && (_bandejaAgrupada is null
             || (_bandejaAgrupada.Grupos.Count == 0 && _bandejaAgrupada.SinGrupo.Count == 0));
-
-    /// <summary>
-    /// Trabajadores distintos con al menos un item que de verdad les cierra el
-    /// acceso a un Centro, en la cola ya cargada — sin query nueva, es el mismo dato que ya
-    /// pinta "Requiere atención". El criterio es
-    /// <see cref="ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso"/>, el
-    /// mismo que usa <see cref="TipoItemBandejaUi.BloqueaAccesoDeVerdad"/> para
-    /// el badge «Bloquea acceso» de cada grupo. «Bloqueado» es un estado del Trabajador, no del
-    /// Centro (2026-10-03): se cuentan Trabajadores, no Centros. Una acreditación Rechazada de un
-    /// documento de Empresa (sin Trabajador) no se cuenta aquí.
-    /// </summary>
-    private int TrabajadoresBloqueados => _bandejaAgrupada is null ? 0
-        : _bandejaAgrupada.Grupos.SelectMany(g => g.Items).Concat(_bandejaAgrupada.SinGrupo)
-            .Where(i => ObtenerBandejaAgrupadaQueryHandler.BloqueaElAcceso(i) && i.TrabajadorId is not null)
-            .Select(i => i.TrabajadorId!.Value)
-            .Distinct()
-            .Count();
 
     /// <summary>
     /// Aviso bajo el anillo cuando la consulta de KPI cuenta Trabajadores bloqueados

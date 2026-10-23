@@ -24,6 +24,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
     private readonly Guid _tenantB = Guid.NewGuid();
     private readonly Guid _persona = Guid.NewGuid();
     private Guid _conversacion;
+    private Guid _alerta;
 
     public async Task InitializeAsync()
     {
@@ -33,9 +34,11 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         var mensaje = conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
             "empresa@example.test", "Inspección de Trabajo", DateTime.UtcNow);
         db.Conversaciones.Add(conversacion);
-        db.AlertasCriticasConversacion.Add(new(mensaje, mensaje.CuerpoHtml, "inspección de trabajo", _tenantA, DateTime.UtcNow));
+        var alerta = new AlertaCriticaConversacion(mensaje, mensaje.CuerpoHtml, "inspección de trabajo", _tenantA, DateTime.UtcNow);
+        db.AlertasCriticasConversacion.Add(alerta);
         await db.SaveChangesAsync();
         _conversacion = conversacion.Id;
+        _alerta = alerta.Id;
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadena);
@@ -45,7 +48,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
     {
         await using var db = CrearContexto(_tenantB);
         var repositorio = new AlertaCriticaRepository(db, new TenantActualAmbiental { TenantId = _tenantB });
-        (await repositorio.ObtenerPorConversacionAsync(_conversacion, default)).Should().BeNull();
+        (await repositorio.ObtenerVigentePorConversacionAsync(_conversacion, default)).Should().BeNull();
         await using var control = CrearContexto(_tenantA);
         (await control.AlertasCriticasConversacion.CountAsync()).Should().Be(1);
     }
@@ -60,7 +63,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
     public async Task El_comando_aplica_la_autorizacion_y_audita_la_decision(string rol, bool permitido)
     {
         await using var db = CrearContexto(_tenantA);
-        var resultado = await CrearHandler(db, _tenantA, rol).Handle(new(_conversacion, true), default);
+        var resultado = await CrearHandler(db, _tenantA, rol).Handle(new(_conversacion, _alerta, true), default);
         resultado.EsExitoso.Should().Be(permitido);
         await using var lectura = CrearContexto(_tenantA);
         var alerta = await lectura.AlertasCriticasConversacion.SingleAsync();
@@ -72,13 +75,53 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
     public async Task Descartar_persiste_la_decision_sin_enviar_correo()
     {
         await using var db = CrearContexto(_tenantA);
-        (await CrearHandler(db, _tenantA, "DireccionCae").Handle(new(_conversacion, false), default)).EsExitoso.Should().BeTrue();
+        (await CrearHandler(db, _tenantA, "DireccionCae").Handle(new(_conversacion, _alerta, false), default)).EsExitoso.Should().BeTrue();
         await using var lectura = CrearContexto(_tenantA);
         var alerta = await lectura.AlertasCriticasConversacion.SingleAsync();
         alerta.Estado.Should().Be(EstadoAlertaCritica.Descartada);
         alerta.DecisionPorUsuarioId.Should().Be(_persona);
         alerta.DecisionEnUtc.Should().NotBeNull();
         (await lectura.Mensajes.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Tras_descartar_un_caso_critico_nuevo_del_mismo_hilo_vuelve_a_alertar_y_la_base_solo_admite_una_Pendiente()
+    {
+        await using (var db = CrearContexto(_tenantA))
+            (await CrearHandler(db, _tenantA, "DireccionCae").Handle(new(_conversacion, _alerta, false), default)).EsExitoso.Should().BeTrue();
+
+        await using (var db = CrearContexto(_tenantA))
+        {
+            var tenant = new TenantActualAmbiental { TenantId = _tenantA };
+            var servicio = new AlertaCriticaService(new AlertaCriticaRepository(db, tenant), new NotificacionUsuarioRepository(db),
+                new Directorio(), tenant, new Opciones(), new Opinion(), new InstruccionHabilitada(), NullLogger<AlertaCriticaService>.Instance);
+            // La Descartada queda rastreada en Local, como en una ingesta que ya la leyó: tampoco ahí cuenta para deduplicar.
+            (await db.AlertasCriticasConversacion.SingleAsync()).Estado.Should().Be(EstadoAlertaCritica.Descartada);
+            foreach (var texto in new[] { "Nos notifican una sanción", "Requerimiento oficial de la Inspección de Trabajo" })
+            {
+                var mensaje = new Mensaje(_conversacion, DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", texto, DateTime.UtcNow);
+                db.Mensajes.Add(mensaje);
+                await servicio.ProcesarAsync(mensaje, default);
+            }
+            await db.SaveChangesAsync();
+        }
+
+        await using (var lectura = CrearContexto(_tenantA))
+        {
+            var alertas = await lectura.AlertasCriticasConversacion.ToListAsync();
+            alertas.Should().HaveCount(2);
+            alertas.Select(a => a.Estado).Should().BeEquivalentTo([EstadoAlertaCritica.Descartada, EstadoAlertaCritica.Pendiente]);
+            var repositorio = new AlertaCriticaRepository(lectura, new TenantActualAmbiental { TenantId = _tenantA });
+            (await repositorio.ObtenerVigentePorConversacionAsync(_conversacion, default))!.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+
+            // El índice único parcial es la garantía final frente a dos ingestas concurrentes.
+            var otro = new Mensaje(_conversacion, DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "denuncia", DateTime.UtcNow);
+            lectura.Mensajes.Add(otro);
+            lectura.AlertasCriticasConversacion.Add(new(otro, "denuncia", "denuncia", _tenantA, DateTime.UtcNow));
+            Func<Task> guardar = () => lectura.SaveChangesAsync();
+            (await guardar.Should().ThrowAsync<DbUpdateException>()).WithInnerException<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation);
+        }
     }
 
     [Fact]
@@ -90,14 +133,14 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         var conversacion = await db.Conversaciones.SingleAsync();
         conversacion.AsignarCliente(Guid.NewGuid());
         await db.SaveChangesAsync();
-        (await CrearHandler(db, _tenantA, "CoordinadorCae", alcance).Handle(new(_conversacion, false), default)).EsFallido.Should().BeTrue();
+        (await CrearHandler(db, _tenantA, "CoordinadorCae", alcance).Handle(new(_conversacion, _alerta, false), default)).EsFallido.Should().BeTrue();
     }
 
     [Fact]
     public async Task La_escritura_y_la_clave_foranea_no_atraviesan_Tenants()
     {
         await using var db = CrearContexto(_tenantB);
-        (await CrearHandler(db, _tenantB, "DireccionCae").Handle(new(_conversacion, false), default)).EsFallido.Should().BeTrue();
+        (await CrearHandler(db, _tenantB, "DireccionCae").Handle(new(_conversacion, _alerta, false), default)).EsFallido.Should().BeTrue();
         var mensaje = new Mensaje(_conversacion, DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "denuncia", DateTime.UtcNow);
         db.AlertasCriticasConversacion.Add(new(mensaje, "denuncia", "denuncia", _tenantB, DateTime.UtcNow));
         Func<Task> guardar = () => db.SaveChangesAsync();
@@ -154,7 +197,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
             db, alcance ?? new AlcanceDatosServiceFalso(), directorio);
         var avisos = new AlertaCriticaService(repositorio, new NotificacionUsuarioRepository(db), directorio, tenant,
             new Opciones(), new Opinion(), new InstruccionHabilitada(), NullLogger<AlertaCriticaService>.Instance);
-        return new(repositorio, acceso, avisos, db);
+        return new(repositorio, acceso, avisos, new IncidenciaRepository(db), alcance ?? new AlcanceDatosServiceFalso(), db);
     }
 
     private CaeManagerDbContext CrearContexto(Guid tenantId)

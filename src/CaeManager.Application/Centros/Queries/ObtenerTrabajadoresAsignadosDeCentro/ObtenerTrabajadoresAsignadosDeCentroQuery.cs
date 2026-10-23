@@ -20,11 +20,19 @@ namespace CaeManager.Application.Centros.Queries.ObtenerTrabajadoresAsignadosDeC
 public record ObtenerTrabajadoresAsignadosDeCentroQuery(Guid CentroId) : IRequest<IReadOnlyList<TrabajadorAsignadoDto>>;
 
 /// <param name="EventoNombre">null si entra por Asignación al Centro; el nombre del evento si solo entra por él.</param>
-public record TrabajadorAsignadoDto(Guid TrabajadorId, string Nombre, string EmpleadorNombre, DateOnly FechaAlta, string? EventoNombre = null);
+/// <param name="SubcontrataId">
+/// La Empresa empleadora cuando el Trabajador llega por una Relación de subcontratación (columna legacy
+/// <c>Trabajador.SubcontrataId</c>, no un tipo de Empresa); <c>null</c> si es de una Empresa propia. Con él, Centro 360
+/// agrupa al Trabajador bajo su Subcontrata; <paramref name="EmpleadorNombre"/> es entonces el nombre de la Subcontrata.
+/// </param>
+/// <param name="EmpresaContratistaNombre">Con <paramref name="SubcontrataId"/>: la Empresa contratista de la relación
+/// (ver <see cref="ContratistasDeSubcontratasEnCentro"/>); <c>null</c> si no hay ninguna visible.</param>
+public record TrabajadorAsignadoDto(Guid TrabajadorId, string Nombre, string EmpleadorNombre, DateOnly FechaAlta, string? EventoNombre = null,
+    Guid? SubcontrataId = null, string? EmpresaContratistaNombre = null);
 
 public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(
     IAsignacionesQueryContext asignacionesContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
-    IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos)
+    IProyectosQueryContext proyectosContext, IAlcanceDatosService alcanceDatos, ICentrosQueryContext centrosContext)
     : IRequestHandler<ObtenerTrabajadoresAsignadosDeCentroQuery, IReadOnlyList<TrabajadorAsignadoDto>>
 {
     public async Task<IReadOnlyList<TrabajadorAsignadoDto>> Handle(
@@ -71,8 +79,12 @@ public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(
                 trabajador.Nombre,
                 NombreCompleto = trabajador.Nombre + " " + trabajador.Apellidos,
                 EmpleadorNombre = empresa != null ? empresa.RazonSocial : subcontrata!.RazonSocial,
+                SubcontrataId = empresa == null ? trabajador.SubcontrataId : null,
             })
             .ToDictionaryAsync(t => t.Id, cancellationToken);
+        var contratistas = await ContratistasDeSubcontratasEnCentro.CargarAsync(request.CentroId,
+            trabajadores.Values.Where(t => t.SubcontrataId != null).Select(t => t.SubcontrataId!.Value).ToList(),
+            centrosContext, asignacionesContext, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken);
 
         // El join con Trabajadores aplica sus filtros (Tenant propietario, baja lógica), como antes.
         return filas
@@ -80,7 +92,9 @@ public class ObtenerTrabajadoresAsignadosDeCentroQueryHandler(
             .Select(f => (Fila: f, Trabajador: trabajadores[f.TrabajadorId]))
             .OrderBy(x => x.Trabajador.Nombre, StringComparer.CurrentCulture)
             .Select(x => new TrabajadorAsignadoDto(
-                x.Fila.TrabajadorId, x.Trabajador.NombreCompleto, x.Trabajador.EmpleadorNombre, x.Fila.FechaAlta, x.Fila.EventoNombre))
+                x.Fila.TrabajadorId, x.Trabajador.NombreCompleto, x.Trabajador.EmpleadorNombre, x.Fila.FechaAlta, x.Fila.EventoNombre,
+                x.Trabajador.SubcontrataId,
+                x.Trabajador.SubcontrataId is { } subcontrataId ? contratistas.GetValueOrDefault(subcontrataId) : null))
             .ToList();
     }
 }

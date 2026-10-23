@@ -38,6 +38,20 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
         // "CategoriaEspecialSalud" es el valor más largo (22).
         builder.Property(t => t.Sensibilidad).HasConversion<string>().HasMaxLength(30).IsRequired();
 
+        // Catálogo aprobado el 2026-10-17. Grupo como cadena (mismo criterio que el resto de enums persistidos;
+        // «SocietariaYAdministrativa» es el valor más largo, 25); DatosAdicionales como máscara de bits entera,
+        // igual que TiposContratacionDeSerie. Las filas anteriores nacen sin grupo, sin datos adicionales y sin
+        // archivar: la migración del catálogo las rellena por Id base (Tenant #1) y por nombre base (copias por Tenant).
+        builder.Property(t => t.Grupo).HasConversion<string>().HasMaxLength(30);
+        builder.Property(t => t.DatosAdicionales).HasConversion<int>().IsRequired();
+
+        // El sustituto de un tipo archivado es otro tipo del MISMO Tenant propietario: FK compuesta con TenantId,
+        // igual que las de Documento hacia TipoDocumento. Con SustitutoId nulo (MATCH SIMPLE) no se comprueba.
+        builder.HasOne<TipoDocumento>().WithMany()
+            .HasForeignKey(t => new { t.TenantId, t.SustitutoId })
+            .HasPrincipalKey(t => new { t.TenantId, t.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasIndex(t => new { t.TenantId, t.Nombre }).IsUnique();
 
         // Prerequisito de las FKs que Documento/TipoDocumentoCentro declaran

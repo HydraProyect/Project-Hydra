@@ -201,7 +201,9 @@ public class PilotoOutboundOtraVersionTests(ITestOutputHelper salida)
             .And.Contain("Hay que retirar el lote").And.Contain(PilotoOutboundRetirada.Argumento)
             .And.Contain("no se escribe nada y el arranque continúa");
         resultado!.TenantsConDatosNuevos.Should().Equal(
-            [NombreDelPendiente, CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantH, CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantC],
+            [NombreDelPendiente, CatalogoPilotoOutbound.NombreTenantA, CatalogoPilotoOutbound.NombreTenantF, CatalogoPilotoOutbound.NombreTenantH,
+                CatalogoPilotoOutbound.NombreTenantD, CatalogoPilotoOutbound.NombreTenantK, CatalogoPilotoOutbound.NombreTenantJ,
+                CatalogoPilotoOutbound.NombreTenantC, CatalogoPilotoOutbound.NombreTenantI],
             "MEDIDO: los demás siguen su curso —también el que estaba aprovisionado y sin datos—, y el de otra versión no está entre los escritos");
         (await PrimerTenantSinSembrarAsync(arnes)).Should().BeNull("MEDIDO: no queda nada que una ejecución vaya a escribir");
         (await TenantsConDatosDeOtraVersionAsync(arnes)).Should().Equal(

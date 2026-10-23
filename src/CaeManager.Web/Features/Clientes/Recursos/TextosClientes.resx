@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <resheader name="resmimetype">
     <value>text/microsoft-resx</value>
@@ -352,7 +352,7 @@
     <value>Cancelar</value>
   </data>
   <data name="ToleranciaIntro" xml:space="preserve">
-    <value>Días que cada documento sigue valiendo para acceder a los centros de este Cliente tras su vencimiento. Cada centro hereda este valor salvo que fije el suyo en sus requisitos; 0 es sin tolerancia.</value>
+    <value>Días que un documento vencido sigue admitiéndose en los centros de este Cliente.</value>
   </data>
   <data name="ToleranciaOpcionSin" xml:space="preserve">
     <value>Sin tolerancia (0 días)</value>
@@ -376,7 +376,7 @@
     <value>No has cambiado ninguna tolerancia.</value>
   </data>
   <data name="ToleranciaGuardada" xml:space="preserve">
-    <value>Tolerancias del Cliente actualizadas.</value>
+    <value>Tolerancia de documentos guardada</value>
   </data>
   <data name="ToleranciaErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar las tolerancias. Inténtalo de nuevo en unos segundos.</value>
@@ -517,6 +517,10 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 trabajador bloqueado</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloqueado por la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloqueados por la plataforma</value></data>
+  <data name="DetalleBloqueaAccesoUno" xml:space="preserve"><value>1 documento bloquea el acceso</value></data>
+  <data name="DetalleBloqueanAccesoVarios" xml:space="preserve"><value>{0} documentos bloquean el acceso</value></data>
+  <data name="DetallePendienteValidacionUno" xml:space="preserve"><value>1 pendiente de validación</value></data>
+  <data name="DetallePendientesValidacionVarios" xml:space="preserve"><value>{0} pendientes de validación</value></data>
   <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centro</value></data>
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centro con gestión CAE sin incidencias</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centros sin gestión CAE</value></data>
@@ -655,18 +659,24 @@
   <data name="DocumentosExigidosError" xml:space="preserve"><value>No pudimos cargar los documentos exigidos</value></data>
   <data name="DocumentosExigidosErrorDescripcion" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="ListaDocumentosExigidos" xml:space="preserve"><value>Documentos que exige el Cliente</value></data>
-  <data name="ListaEmpresasCertificado" xml:space="preserve"><value>Empresas del Cliente y su certificado de la Seguridad Social</value></data>
-  <data name="CertificadoEmpresasUna" xml:space="preserve"><value>{0} Empresa</value></data>
-  <data name="CertificadoEmpresasVarias" xml:space="preserve"><value>{0} Empresas</value></data>
   <data name="SolicitudesCero" xml:space="preserve"><value>Sin solicitudes</value></data>
   <data name="SolicitudesUna" xml:space="preserve"><value>1 solicitud</value></data>
   <data name="SolicitudesVarias" xml:space="preserve"><value>{0} solicitudes</value></data>
   <data name="ExigidoEnCentroUnico" xml:space="preserve"><value>En su Centro</value></data>
   <data name="ExigidoEnCentros" xml:space="preserve"><value>En {0} de {1} Centros</value></data>
   <data name="Gestionar" xml:space="preserve"><value>Gestionar</value></data>
-  <data name="RequisitoAmbitoEmpresa" xml:space="preserve"><value>Empresa empleadora</value></data>
-  <data name="RequisitoAmbitoTrabajador" xml:space="preserve"><value>Trabajador</value></data>
   <data name="RequisitoBloqueaAcceso" xml:space="preserve"><value>Bloquea el acceso</value></data>
+  <data name="RequisitoCertificadoDetalle" xml:space="preserve"><value>{0} · {1}</value></data>
+  <data name="RequisitoSeExige" xml:space="preserve"><value>Se exige</value></data>
+  <data name="RequisitoVerHistorial" xml:space="preserve"><value>Ver historial</value></data>
+  <data name="RequisitoVerCentros" xml:space="preserve"><value>Ver Centros</value></data>
+  <data name="RequisitoGrupoEmpresa" xml:space="preserve"><value>Lo que exige a la Empresa empleadora</value></data>
+  <data name="RequisitoGrupoTrabajador" xml:space="preserve"><value>Lo que exige a los Trabajadores</value></data>
+  <data name="RequisitoGrupoUno" xml:space="preserve"><value>1 documento</value></data>
+  <data name="RequisitoGrupoVarios" xml:space="preserve"><value>{0} documentos</value></data>
+  <data name="RequisitoGrupoBloqueaUno" xml:space="preserve"><value>1 bloquea el acceso</value></data>
+  <data name="RequisitoGrupoBloqueanVarios" xml:space="preserve"><value>{0} bloquean el acceso</value></data>
+  <data name="RequisitoGrupoSinBloqueos" xml:space="preserve"><value>Sin bloqueos</value></data>
   <data name="CertificadoSinSolicitar" xml:space="preserve"><value>Sin solicitar</value></data>
   <data name="CertificadoPendienteTgss" xml:space="preserve"><value>Pendiente TGSS</value></data>
   <data name="CertificadoExoneradaSilencio" xml:space="preserve"><value>Exonerada (silencio)</value></data>
@@ -687,4 +697,11 @@
   <data name="BajaTitulo" xml:space="preserve"><value>Dar de baja al Cliente</value></data>
   <data name="BajaMensaje" xml:space="preserve"><value>Se dará de baja a {0}. ¿Quieres continuar?</value></data>
   <data name="BajaError" xml:space="preserve"><value>No pudimos dar de baja al Cliente. Intenta nuevamente en unos segundos.</value></data>
+  <data name="ToastClienteBaja" xml:space="preserve"><value>{0} dado de baja</value></data>
+  <data name="ToastClienteRestaurado" xml:space="preserve"><value>Baja del Cliente deshecha</value></data>
+  <data name="CentroTodoValidado" xml:space="preserve"><value>Todo validado en la plataforma</value></data>
+  <data name="InformacionGuardada" xml:space="preserve"><value>Información guardada</value></data>
+  <data name="NotaInternaGuardada" xml:space="preserve"><value>Nota interna guardada</value></data>
+  <data name="CifCopiado" xml:space="preserve"><value>CIF {0} copiado al portapapeles</value></data>
+  <data name="CodigoClienteCopiado" xml:space="preserve"><value>Código de cliente copiado al portapapeles</value></data>
 </root>

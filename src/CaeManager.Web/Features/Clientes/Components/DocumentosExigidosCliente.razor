@@ -8,10 +8,15 @@
     en la Asignación de Cartera de quien mira. Un Centro sin gestión CAE no exige nada (como en Centro 360). No es un
     universo nuevo ni una lista de documentos registrados.
 
-    El certificado de la Seguridad Social (TGSS) es una fila más, siempre la primera: se pide por Empresa, así que su
-    estado es el peor de las Empresas del Cliente y la fila se despliega con una por Empresa. Pulsar el nombre de una
-    Empresa abre DrawerBlindaje42 con su historial, en lectura para cualquier rol (el drawer guarda sus acciones tras
-    SoloConEscritura); «Gestionar» (única acción verbal) abre el mismo drawer y solo se pinta con escritura.
+    Un solo formato de fila (nombre | en cuántos Centros | pastilla de estado | acción), en dos grupos plegados por
+    defecto: lo que se exige a la Empresa empleadora y lo que se exige a sus Trabajadores (2026-10-21). Cada grupo enseña
+    sus primeros diez y «Ver los N restantes».
+
+    El certificado de la Seguridad Social (TGSS) se pide por Empresa: es la primera fila del grupo de la Empresa, una por
+    Empresa con su estado real, y no sale además como requisito genérico. Pulsar su nombre abre DrawerBlindaje42 con el
+    historial, en lectura para cualquier rol (el drawer guarda sus acciones tras SoloConEscritura); «Gestionar» abre el
+    mismo drawer y solo se pinta con escritura. Un requisito de los Centros no tiene estado de cumplimiento en esta
+    consulta: lleva «Se exige» o «Bloquea el acceso» y «Ver Centros», que lleva a la pestaña Centros del Cliente.
 
     No pregunta nada hasta que la página pone Cargar (terminó su cadena de lecturas): todas las consultas comparten el
     DbContext del circuito y no deben ir en paralelo. Al desmontarse cancela lo que tenga en vuelo.
@@ -26,6 +31,7 @@
 @using Microsoft.Extensions.Localization
 @implements IDisposable
 @inject IMediator Mediator
+@inject NavigationManager Navegacion
 @inject IStringLocalizer<TextosClientes> Textos
 
 @if (_cargando)
@@ -47,45 +53,63 @@ else if (_empresas.Count == 0 && _documentacion.Requisitos.Count == 0)
 else
 {
     <ListaRelaciones EnTarjeta="true" Etiqueta="@Textos["ListaDocumentosExigidos"]">
-        @if (_empresas.Count > 0)
+        @foreach (var ambito in _ambitos)
         {
-            <FilaRelacion Nombre="@Textos["CertificadoSeguridadSocialTitulo"]"
-                          Tono="@TonoCertificado"
-                          Desplegada="_certificadoDesplegado" DesplegadaChanged="v => _certificadoDesplegado = v">
-                <Detalle>@Textos[_empresas.Count == 1 ? "CertificadoEmpresasUna" : "CertificadoEmpresasVarias", _empresas.Count]</Detalle>
-                <Cifra><span>@TextoSolicitudes(TotalSolicitudes)</span></Cifra>
-                <Estado><Badge Tono="PestanaBlindaje42.Tono(PeorEstado)" Tamano="TamanoBadge.Pequeno">@EtiquetaCertificado(PeorEstado)</Badge></Estado>
+            var filas = FilasDe(ambito);
+            if (filas.Count == 0)
+                continue;
+
+            var (documentos, bloquean, descubiertos) = Resumir(filas);
+            <FilaRelacion Nombre="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]"
+                          Tono="@(descubiertos ? TonoFila.Peligro : (TonoFila?)null)"
+                          Desplegada="_gruposAbiertos.Contains(ambito)" DesplegadaChanged="v => AlternarGrupo(ambito, v)">
+                <Detalle>@Textos[documentos == 1 ? "RequisitoGrupoUno" : "RequisitoGrupoVarios", documentos]</Detalle>
+                <Estado>
+                    @if (descubiertos)
+                    {
+                        <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@Textos["CertificadoConDescubiertos"]</Badge>
+                    }
+                    else if (bloquean > 0)
+                    {
+                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos[bloquean == 1 ? "RequisitoGrupoBloqueaUno" : "RequisitoGrupoBloqueanVarios", bloquean]</Badge>
+                    }
+                    else
+                    {
+                        <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["RequisitoGrupoSinBloqueos"]</Badge>
+                    }
+                </Estado>
                 <Desplegable>
-                    <ListaRelaciones Etiqueta="@Textos["ListaEmpresasCertificado"]">
-                        @foreach (var empresa in _empresas)
+                    <ListaRelaciones Etiqueta="@Textos[ambito == AmbitoAplicacion.Empresa ? "RequisitoGrupoEmpresa" : "RequisitoGrupoTrabajador"]">
+                        @{ var claves = new ClavesDeHermanos(); }
+                        @foreach (var fila in VerRestantes.Recortar(filas, _gruposCompletos.Contains(ambito)))
                         {
-                            <FilaRelacion @key="empresa.EmpresaId" Nombre="@empresa.EmpresaRazonSocial" NombreIcono="empresas"
-                                          OnNombre="() => AbrirDrawer(empresa)">
-                                <Cifra><span>@TextoSolicitudes(empresa.TotalSolicitudes)</span></Cifra>
-                                <Estado><Badge Tono="PestanaBlindaje42.Tono(empresa.UltimaSolicitud?.Estado)" Tamano="TamanoBadge.Pequeno">@EtiquetaCertificado(empresa.UltimaSolicitud?.Estado)</Badge></Estado>
+                            <FilaRelacion @key="claves.De(fila.Clave)" Compacta="true" Nombre="@fila.Nombre" Tono="@fila.TonoFila" Detalle="DetalleDe(fila)"
+                                          OnNombre="NombreDe(fila)">
+                                <Cifra><span>@fila.Cifra</span></Cifra>
+                                <Estado><Badge Tono="fila.Tono" Tamano="TamanoBadge.Pequeno">@fila.Estado</Badge></Estado>
                                 <Acciones>
-                                    <SoloConEscritura>
-                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDrawer(empresa)">@Textos["Gestionar"]</Boton>
-                                    </SoloConEscritura>
+                                    @if (fila.Empresa is null)
+                                    {
+                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="IrACentros">@Textos["RequisitoVerCentros"]</Boton>
+                                    }
+                                    else
+                                    {
+                                        @* Con escritura, «Gestionar»; sin ella, el mismo drawer en lectura: la acción no falta a nadie. *@
+                                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionEscritura">
+                                            <Authorized>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDrawer(fila.Empresa)">@Textos["Gestionar"]</Boton>
+                                            </Authorized>
+                                            <NotAuthorized>
+                                                <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirDrawer(fila.Empresa)">@Textos["RequisitoVerHistorial"]</Boton>
+                                            </NotAuthorized>
+                                        </AuthorizeView>
+                                    }
                                 </Acciones>
                             </FilaRelacion>
                         }
                     </ListaRelaciones>
+                    <VerRestantes Total="filas.Count" Completa="_gruposCompletos.Contains(ambito)" OnVerRestantes="() => _gruposCompletos.Add(ambito)" />
                 </Desplegable>
-            </FilaRelacion>
-        }
-
-        @foreach (var requisito in _documentacion.Requisitos)
-        {
-            <FilaRelacion @key="requisito.TipoDocumentoId" Nombre="@requisito.Nombre">
-                <Detalle>@Textos[requisito.AmbitoAplicacion == AmbitoAplicacion.Empresa ? "RequisitoAmbitoEmpresa" : "RequisitoAmbitoTrabajador"]</Detalle>
-                <Cifra><span>@TextoCentros(requisito.Centros)</span></Cifra>
-                <Estado>
-                    @if (requisito.BloqueaAcceso)
-                    {
-                        <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@Textos["RequisitoBloqueaAcceso"]</Badge>
-                    }
-                </Estado>
             </FilaRelacion>
         }
     </ListaRelaciones>
@@ -133,8 +157,16 @@ else
     private bool _cargando = true;
     private bool _error;
     private bool _leido;
-    private bool _certificadoDesplegado;
     private Guid _cliente;
+
+    /// <summary>Primero lo que se exige a la Empresa y después lo de sus Trabajadores, como devuelve el servidor.</summary>
+    private static readonly AmbitoAplicacion[] _ambitos = [AmbitoAplicacion.Empresa, AmbitoAplicacion.Trabajador];
+
+    /// <summary>Los grupos nacen plegados (decisión del 2026-10-21): solo se abre el que se pulsa.</summary>
+    private readonly HashSet<AmbitoAplicacion> _gruposAbiertos = [];
+
+    /// <summary>Grupos a los que se pidió «Ver los N restantes».</summary>
+    private readonly HashSet<AmbitoAplicacion> _gruposCompletos = [];
 
     /// <summary>Sube con cada Cliente empresarial y con cada lectura completa: lo que llegue de una anterior no escribe.</summary>
     private int _generacion;
@@ -159,7 +191,8 @@ else
             _error = false;
             _empresas = [];
             _documentacion = SinDocumentacion;
-            _certificadoDesplegado = false;
+            _gruposAbiertos.Clear();
+            _gruposCompletos.Clear();
         }
 
         if (!Cargar || _leido)
@@ -230,29 +263,80 @@ else
         }
     }
 
-    private int TotalSolicitudes => _empresas.Sum(e => e.TotalSolicitudes);
+    /// <summary>
+    /// Una fila de la lista, de cualquiera de los dos grupos: el mismo formato para todas. Un requisito de los Centros lleva
+    /// «Se exige» o «Bloquea el acceso» (la consulta no sabe cuánto cumple el Cliente) y «Ver Centros»; el certificado de la
+    /// Seguridad Social lleva una fila por Empresa con su estado real y «Gestionar».
+    /// </summary>
+    private sealed record FilaDoc(
+        string Clave, string Documento, string Nombre, string? Detalle, string Cifra, TonoBadge Tono, string Estado,
+        bool Bloquea, TonoFila? TonoFila = null, BlindajeEmpresaDto? Empresa = null);
 
-    /// <summary>El peor estado entre las Empresas: con descubiertos, sin solicitar, en trámite, silencio, certificación.</summary>
-    private EstadoBlindaje42? PeorEstado => _empresas
-        .Select(e => e.UltimaSolicitud?.Estado)
-        .OrderBy(Gravedad)
-        .FirstOrDefault();
-
-    private static int Gravedad(EstadoBlindaje42? estado) => estado switch
+    /// <summary>
+    /// Las filas de un grupo. El certificado de la Seguridad Social es un requisito más del catálogo, pero se pinta con el
+    /// estado de cada Empresa en vez de con el genérico, así que no sale dos veces.
+    /// </summary>
+    private IReadOnlyList<FilaDoc> FilasDe(AmbitoAplicacion ambito)
     {
-        EstadoBlindaje42.NoExonerada => 0,
-        null => 1,
-        EstadoBlindaje42.PendienteRespuesta => 2,
-        EstadoBlindaje42.ExoneradaPorSilencio => 3,
-        _ => 4
-    };
+        var filas = new List<FilaDoc>();
+        var tgss = _documentacion.Requisitos.FirstOrDefault(r => r.EsCertificadoTgss);
+        var tgssPorEmpresa = ambito == AmbitoAplicacion.Empresa && _empresas.Count > 0;
 
-    private TonoFila? TonoCertificado => PeorEstado switch
+        if (tgssPorEmpresa)
+        {
+            var cifra = tgss is null ? string.Empty : TextoCentros(tgss.Centros);
+            foreach (var empresa in _empresas)
+            {
+                var estado = empresa.UltimaSolicitud?.Estado;
+                filas.Add(new FilaDoc(
+                    $"tgss-{empresa.EmpresaId}", "tgss", Textos["CertificadoSeguridadSocialTitulo"],
+                    Textos["RequisitoCertificadoDetalle", empresa.EmpresaRazonSocial, TextoSolicitudes(empresa.TotalSolicitudes)].Value, cifra,
+                    PestanaBlindaje42.Tono(estado), EtiquetaCertificado(estado), tgss?.BloqueaAcceso ?? false,
+                    estado == EstadoBlindaje42.NoExonerada ? TonoFila.Peligro : null, empresa));
+            }
+        }
+
+        foreach (var requisito in _documentacion.Requisitos.Where(r => r.AmbitoAplicacion == ambito))
+        {
+            // Solo el que fija la cifra de las filas por Empresa: un segundo tipo con el mismo perfil sigue siendo requisito.
+            if (tgssPorEmpresa && ReferenceEquals(requisito, tgss))
+                continue;
+            filas.Add(new FilaDoc(
+                requisito.TipoDocumentoId.ToString(), requisito.TipoDocumentoId.ToString(), requisito.Nombre, null, TextoCentros(requisito.Centros),
+                requisito.BloqueaAcceso ? TonoBadge.Advertencia : TonoBadge.Neutro,
+                Textos[requisito.BloqueaAcceso ? "RequisitoBloqueaAcceso" : "RequisitoSeExige"], requisito.BloqueaAcceso));
+        }
+
+        return filas;
+    }
+
+    /// <summary>
+    /// Lo que la cabecera de un grupo plegado enseña de sus filas: documentos (no filas: el certificado de la Seguridad Social
+    /// es uno aunque tenga una fila por Empresa), cuántos bloquean el acceso y si alguna Empresa tiene descubiertos, para que
+    /// el peor estado se vea sin abrir el grupo.
+    /// </summary>
+    private static (int Documentos, int Bloquean, bool Descubiertos) Resumir(IReadOnlyList<FilaDoc> filas) => (
+        filas.Select(f => f.Documento).Distinct().Count(),
+        filas.Where(f => f.Bloquea).Select(f => f.Documento).Distinct().Count(),
+        filas.Any(f => f.TonoFila == TonoFila.Peligro));
+
+    /// <summary>Solo el certificado de la Seguridad Social tiene historial que abrir al pulsar el nombre.</summary>
+    private EventCallback NombreDe(FilaDoc fila) =>
+        fila.Empresa is { } empresa ? EventCallback.Factory.Create(this, () => AbrirDrawer(empresa)) : default;
+
+    private static RenderFragment? DetalleDe(FilaDoc fila) =>
+        fila.Detalle is { } detalle ? builder => builder.AddContent(0, detalle) : null;
+
+    private void AlternarGrupo(AmbitoAplicacion ambito, bool abierto)
     {
-        EstadoBlindaje42.NoExonerada => TonoFila.Peligro,
-        null => TonoFila.Advertencia,
-        _ => null
-    };
+        if (abierto)
+            _gruposAbiertos.Add(ambito);
+        else
+            _gruposAbiertos.Remove(ambito);
+    }
+
+    /// <summary>Los requisitos se definen por Centro: la lista de Centros del Cliente es donde se ven y se cambian.</summary>
+    private void IrACentros() => Navegacion.NavigateTo($"clientes/{_cliente}?pestana=centros");
 
     private string EtiquetaCertificado(EstadoBlindaje42? estado) => estado switch
     {

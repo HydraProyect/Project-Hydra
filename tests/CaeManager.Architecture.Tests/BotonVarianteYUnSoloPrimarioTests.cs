@@ -119,6 +119,8 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Usuarios/Pages/Usuarios.razor"] = 2,
         ["src/CaeManager.Web/Features/Vehiculos/Components/VehiculoWorkspacePanel.razor"] = 2,
         ["src/CaeManager.Web/Features/Vehiculos/Pages/Vehiculos.razor"] = 2,
+        // 2 el 2026-10-22 (Visitas según Flujos 06): «Reactivar» (rama EsCancelada) y «Enviar paquete por correo» (rama EsPorCorreo) son ramas excluyentes del mismo @if / else if de <Acciones>, así que la cabecera pinta siempre un solo primario; el test las cuenta como si convivieran.
+        ["src/CaeManager.Web/Features/Visitas/Pages/VisitaDetalle.razor"] = 2,
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor"] = 2,
         ["src/CaeManager.Web/Features/Visitas/Pages/Visitas.razor#Drawer1"] = 3,
     };

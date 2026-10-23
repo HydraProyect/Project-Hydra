@@ -65,12 +65,16 @@ public class AnadirRequisitoEventoCommandHandler(
         var (proyecto, error) = await EventoVisible.ObtenerAsync(proyectos, alcanceDatos, request.ProyectoId, cancellationToken);
         if (proyecto is null) return Result.Fallo(error!);
 
-        var ambito = await tiposDocumento.TiposDocumento
+        var tipo = await tiposDocumento.TiposDocumento
             .Where(t => t.Id == request.TipoDocumentoId)
-            .Select(t => (AmbitoAplicacion?)t.AmbitoAplicacion)
+            .Select(t => new { t.AmbitoAplicacion, t.Archivado })
             .FirstOrDefaultAsync(cancellationToken);
-        if (ambito is null)
+        if (tipo is null)
             return Result.Fallo(Error.Crear("Proyecto.TipoDocumentoNoEncontrado", "No encontramos este tipo de documento."));
+        // Un tipo archivado no se pide de nuevo: se pide su sustituto (catálogo revisado el 2026-10-17).
+        if (tipo.Archivado)
+            return Result.Fallo(Error.Crear("Proyecto.TipoDocumentoArchivado", "Ese tipo de documento está archivado; pide su sustituto."));
+        var ambito = tipo.AmbitoAplicacion;
         // Lo que pide un evento lo aporta cada participante: un documento de Empresa o de Vehículo no lo cumple nadie.
         if (ambito != AmbitoAplicacion.Trabajador)
             return Result.Fallo(Error.Crear("Proyecto.RequisitoNoEsDeTrabajador", "Un evento solo puede pedir documentos de trabajador."));

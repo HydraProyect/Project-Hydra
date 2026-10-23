@@ -340,6 +340,74 @@ public partial class CentrosListaGen2Tests : BunitContext
         estado.QuerySelector(".estado-fila-motivo").Should().BeNull();
     }
 
+    private static CentroListaDto CentroConIncidencias(string nombre) => Centro(nombre, EstadoCentro.Vencido) with
+    {
+        Recuentos = new RecuentosCentroDto(
+            [new IncidenciaCentroDto("Aptitud médica", AmbitoCausa.Trabajador, EstadoDocumento.Faltante, null, Guid.NewGuid(), null),
+             new IncidenciaCentroDto("Formación PRL", AmbitoCausa.Trabajador, null, Guid.NewGuid(), Guid.NewGuid(), null)],
+            [new IncidenciaCentroDto("ITV", AmbitoCausa.Empresa, EstadoDocumento.Proximo, Guid.NewGuid(), Guid.NewGuid(), null)])
+    };
+
+    /// <summary>
+    /// Decisión del 2026-10-21 (#1530): las filas desplegables nacen contraídas. Con un único Centro la lista no se
+    /// autodespliega: «Expandir todo» ofrece abrir, el chevron está cerrado y no hay detalle (Empresa y Trabajadores)
+    /// montado hasta que el usuario lo pide.
+    /// </summary>
+    [Fact]
+    public void Con_un_unico_Centro_con_incidencias_la_lista_carga_contraida()
+    {
+        var cut = Renderizar(CentroConIncidencias("Plataforma logística de Illescas"));
+
+        cut.FindAll(".boton-expandir-fila").Select(b => b.GetAttribute("aria-expanded")).Should().Equal("false");
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().BeEmpty("el detalle del Centro solo se monta al desplegar la fila");
+        cut.Find("button[data-keytip=E]").TextContent.Trim().Should().Be("Expandir todo");
+
+        cut.Find(".boton-expandir-fila").Click();
+
+        cut.FindAll(".tarjeta-fila-acordeon-contenido").Should().ContainSingle("el chevron sí lo despliega");
+        cut.Find("button[data-keytip=E]").TextContent.Trim().Should().Be("Contraer todo");
+    }
+
+    /// <summary>«Sin agrupar» es lo que dice: ninguna fila lleva título de grupo por Cliente empresarial.</summary>
+    [Fact]
+    public void Sin_agrupar_la_lista_no_lleva_cabeceras_de_grupo_por_Cliente()
+    {
+        var cut = Renderizar(CentroConIncidencias("Almacén Vigo"), CentroConIncidencias("Planta Murcia"));
+
+        cut.FindAll(".cabecera-grupo-centros, [data-grupo-cliente]").Should().BeEmpty();
+        cut.FindAll(".tarjeta-fila-acordeon").Should().HaveCount(2);
+    }
+
+    /// <summary>
+    /// «24 pendientes · 2 bloqueos de plataforma · 2 por vencer» no cabe en una línea de la columna Estado documental: el
+    /// motivo parte por sus piezas (cada una sin partirse) en vez de salirse por el borde y pisar el icono 360. Se fija
+    /// la estructura que lee el CSS aislado y las reglas que impiden el desbordamiento.
+    /// </summary>
+    [Fact]
+    public void El_motivo_del_estado_documental_parte_por_sus_piezas_y_no_desborda_la_columna()
+    {
+        var cut = Renderizar(CentroConIncidencias("Plataforma logística de Illescas"));
+
+        var celda = cut.Find(".tarjeta-fila-acordeon-cabecera > .celda-estado-centro");
+        celda.QuerySelector(".estado-fila-motivo")!.QuerySelectorAll(".motivo-recuento").Should().HaveCountGreaterThan(1);
+
+        var css = File.ReadAllText(Path.Combine(RaizDeWeb(), "Features", "Centros", "Pages", "Centros.razor.css"));
+        var regla = System.Text.RegularExpressions.Regex.Match(css, @"\.celda-estado-centro\s+::deep\s+\.estado-fila-motivo\s*\{(?<cuerpo>[^}]*)\}").Groups["cuerpo"].Value;
+        regla.Should().Contain("flex-wrap: wrap").And.Contain("max-width: 100%").And.Contain("min-width: 0");
+        css.Should().MatchRegex(@"\.celda-estado-centro\s*\{[^}]*min-width:\s*0");
+        css.Should().MatchRegex(@"\.motivo-recuento\s*\{[^}]*white-space:\s*nowrap");
+    }
+
+    private static string RaizDeWeb()
+    {
+        var directorio = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directorio is not null && !File.Exists(Path.Combine(directorio.FullName, "CaeManager.slnx")))
+            directorio = directorio.Parent;
+
+        directorio.Should().NotBeNull("hay que encontrar la raíz del repositorio para leer el CSS de Centros");
+        return Path.Combine(directorio!.FullName, "src", "CaeManager.Web");
+    }
+
     /// <summary>
     /// Decisión del 2026-10-09: con visita programada la fila enseña la visita Y la pastilla de estado con su
     /// motivo. Antes la visita ocupaba el sitio del estado y un Centro vencido con visita no decía que lo estaba.

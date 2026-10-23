@@ -90,4 +90,7 @@
   <data name="VerMas" xml:space="preserve">
     <value>Ver más →</value>
   </data>
+  <data name="IrAVega" xml:space="preserve">
+    <value>Ir a Vega</value>
+  </data>
 </root>

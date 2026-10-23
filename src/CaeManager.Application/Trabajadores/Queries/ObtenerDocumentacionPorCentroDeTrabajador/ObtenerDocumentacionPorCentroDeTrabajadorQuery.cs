@@ -112,7 +112,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         var documentosDelTrabajador = await documentosContext.Documentos.Operativos()
             .Where(d => d.TrabajadorId == request.TrabajadorId)
-            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc })
+            .Select(d => new { d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento, d.FechaEmision, d.CreadoEnUtc, d.EsRenuncia })
             .ToListAsync(cancellationToken);
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -128,7 +128,7 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
 
         // Un documento operativo por tipo en el caso normal; con duplicados sin resolver manda el efectivo.
         var documentosPorTipo = DocumentoEfectivo.UnoPorClave(
-            documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, hoy);
+            documentosDelTrabajador, d => d.TipoDocumentoId, d => d.EstadoVigencia, d => d.FechaVencimiento, d => d.FechaEmision, d => d.CreadoEnUtc, d => d.Id, d => d.EsRenuncia, hoy);
 
         // Segunda línea de cada documento: cada grupo fija un Centro, así que el estado en la plataforma es el de los
         // canales de ESE Centro (el mismo documento puede estar aceptado en uno y sin subir en otro). Una carga para
@@ -162,12 +162,12 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                 .ToList();
 
             var items = new List<DocumentoRequeridoDto>();
-            var estadosDeLosPares = new List<EstadoDocumento>();
+            var estadosDeLosPares = new List<(EstadoDocumento Estado, bool EsRenuncia)>();
             var paresEnElCentro = new List<ParDocumentalExigido>();
 
-            ParDocumentalExigido Par(Guid tipoId, EstadoDocumento estadoDelPar) => new(
+            ParDocumentalExigido Par(Guid tipoId, EstadoDocumento estadoDelPar, bool esRenuncia) => new(
                 asignacion.CentroId, asignacion.ClienteEmpresarialId, EmpresaId: null, request.TrabajadorId, tipoId, estadoDelPar,
-                pendientesQueBajanElPorcentaje.Contains((asignacion.CentroId, tipoId)));
+                pendientesQueBajanElPorcentaje.Contains((asignacion.CentroId, tipoId)), esRenuncia);
 
             foreach (var tipo in tiposRequeridos)
             {
@@ -176,16 +176,16 @@ public class ObtenerDocumentacionPorCentroDeTrabajadorQueryHandler(
                     items.Add(new DocumentoRequeridoDto(
                         null, tipo.Id, tipo.Nombre, EstadoDocumento.Faltante, null,
                         UltimaReclamacion: situacion.UltimaReclamacionDeAusente(request.TrabajadorId, tipo.Id)));
-                    estadosDeLosPares.Add(EstadoDocumento.Faltante);
-                    paresEnElCentro.Add(Par(tipo.Id, EstadoDocumento.Faltante));
+                    estadosDeLosPares.Add((EstadoDocumento.Faltante, false));
+                    paresEnElCentro.Add(Par(tipo.Id, EstadoDocumento.Faltante, esRenuncia: false));
                     continue;
                 }
 
                 var estado = CalculadoraEstadoDocumento.Calcular(
                     documento.EstadoVigencia, documento.FechaVencimiento, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias);
                 // El cumplimiento mide el estado de vigencia REAL del Documento: la tolerancia no entra en el porcentaje.
-                estadosDeLosPares.Add(estado);
-                paresEnElCentro.Add(Par(tipo.Id, estado));
+                estadosDeLosPares.Add((estado, documento.EsRenuncia));
+                paresEnElCentro.Add(Par(tipo.Id, estado, documento.EsRenuncia));
                 // Solo se omite lo confirmado como que no caduca; lo sin confirmar se lista.
                 if (estado == EstadoDocumento.SinCaducidad) continue;
 

@@ -222,6 +222,9 @@
   <data name="ErrorGuardar" xml:space="preserve">
     <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
   </data>
+  <data name="ToastAccionDeshacer" xml:space="preserve">
+    <value>Deshacer</value>
+  </data>
   <data name="ToastMarcadaResuelta" xml:space="preserve">
     <value>Incidencia marcada como resuelta.</value>
   </data>

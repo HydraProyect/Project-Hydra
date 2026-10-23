@@ -204,48 +204,6 @@
     font-weight: 700;
 }
 
-.tabla-plataforma-centro {
-    padding: 0 var(--space-4) var(--space-2) 72px;
-    border-top: var(--border-default);
-    background: var(--color-surface);
-}
-.cabecera-plataforma-centro,
-.fila-plataforma-centro {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr) 100px 64px;
-    gap: var(--space-3);
-    align-items: center;
-}
-.cabecera-plataforma-centro {
-    padding: 8px 0 6px;
-    font: var(--font-caption);
-    font-weight: 600;
-    color: var(--color-text-muted);
-}
-.fila-plataforma-centro {
-    padding: 8px var(--space-2);
-    margin-inline: calc(-1 * var(--space-2));
-    min-height: 48px;
-    border-top: var(--border-default);
-    font: var(--font-caption);
-}
-.fila-plataforma-bloquea { background: linear-gradient(90deg, var(--color-danger-50), transparent 70%); }
-.fila-plataforma-pendiente { background: linear-gradient(90deg, var(--color-warning-50), transparent 70%); }
-.identidad-documento-plataforma { display: flex; align-items: center; gap: 8px; min-width: 0; overflow-wrap: anywhere; font-size: 13px; }
-.indicador-talveg { flex: none; width: 18px; height: 18px; box-sizing: border-box; border: 1px solid var(--color-text-muted); border-radius: 50%; text-align: center; font: 700 10px/16px var(--font-family); color: var(--color-text-muted); cursor: help; }
-.estado-documento-plataforma { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-.nombre-plataforma-centro { color: var(--color-text-muted); }
-.indicador-talveg[data-estado="Peligro"] { color: var(--color-danger-700); background: var(--color-danger-50); border-color: currentColor; }
-.indicador-talveg[data-estado="Advertencia"],
-.indicador-talveg[data-estado="Tolerancia"] { color: var(--color-warning-700); background: var(--color-warning-50); border-color: currentColor; }
-.indicador-talveg[data-estado="Exito"] { color: var(--color-success-700); background: var(--color-success-50); border-color: currentColor; }
-@container (max-width: 640px) {
-    .tabla-plataforma-centro { padding-left: var(--space-4); }
-    .cabecera-plataforma-centro { display: none; }
-    .fila-plataforma-centro { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 6px; }
-    .fila-plataforma-centro > :first-child,
-    .fila-plataforma-centro > :nth-child(2) { grid-column: 1 / -1; }
-}
 
 .lista-trabajadores-acordeon {
     container-type: inline-size;
@@ -258,9 +216,4 @@
 .linea-estado-plataforma { color: var(--color-text-muted); }
 .linea-estado-plataforma--rechazada { color: var(--color-danger-700); }
 
-/* Centro 360 (maqueta del 20-10): la Empresa empleadora junto al nombre del Trabajador, en tono de apoyo. */
-.fila-trabajador-empleador {
-    font: var(--font-caption);
-    color: var(--color-text-muted);
-    overflow-wrap: anywhere;
 }

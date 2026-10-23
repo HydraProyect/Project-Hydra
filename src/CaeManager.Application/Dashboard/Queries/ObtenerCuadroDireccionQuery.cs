@@ -8,6 +8,7 @@ using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Usuarios.Commands.AsumirPrincipalDeOperacion;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -31,10 +32,17 @@ public record SolicitudesDelMesDto(CifraMensual Total, IReadOnlyList<FranjaSolic
 /// Trabajador operativos, clasificados con la calculadora única) y el porcentaje sale de
 /// <see cref="KpisDashboardDto.FraccionDe"/> y <see cref="KpisDashboardDto.SinDocumentos"/>, la misma
 /// definición que Inicio y el Dashboard ejecutivo.
+/// <para>
+/// <paramref name="Proximos"/>, <paramref name="Urgentes"/> y <paramref name="Vencidos"/> son solo las entradas de la tasa
+/// (Documentos de Trabajador) y el Cuadro no los pinta como recuento: no son la cifra de vencidos y por vencer de
+/// Alertas, Mi trabajo e Inicio, que suma también los de Empresa (<see cref="KpisDashboardDto.VencidosComoEnAlertas"/>).
+/// Quien quiera mostrar un recuento de vencidos en el Cuadro lo toma de ahí, no de estos campos.
+/// </para>
 /// </summary>
 public record CumplimientoActualDto(
     int Vigentes, int Proximos, int Urgentes, int Vencidos, int SinConfirmar, int SinCaducidad,
-    int ParesExigidosSinDocumento, int Porcentaje, bool SinDatos, DateTime MedidoEnUtc);
+    int ParesExigidosSinDocumento, int Porcentaje, bool SinDatos, DateTime MedidoEnUtc,
+    FraccionCumplimiento? Exigido = null);
 
 /// <summary>
 /// Las cifras del Cuadro de dirección de un Tenant beneficiario, o la suma de todos. Volumen de la operación,
@@ -135,7 +143,8 @@ public record MedicionCuadroDireccion(
     int? ExtranjerosActivos = null,
     int? ObrasNuevas = null,
     IReadOnlyList<CentrosNuevosPorClienteDto>? CentrosNuevosPorCliente = null,
-    int? VisitasTrabajadorExtranjero = null);
+    int? VisitasTrabajadorExtranjero = null,
+    FraccionCumplimiento? CumplimientoExigido = null);
 
 /// <summary>
 /// Cuadro de dirección (incremento 2; sustituirá al Dashboard ejecutivo). Mismo patrón que
@@ -229,6 +238,8 @@ public class ObtenerCuadroDireccionQueryHandler(
                         EstadoPersistido = cierre.Estimado ? EstadoCifraMensual.Estimado : EstadoCifraMensual.Existe,
                         Documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken)
                     };
+                // Contexto Empresa del Tenant beneficiario (pares exigidos, los que faltan en contra): foto de hoy, como "Documental".
+                medicion = medicion with { CumplimientoExigido = await mediator.Send(new ObtenerCumplimientoExigidoTenantQuery(), cancellationToken) };
                 porTenant.Add((cliente, medicion));
             }
         }
@@ -349,7 +360,8 @@ public class ObtenerCuadroDireccionQueryHandler(
                 new CifraMensual(solicitudes.Count, estado), DefinicionesCuadroDireccion.PorFranja(solicitudes)),
             Cumplimiento: new CumplimientoActualDto(
                 vigentes, proximos, urgentes, vencidos, sinConfirmar, sinCaducidad, paresExigidos,
-                porcentaje, sinDatos, ahoraUtc),
+                porcentaje, sinDatos, ahoraUtc,
+                SumarExigido(mediciones.Select(m => m.CumplimientoExigido))),
             Gestiones: mediciones.Count > 0 && mediciones.All(m => m.GestionesCompletadas is not null)
                 ? new CifraMensual(mediciones.Sum(m => m.GestionesCompletadas!.Value), estado)
                 : null,
@@ -364,6 +376,15 @@ public class ObtenerCuadroDireccionQueryHandler(
                 : null);
     }
 
+    /// <summary>
+    /// El cumplimiento en contexto Empresa de un conjunto de Tenants: la fracción de los pares sumados, nunca la media de
+    /// porcentajes. Null si alguna medición no lo trae (la serie mensual no lo reconstruye).
+    /// </summary>
+    public static FraccionCumplimiento? SumarExigido(IEnumerable<FraccionCumplimiento?> fracciones)
+    {
+        var lista = fracciones.ToList();
+        return lista.Count > 0 && lista.All(f => f is not null) ? FraccionCumplimiento.Sumar(lista.Select(f => f!)) : null;
+    }
     /// <summary>Suma por Tenant y Cliente empresarial, de más Centros nuevos a menos.</summary>
     public static IReadOnlyList<CentrosNuevosPorClienteDto> SumarCentrosNuevosPorCliente(IEnumerable<CentrosNuevosPorClienteDto> filas) =>
         filas

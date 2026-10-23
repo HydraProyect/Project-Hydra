@@ -76,10 +76,13 @@ public class RegistroAccesoDocumentoSensibleService(
             actor.ViaAccesoId,
             (TipoActorAuditoria)actor.ResolverTipoActor());
 
-        // El repositorio decide si el fallo de guardado se propaga o se
-        // tolera (sesión de soporte sin privilegio de escritura) — Application
-        // no puede distinguirlo sin conocer el proveedor de EF concreto, ver
-        // el comentario de IRegistroAccesoDocumentoSensibleRepository.
-        await repositorio.GuardarAsync(registro, cancellationToken);
+        // Falla en cerrado (DEC-36, REC-208): un acceso sensible que no queda
+        // registrado no se sirve. El repositorio traduce el rechazo de la base
+        // (Sesión Privilegiada que la función de registro no reconoce, conexión
+        // sin privilegio) a false — Application no puede distinguirlo sin
+        // conocer el proveedor de EF, ver IRegistroAccesoDocumentoSensibleRepository —,
+        // y aquí se convierte en una excepción que corta la respuesta.
+        if (!await repositorio.GuardarAsync(registro, cancellationToken))
+            throw new AccesoDocumentoSensibleNoRegistradoException(recursoId);
     }
 }

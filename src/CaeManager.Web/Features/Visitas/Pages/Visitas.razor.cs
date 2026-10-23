@@ -43,7 +43,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private int _pagina;
     private int _tamanoPagina = 20;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
+    private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPor is not null, _tamanoPagina);
+
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     private async Task CambiarPaginaAsync(int pagina)
     {
@@ -63,7 +66,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     private string _orden = string.Empty;
     private string _estadoFiltro = string.Empty;
     private IReadOnlyDictionary<string, int>? _recuentosPorEstado;
-    private IReadOnlyDictionary<string, ResumenDeGrupo>? _resumenPorGrupo;
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;
@@ -340,7 +342,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             NotificadoCliente: _filtroNotificado switch { "si" => true, "no" => false, _ => null },
             SoloUrgentes: _soloUrgentes,
             Pagina: _pagina + 1,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             OrdenarPor: ordenarPor,
             Descendente: descendente,
             EstadosDocumentacion: SeleccionEstados.Separar<EstadoDocumentacionVisita>(_estadoFiltro),
@@ -357,7 +359,6 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
-            _resumenPorGrupo = resultado.ResumenPorGrupo;
             _elementosPagina = elementos;
             _preparaciones.Clear();
             _preparacionCargando.Clear();
@@ -1066,7 +1067,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
             else
-                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito);
+                // Deshacer solo actúa si el panel sigue en la misma Visita: no quita la marca de otra.
+                ToastService.Mostrar(Textos["ToastDocumentacionGestionada"], TonoToast.Exito,
+                    Textos["ToastAccionDeshacer"].Value,
+                    () => _detalle?.Id == detalle.Id ? QuitarMarcaDocumentacionGestionadaAsync() : Task.CompletedTask);
         }
         catch (Exception)
         {
@@ -1208,12 +1212,60 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         if (_trabajadorAQuitar is not { } trabajador)
             return;
 
+        var visitaId = _detalle?.Id ?? Guid.Empty;
+        // Versión que deja la baja del Trabajador: se lee del panel ya recargado y es la que Deshacer exige.
+        var versionTrasQuitar = Guid.Empty;
         await CambiarTrabajadoresAsync(
             detalle => new QuitarTrabajadorDeVisitaCommand(detalle.Id, trabajador.Id, detalle.Version),
-            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto]);
+            Textos["ToastTrabajadorQuitado", trabajador.NombreCompleto],
+            () => DeshacerQuitarTrabajadorAsync(visitaId, trabajador.Id, versionTrasQuitar));
+        if (_detalle is { } tras && tras.Id == visitaId)
+            versionTrasQuitar = tras.Version;
 
         _confirmarQuitarTrabajadorVisible = false;
         _trabajadorAQuitar = null;
+    }
+
+    /// <summary>
+    /// «Deshacer» del aviso de quitar (maqueta «Flujos 06 Visitas», «Éxito · quitado»): vuelve a añadir al
+    /// Trabajador con la versión que dejó la baja (como el Deshacer de cancelar con el recibo): si alguien cambió la
+    /// Visita entretanto, el servidor lo rechaza y el aviso lo dice en vez de pisar ese cambio.
+    /// </summary>
+    private async Task DeshacerQuitarTrabajadorAsync(Guid visitaId, Guid trabajadorId, Guid versionTrasQuitar)
+    {
+        if (_cambiandoTrabajadores)
+            return;
+
+        if (visitaId == Guid.Empty || versionTrasQuitar == Guid.Empty)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+            return;
+        }
+
+        _cambiandoTrabajadores = true;
+        try
+        {
+            var resultado = await Mediator.Send(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, versionTrasQuitar));
+            if (resultado.EsFallido)
+                ToastService.MostrarError(resultado.Error);
+            else
+                ToastService.Mostrar(Textos["ToastTrabajadorDevuelto"], TonoToast.Exito);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            ToastService.Mostrar(Textos["ToastErrorCambiarTrabajadores"], TonoToast.Error);
+        }
+        finally
+        {
+            _cambiandoTrabajadores = false;
+        }
+
+        await RecargarAsync();
+        if (_detalle?.Id == visitaId)
+            await AbrirDetalleAsync(visitaId, PestanaTrabajadores);
+
+        // El aviso llama desde fuera del ciclo de la página: sin esto el panel no se repinta con el Trabajador devuelto.
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -1221,7 +1273,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     /// la documentación y la versión de la Visita salen de lo guardado, no de lo que la pantalla
     /// creía tener. Tanto si sale bien como si falla (otra persona la cambió, se canceló).
     /// </summary>
-    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito)
+    private async Task CambiarTrabajadoresAsync(Func<DetalleVisitaDto, ICommand> comando, string mensajeExito, Func<Task>? deshacer = null)
     {
         if (_detalle is not { } detalle || _cambiandoTrabajadores)
             return;
@@ -1232,8 +1284,10 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
             var resultado = await Mediator.Send(comando(detalle));
             if (resultado.EsFallido)
                 ToastService.MostrarError(resultado.Error);
-            else
+            else if (deshacer is null)
                 ToastService.Mostrar(mensajeExito, TonoToast.Exito);
+            else
+                ToastService.Mostrar(mensajeExito, TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, deshacer);
         }
         catch (Exception)
         {
@@ -1341,7 +1395,7 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Regla de Chris (2026-09-29, toda pérdida de edición pregunta): un diálogo de confirmación (reactivar, cancelar
-    /// en lote) con un «Motivo (opcional)» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
+    /// en lote) con un «Motivo» escrito pregunta antes de descartarlo. Solo cuenta con el diálogo abierto (cerrado,
     /// también tras confirmar, el texto que quede en el campo ya no se puede perder) y un motivo en blanco no es nada escrito.
     /// </summary>
     private static bool HayMotivoSinConfirmar(bool dialogoAbierto, string motivo) =>
@@ -1637,12 +1691,12 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
     }
 
     private bool TodosSeleccionados =>
-        _elementosPagina.Count > 0 && _elementosPagina.All(e => _seleccionados.Contains(e.Id));
+        FilasPintadas.Count > 0 && FilasPintadas.All(e => _seleccionados.Contains(e.Id));
 
     private void AlternarSeleccionTodos(bool marcar)
     {
         if (marcar)
-            foreach (var elemento in _elementosPagina) _seleccionados.Add(elemento.Id);
+            foreach (var elemento in FilasPintadas) _seleccionados.Add(elemento.Id);
         else
             _seleccionados.Clear();
     }
@@ -1749,7 +1803,9 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        if (_elementosPagina.Count == 0) return;
+        // El foco y el teclado solo recorren las filas pintadas (las de un grupo plegado no se ven).
+        var pintadas = FilasPintadas;
+        if (pintadas.Count == 0) return;
 
         if (tecla == "e")
         {
@@ -1762,14 +1818,14 @@ public partial class Visitas : CaeManager.Web.Components.PaginaInteractiva
         {
             case "j":
                 {
-                    var indiceActual = _idEnfocado is null ? -1 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Min(indiceActual + 1, _elementosPagina.Count - 1)].Id;
+                    var indiceActual = _idEnfocado is null ? -1 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Min(indiceActual + 1, pintadas.Count - 1)].Id;
                     break;
                 }
             case "k":
                 {
-                    var indiceActual = _idEnfocado is null ? 0 : _elementosPagina.FindIndex(e => e.Id == _idEnfocado);
-                    _idEnfocado = _elementosPagina[Math.Max(indiceActual - 1, 0)].Id;
+                    var indiceActual = _idEnfocado is null ? 0 : pintadas.FindIndex(e => e.Id == _idEnfocado);
+                    _idEnfocado = pintadas[Math.Max(indiceActual - 1, 0)].Id;
                     break;
                 }
             case "x":

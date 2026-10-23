@@ -73,6 +73,10 @@ public static class ActosExcluidosDelEncargo
     public static readonly IReadOnlySet<string> AreasExcluidas = new HashSet<string>(StringComparer.Ordinal)
     {
         "ApiKeys",      // claves de API del Tenant propietario
+        // Autorizaciones de lectura del Tenant de la Empresa contratista: todas sus peticiones son solo del rol
+        // efectivo Administrador (AutorizacionLecturaAutoridad). Con encargo no pleno el Tenant propietario tiene
+        // Administrador propio, que es quien las concede; con encargo pleno esta lista no rige.
+        "AutorizacionesLectura",
         "Facturacion",  // tarifas, resumen y su exportación
         "Importacion",  // importaciones masivas (Clientes empresariales, Documentos, combinada)
         "Retencion",    // purga y retención
@@ -111,7 +115,7 @@ public static class ActosExcluidosDelEncargo
     public static readonly IReadOnlySet<string> AreasPermitidas = new HashSet<string>(StringComparer.Ordinal)
     {
         "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "Bandeja", "Blindaje42", "BusquedaGlobal",
-        "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos",
+        "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos", "ContratosAcceso",
         "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "Incidencias",
         "Integraciones", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",
         "Reclamaciones", "Reportes", "Subcontratas", "Telemetria", "Tenants",

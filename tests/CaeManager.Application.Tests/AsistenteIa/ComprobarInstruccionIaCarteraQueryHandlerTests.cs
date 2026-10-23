@@ -86,10 +86,14 @@ public class ComprobarInstruccionIaCarteraQueryHandlerTests
             Task.FromResult(AmbitoTenantExplicito.TenantIdActual == tenantId && habilitados.Contains(tenantId));
     }
 
+    /// <summary>
+    /// Solo responde a la lectura VIGENTE de la cartera: la puerta falla cerrada y no puede servirse de la lista
+    /// memoizada del ámbito (un Tenant recién incorporado desde otro circuito tiene que comprobarse ya).
+    /// </summary>
     private sealed class AutorizadosFalsos(IReadOnlyList<ClienteAutorizadoDto> autorizados) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request is ObtenerClientesAutorizadosQuery
+            request is ObtenerClientesAutorizadosQuery { LecturaVigente: true }
                 ? Task.FromResult((TResponse)(object)autorizados)
                 : throw new NotSupportedException(request.GetType().Name);
 

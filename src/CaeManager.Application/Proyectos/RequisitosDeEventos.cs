@@ -28,7 +28,9 @@ public static class RequisitosDeEventos
         join requisito in requisitos on proyecto.Id equals requisito.ProyectoId
         // Solo lo que se le puede pedir a una persona: un tipo de ámbito Empresa o Vehículo no es un faltante del Trabajador.
         join tipo in tiposDocumento on requisito.TipoDocumentoId equals tipo.Id
-        where tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador
+        // Un tipo archivado ya no se pide (catálogo del 2026-10-17): la migración que archivó pasó sus requisitos al
+        // sustituto, y uno sin sustituto no se puede cumplir porque no admite altas nuevas.
+        where tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador && !tipo.Archivado
         select new RequisitoDeEvento
         {
             TrabajadorId = trabajador.Id,
