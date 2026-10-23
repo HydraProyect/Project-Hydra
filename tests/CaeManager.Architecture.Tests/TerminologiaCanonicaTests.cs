@@ -457,11 +457,23 @@ public class TerminologiaCanonicaTests
         // DirectorioUsuariosTenant.OperadoresDelegadosVigentes, para que Soporte TALVEG conserve su rol guardado
         // igual que en /delegaciones. Es el enum de dominio que ya existe, sin nombre canónico; renombrarlo es un
         // incremento propio.
-        // 351 → 375 (2026-10-23, listado nuevo de la pantalla ya existente): recuento de la suite completa.
-        // Son referencias al DTO DelegacionDto, a la página y a sus recursos/constantes de preferencias,
-        // no tipos de dominio nuevos. La deuda sigue representando Asignación de Operación; se conservan
-        // los nombres de productores y consumidores existentes, cuyo renombrado exige otro incremento.
-        ["Delegacion"] = 375,
+        // 351 → 352 (2026-10-23, listado nuevo de la pantalla ya existente /delegaciones): +1 neto, medido con la
+        // suite completa. El listado reutiliza un único punto de acceso al nombre legacy en vez de repetirlo:
+        // el DTO se nombra una vez, con el alias FilaLista, en Delegaciones.razor.cs; las variables, ayudantes y
+        // claves de recurso nuevos son neutros (FilaLista, fila, SinFilas, TextosAsignacionesOperacion); las
+        // constantes de pantalla nuevas se llaman AsignacionesOperacion (su valor persistido sigue siendo la
+        // cadena «Delegaciones», que no cuenta); y el título, el rótulo accesible y el <PageTitle> de la página,
+        // que eran tres literales «Delegaciones» en Delegaciones.razor, salen a un solo valor de recurso (−3).
+        // Quedan +4 que no se pueden evitar sin renombrar lo existente: (1-2) el alias
+        // FilaLista = CaeManager.Application.Tenants.Queries.ObtenerDelegaciones.DelegacionDto nombra el tipo
+        // DelegacionDto y su espacio de nombres ObtenerDelegaciones, que ya existen en main; (3) el espacio de
+        // nombres CaeManager.Web.Features.Delegaciones.Recursos de TextosAsignacionesOperacion.cs, porque el
+        // recurso vive en la carpeta de la característica y el espacio de nombres sigue la carpeta; (4) el valor
+        // visible «Delegaciones» de la clave Titulo en TextosAsignacionesOperacion.resx, que es el texto de
+        // pantalla y no se cambia. Término legacy: «Delegacion»; concepto canónico: Asignación de Operación
+        // (Operador CAE externo Outbound / acceso de Soporte TALVEG). Renombrar la carpeta, el espacio de
+        // nombres, DelegacionDto y la página es un incremento propio.
+        ["Delegacion"] = 352,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

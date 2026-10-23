@@ -23,10 +23,10 @@ public static class PantallasConVistaRecordada
     public const string Visitas = "Visitas";
     public const string Gestiones = "Gestiones";
     public const string Incidencias = "Incidencias";
-    public const string Delegaciones = "Delegaciones";
+    public const string AsignacionesOperacion = "Delegaciones"; // clave guardada de /delegaciones (Asignación de Operación)
 
     public static readonly string[] Admitidas =
-        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, Delegaciones];
+        [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, AsignacionesOperacion];
 
     /// <summary>
     /// Tope de <c>ValoresJson</c> en caracteres. La vista se escribe sola, sin que

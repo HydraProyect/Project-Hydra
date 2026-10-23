@@ -7,75 +7,75 @@
     <value>2.0</value>
   </resheader>
   <data name="Abierto" xml:space="preserve">
-    <value>Accés obert</value>
+    <value>Acceso abierto</value>
   </data>
   <data name="Activa" xml:space="preserve">
-    <value>En actiu</value>
+    <value>Activa</value>
   </data>
   <data name="Agrupar" xml:space="preserve">
-    <value>Agrupar per</value>
+    <value>Agrupar</value>
   </data>
   <data name="Alta" xml:space="preserve">
-    <value>Data d’alta</value>
+    <value>Alta</value>
   </data>
   <data name="Buscar" xml:space="preserve">
-    <value>Filtrar aquesta pantalla: organització o Operador CAE</value>
+    <value>Filtrar esta pantalla: organización u Operador CAE</value>
   </data>
   <data name="Caducada" xml:space="preserve">
-    <value>Vençuda</value>
+    <value>Caducada</value>
   </data>
   <data name="Estado" xml:space="preserve">
-    <value>Estat</value>
+    <value>Estado</value>
   </data>
   <data name="OperadorExterno" xml:space="preserve">
-    <value>Operador CAE extern</value>
+    <value>Operador CAE externo</value>
   </data>
   <data name="Organizacion" xml:space="preserve">
-    <value>Organització</value>
+    <value>Organización</value>
   </data>
   <data name="Permiso" xml:space="preserve">
-    <value>Permís</value>
+    <value>Permiso</value>
   </data>
   <data name="Personas" xml:space="preserve">
-    <value>{0} persones autoritzades</value>
+    <value>{0} personas autorizadas</value>
   </data>
   <data name="Revocada" xml:space="preserve">
-    <value>Donada de baixa</value>
+    <value>Revocada</value>
   </data>
   <data name="Seleccionar" xml:space="preserve">
-    <value>Selecciona {0}</value>
+    <value>Seleccionar {0}</value>
   </data>
   <data name="SeleccionarVisibles" xml:space="preserve">
-    <value>Seleccionar files visibles</value>
+    <value>Seleccionar filas visibles</value>
   </data>
   <data name="SinAcceso" xml:space="preserve">
-    <value>Sense accés</value>
+    <value>Sin acceso</value>
   </data>
   <data name="SinAgrupar" xml:space="preserve">
-    <value>Sense agrupar</value>
+    <value>Sin agrupar</value>
   </data>
   <data name="Soporte" xml:space="preserve">
-    <value>Suport</value>
+    <value>Soporte</value>
   </data>
   <data name="Tipo" xml:space="preserve">
-    <value>Tipus</value>
+    <value>Tipo</value>
   </data>
   <data name="Titulo" xml:space="preserve">
-    <value>Delegacions</value>
+    <value>Delegaciones</value>
   </data>
   <data name="Todas" xml:space="preserve">
-    <value>Totes</value>
+    <value>Todas</value>
   </data>
   <data name="VerRestantes" xml:space="preserve">
-    <value>Veure els {0} restants</value>
+    <value>Ver los {0} restantes</value>
   </data>
-  <data name="SinDelegaciones" xml:space="preserve">
-    <value>Sense delegacions</value>
+  <data name="SinFilas" xml:space="preserve">
+    <value>Sin delegaciones</value>
   </data>
   <data name="SinResultados" xml:space="preserve">
-    <value>Cap delegació amb aquests filtres</value>
+    <value>Ninguna delegación con estos filtros</value>
   </data>
-  <data name="SinResultadosDescripcion" xml:space="preserve"><value>Canvia o esborra els filtres per trobar delegacions.</value></data>
-  <data name="SinDelegacionesDescripcion" xml:space="preserve"><value>Aquesta organització no presta ni rep servei CAE delegat.</value></data>
-  <data name="Persona" xml:space="preserve"><value>1 persona autoritzada</value></data>
+  <data name="SinResultadosDescripcion" xml:space="preserve"><value>Cambia o borra los filtros para encontrar delegaciones.</value></data>
+  <data name="SinFilasDescripcion" xml:space="preserve"><value>Esta organización no presta ni recibe servicio CAE delegado.</value></data>
+  <data name="Persona" xml:space="preserve"><value>1 persona autorizada</value></data>
 </root>

@@ -1,3 +1,3 @@
 namespace CaeManager.Web.Features.Delegaciones.Recursos;
 
-public sealed class TextosDelegaciones;
+public sealed class TextosAsignacionesOperacion;

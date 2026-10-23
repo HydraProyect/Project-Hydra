@@ -6,7 +6,7 @@
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
+    <PageTitle>@TextosLista["Titulo"] — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina delegaciones-pantalla lista-design">
@@ -64,9 +64,9 @@
                             Keytip="A" Opciones="AgrupacionesLista" ValorChanged="CambiarAgrupacionListaAsync" />
         </Herramientas>
     </BarraFiltros>
-    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Delegaciones"
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.AsignacionesOperacion"
                               ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
-    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Delegaciones"
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.AsignacionesOperacion"
                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
     @if (_error)
     {
@@ -92,8 +92,8 @@
             }
             else
             {
-                <EstadoVacio Titulo="@TextosLista["SinDelegaciones"]"
-                             Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : TextosLista["SinDelegacionesDescripcion"])" />
+                <EstadoVacio Titulo="@TextosLista["SinFilas"]"
+                             Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : TextosLista["SinFilasDescripcion"])" />
             }
         }
         else
@@ -105,7 +105,7 @@
             <tbody>
             @foreach (var bloque in BloquesLista)
             {
-                var delegacion = bloque.Fila;
+                var fila = bloque.Fila;
                 @if (bloque.Cabecera is { } grupo)
                 {
                     <tr><td colspan="4">
@@ -113,41 +113,41 @@
                     </td></tr>
                 }
                 @if (bloque.Oculta) { continue; }
-                <tr @key="delegacion.Id" class="delegaciones-fila">
-                    <td><button type="button" class="delegaciones-abrir" aria-expanded="@(_detallesLista.Contains(delegacion.Id) ? "true" : "false")" @onclick="() => AlternarDetalleLista(delegacion.Id)">
-                        <Icono Nombre="@(_detallesLista.Contains(delegacion.Id) ? "chevron" : "siguiente")" Tamano="TamanoIcono.Pequeno" />
-                        <TextoResaltado Texto="@NombreLista(delegacion)" Termino="@BusquedaLista" />
-                    </button><div class="delegaciones-fecha">@TextosLista["Alta"] @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</div></td>
-                    <td>@TextosLista[TipoDeLista(delegacion)]</td>
-                    <td>@(delegacion.EsSoporte ? PermisoSoporteLista(delegacion) : TextoPersonasLista(delegacion.Operadores.Count))</td>
-                    <td><Badge Tono="@TonoEstadoLista(delegacion)">@TextoEstadoLista(delegacion)</Badge></td>
+                <tr @key="fila.Id" class="delegaciones-fila">
+                    <td><button type="button" class="delegaciones-abrir" aria-expanded="@(_detallesLista.Contains(fila.Id) ? "true" : "false")" @onclick="() => AlternarDetalleLista(fila.Id)">
+                        <Icono Nombre="@(_detallesLista.Contains(fila.Id) ? "chevron" : "siguiente")" Tamano="TamanoIcono.Pequeno" />
+                        <TextoResaltado Texto="@NombreLista(fila)" Termino="@BusquedaLista" />
+                    </button><div class="delegaciones-fecha">@TextosLista["Alta"] @fila.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</div></td>
+                    <td>@TextosLista[TipoDeLista(fila)]</td>
+                    <td>@(fila.EsSoporte ? PermisoSoporteLista(fila) : TextoPersonasLista(fila.Operadores.Count))</td>
+                    <td><Badge Tono="@TonoEstadoLista(fila)">@TextoEstadoLista(fila)</Badge></td>
                 </tr>
-                @if (_detallesLista.Contains(delegacion.Id))
+                @if (_detallesLista.Contains(fila.Id))
                 {
                 <tr class="delegaciones-detalle"><td colspan="4">
                 <div class="delegaciones-tarjeta">
                     <div class="delegaciones-tarjeta-cabecera">
                         <div>
                             <div class="delegaciones-etiquetas">
-                                <Badge Tono="@(delegacion.EsSoporte ? TonoBadge.Info : TonoBadge.Neutro)">
-                                    @TextosLista[TipoDeLista(delegacion)]
+                                <Badge Tono="@(fila.EsSoporte ? TonoBadge.Info : TonoBadge.Neutro)">
+                                    @TextosLista[TipoDeLista(fila)]
                                 </Badge>
-                                <Badge Tono="@TonoEstadoLista(delegacion)">
-                                    @TextoEstadoLista(delegacion)
+                                <Badge Tono="@TonoEstadoLista(fila)">
+                                    @TextoEstadoLista(fila)
                                 </Badge>
                             </div>
                             <h2 class="delegaciones-titulo">
-                                @TituloDe(delegacion.SomosLaConsultora, delegacion.ClienteNombre, delegacion.ConsultoraNombre)
+                                @TituloDe(fila.SomosLaConsultora, fila.ClienteNombre, fila.ConsultoraNombre)
                             </h2>
                             <p class="delegaciones-fecha">
-                                @TextosLista["Alta"] @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
+                                @TextosLista["Alta"] @fila.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
                             </p>
                         </div>
-                        @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                        @if (fila.EsSoporte && fila.AccesoVigente)
                         {
                             <div class="delegaciones-ventana">
                                 <span>Ventana abierta</span>
-                                @if (delegacion.ExpiraEnUtc is { } expira)
+                                @if (fila.ExpiraEnUtc is { } expira)
                                 {
                                     <strong>Hasta @expira.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm")</strong>
                                 }
@@ -155,33 +155,33 @@
                         }
                     </div>
 
-                    @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                    @if (fila.EsSoporte && fila.AccesoVigente)
                     {
-                        <p class="delegaciones-motivo"><strong>Motivo registrado:</strong> @delegacion.MotivoActivacion</p>
+                        <p class="delegaciones-motivo"><strong>Motivo registrado:</strong> @fila.MotivoActivacion</p>
                     }
-                    else if (delegacion.EsSoporte)
+                    else if (fila.EsSoporte)
                     {
-                        <p class="delegaciones-nota">@(delegacion.VentanaCaducada ? "La última ventana de soporte terminó." : "No hay una ventana de soporte abierta.")</p>
+                        <p class="delegaciones-nota">@(fila.VentanaCaducada ? "La última ventana de soporte terminó." : "No hay una ventana de soporte abierta.")</p>
                     }
-                    else if (!delegacion.Activa)
+                    else if (!fila.Activa)
                     {
                         <p class="delegaciones-nota">El acceso está retirado. Los datos se conservan y la delegación puede reactivarse.</p>
                     }
 
-                    @if (delegacion.Operadores.Count == 0)
+                    @if (fila.Operadores.Count == 0)
                     {
                         @* FS-20: a una delegación de Operador CAE externo las personas no las añade
                            esta pantalla, las pone el propio Operador CAE externo con una Asignación de
                            Cartera desde /usuarios. El vacío dice quién decide y, a quien puede, le da
                            el enlace. *@
-                        @if (delegacion.EsSoporte || !delegacion.Activa)
+                        @if (fila.EsSoporte || !fila.Activa)
                         {
                             <p class="delegaciones-sin-personas">Sin personas autorizadas todavía.</p>
                         }
-                        else if (delegacion.SomosLaConsultora)
+                        else if (fila.SomosLaConsultora)
                         {
                             <p class="delegaciones-sin-personas" data-testid="sin-personas-operador">
-                                @TextosAutorizar["SinPersonasOperador", delegacion.ClienteNombre]
+                                @TextosAutorizar["SinPersonasOperador", fila.ClienteNombre]
                                 @if (OperandoWorkspaceAjeno)
                                 {
                                     @TextosAutorizar["SinPersonasOperadorQuien"]
@@ -202,7 +202,7 @@
                         else
                         {
                             <p class="delegaciones-sin-personas" data-testid="sin-personas-propietario">
-                                @TextosAutorizar["SinPersonasPropietario", delegacion.ConsultoraNombre]
+                                @TextosAutorizar["SinPersonasPropietario", fila.ConsultoraNombre]
                             </p>
                         }
                     }
@@ -225,7 +225,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var operador in delegacion.Operadores.Take(_personasCompletas.Contains(delegacion.Id) ? int.MaxValue : 3))
+                                    @foreach (var operador in fila.Operadores.Take(_personasCompletas.Contains(fila.Id) ? int.MaxValue : 3))
                                     {
                                         <tr>
                                             <td class="@(EsUsuarioNoResuelto(operador.UsuarioId) ? "delegaciones-persona-no-resuelta" : null)">
@@ -237,7 +237,7 @@
                                                 <td>
                                                     <Boton Tamano="TamanoBoton.Pequeno"
                                                            Variante="VarianteBoton.Fantasma"
-                                                           OnClick="() => PedirRetirarOperador(delegacion.Id, operador)"
+                                                           OnClick="() => PedirRetirarOperador(fila.Id, operador)"
                                                            Cargando="@EstaProcesando(operador.AsignacionId)">
                                                         Retirar
                                                     </Boton>
@@ -252,59 +252,59 @@
                         </div>
                     }
 
-                    @if (delegacion.Operadores.Count > 3 && !_personasCompletas.Contains(delegacion.Id))
+                    @if (fila.Operadores.Count > 3 && !_personasCompletas.Contains(fila.Id))
                     {
-                        <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _personasCompletas.Add(delegacion.Id)">@TextosLista["VerRestantes", delegacion.Operadores.Count - 3]</Boton>
+                        <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _personasCompletas.Add(fila.Id)">@TextosLista["VerRestantes", fila.Operadores.Count - 3]</Boton>
                     }
                     <div class="delegaciones-pie">
-                        @if (delegacion.EsSoporte)
+                        @if (fila.EsSoporte)
                         {
                             <Boton Tamano="TamanoBoton.Pequeno"
                                    Variante="VarianteBoton.Fantasma"
-                                   OnClick="() => VerActividadAsync(delegacion)">
+                                   OnClick="() => VerActividadAsync(fila)">
                                 Ver actividad registrada
                             </Boton>
                         }
                         @if (!OperandoWorkspaceAjeno)
                         {
                             <div class="delegaciones-acciones">
-                                @if (delegacion.EsSoporte && delegacion.AccesoVigente)
+                                @if (fila.EsSoporte && fila.AccesoVigente)
                                 {
-                                    @if (PuedeAdministrarAccesoSoporte(delegacion.SomosLaConsultora))
+                                    @if (PuedeAdministrarAccesoSoporte(fila.SomosLaConsultora))
                                     {
                                         <Boton Tamano="TamanoBoton.Pequeno"
                                                Variante="VarianteBoton.Destructivo"
-                                               OnClick="() => CerrarAccesoSoporteAsync(delegacion)"
-                                               Cargando="@EstaProcesando(delegacion.Id)">
+                                               OnClick="() => CerrarAccesoSoporteAsync(fila)"
+                                               Cargando="@EstaProcesando(fila.Id)">
                                             Cerrar acceso
                                         </Boton>
                                     }
                                 }
-                                else if (delegacion.EsSoporte)
+                                else if (fila.EsSoporte)
                                 {
-                                    @if (PuedeAdministrarAccesoSoporte(delegacion.SomosLaConsultora))
+                                    @if (PuedeAdministrarAccesoSoporte(fila.SomosLaConsultora))
                                     {
                                         <Boton Tamano="TamanoBoton.Pequeno"
                                                Variante="VarianteBoton.Secundario"
-                                               OnClick="() => AbrirFormularioSoporte(delegacion)">
+                                               OnClick="() => AbrirFormularioSoporte(fila)">
                                             Abrir acceso
                                         </Boton>
                                     }
                                 }
-                                else if (delegacion.Activa)
+                                else if (fila.Activa)
                                 {
                                     <Boton Tamano="TamanoBoton.Pequeno"
                                            Variante="VarianteBoton.Destructivo"
-                                           OnClick="() => { if (!EstaProcesando(delegacion.Id)) { PrepararEntidad(delegacion.Id); _delegacionARevocar = delegacion; } }">
+                                           OnClick="() => { if (!EstaProcesando(fila.Id)) { PrepararEntidad(fila.Id); _delegacionARevocar = fila; } }">
                                         Revocar acceso
                                     </Boton>
                                 }
-                                else if (PuedeReactivar(delegacion.Id))
+                                else if (PuedeReactivar(fila.Id))
                                 {
                                     <Boton Tamano="TamanoBoton.Pequeno"
                                            Variante="VarianteBoton.Secundario"
-                                           OnClick="() => ReactivarAsync(delegacion)"
-                                           Cargando="@EstaProcesando(delegacion.Id)">
+                                           OnClick="() => ReactivarAsync(fila)"
+                                           Cargando="@EstaProcesando(fila.Id)">
                                         Reactivar
                                     </Boton>
                                 }
