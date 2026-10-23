@@ -7,7 +7,7 @@ using MediatR;
 namespace CaeManager.Application.AutorizacionesLectura.Commands.RevocarAutorizacionLectura;
 
 /// <summary>
-/// Revoca la autorización, de forma definitiva: cortará la lectura del Tenant destinatario (PR 3), y las copias que
+/// Revoca la autorización, de forma definitiva: corta desde ese instante la lectura del Tenant destinatario (funciones <c>app_inbound_*</c>), y las copias que
 /// ese Tenant ya guardó se quedan. Volver a autorizar es conceder otra.
 /// </summary>
 public record RevocarAutorizacionLecturaCommand(Guid AutorizacionId, Guid Version = default) : ICommand;
