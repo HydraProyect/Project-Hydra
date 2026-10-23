@@ -85,6 +85,51 @@ public class DiskFileStorageServiceTests : IDisposable
         File.Exists(Path.Combine(_rutaTemporal, _tenantA.ToString("N"), Path.GetFileName(identificador))).Should().BeTrue();
     }
 
+    /// <summary>
+    /// Inbound M1, PR 4: la única lectura que cruza Tenants abre el original con la carpeta y la clave del Tenant
+    /// propietario que se le pasa (el de la Empresa contratista del contrato), no con las del Tenant activo, y la copia
+    /// que se guarda después queda en la carpeta y con la clave del Tenant activo.
+    /// </summary>
+    [Fact]
+    public async Task AbrirOriginal_lee_con_la_carpeta_y_la_clave_del_Tenant_propietario_indicado()
+    {
+        using var original = new MemoryStream("original del Tenant B"u8.ToArray());
+        var deB = await CrearServicio(_tenantB).GuardarAsync(original, "aptitud.pdf");
+        var servicioDeA = CrearServicio(_tenantA);
+
+        await using (var abierto = await servicioDeA.AbrirOriginalAsync(_tenantB, deB))
+        {
+            using var lectura = new StreamReader(abierto);
+            (await lectura.ReadToEndAsync()).Should().Be("original del Tenant B");
+        }
+
+        await FluentActions.Awaiting(() => servicioDeA.AbrirAsync(deB))
+            .Should().ThrowAsync<FileNotFoundException>("control: con el Tenant activo sigue sin abrirse");
+        var copia = await servicioDeA.GuardarAsync(new MemoryStream("copia"u8.ToArray()), "aptitud.pdf");
+        copia.Should().StartWith(_tenantA.ToString("N") + "/", "la copia es del Tenant activo, el del Cliente empresarial");
+    }
+
+    [Fact]
+    public async Task AbrirOriginal_con_un_Tenant_que_no_es_el_de_la_carpeta_responde_no_existe()
+    {
+        using var original = new MemoryStream("original del Tenant B"u8.ToArray());
+        var deB = await CrearServicio(_tenantB).GuardarAsync(original, "aptitud.pdf");
+        var servicioDeA = CrearServicio(_tenantA);
+
+        foreach (var (tenant, identificador, motivo) in new[]
+                 {
+                     (_tenantA, deB, "la carpeta del identificador es la de B, no la del Tenant indicado"),
+                     (Guid.NewGuid(), deB, "un tercer Tenant"),
+                     (Guid.Empty, deB, "sin Tenant propietario"),
+                     (_tenantB, $"{_tenantB:N}/../{_tenantA:N}/x.pdf", "un salto de carpeta"),
+                     (_tenantB, Path.GetFileName(deB), "sin carpeta"),
+                 })
+        {
+            await FluentActions.Awaiting(() => servicioDeA.AbrirOriginalAsync(tenant, identificador))
+                .Should().ThrowAsync<FileNotFoundException>(motivo);
+        }
+    }
+
     [Fact]
     public async Task Guardar_no_deja_ficheros_temporales_junto_al_definitivo()
     {

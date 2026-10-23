@@ -9,7 +9,11 @@ public class TipoDocumentoConfiguration : IEntityTypeConfiguration<TipoDocumento
 {
     public void Configure(EntityTypeBuilder<TipoDocumento> builder)
     {
-        builder.ToTable("TiposDocumento");
+        // «Solo conclusión de aptitud» solo en un tipo de salud (TipoDocumento.EstablecerSoloConclusionAptitud): la lectura
+        // entre Tenants abre un tipo de salud solo con la marca, y la marca no puede colarse en un tipo que no lo es.
+        builder.ToTable("TiposDocumento", t => t.HasCheckConstraint(
+            "CK_TiposDocumento_SoloConclusionAptitudEsDeSalud",
+            "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'"));
         builder.HasKey(t => t.Id);
 
         builder.Property(t => t.Nombre).IsRequired().HasMaxLength(TipoDocumento.LongitudMaximaNombre);

@@ -250,6 +250,33 @@ public class TipoDocumento : EntidadConTenant
     /// </summary>
     public Guid? SustitutoId { get; private set; }
 
+    /// <summary>
+    /// Tipo «solo conclusión de aptitud» (Inbound M1, PR 4; DN-5 (b) del 2026-10-23): el certificado de aptitud médica,
+    /// que por ley lleva solo la conclusión (apto, apto con restricciones, no apto) y no el informe. Solo puede marcarse
+    /// en un tipo de categoría especial de salud (<see cref="RevelaSalud"/>), y la base lo repite con un CHECK. Tiene dos
+    /// efectos y ninguno más:
+    /// <list type="bullet">
+    /// <item>En el catálogo del Tenant propietario de la Empresa contratista, la lectura entre Tenants
+    /// (<c>app_inbound_documentos_del_alcance</c>) deja leer los Documentos de este tipo, y solo de este tipo de salud:
+    /// cualquier otro tipo <see cref="SensibilidadDocumental.CategoriaEspecialSalud"/>, el informe médico incluido, sigue
+    /// excluido. Que el binario de un tipo marcado sea de verdad un certificado es responsabilidad del Tenant propietario
+    /// que marca su tipo.</item>
+    /// <item>En el catálogo del Tenant del Cliente empresarial, una <c>EvidenciaInbound</c> de este tipo no lleva archivo,
+    /// solo la conclusión transcrita.</item>
+    /// </list>
+    /// </summary>
+    public bool SoloConclusionAptitud { get; private set; }
+
+    /// <summary>Marca o desmarca el tipo «solo conclusión de aptitud». Solo un tipo de salud admite la marca.</summary>
+    public void EstablecerSoloConclusionAptitud(bool soloConclusion)
+    {
+        if (soloConclusion && !RevelaSalud)
+            throw new InvalidOperationException(
+                "Solo un tipo de documento de categoría especial de salud puede ser de «solo conclusión de aptitud».");
+
+        SoloConclusionAptitud = soloConclusion;
+    }
+
     /// <summary>¿Admite un Documento de este tipo el dato indicado? Propiedad sin columna: no usar dentro de una consulta EF.</summary>
     public bool Admite(DatosAdicionalesDocumento dato) => dato != DatosAdicionalesDocumento.Ninguno && (DatosAdicionales & dato) == dato;
 

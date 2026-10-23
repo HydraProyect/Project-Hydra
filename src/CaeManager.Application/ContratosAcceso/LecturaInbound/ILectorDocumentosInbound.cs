@@ -25,7 +25,7 @@ namespace CaeManager.Application.ContratosAcceso.LecturaInbound;
 /// </para>
 ///
 /// <para>
-/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c>, que deciden antes la cartera
+/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c> y <c>RegistrarEvidenciaInboundCommandHandler</c>, que deciden antes la cartera
 /// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
 /// </summary>
@@ -64,6 +64,10 @@ public record AutorizacionInboundDto(
     int Trabajadores);
 
 /// <summary>Un Documento original del Tenant de la Empresa contratista. Sin <c>ArchivoUrl</c> a propósito.</summary>
+/// <param name="SoloConclusionAptitud">
+/// El tipo del original, en el catálogo del Tenant de la Empresa contratista, es de «solo conclusión de aptitud» (el único
+/// tipo de salud que la lectura deja pasar): su evidencia no lleva archivo, solo la conclusión transcrita.
+/// </param>
 /// <param name="TrabajadorId">Null en un Documento de la Empresa propia del Tenant de la Empresa contratista.</param>
 public record DocumentoInboundDto(
     Guid DocumentoId,
@@ -74,6 +78,7 @@ public record DocumentoInboundDto(
     string TipoDocumentoNombre,
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
-    EstadoVigenciaDocumento EstadoVigencia);
+    EstadoVigenciaDocumento EstadoVigencia,
+    bool SoloConclusionAptitud);
 
 public record ArchivoInboundDto(Guid DocumentoId, string? ArchivoUrl);

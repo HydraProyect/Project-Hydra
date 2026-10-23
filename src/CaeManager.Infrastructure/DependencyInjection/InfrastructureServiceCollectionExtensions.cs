@@ -533,6 +533,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        services.AddScoped<CaeManager.Domain.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -575,7 +577,12 @@ public static class InfrastructureServiceCollectionExtensions
         //
         // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        services.AddScoped<DiskFileStorageService>();
+        services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
+        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
+        // (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la

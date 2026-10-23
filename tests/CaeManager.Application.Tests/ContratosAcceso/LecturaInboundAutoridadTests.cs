@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using CaeManager.Application.ContratosAcceso.Queries.ObtenerLecturaInbound;
 using CaeManager.Application.Tests.Clientes;
@@ -20,11 +21,14 @@ public class LecturaInboundAutoridadTests
     private readonly Guid _cliente = Guid.NewGuid();
     private readonly ContratosAccesoQueryContextFalso _contratos = new();
     private readonly LectorFalso _lector = new();
+    private readonly AlmacenOriginalesInboundFalso _originales = new();
+    private readonly Guid _tenantContratista = Guid.NewGuid();
     private readonly ContratoAcceso _contrato;
 
     public LecturaInboundAutoridadTests()
     {
         _contrato = ContratoAcceso.Crear(_cliente, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 3, 1), null, null);
+        _contrato.VincularTenantContratista(_tenantContratista);
         _contratos.ListaContratos.Add(_contrato);
     }
 
@@ -116,21 +120,51 @@ public class LecturaInboundAutoridadTests
 
         (await new ObtenerAutorizacionInboundQueryHandler(_contratos, fueraDeCartera, new UsuarioConRol("GestorCae"), _lector)
             .Handle(new ObtenerAutorizacionInboundQuery(_contrato.Id), CancellationToken.None)).Should().BeNull();
-        (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("Consulta"), _lector)
+        (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("Consulta"), _lector, _originales)
             .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None)).Should().BeNull();
         _lector.Llamadas.Should().BeEmpty();
+        _originales.Aperturas.Should().BeEmpty();
 
-        // Control positivo: con autoridad, las dos llegan al lector.
+        // Control positivo: con autoridad, las dos llegan al lector, y la apertura sirve el contenido del original leído
+        // con la carpeta (y la clave) del Tenant de la Empresa contratista del contrato, nunca su referencia.
+        _lector.Referencia = $"{_tenantContratista:N}/original.pdf";
+        _originales.Archivos[(_tenantContratista, _lector.Referencia)] = [1, 2, 3];
         (await new ObtenerAutorizacionInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector)
             .Handle(new ObtenerAutorizacionInboundQuery(_contrato.Id), CancellationToken.None)).Should().NotBeNull();
-        (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector)
-            .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None))!.DocumentoId.Should().Be(documento);
+        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales)
+            .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None);
+        abierto!.Contenido.Should().Equal(1, 2, 3);
+        abierto.TipoMime.Should().Be("application/pdf");
         _lector.Llamadas.Should().Equal(("Autorizacion", _contrato.Id), ("Archivo", _contrato.Id));
+        _originales.Aperturas.Should().Equal((_tenantContratista, _lector.Referencia));
+    }
+
+    [Theory]
+    [InlineData("otro-tenant")]
+    [InlineData("subcarpeta")]
+    [InlineData("salto")]
+    public async Task Una_referencia_que_no_es_de_la_carpeta_del_Tenant_del_contrato_no_se_abre(string caso)
+    {
+        _lector.Referencia = caso switch
+        {
+            "otro-tenant" => $"{Guid.NewGuid():N}/original.pdf",
+            "subcarpeta" => $"{_tenantContratista:N}/x/original.pdf",
+            _ => $"{_tenantContratista:N}/..original.pdf",
+        };
+        _originales.Archivos[(_tenantContratista, _lector.Referencia)] = [1];
+
+        var abierto = await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector, _originales)
+            .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, Guid.NewGuid()), CancellationToken.None);
+
+        abierto.Should().BeNull(caso);
+        _originales.Aperturas.Should().BeEmpty("la referencia se comprueba antes de abrir nada");
     }
 
     private sealed class LectorFalso : ILectorDocumentosInbound
     {
         public List<(string Funcion, Guid Contrato)> Llamadas { get; } = [];
+
+        public string? Referencia { get; set; }
 
         public AutorizacionInboundDto? Autorizacion { get; set; } =
             new(Guid.NewGuid(), new DateOnly(2026, 3, 1), null, false, VigenteHoy: true, true, 1);
@@ -145,13 +179,13 @@ public class LecturaInboundAutoridadTests
         {
             Llamadas.Add(("Documentos", contratoAccesoId));
             return Task.FromResult<IReadOnlyList<DocumentoInboundDto>>(
-                [new(Guid.NewGuid(), null, null, null, null, "Tipo", new DateOnly(2026, 3, 1), null, EstadoVigenciaDocumento.SinConfirmar)]);
+                [new(Guid.NewGuid(), null, null, null, null, "Tipo", new DateOnly(2026, 3, 1), null, EstadoVigenciaDocumento.SinConfirmar, false)]);
         }
 
         public Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)
         {
             Llamadas.Add(("Archivo", contratoAccesoId));
-            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, "archivo"));
+            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, Referencia));
         }
     }
 

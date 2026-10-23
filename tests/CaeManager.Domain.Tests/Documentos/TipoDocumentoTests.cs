@@ -188,4 +188,29 @@ public class TipoDocumentoTests
 
         tipo.Aliases.Select(a => a.Texto).Should().BeEquivalentTo(["RNT"]);
     }
+
+    [Fact]
+    public void SoloConclusionAptitud_nace_desmarcada_y_se_marca_en_un_tipo_de_salud()
+    {
+        var tipo = new TipoDocumento("Certificado de aptitud", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            AmbitoAplicacion.Trabajador, sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+
+        tipo.SoloConclusionAptitud.Should().BeFalse();
+        tipo.EstablecerSoloConclusionAptitud(true);
+        tipo.SoloConclusionAptitud.Should().BeTrue();
+        tipo.EstablecerSoloConclusionAptitud(false);
+        tipo.SoloConclusionAptitud.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(SensibilidadDocumental.SinDatosPersonales)]
+    [InlineData(SensibilidadDocumental.DatosPersonales)]
+    public void SoloConclusionAptitud_solo_se_marca_en_un_tipo_de_categoria_especial_de_salud(SensibilidadDocumental sensibilidad)
+    {
+        var tipo = new TipoDocumento("Formación PRL", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            AmbitoAplicacion.Trabajador, sensibilidad: sensibilidad);
+
+        tipo.Invoking(t => t.EstablecerSoloConclusionAptitud(true)).Should().Throw<InvalidOperationException>();
+        tipo.SoloConclusionAptitud.Should().BeFalse();
+    }
 }

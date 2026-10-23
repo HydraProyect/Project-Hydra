@@ -31,7 +31,7 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         return filas
             .Select(d => new DocumentoInboundDto(
                 d.DocumentoId, d.TrabajadorId, d.TrabajadorNombre, d.TrabajadorApellidos, d.TrabajadorDni, d.TipoDocumentoNombre,
-                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia))
+                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia, d.SoloConclusionAptitud))
             .ToList();
     }
 
@@ -77,6 +77,7 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         public DateOnly FechaEmision { get; init; }
         public DateOnly? FechaVencimiento { get; init; }
         public int EstadoVigencia { get; init; }
+        public bool SoloConclusionAptitud { get; init; }
     }
 
     private sealed class FilaArchivo
