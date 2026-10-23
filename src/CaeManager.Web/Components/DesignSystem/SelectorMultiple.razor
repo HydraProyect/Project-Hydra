@@ -36,10 +36,23 @@
                 @foreach (var elemento in ElementosPagina)
                 {
                     <label class="campo-checkbox" for="@($"{_idBase}-{elemento.Id}")">
-                        <input type="checkbox" id="@($"{_idBase}-{elemento.Id}")"
-                               checked="@Seleccionados.Contains(elemento.Id)"
-                               @onchange="e => AlternarAsync(elemento.Id, e.Value is bool marcado && marcado)" />
-                        @elemento.Nombre
+                        @if (EstaBloqueado(elemento.Id))
+                        {
+                            @* Ya está dentro por otra vía: se ve marcado, no se puede tocar y lo dice con palabras (no solo con el color). *@
+                            <input type="checkbox" id="@($"{_idBase}-{elemento.Id}")" checked="checked" disabled="disabled" data-bloqueado />
+                            @elemento.Nombre
+                            @if (!string.IsNullOrWhiteSpace(EtiquetaBloqueado))
+                            {
+                                <small class="selector-multiple-bloqueado">@EtiquetaBloqueado</small>
+                            }
+                        }
+                        else
+                        {
+                            <input type="checkbox" id="@($"{_idBase}-{elemento.Id}")"
+                                   checked="@Seleccionados.Contains(elemento.Id)"
+                                   @onchange="e => AlternarAsync(elemento.Id, e.Value is bool marcado && marcado)" />
+                            @elemento.Nombre
+                        }
                     </label>
                 }
             </div>
@@ -90,6 +103,15 @@
     [Parameter] public bool? SoloRelacionados { get; set; }
     [Parameter] public EventCallback<bool> SoloRelacionadosChanged { get; set; }
     [Parameter] public string TextoVacio { get; set; } = "Todavía no hay elementos creados.";
+    /// <summary>
+    /// Elementos que ya forman parte del conjunto por otra vía (p. ej. los Trabajadores ya asignados al Centro): se pintan marcados y
+    /// deshabilitados, con <see cref="EtiquetaBloqueado"/> al lado, y no emiten <see cref="OnAlternar"/>. <c>null</c> (por defecto): ninguno.
+    /// </summary>
+    [Parameter] public IReadOnlySet<Guid>? Bloqueados { get; set; }
+    /// <summary>Lo que se lee junto a un elemento bloqueado («ya asignado a este centro»): lo pone quien usa el selector, ya localizado.</summary>
+    [Parameter] public string EtiquetaBloqueado { get; set; } = string.Empty;
+
+    private bool EstaBloqueado(Guid id) => Bloqueados is not null && Bloqueados.Contains(id);
 
     private IReadOnlyList<ElementoSeleccionable> ElementosFiltrados =>
         Elementos
@@ -102,7 +124,7 @@
     private bool SoloRelacionadosEfectivo => SoloRelacionados ?? _soloRelacionados;
 
     private bool EsRelacionado(Guid id) =>
-        Seleccionados.Contains(id) || (Relacionados is not null && Relacionados.Contains(id));
+        Seleccionados.Contains(id) || EstaBloqueado(id) || (Relacionados is not null && Relacionados.Contains(id));
 
     /// <summary>Lleva el foco al campo (p. ej. tras un error de validación al guardar).</summary>
     public async Task EnfocarAsync() => await _raiz.FocusAsync();

@@ -90,6 +90,9 @@
   <data name="EmpresasSinAlcance" xml:space="preserve">
     <value>{0} Empresas no salen en el cuadro ni en el total: no tienes acceso a toda su organización.</value>
   </data>
+  <data name="EmpresasSinAlcanceUna" xml:space="preserve">
+    <value>{0} Empresa no sale en el cuadro ni en el total: no tienes acceso a toda su organización.</value>
+  </data>
   <data name="AvisoCierre" xml:space="preserve">
     <value>{0} de {1} se cerró el {2} a las 00:00 (hora de Madrid): sus cifras ya son definitivas.</value>
   </data>
