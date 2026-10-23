@@ -525,6 +525,33 @@ public class AsistenteIaAgenteTests : BunitContext
             .And.NotContain("solo usa los datos");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Una_pregunta_rechazada_en_Consulta_no_se_queda_en_el_historial_que_se_reenvia(bool porValidacion)
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => porValidacion
+            ? throw new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure("Historial", "La pregunta no puede superar los 4000 caracteres.")])
+            : Result.Fallo<string>(Error.Crear("AsistenteIa.CuotaUsuario", "Has agotado tu cuota de preguntas al asistente."));
+        var panel = Abrir();
+
+        Enviar(panel, "Pregunta rechazada");
+        panel.Find(".asistente-mensaje-error").TextContent.Should().NotBeEmpty();
+        Services.GetRequiredService<AsistenteIaService>().Historial.Should().BeEmpty("la rechazada no es un turno de la conversación");
+
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta normativa.");
+        Enviar(panel, "Pregunta aceptada");
+
+        _mediador.De<PreguntarAlAsistenteQuery>().Last().Historial.Should().ContainSingle()
+            .Which.Should().Be(new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta aceptada"));
+        Services.GetRequiredService<AsistenteIaService>().Historial.Should().Equal(
+            new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta aceptada"),
+            new MensajeChatDto(RolMensajeChat.Asistente, "Respuesta normativa."));
+    }
+
     [Fact]
     public void Nueva_conversacion_vacia_el_hilo_y_la_conversacion_sobrevive_a_volver_a_montar_el_panel()
     {

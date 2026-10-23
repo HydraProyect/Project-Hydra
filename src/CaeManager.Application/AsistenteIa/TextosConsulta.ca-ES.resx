@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="PreguntaInvalida" xml:space="preserve"><value>Escriu una pregunta per a l'assistent.</value></data>
+  <data name="PreguntaDemasiadoLarga" xml:space="preserve"><value>La pregunta no pot superar els {0} caràcters.</value></data>
+  <data name="SinIdentidad" xml:space="preserve"><value>No s'ha pogut identificar la teva sessió i l'organització activa. Torna a iniciar sessió per consultar l'assistent.</value></data>
+  <data name="CuotaUsuario" xml:space="preserve"><value>Has esgotat la teva quota de preguntes a l'assistent. Espera que es renovi per tornar a preguntar.</value></data>
+  <data name="CuotaTenant" xml:space="preserve"><value>Aquesta organització ha esgotat la seva quota de preguntes a l'assistent. Espera que es renovi per tornar a preguntar.</value></data>
+</root>
