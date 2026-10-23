@@ -65,6 +65,7 @@ public partial class AsistenteIa : IDisposable
     [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
     [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
+    [Inject] private ICurrentUserService UsuarioActual { get; set; } = default!;
     /// <summary>El Tenant efectivo del circuito (claim firmado más la Empresa gestionada elegida y vigente).</summary>
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -96,9 +97,12 @@ public partial class AsistenteIa : IDisposable
     private bool _verBorradores;
     private IReadOnlyList<ResumenTareaAsistenteDto>? _borradores;
 
-    /// <summary>La Empresa gestionada con la que trabaja la persona: la pastilla «Trabajando en».</summary>
+    /// <summary>La Empresa del Tenant efectivo: la pastilla «Trabajando en».</summary>
     private ClienteAutorizadoDto? _empresa;
     private bool _empresaCargada;
+    private Guid? _tenantOrigenId;
+
+    private bool EnTenantOrigen => TenantActual.TenantId is { } tenantId && tenantId == _tenantOrigenId;
 
     /// <summary>El Tenant efectivo con el que esta instancia leyó la pastilla y los borradores (null: aún no leyó nada).</summary>
     private TenantLeido? _tenantDeLoLeido;
@@ -154,7 +158,7 @@ public partial class AsistenteIa : IDisposable
             return false;
 
         OlvidarLoLeidoEnOtroTenant();
-        _mensajeError = Textos["EmpresaCambiada"];
+        _mensajeError = Textos[EnTenantOrigen ? "EmpresaCambiadaOrigen" : "EmpresaCambiadaGestionada"];
         return true;
     }
 
@@ -189,6 +193,7 @@ public partial class AsistenteIa : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _tenantOrigenId = await UsuarioActual.ObtenerTenantOrigenIdAsync();
         if (PantallaCompleta)
             await CargarEmpresaAsync();
     }
