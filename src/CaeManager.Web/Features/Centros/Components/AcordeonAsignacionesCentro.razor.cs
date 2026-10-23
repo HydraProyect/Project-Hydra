@@ -244,6 +244,10 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private bool _errorCarga;
     private IReadOnlyList<TrabajadorAsignacionDocumentacionDto> _trabajadores = [];
     private string _busquedaTrabajador = string.Empty;
+
+    /// <summary>Los Trabajadores ya asignados a este Centro: el selector de «+ Asignar trabajador» los muestra marcados y no seleccionables.</summary>
+    private IReadOnlySet<Guid> TrabajadoresYaAsignados => _trabajadores.Select(t => t.TrabajadorId).ToHashSet();
+
     private readonly HashSet<Guid> _seleccionados = [];
     private bool _seleccionMultipleAnterior;
 

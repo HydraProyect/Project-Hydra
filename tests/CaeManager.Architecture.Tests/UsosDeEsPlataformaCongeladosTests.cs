@@ -61,8 +61,8 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Lo que este ratchet NO demuestra</b>, para que nadie lo dé por demostrado:
-/// (1) que los seis usos de autoridad sean <i>correctos</i> — congela que existan y que
-/// sean seis, no que autoricen bien; (2) que no exista autoridad equivalente por otra vía
+/// (1) que los cinco usos de autoridad sean <i>correctos</i> — congela que existan y que
+/// sean cinco, no que autoricen bien; (2) que no exista autoridad equivalente por otra vía
 /// — reconstruir "es el tenant #1" comparando contra <c>TenantSeedData.IdPorDefecto</c>
 /// no se vería aquí, y es justo lo que <c>Tenant</c> dice evitar a propósito; (3) nada
 /// sobre SQL vivo en la base (políticas RLS, vistas, triggers que consulten la columna);
@@ -219,6 +219,10 @@ public class UsosDeEsPlataformaCongeladosTests
     /// misma función con <c>CREATE OR REPLACE</c> en Up y la restaura en Down, así que el
     /// comentario y el predicado de arriba aparecen dos veces. Sigue solo restringiendo.
     /// De 34/57 a <b>35 ficheros, 61 apariciones</b>.
+    /// Actualizado 2026-10-23 (claves de API fuera de la Sesión Privilegiada):
+    /// <c>GenerarClaveApiCommand.cs</c> deja de usar <c>EsPlataforma</c> como autoridad
+    /// —pasa a <c>IAutorizacionAdminPlataforma</c>— y sale de la lista (−1 fichero, −1
+    /// aparición de autoridad). De 35/61 a <b>34 ficheros, 60 apariciones</b>.
     /// </para>
     ///
     /// <para>
@@ -238,13 +242,11 @@ public class UsosDeEsPlataformaCongeladosTests
     private static readonly Dictionary<string, EntradaBlanca> Autorizados = new()
     {
         // ── AUTORIDAD ─────────────────────────────────────────────────────────────
-        // Los seis comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
+        // Los cinco comparten predicado y lo evalúan contra el tenant de ORIGEN, nunca
         // contra ITenantActual: quien ya opera un tenant ajeno podría usar el workspace
         // activo para abrirse acceso a otros.
-        ["src/CaeManager.Application/ApiKeys/Commands/GenerarClaveApi/GenerarClaveApiCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":63 — lo retira el bloque C (D-7: direccionamiento propio)"),
         ["src/CaeManager.Application/ApiKeys/Commands/RevocarClaveApi/RevocarClaveApiCommand.cs"] =
-            new(1, CategoriaUso.Autoridad, ":43 — lo retira el bloque C"),
+            new(1, CategoriaUso.Autoridad, ":47 — lo retira el bloque C"),
         ["src/CaeManager.Application/ApiKeys/Queries/ObtenerClavesApi/ObtenerClavesApiQuery.cs"] =
             new(1, CategoriaUso.Autoridad, ":36 — lo retira el bloque C"),
         ["src/CaeManager.Application/Tenants/AutorizacionAccesoSoporte.cs"] =

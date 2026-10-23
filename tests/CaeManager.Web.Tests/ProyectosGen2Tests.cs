@@ -539,8 +539,8 @@ public partial class ProyectosGen2Tests : BunitContext
         _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().ClienteId.Should().Be(ClienteId);
         NombresEnLaTabla(cut).Should().Equal(ProyectoAbierto2.Nombre, ProyectoAbierto.Nombre, ProyectoCerrado.Nombre);
         var filas = cut.FindAll("tbody tr");
-        filas[1].QuerySelector(".proyecto-centro")!.TextContent.Trim().Should().Be(ProyectoAbierto.CentroNombre);
-        filas[1].QuerySelector(".proyecto-centro")!.TextContent.Should().NotContain("Refrielectric",
+        filas[1].QuerySelector(".celda-centro-proyecto")!.TextContent.Trim().Should().Be(ProyectoAbierto.CentroNombre);
+        filas[1].QuerySelector(".proyecto-centro").Should().BeNull(
             "con un Cliente empresarial en el filtro, repetirlo en cada fila sobra");
         // Columna «Fechas»: «inicio → fin» o «inicio → sin fecha de fin».
         var fechasConFin = filas[1].QuerySelector(".proyecto-plazo")!.TextContent;
@@ -580,10 +580,11 @@ public partial class ProyectosGen2Tests : BunitContext
         cut.BotonDeFranja("Todos").RecuentoDeFranja().Should().Be(3);
         cut.BotonDeFranja("Abiertos").RecuentoDeFranja().Should().Be(2);
         cut.BotonDeFranja("Cerrados").RecuentoDeFranja().Should().Be(1);
-        FilaDe(cut, ProyectoAbierto).QuerySelector(".proyecto-centro")!.TextContent.Trim()
-            .Should().Be("Centro Logístico Norte · Refrielectric S.L.");
+        FilaDe(cut, ProyectoAbierto).QuerySelector(".celda-centro-proyecto")!.TextContent.Trim().Should().Be("Centro Logístico Norte");
+        FilaDe(cut, ProyectoAbierto).QuerySelector(".proyecto-centro")!.TextContent.Trim().Should().Be("Refrielectric S.L.");
+        FilaDe(cut, ProyectoDeB).QuerySelector(".celda-centro-proyecto")!.TextContent.Trim().Should().Be("Planta Barakaldo");
         FilaDe(cut, ProyectoDeB).QuerySelector(".proyecto-centro")!.TextContent.Trim()
-            .Should().Be("Planta Barakaldo · Frigoríficos Arcos S.A.", "sin filtro de Cliente empresarial, la fila dice de quién es");
+            .Should().Be("Frigoríficos Arcos S.A.", "sin filtro de Cliente empresarial, la fila dice de quién es");
         cut.Markup.Should().Contain("+ Nuevo proyecto").And.NotContain("Elige un Cliente");
     }
 

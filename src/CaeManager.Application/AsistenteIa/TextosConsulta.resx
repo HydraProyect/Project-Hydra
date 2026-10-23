@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="PreguntaInvalida" xml:space="preserve"><value>Escribe una pregunta para el asistente.</value></data>
+  <data name="PreguntaDemasiadoLarga" xml:space="preserve"><value>La pregunta no puede superar los {0} caracteres.</value></data>
+  <data name="SinIdentidad" xml:space="preserve"><value>No se ha podido identificar tu sesión y la organización activa. Vuelve a iniciar sesión para consultar al asistente.</value></data>
+  <data name="CuotaUsuario" xml:space="preserve"><value>Has agotado tu cuota de preguntas al asistente. Espera a que se renueve para volver a preguntar.</value></data>
+  <data name="CuotaTenant" xml:space="preserve"><value>Esta organización ha agotado su cuota de preguntas al asistente. Espera a que se renueve para volver a preguntar.</value></data>
+</root>

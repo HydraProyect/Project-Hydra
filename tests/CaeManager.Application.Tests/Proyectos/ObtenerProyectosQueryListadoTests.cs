@@ -62,7 +62,7 @@ public class ObtenerProyectosQueryListadoTests
     }
 
     private ObtenerProyectosQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null) =>
-        new(_centros, _empresas, _proyectos, _trabajadores, alcance ?? new AlcanceDatosServiceFalso());
+        new(_centros, _empresas, _proyectos, _trabajadores, alcance ?? new AlcanceDatosServiceFalso(), new CalculoDocumentalFalso());
 
     private static AlcanceDatosServiceFalso AlcanceLimitadoA(params Guid[] clienteIds) =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: clienteIds);

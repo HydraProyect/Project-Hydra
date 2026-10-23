@@ -4,7 +4,10 @@ using CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 using CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Common;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Repositories;
@@ -17,9 +20,8 @@ namespace CaeManager.IntegrationTests.ApiKeys;
 
 /// <summary>
 /// GenerarClaveApiCommand/RevocarClaveApiCommand/ObtenerClavesApiQuery (P3-29)
-/// — mismo criterio de autorización que AbrirAccesoSoporteCommand: solo el
-/// Administrador del tenant plataforma, sobre una delegación de soporte que
-/// lo autorice sobre ese cliente. Lo que estos tests protegen es justo lo que
+/// — emisión fuera de Sesión Privilegiada, con autoridad AdminPlataforma, 2FA,
+/// motivo, caducidad y acceso de soporte vigente sobre el Tenant propietario objetivo. Lo que estos tests protegen es justo lo que
 /// más fácil sería romper por accidente: que una clave del tenant A nunca
 /// resulte visible/revocable desde una delegación que no le pertenece, y que
 /// el lookup por hash siga acotado a esa única operación — desde 2026-09-21,
@@ -46,7 +48,9 @@ public class GestionClavesApiTests : IAsyncLifetime
         contexto.Tenants.AddRange(tenantPlataforma, tenantCliente);
 
         var delegacion = DelegacionTenant.ParaSoporte(tenantPlataforma.Id, tenantCliente.Id);
+        delegacion.ActivarParaSoporte("Prueba de integración", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
         contexto.DelegacionesTenant.Add(delegacion);
+        contexto.Users.Add(new ApplicationUser { Id = _usuarioPlataforma, TenantId = tenantPlataforma.Id, UserName = "emisor-alfa@ejemplo.test", Email = "emisor-alfa@ejemplo.test" });
 
         await contexto.SaveChangesAsync();
 
@@ -57,7 +61,7 @@ public class GestionClavesApiTests : IAsyncLifetime
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
 
-    private CaeManagerDbContext CrearContexto()
+    private CaeManagerDbContext CrearContexto(ActorAuditoria? actorAuditoria = null)
     {
         // A diferencia de TenantActualAmbiental (tenant fijo asignado desde
         // fuera), esta implementación lee AmbitoTenantExplicito en cada
@@ -65,13 +69,18 @@ public class GestionClavesApiTests : IAsyncLifetime
         // handlers bajo prueba abren y cierran ese ámbito ellos mismos
         // (AmbitoTenantExplicito.Establecer) para sellar/leer contra el
         // tenant cliente, no contra un tenant fijado de antemano.
+        //
+        // Con actorAuditoria, el contexto lleva además el AuditoriaInterceptor real, para observar
+        // el registro de auditoría que deja el alta de la clave.
         var tenantActual = new TenantActualPorAmbito();
-        var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(new TenantSelladoInterceptor(tenantActual))
-            .Options;
+        var builder = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
+        if (actorAuditoria is { } actor)
+            builder.AddInterceptors(new AuditoriaInterceptor(new ActorAuditoriaFijo(actor)), new TenantSelladoInterceptor(tenantActual));
+        else
+            builder.AddInterceptors(new TenantSelladoInterceptor(tenantActual));
 
-        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        return new CaeManagerDbContext(builder.Options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
     private sealed class TenantActualPorAmbito : ITenantActual
@@ -79,15 +88,58 @@ public class GestionClavesApiTests : IAsyncLifetime
         public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual;
     }
 
+    private sealed class ActorAuditoriaFijo(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
+    }
+
+    [Fact]
+    public async Task El_motivo_de_la_emision_queda_en_la_auditoria_del_Tenant_propietario()
+    {
+        const string motivo = "Integración del ERP solicitada por escrito";
+        await using var contexto = CrearContexto(ActorAuditoria.Normal(_usuarioPlataforma));
+        var handler = new GenerarClaveApiCommandHandler(
+            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
+            new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contexto);
+
+        var generada = await handler.Handle(
+            new GenerarClaveApiCommand(_delegacionId, "Integración auditada", DateTime.UtcNow.AddDays(30), motivo), CancellationToken.None);
+        generada.EsExitoso.Should().BeTrue();
+
+        // Se lee dentro del Tenant propietario, con el filtro global puesto: si el registro hubiera
+        // quedado sellado contra el Tenant de plataforma, no aparecería aquí.
+        await using var contextoLectura = CrearContexto();
+        using (AmbitoTenantExplicito.Establecer(_tenantClienteId))
+        {
+            var registro = await contextoLectura.RegistrosAuditoria
+                .SingleAsync(r => r.EntidadTipo == nameof(ClaveApi) && r.EntidadId == generada.Valor.Id);
+
+            registro.TenantId.Should().Be(_tenantClienteId, "el alta de la clave se audita en el Tenant propietario");
+            // Se lee el JSON y no su texto: el serializador escapa lo que no es ASCII («ó» → ó).
+            using var datos = System.Text.Json.JsonDocument.Parse(registro.DatosDespues!);
+            datos.RootElement.GetProperty(nameof(ClaveApi.MotivoEmision)).GetString().Should().Be(motivo);
+            registro.ActorRealUsuarioId.Should().Be(_usuarioPlataforma);
+        }
+
+        await using var contextoPlataforma = CrearContexto();
+        using (AmbitoTenantExplicito.Establecer(_tenantPlataformaId))
+        {
+            (await contextoPlataforma.RegistrosAuditoria.AnyAsync(r => r.EntidadId == generada.Valor.Id))
+                .Should().BeFalse("el motivo no queda en el Tenant de plataforma");
+        }
+    }
+
     [Fact]
     public async Task El_administrador_de_la_plataforma_genera_una_clave_para_el_cliente_delegado()
     {
         await using var contexto = CrearContexto();
         var handler = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), contexto,
+            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contexto);
 
-        var resultado = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Integración de prueba"), CancellationToken.None);
+        var resultado = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Integración de prueba", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.ClaveEnClaro.Should().StartWith("hydra_");
@@ -99,9 +151,9 @@ public class GestionClavesApiTests : IAsyncLifetime
     {
         await using var contextoEscritura = CrearContexto();
         var handler = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contextoEscritura), new ClaveApiRepository(contextoEscritura), contextoEscritura,
+            new DelegacionTenantRepository(contextoEscritura), new ClaveApiRepository(contextoEscritura), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoEscritura);
-        var generada = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Integración de prueba"), CancellationToken.None);
+        var generada = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Integración de prueba", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         // Sin AmbitoTenantExplicito, el filtro global la escondería si
         // hubiera quedado sellada contra el tenant equivocado.
@@ -115,15 +167,15 @@ public class GestionClavesApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_tenant_que_no_es_la_plataforma_no_puede_generar_claves()
+    public async Task Una_cuenta_ajena_a_la_organizacion_de_origen_no_puede_generar_claves()
     {
         await using var contexto = CrearContexto();
         var handler = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), contexto,
+            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             // tenantOrigenId = el propio cliente, no la plataforma.
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantClienteId), contexto);
 
-        var resultado = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Intento no autorizado"), CancellationToken.None);
+        var resultado = await handler.Handle(new GenerarClaveApiCommand(_delegacionId, "Intento no autorizado", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
@@ -134,9 +186,9 @@ public class GestionClavesApiTests : IAsyncLifetime
     {
         await using var contextoGenerar = CrearContexto();
         var handlerGenerar = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contextoGenerar), new ClaveApiRepository(contextoGenerar), contextoGenerar,
+            new DelegacionTenantRepository(contextoGenerar), new ClaveApiRepository(contextoGenerar), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoGenerar);
-        var generada = await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "A revocar"), CancellationToken.None);
+        var generada = await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "A revocar", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         await using var contextoRevocar = CrearContexto();
         var handlerRevocar = new RevocarClaveApiCommandHandler(
@@ -177,10 +229,10 @@ public class GestionClavesApiTests : IAsyncLifetime
     {
         await using var contextoGenerar = CrearContexto();
         var handlerGenerar = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contextoGenerar), new ClaveApiRepository(contextoGenerar), contextoGenerar,
+            new DelegacionTenantRepository(contextoGenerar), new ClaveApiRepository(contextoGenerar), new AutorizacionClavesApiDePrueba(_tenantClienteId),
             new CurrentUserServiceFalso(_usuarioPlataforma, tenantOrigenId: _tenantPlataformaId), contextoGenerar);
-        await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "Primera"), CancellationToken.None);
-        await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "Segunda"), CancellationToken.None);
+        await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "Primera", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
+        await handlerGenerar.Handle(new GenerarClaveApiCommand(_delegacionId, "Segunda", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         await using var contextoConsulta = CrearContexto();
         var handlerConsulta = new ObtenerClavesApiQueryHandler(

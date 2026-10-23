@@ -152,7 +152,7 @@
 
         @if (_cuadro.TenantsSinAlcanceCompleto > 0)
         {
-            <p class="cuadro-nota" role="status">@Textos["EmpresasSinAlcance", _cuadro.TenantsSinAlcanceCompleto]</p>
+            <p class="cuadro-nota" role="status">@Textos[_cuadro.TenantsSinAlcanceCompleto == 1 ? "EmpresasSinAlcanceUna" : "EmpresasSinAlcance", _cuadro.TenantsSinAlcanceCompleto]</p>
         }
 
         @if (_cuadro.Tenants.Count == 0)

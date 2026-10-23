@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using System.Text.Json;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.ApiKeys;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Configuracion;
@@ -441,7 +442,8 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 ? SerializarValores(propiedades, sensibles, usarValorOriginal: true)
                 : null;
             string? datosDespues = entrada.State != EntityState.Deleted
-                ? SerializarValores(propiedades, sensibles, usarValorOriginal: false)
+                ? SerializarValores(propiedades, sensibles, usarValorOriginal: false,
+                    motivoEmision: entrada.State == EntityState.Added && entrada.Entity is ClaveApi clave ? clave.MotivoEmision : null)
                 : null;
 
             registros.Add(new RegistroAuditoria(
@@ -494,7 +496,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
     // con la pérdida de transaccionalidad que implica decidida a la vista.
 
     private static string SerializarValores(
-        IEnumerable<PropertyEntry> propiedades, HashSet<string>? propiedadesSensibles, bool usarValorOriginal)
+        IEnumerable<PropertyEntry> propiedades, HashSet<string>? propiedadesSensibles, bool usarValorOriginal, string? motivoEmision = null)
     {
         var valores = propiedades.ToDictionary(
             p => p.Metadata.Name,
@@ -502,6 +504,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
                 ? "***"
                 : usarValorOriginal ? p.OriginalValue : p.CurrentValue);
 
+        if (motivoEmision is not null) valores[nameof(ClaveApi.MotivoEmision)] = motivoEmision;
         return JsonSerializer.Serialize(valores);
     }
 }
