@@ -182,7 +182,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 filtrados = filtrados.Where(u => u.Rol == _rolFiltro);
 
             if (!string.IsNullOrEmpty(_activacionFiltro))
-                filtrados = filtrados.Where(u => _activacionFiltro.Split(',').Contains(EstadoLista(u)));
+                filtrados = filtrados.Where(u => _activacionFiltro.Split(',').Any(estado => PerteneceAlEstado(u, estado)));
             return filtrados.ToList();
         }
     }
@@ -232,8 +232,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         Guid idEditado, Guid? idActor, string rolNuevo, bool valorNuevo, bool valorActual) =>
         AutoridadSobreCuentas.EsAutogestionDelPermisoSensible(idEditado, idActor, rolNuevo, valorNuevo, valorActual);
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(UsuariosFiltrados.Count / (double)_tamanoPagina));
-    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => UsuariosFiltrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     // Todo cambio de filtro vuelve a la página 1: si no, filtrar estando en la
     // página 3 deja la lista en una página que ya no existe y se ve vacía.
@@ -266,7 +264,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
-        _seleccionados.Clear();
         _idEnfocado = null;
         return Task.CompletedTask;
     }
@@ -275,7 +272,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
-        _seleccionados.Clear();
         _pagina = 1;
         _idEnfocado = null;
         return Task.CompletedTask;
@@ -294,8 +290,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>
     /// "j"/"k" recorren la página visible y "Enter" abre la edición del usuario
-    /// enfocado — la misma acción que "Editar" en su menú. "x" alterna la selección
-    /// de la fila visible enfocada cuando la selección múltiple está activa.
+    /// enfocado — la misma acción que "Editar" en su menú. No hay acciones en bloque.
     /// </summary>
     private async Task ManejarAtajoAsync(string tecla)
     {
@@ -314,9 +309,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 break;
             case "k":
                 _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
-                break;
-            case "x" when _seleccionMultiple && indice >= 0:
-                Seleccionar(visibles[indice].Id, !_seleccionados.Contains(visibles[indice].Id));
                 break;
             case "Enter":
                 if (indice >= 0)
@@ -436,7 +428,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                         Avatar: m.Avatar))
                     .ToList();
                 _pagina = 1;
-                ReiniciarVistaLista();
                 return;
             }
 
@@ -520,7 +511,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             if (version != _versionCarga) return;
 
             _usuarios = usuarios;
-            ReiniciarVistaLista();
             _pagina = 1;
         }
         catch (OperationCanceledException)

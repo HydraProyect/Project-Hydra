@@ -349,14 +349,11 @@
     <value>{0} (solo un Cliente)</value>
   </data>
   <data name="ListaActivos" xml:space="preserve"><value>Activos</value></data>
-  <data name="ListaBuscar" xml:space="preserve"><value>Nombre o correo</value></data>
+  <data name="ListaBuscar" xml:space="preserve"><value>Filtrar esta pantalla: nombre o correo</value></data>
   <data name="ListaDesactivados" xml:space="preserve"><value>Desactivados</value></data>
   <data name="ListaPendientes" xml:space="preserve"><value>Pendientes de activar</value></data>
   <data name="ListaRestantes" xml:space="preserve"><value>Ver los {0} restantes</value></data>
   <data name="ListaRol" xml:space="preserve"><value>Rol</value></data>
-  <data name="ListaSeleccion" xml:space="preserve"><value>Seleccionar usuarios</value></data>
-  <data name="ListaSeleccionFila" xml:space="preserve"><value>Seleccionar a {0}</value></data>
-  <data name="ListaSeleccionTodos" xml:space="preserve"><value>Seleccionar filas visibles</value></data>
   <data name="ListaTodos" xml:space="preserve"><value>Todos</value></data>
   <data name="ListaTotal" xml:space="preserve"><value>{0} usuario(s)</value></data>
   <data name="ListaTu" xml:space="preserve"><value>tú</value></data>
@@ -368,4 +365,6 @@
   <data name="ListaQuitarFiltro" xml:space="preserve"><value>Quitar filtro</value></data>
   <data name="ListaTitulo" xml:space="preserve"><value>Usuarios</value></data>
   <data name="ListaUnidad" xml:space="preserve"><value>usuario(s)</value></data>
+  <data name="ChipBusqueda" xml:space="preserve"><value>Búsqueda: {0}</value></data>
+  <data name="ChipRol" xml:space="preserve"><value>Rol: {0}</value></data>
 </root>

@@ -14,6 +14,7 @@
     <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
 }
 
+@{ var vistaLista = CrearVistaLista(); }
 <div class="@(ClaseContenedorPagina + " lista-design")">
     @* Gen 2: la cabecera es la primitiva, no un div a mano. Integrada resuelve
        h1/h2 igual que TituloPaginaIntegrable, y las acciones entran por
@@ -27,21 +28,21 @@
         </Acciones>
     </CabeceraPagina>
 
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : UsuariosFiltrados.Count)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : vistaLista.Filtrados.Count)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar" VistaRecordada="_vistaRecordada">
         <Pastillas><PastillaFiltro Etiqueta="@TextosUsuarios["ListaRol"]" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync" Opciones="OpcionesRol" /></Pastillas>
-        <Estados><FranjaEstado Opciones="OpcionesEstadoLista" Valor="@_activacionFiltro" ValorChanged="CambiarEstadoListaAsync" Recuentos="RecuentosEstadoLista" TextoTodos="@TextosUsuarios["ListaTodos"]" /></Estados>
+        <Estados><FranjaEstado Opciones="OpcionesEstadoLista" Valor="@_activacionFiltro" ValorChanged="CambiarEstadoListaAsync" Recuentos="RecuentosEstadoLista" TotalTodos="UsuariosSinFiltroEstado.Count()" TextoTodos="@TextosUsuarios["ListaTodos"]" /></Estados>
         <Herramientas><DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacionAsync" /></Herramientas>
         <Chips>
             @if (!string.IsNullOrWhiteSpace(_busqueda))
             {
-                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@_busqueda" OnQuitar="() => BuscarAsync(string.Empty)" />
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@TextosUsuarios["ChipBusqueda", _busqueda]" OnQuitar="() => BuscarAsync(string.Empty)" />
             }
             @if (!string.IsNullOrWhiteSpace(_rolFiltro))
             {
-                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@Roles.NombreVisible(_rolFiltro)" OnQuitar="() => FiltrarPorRolAsync(string.Empty)" />
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@TextosUsuarios["ChipRol", Roles.NombreVisible(_rolFiltro)]" OnQuitar="() => FiltrarPorRolAsync(string.Empty)" />
             }
         </Chips>
     </BarraFiltros>
@@ -64,7 +65,7 @@
         @* Sin acción: el alta ya está en la cabecera, a dos centímetros. *@
         <EstadoVacio Titulo="Aún no hay usuarios" Descripcion="Crea el primero para dar acceso al sistema." />
     }
-    else if (UsuariosFiltrados.Count == 0)
+    else if (vistaLista.Filtrados.Count == 0)
     {
         @* Distinto de "aún no hay usuarios": los hay, pero ninguno casa con lo
            filtrado. Decirle "crea el primero" a quien tiene cuarenta y ha
@@ -80,10 +81,10 @@
     {
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-        <div class="tarjeta-listado"><div class="tarjeta-listado-contenido"><div class="tabla-contenedor"><table class="tabla-datos">
+        @TarjetaListado.RenderizarMaqueta(@<text>
+        <table class="tabla-datos">
             <thead>
                 <tr>
-                    @if (_seleccionMultiple) { <th scope="col"><input type="checkbox" aria-label="@TextosUsuarios["ListaSeleccionTodos"]" checked="@(UsuariosVisibles.Count > 0 && UsuariosVisibles.All(u => _seleccionados.Contains(u.Id)))" @onchange="e => SeleccionarVisibles((bool)e.Value!)" /></th> }
                     <th scope="col">@TextosUsuarios["ListaUsuario"]</th>
                     <th scope="col">@TextosUsuarios["ListaRol"]</th>
                     <th scope="col">@TextosUsuarios["ListaAmbito"]</th>
@@ -96,16 +97,16 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach (var fila in FilasAgrupadas)
+                @{ var claves = new ClavesDeHermanos(); }
+                @foreach (var fila in vistaLista.Filas)
                 {
-                    var usuario = fila.Fila;
+                    var usuario = fila.Usuario;
                     @if (fila.Cabecera is { } grupo)
                     {
-                        <tr class="fila-grupo"><td colspan="@(_seleccionMultiple ? 6 : 5)"><CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Abierto="fila.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" /></td></tr>
+                        <tr class="fila-grupo" @key="claves.De(grupo.Clave)"><td colspan="5"><CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Abierto="fila.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" /></td></tr>
                     }
-                    @if (fila.Oculta || OcultaPorLimite(usuario)) { continue; }
-                    <tr class="@ClaseFila(usuario.Id)">
-                        @if (_seleccionMultiple) { <td><input type="checkbox" aria-label="@TextosUsuarios["ListaSeleccionFila", usuario.NombreCompleto]" checked="@_seleccionados.Contains(usuario.Id)" @onchange="e => Seleccionar(usuario.Id, (bool)e.Value!)" /></td> }
+                    @if (fila.Oculta) { continue; }
+                    <tr class="@ClaseFila(usuario.Id)" @key="claves.De(usuario.Id)">
                         <td>
                             <span class="persona-identidad"><AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" /><strong>@usuario.NombreCompleto</strong></span>
                             <span class="lista-identificador">@usuario.Email</span>
@@ -228,33 +229,16 @@
                             </MenuAcciones>
                         </td>
                     </tr>
-                    @if (RestantesTras(usuario) is var restantes && restantes > 0)
+                    @if (fila.Restantes > 0)
                     {
-                        <tr class="fila-restantes"><td colspan="@(_seleccionMultiple ? 6 : 5)"><Boton Variante="VarianteBoton.Fantasma" OnClick="() => VerRestantes(usuario.Rol)">@TextosUsuarios["ListaRestantes", restantes]</Boton></td></tr>
+                        <tr class="fila-restantes" @key="claves.De((usuario.Rol, true))"><td colspan="5"><Boton Variante="VarianteBoton.Fantasma" OnClick="() => VerRestantes(usuario.Rol)">@TextosUsuarios["ListaRestantes", fila.Restantes]</Boton></td></tr>
                     }
                 }
             </tbody>
-        </table></div></div></div>
-
+        </table>
+        </text>, PieDelListado(vistaLista))
     }
-@if (!_errorCarga)
-{
-    <div class="tarjeta-listado-pie">
-        @if (_agruparPor is not null)
-        {
-            <span>@TextosUsuarios["ListaTotal", UsuariosFiltrados.Count]</span>
-        }
-        else
-        {
-        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="UsuariosDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
-                          Etiqueta="@TextosUsuarios["ListaUnidad"]" PaginaActualChanged="IrAPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
-        }
-    </div>
-}
-
 </div>
-
 @* «Guardar» queda deshabilitado mientras viaja la comprobación del CIF: guardar en ese instante decidiría con un resultado que
    todavía no ha llegado. El kit ya impide el doble clic en el cliente; GuardarAsync lo impide además en el servidor, que es
    donde cuenta. *@
@@ -546,3 +530,23 @@
                       TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
                       OnConfirmar="RestablecerSegundoFactorAsync" />
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment? PieDelListado(VistaUsuarios vista) =>
+        _errorCarga || _cargando || vista.Filtrados.Count == 0 ? null : @<text>
+        @if (_agruparPor is not null)
+        {
+            <span>@TextosUsuarios["ListaTotal", vista.Filtrados.Count]</span>
+            <LeyendaAtajosLista Omitir="@(["x", "e"])" HayFilas="vista.Filas.Any(f => !f.Oculta)" />
+        }
+        else
+        {
+            <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="vista.Pagina.Count" PaginaActual="_pagina"
+                             TotalPaginas="@Math.Max(1, (int)Math.Ceiling(vista.Filtrados.Count / (double)_tamanoPagina))" TotalElementos="vista.Filtrados.Count"
+                             Etiqueta="@TextosUsuarios["ListaUnidad"]" PaginaActualChanged="IrAPaginaAsync"
+                             TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync">
+                <Centro><LeyendaAtajosLista Omitir="@(["x", "e"])" /></Centro>
+            </PaginadorSimple>
+        }
+    </text>;
+}

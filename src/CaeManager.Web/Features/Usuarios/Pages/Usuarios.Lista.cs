@@ -13,18 +13,42 @@ public partial class Usuarios
     private readonly ConexionVistaRecordada _vistaRecordada = new();
     private readonly GruposAbiertos _gruposAbiertos = new();
     private string? _agruparPor;
-    private bool _seleccionMultiple;
-    private readonly HashSet<Guid> _seleccionados = [];
     private readonly HashSet<string> _gruposCompletos = [];
     private const int FilasInicialesGrupo = 5;
-    private void AlternarSeleccionMultiple(bool activa) { _seleccionMultiple = activa; _seleccionados.Clear(); }
-    private void Seleccionar(Guid id, bool valor) { if (valor && UsuariosVisibles.Any(u => u.Id == id)) _seleccionados.Add(id); else _seleccionados.Remove(id); }
-    private void SeleccionarVisibles(bool valor) { _seleccionados.Clear(); if (valor) _seleccionados.UnionWith(UsuariosVisibles.Select(u => u.Id)); }
-    private IEnumerable<UsuarioListaDto> FilasDelRol(string rol) => UsuariosFiltrados.Where(u => u.Rol == rol);
-    private bool OcultaPorLimite(UsuarioListaDto u) => _agruparPor is not null && !_gruposCompletos.Contains(u.Rol) && !FilasDelRol(u.Rol).Take(FilasInicialesGrupo).Any(f => f.Id == u.Id);
-    private int RestantesTras(UsuarioListaDto u) => _agruparPor is not null && !_gruposCompletos.Contains(u.Rol) && FilasDelRol(u.Rol).Take(FilasInicialesGrupo).LastOrDefault()?.Id == u.Id ? Math.Max(0, FilasDelRol(u.Rol).Count() - FilasInicialesGrupo) : 0;
-    private void VerRestantes(string rol) => _gruposCompletos.Add(rol);
 
+    private sealed record FilaUsuarioVista(UsuarioListaDto Usuario, GrupoDeLista? Cabecera, bool Abierto, bool Oculta, int Restantes);
+    private sealed record VistaUsuarios(IReadOnlyList<UsuarioListaDto> Filtrados, IReadOnlyList<UsuarioListaDto> Pagina, IReadOnlyList<FilaUsuarioVista> Filas);
+
+    // La instantánea se obtiene una vez por render; ningún cálculo de fila vuelve a filtrar la lista.
+    private VistaUsuarios CrearVistaLista()
+    {
+        var filtrados = UsuariosFiltrados;
+        var pagina = filtrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
+        var filas = new List<FilaUsuarioVista>();
+        if (_agruparPor is null)
+        {
+            filas.AddRange(pagina.Select(u => new FilaUsuarioVista(u, null, true, false, 0)));
+        }
+        else
+        {
+            foreach (var grupo in filtrados.GroupBy(u => u.Rol))
+            {
+                var elementos = grupo.ToList();
+                var abierto = _gruposAbiertos.EstaAbierto(grupo.Key);
+                var limite = _gruposCompletos.Contains(grupo.Key) ? elementos.Count : Math.Min(FilasInicialesGrupo, elementos.Count);
+                for (var i = 0; i < elementos.Count; i++)
+                {
+                    var cabecera = i == 0 ? new GrupoDeLista(grupo.Key, Roles.NombreVisible(grupo.Key), elementos.Count, 0) : null;
+                    filas.Add(new FilaUsuarioVista(elementos[i], cabecera, abierto, !abierto || i >= limite,
+                        abierto && i == limite - 1 ? elementos.Count - limite : 0));
+                }
+            }
+        }
+        return new VistaUsuarios(filtrados, pagina, filas);
+    }
+
+    private IReadOnlyList<UsuarioListaDto> UsuariosVisibles => CrearVistaLista().Filas.Where(f => !f.Oculta).Select(f => f.Usuario).ToList();
+    private void VerRestantes(string rol) => _gruposCompletos.Add(rol);
     [SupplyParameterFromQuery(Name = "q")] public string? BusquedaInicial { get; set; }
     [SupplyParameterFromQuery(Name = "rol")] public string? RolInicial { get; set; }
     [SupplyParameterFromQuery(Name = "estado")] public string? EstadoInicial { get; set; }
@@ -38,16 +62,27 @@ public partial class Usuarios
         new(TextosUsuarios["ListaPendientes"].Value, TonoBadge.Advertencia, "pendientes"),
         new(TextosUsuarios["ListaActivos"].Value, TonoBadge.Exito, ActivacionActivos)
     ];
-    private static string EstadoLista(UsuarioListaDto u) => u.PendienteActivacion ? "pendientes" : u.Activo ? ActivacionActivos : ActivacionDesactivados;
+    private static bool PerteneceAlEstado(UsuarioListaDto usuario, string estado) => estado switch
+    {
+        ActivacionActivos => usuario.Activo,
+        ActivacionDesactivados => !usuario.Activo,
+        "pendientes" => usuario.PendienteActivacion,
+        _ => false
+    };
+
     private IEnumerable<UsuarioListaDto> UsuariosSinFiltroEstado => _usuarios.Where(u =>
         (string.IsNullOrWhiteSpace(_busqueda) || Contiene(u.NombreCompleto, _busqueda.Trim()) || Contiene(u.Email, _busqueda.Trim())) &&
         (string.IsNullOrEmpty(_rolFiltro) || u.Rol == _rolFiltro));
-    private IReadOnlyDictionary<string, int> RecuentosEstadoLista => UsuariosSinFiltroEstado.GroupBy(EstadoLista).ToDictionary(g => g.Key, g => g.Count());
-    private IEnumerable<FilaDeGrupo<UsuarioListaDto>> FilasAgrupadas => GruposDeLista.Agrupar(
-        _agruparPor is null ? UsuariosDePagina : UsuariosFiltrados, _agruparPor is not null,
-        u => u.Rol, (clave, _) => Roles.NombreVisible(clave), _ => false, _gruposAbiertos);
-    private IReadOnlyList<UsuarioListaDto> UsuariosVisibles => FilasAgrupadas.Where(f => !f.Oculta && !OcultaPorLimite(f.Fila)).Select(f => f.Fila).ToList();
 
+    private IReadOnlyDictionary<string, int> RecuentosEstadoLista
+    {
+        get
+        {
+            var usuarios = UsuariosSinFiltroEstado.ToList();
+            return new[] { ActivacionActivos, ActivacionDesactivados, "pendientes" }
+                .ToDictionary(estado => estado, estado => usuarios.Count(u => PerteneceAlEstado(u, estado)));
+        }
+    }
     protected override void OnParametersSet()
     {
         var busqueda = BusquedaInicial ?? string.Empty;
@@ -67,7 +102,7 @@ public partial class Usuarios
         _pagina = 1;
         _idEnfocado = null;
         _gruposAbiertos.PlegarTodos();
-        _gruposCompletos.Clear(); _seleccionados.Clear();
+        _gruposCompletos.Clear();
     }
     private Task ActualizarVistaListaAsync()
     {
@@ -89,7 +124,6 @@ public partial class Usuarios
     private void AlternarGrupo(string clave)
     {
         _gruposAbiertos.Alternar(clave);
-        _seleccionados.IntersectWith(UsuariosVisibles.Select(u => u.Id));
         _idEnfocado = null;
     }
     private Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)

@@ -696,7 +696,7 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     private IRenderedComponent<UsuariosControlados> Renderizar(
-        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false)
+        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false, string? url = null)
     {
         Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
@@ -744,6 +744,7 @@ public partial class UsuariosGen2Tests : BunitContext
             _ => throw new NotSupportedException(peticion.GetType().Name),
         };
 
+        if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         return Render<UsuariosControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
     }
 
