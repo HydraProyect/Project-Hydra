@@ -313,6 +313,10 @@ public class ReglasDeNegocioSinCopiasTests
         // El agregado deriva su propio EstaSustituido de la columna (1) y comprueba el del sustituto con
         // `nuevo.EstaSustituido` dentro de SustituirPor (1): son la propiedad de dominio, no una consulta.
         ["src/CaeManager.Domain/Documentos/Documento.cs"] = 2,
+        // Inbound M1, PR 3: app_inbound_documentos_del_alcance, en SQL de una función SECURITY DEFINER que lee los
+        // Documentos de otro Tenant sin EF, así que no puede usar DocumentoOperativo.Expresion. Repite la misma regla
+        // (NOT "EstaEliminado" AND "SustituidoEnUtc" IS NULL) y la prueba LecturaInboundBajoRuntimeTests contra un sustituido.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023150000_AnadeLecturaInboundEntreTenants.cs"] = 1,
     };
 
     [Fact]

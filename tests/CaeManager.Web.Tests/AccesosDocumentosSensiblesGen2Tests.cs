@@ -222,7 +222,7 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
     // --------------------------------------------------------- Cabecera y avisos
 
     [Fact]
-    public void La_cabecera_es_la_Gen_2_con_su_entradilla_y_los_dos_avisos_del_mockup()
+    public void La_cabecera_es_la_Gen_2_con_su_entradilla_y_el_aviso_de_alcance()
     {
         var cut = Renderizar();
 
@@ -230,13 +230,12 @@ public class AccesosDocumentosSensiblesGen2Tests : BunitContext
         Texto(cabecera.QuerySelector("h1.titulo-pagina")!).Should().Be("Accesos a documentos sensibles");
         Texto(cabecera.QuerySelector(".cabecera-pagina-descripcion")!).Should()
             .Contain("abre o descarga un documento sensible").And.Contain("versiones anteriores")
-            .And.Contain("excepción conocida",
-                "RegistroAccesoDocumentoSensibleRepository descarta el registro de la Sesión Privilegiada de soporte: «cada vez» sin salvedad es falso");
+            .And.Contain("Soporte TALVEG desde una Sesión Privilegiada")
+            .And.Contain("el documento no se entrega",
+                "el registro falla en cerrado (Z2-2): la pantalla puede prometer «cada vez» porque sin registro no hay acceso");
 
-        var hueco = cut.Find(".accesos-sensibles-hueco");
-        hueco.GetAttribute("role").Should().Be("note");
-        Texto(hueco.QuerySelector("strong")!).Should().Be("Hueco conocido, pendiente de decisión:");
-        Texto(hueco).Should().Contain("Sesión Privilegiada de solo lectura").And.Contain("registro técnico del servidor");
+        cut.FindAll(".accesos-sensibles-hueco").Should().BeEmpty(
+            "el hueco de la Sesión Privilegiada está cerrado: un aviso que lo anuncie sería falso");
 
         Texto(cut.Find(".accesos-sensibles-alcance strong")).Should().Be("Qué NO se registra, a propósito:");
         Texto(cut.Find(".accesos-sensibles-alcance")).Should()

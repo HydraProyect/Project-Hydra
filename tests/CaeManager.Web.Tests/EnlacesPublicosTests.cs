@@ -150,7 +150,7 @@ public class EnlacesPublicosTests
         tipo.GetProperty("TextosUsuarios", flags)!.SetValue(componente, new LocalizadorUsuario());
         var enlace = tipo.GetMethod("EnlaceActivacion", flags)!.Invoke(componente, [Guid.Empty, "codigo"]);
         var envio = (Task<CaeManager.Domain.Common.Result>)tipo.GetMethod("EnviarCorreoActivacionAsync", flags)!
-            .Invoke(componente, [Guid.Empty, "ana@example.test", "Ana", enlace])!;
+            .Invoke(componente, [Guid.Empty, "ana@example.test", "Ana", enlace, CancellationToken.None])!;
         (await envio).EsFallido.Should().BeTrue();
     }
 

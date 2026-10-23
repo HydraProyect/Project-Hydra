@@ -18,6 +18,10 @@ public class Cliente360TextosTests
     [InlineData("ToleranciaIntro", "Días que un documento vencido sigue admitiéndose en los centros de este Cliente.",
         "Dies que un document vençut continua admetent-se als centres d'aquest Client.")]
     [InlineData("CentroTodoValidado", "Todo validado en la plataforma", "Tot validat a la plataforma")]
+    [InlineData("DetalleBloqueaAccesoUno", "1 documento bloquea el acceso", "1 document bloqueja l'accés")]
+    [InlineData("DetalleBloqueanAccesoVarios", "{0} documentos bloquean el acceso", "{0} documents bloquegen l'accés")]
+    [InlineData("DetallePendienteValidacionUno", "1 pendiente de validación", "1 pendent de validació")]
+    [InlineData("DetallePendientesValidacionVarios", "{0} pendientes de validación", "{0} pendents de validació")]
     [InlineData("ToastClienteBaja", "{0} dado de baja", "{0} donat de baixa")]
     [InlineData("ToastClienteRestaurado", "Baja del Cliente deshecha", "Baixa del Client desfeta")]
     [InlineData("ToastAccionDeshacer", "Deshacer", "Desfer")]

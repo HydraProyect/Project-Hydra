@@ -310,9 +310,11 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
     /// comparte entre dos comandos consecutivos—, el ataque central de
     /// REC-067: la concesión se revoca <b>entre</b> dos llamadas del mismo
     /// ámbito de DI. <c>ObtenerAsync</c> conserva la memo de la primera
-    /// llamada a propósito —esa es la limitación aceptada para lectura, ver
-    /// <c>AutorizacionEscrituraBehavior</c>—; <c>RevalidarAsync</c>, que es lo
-    /// que consulta el punto de mutación, tiene que ver el cambio en el acto.
+    /// llamada a propósito —para lectura la revocación la corta el tick
+    /// siguiente de la revalidación del circuito, que llama a
+    /// <c>RevalidarAsync</c>, ver <c>SesionPrivilegiadaVigenciaEnCircuitoTests</c>—;
+    /// <c>RevalidarAsync</c>, que es lo que consultan el punto de mutación y esa
+    /// revalidación, tiene que ver el cambio en el acto.
     /// </summary>
     [Fact]
     public async Task Revocada_la_concesion_entre_dos_llamadas_RevalidarAsync_lo_ve_y_ObtenerAsync_memoizado_no()
@@ -334,8 +336,8 @@ public class SesionPrivilegiadaActualTests : IAsyncLifetime
         });
 
         (await resolutor.ObtenerAsync()).Should().NotBeNull(
-            "ObtenerAsync es la vía de lectura, memoizada a propósito por circuito — la cierra el " +
-            "enforcement de datos (ADR-011 § 4bis.7.4), no este método");
+            "ObtenerAsync es la vía de lectura, memoizada a propósito por circuito — la revocación la " +
+            "corta la revalidación periódica del circuito con RevalidarAsync, no este método");
 
         (await resolutor.RevalidarAsync()).Should().BeNull(
             "el punto de mutación no puede confiar en la memo: tiene que revalidar contra la base cada vez");

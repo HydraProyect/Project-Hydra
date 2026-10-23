@@ -12,7 +12,7 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Bloque 4 del 21-10 de Centro 360, pestaña Trabajadores: el selector «Trabajadores · N | Vehículos · N», la fila de
-/// un Vehículo con su fracción «n de m» validados en la plataforma del Centro, los Vehículos y Trabajadores de cada
+/// un Vehículo con su fracción «n/m» validados en la plataforma del Centro, los Vehículos y Trabajadores de cada
 /// Subcontrata en un desplegable propio, plegado, con «Subcontrata de …» bajo el nombre, y el buscador rotulado para
 /// Vehículos.
 /// </summary>
@@ -90,7 +90,7 @@ public partial class Centro360Gen2Tests
         await ElegirVehiculosAsync(cut);
 
         var filas = cut.FindAll("[data-vehiculos-centro] [data-fraccion-validados]");
-        filas.Select(f => f.TextContent.Trim()).Should().Equal("2 de 3", "—");
+        filas.Select(f => f.TextContent.Trim()).Should().Equal("2/3", "—");
         var lista = cut.Find("[data-vehiculos-centro]").TextContent;
         lista.Should().Contain("4821KLM · Renault Kangoo").And.Contain("Ibertec GmbH").And.Contain("Pendiente");
         lista.Should().Contain("Sin documentos registrados");

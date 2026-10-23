@@ -311,7 +311,7 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests : Bunit
         var cut = Render<AcordeonAsignacionesCentro>(p => p.Add(x => x.CentroId, Guid.NewGuid()).Add(x => x.CentroNombre, "Centro Norte"));
         cut.Find(".fila-relacion-nombre").TextContent.Should().Be(nombre);
         cut.Find(".fila-relacion-avatar").TextContent.Should().Be("AB");
-        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("4 de 5");
+        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("4/5");
         cut.Find(".fila-relacion-estado").TextContent.Trim().Should().Be("Vencido");
         cut.Find(".fila-relacion-detalle").TextContent.Should().Contain(documento).And.Contain("01/09/2026");
         await cut.Find(".fila-relacion-desplegar").ClickAsync(new MouseEventArgs());

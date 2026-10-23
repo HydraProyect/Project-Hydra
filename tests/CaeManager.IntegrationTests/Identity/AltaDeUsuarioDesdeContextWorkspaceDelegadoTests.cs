@@ -8,6 +8,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
@@ -21,7 +22,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Xunit;
 using PaginaUsuarios = CaeManager.Web.Features.Usuarios.Pages.Usuarios;
 
@@ -308,6 +311,12 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         EscribirPropiedad(pagina, "Logger", NullLogger<PaginaUsuarios>.Instance);
         EscribirPropiedad(pagina, "EmailService", new EmailServiceNulo());
         EscribirPropiedad(pagina, "NavigationManager", new NavigationManagerFalsa());
+        // Con URL pública configurada: sin ella la página no crea la cuenta y la regla de
+        // Context Workspace que estos tests observan ni se llegaría a ejercer.
+        EscribirPropiedad(pagina, "EnlacesPublicos", new EnlacesPublicos(
+            Options.Create(new SmtpEmailOptions { UrlBasePublica = "https://cuentas.example/" }),
+            new HostingEnvironment { EnvironmentName = "Production" },
+            NullLogger<EnlacesPublicos>.Instance));
 
         EscribirCampo(pagina, "_email", email);
         EscribirCampo(pagina, "_nombreCompleto", "Cuenta nueva");

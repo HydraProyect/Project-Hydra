@@ -156,7 +156,17 @@ public static class DocumentosEndpoints
             return Results.NotFound();
         }
 
-        await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        // Falla en cerrado: si el acceso no queda registrado, la excepción corta la respuesta y
+        // el contenido no sale; el flujo ya abierto se cierra antes de propagarla.
+        try
+        {
+            await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        }
+        catch
+        {
+            await flujo.DisposeAsync();
+            throw;
+        }
 
         // Se muestra en el navegador, no se descarga: VisorDocumento lo incrusta en un <iframe> y los
         // enlaces «Ver PDF» lo abren en una pestaña. Pasar el nombre a Results.File como
