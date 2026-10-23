@@ -87,11 +87,10 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
 
         try
         {
-            // /documentos/importar redirige aquí con la plantilla ya preseleccionada (H-1).
+            // /documentos/importar identifica explícitamente la entrada documental.
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos/importar");
-            await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=documentos$"));
+            await Expect(page).ToHaveURLAsync(new Regex(@"/importacion\?plantilla=documentos&flujo=documentos$"));
 
-            await page.GetByText("Continuar con Documentos").ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2: una fila nueva, la del DNI inexistente ya aparece omitida ---

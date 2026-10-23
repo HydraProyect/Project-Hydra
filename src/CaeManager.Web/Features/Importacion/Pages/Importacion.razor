@@ -10,6 +10,13 @@
 }
 
 <div class="@ClaseContenedorPagina">
+    @if (EsImportacionDocumentos)
+    {
+        <div class="ruta-importacion ruta-importacion-documentos">
+            <a class="enlace-volver-importacion" href="/documentos"><Icono Nombre="volver" Tamano="TamanoIcono.Pequeno" /> Documentos</a>
+            <span class="miga-importacion"><span aria-hidden="true">/</span> <span class="miga-importacion-actual">Importar documentos</span></span>
+        </div>
+    }
     @* Cabecera Gen 2. Con ?plantilla=clientes o ?plantilla=combinada —los
        enlaces de Clientes y los marcadores /clientes/importar y
        /clientes/importar-combinado, que redirigen aquí— es la de los mockups
@@ -29,8 +36,15 @@
         </div>
     }
 
-    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : "Configuración")" Integrada="IntegradaEnConfiguracion"
+    <CabeceraPagina Titulo="@TituloPagina" Kicker="@(IntegradaEnConfiguracion ? null : EsImportacionDocumentos ? "Ciclo documental" : "Configuración")" Integrada="IntegradaEnConfiguracion"
                     Descripcion="@(EsCombinadaDesdeClientes ? EntradillaCombinada : null)" />
+
+    @if (EsImportacionDocumentos)
+    {
+        <div class="acciones-contexto-documentos">
+            <a href="/importacion">Ver todas las plantillas</a>
+        </div>
+    }
 
     <nav class="pasos-importacion" aria-label="Progreso de la importación">
         @for (var i = 0; i < NombresPasos.Count; i++)
@@ -150,6 +164,35 @@
         <div class="columna-paso-ancho">
             <h2 class="titulo-seccion-importacion" tabindex="-1" @ref="_tituloPaso">Sube el archivo</h2>
 
+            @if (EsImportacionDocumentos)
+            {
+                <section class="contexto-plantilla-documentos" aria-label="Plantilla de Documentos">
+                    <div>
+                        <h3>Plantilla: Documentos</h3>
+                        <p>Lote de documentos con propietario y tipo por fila. Los PDF se aportan después con subida múltiple.</p>
+                    </div>
+                    <a href="/documentos/plantilla.xlsx"><Icono Nombre="descargar" Tamano="TamanoIcono.Pequeno" /> Descargar plantilla en blanco</a>
+                </section>
+                <div class="rejilla-alcance-documentos">
+                    <section class="tarjeta-alcance-documentos">
+                        <h3>Qué hace</h3>
+                        <ul>
+                            <li>Crea los documentos nuevos de trabajador, con fecha de emisión y vencimiento calculado.</li>
+                            <li>Cruza el DNI con los trabajadores dados de alta y el nombre con el catálogo de tipos.</li>
+                            <li>Deja constancia de cada fila que no entra, con su motivo, en el reporte.</li>
+                        </ul>
+                    </section>
+                    <section class="tarjeta-alcance-documentos tarjeta-alcance-documentos-limitacion">
+                        <h3>No hace</h3>
+                        <ul>
+                            <li>No da de alta trabajadores ni tipos de documento.</li>
+                            <li>No adjunta PDF: el archivo se aporta después con subida múltiple.</li>
+                            <li>No admite fecha de vencimiento: se calcula desde la emisión y la vigencia del tipo.</li>
+                        </ul>
+                    </section>
+                </div>
+            }
+
             <ZonaSoltarArchivo Titulo="@($"Arrastra el archivo de {PlantillaActual.Titulo}")"
                                 FormatosTexto="@($".xlsx · máx. {PlantillaActual.TamanoMaximoBytes / (1024 * 1024)} MB · el análisis no escribe nada")"
                                 Accept=".xlsx" Cargando="_analizando" NombreArchivoActual="@_nombreArchivo"
@@ -232,7 +275,10 @@
             }
 
             <div class="acciones-formulario acciones-entre">
-                <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
+                @if (!EsImportacionDocumentos)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="() => IrAPaso(1)">← Cambiar plantilla</Boton>
+                }
                 <Boton Deshabilitado="!TienePlan" OnClick="ContinuarARevisarPlan">Ver plan de importación</Boton>
             </div>
         </div>

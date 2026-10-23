@@ -4,9 +4,9 @@
 @inject NavigationManager Navigation
 
 @code {
-    // La plantilla de Documentos es hoy el paso 1 del asistente unificado
+    // La entrada documental abre el paso 2 del asistente unificado.
     // (/importacion, Features/Importacion/Pages/Importacion.razor — Plantillas["documentos"]).
-    // Se redirige en vez de eliminar la ruta para no romper un marcador guardado (H-1).
+    // Se redirige en vez de eliminar la ruta para no romper un marcador guardado.
     protected override void OnInitialized() =>
-        Navigation.NavigateTo("/importacion?plantilla=documentos", forceLoad: true, replace: true);
+        Navigation.NavigateTo("/importacion?plantilla=documentos&flujo=documentos", forceLoad: true, replace: true);
 }
