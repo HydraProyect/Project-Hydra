@@ -22,8 +22,8 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// una Empresa no tiene estado propio, se deriva del peor estado de vigencia
 /// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>) con los requisitos OBLIGATORIOS de ámbito
 /// Empresa incumplidos de los Centros visibles donde opera aplicados encima
-/// (<see cref="RequisitosObligatoriosIncumplidos"/> y <see cref="SeveridadEstadoDocumento.ConFaltantes"/>: Vencido &gt;
-/// Pendiente &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias; decisión del 2026-10-23). Lo exigido sin la marca
+/// (<see cref="RequisitosObligatoriosIncumplidos"/> y <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>: Vencido obligatorio &gt;
+/// Pendiente &gt; Vencido que solo avisa &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias; decisión del 2026-10-23). Lo exigido sin la marca
 /// «bloquea el acceso» no tiñe, y lo que les falta a sus Trabajadores tampoco: cada nivel pinta su contexto.
 ///
 /// <para>
@@ -80,9 +80,17 @@ public record EmpresaListaDto(
     /// («bloquea el acceso») y de los que no tiene ningún documento que valga (<see cref="RequisitosObligatoriosIncumplidos"/>,
     /// decisión del 2026-10-23). Sin repetir y por nombre. Se rellenan siempre: con un requisito obligatorio incumplido
     /// (ausente o vencido en ese Centro) <see cref="EstadoDocumental"/> ya llega como <see cref="EstadoDocumento.Faltante"/>
-    /// («Pendiente») salvo que haya un vencido. Lo exigido sin esa marca no está aquí ni tiñe. Solo Centros visibles para el usuario.
+    /// («Pendiente»), o como Vencido si lo incumplido es un obligatorio vencido. Lo exigido sin esa marca no está aquí ni tiñe. Solo Centros visibles para el usuario.
     /// </summary>
     public IReadOnlyList<string> DocumentosFaltantes { get; init; } = [];
+
+    /// <summary>
+    /// El <see cref="EstadoDocumental"/> es <see cref="EstadoDocumento.Vencido"/> solo por un documento de la Empresa que
+    /// ningún Centro visible donde opera marca obligatorio («bloquea el acceso»): es un aviso y se pinta en el tono de aviso,
+    /// no en rojo (<see cref="SeveridadEstadoDocumento.EsVencidoSinBloqueo"/>, decisión del 2026-10-23). Filtra y cuenta como
+    /// Vencido, y se ordena detrás de lo que va en rojo.
+    /// </summary>
+    public bool VencidoSinBloqueo { get; init; }
 
     /// <summary>
     /// El Cliente empresarial bajo el que la agrupación «Por Cliente» coloca la fila: el primero por razón social
@@ -155,7 +163,9 @@ public class ObtenerEmpresasQueryHandler(
             // clave de estado igual que en ObtenerTrabajadoresQuery (decisión del 2026-10-23). Solo se materializan los Ids
             // con alguno, nunca el listado.
             var incumplidos = await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
-            var idsConIncumplidos = incumplidos.Keys.ToList();
+            var idsConObligatorioVencido = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value)).Select(p => p.Key).ToList();
+            var idsConObligatorioAusente = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayAusente(p.Value)).Select(p => p.Key).ToList();
+            var claveVencidoSinBloqueo = EstadoDocumentalFiltro.ClaveVencidoSinBloqueo;
             var claveVencido = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vencido);
             var claveFaltante = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Faltante);
             var claveUrgente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Urgente);
@@ -186,7 +196,7 @@ public class ObtenerEmpresasQueryHandler(
                 };
 
             // La clave de estado es la misma con la que se ordena (EstadoDocumentalFiltro.ClaveOrdenConFaltantes:
-            // Vencido, Pendiente por requisito obligatorio, Urgente, Próximo, Sin confirmar, Vigente, Sin caducidad),
+            // Vencido obligatorio, Pendiente por requisito obligatorio, Vencido que solo avisa, Urgente, Próximo, Sin confirmar, Vigente, Sin caducidad),
             // escrita en línea porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de
             // estado, el filtro y el orden parten las filas igual.
             var conEstado = conFecha.Select(e => new
@@ -198,8 +208,11 @@ public class ObtenerEmpresasQueryHandler(
                 e.ClientePrincipal,
                 e.PeorFecha,
                 e.HaySinConfirmar,
-                ClaveEstado = e.PeorFecha != null && e.PeorFecha < hoy ? claveVencido
-                    : idsConIncumplidos.Contains(e.Id) ? claveFaltante
+                // En rojo solo lo que bloquea el acceso (SeveridadEstadoDocumento.ConRequisitosObligatorios): un obligatorio
+                // vencido, luego uno que falta; un vencido que ningún Centro marca obligatorio es aviso y va detrás.
+                ClaveEstado = idsConObligatorioVencido.Contains(e.Id) ? claveVencido
+                    : idsConObligatorioAusente.Contains(e.Id) ? claveFaltante
+                    : e.PeorFecha != null && e.PeorFecha < hoy ? claveVencidoSinBloqueo
                     : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? claveUrgente
                     : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? claveProximo
                     : e.HaySinConfirmar ? claveSinConfirmar
@@ -434,19 +447,24 @@ public class ObtenerEmpresasQueryHandler(
     }
 
     /// <summary>
-    /// Aplica a una fila los requisitos obligatorios incumplidos de la Empresa (<see cref="RequisitosObligatoriosIncumplidos"/>):
-    /// con alguno, el estado pasa a Pendiente salvo que ya haya un vencido (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>,
-    /// la misma combinación que el estado de Trabajador), y los Tipos que faltan dan el motivo de la fila.
+    /// Aplica a una fila los requisitos obligatorios incumplidos de la Empresa (<see cref="RequisitosObligatoriosIncumplidos"/>)
+    /// con <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>, la misma combinación que el estado de Trabajador:
+    /// un obligatorio vencido es Vencido, uno que falta es Pendiente, y sin ninguno un vencido de sus documentos solo avisa
+    /// (<see cref="EmpresaListaDto.VencidoSinBloqueo"/>). Los Tipos que faltan dan el motivo de la fila.
     /// </summary>
     private static EmpresaListaDto ConIncumplidos(
-        EmpresaListaDto fila, IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> incumplidos) =>
-        incumplidos.TryGetValue(fila.Id, out var deLaEmpresa)
-            ? fila with
-            {
-                EstadoDocumental = SeveridadEstadoDocumento.ConFaltantes(fila.EstadoDocumental, hayFaltantes: true),
-                DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(deLaEmpresa)
-            }
-            : fila;
+        EmpresaListaDto fila, IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> incumplidos)
+    {
+        var deLaEmpresa = incumplidos.GetValueOrDefault(fila.Id) ?? [];
+        var vencido = RequisitosObligatoriosIncumplidos.HayVencido(deLaEmpresa);
+        var ausente = RequisitosObligatoriosIncumplidos.HayAusente(deLaEmpresa);
+        return fila with
+        {
+            EstadoDocumental = SeveridadEstadoDocumento.ConRequisitosObligatorios(fila.EstadoDocumental, vencido, ausente),
+            VencidoSinBloqueo = SeveridadEstadoDocumento.EsVencidoSinBloqueo(fila.EstadoDocumental, vencido, ausente),
+            DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(deLaEmpresa)
+        };
+    }
 
     /// <summary>
     /// Mismo dato que <c>ObtenerDeteccionesPorEmpresaQuery</c> (Project-Hydra-Negocio/tecnico/docs/ux-audit/03-empresas-subcontratas.md

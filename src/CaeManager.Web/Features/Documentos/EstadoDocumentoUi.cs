@@ -123,6 +123,14 @@ public static class EstadoDocumentoUi
         estado is null ? TonoBadge.Neutro : Tono(estado.Value);
 
     /// <summary>
+    /// Tono del estado de una Empresa o de un Trabajador de los listados con requisitos obligatorios de Centro: un Vencido
+    /// que ningún Centro marca obligatorio (<c>VencidoSinBloqueo</c> del DTO) es aviso y lleva el tono de aviso del kit
+    /// (<see cref="TonoBadge.Advertencia"/>), no el rojo (decisión del 2026-10-23). El rótulo sigue siendo «Vencido».
+    /// </summary>
+    public static TonoBadge TonoDocumental(EstadoDocumento? estado, bool vencidoSinBloqueo) =>
+        vencidoSinBloqueo && estado == EstadoDocumento.Vencido ? TonoBadge.Advertencia : TonoDocumental(estado);
+
+    /// <summary>
     /// <see cref="SeveridadEstadoDocumento.ConFaltantes"/>, para los DTO que traen el peor estado y los faltantes por
     /// separado (la búsqueda global). Un Trabajador del listado ya llega combinado en su <c>EstadoDocumental</c>.
     /// </summary>

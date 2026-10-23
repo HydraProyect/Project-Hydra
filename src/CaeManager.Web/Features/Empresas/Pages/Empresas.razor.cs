@@ -644,7 +644,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila).</summary>
-    private static bool EsFilaRoja(EmpresaListaDto empresa) => ClaseTinte(empresa.EstadoDocumental).Contains("peligro", StringComparison.Ordinal);
+    private static bool EsFilaRoja(EmpresaListaDto empresa) => ClaseTinte(empresa.EstadoDocumental, empresa.VencidoSinBloqueo).Contains("peligro", StringComparison.Ordinal);
 
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
     private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorCliente, _tamanoPagina);
@@ -725,14 +725,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         "tarjeta-fila-acordeon"
         + (empresa.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
         + (empresa.Id == EmpresaEnVistaPrevia ? " fila-empresa-en-vista-previa" : string.Empty)
-        + ClaseTinte(empresa.EstadoDocumental);
+        + ClaseTinte(empresa.EstadoDocumental, empresa.VencidoSinBloqueo);
 
     /// <summary>
     /// Fila con problema (rediseño de listados, fase 1): falta o vence un documento → tinte de
-    /// peligro; urgente → de aviso. Mismo criterio que la lista de Clientes empresariales.
+    /// peligro; urgente → de aviso. Mismo criterio que la lista de Clientes empresariales. Un vencido que ningún Centro
+    /// marca obligatorio (<see cref="EmpresaListaDto.VencidoSinBloqueo"/>) es aviso, no peligro (decisión del 2026-10-23).
     /// </summary>
-    private static string ClaseTinte(EstadoDocumento? estado) => estado switch
+    private static string ClaseTinte(EstadoDocumento? estado, bool vencidoSinBloqueo) => estado switch
     {
+        EstadoDocumento.Vencido when vencidoSinBloqueo => " fila-tintada-aviso",
         EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
         EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
         _ => string.Empty

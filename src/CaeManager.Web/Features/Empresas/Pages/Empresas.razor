@@ -335,7 +335,7 @@
                             <span class="celda-estado-empresa">
                                 @if (empresa.Incidencias.Count > 0)
                                 {
-                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental, empresa.VencidoSinBloqueo)"
                                                 Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
                                                 Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
                                                 Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)">
@@ -348,7 +348,7 @@
                                 else
                                 {
                                     @* Sin documentos que explicar, el motivo son los Tipos obligatorios de algún Centro que faltan. *@
-                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental, empresa.VencidoSinBloqueo)"
                                                 Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
                                                 Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
                                                 Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)"

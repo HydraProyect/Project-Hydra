@@ -30,9 +30,9 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// estado se aplican los requisitos OBLIGATORIOS incumplidos de sus Centros
 /// (<see cref="RequisitosObligatoriosIncumplidos"/>: un Tipo de ámbito Trabajador que un Centro donde está asignado marca
 /// «bloquea el acceso» y falta o ya no vale allí; lo exigido sin esa marca no tiñe, decisión del 2026-10-23)
-/// con <see cref="SeveridadEstadoDocumento.ConFaltantes"/>: Vencido &gt;
-/// Pendiente &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias, el mismo
-/// orden de la clave con la que se filtra, cuenta y ordena antes de paginar.
+/// con <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>: Vencido obligatorio &gt;
+/// Pendiente &gt; Vencido que solo avisa (<see cref="TrabajadorListaDto.VencidoSinBloqueo"/>) &gt; Por vencer &gt;
+/// Sin confirmar &gt; Sin incidencias, el mismo orden de la clave con la que se filtra, cuenta y ordena antes de paginar.
 /// Es el ÚNICO estado de Trabajador: el listado, Empresa 360 y la cabecera de
 /// Trabajador 360 lo leen de aquí.
 ///
@@ -113,13 +113,21 @@ public record TrabajadorListaDto(
     public bool VoluntarioInactivo { get; init; }
 
     /// <summary>
+    /// El <see cref="EstadoDocumental"/> es <see cref="EstadoDocumento.Vencido"/> solo por un documento que ningún Centro
+    /// visible donde está asignado marca obligatorio («bloquea el acceso»): es un aviso y se pinta en el tono de aviso, no en
+    /// rojo (<see cref="SeveridadEstadoDocumento.EsVencidoSinBloqueo"/>, decisión del 2026-10-23). Filtra y cuenta como
+    /// Vencido, y se ordena detrás de lo que va en rojo.
+    /// </summary>
+    public bool VencidoSinBloqueo { get; init; }
+
+    /// <summary>
     /// Nombres de los Tipos de documento que algún Centro con Asignación activa del Trabajador marca como OBLIGATORIOS
     /// («bloquea el acceso», <c>TipoDocumentoCentro.BloqueaAcceso</c>) y de los que no tiene ningún Documento operativo que
     /// valga (la regla única de <see cref="RequisitosObligatoriosIncumplidos"/>, decisión del 2026-10-23). Lo exigido sin
     /// esa marca no está aquí: no bloquea el Centro y no genera alarma. Sin repetir y por nombre. Se rellenan siempre, y
     /// con un requisito obligatorio incumplido (ausente o vencido en ese Centro) <see cref="EstadoDocumental"/> ya llega
-    /// como <see cref="EstadoDocumento.Faltante"/> («Pendiente») salvo que haya un vencido
-    /// (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>): ninguna pantalla lo combina por su cuenta.
+    /// como <see cref="EstadoDocumento.Faltante"/> («Pendiente»), o como Vencido si lo incumplido es un obligatorio vencido
+    /// (<see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>): ninguna pantalla lo combina por su cuenta.
     ///
     /// <para>
     /// El filtro, los recuentos y la ordenación incluyen los mismos requisitos antes de paginar.
@@ -279,7 +287,9 @@ public class ObtenerTrabajadoresQueryHandler(
             // Solo se materializan las parejas activas (Id, Centro, contratación), nunca el listado completo.
             // La exigencia se resuelve en el servicio compartido, igual que el detalle de cada fila.
             var faltantes = await FaltantesPorTrabajadorAsync(consulta.Select(x => x.trabajador), cancellationToken);
-            var idsConFaltantes = faltantes.Keys.ToList();
+            var idsConObligatorioVencido = faltantes.Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value)).Select(p => p.Key).ToList();
+            var idsConObligatorioAusente = faltantes.Where(p => RequisitosObligatoriosIncumplidos.HayAusente(p.Value)).Select(p => p.Key).ToList();
+            var claveVencidoSinBloqueo = EstadoDocumentalFiltro.ClaveVencidoSinBloqueo;
             var claveVencido = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vencido);
             var claveFaltante = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Faltante);
             var claveUrgente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Urgente);
@@ -323,8 +333,11 @@ public class ObtenerTrabajadoresQueryHandler(
                 x.OficioNombre,
                 x.PeorFecha,
                 x.HaySinConfirmar,
-                ClaveEstado = x.PeorFecha != null && x.PeorFecha < hoy ? claveVencido
-                    : idsConFaltantes.Contains(x.Id) ? claveFaltante
+                // En rojo solo lo que bloquea el acceso (SeveridadEstadoDocumento.ConRequisitosObligatorios): un obligatorio
+                // vencido, luego uno que falta; un vencido que ningún Centro marca obligatorio es aviso y va detrás.
+                ClaveEstado = idsConObligatorioVencido.Contains(x.Id) ? claveVencido
+                    : idsConObligatorioAusente.Contains(x.Id) ? claveFaltante
+                    : x.PeorFecha != null && x.PeorFecha < hoy ? claveVencidoSinBloqueo
                     : x.PeorFecha != null && x.PeorFecha <= limiteRojo ? claveUrgente
                     : x.PeorFecha != null && x.PeorFecha <= limiteAmbar ? claveProximo
                     : x.HaySinConfirmar ? claveSinConfirmar
@@ -425,7 +438,7 @@ public class ObtenerTrabajadoresQueryHandler(
     /// </summary>
     private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
         IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken,
-        IReadOnlyDictionary<Guid, IReadOnlyList<string>>? faltantesCalculados = null)
+        IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>? faltantesCalculados = null)
     {
         pagina = await ConActividadAsync(pagina, cancellationToken);
 
@@ -440,10 +453,17 @@ public class ObtenerTrabajadoresQueryHandler(
             trabajadoresContext.Trabajadores.Where(t => ids.Contains(t.Id)), cancellationToken);
 
         pagina = pagina
-            .Select(t => t with
+            .Select(t =>
             {
-                EstadoDocumental = SeveridadEstadoDocumento.ConFaltantes(t.EstadoDocumental, faltantes.ContainsKey(t.Id)),
-                DocumentosFaltantes = faltantes.GetValueOrDefault(t.Id) ?? []
+                var incumplidos = faltantes.GetValueOrDefault(t.Id) ?? [];
+                var vencido = RequisitosObligatoriosIncumplidos.HayVencido(incumplidos);
+                var ausente = RequisitosObligatoriosIncumplidos.HayAusente(incumplidos);
+                return t with
+                {
+                    EstadoDocumental = SeveridadEstadoDocumento.ConRequisitosObligatorios(t.EstadoDocumental, vencido, ausente),
+                    VencidoSinBloqueo = SeveridadEstadoDocumento.EsVencidoSinBloqueo(t.EstadoDocumental, vencido, ausente),
+                    DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(incumplidos)
+                };
             })
             .ToList();
 
@@ -472,16 +492,14 @@ public class ObtenerTrabajadoresQueryHandler(
     /// que puede estar vacío si lo incumplido es un vencido. Sirve antes de paginar para el estado completo y sobre los Ids
     /// de la página para el desglose. Lo exigido sin esa marca no entra (decisión del 2026-10-23).
     /// </summary>
-    private async Task<Dictionary<Guid, IReadOnlyList<string>>> FaltantesPorTrabajadorAsync(
+    private async Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> FaltantesPorTrabajadorAsync(
         IQueryable<Trabajador> trabajadores, CancellationToken cancellationToken)
     {
         // Un voluntario inactivo no genera avisos por requisitos. Los Centros visibles los aplica la evaluación.
         var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(
             trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
-        var incumplidos = await requisitosObligatorios.DeTrabajadoresAsync(
+        return await requisitosObligatorios.DeTrabajadoresAsync(
             trabajadores.Where(t => !inactivos.Contains(t.Id)).Select(t => t.Id), cancellationToken);
-
-        return incumplidos.ToDictionary(p => p.Key, p => RequisitosObligatoriosIncumplidos.NombresAusentes(p.Value));
     }
 
     /// <summary>Tipo de contratación y actividad de voluntario de las filas YA paginadas, en una sola consulta.</summary>

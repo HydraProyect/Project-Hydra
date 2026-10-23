@@ -79,6 +79,14 @@ public sealed record RequisitosObligatoriosIncumplidos(
         return new RequisitosObligatoriosIncumplidos(porEmpresa, porTrabajador);
     }
 
+    /// <summary>Algún requisito obligatorio tiene documento, pero ya no vale en su Centro: el estado es Vencido, en rojo.</summary>
+    public static bool HayVencido(IReadOnlyList<RequisitoObligatorioIncumplido> incumplidos) =>
+        incumplidos.Any(i => i.Situacion == SituacionDeRequisitoBloqueante.Vencido);
+
+    /// <summary>Algún requisito obligatorio no tiene ningún documento: el estado es Pendiente, en rojo.</summary>
+    public static bool HayAusente(IReadOnlyList<RequisitoObligatorioIncumplido> incumplidos) =>
+        incumplidos.Any(i => i.Situacion == SituacionDeRequisitoBloqueante.Ausente);
+
     /// <summary>Los nombres de los Tipos que faltan (sin ningún documento), sin repetir y en orden alfabético: el motivo «Falta: …».</summary>
     public static IReadOnlyList<string> NombresAusentes(IReadOnlyList<RequisitoObligatorioIncumplido> incumplidos) =>
         incumplidos

@@ -474,7 +474,7 @@
                                     {
                                         <span class="empresa360-cifra-trabajador" aria-label="@MotivoIncidenciasUi.RegistradosVigentesAccesible(trabajador.DocumentosVigentes, trabajador.DocumentosEsperados)">@cifra</span>
                                     }
-                                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental)" Tamano="TamanoBadge.Pequeno">
+                                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(trabajador.EstadoDocumental, trabajador.VencidoSinBloqueo)" Tamano="TamanoBadge.Pequeno">
                                         @EstadoDocumentoUi.TextoDocumental(trabajador.EstadoDocumental)
                                     </Badge>
                                 </Derecha>
