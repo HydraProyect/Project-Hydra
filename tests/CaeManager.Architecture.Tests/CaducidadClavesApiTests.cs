@@ -20,17 +20,20 @@ public class CaducidadClavesApiTests
     {
         // El DEFAULT sobrevive al NOT NULL para que la ranura anterior de un relevo azul/verde, que
         // no conoce la columna, pueda seguir dando de alta claves mientras conviven las dos.
+        // El alta usa un DEFAULT volátil para que PostgreSQL reescriba la tabla en vez de guardar
+        // el instante de la migración como valor ausente del catálogo (attmissingval), distinto en
+        // cada base migrada; el DEFAULT que queda es el estable del modelo.
         var operaciones = new AnadeCaducidadClavesApi().UpOperations;
         operaciones.Should().HaveCount(2);
         var alta = operaciones[0].Should().BeOfType<AddColumnOperation>().Subject;
         alta.Table.Should().Be("ClavesApi");
         alta.Name.Should().Be(nameof(ClaveApi.CaducaEnUtc));
         alta.IsNullable.Should().BeTrue();
-        alta.DefaultValueSql.Should().Be("now() + interval '30 days'");
+        alta.DefaultValueSql.Should().Be("clock_timestamp() + interval '30 days'");
         var requerida = operaciones[1].Should().BeOfType<AlterColumnOperation>().Subject;
         requerida.Name.Should().Be(alta.Name);
         requerida.IsNullable.Should().BeFalse();
-        requerida.DefaultValueSql.Should().Be(alta.DefaultValueSql);
+        requerida.DefaultValueSql.Should().Be("now() + interval '30 days'");
         requerida.OldColumn.DefaultValueSql.Should().Be(alta.DefaultValueSql);
     }
 

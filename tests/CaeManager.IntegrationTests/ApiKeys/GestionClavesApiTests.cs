@@ -117,7 +117,9 @@ public class GestionClavesApiTests : IAsyncLifetime
                 .SingleAsync(r => r.EntidadTipo == nameof(ClaveApi) && r.EntidadId == generada.Valor.Id);
 
             registro.TenantId.Should().Be(_tenantClienteId, "el alta de la clave se audita en el Tenant propietario");
-            registro.DatosDespues.Should().Contain(nameof(ClaveApi.MotivoEmision)).And.Contain(motivo);
+            // Se lee el JSON y no su texto: el serializador escapa lo que no es ASCII («ó» → ó).
+            using var datos = System.Text.Json.JsonDocument.Parse(registro.DatosDespues!);
+            datos.RootElement.GetProperty(nameof(ClaveApi.MotivoEmision)).GetString().Should().Be(motivo);
             registro.ActorRealUsuarioId.Should().Be(_usuarioPlataforma);
         }
 
