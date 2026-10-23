@@ -308,7 +308,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             var error = (await FluentActions.Awaiting(() => contexto.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
                 .Which.InnerException.Should().BeOfType<PostgresException>().Subject;
             (error.SqlState, error.ConstraintName).Should().Be(
-                (PostgresErrorCodes.UniqueViolation, "IX_EvidenciasInbound_TenantId_ContratoAccesoId_DocumentoOrigenId"),
+                (PostgresErrorCodes.UniqueViolation, "IX_EvidenciasInbound_TenantId_Contrato_DocumentoOrigen"),
                 "saltándose el handler, la base tampoco admite dos evidencias del mismo original en el mismo contrato");
         }
     }
@@ -457,8 +457,12 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Tras_revocar_la_autorizacion_las_evidencias_se_conservan_y_la_lectura_da_cero_filas()
     {
+        // El certificado de aptitud se lee antes de revocar y se deja sin registrar: tras la revocación, intentarlo debe dar
+        // «no encontrado». Con el de formación no serviría, porque ya tiene evidencia y responde YaRegistrada antes de leer.
         var noMedica = await RegistrarAsync(_formacion, _tipoFormacionX);
-        var medica = await RegistrarAsync(_aptitudMarcada, _tipoAptitudX, ConclusionAptitud.Apto);
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+            (await new LectorDocumentosInboundEnBase(contexto).DocumentosAutorizadosAsync(_contrato.Id))
+                .Select(d => d.DocumentoId).Should().Contain(_aptitudMarcada, "antes de revocar, el certificado se lee");
 
         await using (var contexto = Contexto(_contratista.Id))
         {
@@ -473,11 +477,11 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             (await lector.DocumentosAutorizadosAsync(_contrato.Id)).Should().BeEmpty("la revocación corta la lectura");
             (await lector.ArchivoAutorizadoAsync(_contrato.Id, _formacion)).Should().BeNull();
 
-            (await contexto.EvidenciasInbound.Select(e => e.Id).ToListAsync()).Should().BeEquivalentTo([noMedica, medica],
+            (await contexto.EvidenciasInbound.Select(e => e.Id).ToListAsync()).Should().BeEquivalentTo([noMedica],
                 "las copias son del Tenant del Cliente empresarial y la revocación no las toca");
             var porContrato = await new ObtenerEvidenciasInboundQueryHandler(contexto, contexto, contexto, Alcance(), Usuario())
                 .Handle(new(_contrato.Id), CancellationToken.None);
-            porContrato.Should().HaveCount(2, "y se siguen consultando sin leer el otro Tenant");
+            porContrato.Should().ContainSingle("y se siguen consultando sin leer el otro Tenant");
         }
 
         await using (var contexto = Contexto(_lector.Id, _usuarioLector))
@@ -485,8 +489,8 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             var otra = await new RegistrarEvidenciaInboundCommandHandler(
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
                     Almacen(_lector.Id), Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
-                .Handle(new(_contrato.Id, _formacion, _tipoFormacionX, null), CancellationToken.None);
-            otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna copia nueva");
+                .Handle(new(_contrato.Id, _aptitudMarcada, _tipoAptitudX, ConclusionAptitud.Apto), CancellationToken.None);
+            otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna evidencia nueva");
         }
     }
 

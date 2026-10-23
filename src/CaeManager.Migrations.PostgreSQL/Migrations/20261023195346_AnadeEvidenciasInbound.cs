@@ -697,7 +697,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 sql: "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EvidenciasInbound_TenantId_ContratoAccesoId_DocumentoOrigenId",
+                name: "IX_EvidenciasInbound_TenantId_Contrato_DocumentoOrigen",
                 table: "EvidenciasInbound",
                 columns: new[] { "TenantId", "ContratoAccesoId", "DocumentoOrigenId" },
                 unique: true);

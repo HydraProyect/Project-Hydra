@@ -45,7 +45,9 @@ public class EvidenciaInboundConfiguration : IEntityTypeConfiguration<EvidenciaI
 
         // Una evidencia por Documento original y contrato de acceso (RegistrarEvidenciaInboundCommand lo comprueba antes
         // con EvidenciaInbound.YaRegistrada). Cubre también la consulta por contrato.
-        builder.HasIndex(e => new { e.TenantId, e.ContratoAccesoId, e.DocumentoOrigenId }).IsUnique();
+        // Nombre explícito: el que genera EF tiene 64 caracteres y PostgreSQL trunca los identificadores a 63.
+        builder.HasIndex(e => new { e.TenantId, e.ContratoAccesoId, e.DocumentoOrigenId }).IsUnique()
+            .HasDatabaseName("IX_EvidenciasInbound_TenantId_Contrato_DocumentoOrigen");
         builder.HasIndex(e => new { e.TenantId, e.DocumentoOrigenId });
 
         builder.HasOne<ContratoAcceso>().WithMany()

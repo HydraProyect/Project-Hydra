@@ -6277,7 +6277,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "TipoDocumentoId");
 
                     b.HasIndex("TenantId", "ContratoAccesoId", "DocumentoOrigenId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_EvidenciasInbound_TenantId_Contrato_DocumentoOrigen");
 
                     b.ToTable("EvidenciasInbound", null, t =>
                         {
