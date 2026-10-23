@@ -343,7 +343,9 @@ if [ "$(uname -s)" = "Linux" ] && command -v unshare >/dev/null 2>&1 && sudo -n 
   comprobar "borg ve documentos/ montado y de solo lectura" \
     'grep -q "^montado-visto-desde-borg\$" "$LOG_ORDEN" && grep -q "^documentos-solo-lectura\$" "$LOG_ORDEN" && ! grep -q "^documentos-escribible" "$LOG_ORDEN"'
   comprobar "el archivo lleva documentos/<tenantId>/a.pdf leído a través del bind" '[ -f "$LOG_BORG.archivo/documentos/$TENANT_PRUEBA/a.pdf" ]'
-  montajes_colgados() { awk '$5 ~ /^\/tmp\/.*\/documentos$/ { print $5 }' /proc/self/mountinfo; }
+  # Cualquier punto de montaje terminado en /documentos, sin suponer dónde cae el
+  # mktemp del guion (TMPDIR): en un runner de CI no hay otro.
+  montajes_colgados() { awk '$5 ~ /\/documentos$/ { print $5 }' /proc/self/mountinfo; }
   comprobar "al terminar no queda ningún montaje sobre un documentos/ temporal" '[ -z "$(montajes_colgados)" ]'
   comprobar "los documentos del volumen siguen intactos y sin escrituras" \
     '[ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/$TEMPORAL_PRUEBA" ] && [ ! -e "$PUNTO_MONTAJE/documentos/escritura-de-prueba" ]'
