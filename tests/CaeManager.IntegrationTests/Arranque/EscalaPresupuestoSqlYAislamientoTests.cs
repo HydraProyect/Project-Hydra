@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using CaeManager.Application.Alertas.Queries.ObtenerAlertas;
@@ -31,7 +33,6 @@ using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
-using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -44,22 +45,50 @@ using Xunit.Abstractions;
 namespace CaeManager.IntegrationTests.Arranque;
 
 /// <summary>
-/// La siembra del piloto y, al lado, una segunda organización con la misma estructura: un Operador CAE externo
-/// con su cartera y sus Tenants beneficiarios, clonados con identificadores nuevos y los mismos CIF. Es la
-/// versión pequeña, para CI, de la base de escala que se mide en local con 500.000 Documentos.
+/// Un Operador CAE externo y su cartera de Tenants beneficiarios: el del piloto o el clonado a su lado.
+/// <see cref="Tenants"/> va por el nombre del Tenant beneficiario en el catálogo del piloto (sin prefijo), para
+/// emparejar cada Tenant con su copia.
+/// </summary>
+internal sealed record LadoOperadorCae(
+    string Rotulo, string NombreTenantOperador, string PrefijoCorreo, IReadOnlyDictionary<string, Guid> Tenants, HashSet<Guid> Ids)
+{
+    /// <summary>El Gestor CAE que lleva ese Tenant beneficiario en su Asignación de Cartera (el compartido, la Gestora primera).</summary>
+    internal string CorreoGestorDe(string nombreTenant) =>
+        PrefijoCorreo + (CatalogoPilotoOutbound.Tenants.Single(t => t.Nombre == nombreTenant).EnCarteraDeLaGestoraPrimera
+            ? CuentasPilotoOutbound.Locales.GestoraPrimera
+            : CuentasPilotoOutbound.Locales.GestorSegundo);
+
+    internal string CorreoGestoraPrimera => PrefijoCorreo + CuentasPilotoOutbound.Locales.GestoraPrimera;
+}
+
+/// <summary>
+/// La siembra del piloto y, al lado, un segundo Operador CAE externo y su cartera con la misma estructura: sus
+/// Tenants beneficiarios clonados con identificadores nuevos y los mismos CIF. Es la versión pequeña, para CI, de
+/// la base de escala que se mide en local con 500.000 Documentos.
 /// </summary>
 public sealed class EscalaYAislamientoFixture : IAsyncLifetime
 {
     /// <summary>Prefijo del nombre de los Tenants clonados y del correo de sus cuentas.</summary>
-    internal const string PrefijoTenantOtra = "Otra organización · ";
-    internal const string PrefijoCorreoOtra = "otra.";
+    internal const string PrefijoTenantOtro = "Otro Operador CAE · ";
+    internal const string PrefijoCorreoOtro = "otra.";
 
     internal ArnesPilotoOutbound Arnes { get; private set; } = null!;
-    internal IReadOnlyDictionary<string, Guid> TenantsPiloto { get; private set; } = null!;
-    internal IReadOnlyDictionary<string, Guid> TenantsOtra { get; private set; } = null!;
-    internal HashSet<Guid> IdsPiloto { get; private set; } = null!;
-    internal HashSet<Guid> IdsOtra { get; private set; } = null!;
+    internal LadoOperadorCae Piloto { get; private set; } = null!;
+    internal LadoOperadorCae Otro { get; private set; } = null!;
     internal string CorreoDireccion { get; private set; } = null!;
+
+    /// <summary>Los identificadores de las fichas 360 de cada Tenant beneficiario del piloto (su copia lleva <see cref="OperadorCaeClonado.IdClonado"/>).</summary>
+    internal IReadOnlyDictionary<string, IdsFicha> FichasPiloto { get; private set; } = null!;
+
+    /// <summary>
+    /// El oráculo de los recuentos: la huella de cada pantalla de cada Tenant beneficiario medida ANTES de clonar,
+    /// cuando no existía nada que contar de más. Después de clonar, el Tenant del piloto y su copia tienen que dar
+    /// exactamente esto; si un recuento sumara filas del otro Operador CAE externo, se movería.
+    /// </summary>
+    internal IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> HuellasAntesDeClonar { get; private set; } = null!;
+
+    /// <summary>Las cifras del Cuadro de dirección del piloto antes de clonar, con el mismo propósito.</summary>
+    internal string CifrasCuadroAntesDeClonar { get; private set; } = null!;
 
     public async Task InitializeAsync()
     {
@@ -72,18 +101,61 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         await conexion.OpenAsync();
 
         var operador = await Arnes.TenantIdAsync(CatalogoPilotoOutbound.NombreTenantOperador);
-        TenantsPiloto = await TenantsPorNombreAsync(conexion, nombres);
+        var tenantsPiloto = await TenantsPorNombreAsync(conexion, nombres);
+        Piloto = new LadoOperadorCae("piloto", CatalogoPilotoOutbound.NombreTenantOperador, "", tenantsPiloto,
+            await IdsDeAsync(conexion, [operador, .. tenantsPiloto.Values]));
+        CorreoDireccion = await CorreoDireccionAsync(conexion, operador);
 
-        var errores = await OrganizacionClonada.ClonarAsync(conexion, operador, [.. TenantsPiloto.Values]);
-        errores.Should().BeEmpty("la segunda organización se clona entera o el aislamiento se mediría sobre media estructura");
+        var fichas = new Dictionary<string, IdsFicha>();
+        var huellas = new Dictionary<string, IReadOnlyDictionary<string, string>>();
+        foreach (var (nombre, tenant) in tenantsPiloto)
+        {
+            fichas[nombre] = await IdsFichaAsync(conexion, tenant);
+            huellas[nombre] = await ComoGestorEnAsync(Piloto, nombre, sp => LecturasDePantalla.HuellasAsync(sp, fichas[nombre]));
+        }
+        FichasPiloto = fichas;
+        HuellasAntesDeClonar = huellas;
+        CifrasCuadroAntesDeClonar = await CifrasCuadroAsync(Piloto);
 
-        TenantsOtra = (await TenantsPorNombreAsync(conexion, [.. nombres.Select(n => PrefijoTenantOtra + n)]))
-            .ToDictionary(p => p.Key[PrefijoTenantOtra.Length..], p => p.Value);
-        TenantsOtra.Keys.Should().BeEquivalentTo(TenantsPiloto.Keys);
+        var errores = await OperadorCaeClonado.ClonarAsync(conexion, operador, [.. tenantsPiloto.Values]);
+        errores.Should().BeEmpty("el segundo Operador CAE externo se clona entero con su cartera, o el aislamiento se mediría sobre media estructura");
 
-        IdsPiloto = await IdsDeAsync(conexion, [operador, .. TenantsPiloto.Values]);
-        IdsOtra = await IdsDeAsync(conexion, [await Arnes.TenantIdAsync(PrefijoTenantOtra + CatalogoPilotoOutbound.NombreTenantOperador), .. TenantsOtra.Values]);
+        var operadorOtro = await Arnes.TenantIdAsync(PrefijoTenantOtro + CatalogoPilotoOutbound.NombreTenantOperador);
+        operadorOtro.Should().Be(OperadorCaeClonado.IdClonado(operador), "la traducción de identificadores del test es la misma que la del SQL de clonación");
+        var tenantsOtro = (await TenantsPorNombreAsync(conexion, [.. nombres.Select(n => PrefijoTenantOtro + n)]))
+            .ToDictionary(p => p.Key[PrefijoTenantOtro.Length..], p => p.Value);
+        tenantsOtro.Keys.Should().BeEquivalentTo(tenantsPiloto.Keys);
+        Otro = new LadoOperadorCae("otro", PrefijoTenantOtro + CatalogoPilotoOutbound.NombreTenantOperador, PrefijoCorreoOtro, tenantsOtro,
+            await IdsDeAsync(conexion, [operadorOtro, .. tenantsOtro.Values]));
 
+        Piloto.Ids.Should().NotIntersectWith(Otro.Ids, "cada fila clonada lleva un identificador nuevo");
+    }
+
+    public async Task DisposeAsync() => await Arnes.DisposeAsync();
+
+    internal LadoOperadorCae ElOtro(LadoOperadorCae lado) => ReferenceEquals(lado, Piloto) ? Otro : Piloto;
+
+    /// <summary>La ficha 360 del Tenant <paramref name="nombre"/> en ese lado: la del piloto o su traducción exacta en la copia.</summary>
+    internal IdsFicha FichaDe(LadoOperadorCae lado, string nombre) =>
+        ReferenceEquals(lado, Piloto) ? FichasPiloto[nombre] : FichasPiloto[nombre].Clonada();
+
+    /// <summary>Una lectura como el Gestor CAE que lleva el Tenant en su cartera, dentro del ámbito de ese Tenant.</summary>
+    internal Task<T> ComoGestorEnAsync<T>(LadoOperadorCae lado, string nombreTenant, Func<IServiceProvider, Task<T>> lectura) =>
+        Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.CorreoGestorDe(nombreTenant), async sp =>
+        {
+            using (AmbitoTenantExplicito.Establecer(lado.Tenants[nombreTenant]))
+                return await lectura(sp);
+        });
+
+    internal Task<string> CifrasCuadroAsync(LadoOperadorCae lado)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        return Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.PrefijoCorreo + CorreoDireccion,
+            async sp => LecturasDePantalla.Cifras(await sp.GetRequiredService<ISender>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
+    }
+
+    private static async Task<string> CorreoDireccionAsync(NpgsqlConnection conexion, Guid operador)
+    {
         await using var comando = new NpgsqlCommand(
             """
             SELECT u."Email" FROM "AspNetUsers" u
@@ -91,10 +163,8 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
             WHERE u."TenantId" = @operador AND r."Name" = 'DireccionCae' ORDER BY 1 LIMIT 1
             """, conexion);
         comando.Parameters.AddWithValue("operador", operador);
-        CorreoDireccion = (string)(await comando.ExecuteScalarAsync())!;
+        return (string)(await comando.ExecuteScalarAsync())!;
     }
-
-    public async Task DisposeAsync() => await Arnes.DisposeAsync();
 
     private static async Task<Dictionary<string, Guid>> TenantsPorNombreAsync(NpgsqlConnection conexion, string[] nombres)
     {
@@ -107,13 +177,36 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         return resultado;
     }
 
-    /// <summary>Los identificadores de las filas de pantalla de una organización (y sus Tenants).</summary>
+    /// <summary>
+    /// Los identificadores de un Operador CAE externo y su cartera: los Tenants y todas las filas de toda tabla con
+    /// <c>Id</c> uuid y <c>TenantId</c> o <c>PropietarioTenantId</c> de uno de ellos. No una lista de tablas de
+    /// pantalla: una fila de una tabla que nadie pensó en listar es justo la fuga que no se vería.
+    /// </summary>
     private static async Task<HashSet<Guid>> IdsDeAsync(NpgsqlConnection conexion, Guid[] tenants)
     {
-        var ids = new HashSet<Guid>(tenants);
-        foreach (var tabla in new[] { "Documentos", "Trabajadores", "Empresas", "Centros", "Visitas", "Conversaciones", "Mensajes", "Gestiones", "Asignaciones" })
+        var tablas = new List<(string Tabla, string Columna)>();
+        await using (var listar = new NpgsqlCommand(
+                         """
+                         SELECT c.relname, t.attname FROM pg_class c
+                         JOIN pg_namespace n ON n.oid = c.relnamespace
+                         JOIN pg_attribute i ON i.attrelid = c.oid AND i.attname = 'Id' AND i.atttypid = 'uuid'::regtype AND NOT i.attisdropped
+                         JOIN pg_attribute t ON t.attrelid = c.oid AND t.attname IN ('TenantId', 'PropietarioTenantId') AND t.atttypid = 'uuid'::regtype AND NOT t.attisdropped
+                         WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND NOT c.relispartition
+                         ORDER BY 1, 2
+                         """, conexion))
+        await using (var lector = await listar.ExecuteReaderAsync())
         {
-            await using var comando = new NpgsqlCommand($"""SELECT "Id" FROM "{tabla}" WHERE "TenantId" = ANY(@tenants)""", conexion);
+            while (await lector.ReadAsync())
+                tablas.Add((lector.GetString(0), lector.GetString(1)));
+        }
+
+        tablas.Select(t => t.Tabla).Should().Contain(["Documentos", "Trabajadores", "Empresas", "Centros", "Visitas", "Conversaciones", "Mensajes", "Gestiones", "Asignaciones"],
+            "el recorrido del catálogo encuentra al menos las tablas de pantalla");
+
+        var ids = new HashSet<Guid>(tenants);
+        foreach (var (tabla, columna) in tablas)
+        {
+            await using var comando = new NpgsqlCommand($"""SELECT "Id" FROM "{tabla}" WHERE "{columna}" = ANY(@tenants)""", conexion);
             comando.Parameters.AddWithValue("tenants", tenants);
             await using var lector = await comando.ExecuteReaderAsync();
             while (await lector.ReadAsync())
@@ -122,11 +215,9 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         return ids;
     }
 
-    /// <summary>Los identificadores de las fichas 360 de un Tenant: el peor caso, el que más filas arrastra.</summary>
-    internal async Task<IdsFicha> IdsFichaAsync(Guid tenant)
+    /// <summary>Los identificadores de las fichas 360 de un Tenant: el peor caso, el que más filas arrastra; el desempate por Id los hace deterministas.</summary>
+    private static async Task<IdsFicha> IdsFichaAsync(NpgsqlConnection conexion, Guid tenant)
     {
-        await using var conexion = new NpgsqlConnection(Arnes.CadenaPropietario);
-        await conexion.OpenAsync();
         async Task<Guid?> Id(string sql)
         {
             await using var comando = new NpgsqlCommand(sql, conexion);
@@ -143,18 +234,30 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
     }
 }
 
-internal sealed record IdsFicha(Guid? Centro, Guid? Trabajador, Guid? Empresa, Guid? Cliente, Guid? Conversacion);
+internal sealed record IdsFicha(Guid? Centro, Guid? Trabajador, Guid? Empresa, Guid? Cliente, Guid? Conversacion)
+{
+    /// <summary>La misma ficha en la copia: cada identificador traducido como lo traduce la clonación.</summary>
+    internal IdsFicha Clonada() => new(
+        OperadorCaeClonado.IdClonado(Centro), OperadorCaeClonado.IdClonado(Trabajador), OperadorCaeClonado.IdClonado(Empresa),
+        OperadorCaeClonado.IdClonado(Cliente), OperadorCaeClonado.IdClonado(Conversacion));
+}
 
 /// <summary>
-/// Copia una organización (el Operador CAE externo y sus Tenants beneficiarios) con identificadores nuevos y
-/// deterministas: toda fila que mencione uno de sus Tenants, y las filas hijas que apunten a esas, con cada
-/// uuid traducido por el mismo mapa, así que las referencias siguen cerrando. Cifras, CIF y textos se conservan;
-/// cambian el nombre de los Tenants y el correo de las cuentas, que son únicos en todo el clúster. SQL directo
-/// a propósito (§ 13): reproducir con entidades toda la estructura de cartera, delegación y cuentas es justo lo
-/// que no se quiere reescribir, y la medición de escala en local usa el mismo mecanismo.
+/// Copia un Operador CAE externo y su cartera (el Tenant del Operador CAE y sus Tenants beneficiarios) con
+/// identificadores nuevos y deterministas: toda fila que mencione uno de sus Tenants, y las filas hijas que apunten
+/// a esas, con cada uuid traducido por el mismo mapa, así que las referencias siguen cerrando. Cifras, CIF y textos
+/// se conservan; cambian el nombre de los Tenants y el correo de las cuentas, que son únicos en todo el clúster. SQL
+/// directo a propósito (§ 13): reproducir con entidades toda la estructura de cartera, delegación y cuentas es justo
+/// lo que no se quiere reescribir, y la medición de escala en local usa el mismo mecanismo.
 /// </summary>
-internal static class OrganizacionClonada
+internal static class OperadorCaeClonado
 {
+    /// <summary>El identificador de la copia de una fila: <c>md5('otra-' || id)::uuid</c>, lo mismo que el SQL de abajo.</summary>
+    internal static Guid IdClonado(Guid id) =>
+        Guid.ParseExact(Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes("otra-" + id.ToString("D")))), "N");
+
+    internal static Guid? IdClonado(Guid? id) => id is { } valor ? IdClonado(valor) : null;
+
     internal static async Task<IReadOnlyList<string>> ClonarAsync(NpgsqlConnection conexion, Guid operador, Guid[] beneficiarios)
     {
         await using (var preparar = new NpgsqlCommand(
@@ -168,8 +271,8 @@ internal static class OrganizacionClonada
         }
 
         await using (var clonar = new NpgsqlCommand(SqlDeClonacion
-                         .Replace("{PREFIJO_TENANT}", EscalaYAislamientoFixture.PrefijoTenantOtra, StringComparison.Ordinal)
-                         .Replace("{PREFIJO_CORREO}", EscalaYAislamientoFixture.PrefijoCorreoOtra, StringComparison.Ordinal), conexion))
+                         .Replace("{PREFIJO_TENANT}", EscalaYAislamientoFixture.PrefijoTenantOtro, StringComparison.Ordinal)
+                         .Replace("{PREFIJO_CORREO}", EscalaYAislamientoFixture.PrefijoCorreoOtro, StringComparison.Ordinal), conexion))
         {
             clonar.CommandTimeout = 600;
             await clonar.ExecuteNonQueryAsync();
@@ -254,15 +357,141 @@ internal static class OrganizacionClonada
         """;
 }
 
+/// <summary>Las lecturas de pantalla de un Tenant beneficiario y la huella de sus recuentos.</summary>
+internal static class LecturasDePantalla
+{
+    internal static readonly IReadOnlyDictionary<string, Func<ISender, IdsFicha, Task<object?>>> DeTenant =
+        new Dictionary<string, Func<ISender, IdsFicha, Task<object?>>>
+        {
+            ["Documentos"] = async (s, _) => await s.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
+            ["Documentos vencidos por vencimiento"] = async (s, _) => await s.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 20,
+                OrdenarPor: "FechaVencimiento", Estados: [EstadoDocumento.Vencido], ConRecuentosPorEstado: true)),
+            ["Trabajadores"] = async (s, _) => await s.Send(new ObtenerTrabajadoresQuery(null, TamanoPagina: 20, ConDesgloseDocumental: true, ConRecuentosPorEstado: true)),
+            ["Empresas"] = async (s, _) => await s.Send(new ObtenerEmpresasQuery(null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConDesgloseDocumental: true, ConClientePrincipal: true)),
+            ["Centros"] = async (s, _) => await s.Send(new ObtenerCentrosQuery(null, null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConResumenPorGrupo: true)),
+            ["Centros bloqueados"] = async (s, _) => await s.Send(new ObtenerCentrosQuery(null, null, TamanoPagina: 20, Estados: [EstadoCentro.Bloqueado], ConRecuentosPorEstado: true)),
+            ["Subcontratas"] = async (s, _) => await s.Send(new ObtenerSubcontratasQuery(null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
+            ["Clientes"] = async (s, _) => await s.Send(new ObtenerClientesQuery(null, null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConDesgloseDocumental: true)),
+            ["Visitas"] = async (s, _) => await s.Send(new ObtenerVisitasQuery(null, false, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
+            ["Conversaciones"] = async (s, _) => await s.Send(new ObtenerConversacionesQuery(TamanoPagina: 20)),
+            ["Conversación"] = async (s, i) => i.Conversacion is { } id ? await s.Send(new ObtenerConversacionPorIdQuery(id)) : null,
+            ["Gestiones"] = async (s, _) => await s.Send(new ObtenerGestionesQuery(null, null, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
+            ["Alertas"] = async (s, _) => await s.Send(new ObtenerAlertasQuery()),
+            ["Inicio: KPIs"] = async (s, _) => await s.Send(new ObtenerKpisDashboardQuery()),
+            ["Inicio: próximas visitas"] = async (s, _) => await s.Send(new ObtenerVisitasQuery(null, true, null, TamanoPagina: 5)),
+            ["Inicio: bandeja agrupada"] = async (s, _) => await s.Send(new ObtenerBandejaAgrupadaQuery()),
+            ["Buscador global"] = async (s, _) => await s.Send(new BuscarGlobalQuery("ser")),
+            ["Centro 360"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerCentroPorIdQuery(id)) : null,
+            ["Centro 360: documentación de Empresas"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerDocumentacionEmpresasDeCentroQuery(id)) : null,
+            ["Centro 360: documentación requerida"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(id)) : null,
+            ["Centro 360: trabajadores asignados"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(id)) : null,
+            ["Empresa 360"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerEmpresaPorIdQuery(id)) : null,
+            ["Empresa 360: cumplimiento"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerCumplimientoEmpresaQuery(id)) : null,
+            ["Empresa 360: trabajadores"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerTrabajadoresQuery(null, EmpresaId: id, TamanoPagina: 20, ConDesgloseDocumental: true)) : null,
+            ["Trabajador 360"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerTrabajadorPorIdQuery(id)) : null,
+            ["Trabajador 360: documentación por centro"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(id)) : null,
+            ["Trabajador 360: documentos"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerDocumentosQuery(id, null, null, TamanoPagina: 50)) : null,
+            ["Cliente 360"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerClientePorIdQuery(id)) : null,
+            ["Cliente 360: resumen"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerResumenClienteQuery(id)) : null,
+            ["Cliente 360: centros"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerCentrosQuery(null, id, TamanoPagina: 20)) : null,
+            ["Cliente 360: empresas"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerEmpresasDeClienteQuery(id)) : null,
+        };
+
+    /// <summary>Las fichas 360 que se piden por identificador: con uno del otro Operador CAE externo tienen que devolver null.</summary>
+    internal static readonly string[] FichasPorId = ["Centro 360", "Empresa 360", "Trabajador 360", "Cliente 360", "Conversación"];
+
+    /// <summary>Pantallas sin paginar cuyo resultado entero son cifras de recuento.</summary>
+    private static readonly HashSet<string> SoloCifras = ["Inicio: KPIs", "Empresa 360: cumplimiento", "Cliente 360: resumen"];
+
+    /// <summary>
+    /// La huella de los recuentos de una pantalla, independiente de qué filas caen en la página (que desempatan por
+    /// Id, y en la copia los Id son otros): en un listado, el total, los recuentos por estado y los resúmenes por
+    /// grupo; en una pantalla de cifras, todas sus cifras ordenadas. <c>null</c> en las demás (fichas de detalle).
+    /// </summary>
+    internal static string? Huella(string pantalla, object? resultado)
+    {
+        if (resultado is not null && resultado.GetType().GetProperty(nameof(ResultadoPaginado<int>.TotalElementos)) is { } total
+            && resultado.GetType().GetProperty(nameof(ResultadoPaginado<int>.RecuentosPorEstado)) is { } recuentos)
+        {
+            var tipo = resultado.GetType();
+            var porEstado = recuentos.GetValue(resultado) as IReadOnlyDictionary<string, int>;
+            var sinEstado = tipo.GetProperty(nameof(ResultadoPaginado<int>.TotalSinFiltroDeEstado))?.GetValue(resultado) as int?;
+            var grupos = tipo.GetProperty(nameof(ResultadoPaginado<int>.ResumenPorGrupo))?.GetValue(resultado) as IReadOnlyDictionary<string, ResumenDeGrupo>;
+            return $"total={total.GetValue(resultado)}; sin estado={sinEstado?.ToString() ?? "-"}; "
+                + $"estados=[{Pares(porEstado)}]; grupos=[{string.Join(" | ", (grupos?.Values ?? []).Select(g => $"{g.Total}: {Pares(g.PorEstado)}").Order(StringComparer.Ordinal))}]";
+        }
+
+        return SoloCifras.Contains(pantalla) ? Cifras(resultado) : null;
+    }
+
+    /// <summary>Todas las cifras de un resultado, ordenadas: no depende del orden de las filas ni de sus identificadores.</summary>
+    internal static string Cifras(object? resultado)
+    {
+        var cifras = new List<string>();
+        void Recorrer(JsonElement elemento)
+        {
+            switch (elemento.ValueKind)
+            {
+                case JsonValueKind.Object:
+                    foreach (var propiedad in elemento.EnumerateObject())
+                        Recorrer(propiedad.Value);
+                    break;
+                case JsonValueKind.Array:
+                    foreach (var hijo in elemento.EnumerateArray())
+                        Recorrer(hijo);
+                    break;
+                case JsonValueKind.Number:
+                    cifras.Add(elemento.GetRawText());
+                    break;
+            }
+        }
+
+        using var documento = JsonDocument.Parse(Json(resultado));
+        Recorrer(documento.RootElement);
+        return string.Join(",", cifras.Order(StringComparer.Ordinal));
+    }
+
+    internal static async Task<IReadOnlyDictionary<string, string>> HuellasAsync(IServiceProvider sp, IdsFicha ficha)
+    {
+        var sender = sp.GetRequiredService<ISender>();
+        var huellas = new Dictionary<string, string>();
+        foreach (var (pantalla, lectura) in DeTenant)
+        {
+            if (Huella(pantalla, await lectura(sender, ficha)) is { } huella)
+                huellas[pantalla] = huella;
+            sp.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
+        }
+        return huellas;
+    }
+
+    /// <summary>Si la lectura trajo algo: un listado con filas, o un resultado con identificadores o, en una pantalla de cifras, no nulo.</summary>
+    internal static bool TraeFilas(string pantalla, object? resultado) => resultado switch
+    {
+        null => false,
+        _ when resultado.GetType().GetProperty(nameof(ResultadoPaginado<int>.TotalElementos))?.GetValue(resultado) is int total => total > 0,
+        _ => SoloCifras.Contains(pantalla) || Guids(Json(resultado)).Count > 0,
+    };
+
+    internal static string Json(object? resultado) =>
+        resultado is null ? "null" : JsonSerializer.Serialize(resultado, new JsonSerializerOptions { MaxDepth = 256 });
+
+    internal static HashSet<Guid> Guids(string json) =>
+        [.. Regex.Matches(json, "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}").Select(m => Guid.Parse(m.Value))];
+
+    private static string Pares(IReadOnlyDictionary<string, int>? pares) =>
+        pares is null ? "-" : string.Join(", ", pares.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => $"{p.Key}={p.Value}"));
+}
+
 /// <summary>
 /// Dos protecciones sobre las pantallas del piloto, con la identidad de aplicación (cae_app_runtime y contexto
-/// RLS firmado) y la Gestora CAE sembrada:
+/// RLS firmado) y el Gestor CAE que lleva cada Tenant beneficiario en su cartera:
 /// <list type="bullet">
 /// <item>presupuesto de SQL por query de pantalla: una regresión de N+1 o una lectura de más sale en rojo aquí
 /// antes de notarse en la base de 500.000 Documentos, donde se midieron estas cifras (informe
 /// MEDICION-ESCALA-500K-2026-10-24 en el repositorio de documentación);</item>
-/// <item>aislamiento entre organizaciones: ninguna pantalla, ficha 360, buscador global ni recuento de chips de
-/// una organización devuelve un identificador de la otra, en los dos sentidos, aunque las Empresas compartan CIF.</item>
+/// <item>aislamiento entre dos Operadores CAE externos y sus carteras: ninguna pantalla, ficha 360, buscador global,
+/// recuento de chips ni lectura por identificador de uno devuelve nada del otro, en los dos sentidos, aunque sus
+/// Empresas compartan CIF.</item>
 /// </list>
 /// </summary>
 [Collection(ColeccionPilotoOutbound.Nombre)]
@@ -271,104 +500,75 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
 {
     private const string TenantMedido = "Mantenimientos Integrales Corvesta, S.A.";
 
-    private static readonly Dictionary<string, Func<ISender, IdsFicha, Task<object?>>> LecturasDeTenant = new()
-    {
-        ["Documentos"] = async (s, _) => await s.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
-        ["Documentos vencidos por vencimiento"] = async (s, _) => await s.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 20,
-            OrdenarPor: "FechaVencimiento", Estados: [EstadoDocumento.Vencido], ConRecuentosPorEstado: true)),
-        ["Trabajadores"] = async (s, _) => await s.Send(new ObtenerTrabajadoresQuery(null, TamanoPagina: 20, ConDesgloseDocumental: true, ConRecuentosPorEstado: true)),
-        ["Empresas"] = async (s, _) => await s.Send(new ObtenerEmpresasQuery(null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConDesgloseDocumental: true, ConClientePrincipal: true)),
-        ["Centros"] = async (s, _) => await s.Send(new ObtenerCentrosQuery(null, null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConResumenPorGrupo: true)),
-        ["Centros bloqueados"] = async (s, _) => await s.Send(new ObtenerCentrosQuery(null, null, TamanoPagina: 20, Estados: [EstadoCentro.Bloqueado], ConRecuentosPorEstado: true)),
-        ["Subcontratas"] = async (s, _) => await s.Send(new ObtenerSubcontratasQuery(null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
-        ["Clientes"] = async (s, _) => await s.Send(new ObtenerClientesQuery(null, null, TamanoPagina: 20, ConRecuentosPorEstado: true, ConDesgloseDocumental: true)),
-        ["Visitas"] = async (s, _) => await s.Send(new ObtenerVisitasQuery(null, false, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
-        ["Conversaciones"] = async (s, _) => await s.Send(new ObtenerConversacionesQuery(TamanoPagina: 20)),
-        ["Conversación"] = async (s, i) => i.Conversacion is { } id ? await s.Send(new ObtenerConversacionPorIdQuery(id)) : null,
-        ["Gestiones"] = async (s, _) => await s.Send(new ObtenerGestionesQuery(null, null, null, TamanoPagina: 20, ConRecuentosPorEstado: true)),
-        ["Alertas"] = async (s, _) => await s.Send(new ObtenerAlertasQuery()),
-        ["Inicio: KPIs"] = async (s, _) => await s.Send(new ObtenerKpisDashboardQuery()),
-        ["Inicio: próximas visitas"] = async (s, _) => await s.Send(new ObtenerVisitasQuery(null, true, null, TamanoPagina: 5)),
-        ["Inicio: bandeja agrupada"] = async (s, _) => await s.Send(new ObtenerBandejaAgrupadaQuery()),
-        ["Buscador global"] = async (s, _) => await s.Send(new BuscarGlobalQuery("ser")),
-        ["Centro 360"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerCentroPorIdQuery(id)) : null,
-        ["Centro 360: documentación de Empresas"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerDocumentacionEmpresasDeCentroQuery(id)) : null,
-        ["Centro 360: documentación requerida"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerDocumentacionRequeridaDeCentroQuery(id)) : null,
-        ["Centro 360: trabajadores asignados"] = async (s, i) => i.Centro is { } id ? await s.Send(new ObtenerTrabajadoresAsignadosDeCentroQuery(id)) : null,
-        ["Empresa 360"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerEmpresaPorIdQuery(id)) : null,
-        ["Empresa 360: cumplimiento"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerCumplimientoEmpresaQuery(id)) : null,
-        ["Empresa 360: trabajadores"] = async (s, i) => i.Empresa is { } id ? await s.Send(new ObtenerTrabajadoresQuery(null, EmpresaId: id, TamanoPagina: 20, ConDesgloseDocumental: true)) : null,
-        ["Trabajador 360"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerTrabajadorPorIdQuery(id)) : null,
-        ["Trabajador 360: documentación por centro"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerDocumentacionPorCentroDeTrabajadorQuery(id)) : null,
-        ["Trabajador 360: documentos"] = async (s, i) => i.Trabajador is { } id ? await s.Send(new ObtenerDocumentosQuery(id, null, null, TamanoPagina: 50)) : null,
-        ["Cliente 360"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerClientePorIdQuery(id)) : null,
-        ["Cliente 360: resumen"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerResumenClienteQuery(id)) : null,
-        ["Cliente 360: centros"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerCentrosQuery(null, id, TamanoPagina: 20)) : null,
-        ["Cliente 360: empresas"] = async (s, i) => i.Cliente is { } id ? await s.Send(new ObtenerEmpresasDeClienteQuery(id)) : null,
-    };
-
     /// <summary>
     /// Sentencias SQL por query, medidas con esta misma siembra y con un ámbito nuevo por query tras una ejecución
-    /// de calentamiento, con un margen del 10 % (mínimo 2) sobre lo medido para no depender del orden de siembra. Son techos: bajar una cifra es bienvenido (y se actualiza aquí); subirla exige explicar
-    /// en la PR por qué la pantalla necesita una lectura más.
+    /// de calentamiento, con un margen del 10 % (mínimo 2) sobre lo medido para no depender del orden de siembra. Son
+    /// techos: bajar una cifra es bienvenido (y se actualiza aquí); subirla exige explicar en la PR por qué la
+    /// pantalla necesita una lectura más. El tercer valor dice si en el Tenant medido la lectura trae filas: un
+    /// techo medido sobre un resultado vacío solo cubre el camino corto, y se marca para que nadie lo lea como el
+    /// coste de la pantalla llena.
     /// </summary>
-    public static TheoryData<string, int> Presupuestos => new()
+    public static TheoryData<string, int, bool> Presupuestos => new()
     {
-        { "Documentos", 6 }, // medido: 4
-        { "Documentos vencidos por vencimiento", 5 }, // medido: 3
-        { "Trabajadores", 14 }, // medido: 12
-        { "Empresas", 21 }, // medido: 19
-        { "Centros", 33 }, // medido: 30
-        { "Centros bloqueados", 33 }, // medido: 30
-        { "Subcontratas", 13 }, // medido: 11
-        { "Clientes", 31 }, // medido: 28
-        { "Visitas", 11 }, // medido: 9
-        { "Conversaciones", 18 }, // medido: 16
-        { "Conversación", 22 }, // medido: 20
-        { "Gestiones", 5 }, // medido: 3
-        { "Alertas", 11 }, // medido: 9
-        { "Inicio: KPIs", 26 }, // medido: 23
-        { "Inicio: próximas visitas", 10 }, // medido: 8
-        { "Inicio: bandeja agrupada", 33 }, // medido: 30
-        { "Buscador global", 8 }, // medido: 6
-        { "Centro 360", 7 }, // medido: 5
-        { "Centro 360: documentación de Empresas", 20 }, // medido: 18
-        { "Centro 360: documentación requerida", 6 }, // medido: 4
-        { "Centro 360: trabajadores asignados", 8 }, // medido: 6
-        { "Empresa 360", 8 }, // medido: 6
-        { "Empresa 360: cumplimiento", 11 }, // medido: 9
-        { "Empresa 360: trabajadores", 14 }, // medido: 12
-        { "Trabajador 360", 6 }, // medido: 4
-        { "Trabajador 360: documentación por centro", 17 }, // medido: 15
-        { "Trabajador 360: documentos", 6 }, // medido: 4
-        { "Cliente 360", 5 }, // medido: 3
-        { "Cliente 360: resumen", 5 }, // medido: 3
-        { "Cliente 360: centros", 35 }, // medido: 31
-        { "Cliente 360: empresas", 3 }, // medido: 1
+        { "Documentos", 6, true }, // medido: 4
+        { "Documentos vencidos por vencimiento", 5, false }, // medido: 3; el Tenant medido no tiene vencidos
+        { "Trabajadores", 14, true }, // medido: 12
+        { "Empresas", 21, true }, // medido: 19
+        { "Centros", 33, true }, // medido: 30
+        { "Centros bloqueados", 33, false }, // medido: 30; ningún Centro bloqueado en el Tenant medido
+        { "Subcontratas", 13, true }, // medido: 11
+        { "Clientes", 31, true }, // medido: 28
+        { "Visitas", 11, true }, // medido: 9
+        { "Conversaciones", 18, true }, // medido: 16
+        { "Conversación", 22, true }, // medido: 20
+        { "Gestiones", 5, false }, // medido: 3; el Tenant medido no tiene Gestiones
+        { "Alertas", 11, false }, // medido: 9; sin alertas en el Tenant medido
+        { "Inicio: KPIs", 26, true }, // medido: 23
+        { "Inicio: próximas visitas", 10, true }, // medido: 8
+        { "Inicio: bandeja agrupada", 33, true }, // medido: 30
+        { "Buscador global", 8, false }, // medido: 6; «ser» no encuentra nada en el Tenant medido
+        { "Centro 360", 7, true }, // medido: 5
+        { "Centro 360: documentación de Empresas", 20, true }, // medido: 18
+        { "Centro 360: documentación requerida", 6, true }, // medido: 4
+        { "Centro 360: trabajadores asignados", 8, true }, // medido: 6
+        { "Empresa 360", 8, true }, // medido: 6
+        { "Empresa 360: cumplimiento", 11, true }, // medido: 9
+        { "Empresa 360: trabajadores", 14, true }, // medido: 12
+        { "Trabajador 360", 6, true }, // medido: 4
+        { "Trabajador 360: documentación por centro", 17, true }, // medido: 15
+        { "Trabajador 360: documentos", 6, true }, // medido: 4
+        { "Cliente 360", 5, true }, // medido: 3
+        { "Cliente 360: resumen", 5, true }, // medido: 3
+        { "Cliente 360: centros", 35, true }, // medido: 31
+        { "Cliente 360: empresas", 3, true }, // medido: 1
     };
 
     [Theory]
     [MemberData(nameof(Presupuestos))]
-    public async Task Cada_query_de_pantalla_cabe_en_su_presupuesto_de_SQL(string query, int maximo)
+    public async Task Cada_query_de_pantalla_cabe_en_su_presupuesto_de_SQL(string query, int maximo, bool conFilas)
     {
-        var tenant = fixture.TenantsPiloto[TenantMedido];
-        var ids = await fixture.IdsFichaAsync(tenant);
-        var sentencias = await fixture.Arnes.ComoGestoraPrimeraEnAsync(TenantMedido, sp => ContarAsync(sp, s => LecturasDeTenant[query](s, ids)));
+        var ficha = fixture.FichaDe(fixture.Piloto, TenantMedido);
+        var (sentencias, resultado) = await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido,
+            sp => ContarAsync(sp, s => LecturasDePantalla.DeTenant[query](s, ficha)));
 
         salida.WriteLine($"{query}: {sentencias} sentencias (presupuesto {maximo})");
+        LecturasDePantalla.TraeFilas(query, resultado).Should().Be(conFilas,
+            conFilas ? $"«{query}» se mide con la pantalla llena, no con el camino vacío" : $"«{query}» está marcada como medida sobre un resultado vacío");
         sentencias.Should().BeLessThanOrEqualTo(maximo, $"«{query}» tenía un presupuesto de {maximo} sentencias SQL y ha emitido {sentencias}");
     }
 
     [Fact]
     public async Task Mi_trabajo_y_el_Cuadro_de_direccion_caben_en_su_presupuesto_de_SQL()
     {
-        var miTrabajo = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera,
+        var (miTrabajo, resultadoMiTrabajo) = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera,
             sp => ContarAsync(sp, async s => await s.Send(new ObtenerMiTrabajoAgregadoQuery())));
         var hoy = DiaDeNegocio.Hoy();
-        var cuadro = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, fixture.CorreoDireccion,
+        var (cuadro, resultadoCuadro) = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, fixture.CorreoDireccion,
             sp => ContarAsync(sp, async s => await s.Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
 
         salida.WriteLine($"Mi trabajo: {miTrabajo}; Cuadro de dirección: {cuadro}");
+        LecturasDePantalla.Guids(LecturasDePantalla.Json(resultadoMiTrabajo)).Should().IntersectWith(fixture.Piloto.Ids, "Mi trabajo se mide con la cartera llena");
+        LecturasDePantalla.Guids(LecturasDePantalla.Json(resultadoCuadro)).Should().IntersectWith(fixture.Piloto.Ids, "el Cuadro de dirección se mide con sus Empresas gestionadas");
         // Medido: 270 y 533. Las dos crecen con la cartera (una lectura por Empresa gestionada): el techo congela el N+1
         // actual para que no empeore; bajarlo es el trabajo pendiente que recoge el informe de escala.
         miTrabajo.Should().BeLessThanOrEqualTo(297, "presupuesto de Mi trabajo");
@@ -376,129 +576,201 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
     }
 
     [Fact]
-    public async Task Desde_cada_Tenant_de_una_organizacion_ninguna_pantalla_devuelve_filas_de_la_otra_en_los_dos_sentidos()
+    public async Task Desde_cada_Tenant_de_un_Operador_CAE_externo_ninguna_pantalla_devuelve_filas_ni_recuentos_del_otro_en_los_dos_sentidos()
     {
-        var fugas = new List<string>();
-        var propiasVistas = 0;
+        var fallos = new List<string>();
 
-        foreach (var (nombre, tenantPiloto) in fixture.TenantsPiloto)
+        foreach (var nombre in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
         {
-            var (fuga, propias) = await LeerTodoAsync(CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera,
-                tenantPiloto, fixture.IdsOtra, fixture.IdsPiloto);
-            fugas.AddRange(fuga.Select(f => $"piloto→otra, {nombre}: {f}"));
-            propiasVistas += propias;
+            foreach (var lado in new[] { fixture.Piloto, fixture.Otro })
+            {
+                var otro = fixture.ElOtro(lado);
+                var sentido = $"{lado.Rotulo}→{otro.Rotulo}, {nombre}";
+                var (fugas, propias, huellas) = await LeerTodoAsync(lado, nombre, otro.Ids);
+                fallos.AddRange(fugas.Select(f => $"{sentido}: {f}"));
 
-            (fuga, propias) = await LeerTodoAsync(EscalaYAislamientoFixture.PrefijoTenantOtra + CatalogoPilotoOutbound.NombreTenantOperador,
-                EscalaYAislamientoFixture.PrefijoCorreoOtra + CuentasPilotoOutbound.Locales.GestoraPrimera,
-                fixture.TenantsOtra[nombre], fixture.IdsPiloto, fixture.IdsOtra);
-            fugas.AddRange(fuga.Select(f => $"otra→piloto, {nombre}: {f}"));
-            propiasVistas += propias;
+                // Control positivo por Tenant y por sentido: un Gestor CAE que no viera nada daría verde (vacío ≠ negativo).
+                if (propias == 0)
+                    fallos.Add($"{sentido}: el Gestor CAE de la cartera no ve ninguna fila propia");
+
+                // Oráculo de los recuentos de chips: los de antes de clonar, cuando no había nada ajeno que contar.
+                foreach (var (pantalla, esperada) in fixture.HuellasAntesDeClonar[nombre])
+                {
+                    var vista = huellas.GetValueOrDefault(pantalla);
+                    if (vista != esperada)
+                        fallos.Add($"{sentido}: los recuentos de «{pantalla}» eran «{esperada}» antes de clonar y ahora son «{vista ?? "nada"}»");
+                }
+            }
         }
 
-        // Control positivo: sin él, una cuenta que no viera nada daría verde (vacío ≠ negativo).
-        propiasVistas.Should().BeGreaterThan(1000, "las dos Gestoras CAE ven las filas de su propia organización");
-        fugas.Should().BeEmpty();
+        fixture.HuellasAntesDeClonar.Values.Sum(h => h.Count).Should().BeGreaterThan(fixture.Piloto.Tenants.Count * 10,
+            "el oráculo cubre los listados y las cifras de cada Tenant beneficiario");
+        fallos.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Mi_trabajo_y_el_Cuadro_de_direccion_no_cruzan_organizaciones()
+    public async Task Pedir_por_identificador_una_ficha_del_otro_Operador_CAE_externo_no_devuelve_nada()
+    {
+        var fallos = new List<string>();
+        var propiasLeidas = 0;
+
+        foreach (var nombre in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
+        {
+            foreach (var lado in new[] { fixture.Piloto, fixture.Otro })
+            {
+                var otro = fixture.ElOtro(lado);
+                var fichaPropia = fixture.FichaDe(lado, nombre);
+                var fichaAjena = fixture.FichaDe(otro, nombre);
+                await fixture.ComoGestorEnAsync(lado, nombre, async sp =>
+                {
+                    var sender = sp.GetRequiredService<ISender>();
+                    foreach (var pantalla in LecturasDePantalla.FichasPorId)
+                    {
+                        var lectura = LecturasDePantalla.DeTenant[pantalla];
+                        var propia = await lectura(sender, fichaPropia);
+                        sp.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
+                        // Control positivo: con el identificador propio la ficha sí se lee. Sin identificador en la
+                        // ficha (un Tenant sin Conversaciones) no hay nada que pedir, ni propio ni ajeno.
+                        if (!TieneId(fichaPropia, pantalla))
+                            continue;
+                        if (propia is null)
+                            fallos.Add($"{lado.Rotulo}, {nombre}: «{pantalla}» no lee ni la ficha propia (control positivo)");
+                        else
+                            propiasLeidas++;
+
+                        object? ajena;
+                        try
+                        {
+                            ajena = await lectura(sender, fichaAjena);
+                        }
+                        catch (Exception excepcion)
+                        {
+                            // Negar con una excepción tampoco devuelve nada; se anota para leerlo en la salida.
+                            salida.WriteLine($"{lado.Rotulo}, {nombre}, {pantalla}: {excepcion.GetType().Name}");
+                            ajena = null;
+                        }
+                        sp.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
+                        if (ajena is not null)
+                            fallos.Add($"{lado.Rotulo}→{otro.Rotulo}, {nombre}: «{pantalla}» devuelve la ficha ajena ({LecturasDePantalla.Json(ajena)[..Math.Min(120, LecturasDePantalla.Json(ajena).Length)]})");
+                    }
+                    return 0;
+                });
+            }
+        }
+
+        propiasLeidas.Should().BeGreaterThan(fixture.Piloto.Tenants.Count * 2 * 3, "cada Gestor CAE lee las fichas propias por identificador");
+        fallos.Should().BeEmpty();
+    }
+
+    private static bool TieneId(IdsFicha ficha, string pantalla) => pantalla switch
+    {
+        "Centro 360" => ficha.Centro is not null,
+        "Empresa 360" => ficha.Empresa is not null,
+        "Trabajador 360" => ficha.Trabajador is not null,
+        "Cliente 360" => ficha.Cliente is not null,
+        "Conversación" => ficha.Conversacion is not null,
+        _ => throw new ArgumentOutOfRangeException(nameof(pantalla), pantalla, "ficha por identificador sin traducir a su campo"),
+    };
+
+    [Fact]
+    public async Task Mi_trabajo_y_el_Cuadro_de_direccion_no_cruzan_de_un_Operador_CAE_externo_al_otro()
     {
         var hoy = DiaDeNegocio.Hoy();
-        foreach (var (operador, correo, correoDireccion, ajenos, propios) in new[]
-                 {
-                     (CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera, fixture.CorreoDireccion, fixture.IdsOtra, fixture.IdsPiloto),
-                     (EscalaYAislamientoFixture.PrefijoTenantOtra + CatalogoPilotoOutbound.NombreTenantOperador,
-                      EscalaYAislamientoFixture.PrefijoCorreoOtra + CuentasPilotoOutbound.Locales.GestoraPrimera,
-                      EscalaYAislamientoFixture.PrefijoCorreoOtra + fixture.CorreoDireccion, fixture.IdsPiloto, fixture.IdsOtra),
-                 })
+        foreach (var lado in new[] { fixture.Piloto, fixture.Otro })
         {
-            var miTrabajo = await fixture.Arnes.ComoCuentaAsync(operador, correo, async sp => Json(await sp.GetRequiredService<ISender>().Send(new ObtenerMiTrabajoAgregadoQuery())));
-            var cuadro = await fixture.Arnes.ComoCuentaAsync(operador, correoDireccion, async sp => Json(await sp.GetRequiredService<ISender>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
+            var otro = fixture.ElOtro(lado);
+            var miTrabajo = await fixture.Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.CorreoGestoraPrimera,
+                async sp => LecturasDePantalla.Json(await sp.GetRequiredService<ISender>().Send(new ObtenerMiTrabajoAgregadoQuery())));
+            var cuadro = await fixture.Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.PrefijoCorreo + fixture.CorreoDireccion,
+                async sp => LecturasDePantalla.Json(await sp.GetRequiredService<ISender>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
 
-            Guids(miTrabajo).Should().NotIntersectWith(ajenos, $"Mi trabajo de {operador} solo lleva Tenants de su cartera");
-            Guids(miTrabajo).Should().IntersectWith(propios, $"Mi trabajo de {operador} lleva su propia cartera");
-            Guids(cuadro).Should().NotIntersectWith(ajenos, $"el Cuadro de dirección de {operador} solo cuenta su organización");
+            LecturasDePantalla.Guids(miTrabajo).Should().NotIntersectWith(otro.Ids, $"Mi trabajo de {lado.NombreTenantOperador} solo lleva Tenants de su cartera");
+            LecturasDePantalla.Guids(miTrabajo).Should().IntersectWith(lado.Ids, $"Mi trabajo de {lado.NombreTenantOperador} lleva su propia cartera");
+            LecturasDePantalla.Guids(cuadro).Should().NotIntersectWith(otro.Ids, $"el Cuadro de dirección de {lado.NombreTenantOperador} solo cuenta su cartera");
+            LecturasDePantalla.Guids(cuadro).Should().IntersectWith(lado.Ids, $"el Cuadro de dirección de {lado.NombreTenantOperador} lleva sus Empresas gestionadas");
+            (await fixture.CifrasCuadroAsync(lado)).Should().Be(fixture.CifrasCuadroAntesDeClonar,
+                $"las cifras del Cuadro de dirección de {lado.NombreTenantOperador} son las de antes de existir el otro Operador CAE externo");
         }
     }
 
     [Fact]
-    public async Task El_mismo_CIF_en_las_dos_organizaciones_son_registros_distintos_y_cada_Tenant_encuentra_solo_el_suyo()
+    public async Task El_mismo_CIF_en_los_dos_Operadores_CAE_externos_son_registros_distintos_y_cada_Tenant_encuentra_solo_el_suyo()
     {
         var (nombre, cif) = await CifDeEmpresaAsync(soloEnUnTenant: false);
-        var idPiloto = await EmpresaPorCifAsync(fixture.TenantsPiloto[nombre], cif);
-        var idOtra = await EmpresaPorCifAsync(fixture.TenantsOtra[nombre], cif);
+        var idPiloto = await EmpresaPorCifAsync(fixture.Piloto.Tenants[nombre], cif);
+        var idOtro = await EmpresaPorCifAsync(fixture.Otro.Tenants[nombre], cif);
         idPiloto.Should().NotBeNull();
-        idOtra.Should().NotBeNull().And.NotBe(idPiloto!.Value, "cada Tenant propietario tiene su propio registro de la Empresa");
+        idOtro.Should().NotBeNull().And.NotBe(idPiloto!.Value, "cada Tenant propietario tiene su propio registro de la Empresa");
 
-        var vistaDesdePiloto = await fixture.Arnes.ComoGestoraPrimeraEnAsync(nombre,
+        var vistaDesdePiloto = await fixture.ComoGestorEnAsync(fixture.Piloto, nombre,
             async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery(cif)));
-        var vistaDesdeOtra = await ComoGestoraOtraEnAsync(nombre,
+        var vistaDesdeOtro = await fixture.ComoGestorEnAsync(fixture.Otro, nombre,
             async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery(cif)));
 
+        vistaDesdePiloto.Should().NotBeNull("el Gestor CAE de la cartera encuentra la Empresa de su Tenant");
+        vistaDesdeOtro.Should().NotBeNull("el Gestor CAE de la copia encuentra la Empresa de la copia");
         vistaDesdePiloto!.Id.Should().Be(idPiloto.Value);
-        vistaDesdeOtra!.Id.Should().Be(idOtra!.Value);
+        vistaDesdeOtro!.Id.Should().Be(idOtro!.Value);
     }
 
     [Fact]
-    public async Task Buscar_por_CIF_no_revela_si_la_Empresa_existe_en_otra_organizacion()
+    public async Task Buscar_por_CIF_no_revela_si_la_Empresa_existe_en_la_cartera_del_otro_Operador_CAE_externo()
     {
-        // Un CIF que solo tiene una Empresa del piloto, buscado desde un Tenant de la otra organización que no la
-        // tiene: el resultado tiene que ser el mismo que el de un CIF que no existe en ningún sitio.
+        // Un CIF que solo tiene una Empresa del piloto, buscado desde un Tenant beneficiario del otro Operador CAE
+        // externo que no la tiene: el resultado tiene que ser el mismo que el de un CIF que no existe en ningún sitio.
         var (nombre, cif) = await CifDeEmpresaAsync(soloEnUnTenant: true);
-        var otroTenant = fixture.TenantsOtra.First(t => t.Key != nombre).Key;
+        var otroTenant = fixture.Otro.Tenants.Keys.Where(t => t != nombre).Order(StringComparer.Ordinal).First();
 
-        var existente = await ComoGestoraOtraEnAsync(otroTenant, async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery(cif)));
-        var inexistente = await ComoGestoraOtraEnAsync(otroTenant, async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery("B99999990")));
+        var existente = await fixture.ComoGestorEnAsync(fixture.Otro, otroTenant, async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery(cif)));
+        var inexistente = await fixture.ComoGestorEnAsync(fixture.Otro, otroTenant, async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery("B99999990")));
+        var enSuCopia = await fixture.ComoGestorEnAsync(fixture.Otro, nombre, async sp => await sp.GetRequiredService<ISender>().Send(new BuscarEmpresaPorCifQuery(cif)));
 
-        existente.Should().BeNull("la Empresa existe en otra organización, y eso no se puede deducir desde aquí");
+        existente.Should().BeNull("la Empresa existe en la cartera del otro Operador CAE externo, y eso no se puede deducir desde aquí");
         inexistente.Should().BeNull();
+        enSuCopia.Should().NotBeNull("control positivo: el CIF sí se encuentra en el Tenant que lo tiene");
     }
 
-    private async Task<(IReadOnlyList<string> Fugas, int Propias)> LeerTodoAsync(
-        string operador, string correo, Guid tenant, HashSet<Guid> ajenos, HashSet<Guid> propios)
+    private async Task<(IReadOnlyList<string> Fugas, int Propias, IReadOnlyDictionary<string, string> Huellas)> LeerTodoAsync(
+        LadoOperadorCae lado, string nombre, HashSet<Guid> ajenos)
     {
-        var ids = await fixture.IdsFichaAsync(tenant);
-        return await fixture.Arnes.ComoCuentaAsync(operador, correo, async sp =>
+        var ficha = fixture.FichaDe(lado, nombre);
+        return await fixture.ComoGestorEnAsync(lado, nombre, async sp =>
         {
             var fugas = new List<string>();
             var propias = 0;
-            using (AmbitoTenantExplicito.Establecer(tenant))
+            var huellas = new Dictionary<string, string>();
+            var sender = sp.GetRequiredService<ISender>();
+            foreach (var (pantalla, lectura) in LecturasDePantalla.DeTenant)
             {
-                var sender = sp.GetRequiredService<ISender>();
-                foreach (var (pantalla, lectura) in LecturasDeTenant)
-                {
-                    var vistos = Guids(Json(await lectura(sender, ids)));
-                    var cruzados = vistos.Where(ajenos.Contains).ToList();
-                    if (cruzados.Count > 0)
-                        fugas.Add($"{pantalla} devuelve {cruzados.Count} identificadores ajenos, p. ej. {cruzados[0]}");
-                    propias += vistos.Count(propios.Contains);
-                    sp.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
-                }
+                var resultado = await lectura(sender, ficha);
+                var vistos = LecturasDePantalla.Guids(LecturasDePantalla.Json(resultado));
+                var cruzados = vistos.Where(ajenos.Contains).ToList();
+                if (cruzados.Count > 0)
+                    fugas.Add($"{pantalla} devuelve {cruzados.Count} identificadores ajenos, p. ej. {cruzados[0]}");
+                propias += vistos.Count(lado.Ids.Contains);
+                if (LecturasDePantalla.Huella(pantalla, resultado) is { } huella)
+                    huellas[pantalla] = huella;
+                sp.GetRequiredService<CaeManagerDbContext>().ChangeTracker.Clear();
             }
-            return ((IReadOnlyList<string>)fugas, propias);
+            return ((IReadOnlyList<string>)fugas, propias, (IReadOnlyDictionary<string, string>)huellas);
         });
     }
 
-    private Task<T> ComoGestoraOtraEnAsync<T>(string nombreTenant, Func<IServiceProvider, Task<T>> lectura) =>
-        fixture.Arnes.ComoCuentaAsync(EscalaYAislamientoFixture.PrefijoTenantOtra + CatalogoPilotoOutbound.NombreTenantOperador,
-            EscalaYAislamientoFixture.PrefijoCorreoOtra + CuentasPilotoOutbound.Locales.GestoraPrimera, async sp =>
-            {
-                using (AmbitoTenantExplicito.Establecer(fixture.TenantsOtra[nombreTenant]))
-                    return await lectura(sp);
-            });
-
-    private static async Task<int> ContarAsync(IServiceProvider sp, Func<ISender, Task<object?>> lectura)
+    private static async Task<(int Sentencias, object? Resultado)> ContarAsync(IServiceProvider sp, Func<ISender, Task<object?>> lectura)
     {
         var sender = sp.GetRequiredService<ISender>();
         var contexto = sp.GetRequiredService<CaeManagerDbContext>();
         await lectura(sender); // Calentamiento: compilación de EF y memorias del ámbito, como en una sesión abierta.
         contexto.ChangeTracker.Clear();
-        var (_, sentencias) = await ArnesPilotoOutbound.Contador.ContarAsync(() => lectura(sender));
+        var (resultado, sentencias) = await ArnesPilotoOutbound.Contador.ContarAsync(() => lectura(sender));
         contexto.ChangeTracker.Clear();
-        return sentencias;
+        return (sentencias, resultado);
     }
 
-    /// <summary>El nombre del Tenant del piloto y el CIF de una de sus Empresas (opcionalmente, una cuyo CIF no tiene ningún otro Tenant del piloto).</summary>
+    /// <summary>
+    /// El nombre del Tenant del piloto y el CIF de una de sus Empresas (opcionalmente, una cuyo CIF no tiene ningún
+    /// otro Tenant del piloto), elegidos de forma determinista: por CIF y, a igual CIF, por Tenant.
+    /// </summary>
     private async Task<(string Tenant, string Cif)> CifDeEmpresaAsync(bool soloEnUnTenant)
     {
         await using var conexion = new NpgsqlConnection(fixture.Arnes.CadenaPropietario);
@@ -508,29 +780,23 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
             SELECT e."TenantId", e."Cif" FROM "Empresas" e
             WHERE e."TenantId" = ANY(@piloto) AND e."Cif" IS NOT NULL AND NOT e."EstaEliminado"
               AND (NOT @solo OR NOT EXISTS (SELECT 1 FROM "Empresas" o WHERE o."Cif" = e."Cif" AND o."TenantId" = ANY(@piloto) AND o."TenantId" <> e."TenantId"))
-            ORDER BY e."Cif" LIMIT 1
+            ORDER BY e."Cif", e."TenantId", e."Id" LIMIT 1
             """, conexion);
-        comando.Parameters.AddWithValue("piloto", fixture.TenantsPiloto.Values.ToArray());
+        comando.Parameters.AddWithValue("piloto", fixture.Piloto.Tenants.Values.ToArray());
         comando.Parameters.AddWithValue("solo", soloEnUnTenant);
         await using var lector = await comando.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue("el piloto siembra Empresas con CIF");
         var tenant = lector.GetGuid(0);
-        return (fixture.TenantsPiloto.Single(t => t.Value == tenant).Key, lector.GetString(1));
+        return (fixture.Piloto.Tenants.Single(t => t.Value == tenant).Key, lector.GetString(1));
     }
 
     private async Task<Guid?> EmpresaPorCifAsync(Guid tenant, string cif)
     {
         await using var conexion = new NpgsqlConnection(fixture.Arnes.CadenaPropietario);
         await conexion.OpenAsync();
-        await using var comando = new NpgsqlCommand("""SELECT "Id" FROM "Empresas" WHERE "TenantId" = @t AND "Cif" = @cif""", conexion);
+        await using var comando = new NpgsqlCommand("""SELECT "Id" FROM "Empresas" WHERE "TenantId" = @t AND "Cif" = @cif ORDER BY "Id" LIMIT 1""", conexion);
         comando.Parameters.AddWithValue("t", tenant);
         comando.Parameters.AddWithValue("cif", cif);
         return await comando.ExecuteScalarAsync() as Guid?;
     }
-
-    private static string Json(object? resultado) =>
-        resultado is null ? "null" : JsonSerializer.Serialize(resultado, new JsonSerializerOptions { MaxDepth = 256 });
-
-    private static HashSet<Guid> Guids(string json) =>
-        [.. Regex.Matches(json, "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}").Select(m => Guid.Parse(m.Value))];
 }
