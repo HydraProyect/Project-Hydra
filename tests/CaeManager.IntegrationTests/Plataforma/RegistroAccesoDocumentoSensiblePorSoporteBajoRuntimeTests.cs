@@ -109,7 +109,52 @@ public class RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests : IAsyncL
         (await LeerFilasAsync(documentoId)).Should().ContainSingle();
     }
 
+    /// <summary>
+    /// Las listas de valores de la función están escritas a mano en SQL: este caso las ata a
+    /// los enums. Un valor nuevo de <see cref="TipoAccesoDocumentoSensible"/> o de
+    /// <c>SensibilidadDocumental</c> que la función no conozca dejaría a Soporte TALVEG sin
+    /// poder abrir nada (falla en cerrado) sin que ningún otro test lo viera.
+    /// </summary>
+    [Fact]
+    public async Task La_funcion_acepta_cada_valor_sensible_de_los_enums()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        var sensibilidades = Enum.GetValues<Domain.Documentos.SensibilidadDocumental>()
+            .Where(s => s != Domain.Documentos.SensibilidadDocumental.SinDatosPersonales)
+            .ToList();
+        sensibilidades.Should().NotBeEmpty();
+
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        foreach (var sensibilidad in sensibilidades)
+        foreach (var tipoAcceso in Enum.GetValues<TipoAccesoDocumentoSensible>())
+        {
+            (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), sensibilidad.ToString(), tipoAcceso.ToString()))
+                .Should().Be("registrado", $"{sensibilidad} × {tipoAcceso} es un acceso sensible que se registra");
+        }
+    }
+
     // ── Cada precondición de la función, incumplida: no hay fila y no se sirve ─
+
+    [Fact]
+    public async Task Una_sesion_que_aun_no_empieza_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await EjecutarComoPropietarioAsync(
+            @"UPDATE ""SesionesPrivilegiadas"" SET ""InicioEnUtc"" = now() + interval '5 minutes' WHERE ""Id"" = @u;", sesion);
+
+        await NoRegistraYFallaEnCerradoAsync(_tenantA, sesion);
+    }
+
+    [Fact]
+    public async Task Una_concesion_que_aun_no_es_vigente_no_registra()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        await EjecutarComoPropietarioAsync(@"
+UPDATE ""ConcesionesPrivilegio"" SET ""VigenciaDesde"" = now() + interval '5 minutes'
+WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);", sesion);
+
+        await NoRegistraYFallaEnCerradoAsync(_tenantA, sesion);
+    }
 
     [Fact]
     public async Task Una_sesion_cerrada_no_registra_y_el_servicio_falla_en_cerrado()

@@ -168,6 +168,13 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         registro.Sensibilidad.Should().Be(SensibilidadDocumental.CategoriaEspecialSalud);
     }
 
+    /// <summary>
+    /// El servicio entrega al repositorio un registro de vía privilegiada con la sesión,
+    /// que es lo que hace al repositorio ir por la función de la base. Se captura el
+    /// registro en vez de leer la fila: este contexto es del propietario, sin contexto RLS
+    /// firmado, y la función no escribe sin él. La fila real, escrita bajo
+    /// <c>cae_app_soporte</c>, la prueba <c>RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests</c>.
+    /// </summary>
     [Fact]
     public async Task Registra_via_privilegiada_cuando_el_actor_opera_bajo_sesion_privilegiada()
     {
@@ -177,14 +184,32 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
 
         var sesionId = Guid.NewGuid();
-        var servicio = CrearServicio(new ActorAuditoria(Guid.NewGuid(), null, TipoViaAcceso.SesionPrivilegiada, sesionId));
+        var actor = Guid.NewGuid();
+        var repositorio = new RepositorioQueCaptura();
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            _dbContext, _dbContext,
+            new ActorAuditoriaFalso(new ActorAuditoria(actor, null, TipoViaAcceso.SesionPrivilegiada, sesionId)),
+            repositorio);
 
         await servicio.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura);
 
-        var registro = await _dbContext.RegistrosAccesoDocumentoSensible.SingleAsync(r => r.DocumentoId == documento.Id);
+        var registro = repositorio.Registros.Should().ContainSingle().Subject;
+        registro.DocumentoId.Should().Be(documento.Id);
         registro.EsPrivilegiado.Should().BeTrue();
         registro.ViaAcceso.Should().Be(TipoViaAccesoAuditoria.SesionPrivilegiada);
         registro.ViaAccesoId.Should().Be(sesionId);
+        registro.ActorRealUsuarioId.Should().Be(actor);
+    }
+
+    private sealed class RepositorioQueCaptura : IRegistroAccesoDocumentoSensibleRepository
+    {
+        public List<RegistroAccesoDocumentoSensible> Registros { get; } = [];
+
+        public Task<bool> GuardarAsync(RegistroAccesoDocumentoSensible registro, CancellationToken cancellationToken = default)
+        {
+            Registros.Add(registro);
+            return Task.FromResult(true);
+        }
     }
 
     /// <summary>
