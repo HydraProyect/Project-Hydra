@@ -1,4 +1,4 @@
-# Esperas fijas de la suite E2E (EsperasFijasDeE2ECongeladasTests, 2026-10-10): 51 WaitForTimeoutAsync y 12 Task.Delay en 30 ficheros.
+# Esperas fijas de la suite E2E (EsperasFijasDeE2ECongeladasTests, 2026-10-10): 50 WaitForTimeoutAsync y 12 Task.Delay en 29 ficheros.
 # Solo baja: una espera nueva se sustituye por la condición que se espera (Expect(...), WaitForFunctionAsync, WaitForURLAsync);
 # retirar una baja o borra su línea. Una espera que ES un reloj del servidor lleva encima un comentario que dice cuál.
 # Medida: 'fichero :: llamada = n' con n invocaciones en código (comentarios y cadenas no cuentan). Thread.Sleep también se mide: hoy no hay ninguno.
@@ -26,7 +26,6 @@ tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportacionTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/ImportarCombinadoTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: WaitForTimeoutAsync = 7
 tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1

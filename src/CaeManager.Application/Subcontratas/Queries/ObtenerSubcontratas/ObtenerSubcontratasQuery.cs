@@ -2,6 +2,7 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
@@ -36,12 +37,17 @@ public record SubcontrataListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, NivelServicioSubcontrata NivelServicio,
     int? CumplimientoPorcentaje, RecuentosSubcontrataDto Recuentos)
 {
+    /// <summary>Identidades visibles por el ámbito efectivo del listado de Trabajadores y por RLS.</summary>
+    public IReadOnlyList<TrabajadorIdentidadSubcontrataDto> Trabajadores { get; init; } = [];
+
     /// <summary>
     /// Estado documental de la fila: el peor de sus incidencias (<see cref="RecuentosSubcontrataDto.PeorEstado"/>).
     /// No está persistido; por eso filtrar por él obliga a calcularlo para todas las filas.
     /// </summary>
     public EstadoDocumento EstadoDocumental => Recuentos.PeorEstado;
 }
+
+public record TrabajadorIdentidadSubcontrataDto(Guid Id, string Nombre, string Apellidos);
 
 /// <summary>
 /// F3b-Subcontrata (revisión adversaria del 2026-08-26, evidencia real de
@@ -55,7 +61,8 @@ public record SubcontrataListaDto(
 /// Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md.
 /// </summary>
 public class ObtenerSubcontratasQueryHandler(
-    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado)
+    IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado,
+    ITrabajadoresQueryContext trabajadoresContext)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
     public async Task<ResultadoPaginado<SubcontrataListaDto>> Handle(ObtenerSubcontratasQuery request, CancellationToken cancellationToken)
@@ -148,6 +155,18 @@ public class ObtenerSubcontratasQueryHandler(
     private async Task<List<SubcontrataListaDto>> ConEstadoAsync(IReadOnlyList<FilaSubcontrata> filas, CancellationToken cancellationToken)
     {
         var resumenes = await calculoEstado.CalcularResumenAsync(filas.Select(s => s.Id).ToList(), cancellationToken);
+        var ids = filas.Select(s => s.Id).ToList();
+        var consultaTrabajadores = trabajadoresContext.Trabajadores
+            .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
+        var idsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        if (idsVisibles is not null)
+            consultaTrabajadores = consultaTrabajadores.Where(t => idsVisibles.Contains(t.Id));
+
+        // En serie sobre el mismo contexto; el recuento y la ventana comparten exactamente estas identidades.
+        var trabajadores = await consultaTrabajadores.OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id)
+            .Select(t => new { t.SubcontrataId, Identidad = new TrabajadorIdentidadSubcontrataDto(t.Id, t.Nombre, t.Apellidos) })
+            .ToListAsync(cancellationToken);
+        var porSubcontrata = trabajadores.ToLookup(t => t.SubcontrataId!.Value, t => t.Identidad);
 
         return filas
             .Select(s =>
@@ -156,7 +175,10 @@ public class ObtenerSubcontratasQueryHandler(
                 return new SubcontrataListaDto(
                     s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio),
                     resumen?.Fraccion.Porcentaje,
-                    resumen is null ? RecuentosSubcontrataDto.Vacio : Desglosar(resumen));
+                    resumen is null ? RecuentosSubcontrataDto.Vacio : Desglosar(resumen))
+                {
+                    Trabajadores = porSubcontrata[s.Id].ToList()
+                };
             })
             .ToList();
     }

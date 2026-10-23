@@ -53,7 +53,7 @@ namespace CaeManager.Web.Tests;
 /// antes que la respuesta.
 /// </para>
 /// </summary>
-public class Centro360Gen2Tests : BunitContext
+public partial class Centro360Gen2Tests : BunitContext
 {
     /// <summary>BotonCopiar importa ./js/clipboard.js; MenuAcciones no usa interop.</summary>
     public Centro360Gen2Tests()

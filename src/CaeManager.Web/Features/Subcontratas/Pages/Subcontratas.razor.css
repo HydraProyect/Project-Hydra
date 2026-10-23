@@ -50,7 +50,7 @@
     color: var(--color-text-muted);
 }
 
-/* Identidad en dos líneas —razón social y CIF— que recorta con elipsis: sin
+/* Identidad con razón social, CIF y trabajadores; recorta con elipsis: sin
    esto, una razón social larga estira su columna y desalinea la fila. */
 .celda-identidad-subcontrata {
     display: flex;
@@ -68,6 +68,11 @@
 
 .celda-identidad-subcontrata > .enlace-nombre-fila {
     font-weight: 600;
+}
+
+/* La ventana de trabajadores debe poder salir de la caja de identidad. */
+.celda-identidad-subcontrata > .meta-trabajadores-subcontrata {
+    overflow: visible;
 }
 
 /*

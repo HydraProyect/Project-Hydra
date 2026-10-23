@@ -107,15 +107,45 @@
                             @* P1-X2: estado propio y tono neutro — nunca un verde falso. *@
                             <Badge Tono="EstadoCentroUi.Tono(EstadoCentro.SinGestionCae)">@EstadoCentroUi.Texto(EstadoCentro.SinGestionCae)</Badge>
                         }
-                        @if (_resumen.Recuentos.TotalVencidas > 0)
+                        @if (_resumen.Recuentos.VencidasPorFecha.Count > 0)
                         {
-                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Vencidas, "vencido")"
-                                             Titulo="@($"{_resumen.Recuentos.TotalVencidas} {(_resumen.Recuentos.TotalVencidas == 1 ? "documento vencido" : "documentos vencidos")}")">
+                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.VencidasPorFecha, "vencido")"
+                                             Titulo="@($"{_resumen.Recuentos.VencidasPorFecha.Count} {(_resumen.Recuentos.VencidasPorFecha.Count == 1 ? "documento vencido" : "documentos vencidos")}")">
                                 <Disparador>
-                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@_resumen.Recuentos.TotalVencidas vencido@(_resumen.Recuentos.TotalVencidas == 1 ? "" : "s")</Badge>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.VencidasPorFecha.Count == 1 ? Textos["MotivoUnVencido"] : Textos["MotivoVencidos", _resumen.Recuentos.VencidasPorFecha.Count])</Badge>
                                 </Disparador>
                                 <Detalle>
-                                    @foreach (var incidencia in _resumen.Recuentos.Vencidas)
+                                    @foreach (var incidencia in _resumen.Recuentos.VencidasPorFecha)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        @if (_resumen.Recuentos.Pendientes.Count > 0)
+                        {
+                            <VentanaContexto Etiqueta="@(_resumen.Recuentos.Pendientes.Count == 1 ? Textos["TituloUnPendiente"].Value : Textos["TituloPendientes", _resumen.Recuentos.Pendientes.Count].Value)"
+                                             Titulo="@(_resumen.Recuentos.Pendientes.Count == 1 ? Textos["TituloUnPendiente"].Value : Textos["TituloPendientes", _resumen.Recuentos.Pendientes.Count].Value)">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.Pendientes.Count == 1 ? Textos["MotivoUnPendiente"] : Textos["MotivoPendientes", _resumen.Recuentos.Pendientes.Count])</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in _resumen.Recuentos.Pendientes)
+                                    {
+                                        <span class="ventana-linea">@incidencia.Descripcion</span>
+                                    }
+                                </Detalle>
+                            </VentanaContexto>
+                        }
+                        @if (_resumen.Recuentos.Bloqueos.Count > 0)
+                        {
+                            <VentanaContexto Etiqueta="@(_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["TituloUnBloqueo"].Value : Textos["TituloBloqueos", _resumen.Recuentos.Bloqueos.Count].Value)"
+                                             Titulo="@(_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["TituloUnBloqueo"].Value : Textos["TituloBloqueos", _resumen.Recuentos.Bloqueos.Count].Value)">
+                                <Disparador>
+                                    <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.Bloqueos.Count == 1 ? Textos["MotivoUnBloqueo"] : Textos["MotivoBloqueos", _resumen.Recuentos.Bloqueos.Count])</Badge>
+                                </Disparador>
+                                <Detalle>
+                                    @foreach (var incidencia in _resumen.Recuentos.Bloqueos)
                                     {
                                         <span class="ventana-linea">@incidencia.Descripcion</span>
                                     }
@@ -124,10 +154,10 @@
                         }
                         @if (_resumen.Recuentos.TotalProximas > 0)
                         {
-                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Proximas, "próximo a vencer")"
+                            <VentanaContexto Etiqueta="@DescribirRecuento(_resumen.Recuentos.Proximas, "por vencer")"
                                              Titulo="@($"{_resumen.Recuentos.TotalProximas} {(_resumen.Recuentos.TotalProximas == 1 ? "documento próximo a vencer" : "documentos próximos a vencer")}")">
                                 <Disparador>
-                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@_resumen.Recuentos.TotalProximas próximo@(_resumen.Recuentos.TotalProximas == 1 ? "" : "s")</Badge>
+                                    <Badge Tono="TonoBadge.Advertencia" Tamano="TamanoBadge.Pequeno">@(_resumen.Recuentos.TotalProximas == 1 ? Textos["MotivoUnProximo"] : Textos["MotivoProximos", _resumen.Recuentos.TotalProximas])</Badge>
                                 </Disparador>
                                 <Detalle>
                                     @foreach (var incidencia in _resumen.Recuentos.Proximas)

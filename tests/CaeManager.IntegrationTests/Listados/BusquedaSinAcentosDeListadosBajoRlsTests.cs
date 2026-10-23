@@ -76,6 +76,28 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     // ------------------------------------------------------------ Buscar solo estrecha
 
     [Fact]
+    public async Task La_ventana_de_trabajadores_de_Subcontratas_no_sale_del_ambito_efectivo_ni_del_Tenant_propietario()
+    {
+        await using var runtime = escenario.ContextoRuntime();
+        async Task<List<SubcontrataListaDto>> LeerAsync(IAlcanceDatosService alcance)
+        {
+            var servicio = new CalculoEstadoSubcontrataService(runtime, runtime, runtime, runtime, runtime, runtime, alcance);
+            var handler = new ObtenerSubcontratasQueryHandler(runtime, alcance, servicio, runtime);
+            return (await handler.Handle(new ObtenerSubcontratasQuery(null), CancellationToken.None)).Elementos.ToList();
+        }
+
+        var sinRestriccion = await LeerAsync(new AlcanceDatosServiceFalso());
+        sinRestriccion.SelectMany(s => s.Trabajadores).Should().HaveCount(4);
+        sinRestriccion.SelectMany(s => s.Trabajadores).Select(t => t.Id).Should().NotContain(escenario.Ajeno.TrabajadorSubcontrataId);
+
+        var alcance = new AlcanceDatosServiceFalso(
+            subcontrataIds: [escenario.EnCartera.SubcontrataId],
+            trabajadorIds: [escenario.EnCartera.TrabajadorSubcontrataId]);
+        var fila = (await LeerAsync(alcance)).Should().ContainSingle().Subject;
+        fila.Trabajadores.Select(t => t.Id).Should().Equal(escenario.EnCartera.TrabajadorSubcontrataId);
+    }
+
+    [Fact]
     public async Task Trabajadores_encuentra_sin_acentos_y_no_sale_de_la_cartera() =>
         DebeEstrecharSinSalirDeLaCartera(
             await BuscarAsync((contexto, alcance) => BuscarTrabajadoresAsync(contexto, alcance, "NUNEZ IBANEZ")),
@@ -271,7 +293,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
         var resultado = await handler.Handle(new ObtenerSubcontratasQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(s => s.Id).ToList();
     }
@@ -363,7 +385,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
 
     public sealed record Bloque(
         Guid ClienteEmpresarialId, Guid EmpresaId, Guid SubcontrataId, Guid CentroId, Guid TrabajadorId,
-        Guid VehiculoId, Guid DocumentoId, Guid GestionId, Guid VisitaId);
+        Guid VehiculoId, Guid DocumentoId, Guid GestionId, Guid VisitaId, Guid TrabajadorSubcontrataId);
 
     /// <summary>Lo que distingue un bloque de otro; el resto de los datos es idéntico en los tres.</summary>
     private sealed record Identificadores(
@@ -473,6 +495,11 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
             var vehiculo = Vehiculo.DeEmpresa(empresa.Id, $"Camión grúa {i.Sufijo}", "Citroën Jumper", i.Matricula);
             Propietario.Centros.Add(centro);
             Propietario.Trabajadores.Add(trabajador);
+            // Dos identidades en la misma Empresa subcontratista permiten observar el filtro de Trabajadores,
+            // incluso cuando la Empresa subcontratista sí está dentro del ámbito efectivo del usuario.
+            var trabajadorSubcontrata = Trabajador.DeSubcontrata(subcontrata.Id, "Ana", $"Vidal {i.Sufijo}", i.Sufijo == "Uno" ? "11111111H" : "33333333P");
+            var trabajadorFuera = Trabajador.DeSubcontrata(subcontrata.Id, "Luis", $"Sanz {i.Sufijo}", i.Sufijo == "Uno" ? "22222222J" : "44444444A");
+            Propietario.Trabajadores.AddRange(trabajadorSubcontrata, trabajadorFuera);
             Propietario.Vehiculos.Add(vehiculo);
             await Propietario.SaveChangesAsync();
 
@@ -487,7 +514,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
 
             return new Bloque(
                 cliente.Id, empresa.Id, subcontrata.Id, centro.Id, trabajador.Id,
-                vehiculo.Id, documento.Id, gestion.Id, visita.Id);
+                vehiculo.Id, documento.Id, gestion.Id, visita.Id, trabajadorSubcontrata.Id);
         }
     }
 
