@@ -6,6 +6,7 @@ using CaeManager.Application.DependencyInjection;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.DependencyInjection;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -71,8 +72,10 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
     private readonly string _cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private Guid _tenantClienteId;
     private string _claveEnClaro = string.Empty;
+    private Guid _delegacionId;
+    private Guid _tenantPlataformaId;
 
-    private const string RazonSocialDelCliente = "Refrielectric S.L.";
+    private const string RazonSocialDelCliente = "Empresa Atlas S.L.";
 
     public async Task InitializeAsync()
     {
@@ -84,10 +87,15 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         contexto.Tenants.AddRange(tenantPlataforma, tenantCliente);
 
         var delegacion = DelegacionTenant.ParaSoporte(tenantPlataforma.Id, tenantCliente.Id);
+        delegacion.ActivarParaSoporte("Prueba de integración", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
         contexto.DelegacionesTenant.Add(delegacion);
+        var emisorId = Guid.NewGuid();
+        contexto.Users.Add(new ApplicationUser { Id = emisorId, TenantId = tenantPlataforma.Id, UserName = "emisor-alfa@ejemplo.test", Email = "emisor-alfa@ejemplo.test" });
         await contexto.SaveChangesAsync();
 
         _tenantClienteId = tenantCliente.Id;
+        _delegacionId = delegacion.Id;
+        _tenantPlataformaId = tenantPlataforma.Id;
 
         // La Empresa contraparte que la API tiene que devolver, sellada contra
         // el Tenant propietario de la clave.
@@ -110,11 +118,11 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
         // hash que va a la fila es el que el handler de autenticación vuelve a
         // calcular después.
         var generador = new GenerarClaveApiCommandHandler(
-            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), contexto,
-            new CurrentUserServiceFalso(Guid.NewGuid(), tenantOrigenId: tenantPlataforma.Id), contexto);
+            new DelegacionTenantRepository(contexto), new ClaveApiRepository(contexto), new AutorizacionClavesApiDePrueba(_tenantClienteId),
+            new CurrentUserServiceFalso(emisorId, tenantOrigenId: tenantPlataforma.Id), contexto);
 
         var generada = await generador.Handle(
-            new GenerarClaveApiCommand(delegacion.Id, "Integración externa de prueba"), CancellationToken.None);
+            new GenerarClaveApiCommand(delegacion.Id, "Integración externa de prueba", DateTime.UtcNow.AddDays(30), "Emisión de prueba"), CancellationToken.None);
 
         generada.EsExitoso.Should().BeTrue("sin una clave emitida no hay nada que autenticar");
         _claveEnClaro = generada.Valor.ClaveEnClaro;
@@ -169,6 +177,85 @@ public class ApiPublicaBajoRolRuntimeTests : IAsyncLifetime
             "hydra_0000000000000000000000000000000000000000000000000000000000000000");
 
         estado.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    /// <summary>
+    /// Al autenticar basta con que la delegación de Soporte del origen emisor EXISTA
+    /// (<c>CriterioSoporteClaveApi.PuedeAutenticar</c>): cerrar la ventana o dejarla vencer no
+    /// deja la clave en 401. Distinguir una retirada a propósito queda como incremento aparte.
+    /// </summary>
+    [Theory]
+    [InlineData("soporte revocado")]
+    [InlineData("soporte vencido")]
+    public async Task Bajo_RLS_autentica_aunque_la_ventana_de_soporte_este_cerrada(string caso)
+    {
+        await using (var contexto = CrearContextoPropietario())
+        {
+            var delegacion = await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId);
+            delegacion.Desactivar();
+            if (caso == "soporte vencido")
+                delegacion.ActivarParaSoporte("Prueba de vencimiento", DateTime.UtcNow.AddHours(-1), DateTime.UtcNow.AddHours(-2));
+            await contexto.SaveChangesAsync();
+        }
+
+        var (estado, cuerpo) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
+        estado.Should().Be(HttpStatusCode.OK, "la delegación de Soporte del origen emisor sigue existiendo. Detalle: {0}", cuerpo);
+    }
+
+    [Theory]
+    [InlineData("solo soporte de otro origen")]
+    [InlineData("solo delegacion comercial del mismo origen")]
+    [InlineData("ninguna delegacion")]
+    [InlineData("clave caducada")]
+    public async Task Bajo_RLS_rechaza_la_clave_caducada_o_sin_delegacion_de_soporte_de_su_origen(string caso)
+    {
+        await using (var contexto = CrearContextoPropietario())
+        {
+            if (caso == "clave caducada")
+            {
+                using var ambito = AmbitoTenantExplicito.Establecer(_tenantClienteId);
+                var clave = await contexto.ClavesApi.SingleAsync();
+                contexto.Entry(clave).Property(c => c.CaducaEnUtc).CurrentValue = DateTime.UtcNow.AddDays(-1);
+                await contexto.SaveChangesAsync();
+            }
+            else
+            {
+                // La delegación de Soporte del origen emisor desaparece; en su lugar queda, según el
+                // caso, otra que no cumple PuedeAutenticar o ninguna.
+                contexto.DelegacionesTenant.Remove(await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId));
+                await contexto.SaveChangesAsync();
+                if (caso == "solo soporte de otro origen")
+                {
+                    var otroOrigen = new Tenant("Organización Beta");
+                    contexto.Tenants.Add(otroOrigen);
+                    var otra = DelegacionTenant.ParaSoporte(otroOrigen.Id, _tenantClienteId);
+                    otra.ActivarParaSoporte("Prueba de otro origen", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
+                    contexto.DelegacionesTenant.Add(otra);
+                }
+                if (caso == "solo delegacion comercial del mismo origen")
+                    contexto.DelegacionesTenant.Add(new DelegacionTenant(_tenantPlataformaId, _tenantClienteId));
+                await contexto.SaveChangesAsync();
+            }
+        }
+
+        var (estado, _) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
+        estado.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task Bajo_RLS_basta_una_de_varias_delegaciones_validas_del_mismo_origen()
+    {
+        await using (var contexto = CrearContextoPropietario())
+        {
+            (await contexto.DelegacionesTenant.SingleAsync(d => d.Id == _delegacionId)).Desactivar();
+            var otra = DelegacionTenant.ParaSoporte(_tenantPlataformaId, _tenantClienteId);
+            otra.ActivarParaSoporte("Nueva ventana de prueba", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
+            contexto.DelegacionesTenant.Add(otra);
+            await contexto.SaveChangesAsync();
+        }
+
+        var (estado, _) = await LlamarAsync(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario), _claveEnClaro);
+        estado.Should().Be(HttpStatusCode.OK);
     }
 
     /// <summary>

@@ -14,6 +14,10 @@ public class ClaveApiConfiguration : IEntityTypeConfiguration<ClaveApi>
         builder.Property(c => c.NombreDescriptivo).HasMaxLength(200).IsRequired();
         builder.Property(c => c.PrefijoVisible).HasMaxLength(16).IsRequired();
         builder.Property(c => c.HashClave).HasMaxLength(64).IsRequired();
+        // El DEFAULT solo existe para la ranura anterior de un relevo azul/verde, que inserta sin
+        // conocer la columna (ver la migración AnadeCaducidadClavesApi); ClaveApi siempre la fija.
+        builder.Property(c => c.CaducaEnUtc).IsRequired().HasDefaultValueSql("now() + interval '30 days'");
+        builder.Ignore(c => c.MotivoEmision);
 
         // Búsqueda por hash en cada request autenticado: única y global (no
         // por tenant) porque el hash en sí ya identifica una clave concreta,

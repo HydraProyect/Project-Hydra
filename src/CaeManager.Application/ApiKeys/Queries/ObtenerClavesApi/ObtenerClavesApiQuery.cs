@@ -15,7 +15,7 @@ namespace CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 public record ObtenerClavesApiQuery(Guid DelegacionTenantId) : IRequest<IReadOnlyList<ClaveApiDto>>;
 
 public record ClaveApiDto(
-    Guid Id, string NombreDescriptivo, string PrefijoVisible, DateTime CreadaEnUtc, DateTime? UltimoUsoUtc, bool EstaActiva);
+    Guid Id, string NombreDescriptivo, string PrefijoVisible, DateTime CreadaEnUtc, DateTime? UltimoUsoUtc, bool EstaActiva, DateTime CaducaEnUtc);
 
 public class ObtenerClavesApiQueryHandler(IApiKeysQueryContext claveContext, ITenantsQueryContext dbContext, ICurrentUserService currentUserService)
     : IRequestHandler<ObtenerClavesApiQuery, IReadOnlyList<ClaveApiDto>>
@@ -41,7 +41,7 @@ public class ObtenerClavesApiQueryHandler(IApiKeysQueryContext claveContext, ITe
 
         return await claveContext.ClavesApi
             .OrderByDescending(c => c.CreadoEnUtc)
-            .Select(c => new ClaveApiDto(c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.EstaActiva))
+            .Select(c => new ClaveApiDto(c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.EstaActiva, c.CaducaEnUtc))
             .ToListAsync(cancellationToken);
     }
 }

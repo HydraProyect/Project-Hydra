@@ -29,6 +29,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("CaducaEnUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() + interval '30 days'");
+
                     b.Property<Guid>("CreadaPorUsuarioId")
                         .HasColumnType("uuid");
 

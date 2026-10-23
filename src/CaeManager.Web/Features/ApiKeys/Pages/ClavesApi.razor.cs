@@ -2,10 +2,14 @@ using CaeManager.Application.ApiKeys.Commands.GenerarClaveApi;
 using CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Tenants.Queries.ObtenerDelegaciones;
+using CaeManager.Domain.Common;
 using CaeManager.Web.Components.DesignSystem;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
+using Microsoft.Extensions.Localization;
+using CaeManager.Web.Features.ApiKeys.Recursos;
+using System.Globalization;
 
 namespace CaeManager.Web.Features.ApiKeys.Pages;
 
@@ -14,6 +18,7 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<ClavesApi> Logger { get; set; } = default!;
+    [Inject] private IStringLocalizer<TextosClavesApi> Textos { get; set; } = default!;
     private readonly CancellationTokenSource _ciclo = new();
     private bool _desechado;
     private IReadOnlyList<DelegacionDto> _delegacionesSoporte = [];
@@ -25,6 +30,8 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
     private int _generacionContexto;
     private bool _mostrarFormularioGenerar;
     private string _nombreNuevaClave = string.Empty;
+    private string _motivoNuevaClave = string.Empty;
+    private string _caducidadNuevaClave = string.Empty;
     private bool _generando;
     private string? _errorGenerar;
     private string? _claveGenerada;
@@ -51,10 +58,20 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private void ReiniciarContexto()
     {
-        _generacionContexto++; _versionCarga++; _claves = []; _idEnfocado = null; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
+        _generacionContexto++; _versionCarga++; _claves = []; _idEnfocado = null; _cargandoClaves = false; _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _generando = false; _errorGenerar = null; _claveGenerada = null; _claveARevocar = null; _revocando = false; _procesandoId = null;
     }
 
     private bool EsContextoVigente(int generacionContexto, Guid delegacionId) => !_desechado && _generacionContexto == generacionContexto && _delegacionSeleccionadaId == delegacionId;
+    private bool HayCambiosGeneracion => !_generando && (!string.IsNullOrWhiteSpace(_nombreNuevaClave)
+        || !string.IsNullOrWhiteSpace(_motivoNuevaClave) || !string.IsNullOrWhiteSpace(_caducidadNuevaClave));
+    // Mismo corte que ClaveApi.EstaVigente: la clave deja de valer en el instante de su caducidad.
+    private static bool EstaVigente(ClaveApiDto clave) => clave.EstaActiva && DateTime.UtcNow < clave.CaducaEnUtc;
+    private string TextoEstado(ClaveApiDto clave) =>
+        !clave.EstaActiva ? "Revocada" : EstaVigente(clave) ? "Activa" : Textos["Caducada"].Value;
+    // Último día de negocio en que la clave vale: el anterior al instante de caducidad, que para las
+    // emitidas desde esta página es el inicio del día siguiente al elegido en hora peninsular.
+    private static string UltimoDiaValido(ClaveApiDto clave) =>
+        DiaDeNegocio.De(clave.CaducaEnUtc.AddTicks(-1)).ToString("dd/MM/yyyy", CultureInfo.InvariantCulture);
     private string NombreOrganizacion(Guid delegacionId) => _delegacionesSoporte.FirstOrDefault(d => d.Id == delegacionId)?.ClienteNombre ?? "la organización original";
 
     private async Task CargarClavesAsync()
@@ -81,8 +98,10 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
 
     private void AbrirGeneracion() { if (!_generando) { _errorGenerar = null; _mostrarFormularioGenerar = true; } }
     private void CambiarNombreNuevaClave(string valor) { _nombreNuevaClave = valor; _errorGenerar = null; }
+    private void CambiarMotivoNuevaClave(string valor) { _motivoNuevaClave = valor; _errorGenerar = null; }
+    private void CambiarCaducidadNuevaClave(string valor) { _caducidadNuevaClave = valor; _errorGenerar = null; }
     // «Cancelar» cierra como la X (D-05): con el nombre escrito pregunta antes de descartarlo; lo hace el ModalFormulario.
-    private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _errorGenerar = null; } }
+    private void CerrarFormularioGenerar(bool visible) { if (!visible && !_generando) { _mostrarFormularioGenerar = false; _nombreNuevaClave = string.Empty; _motivoNuevaClave = string.Empty; _caducidadNuevaClave = string.Empty; _errorGenerar = null; } }
     private void CerrarClaveGenerada(bool visible) { if (!visible) _claveGenerada = null; }
     private void PedirRevocacion(ClaveApiDto clave) { if (!_revocando) _claveARevocar = clave; }
     private void CerrarRevocacion(bool visible) { if (!visible && !_revocando) _claveARevocar = null; }
@@ -95,7 +114,11 @@ public partial class ClavesApi : CaeManager.Web.Components.PaginaIntegrableConfi
         _generando = true; _errorGenerar = null;
         try
         {
-            var resultado = await Mediator.Send(new GenerarClaveApiCommand(delegacionId, _nombreNuevaClave));
+            // La fecha elegida vale entera en hora peninsular: la clave caduca al empezar el día
+            // siguiente en Madrid, expresado en UTC, que es lo que exige el validador.
+            DateTime? caducidad = DateOnly.TryParseExact(_caducidadNuevaClave, "yyyy-MM-dd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var dia) ? DiaDeNegocio.InicioEnUtc(dia.AddDays(1)) : null;
+            var resultado = await Mediator.Send(new GenerarClaveApiCommand(delegacionId, _nombreNuevaClave, caducidad, _motivoNuevaClave));
             var fallido = resultado.EsFallido; var error = fallido ? resultado.Error.Mensaje : null;
             if (!EsContextoVigente(generacionContexto, delegacionId))
             {
