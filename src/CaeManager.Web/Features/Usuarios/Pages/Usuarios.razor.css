@@ -139,7 +139,7 @@
     border-bottom: 1.5px solid var(--color-text);
 }
 
-.lista-design .tabla-datos td {
+.lista-design .tabla-datos tbody tr:not(.fila-grupo):not(.fila-restantes) > td {
     padding: var(--space-3) var(--space-4);
 }
 

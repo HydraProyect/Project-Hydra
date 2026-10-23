@@ -98,6 +98,20 @@ public partial class UsuariosGen2Tests
         cut.FindAll("[data-keytip=S]").Should().BeEmpty();
     }
     [Fact]
+    public void El_estado_Activo_va_con_punto_sin_pastilla_y_Desactivado_con_pastilla_neutra()
+    {
+        // Maqueta Usuarios TALVEG: lo correcto no lleva pastilla; lo desactivado, pastilla neutra (no roja).
+        Sembrar((Cuenta(MartaId, "activa@talveg.es", "Activa"), Roles.Consulta),
+            (Cuenta(JonId, "baja@talveg.es", "Baja", activa: false), Roles.Consulta));
+        var cut = Renderizar();
+        var activa = Fila(cut, "activa@talveg.es");
+        activa.QuerySelector(".estado-fila-correcto")!.TextContent.Trim().Should().Be("Activo");
+        activa.QuerySelector(".badge").Should().BeNull();
+        var baja = Fila(cut, "baja@talveg.es");
+        baja.QuerySelector(".estado-fila-correcto").Should().BeNull();
+        baja.QuerySelector(".badge-neutro")!.TextContent.Trim().Should().Be("Desactivado");
+    }
+    [Fact]
     public async Task Una_cuenta_pendiente_y_desactivada_pertenece_a_ambos_chips()
     {
         Sembrar((Cuenta(MartaId, "pendiente@talveg.es", "Pendiente", activa: false, pendienteActivacion: true), Roles.Consulta),
