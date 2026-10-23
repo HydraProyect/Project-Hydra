@@ -824,6 +824,14 @@ a.bandeja-documento-citado-nombre:hover {
     flex-shrink: 0;
 }
 
+/* Pie del editor: «Siguiente conversación» a la derecha, bajo la fila de Enviar. */
+.hilo-editor-pie {
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    padding: var(--space-2) 20px var(--space-3);
+}
+
 /* El hilo manda sobre el alto: cabecera y editor conservan el suyo y la cronología se queda con el resto, con un
    suelo para que nunca quede aplastada. Los tres selectores de la cabecera comparten una sola fila en vez de
    apilarse (en la columna central de ~450 px cada uno ocupaba su propia línea y se comían ~280 px). */
