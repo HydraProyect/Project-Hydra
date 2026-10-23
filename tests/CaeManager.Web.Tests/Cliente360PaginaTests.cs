@@ -1,4 +1,5 @@
-﻿using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.EliminarCliente;
+using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Web.Components.Layout;
 using AngleSharp.Dom;
 using Bunit;
@@ -50,7 +51,7 @@ namespace CaeManager.Web.Tests;
 /// (los documentos que el Cliente exige) se prueba en <c>Cliente360DocumentacionTests</c>.
 /// </para>
 /// </summary>
-public class Cliente360PaginaTests : BunitContext
+public partial class Cliente360PaginaTests : BunitContext
 {
     /// <summary>Tope de centros que pinta la página (ClienteDetalle.MaximoCentros, interno).</summary>
     private const int MaximoCentros = 200;
@@ -104,10 +105,13 @@ public class Cliente360PaginaTests : BunitContext
         }
 
         public Result ResultadoBaja { get; set; } = Result.Exito();
+        public Result ResultadoRestaurar { get; set; } = Result.Exito();
+        public bool LanzarAlRestaurar { get; set; }
 
         private object? Responder(object request) => request switch
         {
             EliminarClienteCommand => ResultadoBaja,
+            RestaurarClienteCommand => LanzarAlRestaurar ? throw new InvalidOperationException("Fallo simulado") : ResultadoRestaurar,
             ObtenerClientePorIdQuery q => Detalles.GetValueOrDefault(q.Id),
             ObtenerResumenClienteQuery q => Resumenes.GetValueOrDefault(q.ClienteId),
             ObtenerCentrosQuery q when q.ClienteId is { } c && CentrosPorCliente.TryGetValue(c, out var propios) =>
@@ -240,8 +244,10 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id);
         cut.Find(".fila-relacion-titulo .cliente360-bloqueo-plataforma").TextContent.Should().Be("Bloqueo de la plataforma CAE");
-        cut.Find(".fila-relacion-detalle").TextContent.Should().Be("Empresas: Ibertec GmbH");
-        cut.Find(".fila-relacion").TextContent.Should().NotContain("bloqueado por la plataforma");
+        // Z5-2: el rótulo no convive con «Todo validado»; el texto de la fila nombra el bloqueo (maqueta 21-10).
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be(
+            "Empresas: Ibertec GmbH" + (cantidad == 1 ? "1 documento bloquea el acceso" : "2 documentos bloquean el acceso"));
+        cut.Find(".fila-relacion").TextContent.Should().NotContain("Todo validado").And.NotContain("bloqueado por la plataforma");
     }
 
     [Fact]
@@ -835,7 +841,7 @@ public class Cliente360PaginaTests : BunitContext
         cut.FindAll(".pestanas-boton").Select(b => b.TextContent).Should().NotContain(t => t.StartsWith("Empresas"));
         var filas = cut.FindAll("li.fila-relacion");
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos");
-        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.");
+        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.Todo validado en la plataforma");
         cut.FindAll("li.fila-relacion").Should().OnlyContain(f => f.TextContent.Contains("Empresas: Montajes Ebro S.L."));
     }
 
@@ -856,7 +862,7 @@ public class Cliente360PaginaTests : BunitContext
         // Maqueta 17-10: una línea por cosa bajo el nombre (contratista; motivos).
         cut.WaitForAssertion(() => Textos(cut.FindAll("li.fila-relacion .cliente360-linea-detalle")).Should().Equal([
             "Empresas: Montajes Ebro S.L.", "3 vencidos · 1 por vencer",
-            "Empresas: Ibertec GmbH"]));
+            "Empresas: Ibertec GmbH", "Todo validado en la plataforma"]));
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent).Should().NotContain(t => t.Contains("Empresa:"));
     }
 
@@ -876,14 +882,14 @@ public class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(idA);
         cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent
-            .Should().Be("Empresas: Montajes Ebro S.L."));
+            .Should().Be("Empresas: Montajes Ebro S.L.Todo validado en la plataforma"));
 
         Services.GetRequiredService<NavigationManager>().NavigateTo($"clientes/{idB}");
         cut.Render(p => p.Add(x => x.ClienteId, idB));
 
         cut.WaitForAssertion(() => cut.Find("li.fila-relacion .fila-relacion-nombre").TextContent.Should().Contain("Nave logística Tudela"));
         cut.WaitForAssertion(() => mediador.Enviadas.OfType<ObtenerEmpresasDeClienteQuery>().Should().Contain(new ObtenerEmpresasDeClienteQuery(idB)));
-        cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent.Should().Be("Empresas: Montajes Ebro S.L.");
+        cut.Find("li.fila-relacion .fila-relacion-detalle").TextContent.Should().Be("Empresas: Montajes Ebro S.L.Todo validado en la plataforma");
         cut.FindAll("li.fila-relacion").Select(f => f.TextContent)
             .Should().Contain(t => t.Contains("Empresas: Montajes Ebro S.L."));
         cut.Find(".cabecera-identidad-datos").TextContent.Should().NotContain("Contratista:");
@@ -1077,7 +1083,7 @@ public class Cliente360PaginaTests : BunitContext
         filas[0].GetAttribute("data-tono").Should().Be("peligro", "la fila con problema se tiñe, como .fila-tinte-rojo");
         filas[1].GetAttribute("data-tono").Should().BeNull();
         filas[0].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Montajes Ebro S.L.3 vencidos · 1 por vencer");
-        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Ibertec GmbH");
+        filas[1].QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Empresas: Ibertec GmbHTodo validado en la plataforma");
         filas[0].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("40 %");
         filas[1].QuerySelector(".cliente360-cumplimiento")!.TextContent.Trim().Should().Be("Sin requisitos");
         filas[0].QuerySelector(".badge")!.TextContent.Trim().Should().Be(Features.Centros.EstadoCentroUi.Texto(EstadoCentro.Bloqueado));

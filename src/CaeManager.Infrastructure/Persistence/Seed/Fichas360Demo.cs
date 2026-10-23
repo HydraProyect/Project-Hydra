@@ -120,15 +120,15 @@ public static class CatalogoFichas360Demo
     // Tipos de documento, con el nombre del catálogo (la maqueta abrevia algunos: «Aptitud médica», «ITV»…).
     public const string AptitudMedica = "Certificado de aptitud médica";
     public const string EntregaEpi = "Entrega de EPI";
-    public const string FormacionArt19 = "Formación Art. 19";
-    public const string InformacionArt18 = "Información Art. 18";
+    public const string FormacionArt19 = "Formación PRL del puesto";
+    public const string InformacionArt18 = "Información de riesgos del puesto";
     public const string ContratoDeTrabajo = "Contrato de Trabajo";
     public const string DocumentoIdentidad = "Documento de identidad";
     public const string Rnt = "RNT";
-    public const string Rlc = "RLC";
+    public const string Rlc = "RLC (TC1)";
     public const string CorrienteSeguridadSocial = "Certificado de estar al corriente con la Seguridad Social";
     public const string CorrienteHacienda = "Certificado de estar al corriente con Hacienda";
-    public const string SeguroResponsabilidadCivil = "Seguro de Responsabilidad Civil + recibo de pago";
+    public const string SeguroResponsabilidadCivil = "Seguro de Responsabilidad Civil";
     public const string EvaluacionDeRiesgos = "Evaluación de Riesgos Laborales";
     public const string PlanificacionPreventiva = "Planificación de la Actividad Preventiva";
     public const string ServicioDePrevencion = "Servicio de Prevención Ajeno";

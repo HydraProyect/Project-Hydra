@@ -12,32 +12,11 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="Titulo" xml:space="preserve">
-    <value>Pregúntale a {0}</value>
-  </data>
-  <data name="CerrarEtiqueta" xml:space="preserve">
-    <value>Cerrar</value>
-  </data>
-  <data name="Descripcion" xml:space="preserve">
-    <value>Especialista en legislación de Prevención de Riesgos Laborales (España/UE). No tiene acceso a tus Clientes, Trabajadores ni Documentos — solo responde dudas normativas generales.</value>
-  </data>
-  <data name="MensajeVacio" xml:space="preserve">
-    <value>Escribe tu pregunta sobre PRL para empezar.</value>
-  </data>
   <data name="IndicadorPensando" xml:space="preserve">
     <value>Pensando…</value>
   </data>
-  <data name="EtiquetaPregunta" xml:space="preserve">
-    <value>Pregunta al asistente</value>
-  </data>
-  <data name="PlaceholderPregunta" xml:space="preserve">
-    <value>Escribe tu pregunta…</value>
-  </data>
   <data name="BotonEnviar" xml:space="preserve">
     <value>Enviar</value>
-  </data>
-  <data name="TituloAgente" xml:space="preserve">
-    <value>Asistente {0}</value>
   </data>
   <data name="BorradoresEtiqueta" xml:space="preserve">
     <value>Borradores y conversaciones anteriores</value>
@@ -51,29 +30,8 @@
   <data name="ModoEtiqueta" xml:space="preserve">
     <value>Qué quieres hacer</value>
   </data>
-  <data name="ModoGestion" xml:space="preserve">
-    <value>Pedir una gestión</value>
-  </data>
-  <data name="ModoPreguntar" xml:space="preserve">
-    <value>Consultar la normativa</value>
-  </data>
-  <data name="DescripcionGestion" xml:space="preserve">
-    <value>Escribe una gestión y te propongo un plan. No se ejecuta nada sin tu confirmación, y siempre dentro de lo que tu Asignación de Cartera te permite. Para lo que nombres, solo consulto los datos de tu cartera.</value>
-  </data>
   <data name="AgenteNoDisponible" xml:space="preserve">
     <value>Pedir gestiones al asistente no está disponible en este entorno.</value>
-  </data>
-  <data name="MensajeVacioGestion" xml:space="preserve">
-    <value>Escribe qué quieres hacer, por ejemplo: «reclama la documentación pendiente de un Centro».</value>
-  </data>
-  <data name="EtiquetaOrden" xml:space="preserve">
-    <value>Gestión que quieres pedir al asistente</value>
-  </data>
-  <data name="PlaceholderOrden" xml:space="preserve">
-    <value>Escribe la gestión…</value>
-  </data>
-  <data name="OrdenNoEntendida" xml:space="preserve">
-    <value>No he reconocido una gestión en lo que has escrito, así que no he preparado ningún plan. Si era una duda normativa, cambia a «Consultar la normativa».</value>
   </data>
   <data name="TareaEstado_Conversando" xml:space="preserve">
     <value>Sin plan</value>
@@ -136,10 +94,10 @@
     <value>Cambiar a {0}</value>
   </data>
   <data name="Plan_LoQueEntendi" xml:space="preserve">
-    <value>Lo que entendí</value>
+    <value>Lo que he entendido</value>
   </data>
   <data name="Plan_QueHare" xml:space="preserve">
-    <value>Lo que haría</value>
+    <value>Pasos</value>
   </data>
   <data name="Plan_UnoDeEstos" xml:space="preserve">
     <value>Se haría solo uno de estos pasos, según el caso:</value>
@@ -169,10 +127,10 @@
     <value>↵ Enter</value>
   </data>
   <data name="Plan_Descartar" xml:space="preserve">
-    <value>Descartar</value>
+    <value>Cancelar</value>
   </data>
   <data name="Plan_Descartado" xml:space="preserve">
-    <value>Plan descartado: {0}. No se ha hecho nada.</value>
+    <value>Cancelado. No se ha hecho nada.</value>
   </data>
   <data name="Plan_Cerrado" xml:space="preserve">
     <value>Plan · {0}</value>
@@ -287,5 +245,110 @@
   </data>
   <data name="Paso_ObtenerEstadoCentroQuery" xml:space="preserve">
     <value>Consultar el estado del Centro</value>
+  </data>
+  <data name="SubtituloVega" xml:space="preserve">
+    <value>Asistente IA de {0}</value>
+  </data>
+  <data name="BotonAbrirEtiqueta" xml:space="preserve">
+    <value>Abrir Vega, el asistente de {0} (Ctrl+I)</value>
+  </data>
+  <data name="BotonTooltip" xml:space="preserve">
+    <value>Abrir Vega · Ctrl+I</value>
+  </data>
+  <data name="PistaTitulo" xml:space="preserve">
+    <value>Soy Vega, el asistente de {0}.</value>
+  </data>
+  <data name="PistaTexto" xml:space="preserve">
+    <value>Pregúntame un dato o pídeme que prepare una tarea: siempre te enseño el plan antes de hacer nada.</value>
+  </data>
+  <data name="PistaEntendido" xml:space="preserve">
+    <value>Entendido</value>
+  </data>
+  <data name="PanelEtiqueta" xml:space="preserve">
+    <value>Vega, asistente de {0}</value>
+  </data>
+  <data name="NuevaConversacion" xml:space="preserve">
+    <value>Nueva conversación</value>
+  </data>
+  <data name="PantallaCompleta" xml:space="preserve">
+    <value>Abrir en pantalla completa</value>
+  </data>
+  <data name="Plegar" xml:space="preserve">
+    <value>Plegar (Ctrl+I)</value>
+  </data>
+  <data name="TrabajandoEn" xml:space="preserve">
+    <value>Trabajando en</value>
+  </data>
+  <data name="TrabajandoEnTooltipOrigen" xml:space="preserve">
+    <value>Tu organización en esta sesión: {0}. En Operativo, cada plan dice en qué Empresa se haría antes de confirmarlo; en Consulta PRL no se usan datos de ninguna Empresa.</value>
+  </data>
+  <data name="TrabajandoEnTooltipGestionada" xml:space="preserve">
+    <value>Empresa gestionada de esta sesión: {0}. En Operativo, cada plan dice en qué Empresa de tu cartera se haría antes de confirmarlo; en Consulta PRL no se usan datos de ninguna Empresa.</value>
+  </data>
+  <data name="AvisoIa" xml:space="preserve">
+    <value>Vega es una inteligencia artificial y puede equivocarse. Nada se ejecuta sin tu confirmación.</value>
+  </data>
+  <data name="Bienvenida" xml:space="preserve">
+    <value>Hola, {0}. Soy Vega.</value>
+  </data>
+  <data name="BienvenidaSinNombre" xml:space="preserve">
+    <value>Hola. Soy Vega.</value>
+  </data>
+  <data name="BienvenidaTexto" xml:space="preserve">
+    <value>Escríbeme como a un compañero. Te ayudo de estas formas:</value>
+  </data>
+  <data name="Modo_Operativo" xml:space="preserve">
+    <value>Operativo</value>
+  </data>
+  <data name="Modo_ConsultaPrl" xml:space="preserve">
+    <value>Consulta PRL</value>
+  </data>
+  <data name="ModoTooltip_Operativo" xml:space="preserve">
+    <value>Prepara un plan con los pasos. No se ejecuta hasta que pulsas Confirmar.</value>
+  </data>
+  <data name="ModoTooltip_ConsultaPrl" xml:space="preserve">
+    <value>Responde sobre normativa de prevención. No usa datos de ninguna Empresa.</value>
+  </data>
+  <data name="ModoResumen_Operativo" xml:space="preserve">
+    <value>prepara un plan con los pasos</value>
+  </data>
+  <data name="ModoResumen_ConsultaPrl" xml:space="preserve">
+    <value>responde sobre normativa de prevención</value>
+  </data>
+  <data name="Ejemplo_Operativo" xml:space="preserve">
+    <value>Reclama la documentación pendiente de un Centro</value>
+  </data>
+  <data name="Ejemplo_ConsultaPrl" xml:space="preserve">
+    <value>¿Qué formación hace falta para trabajos en altura?</value>
+  </data>
+  <data name="Pensando" xml:space="preserve">
+    <value>Vega está pensando</value>
+  </data>
+  <data name="SinRespuestaSegura" xml:space="preserve">
+    <value>No tengo una respuesta segura para eso en {0}. Prueba a decirlo de otra forma o búscalo con Ctrl+K.</value>
+  </data>
+  <data name="SinRespuestaSeguraSinEmpresa" xml:space="preserve">
+    <value>No tengo una respuesta segura para eso. Prueba a decirlo de otra forma o búscalo con Ctrl+K.</value>
+  </data>
+  <data name="PlaceholderMensaje" xml:space="preserve">
+    <value>Pregunta o pide algo a Vega…</value>
+  </data>
+  <data name="EtiquetaMensaje" xml:space="preserve">
+    <value>Mensaje para Vega</value>
+  </data>
+  <data name="PistaCampo" xml:space="preserve">
+    <value>Enter envía · Mayús+Enter nueva línea · Ctrl+I pliega</value>
+  </data>
+  <data name="PistaCampoPantalla" xml:space="preserve">
+    <value>Enter envía · Mayús+Enter nueva línea</value>
+  </data>
+  <data name="OrdenNoEntendida" xml:space="preserve">
+    <value>No he reconocido una gestión en lo que has escrito, así que no he preparado ningún plan. Si era una duda normativa, cambia a «Consulta PRL».</value>
+  </data>
+  <data name="EmpresaCambiadaOrigen" xml:space="preserve">
+    <value>Ahora estás trabajando en tu organización, así que he vaciado la conversación anterior y no he enviado nada. Revisa en qué Empresa trabajas y vuelve a escribir.</value>
+  </data>
+  <data name="EmpresaCambiadaGestionada" xml:space="preserve">
+    <value>La Empresa gestionada ha cambiado, así que he vaciado la conversación anterior y no he enviado nada. Revisa en qué Empresa trabajas y vuelve a escribir.</value>
   </data>
 </root>

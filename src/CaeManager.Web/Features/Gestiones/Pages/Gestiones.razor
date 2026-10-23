@@ -207,7 +207,8 @@
                 <span class="etiqueta-vista-rapida-gestion">@Textos["EtiquetaVistaRapida"]</span>
                 <span class="nombre-vista-rapida-gestion">@vista.TrabajadorNombre</span>
                 <span class="meta-vista-rapida-gestion">
-                    <Badge Tono="@TonoEstado(vista.Estado)" Tamano="TamanoBadge.Pequeno">@TextoEstado(vista.Estado)</Badge>
+                    @{ var pastilla = PastillaVistaRapida(vista); }
+                    <Badge Tono="@pastilla.Tono" Tamano="TamanoBadge.Pequeno">@pastilla.Texto</Badge>
                     <span>@Textos["VistaRapidaCreadaEl", vista.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")]</span>
                 </span>
             </div>

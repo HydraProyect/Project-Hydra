@@ -11,7 +11,8 @@ namespace CaeManager.Application.Visitas.Commands.CancelarVisita;
 /// deja en estado Cancelada, reversible con <c>ReactivarVisitaCommand</c>. Antes
 /// era un borrado lógico sin estado ni restauración, y en Outbound —donde la
 /// Visita es la gestión de ingreso ante la plataforma destino— su historia se
-/// perdía. El motivo es opcional.
+/// perdía. El motivo es opcional para el comando (API y datos antiguos); desde la maqueta «Flujos 06
+/// Visitas» (2026-10-21) la interfaz web lo exige y desactiva el botón sin él.
 /// <para>
 /// Devuelve el recibo de la cancelación (<see cref="VisitaCanceladaDto"/>): la versión en la que
 /// dejó la Visita es lo que el aviso «Deshacer» devuelve a <c>ReactivarVisitaCommand</c>, que

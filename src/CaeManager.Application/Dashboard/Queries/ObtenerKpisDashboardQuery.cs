@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
@@ -82,8 +83,30 @@ public record KpisDashboardDto(
     /// sale entonces de <see cref="Fraccion"/> y esos pares no se consultan.
     /// </summary>
     int ParesExigidosSinDocumento = 0,
-    bool TienePendientesDocumentales = false)
+    bool TienePendientesDocumentales = false,
+    /// <summary>Documentos de Empresa vencidos, con la selección de Alertas. Fuera de la tasa, que mide Documentos de Trabajador.</summary>
+    int DocumentosEmpresaVencidos = 0,
+    /// <summary>Documentos de Empresa en estado Urgente, con la selección de Alertas.</summary>
+    int DocumentosEmpresaUrgentes = 0,
+    /// <summary>Documentos de Empresa en estado Próximo, con la selección de Alertas.</summary>
+    int DocumentosEmpresaProximos = 0,
+    /// <summary>Clientes empresariales del alcance. Inicio ofrece «Desglosar por Cliente» solo con más de uno.</summary>
+    int ClientesEmpresarialesEnAlcance = 0,
+    /// <summary>Documentos de Empresa vigentes, con la selección de Alertas sin cota de fecha. Fuera de la tasa.</summary>
+    int DocumentosEmpresaVigentes = 0)
 {
+    /// <summary>
+    /// Vencidos de la Empresa gestionada tal como los cuentan Alertas y Mi trabajo: de Trabajador y de Empresa. Es la cifra
+    /// por Tenant de Inicio y de Visión de cartera; <see cref="DocumentosVencidos"/> solo es la parte que entra en la tasa.
+    /// </summary>
+    public int VencidosComoEnAlertas => DocumentosVencidos + DocumentosEmpresaVencidos;
+
+    /// <summary>Urgentes de Trabajador y de Empresa, como en Alertas y en Mi trabajo («Por vencer»).</summary>
+    public int UrgentesComoEnAlertas => DocumentosUrgentes + DocumentosEmpresaUrgentes;
+
+    /// <summary>Próximos de Trabajador y de Empresa, como en Alertas.</summary>
+    public int ProximosComoEnAlertas => DocumentosProximos + DocumentosEmpresaProximos;
+
     /// <summary>La fracción de la tasa, por la única definición de <see cref="CumplimientoDocumental"/>.</summary>
     public FraccionCumplimiento Fraccion => FraccionDe(
         DocumentosVigentes, DocumentosProximos, DocumentosUrgentes, DocumentosVencidos, DocumentosSinConfirmar, DocumentosSinCaducidad);
@@ -122,9 +145,11 @@ public record KpisDashboardDto(
 /// original). El semáforo de cada documento se calcula en memoria con
 /// CalculadoraEstadoDocumento — la misma función que usan las tablas de
 /// Documentos — para que Dashboard y detalle nunca puedan mostrar
-/// resultados distintos. Los 4 contadores de documentos solo cuentan
-/// Documentos de Trabajador — los de Cliente/Empresa quedan fuera de estos
-/// KPI por ahora (fuera de alcance).
+/// resultados distintos. Los 4 contadores de documentos y la tasa solo cuentan
+/// Documentos de Trabajador, con la misma selección que Alertas
+/// (<see cref="DocumentosConAlertaDeVigencia.DeTrabajador"/>); los vencimientos de
+/// Empresa van aparte (<c>DocumentosEmpresa*</c>) y se suman en la cifra por Tenant
+/// (<see cref="KpisDashboardDto.VencidosComoEnAlertas"/>), que así es la de Alertas y Mi trabajo.
 ///
 /// <para>
 /// El porcentaje es documental y no decide si el Tenant está al día: los
@@ -135,7 +160,7 @@ public record KpisDashboardDto(
 /// Centros (<c>KpisCentrosBloqueadosBajoRlsTests</c>).
 /// </para>
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IProyectosQueryContext proyectosContext)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
@@ -161,6 +186,12 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         if (centroIdsVisibles is not null) centrosQuery = centrosQuery.Where(c => centroIdsVisibles.Contains(c.Id));
         var centroIds = await centrosQuery.Select(c => c.Id).ToListAsync(cancellationToken);
         var centros = centroIds.Count;
+
+        // Cuántos Clientes empresariales hay en el alcance: «Desglosar por Cliente» solo tiene sentido con más de uno (un
+        // usuario de Cliente empresarial ve siempre el suyo). Con alcance acotado es su lista; sin acotar, los Clientes
+        // empresariales con algún Centro de Trabajo.
+        var clientesEmpresariales = clienteIdsVisibles?.Count
+            ?? await centrosQuery.Select(c => c.ClienteId).Distinct().CountAsync(cancellationToken);
 
         // D-7: una acreditación Rechazada aplicable (y cualquier otra causa
         // bloqueante) pone el Centro en Bloqueado. Mismo servicio, sin copiar
@@ -190,8 +221,13 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         var limiteAvisoVisita = hoyParaVisitas.AddDays(parametros.HorasAvisoVisita / 24);
         var visitasUrgentes = await visitasQuery.CountAsync(v => v.FechaInicio <= limiteAvisoVisita, cancellationToken);
 
-        var documentosQuery = documentosContext.Documentos.Operativos().Where(d => d.TrabajadorId != null);
-        if (trabajadorIdsVisibles is not null) documentosQuery = documentosQuery.Where(d => trabajadorIdsVisibles.Contains(d.TrabajadorId!.Value));
+        var hoy = DiaDeNegocio.Hoy();
+
+        // La misma selección que Alertas (y, a través de ella, Mi trabajo): sin documentos de un Trabajador que ya no
+        // existe ni de un voluntario inactivo. Antes Inicio contaba su propio universo y un mismo Tenant beneficiario daba
+        // otra cifra de vencidos que Alertas y Mi trabajo.
+        var documentosQuery = DocumentosConAlertaDeVigencia.DeTrabajador(
+            documentosContext, trabajadoresContext, tiposDocumentoContext, proyectosContext, trabajadorIdsVisibles, hoy);
 
         // Agregado en PostgreSQL: una fila por par distinto (EstadoVigencia,
         // FechaVencimiento) con su recuento, no una por Documento — el volumen
@@ -203,8 +239,6 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             .GroupBy(d => new { d.EstadoVigencia, d.FechaVencimiento })
             .Select(g => new { g.Key.EstadoVigencia, g.Key.FechaVencimiento, Cantidad = g.Count() })
             .ToListAsync(cancellationToken);
-
-        var hoy = DiaDeNegocio.Hoy();
 
         var documentosPorEstado = vigencias
             .GroupBy(v => CalculadoraEstadoDocumento.Calcular(
@@ -230,9 +264,18 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             : 0;
         var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        var empresasConAlertas = await DocumentosConAlertaDeVigencia.DeEmpresa(
-                documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles, DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros))
-            .AnyAsync(cancellationToken);
+        // Los documentos de Empresa, con la misma selección que Alertas sin cota de fecha: no entran en la tasa (que mide
+        // Documentos de Trabajador), pero sí en todos los segmentos del semáforo ejecutivo.
+        var vencimientosEmpresa = await DocumentosConAlertaDeVigencia.DeEmpresa(
+                documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles)
+            .GroupBy(d => d.FechaVencimiento)
+            .Select(g => new { FechaVencimiento = g.Key, Cantidad = g.Count() })
+            .ToListAsync(cancellationToken);
+        var empresaPorEstado = vencimientosEmpresa
+            .GroupBy(v => CalculadoraEstadoDocumento.Calcular(
+                VigenciaDocumento.VenceEl(v.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+            .ToDictionary(g => g.Key, g => g.Sum(v => v.Cantidad));
+        var empresasConAlertas = empresaPorEstado.Any(e => e.Key is EstadoDocumento.Vencido or EstadoDocumento.Urgente or EstadoDocumento.Proximo);
 
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
@@ -253,6 +296,11 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             TrabajadoresBloqueados: trabajadoresBloqueados,
             ParesExigidosSinDocumento: paresExigidosSinDocumento,
             TienePendientesDocumentales: empresasConAlertas
-                || estadosCentro.Values.Any(r => r.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)));
+                || estadosCentro.Values.Any(r => r.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)),
+            DocumentosEmpresaVencidos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vencido),
+            DocumentosEmpresaUrgentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Urgente),
+            DocumentosEmpresaProximos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Proximo),
+            ClientesEmpresarialesEnAlcance: clientesEmpresariales,
+            DocumentosEmpresaVigentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vigente));
     }
 }

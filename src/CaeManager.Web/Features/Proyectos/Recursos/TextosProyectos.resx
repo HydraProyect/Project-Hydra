@@ -420,21 +420,29 @@
   <data name="PestanaVisitasProyecto" xml:space="preserve"><value>Visitas</value></data>
   <data name="ListaEmpresasProyecto" xml:space="preserve"><value>Empresas empleadoras con técnicos en el Proyecto</value></data>
   <data name="ListaVisitasProyecto" xml:space="preserve"><value>Visitas del Centro durante el Proyecto</value></data>
-  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empresas empleadoras · por nombre</value></data>
+  <data name="ResumenEmpresasProyecto" xml:space="preserve"><value>{0} Empresas empleadoras · del peor estado al mejor</value></data>
   <data name="EmpresaProyectoUnTecnico" xml:space="preserve"><value>1 técnico activo en el Proyecto</value></data>
   <data name="EmpresaProyectoTecnicos" xml:space="preserve"><value>{0} técnicos activos en el Proyecto</value></data>
-  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visitas · por fecha de inicio</value></data>
+  <data name="ResumenVisitasProyecto" xml:space="preserve"><value>{0} visitas · la más reciente primero</value></data>
   <data name="FechasVisitaProyecto" xml:space="preserve"><value>{0} – {1}</value></data>
   <data name="VisitaProyectoUnTrabajador" xml:space="preserve"><value>1 trabajador en la Visita</value></data>
   <data name="VisitaProyectoTrabajadores" xml:space="preserve"><value>{0} trabajadores en la Visita</value></data>
   <data name="ProgramarVisitaProyecto" xml:space="preserve"><value>Programar visita</value></data>
-  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Sin Empresas empleadoras visibles con técnicos activos.</value></data>
-  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Sin visitas visibles del Centro en este periodo.</value></data>
+  <data name="EmpresasProyectoVacio" xml:space="preserve"><value>Aquí aparecerán la Empresa y las subcontratas con técnicos en el proyecto.</value></data>
+  <data name="VisitasProyectoVacio" xml:space="preserve"><value>Aquí aparecerán las visitas del Centro dentro de las fechas del proyecto.</value></data>
+  <data name="EmpresasProyectoVacioTitulo" xml:space="preserve"><value>Sin empresas en el proyecto</value></data>
+  <data name="VehiculosProyectoVacioTitulo" xml:space="preserve"><value>Sin vehículos asignados</value></data>
+  <data name="VisitasProyectoVacioTitulo" xml:space="preserve"><value>Sin visitas en este periodo</value></data>
+  <data name="IntroEmpresasProyecto" xml:space="preserve"><value>Empresas con técnicos en el proyecto · documentación de empresa y subcontratas</value></data>
+  <data name="IntroVehiculosProyecto" xml:space="preserve"><value>Vehículos con acceso a {0} para este proyecto</value></data>
+  <data name="IntroDocumentosProyecto" xml:space="preserve"><value>Documentos propios del proyecto</value></data>
+  <data name="IntroVisitasProyecto" xml:space="preserve"><value>Visitas del proyecto, la más reciente primero</value></data>
+  <data name="AvisoEdicionClienteCentro" xml:space="preserve"><value>Cliente y Centro no se pueden cambiar después de crear el proyecto.</value></data>
   <data name="NotaVisitasProyecto" xml:space="preserve"><value>Una visita no pertenece a un proyecto. Estas son las del mismo Centro dentro de las fechas del proyecto.</value></data>
   <data name="LecturaEmpresasProyectoError" xml:space="preserve"><value>No se han podido cargar las Empresas empleadoras.</value></data>
   <data name="LecturaVisitasProyectoError" xml:space="preserve"><value>No se han podido cargar las Visitas del periodo.</value></data>
-  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa empleadora · por nombre</value></data>
-  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · por fecha de inicio</value></data>
+  <data name="ResumenEmpresaProyecto" xml:space="preserve"><value>1 Empresa empleadora · del peor estado al mejor</value></data>
+  <data name="ResumenVisitaProyecto" xml:space="preserve"><value>1 visita · la más reciente primero</value></data>
   <data name="EmpresaProyectoPapelDirecta" xml:space="preserve"><value>Empresa empleadora directa</value></data>
   <data name="EmpresaProyectoPapelSubcontrata" xml:space="preserve"><value>Subcontrata</value></data>
   <data name="EmpresaProyectoAmbosPapeles" xml:space="preserve"><value>Empresa empleadora directa · Subcontrata</value></data>
@@ -442,9 +450,9 @@
   <data name="PestanaVehiculosProyecto" xml:space="preserve"><value>Vehículos</value></data>
   <data name="PestanaHistorialProyecto" xml:space="preserve"><value>Historial</value></data>
   <data name="ListaVehiculosProyecto" xml:space="preserve"><value>Vehículos de las Empresas empleadoras del Proyecto</value></data>
-  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehículos · por nombre</value></data>
-  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehículo · por nombre</value></data>
-  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Sin vehículos visibles de las Empresas empleadoras con técnicos activos.</value></data>
+  <data name="ResumenVehiculosProyecto" xml:space="preserve"><value>{0} vehículos · del peor estado al mejor</value></data>
+  <data name="ResumenVehiculoProyecto" xml:space="preserve"><value>1 vehículo · del peor estado al mejor</value></data>
+  <data name="VehiculosProyectoVacio" xml:space="preserve"><value>Aquí aparecerán los vehículos de las Empresas con técnicos en el proyecto.</value></data>
   <data name="LecturaVehiculosProyectoError" xml:space="preserve"><value>No se han podido cargar los vehículos de las Empresas empleadoras.</value></data>
   <data name="OrigenVehiculosProyecto" xml:space="preserve"><value>Un vehículo no se asigna a un Proyecto: estos son los de las Empresas empleadoras derivadas de los técnicos activos.</value></data>
   <data name="BadgeEvento" xml:space="preserve">

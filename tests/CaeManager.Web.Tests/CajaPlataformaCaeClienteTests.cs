@@ -22,7 +22,7 @@ namespace CaeManager.Web.Tests;
 /// servidor no le entrega los accesos); al Usuario de Cliente no se le pinta. La contraseña nunca llega al abrir la
 /// ficha: «Mostrar» y «Copiar» la piden con un clic, y la mostrada se vuelve a ocultar sola a los 30 s.
 /// </summary>
-public class CajaPlataformaCaeClienteTests : BunitContext
+public partial class CajaPlataformaCaeClienteTests : BunitContext
 {
     private static readonly Guid ClienteEmpresarialId = Guid.NewGuid();
     private static readonly Guid EmpresaId = Guid.NewGuid();

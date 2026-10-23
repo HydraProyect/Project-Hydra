@@ -423,6 +423,136 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("MomentoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantOrigenLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "MomentoUtc")
+                        .HasDatabaseName("IX_AccesosLecturaInbound_Autorizacion");
+
+                    b.ToTable("AccesosLecturaInbound", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccesosLecturaInbound_DocumentoSegunTipo", "(\"Tipo\" = 'Listado' AND \"DocumentoId\" IS NULL) OR (\"Tipo\" = 'Apertura' AND \"DocumentoId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ConcedidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConcedidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IncluyeDocumentosEmpresa")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("VigenciaDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("VigenciaHasta")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantDestinatarioId", "ContratoAccesoId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLectura_UnaSinRevocarPorContrato")
+                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
+
+                    b.ToTable("AutorizacionesLecturaDocumental", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_DestinatarioAjeno", "\"TenantDestinatarioId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_HastaNoAnteriorADesde", "\"VigenciaHasta\" IS NULL OR \"VigenciaHasta\" >= \"VigenciaDesde\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_RevocacionEntera", "(\"RevocadaEnUtc\" IS NULL) = (\"RevocadaPorUsuarioId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TrabajadorId")
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Trabajador");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "TrabajadorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Unico");
+
+                    b.ToTable("AutorizacionesLecturaTrabajadores", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.Property<Guid>("Id")
@@ -784,6 +914,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("IncidenciaId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
 
@@ -812,7 +945,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.HasIndex("TenantId", "ConversacionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_AlertasCriticasConversacion_TenantId_ConversacionId_Pendiente")
+                        .HasFilter("\"Estado\" = 0");
 
                     b.ToTable("AlertasCriticasConversacion", (string)null);
                 });
@@ -1897,6 +2032,81 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ContactosAgendaTiposDocumento", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("FechaCierreReal")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaFin")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("TenantContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId");
+
+                    b.HasIndex("TenantId", "EmpresaContratistaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
+
+                    b.ToTable("ContratosAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContratosAcceso_CierreNoAnteriorAlInicio", "\"FechaCierreReal\" IS NULL OR \"FechaCierreReal\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_TenantContratistaAjeno", "\"TenantContratistaId\" IS NULL OR \"TenantContratistaId\" <> \"TenantId\"");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2117,6 +2327,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("UltimoCambioEstadoAManoId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
@@ -2160,6 +2373,59 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("AprobacionesDocumento");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AcreditacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("DeshechoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Estado")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstadoAnterior")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("EstadoVigenciaAnterior")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Fecha")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaVencimientoAnterior")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("MomentoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<string>("Nota")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AcreditacionId");
+
+                    b.HasIndex("TenantId", "AcreditacionId", "MomentoUtc");
+
+                    b.ToTable("CambiosEstadoAcreditacionPlataforma", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.ConfiguracionIaDocumentoCliente", b =>
@@ -2220,6 +2486,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid?>("EmpresaId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("EsRenuncia")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("EstaEliminado")
                         .HasColumnType("boolean");
 
@@ -2232,8 +2501,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<DateOnly?>("FechaVencimiento")
                         .HasColumnType("date");
 
+                    b.Property<int?>("Horas")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("MotivoSustitucion")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Nivel")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<Guid?>("ProyectoId")
                         .HasColumnType("uuid");
@@ -2292,6 +2568,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("Documentos", null, t =>
                         {
                             t.HasCheckConstraint("CK_Documentos_EstadoVigenciaCoherente", "(\"EstadoVigencia\" = 2 AND \"FechaVencimiento\" IS NOT NULL) OR (\"EstadoVigencia\" IN (0, 1) AND \"FechaVencimiento\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_Documentos_HorasEnRango", "\"Horas\" IS NULL OR (\"Horas\" >= 1 AND \"Horas\" <= 999)");
 
                             t.HasCheckConstraint("CK_Documentos_NoSeSustituyeASiMismo", "\"SustituidoPorDocumentoId\" IS DISTINCT FROM \"Id\"");
 
@@ -2575,9 +2853,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<bool>("AplicaVencimientoAutomatico")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("Archivado")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("CriteriosValidacion")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<int>("DatosAdicionales")
+                        .HasColumnType("integer");
 
                     b.Property<string>("Descripcion")
                         .HasMaxLength(1000)
@@ -2585,6 +2869,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("DeteccionTrabajadoresActiva")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("Grupo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<bool>("LecturaIaActiva")
                         .HasColumnType("boolean");
@@ -2629,6 +2917,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<Guid?>("SustitutoId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -2649,6 +2940,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("TenantId", "Nombre")
                         .IsUnique();
 
+                    b.HasIndex("TenantId", "SustitutoId");
+
                     b.ToTable("TiposDocumento", (string)null);
 
                     b.HasData(
@@ -2657,7 +2950,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 8,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "VigilanciaDeLaSalud",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Certificado de aptitud médica",
@@ -2676,7 +2972,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "InformacionYEpi",
                             LecturaIaActiva = true,
                             Naturaleza = "PracticaSector",
                             Nombre = "Entrega de EPI",
@@ -2695,10 +2994,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Reciclaje 4h",
+                            Nombre = "Reciclaje PRL",
                             Notas = "Cada 4 años, según Dpto. Formación.",
                             Orden = 3,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2714,10 +3016,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
-                            Nombre = "Formación Art. 19",
+                            Nombre = "Formación PRL del puesto",
                             Notas = "Recordatorio cada 3 años. Obligatorio por defecto (2026-08-09): formación PRL Art. 19.",
                             Orden = 4,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2733,11 +3038,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000005"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 3,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Formación 60h (base convenio)",
-                            Notas = "Formación base, no consta caducidad.",
+                            Nombre = "Formación PRL de convenio",
+                            Notas = "Formación base de convenio (nivel básico de prevención, 60 h en construcción), no consta caducidad. Las horas y el nivel son datos del documento desde 2026-10-17.",
                             Orden = 5,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
@@ -2751,11 +3059,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000006"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Formación 20h",
-                            Notas = "Mismo curso de convenio que 60h/6h, no consta caducidad.",
+                            Nombre = "Formación PRL de convenio por oficio",
+                            Notas = "Formación por puesto de trabajo u oficio del convenio (20 h en construcción, art. 141 del VII CGSC). Documento distinto de la formación de nivel básico: no la sustituye. No consta caducidad.",
                             Orden = 6,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
@@ -2769,11 +3080,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000007"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Formación 6h",
-                            Notas = "Mismo curso de convenio que 60h/20h, no consta caducidad.",
+                            Nombre = "Formación PRL de convenio por oficio, módulo específico",
+                            Notas = "Módulo o curso específico de oficio del convenio (6 h en construcción, art. 143 del VII CGSC). Documento distinto de la formación de nivel básico y de la de oficio completa. No consta caducidad.",
                             Orden = 7,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
@@ -2787,10 +3101,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000008"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "InformacionYEpi",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
-                            Nombre = "Información Art. 18",
+                            Nombre = "Información de riesgos del puesto",
                             Notas = "No consta periodicidad de renovación. Obligatorio por defecto (2026-08-09): registro de entrega de información de riesgos del puesto.",
                             Orden = 8,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2805,7 +3122,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-000000000009"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Carretillas elevadoras",
@@ -2823,7 +3143,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000a"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "PEMP (plataformas elevadoras)",
@@ -2841,10 +3164,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000b"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "LOTO (4h)",
+                            Nombre = "Bloqueo y etiquetado (LOTO)",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 11,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2859,7 +3185,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000c"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Seguridad alimentaria",
@@ -2877,7 +3206,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000d"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Primeros auxilios",
@@ -2895,7 +3227,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000e"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Espacios confinados",
@@ -2913,10 +3248,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("10000000-0000-0000-0000-00000000000f"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Trabajos en altura (8h)",
+                            Nombre = "Trabajos en altura",
                             Notas = "Configurable si el convenio interno define vigencia.",
                             Orden = 15,
                             PerfilDocumentoOficial = "Ninguno",
@@ -2931,7 +3269,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "RelacionLaboral",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Contrato de Trabajo",
@@ -2949,7 +3290,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "RelacionLaboral",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Alta en Seguridad Social",
@@ -2967,7 +3311,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 1,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Formación Riesgos Específicos",
@@ -2985,15 +3332,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = true,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "FormacionPrl",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Formación EPIs",
-                            Notas = "Distinto de \"Entrega de EPI\" (antes \"EPIS (firma)\"; la entrega/firma de recepción) — esta es la formación de uso.",
+                            Notas = "Archivado el 2026-10-17 (retirado del catálogo base): lo sustituye «Entrega de EPI».",
                             Orden = 19,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SustitutoId = new Guid("10000000-0000-0000-0000-000000000002"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3003,7 +3354,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000005"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Permiso de conducir",
@@ -3021,7 +3375,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000006"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Riesgo Eléctrico",
@@ -3040,7 +3397,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000007"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Manipulación Manual de Cargas",
@@ -3058,7 +3418,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000008"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Manipulación de Productos Químicos",
@@ -3076,7 +3439,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000000-0000-0000-0000-000000000009"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "ADR",
@@ -3095,7 +3461,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000a-0000-0000-0000-00000000000a"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Soldadura",
@@ -3113,7 +3482,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000b-0000-0000-0000-00000000000b"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Puente Grúa",
@@ -3131,7 +3503,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000c-0000-0000-0000-00000000000c"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Grúa Torre",
@@ -3149,7 +3524,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000d-0000-0000-0000-00000000000d"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Grúa Móvil",
@@ -3167,7 +3545,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000e-0000-0000-0000-00000000000e"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Dumper",
@@ -3185,7 +3566,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("5000000f-0000-0000-0000-00000000000f"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Retroexcavadora",
@@ -3203,7 +3587,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000010-0000-0000-0000-000000000010"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Minicargadora",
@@ -3221,7 +3608,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000011-0000-0000-0000-000000000011"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Operador de Manipulador Telescópico",
@@ -3239,7 +3629,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000012-0000-0000-0000-000000000012"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "IdentidadYExtranjeria",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Permiso de residencia",
@@ -3257,7 +3650,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000013-0000-0000-0000-000000000013"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "IdentidadYExtranjeria",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Permiso de trabajo",
@@ -3275,7 +3671,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000014-0000-0000-0000-000000000014"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "IdentidadYExtranjeria",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Certificado de Registro de Ciudadano de la UE",
@@ -3293,10 +3692,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000015-0000-0000-0000-000000000015"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "IdentidadYExtranjeria",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
-                            Nombre = "Certificado A1 de Seguridad Social",
+                            Nombre = "Certificado A1",
                             Notas = "Trabajadores desplazados temporalmente desde otro país de la UE — vigencia ligada a la duración del desplazamiento.",
                             Orden = 36,
                             PerfilDocumentoOficial = "Ninguno",
@@ -3311,7 +3713,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("50000016-0000-0000-0000-000000000016"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "IdentidadYExtranjeria",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Documento de identidad",
@@ -3329,7 +3734,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "PracticaSector",
                             Nombre = "Certificado de estar al corriente con la Seguridad Social",
@@ -3348,7 +3756,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Certificado de estar al corriente con Hacienda",
@@ -3366,10 +3777,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = true,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "ITA",
+                            Nombre = "Informe de trabajadores en alta",
                             Notas = "Mensual.",
                             Orden = 18,
                             PerfilDocumentoOficial = "Ita",
@@ -3385,11 +3799,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 4,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "RLC",
-                            Notas = "Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada.",
+                            Nombre = "RLC (TC1)",
+                            Notas = "Admite el recibo de pago como adjunto opcional del mismo documento (2026-10-17). Mensual — el documento de un periodo (p. ej. 01/05) vence 3 meses después (01/08), porque tarda en emitirse con la fecha del periodo ya pasada.",
                             Orden = 19,
                             PerfilDocumentoOficial = "Rlc",
                             Requerido = "Si",
@@ -3404,15 +3821,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000005"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = true,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Recibo de pago RLC/TC1",
-                            Notas = "Mismo criterio de vigencia que el RLC.",
+                            Notas = "Archivado el 2026-10-17: el recibo es adjunto opcional de «RLC (TC1)», que lo sustituye.",
                             Orden = 20,
                             PerfilDocumentoOficial = "Ninguno",
-                            Requerido = "Si",
+                            Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3423,15 +3844,19 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000006"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = true,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "RLC/TC1 + Recibo de pago",
-                            Notas = "Variante combinada — mismo criterio de vigencia que el RLC.",
+                            Notas = "Archivado el 2026-10-17: la variante combinada es «RLC (TC1)» con el recibo como adjunto opcional, que lo sustituye.",
                             Orden = 21,
                             PerfilDocumentoOficial = "Rlc",
-                            Requerido = "Si",
+                            Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3442,7 +3867,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000007"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = true,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "RNT",
@@ -3461,10 +3889,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000008"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SegurosYMutua",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Mutua",
+                            Nombre = "Mutua de Accidentes",
                             Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 23,
                             PerfilDocumentoOficial = "Ninguno",
@@ -3479,11 +3910,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("20000000-0000-0000-0000-000000000009"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 4,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SegurosYMutua",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Seguro de Responsabilidad Civil + recibo de pago",
-                            Notas = "Vigencia sin especificar — fecha de vencimiento manual.",
+                            Nombre = "Seguro de Responsabilidad Civil",
+                            Notas = "Admite el recibo de pago como adjunto opcional del mismo documento (2026-10-17). Vigencia sin especificar — fecha de vencimiento manual.",
                             Orden = 24,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
@@ -3497,7 +3931,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("2000000a-0000-0000-0000-00000000000a"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "PracticaSector",
                             Nombre = "Servicio de Prevención Ajeno",
@@ -3515,7 +3952,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("2000000b-0000-0000-0000-00000000000b"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
                             Nombre = "Evaluación de Riesgos Laborales",
@@ -3533,7 +3973,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("2000000c-0000-0000-0000-00000000000c"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
                             Nombre = "Planificación de la Actividad Preventiva",
@@ -3551,7 +3994,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("2000000d-0000-0000-0000-00000000000d"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SocietariaYAdministrativa",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Tarjeta de identificación fiscal",
@@ -3569,7 +4015,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
                             Nombre = "Plan de Prevención",
@@ -3587,7 +4036,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Designación de Recursos Preventivos",
@@ -3605,14 +4057,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Procedimiento de Coordinación de Actividades Empresariales",
-                            Notas = "Vigente hasta revisión — vencimiento manual.",
+                            Notas = "Vigente hasta revisión — vencimiento manual. Deja de ser obligatorio el 2026-10-17 (decisión del propietario).",
                             Orden = 31,
                             PerfilDocumentoOficial = "Ninguno",
-                            Requerido = "Condicional",
+                            Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
@@ -3623,7 +4078,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Política Preventiva",
@@ -3641,7 +4099,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000005"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Organigrama Preventivo",
@@ -3659,7 +4120,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000006"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionLegal",
                             Nombre = "Modalidad Preventiva",
@@ -3677,7 +4141,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000007"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SocietariaYAdministrativa",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Escritura de Constitución",
@@ -3695,7 +4162,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000008"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SocietariaYAdministrativa",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Poder del Representante Legal",
@@ -3713,7 +4183,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000000-0000-0000-0000-000000000009"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Certificaciones",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "ISO 45001",
@@ -3731,7 +4204,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000a-0000-0000-0000-00000000000a"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Certificaciones",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "ISO 9001",
@@ -3749,7 +4225,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000b-0000-0000-0000-00000000000b"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Certificaciones",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "ISO 14001",
@@ -3767,7 +4246,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000c-0000-0000-0000-00000000000c"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Declaración Responsable CAE",
@@ -3785,7 +4267,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000d-0000-0000-0000-00000000000d"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SocietariaYAdministrativa",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Relación de Maquinaria",
@@ -3803,7 +4288,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000e-0000-0000-0000-00000000000e"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "EmpresaExtranjera",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "VAT europeo",
@@ -3821,7 +4309,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("4000000f-0000-0000-0000-00000000000f"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "EmpresaExtranjera",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Documento acreditativo de empresa extranjera",
@@ -3839,7 +4330,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000010-0000-0000-0000-000000000010"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "EmpresaExtranjera",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Traducción jurada",
@@ -3857,7 +4351,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("40000011-0000-0000-0000-000000000011"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "EmpresaExtranjera",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Comunicación de desplazamiento",
@@ -3875,6 +4372,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Vehiculo",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
@@ -3894,6 +4393,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Vehiculo",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
@@ -3913,6 +4414,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Vehiculo",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
@@ -3932,6 +4435,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("30000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Vehiculo",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
@@ -3951,10 +4456,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "HabilitacionesYOficios",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Autorización de uso de equipo de trabajo",
+                            Nombre = "Autorización de uso de equipo de trabajo/maquinaria",
                             Notas = "F-27 del catálogo de formatos PRL — arts. 3.4 y 5 RD 1215/1997. Vigente hasta modificación — vencimiento manual.",
                             Orden = 38,
                             PerfilDocumentoOficial = "Ninguno",
@@ -3969,7 +4477,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Acta de presencia del recurso preventivo",
@@ -3987,7 +4498,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Acta de reunión de coordinación",
@@ -4005,7 +4519,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Informe de investigación de accidente o incidente",
@@ -4023,11 +4540,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000005"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = true,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Igualdad",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Protocolo frente al acoso sexual y por razón de sexo",
-                            Notas = "F-93 del catálogo de formatos PRL — art. 48 LO 3/2007. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual.",
+                            Notas = "F-93 del catálogo de formatos PRL — art. 48 LO 3/2007. Obligatorio para todas las empresas, sin umbral de plantilla. Vigente hasta revisión — vencimiento manual. Archivado el 2026-10-17 (retirado del catálogo base, sin sustituto).",
                             Orden = 49,
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
@@ -4041,7 +4561,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("60000000-0000-0000-0000-000000000006"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Igualdad",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Registro retributivo",
@@ -4059,7 +4582,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("70000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Información de riesgos propios aportados al centro",
@@ -4077,7 +4603,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("70000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Información y coordinación con trabajadores autónomos",
@@ -4095,7 +4624,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("70000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Registro del deber de vigilancia sobre subcontratas",
@@ -4113,7 +4645,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("70000000-0000-0000-0000-000000000004"),
                             AmbitoAplicacion = "Trabajador",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "InformacionYEpi",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
                             Nombre = "Recibí de normas, procedimientos y plan de emergencia",
@@ -4131,7 +4666,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("80000000-0000-0000-0000-000000000001"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "Construccion",
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
                             Nombre = "Certificado de inscripción en el REA",
@@ -4150,6 +4688,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("80000000-0000-0000-0000-000000000002"),
                             AmbitoAplicacion = "Proyecto",
                             AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
                             LecturaIaActiva = true,
                             Naturaleza = "ObligacionCondicionada",
@@ -4168,10 +4708,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             Id = new Guid("80000000-0000-0000-0000-000000000003"),
                             AmbitoAplicacion = "Empresa",
                             AplicaVencimientoAutomatico = true,
+                            Archivado = false,
+                            DatosAdicionales = 0,
                             DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
                             LecturaIaActiva = true,
                             Naturaleza = "RequisitoCliente",
-                            Nombre = "Recibo de cuota de autónomos (RETA)",
+                            Nombre = "Recibo de cuota de autónomos",
                             Notas = "Justificante mensual de pago de la cuota del Régimen Especial de Trabajadores Autónomos. El autónomo es su propia Empresa.",
                             Orden = 55,
                             PerfilDocumentoOficial = "Ninguno",
@@ -4181,6 +4724,69 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
                             VigenciaMeses = 1
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000004"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
+                            DeteccionTrabajadoresActiva = false,
+                            Grupo = "SeguridadSocialYHacienda",
+                            LecturaIaActiva = true,
+                            Naturaleza = "RequisitoCliente",
+                            Nombre = "Alta en el RETA",
+                            Notas = "Resolución de alta del autónomo en el Régimen Especial de Trabajadores Autónomos: prueba la afiliación, mientras que el recibo de cuota prueba el pago. El autónomo es su propia Empresa. Sin caducidad propia — vencimiento manual.",
+                            Orden = 56,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "No",
+                            Sensibilidad = "DatosPersonales",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            TiposContratacionDeSerie = 7,
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000005"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
+                            DeteccionTrabajadoresActiva = false,
+                            Grupo = "OrganizacionPreventiva",
+                            LecturaIaActiva = true,
+                            Naturaleza = "RequisitoCliente",
+                            Nombre = "Plan de emergencia y evacuación",
+                            Notas = "Plan de emergencia y evacuación de la Empresa. Opcional y nunca obligatorio por defecto: el art. 10.2 RD 171/2004 no lo exige al contratista. Vigente hasta revisión — vencimiento manual.",
+                            Orden = 57,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "No",
+                            Sensibilidad = "DatosPersonales",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            TiposContratacionDeSerie = 7,
+                            VerificacionIaActiva = false
+                        },
+                        new
+                        {
+                            Id = new Guid("80000000-0000-0000-0000-000000000006"),
+                            AmbitoAplicacion = "Empresa",
+                            AplicaVencimientoAutomatico = false,
+                            Archivado = false,
+                            DatosAdicionales = 0,
+                            DeteccionTrabajadoresActiva = false,
+                            Grupo = "CoordinacionCae",
+                            LecturaIaActiva = true,
+                            Naturaleza = "RequisitoCliente",
+                            Nombre = "Documento requerido por el Cliente empresarial",
+                            Notas = "Tipo genérico para los formularios propios que pide un Cliente empresarial concreto. Vigencia según cada Cliente empresarial — vencimiento manual.",
+                            Orden = 58,
+                            PerfilDocumentoOficial = "Ninguno",
+                            Requerido = "No",
+                            Sensibilidad = "CategoriaEspecialSalud",
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            TiposContratacionDeSerie = 7,
+                            VerificacionIaActiva = false
                         });
                 });
 
@@ -4322,6 +4928,461 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             Texto = "CIF",
                             TipoDocumentoId = new Guid("2000000d-0000-0000-0000-00000000000d")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000001"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Reconocimiento médico",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000002"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Apto",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000003"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "EPI",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000004"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Reciclaje 4h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000005"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación Art. 19",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000006"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación en prevención",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000007"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Art. 19",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000008"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación 60h (base convenio)",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000009"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación 60h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000010"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Recurso preventivo 60h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000011"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Nivel básico PRL 60h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000012"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación 20h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000006")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000013"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación 6h",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000007")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000014"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Información Art. 18",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000015"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Registro de información PRL",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000016"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Art. 18",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000017"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Plataforma elevadora",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000a")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000018"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Plataforma elevadora móvil",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000a")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000019"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "LOTO (4h)",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000b")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000020"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Trabajos en altura (8h)",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000f")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000021"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Altura",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000f")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000022"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formación en altura",
+                            TipoDocumentoId = new Guid("10000000-0000-0000-0000-00000000000f")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000023"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "TA.2",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000024"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "TA2",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000025"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "IDC",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000026"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Alta TA2",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000027"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Informe de datos de cotización",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000028"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Carne de conducir",
+                            TipoDocumentoId = new Guid("50000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000029"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado A1 de Seguridad Social",
+                            TipoDocumentoId = new Guid("50000015-0000-0000-0000-000000000015")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000030"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "A1",
+                            TipoDocumentoId = new Guid("50000015-0000-0000-0000-000000000015")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000031"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Formulario A1",
+                            TipoDocumentoId = new Guid("50000015-0000-0000-0000-000000000015")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000032"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "DNI/NIE",
+                            TipoDocumentoId = new Guid("50000016-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000033"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "DNI",
+                            TipoDocumentoId = new Guid("50000016-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000034"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "NIE",
+                            TipoDocumentoId = new Guid("50000016-0000-0000-0000-000000000016")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000035"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Autorización de uso de equipo de trabajo",
+                            TipoDocumentoId = new Guid("60000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000036"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado SS",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000037"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado TGSS",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000038"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Corriente SS",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000039"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado de no deuda SS",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000040"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado AEAT",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000041"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "AEAT",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000042"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Corriente Hacienda",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000043"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado de contratistas",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000044"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "ITA",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000045"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Trabajadores en alta (CCC)",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000046"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "RLC",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000047"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Recibo de pago RLC/TC1",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000048"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "RLC/TC1 + Recibo de pago",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000049"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Mutua",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000050"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado de mutua",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000051"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Mutua AT/EP",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000008")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000052"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Seguro de Responsabilidad Civil + recibo de pago",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000053"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Seguro RC + recibo",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000054"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Seguro RC",
+                            TipoDocumentoId = new Guid("20000000-0000-0000-0000-000000000009")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000055"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Certificado SPA",
+                            TipoDocumentoId = new Guid("40000000-0000-0000-0000-000000000006")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000056"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "REA",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000057"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Recibo de cuota de autónomos (RETA)",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000058"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "RETA",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000059"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Alta de autónomo",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000060"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Alta RETA",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000004")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000061"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Plan de emergencia",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000062"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Plan de evacuación",
+                            TipoDocumentoId = new Guid("80000000-0000-0000-0000-000000000005")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000063"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "ITV",
+                            TipoDocumentoId = new Guid("30000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000064"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Seguro del vehículo",
+                            TipoDocumentoId = new Guid("30000000-0000-0000-0000-000000000003")
+                        },
+                        new
+                        {
+                            Id = new Guid("90000001-0000-0000-0000-000000000065"),
+                            TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
+                            Texto = "Póliza del vehículo",
+                            TipoDocumentoId = new Guid("30000000-0000-0000-0000-000000000003")
                         });
                 });
 
@@ -8877,6 +9938,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9057,6 +10145,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaContratistaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id", "ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
                     b.HasOne("CaeManager.Domain.Centros.CanalGestionDocumental", null)
@@ -9070,6 +10182,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TenantId", "DocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.CambioEstadoAcreditacionPlataforma", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", null)
+                        .WithMany("CambiosEstado")
+                        .HasForeignKey("AcreditacionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -9154,6 +10275,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasForeignKey("EmpresaId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumento", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "SustitutoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.TipoDocumentoAlias", b =>
@@ -9842,6 +10972,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
             modelBuilder.Entity("CaeManager.Domain.Documentos.AcreditacionDocumentoPlataforma", b =>
                 {
+                    b.Navigation("CambiosEstado");
+
                     b.Navigation("HistorialRechazos");
                 });
 

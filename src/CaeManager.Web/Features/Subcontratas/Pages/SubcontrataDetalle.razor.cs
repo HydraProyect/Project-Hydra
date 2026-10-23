@@ -9,6 +9,7 @@ using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas.Commands.CambiarNivelServicioSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.EliminarVerificacionExterna;
+using CaeManager.Application.Subcontratas.Commands.RestaurarVerificacionExterna;
 using CaeManager.Application.Subcontratas.Commands.RestaurarSubcontrata;
 using CaeManager.Application.Subcontratas.Commands.GuardarNotaInternaSubcontrata;
 using CaeManager.Application.Subcontratas.Queries.ObtenerCentrosConActividadDeSubcontrata;
@@ -893,6 +894,53 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
         : string.IsNullOrWhiteSpace(_detalle.Cif) ? _detalle.RazonSocial
         : $"{_detalle.RazonSocial} · {_detalle.Cif}";
 
+    /// <summary>«Editar» del menú de la fila: el formulario se abre con los valores de la última verificación de ese Centro y tipo.</summary>
+    private void EditarVerificacion(UltimaVerificacionDto verificacion, SupervisionCentroDto centro, SupervisionTipoDto tipo) =>
+        _drawerVerificacion?.AbrirEditar(
+            verificacion, centro.CentroId, $"{centro.CentroNombre} ({centro.ClienteRazonSocial})", tipo.TipoDocumentoId, tipo.TipoDocumentoNombre);
+
+    /// <summary>Se eliminó desde el formulario de edición: mismo aviso con «Deshacer» que desde el menú, y la supervisión se recarga.</summary>
+    private Task TrasEliminarVerificacionAsync(DrawerVerificacionExternaSubcontrata.VerificacionEliminada eliminada)
+    {
+        AvisarVerificacionEliminada(eliminada.Id, eliminada.TipoNombre);
+        return CargarSupervisionAsync();
+    }
+
+    /// <summary>Aviso de una verificación eliminada, con «Deshacer» (Fase D): el borrado es lógico y la restaura el comando gemelo.</summary>
+    private void AvisarVerificacionEliminada(Guid verificacionId, string tipoDocumentoNombre) =>
+        ToastService.Mostrar(Textos["ToastVerificacionEliminadaDeTipo", tipoDocumentoNombre], TonoToast.Exito,
+            Textos["ToastAccionDeshacer"].Value, () => DeshacerEliminarVerificacionAsync(verificacionId, tipoDocumentoNombre));
+
+    private bool _restaurandoVerificacion;
+
+    private async Task DeshacerEliminarVerificacionAsync(Guid verificacionId, string tipoDocumentoNombre)
+    {
+        if (_restaurandoVerificacion) return;
+        _restaurandoVerificacion = true;
+
+        try
+        {
+            var resultado = await Mediator.Send(new RestaurarVerificacionExternaSubcontrataCommand(verificacionId));
+
+            if (resultado.EsFallido)
+            {
+                ToastService.MostrarError(resultado.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastVerificacionRecuperada", tipoDocumentoNombre], TonoToast.Exito);
+            await InvokeAsync(CargarSupervisionAsync);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ToastErrorDeshacerVerificacion"], TonoToast.Error);
+        }
+        finally
+        {
+            _restaurandoVerificacion = false;
+        }
+    }
+
     private void AbrirEliminarVerificacion(Guid verificacionId, string tipoDocumentoNombre)
     {
         _verificacionAEliminarId = verificacionId;
@@ -917,7 +965,7 @@ public partial class SubcontrataDetalle : CaeManager.Web.Components.PaginaIntera
                 return;
             }
 
-            ToastService.Mostrar(Textos["ToastVerificacionEliminadaDeTipo", _verificacionAEliminarTipo], TonoToast.Exito);
+            AvisarVerificacionEliminada(_verificacionAEliminarId, _verificacionAEliminarTipo);
             if (generacion != _generacion) return;
             _confirmarEliminarVerificacionVisible = false;
             await CargarSupervisionAsync();

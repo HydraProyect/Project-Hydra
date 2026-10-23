@@ -1,4 +1,5 @@
 using System.Text;
+using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Domain.Auditoria;
@@ -69,6 +70,27 @@ public class DocumentosEndpointsArchivoAusenteTests
         avisos.Entradas.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Falla en cerrado (DEC-36, REC-208; revisión extensa 2026-10-23, Z2-2): si el acceso no
+    /// queda registrado, el manejador no devuelve el fichero y cierra el flujo que ya abrió.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_acceso_no_queda_registrado_no_se_sirve_y_el_flujo_se_cierra()
+    {
+        var contexto = Contexto();
+        var almacen = new AlmacenConElFichero();
+
+        var servir = () => DocumentosEndpoints.ServirArchivoAsync(
+            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(),
+            new FabricaDeRegistroEspia(), CancellationToken.None);
+
+        (await servir.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
+            .Which.RecursoId.Should().Be(DocumentoId);
+        almacen.UltimoFlujo.Should().NotBeNull("control positivo: el fichero llegó a abrirse");
+        almacen.UltimoFlujo!.CanRead.Should().BeFalse("el flujo abierto se cierra antes de propagar el fallo");
+        LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
+    }
+
     [Fact]
     public async Task Un_Documento_sin_adjunto_sigue_respondiendo_404_sin_tocar_el_almacen()
     {
@@ -137,8 +159,13 @@ public class DocumentosEndpointsArchivoAusenteTests
     {
         internal const string Contenido = "%PDF-de-prueba";
 
-        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
-            Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes(Contenido)));
+        public MemoryStream? UltimoFlujo { get; private set; }
+
+        public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)
+        {
+            UltimoFlujo = new MemoryStream(Encoding.UTF8.GetBytes(Contenido));
+            return Task.FromResult<Stream>(UltimoFlujo);
+        }
 
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
@@ -168,6 +195,17 @@ public class DocumentosEndpointsArchivoAusenteTests
             Accesos.Add((documentoId, tipoAcceso));
             return Task.CompletedTask;
         }
+
+        public Task RegistrarSiSensibleAsync(
+            Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    /// <summary>Lo que hace el servicio real cuando la base rechaza el registro.</summary>
+    private sealed class RegistroQueNoRegistra : IRegistroAccesoDocumentoSensibleService
+    {
+        public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw new AccesoDocumentoSensibleNoRegistradoException(documentoId);
 
         public Task RegistrarSiSensibleAsync(
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>

@@ -76,7 +76,7 @@ public static class CorpusRegresionIa
 
         new DocumentoCorpusIa(
             Nombre: "Formación Art. 19 PRL",
-            TipoEsperado: "Formación Art. 19",
+            TipoEsperado: "Formación PRL del puesto",
             Texto: """
                 ASOCIACIÓN FORMATIVA PRL FICTICIA
                 DIPLOMA DE FORMACIÓN EN PREVENCIÓN DE RIESGOS LABORALES

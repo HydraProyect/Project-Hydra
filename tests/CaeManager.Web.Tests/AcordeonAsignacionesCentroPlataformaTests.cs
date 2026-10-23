@@ -28,7 +28,7 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         cut.WaitForAssertion(() => cut.FindAll(".fila-relacion").Should().NotBeEmpty());
         await cut.Find("button.fila-relacion-desplegar").ClickAsync(new MouseEventArgs());
         var celdas = cut.FindAll(".fila-plataforma-centro [role=cell]");
-        celdas.Should().HaveCount(4);
+        celdas.Should().HaveCount(5, "Documento, Estado en la plataforma, Caducidad, Bloquea y Acción (bloque 3 del 21-10)");
         celdas[0].QuerySelector(".indicador-talveg")!.GetAttribute("title").Should().Contain("Vigente");
         celdas[1].TextContent.Should().Contain("Nalanda").And.Contain(texto);
         celdas[3].TextContent.Trim().Should().Be(bloquea ? "Sí" : "No");
@@ -49,6 +49,6 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         var celdas = cut.FindAll(".fila-plataforma-centro [role=cell]");
         celdas[1].TextContent.Should().Contain("Sin datos de plataforma");
         celdas[3].TextContent.Trim().Should().Be("—");
-        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("1 de 1");
+        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("1/1");
     }
 }

@@ -76,7 +76,7 @@
                 {
                     <span>
                         @Textos["Cif"] <b>@_detalle.Cif</b>
-                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                        <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" MensajeExito="@Textos["CifCopiado", _detalle.Cif]" />
                     </span>
                 }
                 @if (recuentos is not null)
@@ -339,7 +339,7 @@
                             {
                                 <DatoRejilla Etiqueta="@Textos["IdentificacionFiscal"]" Ancho="true">
                                     @_detalle.Cif
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" />
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" MensajeExito="@Textos["CifCopiado", _detalle.Cif]" />
                                 </DatoRejilla>
                             }
                             <DatoRejilla Etiqueta="@Textos["Critico"]" Valor="@(_detalle.EsCritico ? Textos["Si"] : Textos["No"])" />

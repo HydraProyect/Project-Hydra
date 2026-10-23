@@ -37,12 +37,7 @@ src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroDe
 src/CaeManager.Web/Features/Alertas/Recursos/TextosAlertas.resx :: VacioFiltroTitulo = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: ColumnaFechaAlta = 1
 src/CaeManager.Web/Features/Asignaciones/Recursos/TextosAsignaciones.resx :: NombreHoja = 1
-src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Descripcion = 1
-src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: MensajeVacio = 1
-src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: ModoPreguntar = 1
 src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Paso_CrearVisitaCommand = 1
-src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: PlaceholderPregunta = 1
-src/CaeManager.Web/Features/AsistenteIa/Recursos/TextosAsistenteIa.resx :: Titulo = 1
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: AccionBuscadorGlobal = 1
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: AccionMostrarAyuda = 1
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: AccionNuevoAqui = 1
@@ -91,6 +86,7 @@ src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastCentroEl
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastCentroRestaurado = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastLoteRestaurados = 1
 src/CaeManager.Web/Features/Centros/Recursos/TextosCentros.resx :: ToastLoteRestauradosConErrores = 1
+src/CaeManager.Web/Features/Comunicaciones/Recursos/TextosAlertasCriticas.resx :: ModalTitulo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AriaConmutarTrabajo = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AriaSeccionesHub = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: AutomatizacionesEncabezado = 1

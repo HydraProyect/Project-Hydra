@@ -72,8 +72,8 @@ public class CrearCentroCommandHandler(
     [
         "Certificado de aptitud médica",
         "Entrega de EPI",
-        "Formación Art. 19",
-        "Información Art. 18"
+        "Formación PRL del puesto",
+        "Información de riesgos del puesto"
     ];
 
     public async Task<Result<Guid>> Handle(CrearCentroCommand request, CancellationToken cancellationToken)

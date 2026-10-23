@@ -51,6 +51,28 @@ public class GrupoColaTests : BunitContext
         enlace.GetAttribute("href").Should().Be($"/centros/{centroId}");
     }
 
+    /// <summary>
+    /// «vencidos» solo cuenta lo que venció en TALVEG: un documento que nunca se aportó es «faltante», un Trabajador sin acceso
+    /// es un «bloqueo de acceso» y lo que venció en la plataforma CAE se rotula aparte, aunque los cuatro sean rojos. Antes
+    /// salían juntos como «N vencidos», con otra cifra que Inicio y Alertas.
+    /// </summary>
+    [Fact]
+    public void Los_faltantes_y_los_bloqueos_no_se_cuentan_como_vencidos()
+    {
+        var centroId = Guid.NewGuid();
+        ItemBandejaDto De(TipoItemBandeja tipo, int n) => Item(n, centroId) with { Id = $"{tipo}-{n}", Tipo = tipo };
+        var grupo = new GrupoColaDto("cliente-1", "Cliente X", true,
+            [De(TipoItemBandeja.Vencido, 1), De(TipoItemBandeja.Faltante, 2), De(TipoItemBandeja.Faltante, 3),
+             De(TipoItemBandeja.RequisitoPendiente, 4), De(TipoItemBandeja.PlataformaVencida, 5)]);
+
+        var cut = Render<GrupoCola>(p => p.Add(c => c.Grupo, grupo));
+
+        var cabecera = System.Text.RegularExpressions.Regex.Replace(cut.Find(".grupo-cola-cabecera").TextContent, @"\s+", " ");
+        cabecera.Should().Contain("1 vencido").And.Contain("2 faltantes").And.Contain("1 bloqueo de acceso")
+            .And.Contain("1 vencido en la plataforma");
+        cabecera.Should().NotContain("vencidos");
+    }
+
     /// <summary>La Bandeja carga con los grupos plegados: un j/k que enfoca una tarjeta de un grupo plegado lo abre, no deja el foco escondido.</summary>
     [Fact]
     public void IdEnfocado_dentro_de_un_grupo_plegado_lo_despliega()

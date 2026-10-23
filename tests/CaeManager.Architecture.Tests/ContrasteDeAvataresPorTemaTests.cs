@@ -83,6 +83,10 @@ public class ContrasteDeAvataresPorTemaTests
             "Features/Notificaciones/CampanaAvisos.razor.css", [".campana-nuevo"]),
         new("Avatar de la columna de contexto de la Bandeja",
             "Features/Comunicaciones/Pages/Bandeja.razor.css", [".bandeja-cliente-avatar"]),
+        new("Círculo de Vega en el panel del asistente IA",
+            "Features/AsistenteIa/AsistenteIa.razor.css", [".vega-avatar"]),
+        new("Círculo de Vega en el botón flotante",
+            "Features/AsistenteIa/BotonAsistenteIa.razor.css", [".vega-avatar"]),
     ];
 
     /// <summary>
@@ -91,6 +95,7 @@ public class ContrasteDeAvataresPorTemaTests
     /// </summary>
     private static readonly HashSet<string> Exentas = new(StringComparer.Ordinal)
     {
+        "vega-avatar-s",           // solo cambia el tamaño; hereda los colores de .vega-avatar
         "avatar-tenant-pequeno",   // solo cambia tamaño, radio y fuente; hereda colores de .avatar-tenant
         "avatar-tenant-logo",      // imagen del logo: sin iniciales
         "mi-trabajo-cartera-avatar-todo", // variante cubierta arriba junto a su base

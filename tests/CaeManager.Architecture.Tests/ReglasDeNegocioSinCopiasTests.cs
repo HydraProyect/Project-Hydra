@@ -313,6 +313,10 @@ public class ReglasDeNegocioSinCopiasTests
         // El agregado deriva su propio EstaSustituido de la columna (1) y comprueba el del sustituto con
         // `nuevo.EstaSustituido` dentro de SustituirPor (1): son la propiedad de dominio, no una consulta.
         ["src/CaeManager.Domain/Documentos/Documento.cs"] = 2,
+        // Inbound M1, PR 3: app_inbound_documentos_del_alcance, en SQL de una función SECURITY DEFINER que lee los
+        // Documentos de otro Tenant sin EF, así que no puede usar DocumentoOperativo.Expresion. Repite la misma regla
+        // (NOT "EstaEliminado" AND "SustituidoEnUtc" IS NULL) y la prueba LecturaInboundBajoRuntimeTests contra un sustituido.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023150000_AnadeLecturaInboundEntreTenants.cs"] = 1,
     };
 
     [Fact]
@@ -397,6 +401,9 @@ public class ReglasDeNegocioSinCopiasTests
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAccesosDocumentosSensiblesQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/Queries/ObtenerAuditoriaQuery.cs"] = 1,
         ["src/CaeManager.Application/Auditoria/RegistroAccesoDocumentoSensibleService.cs"] = 1,
+        // Historial de Centro 360 (bloque 3 del 21-10): un cambio de estado anotado sobre una versión ya renovada sigue
+        // siendo un hecho del Historial; el Documento solo da su tipo y su titular, no decide estado ni cifras.
+        ["src/CaeManager.Application/Centros/Queries/ObtenerCambiosEstadoPlataformaDeCentro/ObtenerCambiosEstadoPlataformaDeCentroQuery.cs"] = 1,
 
         // --- Verificación y revisión de IA: el análisis tardío de un histórico se registra sin mutarlo (PR 4). ---
         ["src/CaeManager.Application/Documentos/Verificacion/VerificacionIaDocumentoService.cs"] = 1,

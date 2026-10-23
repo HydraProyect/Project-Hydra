@@ -125,6 +125,31 @@ public class PropuestaRecordatorioConversacion : EntidadBase
         return Result.Exito();
     }
 
+    /// <summary>
+    /// Deshace un descarte (el «Deshacer» del aviso de descartado, maqueta Flujos 13): la propuesta vuelve a Pendiente, la
+    /// misma, no una nueva. Solo si la conversación sigue en la misma espera: el Sistema solo descarta propuestas de una espera
+    /// que ya terminó, y esas no se restauran porque el recordatorio ya no toca.
+    /// </summary>
+    public Result Restaurar(Conversacion conversacion)
+    {
+        ArgumentNullException.ThrowIfNull(conversacion);
+
+        if (Estado != EstadoPropuestaRecordatorio.Descartada)
+            return Result.Fallo(ErrorNoDescartada);
+        if (!SigueVigentePara(conversacion))
+            return Result.Fallo(ErrorEsperaTerminada);
+
+        Estado = EstadoPropuestaRecordatorio.Pendiente;
+        ResueltaEnUtc = null;
+        return Result.Exito();
+    }
+
+    public static readonly Error ErrorNoDescartada =
+        Error.Crear("Recordatorio.NoDescartado", "Este recordatorio no está descartado.");
+
+    public static readonly Error ErrorEsperaTerminada =
+        Error.Crear("Recordatorio.EsperaTerminada", "La conversación ya no está esperando respuesta: este recordatorio ya no toca.");
+
     public static readonly Error ErrorYaResuelta =
         Error.Crear("Recordatorio.YaResuelto", "Este recordatorio ya se aprobó o se descartó.");
 }

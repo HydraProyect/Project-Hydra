@@ -167,6 +167,35 @@ public class DocumentosPaginacionEnSqlTests : IAsyncLifetime
         contador.Total.Should().Be(4, "parámetros, total, página y acreditaciones con nombre de plataforma");
     }
 
+    [Theory]
+    [InlineData]
+    [InlineData(EstadoDocumento.Vencido)]
+    [InlineData(EstadoDocumento.Vencido, EstadoDocumento.Urgente)]
+    [InlineData(EstadoDocumento.EnTolerancia)]
+    public async Task Con_recuentos_el_total_sale_de_ellos_sin_otra_lectura_del_universo_y_no_cambia(params EstadoDocumento[] filtro)
+    {
+        // El listado pide siempre la franja de recuentos: el total se deriva de ella en vez de contar otra vez la
+        // unión de las cinco ramas. El total y la página tienen que ser los mismos que sin recuentos.
+        IReadOnlyList<EstadoDocumento>? estados = filtro.Length == 0 ? null : filtro;
+        await using var referencia = CrearContexto();
+        var sinRecuentos = await new ObtenerDocumentosQueryHandler(
+                referencia, referencia, referencia, referencia, referencia, referencia, referencia,
+                new AlcanceDatosServiceFalso(), referencia, referencia)
+            .Handle(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 2, Estados: estados), default);
+
+        var contador = new ContadorLecturas();
+        await using var contexto = CrearContexto(contador);
+        var conRecuentos = await new ObtenerDocumentosQueryHandler(
+                contexto, contexto, contexto, contexto, contexto, contexto, contexto,
+                new AlcanceDatosServiceFalso(), contexto, contexto)
+            .Handle(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: 2, Estados: estados, ConRecuentosPorEstado: true), default);
+
+        conRecuentos.TotalElementos.Should().Be(sinRecuentos.TotalElementos);
+        conRecuentos.Elementos.Select(d => d.Id).Should().Equal(sinRecuentos.Elementos.Select(d => d.Id));
+        contador.Total.Should().Be(sinRecuentos.Elementos.Count == 0 ? 3 : 4,
+            "parámetros, recuentos, página y (si hay filas) acreditaciones: el total ya no es una lectura aparte");
+    }
+
     private sealed class ContadorLecturas : DbCommandInterceptor
     {
         public int Total { get; private set; }

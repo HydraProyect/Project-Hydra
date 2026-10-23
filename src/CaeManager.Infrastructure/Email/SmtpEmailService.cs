@@ -45,21 +45,62 @@ public class SmtpEmailService(
             return Result.Fallo(Error.Crear("Email.NoConfigurado", "El envío de correo no está configurado."));
         }
 
+        // Acotado: un valor absurdo desbordaría el Timeout (int de milisegundos) o CancelAfter.
+        var tiempoMaximo = TimeSpan.FromSeconds(
+            config.TiempoMaximoSegundos > 0 ? Math.Min(config.TiempoMaximoSegundos, 600) : SmtpEmailOptions.TiempoMaximoPorDefectoSegundos);
+
         using var cliente = new SmtpClient
         {
+            // Por operación; el tope del envío entero va en `tope`, más abajo.
+            Timeout = (int)tiempoMaximo.TotalMilliseconds,
             ServerCertificateValidationCallback = (_, certificado, cadena, erroresPolitica) =>
                 ValidarCertificadoServidor(config, certificado, cadena, erroresPolitica),
         };
 
         var mensaje = ConstruirMensaje(destinatarioEmail, asunto, cuerpoHtml, tipo, responderA, config, logger);
 
+        // Tope total del envío: cuatro operaciones seguidas, cada una con su
+        // propio Timeout, sumarían cuatro veces el valor configurado.
+        using var tope = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        tope.CancelAfter(tiempoMaximo);
+
         try
         {
-            await cliente.ConnectAsync(config.Host!, config.Puerto, SecureSocketOptions.StartTls, cancellationToken);
-            await cliente.AuthenticateAsync(config.Usuario!, config.Contrasena!, cancellationToken);
-            await cliente.SendAsync(mensaje, cancellationToken);
-            await cliente.DisconnectAsync(true, cancellationToken);
+            await cliente.ConnectAsync(config.Host!, config.Puerto, SecureSocketOptions.StartTls, tope.Token);
+            await cliente.AuthenticateAsync(config.Usuario!, config.Contrasena!, tope.Token);
+            await cliente.SendAsync(mensaje, tope.Token);
+
+            // El servidor ya aceptó el mensaje: que cerrar la conexión tarde o falle no lo
+            // convierte en un envío fallido (el llamador reenviaría y llegarían dos correos).
+            try
+            {
+                await cliente.DisconnectAsync(true, tope.Token);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "El correo salió, pero cerrar la conexión SMTP falló.");
+            }
+
             return Result.Exito();
+        }
+        catch (Exception ex) when (cancellationToken.IsCancellationRequested)
+        {
+            // Cancela quien llama: se propaga siempre como OperationCanceledException, sea cual
+            // sea la excepción con la que MailKit haya abortado la operación en curso (al cancelar
+            // cierra el socket y puede lanzar IOException, SocketException o TimeoutException en
+            // vez de OperationCanceledException). Sin esta rama la cancelación se disfrazaba de
+            // «error de red» y el llamador la trataba como un envío fallido más.
+            if (ex is OperationCanceledException)
+                throw;
+
+            throw new OperationCanceledException("El envío del correo se canceló.", ex, cancellationToken);
+        }
+        catch (Exception ex) when (ex is TimeoutException || ex is OperationCanceledException)
+        {
+            // Aquí solo cae el vencimiento de nuestro propio tope: la cancelación
+            // de quien llama ya se propagó en la rama anterior.
+            logger.LogError(ex, "El servidor SMTP no respondió en {Segundos} s al enviar correo.", tiempoMaximo.TotalSeconds);
+            return Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."));
         }
         catch (SmtpCommandException ex)
         {

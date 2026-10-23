@@ -53,7 +53,8 @@ public class CurrentUserService(
     /// el mismo en todos los Tenants que la organización opera y con todos sus
     /// poderes (decisión Chris 2026-10-20, que deroga el «GestorCae en un cliente
     /// y Consulta en otro» de ADR-004 § 5.3 para esta vía); por la vía heredada
-    /// (acceso de soporte) sigue mandando el rol de la <c>AsignacionOperadorDelegado</c>.
+    /// (acceso de soporte) sigue mandando el rol de la <c>AsignacionOperadorDelegado</c>,
+    /// acotado en ambas vías por el rol que dejó la restricción de login local, si la hay.
     ///
     /// Antes se devolvía siempre el claim, así que el rol de la asignación se
     /// guardaba y no se leía jamás: un operador asignado como Consulta sobre
@@ -102,6 +103,15 @@ public class CurrentUserService(
     public async Task<string?> ObtenerPerfilQueDecideAlcanceAsync() => PerfilQueDecideAlcance(await ObtenerUsuarioAsync());
 
     /// <inheritdoc />
+    public async Task<string?> ObtenerPerfilAntesDeRestringirAsync() =>
+        (await ObtenerUsuarioAsync())?.FindFirst(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            is { Value.Length: > 0 } antes ? antes.Value : null;
+
+    /// <inheritdoc />
+    public async Task<string?> ObtenerRolDeAsignacionHeredadaAsync() =>
+        (await ResolverRolSegunContextoAsync(await ObtenerUsuarioAsync())).RolHeredado;
+
+    /// <inheritdoc />
     public async Task<bool> OperaPorAsignacionDeOperacionAsync() =>
         await ResolverRolEfectivoAsync() is { PorOperacion: true, Rol: not null };
 
@@ -144,6 +154,20 @@ public class CurrentUserService(
     {
         var usuario = await ObtenerUsuarioAsync();
 
+        var (resolucion, rolHeredado) = await ResolverRolSegunContextoAsync(usuario);
+        var techo = RolDeSesionEnOrigen(usuario);
+
+        // La asignación autoriza el Tenant propietario; no puede devolver la escritura que quitó el login
+        // local. El techo es el rol de sesión ya restringido, conservado antes de sustituir los
+        // claims: el perfil anterior solo decide el ámbito efectivo, nunca autoriza un rol.
+        return resolucion.Rol is not null
+               && usuario?.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir) == true
+            ? resolucion with { Rol = rolHeredado is not null && techo != Roles.Consulta ? null : techo }
+            : resolucion;
+    }
+
+    private async Task<(RolEfectivoPorOperacion Efectivo, string? RolHeredado)> ResolverRolSegunContextoAsync(ClaimsPrincipal? usuario)
+    {
         // Una sesión privilegiada de plataforma no tiene rol de negocio, y
         // decirlo aquí explícitamente es justamente el punto (ADR-011 § 4bis.3):
         // las tres capas de autorización son distintas, y un técnico de soporte
@@ -157,7 +181,7 @@ public class CurrentUserService(
         // ISesionPrivilegiadaActual, que sí revalida. Aquí basta con saber que
         // este contexto no es de negocio.
         if (clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null)
-            return RolEfectivoPorOperacion.Ninguno;
+            return (RolEfectivoPorOperacion.Ninguno, null);
 
         if (AmbitoTenantExplicito.TenantIdActual is { } tenantAmbito)
             return await ResolverRolParaAmbitoExplicitoAsync(tenantAmbito, RolDeSesionEnOrigen(usuario));
@@ -174,10 +198,10 @@ public class CurrentUserService(
         // Tenant no cambia nada: sin sustitución, el rol de sesión en origen es
         // el propio claim.
         if (clienteActivoSeleccionado.TenantIdSeleccionado is not { } tenantSeleccionado)
-            return new RolEfectivoPorOperacion(RolDeSesionEnOrigen(usuario), null);
+            return (new RolEfectivoPorOperacion(RolDeSesionEnOrigen(usuario), null), null);
 
         var usuarioId = await ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null) return RolEfectivoPorOperacion.Ninguno;
+        if (usuarioId is null) return (RolEfectivoPorOperacion.Ninguno, null);
 
         // Vía nueva: el token identifica la operación exacta, así que el rol
         // sale de la cartera de ESE contexto — un lookup por clave, no una
@@ -189,12 +213,11 @@ public class CurrentUserService(
             var porOperacion = await ResolverRolViaOperacionAsync(
                 tenantSeleccionado, usuarioId.Value, asignacionOperacionId, RolDeSesionEnOrigen(usuario));
             ultimaResolucionDeLaSeleccion = (asignacionOperacionId, porOperacion.EncargoAdministracionId, porOperacion.EncargoPleno);
-            return porOperacion;
+            return (porOperacion, null);
         }
 
         // La vía heredada (el acceso de soporte) nunca se eleva por encargo.
-        return new RolEfectivoPorOperacion(
-            await ResolverRolViaHeredadaAsync(tenantSeleccionado, usuarioId.Value), null);
+        return await ResolverRolViaHeredadaAsync(tenantSeleccionado, usuarioId.Value);
     }
 
     /// <summary>
@@ -233,8 +256,8 @@ public class CurrentUserService(
     /// operación. No es rol efectivo: el rol sigue siendo <see cref="RolDeSesionEnOrigen"/>.
     ///
     /// <para>
-    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol y
-    /// el perfil es <c>null</c> (fallo cerrado), nunca el Consulta que la restricción le puso.
+    /// Si el claim de la restricción existe, manda aunque esté vacío: la cuenta no traía rol
+    /// conocido y el perfil es <c>null</c> (fallo cerrado), nunca el rol de sesión.
     /// Sin restricción, el rol de sesión en origen.
     /// </para>
     /// </summary>
@@ -279,13 +302,13 @@ public class CurrentUserService(
     /// fan-out: la de Operación y la heredada. Un Tenant de la lista siempre
     /// tiene aquí el rol que tendría seleccionado.
     /// </summary>
-    private async Task<RolEfectivoPorOperacion> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
+    private async Task<(RolEfectivoPorOperacion Efectivo, string? RolHeredado)> ResolverRolParaAmbitoExplicitoAsync(Guid tenantAmbito, string? rolDeSesionEnOrigen)
     {
         var usuarioId = await ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null) return RolEfectivoPorOperacion.Ninguno;
+        if (usuarioId is null) return (RolEfectivoPorOperacion.Ninguno, null);
 
         var tenantOrigenId = await ObtenerTenantOrigenIdAsync();
-        if (tenantOrigenId == tenantAmbito) return new RolEfectivoPorOperacion(rolDeSesionEnOrigen, null);
+        if (tenantOrigenId == tenantAmbito) return (new RolEfectivoPorOperacion(rolDeSesionEnOrigen, null), null);
 
         // La misma decisión que /cuenta/cliente-activo: si una operación
         // autoriza el Tenant, el POST la embebe en el token y el rol sale SOLO
@@ -296,15 +319,15 @@ public class CurrentUserService(
         // beneficiario) con el mismo rol que tendría seleccionado: sin esto su
         // alcance sería cero y Mi trabajo y el Dashboard lo pintarían «sin
         // cartera» aunque la tenga.
-        if (tenantOrigenId is null) return RolEfectivoPorOperacion.Ninguno;
+        if (tenantOrigenId is null) return (RolEfectivoPorOperacion.Ninguno, null);
         var operacionId = await TenantsBeneficiariosAutorizados.OperacionQueAutorizaAsync(
             serviceProvider.GetRequiredService<IOperacionesQueryContext>(),
             usuarioId.Value, tenantOrigenId.Value, tenantAmbito, PerfilQueDecideAlcance(await ObtenerUsuarioAsync()),
             DateTime.UtcNow, CancellationToken.None);
 
         return operacionId is not null
-            ? await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen)
-            : new RolEfectivoPorOperacion(await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value), null);
+            ? (await ResolverRolViaOperacionAsync(tenantAmbito, usuarioId.Value, operacionId.Value, rolDeSesionEnOrigen), null)
+            : await ResolverRolViaHeredadaAsync(tenantAmbito, usuarioId.Value);
     }
 
     /// <summary>
@@ -339,11 +362,11 @@ public class CurrentUserService(
     /// lo que dijera el token al emitirse — una revocación tiene que notarse
     /// aquí.
     /// </summary>
-    private async Task<string?> ResolverRolViaHeredadaAsync(Guid tenantClienteId, Guid usuarioId)
+    private async Task<(RolEfectivoPorOperacion Efectivo, string? RolHeredado)> ResolverRolViaHeredadaAsync(Guid tenantClienteId, Guid usuarioId)
     {
         var dbContext = serviceProvider.GetRequiredService<ITenantsQueryContext>();
 
-        return await TenantsBeneficiariosAutorizados
+        var rol = await TenantsBeneficiariosAutorizados
             .AsignacionesHeredadasVigentes(dbContext, usuarioId, DateTime.UtcNow)
             .Where(v => v.Concesion.TenantClienteId == tenantClienteId
                         // Misma frontera que la vía de Operación: una asignación
@@ -354,6 +377,8 @@ public class CurrentUserService(
                         && RolesDelegables.Contains(v.Asignacion.Rol))
             .Select(v => v.Asignacion.Rol)
             .FirstOrDefaultAsync();
+
+        return (new RolEfectivoPorOperacion(rol, null), rol);
     }
 
     public async Task<Guid?> ObtenerTenantOrigenIdAsync()

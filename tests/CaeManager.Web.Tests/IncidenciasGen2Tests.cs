@@ -4,6 +4,7 @@ using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Common;
 using CaeManager.Application.Incidencias.Commands.EditarIncidencia;
 using CaeManager.Application.Incidencias.Commands.EliminarIncidencia;
+using CaeManager.Application.Incidencias.Commands.MarcarResueltaIncidencia;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidenciaPorId;
 using CaeManager.Application.Incidencias.Queries.ObtenerIncidencias;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
@@ -152,6 +153,7 @@ public partial class IncidenciasGen2Tests : BunitContext
                     return Task.FromResult((TResponse)(object)RespuestaEditar);
 
                 case EliminarIncidenciaCommand:
+                case MarcarResueltaIncidenciaCommand:
                     return Task.FromResult((TResponse)(object)Result.Exito());
 
                 default:
@@ -559,6 +561,30 @@ public partial class IncidenciasGen2Tests : BunitContext
 
         mediador.Peticiones.OfType<EliminarIncidenciaCommand>().Should().ContainSingle()
             .Which.Id.Should().Be(IdBeta);
+    }
+
+    /// <summary>
+    /// Maqueta «Flujos 10 Incidencias y Gestiones»: resolver ofrece Deshacer, que manda la acción contraria
+    /// sobre la misma Incidencia y no encadena otro aviso con Deshacer.
+    /// </summary>
+    [Fact]
+    public async Task Resolver_una_incidencia_ofrece_Deshacer_que_la_reabre_sin_encadenar_otro_aviso()
+    {
+        var mediador = new MediadorControlado { Filas = [Fila(IdAlfa, "Centro Alfa"), Fila(IdBeta, "Centro Beta")] };
+        var cut = Renderizar(mediador);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("Centro Beta"));
+
+        await cut.FindAll("table .menu-acciones-disparador")[1].ClickAsync(new());
+        await cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Marcar resuelta").ClickAsync(new());
+
+        mediador.Peticiones.OfType<MarcarResueltaIncidenciaCommand>().Should().Equal([new MarcarResueltaIncidenciaCommand(IdBeta, true)]);
+        var toasts = Services.GetRequiredService<ToastService>();
+        var aviso = toasts.Mensajes.Single(m => m.TextoAccion == "Deshacer");
+        await cut.InvokeAsync(aviso.OnAccion!);
+
+        mediador.Peticiones.OfType<MarcarResueltaIncidenciaCommand>().Should().Equal(
+            [new MarcarResueltaIncidenciaCommand(IdBeta, true), new MarcarResueltaIncidenciaCommand(IdBeta, false)]);
+        toasts.Mensajes.Where(m => m.TextoAccion == "Deshacer").Should().ContainSingle("el Deshacer no ofrece otro Deshacer");
     }
 
     // --- Recuento de consultas ----------------------------------------------------------------

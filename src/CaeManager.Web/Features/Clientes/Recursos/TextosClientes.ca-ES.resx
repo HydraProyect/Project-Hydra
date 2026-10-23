@@ -334,7 +334,7 @@
     <value>Cancel·lar</value>
   </data>
   <data name="ToleranciaIntro" xml:space="preserve">
-    <value>Dies que cada document continua valent per accedir als centres d'aquest Client després del seu venciment. Cada centre hereta aquest valor tret que fixi el seu en els seus requisits; 0 és sense tolerància.</value>
+    <value>Dies que un document vençut continua admetent-se als centres d'aquest Client.</value>
   </data>
   <data name="ToleranciaOpcionSin" xml:space="preserve">
     <value>Sense tolerància (0 dies)</value>
@@ -358,7 +358,7 @@
     <value>No has canviat cap tolerància.</value>
   </data>
   <data name="ToleranciaGuardada" xml:space="preserve">
-    <value>Toleràncies del Client actualitzades.</value>
+    <value>Tolerància de documents desada</value>
   </data>
   <data name="ToleranciaErrorGuardar" xml:space="preserve">
     <value>No hem pogut desar les toleràncies. Torna-ho a provar en uns segons.</value>
@@ -412,7 +412,7 @@
     <value>Sense alertes de vigència obertes entre els seus treballadors</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
-    <value>Deshacer</value>
+    <value>Desfer</value>
   </data>
   <data name="ToastLoteRestaurados" xml:space="preserve">
     <value>{0} Client(s) restaurat(s).</value>
@@ -499,6 +499,10 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 treballador bloquejat</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloquejat per la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloquejats per la plataforma</value></data>
+  <data name="DetalleBloqueaAccesoUno" xml:space="preserve"><value>1 document bloqueja l'accés</value></data>
+  <data name="DetalleBloqueanAccesoVarios" xml:space="preserve"><value>{0} documents bloquegen l'accés</value></data>
+  <data name="DetallePendienteValidacionUno" xml:space="preserve"><value>1 pendent de validació</value></data>
+  <data name="DetallePendientesValidacionVarios" xml:space="preserve"><value>{0} pendents de validació</value></data>
   <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centre</value></data>
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centre amb gestió CAE sense incidències</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centres sense gestió CAE</value></data>
@@ -675,4 +679,11 @@
   <data name="BajaTitulo" xml:space="preserve"><value>Dona de baixa el Client</value></data>
   <data name="BajaMensaje" xml:space="preserve"><value>Es donarà de baixa {0}. Vols continuar?</value></data>
   <data name="BajaError" xml:space="preserve"><value>No hem pogut donar de baixa el Client. Torna-ho a provar en uns segons.</value></data>
+  <data name="ToastClienteBaja" xml:space="preserve"><value>{0} donat de baixa</value></data>
+  <data name="ToastClienteRestaurado" xml:space="preserve"><value>Baixa del Client desfeta</value></data>
+  <data name="CentroTodoValidado" xml:space="preserve"><value>Tot validat a la plataforma</value></data>
+  <data name="InformacionGuardada" xml:space="preserve"><value>Informació desada</value></data>
+  <data name="NotaInternaGuardada" xml:space="preserve"><value>Nota interna desada</value></data>
+  <data name="CifCopiado" xml:space="preserve"><value>CIF {0} copiat al porta-retalls</value></data>
+  <data name="CodigoClienteCopiado" xml:space="preserve"><value>Codi de client copiat al porta-retalls</value></data>
 </root>

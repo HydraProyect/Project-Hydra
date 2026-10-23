@@ -45,6 +45,19 @@ public class SmtpEmailOptions
     /// </summary>
     public string? UrlBasePublica { get; set; }
 
+    /// <summary>
+    /// Tope, en segundos, de cada operación contra el servidor (conectar,
+    /// autenticar, enviar, desconectar) y del envío entero. Sin él, MailKit
+    /// espera 120 s por operación: un servidor que acepta la conexión y no
+    /// responde dejaba al llamador esperando minutos. Al vencer, el envío
+    /// termina como el error de red de siempre (<c>Email.ErrorRed</c>), no
+    /// como una excepción. Un valor no positivo se ignora y vale
+    /// <see cref="TiempoMaximoPorDefectoSegundos"/>.
+    /// </summary>
+    public int TiempoMaximoSegundos { get; set; } = TiempoMaximoPorDefectoSegundos;
+
+    public const int TiempoMaximoPorDefectoSegundos = 20;
+
     public bool EstaConfigurado =>
         !string.IsNullOrWhiteSpace(Host)
         && !string.IsNullOrWhiteSpace(Usuario)

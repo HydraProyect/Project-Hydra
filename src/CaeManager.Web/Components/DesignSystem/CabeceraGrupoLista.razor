@@ -77,6 +77,14 @@
     /// <summary>Rejilla de tres columnas con recuento azul junto al nombre, como en la maqueta de Centros.</summary>
     [Parameter] public bool Destacado { get; set; }
 
+    /// <summary>
+    /// Segunda línea, bajo el nombre (Centro 360: «Subcontrata de Obras del Ebro S.L.»). Sin valor, una sola línea.
+    /// </summary>
+    [Parameter] public string? Subtitulo { get; set; }
+
+    /// <summary>Unidad tras el total cuando la maqueta la escribe («· 2 trabajadores»). Sin valor, solo la cifra.</summary>
+    [Parameter] public string? UnidadContador { get; set; }
+
     [Parameter] public bool Abierto { get; set; }
 
     /// <summary>El grupo está abierto por algo ajeno a él y la cabecera no puede contraerlo.</summary>
@@ -96,14 +104,16 @@
     private RenderFragment Contenido => @<text>
         <span class="grupo-lista-chevron" aria-hidden="true"><Icono Nombre="chevron" Tamano="TamanoIcono.Pequeno" /></span>
         <span class="grupo-lista-identidad">
-        <span class="grupo-lista-nombre"><TextoResaltado Texto="@Nombre" Termino="@Termino" /></span>
-        @if (EsParcial)
+        @if (Subtitulo is not null)
         {
-            <span class="grupo-lista-contador" title="@Comunes["GrupoContadorParcialTitulo", EnPagina!.Value, Total]">@Comunes["GrupoContadorParcial", EnPagina!.Value, Total]</span>
+            <span class="grupo-lista-bloque">
+                <span class="grupo-lista-linea">@NombreYContador</span>
+                <span class="grupo-lista-subtitulo">@Subtitulo</span>
+            </span>
         }
         else
         {
-            <span class="grupo-lista-contador" title="@TituloContador">· @Total</span>
+            @NombreYContador
         }
         @if (Incidencias > 0 && !Abierto && !Fijo)
         {
@@ -121,6 +131,18 @@
                     </span>
                 }
             </span>
+        }
+    </text>;
+
+    private RenderFragment NombreYContador => @<text>
+        <span class="grupo-lista-nombre"><TextoResaltado Texto="@Nombre" Termino="@Termino" /></span>
+        @if (EsParcial)
+        {
+            <span class="grupo-lista-contador" title="@Comunes["GrupoContadorParcialTitulo", EnPagina!.Value, Total]">@Comunes["GrupoContadorParcial", EnPagina!.Value, Total]</span>
+        }
+        else
+        {
+            <span class="grupo-lista-contador" title="@TituloContador">· @(UnidadContador is null ? Total.ToString() : $"{Total} {UnidadContador}")</span>
         }
     </text>;
 }

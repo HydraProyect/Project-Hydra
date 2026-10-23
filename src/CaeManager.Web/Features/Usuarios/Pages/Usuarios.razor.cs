@@ -1127,6 +1127,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         var creado = resultado.Valor;
         _reenvioEnCurso = false;
         _enlaceNuevoGenerado = false;
+        _reenvioFallido = false;
         _enlaceActivacion = EnlaceActivacion(creado.UsuarioId, creado.TokenActivacion);
 
         // La cuenta ya quedó creada —el alta sí tuvo éxito—, así que un fallo del
@@ -1139,9 +1140,99 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 $"Usuario creado, pero no pudimos asignarle el rol {_rol}: {creado.FalloAlAsignarRol.Mensaje} Ábrelo y vuelve a intentarlo.",
                 TonoToast.Error);
 
-        await EnviarCorreoActivacionAsync(creado.UsuarioId, _email, _nombreCompleto, _enlaceActivacion);
+        // El envío no se espera: con el servidor SMTP lento, el formulario se
+        // quedaba en «Guardando…» minutos aunque la cuenta ya existía. El drawer
+        // se cierra y el modal con el enlace sale ya; el resultado del envío llega
+        // después como aviso y actualiza el modal.
+        IniciarEnvioCorreoActivacion(creado.UsuarioId, _email, _nombreCompleto, _enlaceActivacion, textoExito: null);
         _drawerVisible = false;
         await CargarAsync();
+    }
+
+    /// <summary>
+    /// Tope de espera de la página al envío del correo de activación. Es la red
+    /// de seguridad por encima del tope propio de <c>SmtpEmailService</c>: si
+    /// otro <see cref="IEmailService"/> no contesta, el modal no se queda
+    /// «enviando» para siempre. Sobrescribible para poder probarlo.
+    /// </summary>
+    protected virtual TimeSpan TopeEnvioCorreoActivacion => TimeSpan.FromSeconds(30);
+
+    /// <summary>Hay un correo de activación en vuelo para el enlace que muestra el modal.</summary>
+    private bool _envioCorreoEnVuelo;
+
+    /// <summary>
+    /// Lanza el envío sin esperarlo (Blazor Server no tiene cola de correo
+    /// propia; el envío corre en la tarea del circuito, sin bloquear al
+    /// llamador). Al terminar, si el modal sigue enseñando <paramref name="enlace"/>
+    /// actualiza su estado, y siempre avisa con un toast: éxito
+    /// (<paramref name="textoExito"/>, si lo hay) o «no se pudo enviar; usa el enlace».
+    /// </summary>
+    private void IniciarEnvioCorreoActivacion(
+        Guid usuarioId, string email, string nombreCompleto, string enlace, string? textoExito)
+    {
+        _envioCorreoEnVuelo = true;
+        _reenvioFallido = false;
+        _ = EnviarCorreoActivacionYAvisarAsync(usuarioId, email, nombreCompleto, enlace, textoExito);
+    }
+
+    private async Task EnviarCorreoActivacionYAvisarAsync(
+        Guid usuarioId, string email, string nombreCompleto, string enlace, string? textoExito)
+    {
+        Result resultado;
+        try
+        {
+            using var tope = new CancellationTokenSource(TopeEnvioCorreoActivacion);
+            resultado = await EnviarCorreoActivacionAsync(usuarioId, email, nombreCompleto, enlace, tope.Token)
+                .WaitAsync(tope.Token);
+        }
+        catch (Exception excepcion)
+        {
+            // Tope vencido o servicio roto: el alta ya está hecha; solo falla el aviso por correo.
+            Logger.LogWarning(excepcion, "El envío del correo de activación a {UsuarioId} no terminó.", usuarioId);
+            resultado = Result.Fallo(Error.Crear("Email.ErrorRed", TextosUsuarios["ReenvioCorreoFallido"].Value));
+        }
+
+        try
+        {
+            if (_desechado)
+            {
+                // La pantalla se retiró mientras el correo viajaba: no hay modal que actualizar,
+                // pero el fallo se avisa igual — el alta ya está hecha y la persona no recibió nada.
+                if (resultado.EsFallido)
+                    ToastService.MostrarError(TextosUsuarios["ReenvioCorreoFallido"], resultado.Error);
+                return;
+            }
+
+            await InvokeAsync(() =>
+            {
+                if (_desechado) return;
+
+                // Solo el envío del enlace que el modal sigue enseñando toca su estado:
+                // otro alta o reenvío posterior ya lo cambió.
+                var modalSigueConElEnlace = string.Equals(_enlaceActivacion, enlace, StringComparison.Ordinal);
+                if (modalSigueConElEnlace)
+                {
+                    _envioCorreoEnVuelo = false;
+                    _reenvioFallido = resultado.EsFallido;
+                }
+
+                if (resultado.EsFallido)
+                    // «El enlace queda abajo» solo si el modal sigue enseñándolo.
+                    ToastService.MostrarError(
+                        TextosUsuarios["ReenvioCorreoFallido"], resultado.Error,
+                        modalSigueConElEnlace ? TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"].Value : null);
+                else if (textoExito is not null)
+                    ToastService.Mostrar(textoExito, TonoToast.Exito);
+
+                StateHasChanged();
+            });
+        }
+        catch (Exception excepcion)
+        {
+            // Tarea sin esperar: nada la observa, así que no puede escapar nada. Incluye
+            // la pantalla retirada entre la comprobación y el despacho.
+            Logger.LogWarning(excepcion, "No se pudo avisar del resultado del correo de activación a {UsuarioId}.", usuarioId);
+        }
     }
 
     /// <summary>
@@ -1179,7 +1270,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// sigue visible para quien acaba de crearlo.
     /// </para>
     /// </summary>
-    private async Task<Result> EnviarCorreoActivacionAsync(Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion)
+    private async Task<Result> EnviarCorreoActivacionAsync(
+        Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion, CancellationToken cancellationToken = default)
     {
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
@@ -1189,7 +1281,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             """;
 
         var resultado = await EmailService.EnviarAsync(
-            email, $"Activa tu acceso a {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad);
+            email, $"Activa tu acceso a {Marca.Nombre}", cuerpo, tipo: TipoAvisoCorreo.Seguridad,
+            cancellationToken: cancellationToken);
         if (resultado.EsFallido)
             Logger.LogWarning("No se pudo enviar el correo de activación a {UsuarioId}.", usuarioId);
         return resultado;
@@ -1237,24 +1330,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             }
 
             var enlace = EnlaceActivacion(usuarioLista.Id, activacion.Valor);
-            var resultado = await EnviarCorreoActivacionAsync(usuarioLista.Id, cuenta.Valor.Email, cuenta.Valor.NombreCompleto, enlace);
-
-            if (resultado.EsFallido)
-            {
-                ToastService.MostrarError(
-                    TextosUsuarios["ReenvioCorreoFallido"], resultado.Error, TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"]);
-                _reenvioFallido = true;
-            }
-            else
-            {
-                ToastService.Mostrar("Correo de activación reenviado.", TonoToast.Exito);
-                _reenvioFallido = false;
-            }
-
+            // El modal con el enlace sale ya; el correo se envía sin bloquear (ver
+            // IniciarEnvioCorreoActivacion) y su resultado llega después como aviso.
             _reenvioEnCurso = true;
             _reenvioTrasCorregirCorreo = false;
             _enlaceNuevoGenerado = false;
             _enlaceActivacion = enlace;
+            IniciarEnvioCorreoActivacion(
+                usuarioLista.Id, cuenta.Valor.Email, cuenta.Valor.NombreCompleto, enlace, "Correo de activación reenviado.");
         }
         catch (OperationCanceledException)
         {
@@ -1331,19 +1414,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             }
 
             var enlace = EnlaceActivacion(usuario.Id, correccion.Valor);
-            var envio = await EnviarCorreoActivacionAsync(usuario.Id, correo, usuario.NombreCompleto, enlace);
-            if (envio.EsFallido)
-                ToastService.MostrarError(
-                    TextosUsuarios["ReenvioCorreoFallido"], envio.Error, TextosUsuarios["ReenvioCorreoFallidoEnlaceAbajo"]);
-            else
-                ToastService.Mostrar(TextosUsuarios["CorregirCorreoHecho", correo], TonoToast.Exito);
-
             _usuarioACorregirCorreo = null;
-            _reenvioFallido = envio.EsFallido;
             _reenvioTrasCorregirCorreo = true;
             _reenvioEnCurso = true;
             _enlaceNuevoGenerado = false;
             _enlaceActivacion = enlace;
+            IniciarEnvioCorreoActivacion(
+                usuario.Id, correo, usuario.NombreCompleto, enlace, TextosUsuarios["CorregirCorreoHecho", correo].Value);
             await CargarAsync();
         }
         catch (OperationCanceledException)
@@ -1858,11 +1935,15 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         fila.DosFactoresActivo ? TextosUsuarios["DosFactoresActivado"].Value : TextosUsuarios["DosFactoresNoActivado"].Value;
 
     private string TituloEnlaceActivacion =>
-        _reenvioEnCurso && !_enlaceNuevoGenerado
+        _enlaceNuevoGenerado ? TextosUsuarios["EnlaceTitulo"].Value
+        : _envioCorreoEnVuelo ? TextosUsuarios["EnvioCorreoEnCursoTitulo"].Value
+        : _reenvioEnCurso
             ? (_reenvioFallido ? TextosUsuarios["EnlaceTituloFallido"].Value
                 : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value
                 : TextosUsuarios["EnlaceTituloReenviado"].Value)
-            : TextosUsuarios["EnlaceTitulo"].Value;
+        // Alta cuyo correo no salió: no es un reenvío, pero el enlace es la única vía.
+        : _reenvioFallido ? TextosUsuarios["ReenvioCorreoFallido"].Value
+        : TextosUsuarios["EnlaceTitulo"].Value;
 
     private string TextoGuardarUsuario =>
         _editandoId is null ? TextosUsuarios["AltaGuardar"].Value : TextosUsuarios["FormularioGuardar"].Value;
@@ -1903,6 +1984,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             _reenvioEnCurso = false;
             _reenvioFallido = false;
             _reenvioTrasCorregirCorreo = false;
+            // Un correo anterior aún en vuelo no habla de este enlace: su aviso ya no toca el modal.
+            _envioCorreoEnVuelo = false;
             _enlaceNuevoGenerado = true;
             _enlaceActivacion = EnlaceActivacion(id, activacion.Valor);
         }
@@ -1919,6 +2002,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     {
         _enlaceActivacion = null;
         _enlaceNuevoGenerado = false;
+        _envioCorreoEnVuelo = false;
         _enlaceCopiado = false;
         _versionCopia++;
     }

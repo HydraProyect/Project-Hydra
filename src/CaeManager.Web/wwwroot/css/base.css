@@ -468,3 +468,18 @@ button {
   --velo-cumplimiento: color-mix(in srgb, var(--velo-cumplimiento-color) 9%, var(--color-surface));
   background-image: linear-gradient(90deg, var(--velo-cumplimiento) 0, var(--velo-cumplimiento) 128px, var(--color-surface) 62%);
 }
+
+/* Vega, el asistente IA (marco-talveg.js, 2026-10-21). vega.js pone data-vega-abierto en
+   <html> mientras el panel está abierto: con ≥ 1280 px el panel va acoplado y estrecha el
+   contenido (la barra superior, sticky, termina en su borde izquierdo); por debajo se
+   superpone. Mientras está abierto no se ven ni el botón flotante ni su pista. */
+@media (min-width: 1280px) {
+  html[data-vega-abierto] body {
+    padding-right: var(--vg-ancho);
+  }
+}
+
+html[data-vega-abierto] .boton-asistente-ia,
+html[data-vega-abierto] .vega-pista {
+  display: none;
+}

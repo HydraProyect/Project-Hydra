@@ -182,7 +182,7 @@ else
                                 <strong>@(string.IsNullOrWhiteSpace(_detalle.Cif) ? "—" : _detalle.Cif)</strong>
                                 @if (!string.IsNullOrWhiteSpace(_detalle.Cif))
                                 {
-                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="la identificación fiscal" />
+                                    <BotonCopiar Valor="@_detalle.Cif" Etiqueta="@Textos["CopiarCifEtiqueta"]" MensajeExito="@Textos["CifCopiado", _detalle.Cif]" />
                                 }
                             </div>
                         </div>
@@ -810,10 +810,7 @@ else
 
         var generacion = _generacion;
         var detalle = _detalle;
-        // El nombre que se está guardando, capturado antes del await: al
-        // cambiar de ficha el borrador se tira, y el aviso tiene que poder
-        // decir a quién se actualizó aunque ya no se vea.
-        var nombreGuardado = _razonSocialEditada;
+
         _guardandoIdentidad = true;
         _mensajeErrorIdentidad = null;
         _erroresIdentidad = new Dictionary<string, string>();
@@ -837,7 +834,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar($"{nombreGuardado} actualizado correctamente.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["InformacionGuardada"].Value, TonoToast.Exito);
             if (generacion != _generacion) return;
             _editandoIdentidad = false;
             // Recarga obligatoria: sin la Version nueva, un segundo guardado
@@ -902,7 +899,7 @@ else
                 return;
             }
 
-            ToastService.Mostrar($"Nota de {detalle.RazonSocial} guardada.", TonoToast.Exito);
+            ToastService.Mostrar(Textos["NotaInternaGuardada"].Value, TonoToast.Exito);
             if (generacion != _generacion) return;
             await CargarCabeceraAsync();
         }

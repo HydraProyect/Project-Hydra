@@ -158,9 +158,9 @@ public static class DatosPruebaSeeder
     [
         "Certificado de aptitud médica",
         "Entrega de EPI",
-        "Reciclaje 4h",
-        "Formación Art. 19",
-        "Formación 60h (base convenio)",
+        "Reciclaje PRL",
+        "Formación PRL del puesto",
+        "Formación PRL de convenio",
         "Contrato de Trabajo",
         "Alta en Seguridad Social"
     ];
@@ -196,7 +196,7 @@ public static class DatosPruebaSeeder
     /// </summary>
     internal static readonly string[] DocumentacionObligatoriaSinVencimientoTrabajador =
     [
-        "Información Art. 18",
+        "Información de riesgos del puesto",
         "Documento de identidad"
     ];
 
@@ -938,7 +938,7 @@ public static class DatosPruebaSeeder
             {
                 if (tipo.Nombre == "Documento de identidad" && trabajadorIdsSinDni.Contains(trabajador.Id))
                     continue;
-                if (tipo.Nombre == "Información Art. 18" && trabajadorIdsSinInformacionRiesgos.Contains(trabajador.Id))
+                if (tipo.Nombre == "Información de riesgos del puesto" && trabajadorIdsSinInformacionRiesgos.Contains(trabajador.Id))
                     continue;
 
                 documentos.Add(Documento.DeTrabajador(trabajador.Id, tipo.Id, emisionObligatoria, VigenciaDocumento.NoCaduca));
@@ -1398,7 +1398,7 @@ public static class DatosPruebaSeeder
                 var finanzas = Siguiente(dominio);
                 ConTipos(
                     ContactoAgenda.DeCliente(cliente.Id, finanzas.Nombre, finanzas.Email, cargo: "Finanzas"),
-                    TipoId("RLC"), TipoId("RLC/TC1 + Recibo de pago"));
+                    TipoId("RLC (TC1)"));
 
                 var vigilancia = Siguiente(dominio);
                 ConTipos(
@@ -1408,7 +1408,7 @@ public static class DatosPruebaSeeder
                 var prl = Siguiente(dominio);
                 ConTipos(
                     ContactoAgenda.DeCliente(cliente.Id, prl.Nombre, prl.Email, telefono: "+34 611 22 33 44", cargo: "Responsable de PRL"),
-                    TipoId("Entrega de EPI"), TipoId("Formación Art. 19"));
+                    TipoId("Entrega de EPI"), TipoId("Formación PRL del puesto"));
 
                 var recepcion = Siguiente(dominio);
                 ConTipos(ContactoAgenda.DeCliente(

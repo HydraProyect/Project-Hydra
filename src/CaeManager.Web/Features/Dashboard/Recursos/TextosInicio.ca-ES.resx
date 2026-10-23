@@ -123,10 +123,10 @@
   <data name="KpiCentrosBloqueadosVarios" xml:space="preserve">
     <value>{0} centres amb treballadors bloquejats</value>
   </data>
-  <data name="KpiVigentesFuera" xml:space="preserve">
-    <value>{0} vençuts o per vèncer</value>
+  <data name="KpiVigentesAlDia" xml:space="preserve">
+    <value>{0} més al dia (per vèncer o sense caducitat)</value>
   </data>
-  <data name="KpiVigentesSinVencimiento" xml:space="preserve">
-    <value>{0} sense confirmar o sense caducitat</value>
+  <data name="KpiVigentesNoAlDia" xml:space="preserve">
+    <value>{0} no al dia (vençuts o sense confirmar)</value>
   </data>
 </root>

@@ -222,6 +222,37 @@ public class TipoDocumento : EntidadConTenant
     /// </summary>
     public IReadOnlyList<TipoDocumentoAlias> Aliases => _aliases.AsReadOnly();
 
+    /// <summary>
+    /// Grupo del tipo en la interfaz (catálogo aprobado el 2026-10-17, ver <see cref="GrupoTipoDocumento"/>). Nulo para
+    /// los tipos de Vehículo y de Proyecto, que se agrupan por su ámbito, y para un tipo creado por un Tenant que todavía
+    /// no lo tiene asignado. Solo ordena y filtra en pantalla: no decide nada de cumplimiento.
+    /// </summary>
+    public GrupoTipoDocumento? Grupo { get; private set; }
+
+    /// <summary>
+    /// Datos que admite un Documento de este tipo además de las fechas y el archivo (horas, nivel, recibo adjunto,
+    /// estado «Renuncia»). Empieza en <see cref="DatosAdicionalesDocumento.Ninguno"/>.
+    /// </summary>
+    public DatosAdicionalesDocumento DatosAdicionales { get; private set; }
+
+    /// <summary>
+    /// Tipo retirado del catálogo (decisión del 2026-10-17): no se ofrece en altas nuevas, pero los Documentos que ya lo
+    /// tienen lo conservan con su estado. Un tipo archivado nunca se pide de serie (<see cref="Requerido"/> queda en No al
+    /// archivarlo, ver <see cref="Archivar"/>): quien lo pedía pasa a pedir su <see cref="SustitutoId"/>, que es el que
+    /// se ofrece al renovar.
+    /// </summary>
+    public bool Archivado { get; private set; }
+
+    /// <summary>
+    /// Tipo que sustituye a este cuando está <see cref="Archivado"/>, o nulo si no tiene sustituto. Siempre del mismo
+    /// Tenant propietario y del mismo ámbito (la FK compuesta con TenantId lo garantiza en base; <see cref="Archivar"/>
+    /// lo comprueba antes).
+    /// </summary>
+    public Guid? SustitutoId { get; private set; }
+
+    /// <summary>¿Admite un Documento de este tipo el dato indicado? Propiedad sin columna: no usar dentro de una consulta EF.</summary>
+    public bool Admite(DatosAdicionalesDocumento dato) => dato != DatosAdicionalesDocumento.Ninguno && (DatosAdicionales & dato) == dato;
+
     private TipoDocumento()
     {
     }
@@ -265,6 +296,10 @@ public class TipoDocumento : EntidadConTenant
         string? seSolicitaA,
         string? observaciones)
     {
+        if (Archivado && requerido != RequisitoDocumental.No)
+            throw new InvalidOperationException(
+                "Un tipo de documento archivado no se pide de serie: se pide su sustituto.");
+
         EstablecerNombre(nombre);
         EstablecerVigencia(vigenciaMeses, aplicaVencimientoAutomatico);
         Orden = orden;
@@ -281,6 +316,40 @@ public class TipoDocumento : EntidadConTenant
     public void EstablecerVerificacionIaActiva(bool activa) => VerificacionIaActiva = activa;
 
     public void EstablecerPerfilDocumentoOficial(PerfilDocumentoOficial perfil) => PerfilDocumentoOficial = perfil;
+
+    public void EstablecerGrupo(GrupoTipoDocumento? grupo)
+    {
+        if (grupo is { } g && !Enum.IsDefined(g))
+            throw new ArgumentOutOfRangeException(nameof(grupo), grupo, "Grupo de tipo de documento desconocido.");
+        Grupo = grupo;
+    }
+
+    public void EstablecerDatosAdicionales(DatosAdicionalesDocumento datos) =>
+        DatosAdicionales = datos & DatosAdicionalesDocumento.Todos;
+
+    /// <summary>
+    /// Retira el tipo del catálogo: deja de ofrecerse en altas nuevas y de pedirse de serie (<see cref="Requerido"/> pasa
+    /// a No). No toca ningún Documento. El sustituto, si lo hay, tiene que ser otro tipo del mismo Tenant propietario y
+    /// del mismo ámbito, y no estar archivado.
+    /// </summary>
+    public void Archivar(TipoDocumento? sustituto)
+    {
+        if (sustituto is not null)
+        {
+            if (sustituto.Id == Id)
+                throw new ArgumentException("Un tipo de documento no puede sustituirse a sí mismo.", nameof(sustituto));
+            if (sustituto.TenantId != TenantId)
+                throw new ArgumentException("El sustituto debe ser del mismo Tenant propietario.", nameof(sustituto));
+            if (sustituto.AmbitoAplicacion != AmbitoAplicacion)
+                throw new ArgumentException("El sustituto debe ser del mismo ámbito.", nameof(sustituto));
+            if (sustituto.Archivado)
+                throw new ArgumentException("El sustituto no puede estar archivado.", nameof(sustituto));
+        }
+
+        Archivado = true;
+        SustitutoId = sustituto?.Id;
+        Requerido = RequisitoDocumental.No;
+    }
 
     /// <summary>
     /// Reemplaza el conjunto completo de alias — mismo criterio que

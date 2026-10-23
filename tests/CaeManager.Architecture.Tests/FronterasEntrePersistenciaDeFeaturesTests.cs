@@ -210,6 +210,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IDocumentosQueryContext"),
         ("Centros.ObtenerDocumentacionEmpresasDeCentroQueryHandler", "IConfiguracionQueryContext"),
+        // Vista «Vehículos» de Centro 360: los Vehículos los pide a ObtenerVehiculosConActividadDeCentroQuery (mismo
+        // alcance); lee sus documentos operativos, el nombre de su tipo y los umbrales, y la Empresa contratista de cada
+        // Subcontrata (Relación Empresarial vigente, Asignaciones activas del Centro y sus empleadoras).
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IAsignacionesQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IConfiguracionQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IDocumentosQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "IEmpresasQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Centros.ObtenerDocumentacionVehiculosDeCentroQueryHandler", "ITrabajadoresQueryContext"),
 
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IAsignacionesQueryContext"),
         ("Centros.ObtenerVehiculosConActividadDeCentroQueryHandler", "IEmpresasQueryContext"),
@@ -309,6 +318,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
+        // Alerta crítica (Z5-1, 2026-10-23): «Registrar incidencia» ata la alerta a la Incidencia que acaba de crearse y el Deshacer
+        // la elimina, devuelve la alerta a Pendiente y retira los avisos «derivado» en una sola transacción; por eso los dos
+        // handlers leen la Incidencia (con su alcance de gestión) y el Deshacer marca como leídas las NotificacionUsuario.
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "IIncidenciaRepository"),
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "INotificacionUsuarioRepository"),
+        ("Comunicaciones.ResolverAlertaCriticaCommandHandler", "IIncidenciaRepository"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IAsignacionesQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IEmpresasQueryContext"),
@@ -416,6 +431,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IConfiguracionQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IDocumentosQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IEmpresasQueryContext"),
+        ("Dashboard.ObtenerKpisDashboardQueryHandler", "IProyectosQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "ITiposDocumentoQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "ITrabajadoresQueryContext"),
         ("Dashboard.ObtenerKpisDashboardQueryHandler", "IVisitasQueryContext"),
@@ -450,6 +466,20 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "IProyectosQueryContext"),
+        // Centro 360, cambiar a mano el estado en la plataforma (bloque 3 del 21-10): los dos comandos comprueban que la
+        // acreditación es de un canal del Centro (ICentrosQueryContext) y que su Documento se ve en la cartera
+        // (IProyectosQueryContext, como el resto de comandos de acreditación). El Historial del Centro pinta, en una lectura
+        // por lote, el documento, su titular (Trabajador, Empresa o Vehículo) y la plataforma de cada cambio.
+        ("Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "IProyectosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IDocumentosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITrabajadoresQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IEmpresasQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IVehiculosQueryContext"),
+        ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
         // el repositorio de negocio): ExigirProveedorActivo necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y
@@ -608,9 +638,19 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
+        // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la
+        // Empresa contratista existe en el Tenant, solo por su Id.
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "ICentrosQueryContext"),
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "IEmpresasQueryContext"),
+        // Autorización de lectura documental (Inbound M1): comprueba que los Trabajadores asignados existen en el Tenant,
+        // solo por su Id, igual que AsignarTecnicoProyecto.
+        ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
+        ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),
+        // Al copiar requisitos de otro evento o de una plantilla, un tipo archivado pasa a su sustituto (catálogo 2026-10-17).
+        ("Proyectos.CrearProyectoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "ICentrosQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IClientesQueryContext"),
         ("Proyectos.ObtenerProyectoPorIdQueryHandler", "IDocumentosQueryContext"),

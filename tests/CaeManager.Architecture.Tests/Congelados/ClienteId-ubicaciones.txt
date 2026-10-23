@@ -24,6 +24,7 @@ src/CaeManager.Application/Centros/Commands/EditarCentro/EditarCentroCommand.cs 
 src/CaeManager.Application/Centros/Commands/RestaurarCentro/RestaurarCentroCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/PendientesEnPlataformaDeCentros.cs :: ClienteId = 1
+src/CaeManager.Application/Centros/Queries/ContratistasDeSubcontratasEnCentro.cs :: ClienteId = 1
 src/CaeManager.Application/Centros/Queries/ObtenerCentroPorId/ObtenerCentroPorIdQuery.cs :: ClienteId = 3
 src/CaeManager.Application/Centros/Queries/ObtenerCentros/ObtenerCentrosQuery.cs :: ClienteId = 11
 src/CaeManager.Application/Centros/Queries/ObtenerCentrosParaSelector/ObtenerCentrosParaSelectorQuery.cs :: ClienteId = 5
@@ -65,6 +66,7 @@ src/CaeManager.Application/Comunicaciones/Commands/MigrarConversacionACorreo/Mig
 src/CaeManager.Application/Comunicaciones/Commands/PedirPrioridadValidacion/PedirPrioridadValidacionCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Comunicaciones/Commands/ResponderConversacion/ResponderConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ResponderConversacionWhatsApp/ResponderConversacionWhatsAppCommand.cs :: ClienteId = 1
+src/CaeManager.Application/Comunicaciones/Commands/RestaurarRecordatorioConversacion/RestaurarRecordatorioConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/VincularConversacionCommand.cs :: ClienteId = 4
 src/CaeManager.Application/Comunicaciones/Commands/VincularConversacion/VincularConversacionCommand.cs :: clienteId = 2
 src/CaeManager.Application/Comunicaciones/Deteccion/ClasificacionRuidoMensajeService.cs :: ClienteId = 1
@@ -113,8 +115,9 @@ src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: ClienteId
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisBpoQuery.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
-src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: clienteIdsVisibles = 2
+src/CaeManager.Application/Dashboard/Queries/ObtenerKpisDashboardQuery.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/Dashboard/Queries/MedicionMensualCuadroDireccion.cs :: ClienteId = 1
 src/CaeManager.Application/Documentos/CalculoEstadoDocumentalService.cs :: ClienteId = 3
 src/CaeManager.Application/Documentos/Commands/CrearDocumento/CrearDocumentoCommand.cs :: ClienteId = 5
@@ -566,3 +569,14 @@ src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ConfirmarIntencionConversacion/ConfirmarIntencionConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerIntencionConversacion/ObtenerIntencionConversacionQuery.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1
+
+# Contrato de acceso (Inbound M1, 2026-10-23): la tabla nueva usa ClienteEmpresarialId; quedan el join con la
+# columna legacy Centro.ClienteId (alta y FK compuesta contra la clave alternativa de Centro) y el alcance de
+# Clientes visibles (ObtenerClienteIdsVisiblesAsync), el mismo criterio de autorización que Proyecto. En el alta, el
+# tercer uso comprueba si el actor ve al titular del Centro antes de decir que el Centro no pertenece al Cliente.
+src/CaeManager.Application/ContratosAcceso/Commands/CrearContratoAcceso/CrearContratoAccesoCommand.cs :: ClienteId = 3
+src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: clienteIdsVisibles = 3
+src/CaeManager.Infrastructure/Persistence/Configurations/ContratoAccesoConfiguration.cs :: ClienteId = 1

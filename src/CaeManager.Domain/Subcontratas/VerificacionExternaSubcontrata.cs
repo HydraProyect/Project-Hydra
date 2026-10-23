@@ -70,6 +70,23 @@ public class VerificacionExternaSubcontrata : EntidadBase
     }
 
     /// <summary>
+    /// Corrige una verificación ya registrada (fecha, resultado, validez declarada y observaciones). El Centro y el
+    /// tipo documental no cambian: son lo que hace de esta fila «la verificación de X en Y»; para verificar otra cosa
+    /// se registra otra. Mismas reglas que el alta.
+    /// </summary>
+    public void Actualizar(
+        DateOnly fechaVerificacion, ResultadoVerificacionExterna resultado, DateOnly? validoHasta, string? observaciones)
+    {
+        if (fechaVerificacion > DiaDeNegocio.Hoy())
+            throw new ArgumentException("La fecha de verificación no puede ser futura.", nameof(fechaVerificacion));
+
+        FechaVerificacion = fechaVerificacion;
+        Resultado = resultado;
+        ValidoHasta = validoHasta;
+        EstablecerObservaciones(observaciones);
+    }
+
+    /// <summary>
     /// La evidencia se adjunta tras crear la entidad porque el archivo se
     /// guarda primero en el almacenamiento (particionado por tenant) y su
     /// identificador solo existe después — mismo orden que los adjuntos de

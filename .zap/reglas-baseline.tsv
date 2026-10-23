@@ -1,0 +1,13 @@
+# Reglas de ZAP baseline para .github/workflows/seguridad-codigo.yml.
+# Formato de zap-baseline.py: id<TAB>IGNORE|INFO|WARN|FAIL<TAB>nombre.
+# Las reglas que no aparecen se quedan en WARN: se ven en el informe y no rompen el job.
+# FAIL: cabeceras y cookies que la aplicación ya pone hoy; si una regresión las quita, el job falla.
+10020	FAIL	Falta la cabecera anti-clickjacking
+10021	FAIL	Falta X-Content-Type-Options
+10038	FAIL	Falta Content-Security-Policy
+10010	FAIL	Cookie sin HttpOnly
+10054	FAIL	Cookie sin SameSite
+10037	FAIL	El servidor revela X-Powered-By
+90022	FAIL	Divulgación de errores de la aplicación
+# IGNORE: la instancia local escucha por HTTP; en producción el TLS lo termina Caddy, y HSTS solo viaja en respuestas HTTPS.
+10035	IGNORE	Falta Strict-Transport-Security

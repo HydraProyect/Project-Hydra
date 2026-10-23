@@ -4,6 +4,8 @@
 @using Microsoft.Extensions.Localization
 @inject IStringLocalizer<TextosAlertasCriticas> Textos
 
+@* Aviso pasivo de la conversación. La decisión (Registrar incidencia / No es crítica) vive en AlertaCriticaModal, que lo abre
+   la Dirección CAE o el Coordinador CAE al entrar en la conversación (maqueta «Flujos 13 Comunicaciones», flujo «Alerta crítica»). *@
 @if (Alerta is { Estado: EstadoAlertaCritica.Pendiente })
 {
     <section class="alerta-critica" role="alert" aria-label="@Textos["Titulo"]">
@@ -13,27 +15,13 @@
         {
             <p>@Textos[Alerta.SegundaOpinionIa == true ? "IaCoincide" : "IaNoCoincide", confianza]</p>
         }
-        @if (Alerta.PuedeResolver)
-        {
-            <div class="alerta-critica-acciones">
-                <Boton Variante="VarianteBoton.Secundario" Cargando="Guardando" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(true)">@Textos["Confirmar"]</Boton>
-                <Boton Variante="VarianteBoton.Secundario" Deshabilitado="Guardando" OnClick="() => OnResolver.InvokeAsync(false)">@Textos["Descartar"]</Boton>
-            </div>
-        }
-        else
+        @if (!Alerta.PuedeResolver)
         {
             <p>@Textos["PendienteDireccion"]</p>
-        }
-        @if (!string.IsNullOrEmpty(Error))
-        {
-            <p role="status">@Error</p>
         }
     </section>
 }
 
 @code {
     [Parameter] public AlertaCriticaDto? Alerta { get; set; }
-    [Parameter] public bool Guardando { get; set; }
-    [Parameter] public string? Error { get; set; }
-    [Parameter] public EventCallback<bool> OnResolver { get; set; }
 }

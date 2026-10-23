@@ -36,7 +36,8 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 /// </param>
 /// <param name="ConRecuentosPorEstado">
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Documentos por estado con todos los demás filtros
-/// aplicados y sin el de estado. Solo lo pide el listado, que es quien pinta la franja: cuesta una consulta más.
+/// aplicados y sin el de estado. Solo lo pide el listado, que es quien pinta la franja. No cuesta una consulta más:
+/// la agrupación sustituye al recuento del total, que se deriva de ella sumando las claves pedidas.
 /// </param>
 /// <param name="TipoDocumentoId">Solo los Documentos de ese Tipo de documento.</param>
 /// <param name="ProveedorPlataformaCaeId">
@@ -63,7 +64,15 @@ public record ObtenerDocumentosQuery(
 }
 
 /// <summary>Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § Parte 2 (c) — una entrada por CanalGestionDocumental aplicable, no por ProveedorPlataformaCae (el mismo proveedor puede tener más de un acceso).</summary>
-public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado);
+/// <param name="Anotacion">
+/// Lo último que se anotó a mano desde Centro 360 para este estado (fecha, motivo, nota y usuario), que se pinta bajo la
+/// pastilla. Solo lo carga la lectura por Centro (<c>SituacionDocumentosEnCentrosService</c>), y solo si sigue
+/// describiendo el estado actual: si otra vía cambió el estado después, la anotación ya no es de este estado y va null.
+/// </param>
+public record AcreditacionResumenDto(Guid Id, string NombrePlataforma, EstadoAcreditacion Estado, AnotacionEstadoPlataformaDto? Anotacion = null);
+
+/// <summary>Un cambio de estado anotado a mano en Centro 360; <see cref="CambioId"/> es lo que «Deshacer» identifica.</summary>
+public record AnotacionEstadoPlataformaDto(Guid CambioId, DateOnly Fecha, string? Motivo, string? Nota, string? UsuarioNombre);
 
 public record DocumentoListaDto(
     Guid Id,
@@ -169,9 +178,10 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada cifra
         // de la franja dice cuántos Documentos quedarían al marcar solo ese estado.
         IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+        Dictionary<int, int>? filasPorClave = null;
         if (request.ConRecuentosPorEstado)
         {
-            recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await consulta
+            filasPorClave = await consulta
                 .GroupBy(x =>
                     x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
                 : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
@@ -180,7 +190,8 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 : x.FechaVencimiento <= limiteAmbar ? 2
                 : 4)
                 .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
-                .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+                .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken);
+            recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(filasPorClave);
         }
 
         // El Estado se sigue calculando con CalculadoraEstadoDocumento —
@@ -196,12 +207,13 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
         if (request.Estado is { } unEstado && !estadosPedidos.Contains(unEstado))
             estadosPedidos.Add(unEstado);
 
+        List<int>? clavesPedidas = null;
         if (estadosPedidos.Count > 0)
         {
             // «En tolerancia» es un estado de contexto de Centro (VigenciaEnCentro) y Faltante solo lo emiten las
             // Alertas: esta lista nunca los produce, así que su clave (6) no coincide con ninguna fila. Filtrar
             // solo por ellos no devuelve nada (y no «todo», que sacaría los vencidos con otro rótulo).
-            var clavesPedidas = estadosPedidos.Select(estado => EstadoDocumentalFiltro.ClaveOrden(estado)).Distinct().ToList();
+            clavesPedidas = estadosPedidos.Select(estado => EstadoDocumentalFiltro.ClaveOrden(estado)).Distinct().ToList();
             consulta = consulta.Where(x => clavesPedidas.Contains(
                 x.EstadoVigencia == EstadoVigenciaDocumento.NoCaduca ? 5
                 : x.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar ? 3
@@ -211,7 +223,12 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 : 4));
         }
 
-        var total = await consulta.CountAsync(cancellationToken);
+        // Con los recuentos ya leídos, el total no necesita otra pasada por la unión de las cinco ramas: el filtro
+        // por estado es «clave ∈ claves pedidas» sobre la misma expresión y el mismo universo con que se agrupó, así
+        // que el total es la suma de esas claves (o de todas, sin filtro). Una lectura del universo menos por página.
+        var total = filasPorClave is null
+            ? await consulta.CountAsync(cancellationToken)
+            : filasPorClave.Where(x => clavesPedidas is null || clavesPedidas.Contains(x.Key)).Sum(x => x.Value);
 
         IReadOnlyDictionary<string, ResumenDeGrupo>? resumenPorGrupo = null;
         if (request.AgruparPorAmbito)

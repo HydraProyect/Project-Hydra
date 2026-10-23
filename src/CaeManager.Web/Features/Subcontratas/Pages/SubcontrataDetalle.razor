@@ -219,6 +219,10 @@
                                                             @* Eliminar es una orden denegada a Consulta; el nombre accesible distingue cuál borra. *@
                                                             <SoloConEscritura>
                                                                 <MenuAcciones EtiquetaAccesible="@Textos["AriaMasAccionesVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
+                                                                    <ItemMenuAccion OnClick="() => EditarVerificacion(ultima, centro, tipo)"
+                                                                                    EtiquetaAccesible="@Textos["AriaEditarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
+                                                                        @Textos["BotonEditarVerificacion"]
+                                                                    </ItemMenuAccion>
                                                                     <ItemMenuAccion Destructivo="true" OnClick="() => AbrirEliminarVerificacion(ultima.Id, tipo.TipoDocumentoNombre)"
                                                                                     EtiquetaAccesible="@Textos["AriaEliminarVerificacion", tipo.TipoDocumentoNombre, centro.CentroNombre]">
                                                                         @Textos["BotonEliminarVerificacion"]
@@ -525,7 +529,7 @@
 
         <DrawerVerificacionExternaSubcontrata @ref="_drawerVerificacion" SubcontrataId="_detalle.Id" Subtitulo="@SubtituloVerificacion"
                                               CentrosSeleccionables="@(_supervision?.CentrosSeleccionables ?? [])"
-                                              OnRegistrada="CargarSupervisionAsync" />
+                                              OnRegistrada="CargarSupervisionAsync" OnEliminada="TrasEliminarVerificacionAsync" />
 
         <DrawerGestionDocumento @ref="_drawerDocumento" OnGuardado="ManejarDocumentoGuardadoAsync" />
 

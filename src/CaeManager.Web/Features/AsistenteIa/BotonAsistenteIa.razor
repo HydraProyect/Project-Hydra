@@ -1,20 +1,29 @@
 @rendermode InteractiveServer
-@inject AsistenteIaService AsistenteIaService
-@using CaeManager.Web.Features.AsistenteIa.Recursos
-@using Microsoft.Extensions.Localization
-@inject DisponibilidadAsistente Disponibilidad
-@inject IStringLocalizer<TextosAsistenteIa> Textos
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
-@* Sin ningún proveedor configurado (Anthropic:ApiKey para las consultas, o
-   TypeSafe:Activo + TypeSafe:ApiKey para el agente) el botón ni se muestra — el
-   chat queda completamente inerte en vez de mostrar algo roto (mismo principio que
-   Sentry/Backups: funciona sin configurar, se activa con una variable). *@
+@* Botón flotante de Vega (marco-talveg.js, 2026-10-21): píldora abajo a la derecha con el
+   icono en su círculo turquesa, «Vega» y Ctrl I. No aparece en la pantalla completa
+   (/asistente) ni mientras el panel está abierto (base.css, data-vega-abierto).
+
+   Sin ningún proveedor configurado (Anthropic:ApiKey para las consultas, o TypeSafe:Activo
+   + TypeSafe:ApiKey para el agente) el botón ni se muestra — el chat queda completamente
+   inerte en vez de mostrar algo roto (mismo principio que Sentry/Backups). *@
 <LimiteDeErrores Islote="this">
-@if (Disponibilidad.Alguna)
+@if (Disponibilidad.Alguna && !_enPantallaCompleta)
 {
-    <button type="button" class="boton-asistente-ia" @onclick="() => AsistenteIaService.Abrir()" data-tooltip="@TituloBoton" aria-label="@TituloBoton">
-        <Icono Nombre="chat" Tamano="TamanoIcono.Medio" />
+    @if (_mostrarPista)
+    {
+        <div class="vega-pista" role="note">
+            <span><b>@Textos["PistaTitulo", Marca.Nombre]</b> @Textos["PistaTexto"]</span>
+            <button type="button" class="vega-pista-entendido" @onclick="EntendidoAsync">@Textos["PistaEntendido"]</button>
+        </div>
+    }
+    <button type="button" class="boton-asistente-ia" @onclick="Abrir"
+            aria-label="@Textos["BotonAbrirEtiqueta", Marca.Nombre]" aria-keyshortcuts="Control+I"
+            data-tooltip="@Textos["BotonTooltip"]">
+        <span class="vega-avatar" aria-hidden="true"><Icono Nombre="ia" /></span>
+        <span class="boton-asistente-ia-nombre">@Vega.Nombre</span>
+        <kbd aria-hidden="true">@Vega.Atajo</kbd>
     </button>
 }
 </LimiteDeErrores>

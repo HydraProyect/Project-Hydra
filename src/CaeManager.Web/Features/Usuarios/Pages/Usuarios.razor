@@ -438,7 +438,11 @@
             <p><strong>@TextosUsuarios["EnlaceNuevoAvisoTitulo"]</strong> @TextosUsuarios["EnlaceNuevoAvisoTexto"]</p>
             <p>@TextosUsuarios["EnlaceCaducidad", MinutosCaducidadActivacion]</p>
         }
-        else if (_reenvioEnCurso && _reenvioFallido)
+        else if (_envioCorreoEnVuelo)
+        {
+            <p>@TextosUsuarios["EnvioCorreoEnCursoCuerpo"]</p>
+        }
+        else if (_reenvioFallido)
         {
             <p>@TextosUsuarios["EnlaceCuerpoFallido"]</p>
         }

@@ -34,7 +34,8 @@ public sealed record ParDeTipoDocumento(
     DateOnly? FechaEmision,
     DateOnly? FechaVencimiento,
     bool BloqueaAcceso = false,
-    int ToleranciaDias = 0);
+    int ToleranciaDias = 0,
+    bool EsRenuncia = false);
 
 /// <summary>
 /// Agrupación y recuento de la página «Tipo de documento 360». Función pura sobre los pares exigidos del tipo:
@@ -88,7 +89,7 @@ public static class EstadoTipoDocumentoCalculo
                     primero.TrabajadorId, primero.TrabajadorNombre, primero.Dni, primero.EmpresaId, primero.EmpresaNombre,
                     primero.DocumentoId, primero.FechaEmision, primero.FechaVencimiento,
                     PeorEstado: centros[0].Estado,
-                    CentrosAlDia: centros.Count(c => CumplimientoDocumental.EsConforme(c.Estado)),
+                    CentrosAlDia: centros.Count(c => CumplimientoDocumental.EsConforme(c.Estado, primero.EsRenuncia)),
                     Centros: centros);
             })
             .OrderBy(f => Gravedad(f.PeorEstado))
