@@ -19,8 +19,14 @@ namespace CaeManager.Application.ContratosAcceso.LecturaInbound;
 ///
 /// <para>
 /// Cada listado y cada apertura que dan lectura dejan una fila en <c>AccesosLecturaInbound</c> del Tenant de la Empresa
-/// contratista, escrita por la propia función. Se llama fuera de transacciones de escritura de negocio, para que un
-/// rollback del llamante no borre la traza.
+/// contratista, escrita por la propia función. <see cref="DocumentosAutorizadosAsync"/> y
+/// <see cref="ArchivoAutorizadoAsync"/> lanzan <see cref="InvalidOperationException"/> si se llaman dentro de una
+/// transacción (de EF o ambiental): un rollback del llamante borraría la traza de una lectura que sí se dio.
+/// </para>
+///
+/// <para>
+/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c>, que deciden antes la cartera
+/// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
 /// </summary>
 public interface ILectorDocumentosInbound
@@ -43,11 +49,17 @@ public interface ILectorDocumentosInbound
     Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default);
 }
 
+/// <param name="VigenteHoy">
+/// La autorización da lectura hoy (no revocada y dentro de su vigencia, con el día de negocio de Europe/Madrid), calculado
+/// en la base con la misma condición que las lecturas.
+/// </param>
+/// <param name="Trabajadores">Trabajadores asignados que no están eliminados ni anonimizados: los que se pueden leer.</param>
 public record AutorizacionInboundDto(
     Guid AutorizacionId,
     DateOnly VigenciaDesde,
     DateOnly? VigenciaHasta,
     bool Revocada,
+    bool VigenteHoy,
     bool IncluyeDocumentosEmpresa,
     int Trabajadores);
 

@@ -19,12 +19,13 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         var fila = await dbContext.Database.SqlQuery<FilaAutorizacion>($"SELECT * FROM app_inbound_autorizacion_del_contrato({contratoAccesoId})").ToListAsync(cancellationToken);
 
         return fila.SingleOrDefault() is { } a
-            ? new AutorizacionInboundDto(a.AutorizacionId, a.VigenciaDesde, a.VigenciaHasta, a.Revocada, a.IncluyeDocumentosEmpresa, a.Trabajadores)
+            ? new AutorizacionInboundDto(a.AutorizacionId, a.VigenciaDesde, a.VigenciaHasta, a.Revocada, a.VigenteHoy, a.IncluyeDocumentosEmpresa, a.Trabajadores)
             : null;
     }
 
     public async Task<IReadOnlyList<DocumentoInboundDto>> DocumentosAutorizadosAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default)
     {
+        ExigirFueraDeTransaccion();
         var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);
 
         return filas
@@ -36,9 +37,21 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
 
     public async Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)
     {
+        ExigirFueraDeTransaccion();
         var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);
 
         return fila.SingleOrDefault() is { } a ? new ArchivoInboundDto(a.DocumentoId, a.ArchivoUrl) : null;
+    }
+
+    // La traza de AccesosLecturaInbound la inserta la propia función en la sentencia que da la lectura. Dentro de una
+    // transacción del llamante, su rollback la borraría y quedaría una lectura sin registro: se rechaza antes de llamar,
+    // tanto la transacción de EF como una ambiental (System.Transactions), en la que Npgsql se alista solo.
+    private void ExigirFueraDeTransaccion()
+    {
+        if (dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null)
+            throw new InvalidOperationException(
+                "La lectura Inbound entre Tenants deja su traza en AccesosLecturaInbound y no puede ir dentro de una " +
+                "transacción: un rollback del llamante borraría la traza de una lectura que sí se dio. Llámala fuera de la transacción.");
     }
 
     // Formas de las filas que devuelven las funciones: los nombres de propiedad son los de sus columnas de salida.
@@ -48,6 +61,7 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         public DateOnly VigenciaDesde { get; init; }
         public DateOnly? VigenciaHasta { get; init; }
         public bool Revocada { get; init; }
+        public bool VigenteHoy { get; init; }
         public bool IncluyeDocumentosEmpresa { get; init; }
         public int Trabajadores { get; init; }
     }

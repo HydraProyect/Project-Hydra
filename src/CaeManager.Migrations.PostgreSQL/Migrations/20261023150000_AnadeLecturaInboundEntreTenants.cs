@@ -51,6 +51,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // cae_app_runtime y cae_app_soporte solo tienen SELECT: la aplicación de Y lee quién leyó qué de lo suyo, y
             // nadie lo escribe ni lo reescribe salvo las funciones de abajo (propietario de la migración, no sujeto a RLS).
             //
+            // Supuesto del que depende todo lo de abajo: el propietario de las funciones (el rol que aplica las migraciones)
+            // es superusuario o tiene BYPASSRLS. Las tablas tienen FORCE ROW LEVEL SECURITY, así que un propietario sin
+            // ninguno de los dos vería sus propias políticas y las funciones no leerían nada de Y. Lo comprueba
+            // LecturaInboundBajoRuntimeTests.Las_funciones_cumplen_su_contrato_de_privilegios contra pg_roles.
+            //
             // Funciones públicas (plpgsql, SECURITY DEFINER, search_path fijado, nombres cualificados; EXECUTE solo para
             // cae_app_runtime). Exigen el contexto firmado (app_ctx_valido) con Tenant y usuario, y si no, 42501: «sin
             // contexto» es distinguible de «sin autorización» (vacío), para que un lector vacío en silencio no alimente
@@ -58,9 +63,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // nunca de un parámetro ni de la GUC app.tenant_id, que la propia conexión puede escribir. No son STABLE: las
             // dos que dan lectura insertan su fila en "AccesosLecturaInbound" en la misma llamada.
             //   app_inbound_autorizacion_del_contrato(C): como mucho una fila (la autorización sin revocar, o si no la
-            //     última concedida) para que X sepa si puede validar. Solo si C cumple el paso 1. Sin traza: no lee Documentos.
+            //     última concedida) para que X sepa si puede validar. Solo si C cumple el paso 1. "VigenteHoy" es el paso 2
+            //     sobre esa fila, con el mismo día de Europe/Madrid; "Trabajadores" cuenta solo los hijos cuyo Trabajador no
+            //     está eliminado ni anonimizado, los mismos que el paso 3 deja leer. Sin traza: no lee Documentos.
             //   app_inbound_documentos_autorizados(C): metadatos de los Documentos del alcance, sin "ArchivoUrl". Traza Listado.
             //   app_inbound_archivo_autorizado(C, D): "ArchivoUrl" de un Documento del alcance. Traza Apertura.
+            //   Las dos repiten "RevocadaEnUtc" IS NULL en la sentencia que lee los Documentos: en READ COMMITTED cada
+            //   sentencia de plpgsql toma su propia instantánea, y una revocación confirmada entre el paso 2 y la lectura
+            //   también la corta.
             //
             // Condición común, en tres funciones auxiliares sin EXECUTE para nadie salvo el propietario (las llaman las de
             // arriba, que ya corren como él):
@@ -70,7 +80,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //   2. app_inbound_autorizacion_aplicable: A en Y para destinatario X y contrato C, "RevocadaEnUtc" IS NULL
             //      (nunca comparado con la hora: el runtime puede escribir cualquier valor no nulo al revocar) y vigente
             //      hoy (AutorizacionLecturaDocumental.VigenteEn).
-            //   3. app_inbound_documentos_del_alcance: Documentos de Y no eliminados ni anonimizados, de tipo cuya
+            //   3. app_inbound_documentos_del_alcance: Documentos de Y no eliminados, no anonimizados y no sustituidos
+            //      ("SustituidoEnUtc" IS NULL, el mismo criterio que DocumentoOperativo), de tipo cuya
             //      Sensibilidad no es CategoriaEspecialSalud (el valor por defecto de todo tipo: falla cerrado), y que son
             //      de una Empresa propia de Y ("EsPropia", no eliminada) si A incluye los de Empresa, o de un Trabajador de
             //      los hijos de A que no esté eliminado ni anonimizado (la FK de la fila hija no lo ve).
@@ -145,6 +156,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                    WHERE d."TenantId" = p_tenant
                      AND NOT d."EstaEliminado"
                      AND d."AnonimizadoEnUtc" IS NULL
+                     AND d."SustituidoEnUtc" IS NULL
                      AND td."Sensibilidad" <> 'CategoriaEspecialSalud'
                      AND ((p_incluye_empresa
                            AND d."EmpresaId" IS NOT NULL
@@ -161,7 +173,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                 CREATE FUNCTION public.app_inbound_autorizacion_del_contrato(p_contrato uuid)
                     RETURNS TABLE("AutorizacionId" uuid, "VigenciaDesde" date, "VigenciaHasta" date, "Revocada" boolean,
-                                  "IncluyeDocumentosEmpresa" boolean, "Trabajadores" integer)
+                                  "VigenteHoy" boolean, "IncluyeDocumentosEmpresa" boolean, "Trabajadores" integer)
                     LANGUAGE plpgsql SECURITY DEFINER
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
@@ -169,20 +181,26 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 DECLARE
                     v_lector uuid;
                     v_tenant_contratista uuid;
+                    v_hoy date;
                 BEGIN
                     IF NOT COALESCE(public.app_ctx_valido(), false) OR public.app_ctx_tenant_id() IS NULL OR public.app_ctx_usuario_id() IS NULL THEN
                         RAISE EXCEPTION 'Sin contexto firmado con Tenant y usuario: no se lee nada de otro Tenant.' USING ERRCODE = '42501';
                     END IF;
                     v_lector := public.app_ctx_tenant_id();
-                    v_tenant_contratista := public.app_inbound_tenant_contratista_del_contrato(
-                        v_lector, p_contrato, (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date);
+                    v_hoy := (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date;
+                    v_tenant_contratista := public.app_inbound_tenant_contratista_del_contrato(v_lector, p_contrato, v_hoy);
                     IF v_tenant_contratista IS NULL THEN
                         RETURN;
                     END IF;
                     RETURN QUERY
-                        SELECT a."Id", a."VigenciaDesde", a."VigenciaHasta", a."RevocadaEnUtc" IS NOT NULL, a."IncluyeDocumentosEmpresa",
+                        SELECT a."Id", a."VigenciaDesde", a."VigenciaHasta", a."RevocadaEnUtc" IS NOT NULL,
+                               EXISTS (SELECT 1 FROM public.app_inbound_autorizacion_aplicable(v_lector, p_contrato, v_hoy) ap
+                                        WHERE ap.autorizacion_id = a."Id"),
+                               a."IncluyeDocumentosEmpresa",
                                (SELECT pg_catalog.count(*)::integer FROM public."AutorizacionesLecturaTrabajadores" h
-                                 WHERE h."TenantId" = a."TenantId" AND h."AutorizacionId" = a."Id")
+                                  JOIN public."Trabajadores" t ON t."TenantId" = h."TenantId" AND t."Id" = h."TrabajadorId"
+                                 WHERE h."TenantId" = a."TenantId" AND h."AutorizacionId" = a."Id"
+                                   AND NOT t."EstaEliminado" AND t."AnonimizadoEnUtc" IS NULL)
                           FROM public."AutorizacionesLecturaDocumental" a
                          WHERE a."TenantId" = v_tenant_contratista
                            AND a."TenantDestinatarioId" = v_lector
@@ -228,6 +246,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                          WHERE d."TenantId" = v_aut.tenant_contratista
                            AND d."Id" IN (SELECT public.app_inbound_documentos_del_alcance(
                                               v_aut.tenant_contratista, v_aut.autorizacion_id, v_aut.incluye_empresa))
+                           AND EXISTS (SELECT 1 FROM public."AutorizacionesLecturaDocumental" a
+                                        WHERE a."TenantId" = v_aut.tenant_contratista AND a."Id" = v_aut.autorizacion_id
+                                          AND a."RevocadaEnUtc" IS NULL)
                          ORDER BY d."TrabajadorId" NULLS FIRST, td."Nombre", d."FechaEmision", d."Id";
                 END;
                 $$;
@@ -259,7 +280,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                      WHERE d."TenantId" = v_aut.tenant_contratista
                        AND d."Id" = p_documento
                        AND d."Id" IN (SELECT public.app_inbound_documentos_del_alcance(
-                                          v_aut.tenant_contratista, v_aut.autorizacion_id, v_aut.incluye_empresa));
+                                          v_aut.tenant_contratista, v_aut.autorizacion_id, v_aut.incluye_empresa))
+                       AND EXISTS (SELECT 1 FROM public."AutorizacionesLecturaDocumental" a
+                                    WHERE a."TenantId" = v_aut.tenant_contratista AND a."Id" = v_aut.autorizacion_id
+                                      AND a."RevocadaEnUtc" IS NULL);
                     IF NOT FOUND THEN
                         RETURN;
                     END IF;

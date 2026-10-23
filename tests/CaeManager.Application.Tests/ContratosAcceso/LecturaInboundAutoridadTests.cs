@@ -45,7 +45,30 @@ public class LecturaInboundAutoridadTests
             .Handle(new ObtenerDocumentosInboundQuery(_contrato.Id), CancellationToken.None);
 
         documentos.Should().ContainSingle();
-        _lector.Llamadas.Should().Equal(_contrato.Id);
+        _lector.Llamadas.Should().Equal(("Autorizacion", _contrato.Id), ("Documentos", _contrato.Id));
+    }
+
+    public static TheoryData<string, bool, bool> AutorizacionesQueNoDanLectura => new()
+    {
+        { "sin autorización", false, false },
+        { "revocada", true, true },
+        { "fuera de su vigencia", true, false },
+    };
+
+    [Theory]
+    [MemberData(nameof(AutorizacionesQueNoDanLectura))]
+    public async Task Un_contrato_visible_sin_autorizacion_vigente_responde_no_encontrado_igual_que_uno_invisible(
+        string caso, bool hayAutorizacion, bool revocada)
+    {
+        _lector.Autorizacion = hayAutorizacion
+            ? new(Guid.NewGuid(), new DateOnly(2026, 3, 1), null, revocada, VigenteHoy: false, true, 1)
+            : null;
+
+        var documentos = await Documentos("GestorCae", Alcance(_cliente))
+            .Handle(new ObtenerDocumentosInboundQuery(_contrato.Id), CancellationToken.None);
+
+        documentos.Should().BeNull($"{caso}: una lista vacía distinguiría el contrato visible del invisible");
+        _lector.Llamadas.Should().Equal([("Autorizacion", _contrato.Id)], "sin autorización vigente no se piden los Documentos");
     }
 
     [Theory]
@@ -102,29 +125,32 @@ public class LecturaInboundAutoridadTests
             .Handle(new ObtenerAutorizacionInboundQuery(_contrato.Id), CancellationToken.None)).Should().NotBeNull();
         (await new ObtenerArchivoInboundQueryHandler(_contratos, Alcance(_cliente), new UsuarioConRol("GestorCae"), _lector)
             .Handle(new ObtenerArchivoInboundQuery(_contrato.Id, documento), CancellationToken.None))!.DocumentoId.Should().Be(documento);
-        _lector.Llamadas.Should().Equal(_contrato.Id, _contrato.Id);
+        _lector.Llamadas.Should().Equal(("Autorizacion", _contrato.Id), ("Archivo", _contrato.Id));
     }
 
     private sealed class LectorFalso : ILectorDocumentosInbound
     {
-        public List<Guid> Llamadas { get; } = [];
+        public List<(string Funcion, Guid Contrato)> Llamadas { get; } = [];
+
+        public AutorizacionInboundDto? Autorizacion { get; set; } =
+            new(Guid.NewGuid(), new DateOnly(2026, 3, 1), null, false, VigenteHoy: true, true, 1);
 
         public Task<AutorizacionInboundDto?> AutorizacionDelContratoAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default)
         {
-            Llamadas.Add(contratoAccesoId);
-            return Task.FromResult<AutorizacionInboundDto?>(new(Guid.NewGuid(), new DateOnly(2026, 3, 1), null, false, true, 1));
+            Llamadas.Add(("Autorizacion", contratoAccesoId));
+            return Task.FromResult(Autorizacion);
         }
 
         public Task<IReadOnlyList<DocumentoInboundDto>> DocumentosAutorizadosAsync(Guid contratoAccesoId, CancellationToken cancellationToken = default)
         {
-            Llamadas.Add(contratoAccesoId);
+            Llamadas.Add(("Documentos", contratoAccesoId));
             return Task.FromResult<IReadOnlyList<DocumentoInboundDto>>(
                 [new(Guid.NewGuid(), null, null, null, null, "Tipo", new DateOnly(2026, 3, 1), null, EstadoVigenciaDocumento.SinConfirmar)]);
         }
 
         public Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)
         {
-            Llamadas.Add(contratoAccesoId);
+            Llamadas.Add(("Archivo", contratoAccesoId));
             return Task.FromResult<ArchivoInboundDto?>(new(documentoId, "archivo"));
         }
     }

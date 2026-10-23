@@ -6,7 +6,10 @@ namespace CaeManager.Application.ContratosAcceso.Queries.ObtenerLecturaInbound;
 
 // Las tres lecturas Inbound comparten autoridad (LecturaInboundAutoridad) antes de llamar al lector: la cartera no
 // sustituye a la función de la base, ni la función a la cartera. Null = no encontrado, sin distinguir contrato invisible,
-// rol que no valida o falta de autorización del Tenant de la Empresa contratista.
+// rol que no valida o falta de autorización aplicable del Tenant de la Empresa contratista. Para que los Documentos no
+// distingan «contrato visible sin autorización» (lista vacía) de «contrato invisible» (null), su handler pregunta antes
+// por la autorización y responde null si no hay una vigente hoy; una lista vacía solo dice «autorizado, sin Documentos en
+// el alcance» (o una revocación entre las dos llamadas, que la base corta igual).
 
 /// <summary>¿Hay autorización del Tenant de la Empresa contratista para este contrato?</summary>
 public record ObtenerAutorizacionInboundQuery(Guid ContratoAccesoId) : IRequest<AutorizacionInboundDto?>;
@@ -36,10 +39,16 @@ public class ObtenerDocumentosInboundQueryHandler(
     ILectorDocumentosInbound lector)
     : IRequestHandler<ObtenerDocumentosInboundQuery, IReadOnlyList<DocumentoInboundDto>?>
 {
-    public async Task<IReadOnlyList<DocumentoInboundDto>?> Handle(ObtenerDocumentosInboundQuery request, CancellationToken cancellationToken) =>
-        await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
+    public async Task<IReadOnlyList<DocumentoInboundDto>?> Handle(ObtenerDocumentosInboundQuery request, CancellationToken cancellationToken)
+    {
+        if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
+            return null;
+
+        var autorizacion = await lector.AutorizacionDelContratoAsync(request.ContratoAccesoId, cancellationToken);
+        return autorizacion is { VigenteHoy: true }
             ? await lector.DocumentosAutorizadosAsync(request.ContratoAccesoId, cancellationToken)
             : null;
+    }
 }
 
 public class ObtenerArchivoInboundQueryHandler(
