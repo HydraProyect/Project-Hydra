@@ -1902,6 +1902,69 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ContactosAgendaTiposDocumento", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("FechaCierreReal")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaFin")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId");
+
+                    b.HasIndex("TenantId", "EmpresaContratistaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
+
+                    b.ToTable("ContratosAcceso", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9910,6 +9973,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TipoDocumentoId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaContratistaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id", "ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

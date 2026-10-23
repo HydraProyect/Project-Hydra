@@ -638,6 +638,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
+        // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la
+        // Empresa contratista existe en el Tenant, solo por su Id.
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "ICentrosQueryContext"),
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "IEmpresasQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),

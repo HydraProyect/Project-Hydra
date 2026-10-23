@@ -197,6 +197,13 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Plantillas.GuardarElementosPlantillaCommandHandler",
         "Plantillas.IniciarLoteGeneracionDocumentosCommandHandler",
 
+        // Contratos de acceso (Inbound M1): la autoridad es la de Proyecto, por el Cliente del contrato.
+        "ContratosAcceso.ActualizarContratoAccesoCommandHandler",
+        "ContratosAcceso.CerrarContratoAccesoCommandHandler",
+        "ContratosAcceso.CrearContratoAccesoCommandHandler",
+        "ContratosAcceso.EliminarContratoAccesoCommandHandler",
+        "ContratosAcceso.ReabrirContratoAccesoCommandHandler",
+
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",
         "Proyectos.AnadirRequisitoEventoCommandHandler",

@@ -86,6 +86,7 @@ public class CaeManagerDbContext(
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
         IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
         CaeManager.Application.Plataforma.IPlataformaQueryContext,
+        CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
@@ -248,6 +249,8 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoTecnico> IProyectosQueryContext.ProyectosTecnicos => ProyectosTecnicos;
     public DbSet<ProyectoRequisito> ProyectosRequisitos => Set<ProyectoRequisito>();
     IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
+    public DbSet<CaeManager.Domain.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.ContratosAcceso.ContratoAcceso>();
+    IQueryable<CaeManager.Domain.ContratosAcceso.ContratoAcceso> CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
     IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
     public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();
