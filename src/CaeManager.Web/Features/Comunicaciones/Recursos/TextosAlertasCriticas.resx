@@ -38,7 +38,8 @@
   <data name="ToastIncidenciaRegistrada" xml:space="preserve"><value>Incidencia registrada.</value></data>
   <data name="ToastIncidenciaRegistradaPara" xml:space="preserve"><value>Incidencia registrada para {0}.</value></data>
   <data name="ToastAccionDeshacer" xml:space="preserve"><value>Deshacer</value></data>
-  <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidencia eliminada. La alerta sigue confirmada.</value></data>
+  <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidencia eliminada. La alerta vuelve a estar pendiente.</value></data>
   <data name="ErrorResolverIncidenciaQuedada" xml:space="preserve"><value>No se pudo confirmar la alerta y la incidencia creada no se pudo retirar. Revísala en Incidencias.</value></data>
-  <data name="ErrorDeshacer" xml:space="preserve"><value>No se pudo deshacer. Elimina la incidencia desde Incidencias.</value></data>
+  <data name="ErrorDeshacer" xml:space="preserve"><value>No se pudo deshacer. La incidencia y la alerta siguen como estaban.</value></data>
+  <data name="ErrorDeshacerOtraPendiente" xml:space="preserve"><value>No se pudo deshacer: ya hay otra alerta pendiente en esta conversación. La incidencia y la alerta siguen como estaban.</value></data>
 </root>

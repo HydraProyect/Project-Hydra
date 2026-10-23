@@ -127,6 +127,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.MigrarConversacionACorreoCommandHandler",
         "Comunicaciones.PedirPrioridadValidacionCommandHandler",
         "Comunicaciones.ResolverAlertaCriticaCommandHandler",
+        "Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler",
         "Comunicaciones.ResponderConversacionCommandHandler",
         "Comunicaciones.ResponderConversacionWhatsAppCommandHandler",
         "Comunicaciones.VincularConversacionCommandHandler",

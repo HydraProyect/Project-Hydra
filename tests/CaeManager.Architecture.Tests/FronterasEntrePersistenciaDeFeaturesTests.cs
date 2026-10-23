@@ -318,6 +318,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
+        // Alerta crítica (Z5-1, 2026-10-23): «Registrar incidencia» ata la alerta a la Incidencia que acaba de crearse y el Deshacer
+        // la elimina, devuelve la alerta a Pendiente y retira los avisos «derivado» en una sola transacción; por eso los dos
+        // handlers leen la Incidencia (con su alcance de gestión) y el Deshacer marca como leídas las NotificacionUsuario.
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "IIncidenciaRepository"),
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "INotificacionUsuarioRepository"),
+        ("Comunicaciones.ResolverAlertaCriticaCommandHandler", "IIncidenciaRepository"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IAsignacionesQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IEmpresasQueryContext"),

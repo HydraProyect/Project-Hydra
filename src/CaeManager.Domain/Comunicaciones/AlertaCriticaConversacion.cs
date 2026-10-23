@@ -49,12 +49,34 @@ public sealed class AlertaCriticaConversacion : EntidadConTenant, IVersionable
         ConfianzaIa = confianza;
     }
 
-    public void Resolver(bool confirmarYDerivar, Guid decisionPorUsuarioId, DateTime ahora)
+    /// <summary>Incidencia registrada al confirmar y derivar; ata el Deshacer a esa Incidencia concreta. Null si se descartó o se confirmó sin Incidencia.</summary>
+    public Guid? IncidenciaId { get; private set; }
+
+    public void Resolver(bool confirmarYDerivar, Guid decisionPorUsuarioId, DateTime ahora, Guid? incidenciaId = null)
     {
         if (Estado != EstadoAlertaCritica.Pendiente) throw new InvalidOperationException("La alerta ya tiene una decisión.");
         if (decisionPorUsuarioId == Guid.Empty) throw new ArgumentException("La decisión requiere una persona identificada.", nameof(decisionPorUsuarioId));
+        if (incidenciaId is { } id && (!confirmarYDerivar || id == Guid.Empty))
+            throw new ArgumentException("Solo una alerta confirmada y derivada se ata a una Incidencia.", nameof(incidenciaId));
         Estado = confirmarYDerivar ? EstadoAlertaCritica.ConfirmadaYDerivada : EstadoAlertaCritica.Descartada;
         DecisionPorUsuarioId = decisionPorUsuarioId;
         DecisionEnUtc = ahora;
+        IncidenciaId = incidenciaId;
+    }
+
+    /// <summary>
+    /// «Deshacer» de quien confirmó y derivó: la alerta vuelve a Pendiente y suelta la Incidencia, que el llamador elimina en la
+    /// misma unidad de trabajo. Solo la persona que tomó la decisión y solo sobre la Incidencia que registró.
+    /// </summary>
+    public void DeshacerDerivacion(Guid incidenciaId, Guid usuarioId)
+    {
+        if (Estado != EstadoAlertaCritica.ConfirmadaYDerivada || IncidenciaId is null || IncidenciaId != incidenciaId)
+            throw new InvalidOperationException("Solo se deshace la derivación de la Incidencia que se registró con ella.");
+        if (usuarioId == Guid.Empty || DecisionPorUsuarioId != usuarioId)
+            throw new InvalidOperationException("Solo quien confirmó y derivó la alerta puede deshacerlo.");
+        Estado = EstadoAlertaCritica.Pendiente;
+        DecisionPorUsuarioId = null;
+        DecisionEnUtc = null;
+        IncidenciaId = null;
     }
 }

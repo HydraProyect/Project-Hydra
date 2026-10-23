@@ -784,6 +784,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("IncidenciaId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
 
@@ -812,7 +815,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.HasIndex("TenantId", "ConversacionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_AlertasCriticasConversacion_TenantId_ConversacionId_Pendiente")
+                        .HasFilter("\"Estado\" = 0");
 
                     b.ToTable("AlertasCriticasConversacion", (string)null);
                 });
