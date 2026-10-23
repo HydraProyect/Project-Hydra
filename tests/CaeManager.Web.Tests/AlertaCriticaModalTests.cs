@@ -41,7 +41,7 @@ public class AlertaCriticaModalTests : BunitContext
             .Add(c => c.OnNoEsCritica, () => alNoEsCritica?.Invoke()));
 
     private static AlertaCriticaDto Alerta(bool? segundaOpinion, int? confianza) =>
-        new("Está trabajando en cubierta sin el curso de altura", EstadoAlertaCritica.Pendiente, true, segundaOpinion, confianza);
+        new(Guid.NewGuid(), "Está trabajando en cubierta sin el curso de altura", EstadoAlertaCritica.Pendiente, true, segundaOpinion, confianza);
 
     [Fact]
     public void Es_un_modal_bloqueante_de_560_px_con_dos_acciones_y_un_solo_primario()
@@ -121,7 +121,7 @@ public class AlertaCriticaModalTests : BunitContext
     [Fact]
     public void El_texto_de_la_alerta_se_pinta_como_texto_plano()
     {
-        var cut = Renderizar(new AlertaCriticaDto("<script>alert(1)</script> denuncia", EstadoAlertaCritica.Pendiente, true, null, null));
+        var cut = Renderizar(new AlertaCriticaDto(Guid.NewGuid(), "<script>alert(1)</script> denuncia", EstadoAlertaCritica.Pendiente, true, null, null));
 
         cut.FindAll(".alerta-critica-modal script").Should().BeEmpty();
         cut.Find("blockquote").TextContent.Should().Contain("<script>");

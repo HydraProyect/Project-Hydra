@@ -22,7 +22,11 @@ public interface ISegundaOpinionCriticaIa
 
 public interface IAlertaCriticaRepository
 {
-    Task<AlertaCriticaConversacion?> ObtenerPorConversacionAsync(Guid conversacionId, CancellationToken cancellationToken);
+    /// <summary>La alerta Pendiente de la conversación (como mucho una: índice único parcial), incluida la recién añadida en esta unidad de trabajo.</summary>
+    Task<AlertaCriticaConversacion?> ObtenerPendientePorConversacionAsync(Guid conversacionId, CancellationToken cancellationToken);
+    /// <summary>La que muestra la conversación: la Pendiente si la hay; si no, la más reciente ya resuelta.</summary>
+    Task<AlertaCriticaConversacion?> ObtenerVigentePorConversacionAsync(Guid conversacionId, CancellationToken cancellationToken);
+    Task<AlertaCriticaConversacion?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken);
     void Agregar(AlertaCriticaConversacion alerta);
 }
 
@@ -58,7 +62,8 @@ public class AlertaCriticaService(
         if (mensaje.Direccion != DireccionMensaje.Entrante || mensaje.EsAutomatico || tenantActual.TenantId is not { } tenantId) return;
         var reglas = opciones.CurrentValue.ExpresionesPorOperadorCae.GetValueOrDefault(tenantId);
         var coincidencia = DetectorExpresionesCriticas.Detectar(mensaje, reglas);
-        if (coincidencia is null || await repositorio.ObtenerPorConversacionAsync(mensaje.ConversacionId, cancellationToken) is not null) return;
+        // Solo deduplica contra una alerta Pendiente: una Descartada o ConfirmadaYDerivada no silencia un caso crítico nuevo del mismo hilo.
+        if (coincidencia is null || await repositorio.ObtenerPendientePorConversacionAsync(mensaje.ConversacionId, cancellationToken) is not null) return;
 
         var alerta = new AlertaCriticaConversacion(mensaje, coincidencia.Texto, coincidencia.Expresion, tenantId, DateTime.UtcNow);
         // La indisponibilidad de la segunda opinión nunca impide la alerta determinista. Sin Nivel 0
@@ -90,6 +95,8 @@ public class AlertaCriticaService(
             notificaciones.Agregar(new NotificacionUsuario(persona,
                 confirmada ? "Caso crítico confirmado y derivado" : "Posible caso crítico",
                 confirmada ? "La Dirección CAE o el Coordinador CAE ha confirmado el caso para su atención." : "Hay una conversación que requiere revisión de la Dirección CAE o del Coordinador CAE.",
-                $"/comunicaciones?conversacion={alerta.ConversacionId}", "Revisar conversación"));
+                $"/comunicaciones?conversacion={alerta.ConversacionId}", "Revisar conversación",
+                // El aviso «derivado» lleva como evento de origen la Incidencia registrada: el Deshacer lo retira por ella.
+                eventoOrigenId: confirmada ? alerta.IncidenciaId : null));
     }
 }

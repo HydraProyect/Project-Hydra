@@ -84,7 +84,7 @@
         var id = ConversacionId;
         try
         {
-            var resultado = await Mediator.Send(new ResolverAlertaCriticaCommand(id, false));
+            var resultado = await Mediator.Send(new ResolverAlertaCriticaCommand(id, _alerta.Id, false));
             if (ConversacionId != id) return;
             _error = resultado.EsFallido ? Textos["ErrorResolver"].Value : null;
             _alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(id));
@@ -115,9 +115,9 @@
     }
 
     /// <summary>
-    /// «Registrar incidencia»: crea la Incidencia del Centro y confirma la alerta. Si confirmar falla, la Incidencia recién creada se
-    /// retira para no dejar una sin alerta que la explique. «Deshacer» elimina la Incidencia; la decisión de la Dirección CAE o del
-    /// Coordinador CAE sobre la alerta no tiene comando para revertirse, así que la alerta sigue confirmada.
+    /// «Registrar incidencia»: crea la Incidencia del Centro y confirma la alerta atándola a ella. Si confirmar falla, la Incidencia
+    /// recién creada se retira para no dejar una sin alerta que la explique. «Deshacer» elimina la Incidencia, devuelve la alerta a
+    /// Pendiente y retira los avisos «derivado» en una sola transacción (DeshacerDerivacionAlertaCriticaCommand).
     /// </summary>
     private async Task RegistrarIncidenciaAsync(AlertaCriticaModal.DatosIncidencia datos)
     {
@@ -125,6 +125,7 @@
         _guardando = true;
         _error = null;
         var id = ConversacionId;
+        var alertaId = _alerta.Id;
         var texto = _alerta.Texto;
         try
         {
@@ -147,7 +148,7 @@
 
             var incidenciaId = creada.Valor;
             bool confirmada;
-            try { confirmada = (await Mediator.Send(new ResolverAlertaCriticaCommand(id, true))).EsExitoso; }
+            try { confirmada = (await Mediator.Send(new ResolverAlertaCriticaCommand(id, alertaId, true, incidenciaId))).EsExitoso; }
             catch (Exception) { confirmada = false; }
 
             if (!confirmada)
@@ -165,7 +166,7 @@
                 : null;
             ToastService.Mostrar(
                 trabajador is null ? Textos["ToastIncidenciaRegistrada"].Value : Textos["ToastIncidenciaRegistradaPara", trabajador].Value,
-                TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(incidenciaId));
+                TonoToast.Exito, Textos["ToastAccionDeshacer"].Value, () => DeshacerAsync(id, alertaId, incidenciaId));
             if (ConversacionId != id) return;
             // Ya está confirmada y la Incidencia creada: el modal se cierra aunque el refresco falle.
             _alerta = _alerta with { Estado = EstadoAlertaCritica.ConfirmadaYDerivada, PuedeResolver = false };
@@ -183,13 +184,25 @@
         }
     }
 
-    private async Task DeshacerAsync(Guid incidenciaId)
+    private async Task DeshacerAsync(Guid conversacionId, Guid alertaId, Guid incidenciaId)
     {
         try
         {
-            var resultado = await Mediator.Send(new EliminarIncidenciaCommand(incidenciaId));
-            if (resultado.EsFallido) ToastService.Mostrar(Textos["ErrorDeshacer"].Value, TonoToast.Error);
-            else ToastService.Mostrar(Textos["ToastIncidenciaEliminada"].Value, TonoToast.Info);
+            var resultado = await Mediator.Send(new DeshacerDerivacionAlertaCriticaCommand(conversacionId, alertaId, incidenciaId));
+            if (resultado.EsFallido)
+            {
+                ToastService.Mostrar(Textos[resultado.Error.Codigo == "AlertaCritica.OtraPendiente" ? "ErrorDeshacerOtraPendiente" : "ErrorDeshacer"].Value, TonoToast.Error);
+                return;
+            }
+
+            ToastService.Mostrar(Textos["ToastIncidenciaEliminada"].Value, TonoToast.Info);
+            // La alerta vuelve a Pendiente: si la conversación sigue abierta, el modal reaparece para decidir de nuevo.
+            if (ConversacionId != conversacionId) return;
+            var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(conversacionId));
+            if (ConversacionId != conversacionId) return;
+            _alerta = alerta;
+            if (alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true }) await CargarListasAsync(conversacionId);
+            await InvokeAsync(StateHasChanged);
         }
         catch (Exception)
         {

@@ -2,8 +2,11 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.AlertasCriticas;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Application.Plataforma;
+using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Incidencias;
 using CaeManager.Application.Tests.Notificaciones;
 using CaeManager.Domain.Comunicaciones;
+using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Plataforma;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -76,6 +79,26 @@ public class AlertaCriticaServiceTests
         _repositorio.Alertas[0].ConfianzaIa.Should().Be(81);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_alerta_ya_resuelta_no_silencia_un_caso_critico_nuevo_del_mismo_hilo(bool confirmada)
+    {
+        var conversacion = new Conversacion("Hilo largo con la Empresa gestionada");
+        var servicio = Crear();
+        await servicio.ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "Denuncia", DateTime.UtcNow), default);
+        _repositorio.Alertas[0].Resolver(confirmada, _direccion, DateTime.UtcNow);
+        _avisos.Notificaciones.Clear();
+
+        await servicio.ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "Requerimiento oficial de la Inspección de Trabajo", DateTime.UtcNow), default);
+        await servicio.ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", "Sanción", DateTime.UtcNow), default);
+
+        _repositorio.Alertas.Should().HaveCount(2);
+        _repositorio.Alertas[1].Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+        _repositorio.Alertas[1].MensajeId.Should().NotBe(_repositorio.Alertas[0].MensajeId);
+        _avisos.Notificaciones.Select(n => n.UsuarioDestinatarioId).Should().BeEquivalentTo([_direccion, _coordinador]);
+    }
+
     [Fact]
     public async Task Una_segunda_opinion_fallida_no_suprime_la_alerta()
     {
@@ -135,13 +158,115 @@ public class AlertaCriticaServiceTests
         (await acceso.PersonaQuePuedeResolverAsync(default)).Should().BeNull();
     }
 
+    private readonly ComunicacionesQueryContextFalso _conversaciones = new();
+    private readonly IncidenciaRepositorioFalso _incidencias = new();
+    private readonly UnitOfWorkFalso _unidad = new();
+
+    private AccesoAlertaCritica Acceso(Guid persona) => new(new CurrentUserServiceFalso(persona, "DireccionCae", _tenant), new Sesion(),
+        new Tenant(_tenant), _conversaciones, new AlcanceDatosServiceFalso(), new DirectorioUsuariosServiceFalso());
+
+    private ResolverAlertaCriticaCommandHandler Resolver(Guid persona) =>
+        new(_repositorio, Acceso(persona), Crear(), _incidencias, new AlcanceDatosServiceFalso(), _unidad);
+
+    private DeshacerDerivacionAlertaCriticaCommandHandler Deshacer(Guid persona) =>
+        new(_repositorio, Acceso(persona), _incidencias, new AlcanceDatosServiceFalso(), _avisos, _unidad);
+
+    /// <summary>Alerta Pendiente de una conversación nueva, confirmada y derivada por la Dirección CAE con una Incidencia registrada.</summary>
+    private async Task<(Conversacion Conversacion, AlertaCriticaConversacion Alerta, Incidencia Incidencia)> DerivadaConIncidenciaAsync()
+    {
+        var conversacion = new Conversacion("Requerimiento");
+        _conversaciones.ListaConversaciones.Add(conversacion);
+        await Crear().ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
+            "empresa@example.test", "Inspección de Trabajo", DateTime.UtcNow), default);
+        var alerta = _repositorio.Alertas.Single();
+        var incidencia = new Incidencia(Guid.NewGuid(), null, CaeManager.Domain.Incidencias.TipoIncidencia.Incumplimiento,
+            CaeManager.Domain.Incidencias.GravedadIncidencia.Grave, DateOnly.FromDateTime(DateTime.UtcNow), "Inspección de Trabajo");
+        _incidencias.Agregar(incidencia);
+        (await Resolver(_direccion).Handle(new(conversacion.Id, alerta.Id, true, incidencia.Id), default)).EsExitoso.Should().BeTrue();
+        return (conversacion, alerta, incidencia);
+    }
+
+    [Fact]
+    public async Task Deshacer_devuelve_la_alerta_a_Pendiente_elimina_la_Incidencia_y_retira_solo_los_avisos_derivado()
+    {
+        var (conversacion, alerta, incidencia) = await DerivadaConIncidenciaAsync();
+        alerta.IncidenciaId.Should().Be(incidencia.Id);
+        var derivados = _avisos.Notificaciones.Where(n => n.EventoOrigenId == incidencia.Id).ToList();
+        derivados.Select(n => n.UsuarioDestinatarioId).Should().BeEquivalentTo([_direccion, _coordinador]);
+        var guardadosAntes = _unidad.VecesGuardado;
+
+        (await Deshacer(_direccion).Handle(new(conversacion.Id, alerta.Id, incidencia.Id), default)).EsExitoso.Should().BeTrue();
+
+        alerta.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+        alerta.IncidenciaId.Should().BeNull();
+        alerta.DecisionPorUsuarioId.Should().BeNull();
+        incidencia.EstaEliminado.Should().BeTrue();
+        derivados.Should().OnlyContain(n => n.Leida);
+        _avisos.Notificaciones.Where(n => n.EventoOrigenId is null).Should().HaveCount(2).And.OnlyContain(n => !n.Leida);
+        _unidad.VecesGuardado.Should().Be(guardadosAntes + 1);
+    }
+
+    [Fact]
+    public async Task Deshacer_no_cambia_nada_si_entre_tanto_llego_otra_alerta_Pendiente_a_la_conversacion()
+    {
+        var (conversacion, alerta, incidencia) = await DerivadaConIncidenciaAsync();
+        await Crear().ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
+            "empresa@example.test", "Denuncia", DateTime.UtcNow), default);
+        _repositorio.Alertas.Should().HaveCount(2);
+        var guardadosAntes = _unidad.VecesGuardado;
+
+        var resultado = await Deshacer(_direccion).Handle(new(conversacion.Id, alerta.Id, incidencia.Id), default);
+
+        resultado.Error.Codigo.Should().Be("AlertaCritica.OtraPendiente");
+        alerta.Estado.Should().Be(EstadoAlertaCritica.ConfirmadaYDerivada);
+        alerta.IncidenciaId.Should().Be(incidencia.Id);
+        incidencia.EstaEliminado.Should().BeFalse();
+        _avisos.Notificaciones.Where(n => n.EventoOrigenId == incidencia.Id).Should().OnlyContain(n => !n.Leida);
+        _unidad.VecesGuardado.Should().Be(guardadosAntes);
+    }
+
+    [Fact]
+    public async Task Solo_quien_derivo_y_con_su_Incidencia_puede_deshacer()
+    {
+        var (conversacion, alerta, incidencia) = await DerivadaConIncidenciaAsync();
+
+        (await Deshacer(_coordinador).Handle(new(conversacion.Id, alerta.Id, incidencia.Id), default)).Error.Codigo.Should().Be("AlertaCritica.NoDeshacible");
+        (await Deshacer(_direccion).Handle(new(conversacion.Id, alerta.Id, Guid.NewGuid()), default)).Error.Codigo.Should().Be("AlertaCritica.NoDeshacible");
+        (await Deshacer(_direccion).Handle(new(Guid.NewGuid(), alerta.Id, incidencia.Id), default)).EsFallido.Should().BeTrue();
+
+        alerta.Estado.Should().Be(EstadoAlertaCritica.ConfirmadaYDerivada);
+        incidencia.EstaEliminado.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Resolver_solo_actua_sobre_la_alerta_Pendiente_que_se_mostro()
+    {
+        var conversacion = new Conversacion("Requerimiento");
+        _conversaciones.ListaConversaciones.Add(conversacion);
+        await Crear().ProcesarAsync(conversacion.AgregarMensaje(DireccionMensaje.Entrante, CanalConversacion.Correo,
+            "empresa@example.test", "Denuncia", DateTime.UtcNow), default);
+        var mostrada = _repositorio.Alertas.Single();
+
+        (await Resolver(_direccion).Handle(new(conversacion.Id, Guid.NewGuid(), false), default)).Error.Codigo.Should().Be("AlertaCritica.NoPendiente");
+        (await Resolver(_direccion).Handle(new(conversacion.Id, mostrada.Id, false, Guid.NewGuid()), default)).Error.Codigo.Should().Be("AlertaCritica.IncidenciaNoDisponible");
+        mostrada.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+
+        (await Resolver(_direccion).Handle(new(conversacion.Id, mostrada.Id, false), default)).EsExitoso.Should().BeTrue();
+        mostrada.Estado.Should().Be(EstadoAlertaCritica.Descartada);
+    }
+
     private sealed class Repositorio : IAlertaCriticaRepository
     {
         public List<AlertaCriticaConversacion> Alertas { get; } = [];
         public bool Lanza { get; set; }
         public void Agregar(AlertaCriticaConversacion alerta) => Alertas.Add(alerta);
-        public Task<AlertaCriticaConversacion?> ObtenerPorConversacionAsync(Guid id, CancellationToken ct) =>
-            Lanza ? throw new InvalidOperationException("Base de datos caída") : Task.FromResult(Alertas.FirstOrDefault(a => a.ConversacionId == id));
+        public Task<AlertaCriticaConversacion?> ObtenerPendientePorConversacionAsync(Guid id, CancellationToken ct) =>
+            Lanza ? throw new InvalidOperationException("Base de datos caída")
+                : Task.FromResult(Alertas.FirstOrDefault(a => a.ConversacionId == id && a.Estado == EstadoAlertaCritica.Pendiente));
+        public Task<AlertaCriticaConversacion?> ObtenerVigentePorConversacionAsync(Guid id, CancellationToken ct) =>
+            Task.FromResult(Alertas.Where(a => a.ConversacionId == id).OrderByDescending(a => a.Estado == EstadoAlertaCritica.Pendiente)
+                .ThenByDescending(a => a.DetectadaEnUtc).FirstOrDefault());
+        public Task<AlertaCriticaConversacion?> ObtenerPorIdAsync(Guid id, CancellationToken ct) => Task.FromResult(Alertas.FirstOrDefault(a => a.Id == id));
     }
     private sealed class Tenant(Guid id) : ITenantActual { public Guid? TenantId => id; }
     private sealed class Opinion : ISegundaOpinionCriticaIa
