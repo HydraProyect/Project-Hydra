@@ -129,6 +129,10 @@ public partial class ProyectosGen2Tests
 
         cut.FindAll("tr.proyecto-documentacion").Should().ContainSingle("la fila del grupo plegado no se ve y no se expande");
         _mediator.Enviados.OfType<ObtenerDocumentosQuery>().Should().ContainSingle(q => q.PropietarioId == AbiertoId);
+
+        await AlternarGrupoDeClienteAsync(cut, "Frigoríficos Arcos S.A.");
+        cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(2);
+        cut.FindAll("tr.proyecto-documentacion").Should().ContainSingle("el Proyecto que estaba oculto al expandir no quedó expandido");
     }
 
     private static async Task AlternarGrupoDeClienteAsync(IRenderedComponent<Proyectos> cut, string cliente) =>

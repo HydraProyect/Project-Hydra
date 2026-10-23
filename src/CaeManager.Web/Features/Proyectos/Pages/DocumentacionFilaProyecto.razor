@@ -58,6 +58,7 @@ else
         if (_proyectoCargado == ProyectoId) return;
         _proyectoCargado = ProyectoId;
         _pagina = 1;
+        _completa = false;
         await CargarAsync();
     }
 

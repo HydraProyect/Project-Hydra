@@ -17,9 +17,12 @@ public partial class Proyectos
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
     private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
 
+    /// <summary>La clave del grupo «Por Cliente»: el Cliente empresarial de la fila (un solo punto, para no extender la deuda de ClienteId).</summary>
+    private static string ClaveDeGrupo(ProyectoListaDto proyecto) => proyecto.ClienteId.ToString();
+
     /// <summary>Las filas con la cabecera del grupo «Por Cliente» en la primera de cada uno; los grupos plegados las ocultan.</summary>
     private IEnumerable<FilaDeGrupo<ProyectoListaDto>> FilasConGrupo() =>
-        GruposDeLista.Agrupar(_proyectos, Agrupado, p => p.ClienteId.ToString(), (_, p) => p.ClienteRazonSocial, EsFilaRoja, _gruposAbiertos);
+        GruposDeLista.Agrupar(_proyectos, Agrupado, ClaveDeGrupo, (_, p) => p.ClienteRazonSocial, EsFilaRoja, _gruposAbiertos);
 
     /// <summary>Fila en rojo: lo que falta o vence (el mismo criterio que Vehículos para la pastilla «N con incidencias» del grupo).</summary>
     private static bool EsFilaRoja(ProyectoListaDto proyecto) => proyecto.EstadoDocumental is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
@@ -29,9 +32,9 @@ public partial class Proyectos
     /// y «Expandir todo» operan sobre estas, nunca sobre filas ocultas por un grupo plegado.
     /// </summary>
     private List<ProyectoListaDto> FilasPintadas =>
-        Agrupado ? _proyectos.Where(p => _gruposAbiertos.EstaAbierto(p.ClienteId.ToString())).ToList() : _proyectos;
+        Agrupado ? _proyectos.Where(p => _gruposAbiertos.EstaAbierto(ClaveDeGrupo(p))).ToList() : _proyectos;
 
-    /// <summary>Abre o pliega un grupo; al plegarlo, sus filas dejan de estar enfocadas y expandidas.</summary>
+    /// <summary>Abre o pliega un grupo; al plegarlo, su fila enfocada deja de estarlo (las expandidas se recuerdan hasta recargar).</summary>
     private void AlternarGrupo(string clave)
     {
         _gruposAbiertos.Alternar(clave);
