@@ -279,7 +279,10 @@
   <data name="TrabajandoEn" xml:space="preserve">
     <value>Treballant a</value>
   </data>
-  <data name="TrabajandoEnTooltip" xml:space="preserve">
+  <data name="TrabajandoEnTooltipOrigen" xml:space="preserve">
+    <value>La teva organització en aquesta sessió: {0}. A Operatiu, cada pla diu en quina Empresa es faria abans de confirmar-lo; a Consulta de PRL no es fan servir dades de cap Empresa.</value>
+  </data>
+  <data name="TrabajandoEnTooltipGestionada" xml:space="preserve">
     <value>Empresa gestionada d'aquesta sessió: {0}. A Operatiu, cada pla diu en quina Empresa de la teva cartera es faria abans de confirmar-lo; a Consulta de PRL no es fan servir dades de cap Empresa.</value>
   </data>
   <data name="AvisoIa" xml:space="preserve">
@@ -342,7 +345,10 @@
   <data name="OrdenNoEntendida" xml:space="preserve">
     <value>No he reconegut cap gestió en el que has escrit, així que no he preparat cap pla. Si era un dubte normatiu, canvia a «Consulta de PRL».</value>
   </data>
-  <data name="EmpresaCambiada" xml:space="preserve">
+  <data name="EmpresaCambiadaOrigen" xml:space="preserve">
+    <value>Ara estàs treballant a la teva organització, així que he buidat la conversa anterior i no he enviat res. Revisa en quina Empresa treballes i torna a escriure.</value>
+  </data>
+  <data name="EmpresaCambiadaGestionada" xml:space="preserve">
     <value>L'Empresa gestionada ha canviat, així que he buidat la conversa anterior i no he enviat res. Revisa en quina Empresa treballes i torna a escriure.</value>
   </data>
 </root>

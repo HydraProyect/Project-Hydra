@@ -38,10 +38,10 @@
 
         @if (_empresa is { } empresa)
         {
+            var tooltip = Textos[empresa.EsOrigen ? "TrabajandoEnTooltipOrigen" : "TrabajandoEnTooltipGestionada", empresa.Nombre];
             <div class="vega-contexto" role="status">
                 <span>@Textos["TrabajandoEn"]</span>
-                <span class="vega-chip" data-tooltip="@Textos["TrabajandoEnTooltip", empresa.Nombre]"
-                      aria-label="@Textos["TrabajandoEnTooltip", empresa.Nombre]">
+                <span class="vega-chip" data-tooltip="@tooltip" aria-label="@tooltip">
                     <i aria-hidden="true">@Iniciales(empresa.Nombre)</i>@empresa.Nombre
                 </span>
             </div>
