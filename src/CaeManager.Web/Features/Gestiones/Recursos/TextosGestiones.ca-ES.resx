@@ -192,4 +192,10 @@
   <data name="ErrorRestaurar" xml:space="preserve">
     <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
   </data>
+  <data name="EtiquetaPlataformaCae" xml:space="preserve"><value>Plataforma CAE</value></data>
+  <data name="SinPlataformaCae" xml:space="preserve"><value>Aquest Centre no té cap Plataforma CAE registrada</value></data>
+  <data name="PlataformaCargando" xml:space="preserve"><value>Carregant la Plataforma CAE…</value></data>
+  <data name="PlataformaErrorCarga" xml:space="preserve"><value>No s'ha pogut carregar la Plataforma CAE</value></data>
+  <data name="PlataformaPrincipal" xml:space="preserve"><value>Principal</value></data>
+  <data name="PlataformaDelCentro" xml:space="preserve"><value>Centre: {0}</value></data>
 </root>

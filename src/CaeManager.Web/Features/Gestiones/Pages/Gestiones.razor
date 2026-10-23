@@ -8,6 +8,7 @@
 @using CaeManager.Application.Common
 @using CaeManager.Domain.Gestiones
 @using CaeManager.Web.Components.Workspace
+@using CaeManager.Web.Features.Gestiones.Components
 @using CaeManager.Web.Features.Gestiones.Recursos
 @using Microsoft.Extensions.Localization
 @using MediatR
@@ -216,6 +217,10 @@
         </div>
 
         <div class="cuerpo-vista-rapida-gestion">
+            @* Dónde hay que hacerla: los canales de Plataforma CAE del Centro de la Gestión, con el mismo «Abrir portal» y los mismos
+               «Copiar usuario / contraseña» que Centro 360 (componente compartido: mismos permisos y misma traza). *@
+            <PlataformasCaeDeLaGestion @key="vista.CentroId" CentroId="vista.CentroId" CentroNombre="@vista.CentroNombre" />
+
             <div class="rejilla-vista-rapida-gestion">
                 <div class="celda-vista-rapida-gestion vista-rapida-centro"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
                 <div class="celda-vista-rapida-gestion vista-rapida-tipo-documento"><span>@Textos["ListaTipoDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>

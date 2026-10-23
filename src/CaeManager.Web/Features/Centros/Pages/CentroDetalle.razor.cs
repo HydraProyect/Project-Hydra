@@ -433,38 +433,6 @@ public partial class CentroDetalle : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
-    /// <summary>
-    /// Copia de una credencial del canal (DEC-53/DEC-62): la petición al servidor
-    /// solo se hace en el momento del clic explícito, nunca al abrir la página, y
-    /// el valor no se pinta — va del servidor al portapapeles. La consulta está
-    /// marcada como de secretos y usa el alcance de GESTIÓN del Centro.
-    /// </summary>
-    private Func<Task<string?>> CopiarCredencial(Guid canalId, bool contrasena) => async () =>
-    {
-        var centroId = CentroId;
-        CredencialCanalGestionDto? credencial;
-        try
-        {
-            credencial = await Mediator.Send(new ObtenerCredencialCanalGestionQuery(centroId, canalId), _cancelacion);
-        }
-        catch (SegundoFactorRequeridoParaCredencialesException)
-        {
-            if (centroId == CentroId)
-                SegundoFactorParaCredenciales.IrAConfigurar(NavigationManager);
-            return null;
-        }
-        if (centroId != CentroId) return null;
-
-        var valor = contrasena ? credencial?.Contrasena : credencial?.Usuario;
-        if (string.IsNullOrEmpty(valor))
-        {
-            ToastService.Mostrar(contrasena ? "No hay ninguna contraseña guardada." : "No hay ningún usuario guardado.", TonoToast.Info);
-            return null;
-        }
-
-        return valor;
-    };
-
     /// <summary>Aparte del resto: "Canales de gestión" se muestra en Ficha, no debe bloquear el render de la cabecera ni del cuerpo si tarda o falla.</summary>
     private async Task CargarCanalesAsync()
     {
