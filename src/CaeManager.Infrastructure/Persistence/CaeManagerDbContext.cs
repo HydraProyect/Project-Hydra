@@ -87,6 +87,7 @@ public class CaeManagerDbContext(
         IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
         CaeManager.Application.Plataforma.IPlataformaQueryContext,
         CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext,
+        CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
@@ -251,6 +252,10 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
     public DbSet<CaeManager.Domain.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.ContratosAcceso.ContratoAcceso>();
     IQueryable<CaeManager.Domain.ContratosAcceso.ContratoAcceso> CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
+    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> AutorizacionesLecturaDocumental => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental>();
+    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
+    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador>();
+    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
     IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
     public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();

@@ -186,6 +186,38 @@ public class ContratoAccesoTests
         FluentActions.Invoking(() => Contrato().Reabrir()).Should().Throw<InvalidOperationException>();
     }
 
+    [Fact]
+    public void VincularTenantContratista_se_escribe_una_sola_vez()
+    {
+        var contrato = Contrato();
+        var tenantContratista = Guid.NewGuid();
+
+        contrato.TenantContratistaId.Should().BeNull("un contrato nace sin vincular");
+        contrato.VincularTenantContratista(tenantContratista);
+        contrato.TenantContratistaId.Should().Be(tenantContratista);
+
+        FluentActions.Invoking(() => contrato.VincularTenantContratista(Guid.NewGuid()))
+            .Should().Throw<InvalidOperationException>("cambiar el vínculo redirigiría la lectura autorizada");
+        FluentActions.Invoking(() => contrato.VincularTenantContratista(tenantContratista))
+            .Should().Throw<InvalidOperationException>("tampoco se repite con el mismo valor");
+        contrato.TenantContratistaId.Should().Be(tenantContratista);
+    }
+
+    [Fact]
+    public void VincularTenantContratista_rechaza_el_vacio_y_el_propio_Tenant_del_contrato()
+    {
+        var contrato = Contrato();
+        var propio = Guid.NewGuid();
+        typeof(CaeManager.Domain.Common.EntidadConTenant)
+            .GetProperty(nameof(CaeManager.Domain.Common.EntidadConTenant.TenantId))!.SetValue(contrato, propio);
+
+        FluentActions.Invoking(() => contrato.VincularTenantContratista(Guid.Empty))
+            .Should().Throw<ArgumentException>().WithParameterName("tenantContratistaId");
+        FluentActions.Invoking(() => contrato.VincularTenantContratista(propio))
+            .Should().Throw<ArgumentException>().WithParameterName("tenantContratistaId");
+        contrato.TenantContratistaId.Should().BeNull("un vínculo rechazado no toca el contrato");
+    }
+
     /// <summary>La expresión que traducen las consultas y el método en memoria son el mismo criterio.</summary>
     private static void CoincideConLaExpresion(ContratoAcceso contrato, DateOnly fecha) =>
         ContratoAcceso.EstaVigenteEn(fecha).Compile()(contrato).Should().Be(contrato.VigenteEn(fecha),

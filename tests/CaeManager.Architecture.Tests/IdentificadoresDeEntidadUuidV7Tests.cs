@@ -71,6 +71,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Operaciones/PropuestaApoyoCartera.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/SolicitudIncorporacionCartera.cs"] = 1,
         ["src/CaeManager.Domain/Plantillas/ItemGeneracionDocumento.cs"] = 1,
+        // Version de la autorización de lectura: el valor inicial y la renovación al cambiar sus Trabajadores.
+        ["src/CaeManager.Domain/AutorizacionesLectura/AutorizacionLecturaDocumental.cs"] = 2,
         ["src/CaeManager.Domain/Plataforma/ConcesionPrivilegio.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/EstadoBootstrapPlataforma.cs"] = 2,
         ["src/CaeManager.Domain/Plataforma/OrdenMenuLateral.cs"] = 1,

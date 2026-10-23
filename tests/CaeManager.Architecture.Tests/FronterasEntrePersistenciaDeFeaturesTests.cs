@@ -642,6 +642,10 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // Empresa contratista existe en el Tenant, solo por su Id.
         ("ContratosAcceso.CrearContratoAccesoCommandHandler", "ICentrosQueryContext"),
         ("ContratosAcceso.CrearContratoAccesoCommandHandler", "IEmpresasQueryContext"),
+        // Autorización de lectura documental (Inbound M1): comprueba que los Trabajadores asignados existen en el Tenant,
+        // solo por su Id, igual que AsignarTecnicoProyecto.
+        ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
+        ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),

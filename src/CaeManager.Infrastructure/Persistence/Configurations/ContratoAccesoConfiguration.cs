@@ -25,6 +25,12 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
                 "CK_ContratosAcceso_CierreNoAnteriorAlInicio",
                 $"\"{nameof(ContratoAcceso.FechaCierreReal)}\" IS NULL " +
                 $"OR \"{nameof(ContratoAcceso.FechaCierreReal)}\" >= \"{nameof(ContratoAcceso.FechaInicio)}\"");
+            // El Tenant de la Empresa contratista nunca es el propio: ContratoAcceso.VincularTenantContratista no lo ve
+            // en un contrato aún sin guardar, y el comando lo compara con el Tenant activo.
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_TenantContratistaAjeno",
+                $"\"{nameof(ContratoAcceso.TenantContratistaId)}\" IS NULL " +
+                $"OR \"{nameof(ContratoAcceso.TenantContratistaId)}\" <> \"{nameof(ContratoAcceso.TenantId)}\"");
         });
         builder.HasKey(c => c.Id);
 
