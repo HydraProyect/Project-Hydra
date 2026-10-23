@@ -31,7 +31,7 @@
                de «Revisión IA» en Mejoras Pro), así que el nombre es el que pidió el producto. Completar exige escritura. *@
             <Primaria>
                 <SoloConEscritura>
-                    <Boton Variante="VarianteBoton.Primario" OnClick="GestionRapidaAsync" Cargando="_iniciandoCola"
+                    <Boton Variante="VarianteBoton.Secundario" OnClick="GestionRapidaAsync" Cargando="_iniciandoCola"
                            Deshabilitado="@(_errorCarga || (_cargando && _totalElementos == 0))" data-gestion-rapida="">
                         @(ColaEnPausa ? Textos["BotonSeguirCola", _cola!.Posicion, _cola.Total] : Textos["BotonGestionRapida"])
                     </Boton>
@@ -286,28 +286,25 @@
         @* Completar, reabrir y eliminar son ICommand: AutorizacionEscrituraBehavior los deniega
            a Consulta, así que no se le ofrecen (los botones rápidos de la fila van envueltos igual). *@
         <SoloConEscritura>
-            @if (PanelEsDeLaCola(vista))
-            {
-                @* En la cola: completar abre la siguiente (CambiarEstadoAsync), «Saltar» pasa a la siguiente sin tocar la
-                   Gestión y «Salir de la cola» la deja. «Eliminar» no se ofrece aquí: la cola es para ir despachando de
-                   seguido, y borrar sin querer la que se tiene delante rompería el recorrido; se elimina desde el listado. *@
-                <div class="pie-vista-rapida-gestion pie-cola-vista-rapida-gestion">
-                    <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, true)">
-                        @Textos["ColaCompletarYSiguiente"]
-                    </Boton>
-                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="SaltarEnCola">@Textos["ColaSaltar"]</Boton>
+            @* Un solo primario en el pie. Fuera de la cola, marcar completada o reabrir; en la cola, completar abre la
+               siguiente (CambiarEstadoAsync), «Saltar» pasa a la siguiente sin tocar la Gestión y «Salir de la cola» la
+               deja. «Eliminar» no se ofrece en la cola: es para ir despachando de seguido, y borrar sin querer la que se
+               tiene delante rompería el recorrido; se elimina desde el listado. *@
+            @{ var enCola = PanelEsDeLaCola(vista); }
+            <div class="pie-vista-rapida-gestion @(enCola ? "pie-cola-vista-rapida-gestion" : null)">
+                <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, enCola || vista.Estado != EstadoGestion.Completada)">
+                    @(enCola ? Textos["ColaCompletarYSiguiente"] : vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
+                </Boton>
+                @if (enCola)
+                {
+                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => SaltarEnCola(vista.Id)">@Textos["ColaSaltar"]</Boton>
                     <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="SalirDeLaCola">@Textos["ColaSalir"]</Boton>
-                </div>
-            }
-            else
-            {
-                <div class="pie-vista-rapida-gestion">
-                    <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
-                        @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
-                    </Boton>
+                }
+                else
+                {
                     <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
-                </div>
-            }
+                }
+            </div>
         </SoloConEscritura>
     </aside>
 }

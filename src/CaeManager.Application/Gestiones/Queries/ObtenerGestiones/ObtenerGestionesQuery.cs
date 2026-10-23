@@ -23,7 +23,11 @@ public record ObtenerGestionesQuery(
 /// </summary>
 /// <param name="ClienteEmpresarialId">El Cliente empresarial del Centro (<c>Centro.ClienteId</c>, nombre heredado).</param>
 /// <param name="ClienteEmpresarialNombre">Su razón social; vacía si el Cliente empresarial no se pudo leer.</param>
-/// <param name="PlataformaCaeNombre">Nombre de la Plataforma CAE del Cliente empresarial; <c>null</c> si aún no tiene una registrada.</param>
+/// <param name="PlataformaCaeNombre">
+/// Nombre de la Plataforma CAE del Cliente empresarial; <c>null</c> si aún no tiene una registrada, o si quien consulta no
+/// opera desde el lado de gestión (no se le enseña): los consumidores de este DTO son pantallas de gestión, donde solo
+/// significa lo primero.
+/// </param>
 /// <param name="PlataformaCaeUrlPortal">Dirección del portal (http o https); <c>null</c> si no se registró. Nunca el código de cliente ni accesos.</param>
 public record GestionListaDto(
     Guid Id, Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre,
@@ -107,16 +111,18 @@ public class ObtenerGestionesQueryHandler(
         var elementos = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
+            // Centro.ClienteId (nombre heredado) es la única vía de la Gestión a su Cliente empresarial: se lee una sola vez.
+            .Select(x => new { x.gestion, x.trabajador, x.centro, x.tipoDocumento, ClienteEmpresarialId = x.centro.ClienteId })
             .Select(x => new GestionListaDto(
                 x.gestion.Id, x.trabajador.Id, x.trabajador.Nombre + " " + x.trabajador.Apellidos,
                 x.centro.Id, x.centro.Nombre, x.tipoDocumento.Id, x.tipoDocumento.Nombre,
                 x.gestion.Estado, x.gestion.CreadoEnUtc,
-                x.centro.ClienteId,
-                empresasContext.Empresas.Where(e => e.Id == x.centro.ClienteId).Select(e => e.RazonSocial).FirstOrDefault() ?? string.Empty,
+                x.ClienteEmpresarialId,
+                empresasContext.Empresas.Where(e => e.Id == x.ClienteEmpresarialId).Select(e => e.RazonSocial).FirstOrDefault() ?? string.Empty,
                 empresasContext.PlataformasCaeClienteEmpresarial
-                    .Where(p => p.ClienteEmpresarialId == x.centro.ClienteId).Select(p => p.Nombre).FirstOrDefault(),
+                    .Where(p => p.ClienteEmpresarialId == x.ClienteEmpresarialId).Select(p => p.Nombre).FirstOrDefault(),
                 empresasContext.PlataformasCaeClienteEmpresarial
-                    .Where(p => p.ClienteEmpresarialId == x.centro.ClienteId).Select(p => p.UrlPortal).FirstOrDefault()))
+                    .Where(p => p.ClienteEmpresarialId == x.ClienteEmpresarialId).Select(p => p.UrlPortal).FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         // Como ObtenerPlataformaCaeClienteQuery: la plataforma con la que se acredita al Cliente empresarial es un

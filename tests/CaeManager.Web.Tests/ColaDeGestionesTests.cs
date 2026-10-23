@@ -182,6 +182,37 @@ public class ColaDeGestionesTests
     }
 
     [Fact]
+    public void Retirar_una_restante_baja_el_total_sin_contarla_ni_como_hecha_ni_como_saltada()
+    {
+        var ana = G("Ana", Reconocimiento, null);
+        var bea = G("Bea", Reconocimiento, null);
+        var cris = G("Cris", Reconocimiento, null);
+        var cola = ColaDeGestiones.Crear([ana, bea, cris])!;
+
+        cola.Retirar(bea.Id).Should().BeTrue();
+
+        (cola.Posicion, cola.Total, cola.Completadas, cola.Saltadas).Should().Be((1, 2, 0, 0));
+        Recorrer(cola).Should().Equal("Ana", "Cris");
+        cola.Retirar(bea.Id).Should().BeFalse("ya no estaba");
+    }
+
+    [Fact]
+    public void Retirar_la_que_se_tiene_delante_pasa_a_la_siguiente_y_retirar_la_ultima_acaba_la_cola()
+    {
+        var ana = G("Ana", Reconocimiento, null);
+        var bea = G("Bea", Formacion, null);
+        var cola = ColaDeGestiones.Crear([ana, bea])!;
+
+        cola.Retirar(ana.Id).Should().BeTrue();
+        cola.Actual.Should().Be(bea);
+        (cola.Posicion, cola.Total).Should().Be((1, 1));
+
+        cola.Retirar(bea.Id).Should().BeTrue();
+        cola.Terminada.Should().BeTrue();
+        cola.Total.Should().Be(0);
+    }
+
+    [Fact]
     public void Una_cola_se_corta_en_el_tope_y_no_repite_filas()
     {
         var filas = Enumerable.Range(0, ColaDeGestiones.TopeDeGestiones + 25).Select(i => G($"T{i}", Reconocimiento, null)).ToList();

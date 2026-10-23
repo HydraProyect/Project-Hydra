@@ -74,7 +74,7 @@ public partial class GestionesListaGen2Tests
         var bloque = cut.Find("aside.vista-rapida-gestion [data-plataforma-cae]");
         bloque.TextContent.Should().Contain("Sin Plataforma CAE registrada");
         bloque.QuerySelector("a").Should().BeNull("sin plataforma no hay portal al que llevar");
-        await BotonDeLaVistaRapida(cut, "Registrarla en el 360 del Cliente empresarial").ClickAsync(new MouseEventArgs());
+        await BotonDeLaVistaRapida(cut, "Registrarla en el Cliente 360").ClickAsync(new MouseEventArgs());
         var frame = Services.GetRequiredService<ContextWorkspaceService>().FrameActual;
         frame!.Tipo.Should().Be(EntidadWorkspace.Cliente);
         frame.EntidadId.Should().Be(gestion.ClienteEmpresarialId);
@@ -286,6 +286,56 @@ public partial class GestionesListaGen2Tests
 
         Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("gestiones?estado=Pendiente");
         cut.WaitForAssertion(() => BotonGestionRapida(cut).TextContent.Trim().Should().Be("Gestión rápida"));
+    }
+
+    [Fact]
+    public async Task Filtrar_por_estado_en_la_franja_olvida_la_cola()
+    {
+        var cut = Renderizar(new MediatorFalso { Almacen = { EnPlataforma("Ana", "Nalanda", dia: 20), EnPlataforma("Bea", "Nalanda", dia: 19) } });
+        await BotonGestionRapida(cut).ClickAsync(new MouseEventArgs());
+        await cut.Find("aside.vista-rapida-gestion .boton-cerrar-vista-rapida-gestion").ClickAsync(new MouseEventArgs());
+        BotonGestionRapida(cut).TextContent.Trim().Should().StartWith("Seguir con la cola");
+
+        await AlternarEstadoGestionFase1(cut, "Pendientes");
+
+        cut.WaitForAssertion(() => BotonGestionRapida(cut).TextContent.Trim().Should().Be("Gestión rápida"));
+    }
+
+    [Fact]
+    public async Task Una_cola_pedida_con_un_filtro_que_cambia_mientras_llega_no_se_abre()
+    {
+        var respuestaVieja = new TaskCompletionSource<object>();
+        var mediador = new MediatorFalso { Almacen = { EnPlataforma("Ana", "Nalanda", dia: 20), EnPlataforma("Bea", "Nalanda", dia: 19) } };
+        mediador.Retener = p => p is ObtenerGestionesQuery { TamanoPagina: ColaDeGestiones.TopeDeGestiones } ? respuestaVieja.Task : null;
+        var cut = Renderizar(mediador);
+
+        var pulsacion = BotonGestionRapida(cut).ClickAsync(new MouseEventArgs());
+        await AlternarEstadoGestionFase1(cut, "Pendientes");
+        respuestaVieja.SetResult(mediador.Filtrar(new ObtenerGestionesQuery(null, EstadoGestion.Pendiente, null)));
+        await pulsacion;
+
+        cut.FindAll("aside.vista-rapida-gestion").Should().BeEmpty("la cola que llegó era de un filtro que ya no es el que se ve");
+        BotonGestionRapida(cut).TextContent.Trim().Should().Be("Gestión rápida");
+    }
+
+    [Fact]
+    public async Task Completar_desde_su_fila_otra_gestion_de_la_cola_la_saca_de_ella_y_baja_el_total()
+    {
+        var mediador = new MediatorFalso
+        {
+            Almacen = { EnPlataforma("Ana", "Nalanda", dia: 20), EnPlataforma("Bea", "Nalanda", dia: 19), EnPlataforma("Cris", "Nalanda", dia: 18) }
+        };
+        var cut = Renderizar(mediador);
+        await BotonGestionRapida(cut).ClickAsync(new MouseEventArgs());
+        ContadorDeLaCola(cut).Should().Be("1 de 3");
+
+        var filaBea = cut.FindAll("tbody tr").First(f => f.TextContent.Contains("Bea"));
+        await filaBea.QuerySelector("button.gestion-completar")!.ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => ContadorDeLaCola(cut).Should().Be("1 de 2"));
+        TrabajadorEnElPanel(cut).Should().Be("Ana", "la cola sigue donde iba");
+        await BotonDeLaVistaRapida(cut, "Completar y siguiente").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => TrabajadorEnElPanel(cut).Should().Be("Cris", "Bea ya no está pendiente"));
     }
 
     [Fact]

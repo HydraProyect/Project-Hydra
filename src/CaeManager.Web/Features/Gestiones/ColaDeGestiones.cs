@@ -76,7 +76,7 @@ public sealed class ColaDeGestiones
     public GestionListaDto? Actual { get; private set; }
 
     /// <summary>M del contador: las que tenía la cola al empezar.</summary>
-    public int Total { get; }
+    public int Total { get; private set; }
 
     public int Completadas => _completadas.Count;
 
@@ -99,6 +99,29 @@ public sealed class ColaDeGestiones
             _saltadas++;
 
         Actual = ExtraerSiguiente(despachada);
+    }
+
+    /// <summary>
+    /// Saca de la cola una Gestión que dejó de ser trabajo pendiente por una vía ajena a ella (la eliminaron o la
+    /// completaron desde su fila): ni cuenta como hecha ni como saltada, y el total baja para que «N de M» no mienta.
+    /// Si era la que se tenía delante, pasa a la siguiente. <c>false</c> si la cola no la tenía pendiente.
+    /// </summary>
+    public bool Retirar(Guid id)
+    {
+        if (Actual is { } actual && actual.Id == id)
+        {
+            Actual = ExtraerSiguiente(actual);
+            Total--;
+            return true;
+        }
+
+        var indice = _restantes.FindIndex(g => g.Id == id);
+        if (indice < 0)
+            return false;
+
+        _restantes.RemoveAt(indice);
+        Total--;
+        return true;
     }
 
     /// <summary>

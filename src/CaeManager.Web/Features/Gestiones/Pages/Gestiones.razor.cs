@@ -544,16 +544,16 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool ColaEnPausa => _cola is { Actual: { } actual } && _vistaRapida?.Id != actual.Id;
 
     /// <summary>
-    /// El panel enseña justo la Gestión que la cola tiene delante, y solo entonces lleva su barra, su contador y sus
-    /// botones: abrir otra fila desde el listado la muestra como una vista rápida cualquiera.
-    /// </summary>
-    /// <summary>
     /// Solo http y https, como lo valida el alta de la plataforma: el dato ya está validado al guardarlo, pero un
     /// enlace con un esquema distinto (<c>javascript:</c>) no se pinta nunca, venga de donde venga el valor.
     /// </summary>
     private static string? EnlacePortalSeguro(string? url) =>
         !string.IsNullOrWhiteSpace(url) && CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial.EsUrlDePortalValida(url) ? url : null;
 
+    /// <summary>
+    /// El panel enseña justo la Gestión que la cola tiene delante, y solo entonces lleva su barra, su contador y sus
+    /// botones: abrir otra fila desde el listado la muestra como una vista rápida cualquiera.
+    /// </summary>
     private bool PanelEsDeLaCola(GestionListaDto vista) => _cola is { Actual: { } actual } && actual.Id == vista.Id;
 
     /// <summary>
@@ -580,6 +580,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         }
 
         _iniciandoCola = true;
+        var versionDelFiltro = _versionFiltroDeCola;
         try
         {
             var resultado = await Mediator.Send(new ObtenerGestionesQuery(
@@ -591,7 +592,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
                 OrdenarPor: _ordenExportar,
                 Descendente: _descendenteExportar));
 
-            if (_desechado)
+            if (_desechado || versionDelFiltro != _versionFiltroDeCola)
                 return;
 
             var cola = ColaDeGestiones.Crear(resultado.Elementos);
@@ -643,9 +644,13 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         ToastService.Mostrar(Textos["ColaTerminada", _cola.Completadas, _cola.Saltadas], TonoToast.Exito);
     }
 
-    private void SaltarEnCola()
+    /// <summary>
+    /// Ligado a la Gestión que el botón estaba enseñando, como «Completar»: un segundo clic antes de que llegue el
+    /// siguiente render, o un clic mientras esa Gestión se está completando, no salta también la que viene detrás.
+    /// </summary>
+    private void SaltarEnCola(Guid id)
     {
-        if (_vistaRapida is { } vista && PanelEsDeLaCola(vista))
+        if (_cola is { Actual: { } actual } && actual.Id == id && !_cambiandoEstado.Contains(id))
             AvanzarCola(DestinoEnCola.Saltada);
     }
 
@@ -660,7 +665,17 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     /// La cola es de un filtro: si cambian la búsqueda o el estado deja de describir lo que se ve y se olvida (el
     /// panel, si estaba abierto, queda como una vista rápida normal).
     /// </summary>
-    private void OlvidarCola() => _cola = null;
+    private void OlvidarCola()
+    {
+        _cola = null;
+        _versionFiltroDeCola++;
+    }
+
+    /// <summary>
+    /// Sube con cada cambio de filtro. <see cref="GestionRapidaAsync"/> lo lee antes de pedir la cola y, al volver, descarta
+    /// la respuesta si cambió: la cola que llega sería de un filtro que ya no es el que se ve.
+    /// </summary>
+    private int _versionFiltroDeCola;
 
     /// <summary>
     /// Los 360 se abren desde la vista rápida: se cierra primero para no dejar
@@ -696,6 +711,10 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             // recargar, para que la siguiente se vea ya mientras se refresca la lista.
             if (completada && _cola is { Actual: { } deLaCola } && deLaCola.Id == id)
                 AvanzarCola(DestinoEnCola.Completada);
+            else if (completada && _cola?.Retirar(id) == true)
+            {
+                // Completada desde su fila, fuera de la cola: ya no hay nada que recorrer en ella.
+            }
             else if (!completada && _cola?.Reabrir(id) == true)
                 MostrarEnCola(_cola.Actual!);
 
@@ -777,6 +796,9 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
                 // con sus botones activos, algo que ya no está en la lista.
                 if (_vistaRapida?.Id == id)
                     _vistaRapida = null;
+
+                // Una eliminada ya no se recorre: sin esto, «Seguir con la cola» reabriría una Gestión borrada.
+                _cola?.Retirar(id);
 
                 await RecargarAsync();
             }

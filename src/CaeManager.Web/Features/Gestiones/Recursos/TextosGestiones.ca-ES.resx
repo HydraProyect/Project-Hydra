@@ -206,6 +206,6 @@
   <data name="EtiquetaPlataformaCae" xml:space="preserve"><value>Plataforma CAE</value></data>
   <data name="AbrirPortal" xml:space="preserve"><value>Obrir portal ↗</value></data>
   <data name="SinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE registrada</value></data>
-  <data name="RegistrarPlataformaEnCliente360" xml:space="preserve"><value>Registra-la al 360 del Client empresarial</value></data>
-  <data name="PlataformaDeCliente" xml:space="preserve"><value>Client empresarial: {0} · Centre: {1}</value></data>
+  <data name="RegistrarPlataformaEnCliente360" xml:space="preserve"><value>Registra-la al Client 360</value></data>
+  <data name="PlataformaDeCliente" xml:space="preserve"><value>Client: {0} · Centre: {1}</value></data>
 </root>
