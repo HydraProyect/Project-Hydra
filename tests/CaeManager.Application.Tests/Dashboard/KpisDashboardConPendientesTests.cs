@@ -83,6 +83,63 @@ public class KpisDashboardConPendientesTests
         kpis.TienePendientesDocumentales.Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(31)]
+    [InlineData(60)]
+    public async Task Los_documentos_de_Empresa_vigentes_cuentan_sin_crear_pendientes_ni_entrar_en_la_tasa(int dias)
+    {
+        var mundo = new MundoAcreditaciones();
+        var empresa = new Empresa("Talleres Aurora");
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.Add(empresa);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa);
+        for (var i = 0; i < 2; i++)
+            mundo.DocumentosContexto.ListaDocumentos.Add(Documento.DeEmpresa(empresa.Id, tipo.Id,
+                DiaDeNegocio.Hoy(), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(dias))));
+
+        var kpis = await Handler(mundo, new AlcanceDatosServiceFalso(), empresas)
+            .Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+
+        kpis.DocumentosEmpresaVigentes.Should().Be(2);
+        kpis.DocumentosVigentes.Should().Be(0);
+        kpis.Fraccion.Requeridos.Should().Be(0);
+        kpis.TienePendientesDocumentales.Should().BeFalse();
+        kpis.DocumentosEmpresaProximos.Should().Be(0);
+        kpis.DocumentosEmpresaUrgentes.Should().Be(0);
+        kpis.DocumentosEmpresaVencidos.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Los_vigentes_de_Empresa_excluyen_documentos_eliminados_sustituidos_Empresas_de_baja_y_fuera_de_visibilidad()
+    {
+        var mundo = new MundoAcreditaciones();
+        var empresa = new Empresa("Talleres Aurora");
+        var oculta = new Empresa("Montajes Brisa");
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaEmpresas.AddRange([empresa, oculta]);
+        var tipo = mundo.Tipo(RequisitoDocumental.Si, AmbitoAplicacion.Empresa);
+        Documento Agregar(Guid empresaId)
+        {
+            var documento = Documento.DeEmpresa(empresaId, tipo.Id, DiaDeNegocio.Hoy(),
+                VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddDays(60)));
+            mundo.DocumentosContexto.ListaDocumentos.Add(documento);
+            return documento;
+        }
+        var vigente = Agregar(empresa.Id);
+        Agregar(empresa.Id).MarcarComoEliminado(Guid.NewGuid());
+        Agregar(empresa.Id).SustituirPor(vigente, MotivoSustitucionDocumento.Renovacion, DateTime.UtcNow);
+        // La Empresa dada de baja no está en el contexto por el filtro global; sus Documentos se conservan.
+        var empresaDeBajaId = Guid.NewGuid();
+        Agregar(empresaDeBajaId);
+        Agregar(oculta.Id);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, empresaIdsVisibles: [empresa.Id, empresaDeBajaId]);
+
+        var kpis = await Handler(mundo, alcance, empresas).Handle(new ObtenerKpisDashboardQuery(), CancellationToken.None);
+
+        kpis.DocumentosEmpresaVigentes.Should().Be(1);
+        kpis.TienePendientesDocumentales.Should().BeFalse();
+    }
+
     private static ObtenerKpisDashboardQueryHandler Handler(MundoAcreditaciones mundo, AlcanceDatosServiceFalso alcance,
         EmpresasQueryContextFalso? empresas = null)
     {

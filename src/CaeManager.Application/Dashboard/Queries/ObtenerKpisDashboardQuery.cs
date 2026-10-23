@@ -91,7 +91,9 @@ public record KpisDashboardDto(
     /// <summary>Documentos de Empresa en estado Próximo, con la selección de Alertas.</summary>
     int DocumentosEmpresaProximos = 0,
     /// <summary>Clientes empresariales del alcance. Inicio ofrece «Desglosar por Cliente» solo con más de uno.</summary>
-    int ClientesEmpresarialesEnAlcance = 0)
+    int ClientesEmpresarialesEnAlcance = 0,
+    /// <summary>Documentos de Empresa vigentes, con la selección de Alertas sin cota de fecha. Fuera de la tasa.</summary>
+    int DocumentosEmpresaVigentes = 0)
 {
     /// <summary>
     /// Vencidos de la Empresa gestionada tal como los cuentan Alertas y Mi trabajo: de Trabajador y de Empresa. Es la cifra
@@ -262,10 +264,10 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             : 0;
         var (tasa, sinDatos) = KpisDashboardDto.SinDocumentos(fraccion, paresExigidosSinDocumento);
         var empresaIdsVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
-        // Los vencimientos de Empresa, con la misma selección que Alertas: no entran en la tasa (que mide Documentos de
-        // Trabajador) pero sí en el recuento de vencidos y por vencer de la Empresa gestionada, igual que en Alertas.
+        // Los documentos de Empresa, con la misma selección que Alertas sin cota de fecha: no entran en la tasa (que mide
+        // Documentos de Trabajador), pero sí en todos los segmentos del semáforo ejecutivo.
         var vencimientosEmpresa = await DocumentosConAlertaDeVigencia.DeEmpresa(
-                documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles, DocumentosConAlertaDeVigencia.FechaLimite(hoy, parametros))
+                documentosContext, empresasContext, tiposDocumentoContext, empresaIdsVisibles)
             .GroupBy(d => d.FechaVencimiento)
             .Select(g => new { FechaVencimiento = g.Key, Cantidad = g.Count() })
             .ToListAsync(cancellationToken);
@@ -273,7 +275,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             .GroupBy(v => CalculadoraEstadoDocumento.Calcular(
                 VigenciaDocumento.VenceEl(v.FechaVencimiento!.Value), hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
             .ToDictionary(g => g.Key, g => g.Sum(v => v.Cantidad));
-        var empresasConAlertas = vencimientosEmpresa.Count > 0;
+        var empresasConAlertas = empresaPorEstado.Any(e => e.Key is EstadoDocumento.Vencido or EstadoDocumento.Urgente or EstadoDocumento.Proximo);
 
         return new KpisDashboardDto(
             TrabajadoresActivos: trabajadoresActivos,
@@ -298,6 +300,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             DocumentosEmpresaVencidos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vencido),
             DocumentosEmpresaUrgentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Urgente),
             DocumentosEmpresaProximos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Proximo),
-            ClientesEmpresarialesEnAlcance: clientesEmpresariales);
+            ClientesEmpresarialesEnAlcance: clientesEmpresariales,
+            DocumentosEmpresaVigentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vigente));
     }
 }
