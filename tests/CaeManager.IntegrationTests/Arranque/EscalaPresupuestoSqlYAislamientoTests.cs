@@ -37,6 +37,7 @@ using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
@@ -90,9 +91,28 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
     /// <summary>Las cifras del Cuadro de dirección del piloto antes de clonar, con el mismo propósito.</summary>
     internal string CifrasCuadroAntesDeClonar { get; private set; } = null!;
 
+    /// <summary>Las cifras de Mi trabajo de la Gestora CAE primera del piloto antes de clonar.</summary>
+    internal string CifrasMiTrabajoAntesDeClonar { get; private set; } = null!;
+
     public async Task InitializeAsync()
     {
         Arnes = await ArnesPilotoOutbound.CrearAsync();
+        try
+        {
+            await PrepararAsync();
+        }
+        catch
+        {
+            // xUnit no llama a DisposeAsync si InitializeAsync falla: sin esto la base quedaría en el clúster compartido.
+            var arnes = Arnes;
+            Arnes = null!;
+            await arnes.DisposeAsync();
+            throw;
+        }
+    }
+
+    private async Task PrepararAsync()
+    {
         await Arnes.SembrarAsync(ArnesPilotoOutbound.Configurar(ArnesPilotoOutbound.FechaDemostracion()));
         await Arnes.BackfillAsync();
 
@@ -116,9 +136,11 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         FichasPiloto = fichas;
         HuellasAntesDeClonar = huellas;
         CifrasCuadroAntesDeClonar = await CifrasCuadroAsync(Piloto);
+        CifrasMiTrabajoAntesDeClonar = await CifrasMiTrabajoAsync(Piloto);
 
         var errores = await OperadorCaeClonado.ClonarAsync(conexion, operador, [.. tenantsPiloto.Values]);
         errores.Should().BeEmpty("el segundo Operador CAE externo se clona entero con su cartera, o el aislamiento se mediría sobre media estructura");
+        var (originales, copias) = await OperadorCaeClonado.MapaAsync(conexion);
 
         var operadorOtro = await Arnes.TenantIdAsync(PrefijoTenantOtro + CatalogoPilotoOutbound.NombreTenantOperador);
         operadorOtro.Should().Be(OperadorCaeClonado.IdClonado(operador), "la traducción de identificadores del test es la misma que la del SQL de clonación");
@@ -128,10 +150,18 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         Otro = new LadoOperadorCae("otro", PrefijoTenantOtro + CatalogoPilotoOutbound.NombreTenantOperador, PrefijoCorreoOtro, tenantsOtro,
             await IdsDeAsync(conexion, [operadorOtro, .. tenantsOtro.Values]));
 
+        // El mapa de la clonación añade lo que no lleva columna de Tenant con ese nombre: hijas de hijas, y tablas que
+        // nombran al Tenant de otra forma (destinatario, lector, contratista, operador, delegante).
+        Piloto.Ids.UnionWith(originales);
+        Otro.Ids.UnionWith(copias);
         Piloto.Ids.Should().NotIntersectWith(Otro.Ids, "cada fila clonada lleva un identificador nuevo");
     }
 
-    public async Task DisposeAsync() => await Arnes.DisposeAsync();
+    public async Task DisposeAsync()
+    {
+        if (Arnes is not null)
+            await Arnes.DisposeAsync();
+    }
 
     internal LadoOperadorCae ElOtro(LadoOperadorCae lado) => ReferenceEquals(lado, Piloto) ? Otro : Piloto;
 
@@ -153,6 +183,10 @@ public sealed class EscalaYAislamientoFixture : IAsyncLifetime
         return Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.PrefijoCorreo + CorreoDireccion,
             async sp => LecturasDePantalla.Cifras(await sp.GetRequiredService<ISender>().Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
     }
+
+    internal Task<string> CifrasMiTrabajoAsync(LadoOperadorCae lado) =>
+        Arnes.ComoCuentaAsync(lado.NombreTenantOperador, lado.CorreoGestoraPrimera,
+            async sp => LecturasDePantalla.Cifras(await sp.GetRequiredService<ISender>().Send(new ObtenerMiTrabajoAgregadoQuery())));
 
     private static async Task<string> CorreoDireccionAsync(NpgsqlConnection conexion, Guid operador)
     {
@@ -257,6 +291,23 @@ internal static class OperadorCaeClonado
         Guid.ParseExact(Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes("otra-" + id.ToString("D")))), "N");
 
     internal static Guid? IdClonado(Guid? id) => id is { } valor ? IdClonado(valor) : null;
+
+    /// <summary>
+    /// Todas las filas que la clonación copió, en la misma sesión que la hizo (el mapa es una tabla temporal): los
+    /// originales y sus copias, incluidas las hijas que no llevan columna de Tenant.
+    /// </summary>
+    internal static async Task<(HashSet<Guid> Originales, HashSet<Guid> Copias)> MapaAsync(NpgsqlConnection conexion)
+    {
+        var (originales, copias) = (new HashSet<Guid>(), new HashSet<Guid>());
+        await using var leer = new NpgsqlCommand("SELECT old, new FROM mapa", conexion);
+        await using var lector = await leer.ExecuteReaderAsync();
+        while (await lector.ReadAsync())
+        {
+            originales.Add(lector.GetGuid(0));
+            copias.Add(lector.GetGuid(1));
+        }
+        return (originales, copias);
+    }
 
     internal static async Task<IReadOnlyList<string>> ClonarAsync(NpgsqlConnection conexion, Guid operador, Guid[] beneficiarios)
     {
@@ -464,12 +515,14 @@ internal static class LecturasDePantalla
         return huellas;
     }
 
-    /// <summary>Si la lectura trajo algo: un listado con filas, o un resultado con identificadores o, en una pantalla de cifras, no nulo.</summary>
+    /// <summary>Si la lectura trajo algo: un listado con filas, una pantalla de cifras con alguna distinta de cero, o un resultado con identificadores.</summary>
     internal static bool TraeFilas(string pantalla, object? resultado) => resultado switch
     {
         null => false,
         _ when resultado.GetType().GetProperty(nameof(ResultadoPaginado<int>.TotalElementos))?.GetValue(resultado) is int total => total > 0,
-        _ => SoloCifras.Contains(pantalla) || Guids(Json(resultado)).Count > 0,
+        _ when SoloCifras.Contains(pantalla) => Cifras(resultado).Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Any(c => double.Parse(c, System.Globalization.CultureInfo.InvariantCulture) != 0),
+        _ => Guids(Json(resultado)).Count > 0,
     };
 
     internal static string Json(object? resultado) =>
@@ -486,13 +539,18 @@ internal static class LecturasDePantalla
 /// Dos protecciones sobre las pantallas del piloto, con la identidad de aplicación (cae_app_runtime y contexto
 /// RLS firmado) y el Gestor CAE que lleva cada Tenant beneficiario en su cartera:
 /// <list type="bullet">
-/// <item>presupuesto de SQL por query de pantalla: una regresión de N+1 o una lectura de más sale en rojo aquí
-/// antes de notarse en la base de 500.000 Documentos, donde se midieron estas cifras (informe
-/// MEDICION-ESCALA-500K-2026-10-24 en el repositorio de documentación);</item>
-/// <item>aislamiento entre dos Operadores CAE externos y sus carteras: ninguna pantalla, ficha 360, buscador global,
-/// recuento de chips ni lectura por identificador de uno devuelve nada del otro, en los dos sentidos, aunque sus
-/// Empresas compartan CIF.</item>
+/// <item>presupuesto de SQL por query de pantalla, medido con esta misma siembra: una regresión de N+1 o una
+/// lectura de más sale en rojo aquí antes de notarse en la base de 500.000 Documentos, cuyas cifras están en el
+/// informe MEDICION-ESCALA-500K-2026-10-24 del repositorio de documentación;</item>
+/// <item>aislamiento de filas entre dos Operadores CAE externos y sus carteras: ninguna pantalla, ficha 360,
+/// buscador global, recuento de chips ni lectura por identificador de uno devuelve nada del otro, en los dos
+/// sentidos, aunque sus Empresas compartan CIF; y la RLS sola, sin el filtro de EF, tampoco deja ver filas del
+/// otro.</item>
 /// </list>
+/// Límites conocidos: las lecturas de Tenant van con el ámbito explícito del Tenant beneficiario, así que no
+/// ejercitan qué Tenant puede activar un Gestor CAE (la selección de cartera tiene sus propios tests; Mi trabajo y
+/// el Cuadro de dirección sí van por el camino real, sin ámbito); y las tablas <c>Eventos%</c> y <c>Registros%</c>
+/// no se clonan, así que en la copia la Conversación no tiene eventos.
 /// </summary>
 [Collection(ColeccionPilotoOutbound.Nombre)]
 public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fixture, ITestOutputHelper salida)
@@ -643,9 +701,10 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
                         {
                             ajena = await lectura(sender, fichaAjena);
                         }
-                        catch (Exception excepcion)
+                        catch (UnauthorizedAccessException excepcion)
                         {
-                            // Negar con una excepción tampoco devuelve nada; se anota para leerlo en la salida.
+                            // Negar por autorización tampoco devuelve nada. Cualquier otra excepción es un fallo del
+                            // handler y deja el test en rojo: no se confunde con una negación.
                             salida.WriteLine($"{lado.Rotulo}, {nombre}, {pantalla}: {excepcion.GetType().Name}");
                             ajena = null;
                         }
@@ -658,7 +717,8 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
             }
         }
 
-        propiasLeidas.Should().BeGreaterThan(fixture.Piloto.Tenants.Count * 2 * 3, "cada Gestor CAE lee las fichas propias por identificador");
+        // El control positivo de verdad es por ficha (arriba); esto solo descarta que no se haya pedido ninguna.
+        propiasLeidas.Should().BeGreaterThan(0, "cada Gestor CAE lee las fichas propias por identificador");
         fallos.Should().BeEmpty();
     }
 
@@ -690,7 +750,39 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
             LecturasDePantalla.Guids(cuadro).Should().IntersectWith(lado.Ids, $"el Cuadro de dirección de {lado.NombreTenantOperador} lleva sus Empresas gestionadas");
             (await fixture.CifrasCuadroAsync(lado)).Should().Be(fixture.CifrasCuadroAntesDeClonar,
                 $"las cifras del Cuadro de dirección de {lado.NombreTenantOperador} son las de antes de existir el otro Operador CAE externo");
+            // Mi trabajo solo lleva recuentos por Tenant: un recuento inflado con filas de la copia no traería ningún
+            // identificador ajeno, así que se compara con sus cifras de antes de clonar.
+            (await fixture.CifrasMiTrabajoAsync(lado)).Should().Be(fixture.CifrasMiTrabajoAntesDeClonar,
+                $"los recuentos de Mi trabajo de {lado.NombreTenantOperador} son los de antes de existir el otro Operador CAE externo");
         }
+    }
+
+    [Fact]
+    public async Task Sin_el_filtro_de_EF_la_RLS_sola_no_deja_ver_filas_del_otro_Operador_CAE_externo()
+    {
+        // Las pantallas pasan por el filtro global de EF y por la RLS a la vez: con las políticas rotas seguirían en
+        // verde. Aquí se quita el filtro de EF y se pide expresamente el Tenant de la copia.
+        var fallos = new List<string>();
+        foreach (var nombre in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
+        {
+            foreach (var lado in new[] { fixture.Piloto, fixture.Otro })
+            {
+                var propio = lado.Tenants[nombre];
+                var ajeno = fixture.ElOtro(lado).Tenants[nombre];
+                var (empresasPropias, empresasAjenas, trabajadoresAjenos, documentosAjenos) = await fixture.Arnes.EnTenantAsync(propio, async (db, _) => (
+                    await db.Empresas.IgnoreQueryFilters().CountAsync(e => e.TenantId == propio),
+                    await db.Empresas.IgnoreQueryFilters().CountAsync(e => e.TenantId == ajeno),
+                    await db.Trabajadores.IgnoreQueryFilters().CountAsync(t => t.TenantId == ajeno),
+                    await db.Documentos.IgnoreQueryFilters().CountAsync(d => d.TenantId == ajeno)));
+
+                if (empresasPropias == 0)
+                    fallos.Add($"{lado.Rotulo}, {nombre}: la RLS no deja ver ni las Empresas propias (control positivo)");
+                if (empresasAjenas + trabajadoresAjenos + documentosAjenos > 0)
+                    fallos.Add($"{lado.Rotulo}, {nombre}: la RLS deja ver {empresasAjenas} Empresas, {trabajadoresAjenos} Trabajadores y {documentosAjenos} Documentos del otro Operador CAE externo");
+            }
+        }
+
+        fallos.Should().BeEmpty();
     }
 
     [Fact]
