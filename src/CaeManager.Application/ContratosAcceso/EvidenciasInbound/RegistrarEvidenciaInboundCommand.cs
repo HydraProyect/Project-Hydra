@@ -127,6 +127,20 @@ public class RegistrarEvidenciaInboundCommandHandler(
 
         if (soloConclusion)
         {
+            // MUTACIÓN (c): copia el binario también en la de solo conclusión.
+            if (await lector.ArchivoAutorizadoAsync(request.ContratoAccesoId, request.DocumentoOrigenId, cancellationToken) is { } mutado)
+            {
+                try
+                {
+                    var bytesMutados = await OriginalesInbound.LeerAsync(almacenOriginales, mutado, cancellationToken);
+                    using var flujoMutado = new MemoryStream(bytesMutados, writable: false);
+                    await almacen.GuardarAsync(flujoMutado, "mutacion.pdf", cancellationToken);
+                }
+                catch (FileNotFoundException)
+                {
+                }
+            }
+
             var medica = EvidenciaInbound.Registrar(
                 procedencia, request.TipoDocumentoId, sujeto, original.FechaEmision, original.FechaVencimiento,
                 soloConclusionAptitud: true, request.Conclusion, archivo: null, usuarioId, reloj.GetUtcNow().UtcDateTime);

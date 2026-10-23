@@ -64,7 +64,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_EvidenciasInbound", x => x.Id);
-                    table.CheckConstraint("CK_EvidenciasInbound_ArchivoSegunConclusion", "(\"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NULL AND \"HuellaSha256\" IS NULL AND \"ConclusionAptitud\" IS NOT NULL) OR (NOT \"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NOT NULL AND \"HuellaSha256\" IS NOT NULL AND \"ConclusionAptitud\" IS NULL)");
                     table.CheckConstraint("CK_EvidenciasInbound_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
                     table.CheckConstraint("CK_EvidenciasInbound_SujetoYConclusionDeLaMedica", "NOT \"SoloConclusionAptitud\" OR (\"TrabajadorOrigenId\" IS NOT NULL AND \"SujetoDocumentoIdentidad\" IS NOT NULL AND \"ConclusionAptitud\" IN ('Apto', 'AptoConRestricciones', 'NoApto'))");
                     table.CheckConstraint("CK_EvidenciasInbound_VencimientoNoAnteriorAEmision", "\"FechaVencimiento\" IS NULL OR \"FechaVencimiento\" >= \"FechaEmision\"");
@@ -823,7 +822,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                      AND NOT d."EstaEliminado"
                      AND d."AnonimizadoEnUtc" IS NULL
                      AND d."SustituidoEnUtc" IS NULL
-                     AND (td."Sensibilidad" <> 'CategoriaEspecialSalud' OR td."SoloConclusionAptitud")
+                     AND td."Sensibilidad" <> 'CategoriaEspecialSalud'
                      AND ((p_incluye_empresa
                            AND d."EmpresaId" IS NOT NULL
                            AND EXISTS (SELECT 1 FROM public."Empresas" e
