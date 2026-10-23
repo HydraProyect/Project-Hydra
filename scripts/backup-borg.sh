@@ -93,6 +93,13 @@ ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
 VOLUMEN_DATOS=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{if eq .Type "volume"}}{{.Name}}{{end}}{{end}}{{end}}' "$CONTENEDOR_DATOS")
 [ -n "$VOLUMEN_DATOS" ] \
     || { echo "ERROR: /data de $CONTENEDOR_DATOS no es un volumen Docker con nombre; no se sabe de dónde leer documentos/"; exit 1; }
+# Solo un volumen `local` sin opciones guarda sus datos en el propio punto de
+# montaje. Uno con driver_opts (nfs, bind) u otro driver solo está montado ahí
+# mientras un contenedor lo usa: con la ranura parada se vería vacío y daría un
+# backup sin documentos y en verde.
+TIPO_VOLUMEN=$(docker volume inspect -f '{{ .Driver }} {{ len .Options }}' "$VOLUMEN_DATOS")
+[ "$TIPO_VOLUMEN" = "local 0" ] \
+    || { echo "ERROR: el volumen $VOLUMEN_DATOS no es un volumen local sin opciones ('$TIPO_VOLUMEN'); su punto de montaje puede no tener los documentos"; exit 1; }
 ORIGEN_DATOS=$(docker volume inspect -f '{{ .Mountpoint }}' "$VOLUMEN_DATOS")
 # /var/lib/docker solo lo atraviesa root: si esto falla, el cron no corre como root.
 [ -n "$ORIGEN_DATOS" ] && [ -d "$ORIGEN_DATOS" ] \
@@ -164,13 +171,22 @@ CONTENIDO=(CaeManager.dump dataprotection-keys documentos)
 # publica con un rename atómico, sin sobrescribir nunca un fichero existente
 # (renovar un documento crea otro fichero). Lo que Borg ve en la ruta final está
 # completo y no cambia; los temporales (escrituras a medias o huérfanas) se
-# excluyen. Un documento que se publique durante la copia entra en el archivo de
+# excluyen. El patrón es el nombre exacto que les da GuardarAsync,
+# `documentos/<tenant>/<guid de 32 hex><extensión>.tmp-<guid de 32 hex>`, y no un
+# `*.tmp-*` genérico: la extensión sale del nombre del adjunto, que puede venir de
+# fuera (correo, WhatsApp), y un documento legítimo `<guid>.tmp-1` debe entrar.
+# Hueco residual conocido: un adjunto cuya extensión sea exactamente
+# `.tmp-<32 hex>` es indistinguible por el nombre de un temporal y no entra.
+# Un documento que se publique durante la copia entra en el archivo de
 # mañana; el volcado de la BD de esta noche se hizo ANTES (paso 1/4), así que
 # ninguna fila suya apunta a un fichero publicado después. Un fichero borrado
 # entre el volcado y la lectura falta en el archivo, igual que con el `docker cp`
 # de antes (mismo orden); si se borra mientras Borg lo lee, Borg avisa (código 1)
-# y el guion falla con /fail, como ante cualquier otro aviso de borg create.
-OPCIONES_CREATE=(--stats --compression zstd --exclude 'sh:documentos/**/*.tmp-*')
+# y el guion falla con /fail, como ante cualquier otro aviso de borg create: el
+# archivo queda hecho, pero esa noche no hay prune ni compact (igual que hasta
+# ahora), para que un archivo con avisos no saque de la retención a uno bueno.
+EXCLUIR_TEMPORALES='re:^documentos/[^/]+/[0-9a-f]{32}[^/]*\.tmp-[0-9a-f]{32}$'
+OPCIONES_CREATE=(--stats --compression zstd --exclude "$EXCLUIR_TEMPORALES")
 if [ -n "$ORIGEN_DOCUMENTOS" ]; then
     unshare --mount --propagation private -- bash -eu -c '
         origen="$1"; trabajo="$2"; shift 2

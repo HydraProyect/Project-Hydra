@@ -27,7 +27,8 @@ TENANT_PRUEBA="0123456789abcdef0123456789abcdef"
 PUNTO_MONTAJE="$TMP_ROOT/volumenes/caemanager-data/_data"
 mkdir -p "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA"
 echo pdf > "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf"
-echo medio > "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/b.pdf.tmp-0000"
+TEMPORAL_PRUEBA="0123456789abcdef0123456789abcdef.pdf.tmp-fedcba9876543210fedcba9876543210"
+echo medio > "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/$TEMPORAL_PRUEBA"
 PUNTO_MONTAJE_SIN_DOCUMENTOS="$TMP_ROOT/volumenes/vacio/_data"
 mkdir -p "$PUNTO_MONTAJE_SIN_DOCUMENTOS"
 export PUNTO_MONTAJE
@@ -39,17 +40,21 @@ cat > "$MOCK_BIN/docker" <<'EOF'
 # ESC_CONTENEDORES_APP: qué contenedores de la app existen (por defecto, las dos ranuras).
 # ESC_VOLUMEN: nombre del volumen montado en /data ("" = /data no es un volumen con nombre).
 # ESC_PUNTO_MONTAJE: lo que devuelve `docker volume inspect` (por defecto, el volumen de mentira).
+# ESC_TIPO_VOLUMEN: «driver número-de-opciones» del volumen (por defecto, `local 0`).
 echo "docker $*" >> "${LOG_DOCKER:-/dev/null}"
+if [ "$1" = "volume" ] && [ "$2" = "inspect" ]; then
+  case "$4" in
+    *Driver*) printf '%s\n' "${ESC_TIPO_VOLUMEN-local 0}" ;;
+    *) printf '%s\n' "${ESC_PUNTO_MONTAJE-$PUNTO_MONTAJE}" ;;
+  esac
+  exit 0
+fi
 if [ "$1" = "inspect" ] && [ "$2" = "-f" ]; then
   printf '%s\n' "${ESC_VOLUMEN-caemanager-data}"
   exit 0
 fi
 if [ "$1" = "inspect" ]; then
   case " ${ESC_CONTENEDORES_APP-caemanager-app-azul caemanager-app-verde} " in *" $2 "*) exit 0 ;; *) exit 1 ;; esac
-fi
-if [ "$1" = "volume" ] && [ "$2" = "inspect" ]; then
-  printf '%s\n' "${ESC_PUNTO_MONTAJE-$PUNTO_MONTAJE}"
-  exit 0
 fi
 if [ "$1" = "exec" ]; then
   [ "${ESC_DUMP_VACIO:-0}" = "1" ] || echo "contenido-del-dump"
@@ -92,6 +97,12 @@ cat > "$MOCK_BIN/borg" <<'EOF'
 #!/bin/bash
 echo "borg $*" >> "$LOG_BORG"
 echo "borg $1" >> "$LOG_ORDEN"
+# ESC_PROBAR_RO=1 (escenario con root real): ¿documentos/ es de solo lectura y
+# está montado, visto desde el propio borg?
+if [ "$1" = "create" ] && [ "${ESC_PROBAR_RO:-0}" = "1" ]; then
+  if touch documentos/escritura-de-prueba 2>/dev/null; then echo "documentos-escribible" >> "$LOG_ORDEN"; else echo "documentos-solo-lectura" >> "$LOG_ORDEN"; fi
+  awk -v d="$PWD/documentos" '$5 == d { print "montado-visto-desde-borg" }' /proc/self/mountinfo >> "$LOG_ORDEN"
+fi
 # En `create` el directorio de trabajo es lo que entra en el archivo: se copia para
 # poder comprobar QUÉ entra (y con qué permisos), no solo que borg se llamó.
 if [ "$1" = "create" ]; then rm -rf "$LOG_BORG.archivo"; mkdir -p "$LOG_BORG.archivo"; for a in "${@:2}"; do case "$a" in -*|::*|zstd) ;; *) [ -e "$a" ] && cp -a "$a" "$LOG_BORG.archivo/" ;; esac; done; fi
@@ -269,12 +280,27 @@ comprobar "bind, luego solo lectura, luego borg create (en ese orden)" \
   '[ "$(grep -E "^(mount|borg create)" "$LOG_ORDEN" | cut -d" " -f1-2 | tr "\n" "|")" = "mount --bind|mount -o|borg create|" ] && grep -q "^mount -o remount,bind,ro .*/documentos\$" "$LOG_ORDEN"'
 comprobar "las rutas del archivo son las de siempre: documentos/<tenantId>/<fichero> en la raíz" \
   '[ -f "$ARCH/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ]'
-comprobar "borg create excluye los temporales de escritura (*.tmp-*)" \
-  'grep "^borg create" "$LOG_BORG" | grep -qF -- "--exclude sh:documentos/**/*.tmp-*"'
+# El patrón se prueba por su efecto, no por su texto: se saca de los argumentos
+# reales de borg create y se aplica (re: de Borg = expresión regular de Python
+# con re.search; esta usa solo sintaxis común con ERE) a rutas como las del archivo.
+PATRON=$(grep "^borg create" "$LOG_BORG" | sed -n 's/.* --exclude re:\([^ ]*\) .*/\1/p')
+excluye() { printf '%s\n' "$1" | grep -Eq -- "$PATRON"; }
+G="0123456789abcdef0123456789abcdef"; H="fedcba9876543210fedcba9876543210"
+comprobar "borg create lleva un --exclude re:" '[ -n "$PATRON" ]'
+comprobar "excluye el temporal de una escritura, con y sin extensión" \
+  'excluye "documentos/$TENANT_PRUEBA/$G.pdf.tmp-$H" && excluye "documentos/$TENANT_PRUEBA/$G.tmp-$H"'
+comprobar "NO excluye documentos legítimos, aunque su extensión empiece por .tmp-" \
+  '! excluye "documentos/$TENANT_PRUEBA/$G.pdf" && ! excluye "documentos/$TENANT_PRUEBA/$G" && ! excluye "documentos/$TENANT_PRUEBA/$G.tmp-1" && ! excluye "documentos/$TENANT_PRUEBA/$G.tmp-$H.pdf"'
+comprobar "NO excluye nada fuera de documentos/<tenant>/" \
+  '! excluye "CaeManager.dump" && ! excluye "dataprotection-keys/key-$G.tmp-$H" && ! excluye "env-produccion" && ! excluye "documentos/$TENANT_PRUEBA" && ! excluye "documentos/$G.pdf.tmp-$H"'
 comprobar "borg create recibe rutas relativas (no la ruta del volumen)" \
   'grep "^borg create" "$LOG_BORG" | grep -q " CaeManager.dump dataprotection-keys documentos" && ! grep "^borg create" "$LOG_BORG" | grep -q "$PUNTO_MONTAJE"'
-comprobar "los documentos del volumen siguen en su sitio" \
-  '[ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/b.pdf.tmp-0000" ]'
+comprobar "pregunta el driver y las opciones del volumen" 'grep -q "^docker volume inspect -f {{ .Driver }} {{ len .Options }} caemanager-data\$" "$LOG_DOCKER"'
+
+echo "== volumen que no es local sin opciones (nfs, bind con driver_opts): falla antes de borg y avisa /fail"
+ejecutar volumenremoto BETTERSTACK_HEARTBEAT_URL="$URL" ESC_TIPO_VOLUMEN="local 3"
+comprobar "termina distinto de 0, avisa /fail y no llega a borg create" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
 
 echo "== el volumen aún no tiene documentos/: archivo con documentos/ vacío, sin montaje"
 ejecutar sindocumentos ESC_PUNTO_MONTAJE="$PUNTO_MONTAJE_SIN_DOCUMENTOS"
@@ -297,6 +323,35 @@ echo "== el remount de solo lectura falla: borg NO lee documentos/ con permiso d
 ejecutar sinro BETTERSTACK_HEARTBEAT_URL="$URL" ESC_RO_FALLA=1
 comprobar "termina distinto de 0, avisa /fail y no llega a borg create ni a prune" \
   '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG" && ! grep -q "^borg prune" "$LOG_BORG"'
+
+echo "== con root real (CI de Linux): bind de solo lectura en un espacio de nombres privado, sin montaje colgado"
+# Aquí `unshare` y `mount` son los de verdad (solo docker, borg y curl son falsos):
+# es la única forma de probar el aislamiento que protege los documentos del
+# `rm -rf` del directorio de trabajo. En CI (CI=true) no se puede omitir.
+if [ "$(uname -s)" = "Linux" ] && command -v unshare >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  MOCK_BIN_ROOT="$TMP_ROOT/bin-root"
+  mkdir -p "$MOCK_BIN_ROOT"
+  cp "$MOCK_BIN/docker" "$MOCK_BIN/borg" "$MOCK_BIN/curl" "$MOCK_BIN_ROOT/"
+  export LOG_CURL="$TMP_ROOT/root.curl" LOG_BORG="$TMP_ROOT/root.borg" LOG_DOCKER="$TMP_ROOT/root.docker" LOG_ORDEN="$TMP_ROOT/root.orden"
+  : > "$LOG_CURL"; : > "$LOG_BORG"; : > "$LOG_DOCKER"; : > "$LOG_ORDEN"
+  SALIDA=$(sudo -n env PATH="$MOCK_BIN_ROOT:$PATH" ENV_PRODUCCION="$ENV_FALSO" BORG_REPO=repo-falso BORG_PASSPHRASE=x \
+      LOG_CURL="$LOG_CURL" LOG_BORG="$LOG_BORG" LOG_DOCKER="$LOG_DOCKER" LOG_ORDEN="$LOG_ORDEN" \
+      PUNTO_MONTAJE="$PUNTO_MONTAJE" ESC_PROBAR_RO=1 bash "$SCRIPT" 2>&1)
+  CODIGO=$?
+  sudo -n chown -R "$(id -u):$(id -g)" "$TMP_ROOT"
+  comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+  comprobar "borg ve documentos/ montado y de solo lectura" \
+    'grep -q "^montado-visto-desde-borg\$" "$LOG_ORDEN" && grep -q "^documentos-solo-lectura\$" "$LOG_ORDEN" && ! grep -q "^documentos-escribible" "$LOG_ORDEN"'
+  comprobar "el archivo lleva documentos/<tenantId>/a.pdf leído a través del bind" '[ -f "$LOG_BORG.archivo/documentos/$TENANT_PRUEBA/a.pdf" ]'
+  montajes_colgados() { awk '$5 ~ /^\/tmp\/.*\/documentos$/ { print $5 }' /proc/self/mountinfo; }
+  comprobar "al terminar no queda ningún montaje sobre un documentos/ temporal" '[ -z "$(montajes_colgados)" ]'
+  comprobar "los documentos del volumen siguen intactos y sin escrituras" \
+    '[ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/$TEMPORAL_PRUEBA" ] && [ ! -e "$PUNTO_MONTAJE/documentos/escritura-de-prueba" ]'
+elif [ "${CI:-}" = "true" ]; then
+  comprobar "en CI hace falta Linux con unshare y sudo sin contraseña para esta prueba" 'false'
+else
+  echo "  omitido: hace falta Linux con unshare y sudo sin contraseña (en CI no se omite)"
+fi
 echo ""
 echo "$PRUEBAS comprobaciones, $FALLOS fallo(s)"
 [ "$FALLOS" -eq 0 ]
