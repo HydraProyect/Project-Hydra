@@ -9,6 +9,10 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.DocumentacionBase;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Asignaciones.Queries.ObtenerAsignacionesDocumentacionPorCentro;
+using CaeManager.Application.Alertas;
+using CaeManager.Application.Asignaciones.Commands.CrearAsignaciones;
+using CaeManager.Application.Asignaciones.Queries.ObtenerDocumentosFaltantesParaAsignacion;
+using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
 using CaeManager.Application.Asignaciones.Commands.DarDeBajaAsignaciones;
 using CaeManager.Application.Asignaciones.Commands.ReactivarAsignacion;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
@@ -1201,6 +1205,130 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         _asignacionABajar = null;
         _clientesReclamables = [];
         _clientesSeleccionadosReclamar.Clear();
+        CerrarAsignarCentro();
+    }
+
+    // ---------- «Asignar a un centro» (estado vacío de la pestaña Centros) ----------
+
+    private bool _asignarCentroVisible;
+    private bool _asignandoCentro;
+    private string? _errorAsignarCentro;
+    private IReadOnlyList<CentroSelectorDto> _centrosDisponiblesParaAsignar = [];
+    private string _centroIdParaAsignar = string.Empty;
+    private string _fechaAltaParaAsignar = string.Empty;
+    private IReadOnlyList<DocumentoFaltanteDto> _documentosFaltantesParaAsignar = [];
+    private readonly InstantaneaFormulario _instantaneaAsignarCentro = new();
+
+    /// <summary>Misma guarda que en el listado: una comprobación de faltantes en vuelo de otro Centro (o de un diálogo ya cerrado) no se pinta.</summary>
+    private int _faltantesVigente;
+
+    private bool HayCambiosAsignarCentro => _asignarCentroVisible && _instantaneaAsignarCentro.Difiere(_centroIdParaAsignar, _fechaAltaParaAsignar);
+
+    /// <summary>Los Centros asignables: los que el rol ve y donde este Trabajador no está ya asignado.</summary>
+    private IReadOnlyList<OpcionBuscable> OpcionesCentrosParaAsignar => _centrosDisponiblesParaAsignar
+        .Where(c => _centros.All(asignado => asignado.CentroId != c.Id))
+        .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
+        .ToList();
+
+    private async Task AbrirAsignarCentroAsync()
+    {
+        ++_faltantesVigente;
+        var carga = _cargaVigente;
+        var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(), _ciclo.Token);
+        if (!EsVigente(carga))
+            return;
+
+        _centrosDisponiblesParaAsignar = centros;
+        _centroIdParaAsignar = string.Empty;
+        _fechaAltaParaAsignar = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _documentosFaltantesParaAsignar = [];
+        _errorAsignarCentro = null;
+        _asignarCentroVisible = true;
+        // La fecha de alta de hoy viene puesta: no es un cambio de quien edita.
+        _instantaneaAsignarCentro.Fijar(_centroIdParaAsignar, _fechaAltaParaAsignar);
+    }
+
+    private void CerrarAsignarCentro()
+    {
+        ++_faltantesVigente;
+        _asignarCentroVisible = false;
+        _centroIdParaAsignar = string.Empty;
+        _documentosFaltantesParaAsignar = [];
+        _errorAsignarCentro = null;
+    }
+
+    private async Task CambiarCentroParaAsignarAsync(string valor)
+    {
+        var comprobacion = ++_faltantesVigente;
+        _centroIdParaAsignar = valor;
+        _errorAsignarCentro = null;
+
+        if (!Guid.TryParse(valor, out var centroId))
+        {
+            _documentosFaltantesParaAsignar = [];
+            return;
+        }
+
+        var faltantes = await Mediator.Send(
+            new ObtenerDocumentosFaltantesParaAsignacionQuery([TrabajadorId], [centroId]), _ciclo.Token);
+
+        if (comprobacion == _faltantesVigente)
+            _documentosFaltantesParaAsignar = faltantes;
+    }
+
+    private async Task ConfirmarAsignarCentroAsync()
+    {
+        if (_asignandoCentro) return;
+
+        if (!Guid.TryParse(_centroIdParaAsignar, out var centroId))
+        {
+            _errorAsignarCentro = Textos["ErrorSeleccionaCentro"];
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaAltaParaAsignar, out var fechaAlta))
+        {
+            _errorAsignarCentro = Textos["ErrorFechaAltaInvalida"];
+            return;
+        }
+
+        var trabajadorDeLaOrden = _trabajadorEnPantalla;
+        _asignandoCentro = true;
+        _errorAsignarCentro = null;
+        try
+        {
+            var resultado = await Mediator.Send(new CrearAsignacionesCommand([trabajadorDeLaOrden], [centroId], fechaAlta));
+
+            if (resultado.EsFallido)
+            {
+                _errorAsignarCentro = resultado.Error.Mensaje;
+                return;
+            }
+
+            var dto = resultado.Valor;
+            ToastService.Mostrar(
+                dto.YaActivas > 0
+                    ? Textos["ToastAsignacionesCreadasConActivas", dto.Creadas, dto.YaActivas].Value
+                    : Textos["ToastAsignacionesCreadas", dto.Creadas].Value,
+                dto.Errores.Count == 0 ? TonoToast.Exito : TonoToast.Advertencia);
+            // Un rechazo con motivo (p. ej. una Asignación que solapa un periodo ya registrado) se dice, no solo se tiñe de aviso.
+            foreach (var error in dto.Errores)
+                ToastService.Mostrar(error, TonoToast.Advertencia);
+
+            if (_desechado || _trabajadorEnPantalla != trabajadorDeLaOrden)
+                return;
+
+            CerrarAsignarCentro();
+            await CargarAsync();
+        }
+        catch (Exception)
+        {
+            _errorAsignarCentro = Textos["AsignarCentroError"];
+        }
+        finally
+        {
+            _asignandoCentro = false;
+        }
     }
 
     // ---------- Nota interna (mismo patrón que Empresa 360, editor en NotaInternaEditable) ----------

@@ -267,7 +267,14 @@
                     *@
                     @if (_centros.Count == 0)
                     {
-                        <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]" />
+                        @* Maqueta Trabajador 360: «Sin asignaciones activas» con «Asignar a un centro». Sin permiso de escritura no hay acción. *@
+                        <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]">
+                            <Accion>
+                                <SoloConEscritura>
+                                    <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAsignarCentroAsync">@Textos["AsignarCentroAccion"]</Boton>
+                                </SoloConEscritura>
+                            </Accion>
+                        </EstadoVacio>
                     }
                     else
                     {
@@ -601,6 +608,40 @@
             VisibleChanged="v => _editorFichaVisible = v" OnGuardada="CargarAsync" />
         <CorregirDocumentoIdentidadDrawer TrabajadorId="TrabajadorId" Visible="_corregirDocumentoVisible"
             VisibleChanged="v => _corregirDocumentoVisible = v" OnGuardada="CargarAsync" />
+        @* Asignar este Trabajador a un Centro (la misma orden que «Asignar a centro» del listado, con él solo). El selector no
+           ofrece los Centros donde ya está asignado. *@
+        <ModalFormulario Visible="_asignarCentroVisible" VisibleChanged="v => { if (v || !_asignandoCentro) CerrarAsignarCentro(); }"
+                         Titulo="@Textos["AsignarCentroAccion"]" Ancho="AnchoModal.Pequeno"
+                         HayCambios="() => HayCambiosAsignarCentro" Guardando="_asignandoCentro" MensajeError="@_errorAsignarCentro"
+                         MotivoGuardarDeshabilitado="@(string.IsNullOrEmpty(_centroIdParaAsignar) ? Textos["ErrorSeleccionaCentro"].Value : null)"
+                         OnGuardar="ConfirmarAsignarCentroAsync"
+                         TextoGuardar="@(_documentosFaltantesParaAsignar.Count > 0 ? Textos["BotonAsignarIgualmente"] : Textos["BotonAsignar"])"
+                         TextoCancelar="@Textos["BotonCancelar"]">
+            <ChildContent>
+                <CampoBuscarSelect Etiqueta="@Textos["EtiquetaCentro"]" Marcador="@Textos["PlaceholderCentro"]"
+                                   Valor="@_centroIdParaAsignar" ValorChanged="CambiarCentroParaAsignarAsync"
+                                   Opciones="@OpcionesCentrosParaAsignar" />
+                <CampoTexto Etiqueta="@Textos["EtiquetaFechaAlta"]" Type="date" Valor="@_fechaAltaParaAsignar" ValorChanged="v => _fechaAltaParaAsignar = v" />
+                @* La comprobación es una lectura aparte, hecha al elegir el Centro: asignar no la repite ni se detiene por documentos. *@
+                @if (_documentosFaltantesParaAsignar.Count > 0)
+                {
+                    <div class="alerta-preflight-asignacion" role="status" data-asignar-centro-faltantes>
+                        <p>@Textos["PreflightFaltaban"] <strong>@Textos["PreflightDocumentosQueSePiden", _documentosFaltantesParaAsignar.Count]</strong>:</p>
+                        <ul>
+                            @foreach (var faltante in _documentosFaltantesParaAsignar.Take(5))
+                            {
+                                <li>@faltante.TipoDocumentoNombre</li>
+                            }
+                        </ul>
+                        @if (_documentosFaltantesParaAsignar.Count > 5)
+                        {
+                            <p>@Textos["PreflightYMas", _documentosFaltantesParaAsignar.Count - 5]</p>
+                        }
+                        <p>@Textos["PreflightNota"]</p>
+                    </div>
+                }
+            </ChildContent>
+        </ModalFormulario>
     </SoloConEscritura>
 }
 </LimiteDeErrores>
