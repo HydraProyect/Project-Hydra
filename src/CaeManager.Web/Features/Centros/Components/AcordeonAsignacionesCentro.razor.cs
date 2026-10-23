@@ -62,6 +62,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         documento.AcreditacionesEnElCentro?.Any(a => a.Estado is EstadoAcreditacion.Rechazada or EstadoAcreditacion.PendienteDeSubir) == true;
     internal static bool TienePendienteValidacion(DocumentoRequeridoDto documento) =>
         documento.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Subida) == true;
+    internal static bool TieneIncidenciaEnPlataforma(IReadOnlyList<DocumentoRequeridoDto> documentos) =>
+        (documentos.Count > 0 && !documentos.Any(d => d.AcreditacionesEnElCentro is { Count: > 0 }))
+        || documentos.Any(d => BloqueaPlataforma(d) || TienePendienteValidacion(d));
     internal static int OrdenPlataforma(DocumentoRequeridoDto documento) =>
         BloqueaPlataforma(documento) ? 0 : TienePendienteValidacion(documento) ? 1 : 2;
     private string TextoPlataforma(EstadoAcreditacion estado) => Textos[ClaveTextoPlataforma(estado)];
@@ -502,9 +505,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         }
     }
 
-    /// <summary>La pastilla «N con incidencias» de una Subcontrata: Trabajadores con algo que bloquea o espera validación en la plataforma.</summary>
+    /// <summary>La pastilla «N con incidencias» de una Subcontrata: Trabajadores sin datos de plataforma, con bloqueo o pendientes de validación.</summary>
     private bool TrabajadorConIncidenciaEnPlataforma(TrabajadorAsignacionDocumentacionDto trabajador) =>
-        EstaBloqueado(trabajador.TrabajadorId) || trabajador.Documentos.Any(d => BloqueaPlataforma(d) || TienePendienteValidacion(d));
+        EstaBloqueado(trabajador.TrabajadorId) || TieneIncidenciaEnPlataforma(trabajador.Documentos);
 
     /// <summary>
     /// Los bloqueos son un adorno de la fila: si no se pueden leer, la fila se enseña sin el distintivo
