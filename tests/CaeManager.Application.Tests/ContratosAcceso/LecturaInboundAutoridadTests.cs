@@ -30,6 +30,7 @@ public class LecturaInboundAutoridadTests
         _contrato = ContratoAcceso.Crear(_cliente, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 3, 1), null, null);
         _contrato.VincularTenantContratista(_tenantContratista);
         _contratos.ListaContratos.Add(_contrato);
+        _lector.TenantPropietario = _tenantContratista;
     }
 
     private static AlcanceDatosServiceFalso Alcance(Guid? clienteVisible) =>
@@ -143,12 +144,15 @@ public class LecturaInboundAutoridadTests
     [InlineData("otro-tenant")]
     [InlineData("subcarpeta")]
     [InlineData("salto")]
+    [InlineData("tenant-de-la-funcion-distinto")]
     public async Task Una_referencia_que_no_es_de_la_carpeta_del_Tenant_del_contrato_no_se_abre(string caso)
     {
         _lector.Referencia = caso switch
         {
             "otro-tenant" => $"{Guid.NewGuid():N}/original.pdf",
             "subcarpeta" => $"{_tenantContratista:N}/x/original.pdf",
+            // La función devuelve otro Tenant propietario y una referencia coherente con él: no es el del contrato.
+            "tenant-de-la-funcion-distinto" => $"{_lector.TenantPropietario = Guid.NewGuid():N}/original.pdf",
             _ => $"{_tenantContratista:N}/..original.pdf",
         };
         _originales.Archivos[(_tenantContratista, _lector.Referencia)] = [1];
@@ -165,6 +169,8 @@ public class LecturaInboundAutoridadTests
         public List<(string Funcion, Guid Contrato)> Llamadas { get; } = [];
 
         public string? Referencia { get; set; }
+
+        public Guid TenantPropietario { get; set; }
 
         public AutorizacionInboundDto? Autorizacion { get; set; } =
             new(Guid.NewGuid(), new DateOnly(2026, 3, 1), null, false, VigenteHoy: true, true, 1);
@@ -185,7 +191,7 @@ public class LecturaInboundAutoridadTests
         public Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)
         {
             Llamadas.Add(("Archivo", contratoAccesoId));
-            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, Referencia));
+            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, TenantPropietario, Referencia, false));
         }
     }
 

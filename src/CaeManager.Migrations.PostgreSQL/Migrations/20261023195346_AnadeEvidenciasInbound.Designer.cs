@@ -2093,9 +2093,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "EmpresaContratistaId");
 
-                    b.HasIndex("TenantId", "Id")
-                        .IsUnique();
-
                     b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
 
                     b.ToTable("ContratosAcceso", null, t =>
@@ -6278,17 +6275,20 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TenantId", "ContratoAccesoId");
-
                     b.HasIndex("TenantId", "DocumentoOrigenId");
 
                     b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "ContratoAccesoId", "DocumentoOrigenId")
+                        .IsUnique();
 
                     b.ToTable("EvidenciasInbound", null, t =>
                         {
                             t.HasCheckConstraint("CK_EvidenciasInbound_ArchivoSegunConclusion", "(\"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NULL AND \"HuellaSha256\" IS NULL AND \"ConclusionAptitud\" IS NOT NULL) OR (NOT \"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NOT NULL AND \"HuellaSha256\" IS NOT NULL AND \"ConclusionAptitud\" IS NULL)");
 
                             t.HasCheckConstraint("CK_EvidenciasInbound_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_EvidenciasInbound_SujetoYConclusionDeLaMedica", "NOT \"SoloConclusionAptitud\" OR (\"TrabajadorOrigenId\" IS NOT NULL AND \"SujetoDocumentoIdentidad\" IS NOT NULL AND \"ConclusionAptitud\" IN ('Apto', 'AptoConRestricciones', 'NoApto'))");
 
                             t.HasCheckConstraint("CK_EvidenciasInbound_VencimientoNoAnteriorAEmision", "\"FechaVencimiento\" IS NULL OR \"FechaVencimiento\" >= \"FechaEmision\"");
                         });

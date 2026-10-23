@@ -23,6 +23,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 table: "ContratosAcceso",
                 columns: new[] { "TenantId", "Id" });
 
+            // La AK de arriba ya es única sobre (TenantId, Id): el índice único de AnadeContratosAcceso la repetía.
+            migrationBuilder.DropIndex(
+                name: "IX_ContratosAcceso_TenantId_Id",
+                table: "ContratosAcceso");
+
             migrationBuilder.CreateTable(
                 name: "EvidenciasInbound",
                 columns: table => new
@@ -61,6 +66,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     table.PrimaryKey("PK_EvidenciasInbound", x => x.Id);
                     table.CheckConstraint("CK_EvidenciasInbound_ArchivoSegunConclusion", "(\"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NULL AND \"HuellaSha256\" IS NULL AND \"ConclusionAptitud\" IS NOT NULL) OR (NOT \"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NOT NULL AND \"HuellaSha256\" IS NOT NULL AND \"ConclusionAptitud\" IS NULL)");
                     table.CheckConstraint("CK_EvidenciasInbound_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
+                    table.CheckConstraint("CK_EvidenciasInbound_SujetoYConclusionDeLaMedica", "NOT \"SoloConclusionAptitud\" OR (\"TrabajadorOrigenId\" IS NOT NULL AND \"SujetoDocumentoIdentidad\" IS NOT NULL AND \"ConclusionAptitud\" IN ('Apto', 'AptoConRestricciones', 'NoApto'))");
                     table.CheckConstraint("CK_EvidenciasInbound_VencimientoNoAnteriorAEmision", "\"FechaVencimiento\" IS NULL OR \"FechaVencimiento\" >= \"FechaEmision\"");
                     table.ForeignKey(
                         name: "FK_EvidenciasInbound_ContratosAcceso_TenantId_ContratoAccesoId",
@@ -691,9 +697,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 sql: "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'");
 
             migrationBuilder.CreateIndex(
-                name: "IX_EvidenciasInbound_TenantId_ContratoAccesoId",
+                name: "IX_EvidenciasInbound_TenantId_ContratoAccesoId_DocumentoOrigenId",
                 table: "EvidenciasInbound",
-                columns: new[] { "TenantId", "ContratoAccesoId" });
+                columns: new[] { "TenantId", "ContratoAccesoId", "DocumentoOrigenId" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_EvidenciasInbound_TenantId_DocumentoOrigenId",
@@ -722,6 +729,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // tocar. app_inbound_documentos_autorizados añade la columna "SoloConclusionAptitud" para que el Tenant del
             // Cliente empresarial sepa que la evidencia de ese original no lleva archivo; cambiar las columnas de salida
             // obliga a DROP y CREATE, con el cuerpo idéntico al anterior salvo esa columna y los mismos REVOKE y GRANT.
+            // app_inbound_archivo_autorizado, igual: DROP y CREATE para devolver también "TenantPropietarioId" (el
+            // v_aut.tenant_contratista con el que la aplicación abre el binario, sin componerlo ella) y el
+            // "SoloConclusionAptitud" del tipo del original, leído en la misma sentencia que da la apertura; el registro de
+            // evidencia no copia el binario de uno marcado. El Down restaura las dos funciones tal como eran.
             migrationBuilder.Sql(
                 """
                 ALTER TABLE public."EvidenciasInbound" ENABLE ROW LEVEL SECURITY;
@@ -827,6 +838,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 $$;
                 REVOKE ALL ON FUNCTION public.app_inbound_documentos_autorizados(uuid) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_inbound_documentos_autorizados(uuid) TO cae_app_runtime;
+
+                DROP FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid);
+                CREATE FUNCTION public.app_inbound_archivo_autorizado(p_contrato uuid, p_documento uuid)
+                    RETURNS TABLE("DocumentoId" uuid, "TenantPropietarioId" uuid, "ArchivoUrl" text, "SoloConclusionAptitud" boolean)
+                    LANGUAGE plpgsql SECURITY DEFINER
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                #variable_conflict use_column
+                DECLARE
+                    v_lector uuid;
+                    v_usuario uuid;
+                    v_aut record;
+                    v_archivo text;
+                    v_solo_conclusion boolean;
+                BEGIN
+                    IF NOT COALESCE(public.app_ctx_valido(), false) OR public.app_ctx_tenant_id() IS NULL OR public.app_ctx_usuario_id() IS NULL THEN
+                        RAISE EXCEPTION 'Sin contexto firmado con Tenant y usuario: no se lee nada de otro Tenant.' USING ERRCODE = '42501';
+                    END IF;
+                    v_lector := public.app_ctx_tenant_id();
+                    v_usuario := public.app_ctx_usuario_id();
+                    SELECT * INTO v_aut FROM public.app_inbound_autorizacion_aplicable(
+                        v_lector, p_contrato, (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date);
+                    IF NOT FOUND THEN
+                        RETURN;
+                    END IF;
+                    SELECT d."ArchivoUrl", td."SoloConclusionAptitud" INTO v_archivo, v_solo_conclusion
+                      FROM public."Documentos" d
+                      JOIN public."TiposDocumento" td ON td."TenantId" = d."TenantId" AND td."Id" = d."TipoDocumentoId"
+                     WHERE d."TenantId" = v_aut.tenant_contratista
+                       AND d."Id" = p_documento
+                       AND d."Id" IN (SELECT public.app_inbound_documentos_del_alcance(
+                                          v_aut.tenant_contratista, v_aut.autorizacion_id, v_aut.incluye_empresa))
+                       AND EXISTS (SELECT 1 FROM public."AutorizacionesLecturaDocumental" a
+                                    WHERE a."TenantId" = v_aut.tenant_contratista AND a."Id" = v_aut.autorizacion_id
+                                      AND a."RevocadaEnUtc" IS NULL);
+                    IF NOT FOUND THEN
+                        RETURN;
+                    END IF;
+                    INSERT INTO public."AccesosLecturaInbound" ("Id", "TenantId", "AutorizacionId", "ContratoAccesoId", "TenantLectorId",
+                                                                "TenantOrigenLectorId", "UsuarioId", "DocumentoId", "Tipo", "MomentoUtc")
+                        VALUES (public.app_inbound_nuevo_id(), v_aut.tenant_contratista, v_aut.autorizacion_id, p_contrato, v_lector,
+                                NULLIF(public.app_ctx_tenant_origen_id(), v_lector), v_usuario, p_documento, 'Apertura', pg_catalog.now());
+                    RETURN QUERY SELECT p_documento, v_aut.tenant_contratista, v_archivo, v_solo_conclusion;
+                END;
+                $$;
+                REVOKE ALL ON FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+                GRANT EXECUTE ON FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid) TO cae_app_runtime;
                 """);
         }
 
@@ -908,9 +966,60 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 $$;
                 REVOKE ALL ON FUNCTION public.app_inbound_documentos_autorizados(uuid) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
                 GRANT EXECUTE ON FUNCTION public.app_inbound_documentos_autorizados(uuid) TO cae_app_runtime;
+
+                DROP FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid);
+                CREATE FUNCTION public.app_inbound_archivo_autorizado(p_contrato uuid, p_documento uuid)
+                    RETURNS TABLE("DocumentoId" uuid, "ArchivoUrl" text)
+                    LANGUAGE plpgsql SECURITY DEFINER
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                #variable_conflict use_column
+                DECLARE
+                    v_lector uuid;
+                    v_usuario uuid;
+                    v_aut record;
+                    v_archivo text;
+                BEGIN
+                    IF NOT COALESCE(public.app_ctx_valido(), false) OR public.app_ctx_tenant_id() IS NULL OR public.app_ctx_usuario_id() IS NULL THEN
+                        RAISE EXCEPTION 'Sin contexto firmado con Tenant y usuario: no se lee nada de otro Tenant.' USING ERRCODE = '42501';
+                    END IF;
+                    v_lector := public.app_ctx_tenant_id();
+                    v_usuario := public.app_ctx_usuario_id();
+                    SELECT * INTO v_aut FROM public.app_inbound_autorizacion_aplicable(
+                        v_lector, p_contrato, (pg_catalog.now() AT TIME ZONE 'Europe/Madrid')::date);
+                    IF NOT FOUND THEN
+                        RETURN;
+                    END IF;
+                    SELECT d."ArchivoUrl" INTO v_archivo
+                      FROM public."Documentos" d
+                     WHERE d."TenantId" = v_aut.tenant_contratista
+                       AND d."Id" = p_documento
+                       AND d."Id" IN (SELECT public.app_inbound_documentos_del_alcance(
+                                          v_aut.tenant_contratista, v_aut.autorizacion_id, v_aut.incluye_empresa))
+                       AND EXISTS (SELECT 1 FROM public."AutorizacionesLecturaDocumental" a
+                                    WHERE a."TenantId" = v_aut.tenant_contratista AND a."Id" = v_aut.autorizacion_id
+                                      AND a."RevocadaEnUtc" IS NULL);
+                    IF NOT FOUND THEN
+                        RETURN;
+                    END IF;
+                    INSERT INTO public."AccesosLecturaInbound" ("Id", "TenantId", "AutorizacionId", "ContratoAccesoId", "TenantLectorId",
+                                                                "TenantOrigenLectorId", "UsuarioId", "DocumentoId", "Tipo", "MomentoUtc")
+                        VALUES (public.app_inbound_nuevo_id(), v_aut.tenant_contratista, v_aut.autorizacion_id, p_contrato, v_lector,
+                                NULLIF(public.app_ctx_tenant_origen_id(), v_lector), v_usuario, p_documento, 'Apertura', pg_catalog.now());
+                    RETURN QUERY SELECT p_documento, v_archivo;
+                END;
+                $$;
+                REVOKE ALL ON FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid) FROM PUBLIC, cae_app_soporte, cae_app_aprovisionamiento;
+                GRANT EXECUTE ON FUNCTION public.app_inbound_archivo_autorizado(uuid, uuid) TO cae_app_runtime;
                 """);
             migrationBuilder.DropTable(
                 name: "EvidenciasInbound");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ContratosAcceso_TenantId_Id",
+                table: "ContratosAcceso",
+                columns: new[] { "TenantId", "Id" },
+                unique: true);
 
             migrationBuilder.DropCheckConstraint(
                 name: "CK_TiposDocumento_SoloConclusionAptitudEsDeSalud",

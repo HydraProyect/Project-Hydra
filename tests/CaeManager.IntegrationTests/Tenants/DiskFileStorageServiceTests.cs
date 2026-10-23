@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using CaeManager.Infrastructure.FileStorage;
 using CaeManager.Infrastructure.MultiTenancy;
 using FluentAssertions;
@@ -97,7 +98,7 @@ public class DiskFileStorageServiceTests : IDisposable
         var deB = await CrearServicio(_tenantB).GuardarAsync(original, "aptitud.pdf");
         var servicioDeA = CrearServicio(_tenantA);
 
-        await using (var abierto = await servicioDeA.AbrirOriginalAsync(_tenantB, deB))
+        await using (var abierto = await servicioDeA.AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantB, deB, false)))
         {
             using var lectura = new StreamReader(abierto);
             (await lectura.ReadToEndAsync()).Should().Be("original del Tenant B");
@@ -125,7 +126,7 @@ public class DiskFileStorageServiceTests : IDisposable
                      (_tenantB, Path.GetFileName(deB), "sin carpeta"),
                  })
         {
-            await FluentActions.Awaiting(() => servicioDeA.AbrirOriginalAsync(tenant, identificador))
+            await FluentActions.Awaiting(() => servicioDeA.AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), tenant, identificador, false)))
                 .Should().ThrowAsync<FileNotFoundException>(motivo);
         }
     }

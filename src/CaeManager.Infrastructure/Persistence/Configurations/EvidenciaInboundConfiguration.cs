@@ -19,6 +19,12 @@ public class EvidenciaInboundConfiguration : IEntityTypeConfiguration<EvidenciaI
                 "CK_EvidenciasInbound_ArchivoSegunConclusion",
                 "(\"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NULL AND \"HuellaSha256\" IS NULL AND \"ConclusionAptitud\" IS NOT NULL) " +
                 "OR (NOT \"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NOT NULL AND \"HuellaSha256\" IS NOT NULL AND \"ConclusionAptitud\" IS NULL)");
+            // La evidencia médica es de un Trabajador con su documento de identidad, y su conclusión es una de las tres
+            // del certificado de aptitud. Repite EvidenciaInbound.Registrar y el enum ConclusionAptitud.
+            t.HasCheckConstraint(
+                "CK_EvidenciasInbound_SujetoYConclusionDeLaMedica",
+                "NOT \"SoloConclusionAptitud\" OR (\"TrabajadorOrigenId\" IS NOT NULL AND \"SujetoDocumentoIdentidad\" IS NOT NULL " +
+                "AND \"ConclusionAptitud\" IN ('Apto', 'AptoConRestricciones', 'NoApto'))");
             t.HasCheckConstraint(
                 "CK_EvidenciasInbound_VencimientoNoAnteriorAEmision",
                 "\"FechaVencimiento\" IS NULL OR \"FechaVencimiento\" >= \"FechaEmision\"");
@@ -37,7 +43,9 @@ public class EvidenciaInboundConfiguration : IEntityTypeConfiguration<EvidenciaI
         builder.Property(e => e.Estado).HasConversion<string>().HasMaxLength(30).IsRequired();
         builder.Property(e => e.CausaRechazo).HasConversion<string>().HasMaxLength(30);
 
-        builder.HasIndex(e => new { e.TenantId, e.ContratoAccesoId });
+        // Una evidencia por Documento original y contrato de acceso (RegistrarEvidenciaInboundCommand lo comprueba antes
+        // con EvidenciaInbound.YaRegistrada). Cubre también la consulta por contrato.
+        builder.HasIndex(e => new { e.TenantId, e.ContratoAccesoId, e.DocumentoOrigenId }).IsUnique();
         builder.HasIndex(e => new { e.TenantId, e.DocumentoOrigenId });
 
         builder.HasOne<ContratoAcceso>().WithMany()

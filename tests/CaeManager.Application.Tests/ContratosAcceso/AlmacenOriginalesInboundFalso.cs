@@ -1,4 +1,5 @@
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.ContratosAcceso.LecturaInbound;
 
 namespace CaeManager.Application.Tests.ContratosAcceso;
 
@@ -13,11 +14,12 @@ public class AlmacenOriginalesInboundFalso(List<string>? orden = null) : IAlmace
 
     public List<(Guid Tenant, string Referencia)> Aperturas { get; } = [];
 
-    public Task<Stream> AbrirOriginalAsync(Guid tenantPropietarioId, string identificador, CancellationToken cancellationToken = default)
+    public Task<Stream> AbrirOriginalAsync(ArchivoInboundDto archivo, CancellationToken cancellationToken = default)
     {
-        Aperturas.Add((tenantPropietarioId, identificador));
+        var identificador = archivo.ArchivoUrl ?? string.Empty;
+        Aperturas.Add((archivo.TenantPropietarioId, identificador));
         orden?.Add("AbrirOriginal");
-        return Archivos.TryGetValue((tenantPropietarioId, identificador), out var contenido)
+        return Archivos.TryGetValue((archivo.TenantPropietarioId, identificador), out var contenido)
             ? Task.FromResult<Stream>(new MemoryStream(contenido, writable: false))
             : throw new FileNotFoundException("Sin original en el almacenamiento falso.", identificador);
     }

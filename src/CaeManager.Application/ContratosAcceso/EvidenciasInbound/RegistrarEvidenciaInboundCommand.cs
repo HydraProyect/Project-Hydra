@@ -7,6 +7,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.EvidenciasInbound;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 
@@ -24,12 +25,16 @@ public record RegistrarEvidenciaInboundCommand(
 /// <list type="number">
 /// <item>Autoridad de <see cref="LecturaInboundAutoridad"/> (rol que valida y cartera sobre el Cliente empresarial del
 /// contrato); lo que no pasa, o no se ve, responde «no encontrado».</item>
+/// <item>Una evidencia por Documento original y contrato: si ya hay una, <see cref="EvidenciaInboundErrores.YaRegistrada"/>
+/// sin leer ni copiar nada. El índice único <c>(TenantId, ContratoAccesoId, DocumentoOrigenId)</c> lo repite en la base.</item>
 /// <item>Lectura por <see cref="ILectorDocumentosInbound"/> <b>fuera de transacción</b>: el lector lo exige porque cada
 /// lectura deja su traza en el Tenant propietario, y un rollback la borraría. Este handler no abre ninguna; la única es la
 /// implícita de <c>SaveChangesAsync</c>, al final y después de leer.</item>
 /// <item>Si la evidencia es de «solo conclusión de aptitud» (el tipo elegido o el del original lleva la marca): no se
-/// abre ni se copia ningún binario; se guardan la conclusión transcrita, el nombre y el documento de identidad.</item>
-/// <item>Si no: se lee el binario del original con la clave de su Tenant propietario, se calcula su SHA-256, se copia al
+/// abre ni se copia ningún binario; se guardan la conclusión transcrita, el nombre y el documento de identidad del
+/// Trabajador. Un Documento de Empresa no la admite.</item>
+/// <item>Si no: se pide la apertura, y si su marca no coincide con la del listado o viene marcada, se aborta sin copiar.
+/// Si coincide, se lee el binario del original con la clave de su Tenant propietario, se calcula su SHA-256, se copia al
 /// almacenamiento del Tenant del Cliente empresarial y solo entonces se guarda la entidad. Si algo falla después de
 /// copiar, se elimina la copia antes de propagar el error: no queda un binario huérfano.</item>
 /// </list>
@@ -45,7 +50,9 @@ public class RegistrarEvidenciaInboundCommandHandler(
     IFileStorageService almacen,
     IEvidenciaInboundRepository repositorio,
     IUnitOfWork unitOfWork,
-    TimeProvider reloj)
+    TimeProvider reloj,
+    IEvidenciasInboundQueryContext evidenciasContext,
+    ILogger<RegistrarEvidenciaInboundCommandHandler> logger)
     : IRequestHandler<RegistrarEvidenciaInboundCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(RegistrarEvidenciaInboundCommand request, CancellationToken cancellationToken)
@@ -60,6 +67,11 @@ public class RegistrarEvidenciaInboundCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
         if (contrato?.TenantContratistaId is not { } tenantContratista)
             return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        if (await evidenciasContext.EvidenciasInbound.AnyAsync(
+                e => e.ContratoAccesoId == request.ContratoAccesoId && e.DocumentoOrigenId == request.DocumentoOrigenId,
+                cancellationToken))
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.YaRegistrada);
 
         var tipo = await tiposContext.TiposDocumento
             .Where(t => t.Id == request.TipoDocumentoId && !t.Archivado)
@@ -81,6 +93,11 @@ public class RegistrarEvidenciaInboundCommandHandler(
         if (soloConclusion != (request.Conclusion is not null))
             return Result.Fallo<Guid>(soloConclusion ? EvidenciaInboundErrores.FaltaConclusion : EvidenciaInboundErrores.ConclusionSobra);
 
+        // La conclusión de aptitud es de un Trabajador: un Documento de Empresa no la admite, y no es un problema de su
+        // documento de identidad.
+        if (soloConclusion && original.TrabajadorId is null)
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.SoloConclusionNoAdmitida);
+
         EvidenciaInbound.Sujeto sujeto;
         if (original.TrabajadorId is { } trabajadorId)
         {
@@ -100,7 +117,9 @@ public class RegistrarEvidenciaInboundCommandHandler(
             sujeto = new(null, empresa.RazonSocial, empresa.Cif);
         }
 
-        if (soloConclusion && (sujeto.TrabajadorOrigenId is null || string.IsNullOrWhiteSpace(sujeto.DocumentoIdentidad)))
+        // Cualquier documento de identidad no vacío (DNI, NIE o pasaporte): su formato es cosa de la ficha del Trabajador
+        // en el Tenant de la Empresa contratista, no de esta copia.
+        if (soloConclusion && string.IsNullOrWhiteSpace(sujeto.DocumentoIdentidad))
             return Result.Fallo<Guid>(EvidenciaInboundErrores.SinDocumentoIdentidad);
 
         var procedencia = new EvidenciaInbound.Procedencia(
@@ -117,13 +136,22 @@ public class RegistrarEvidenciaInboundCommandHandler(
         }
 
         var archivo = await lector.ArchivoAutorizadoAsync(request.ContratoAccesoId, request.DocumentoOrigenId, cancellationToken);
-        if (archivo?.ArchivoUrl is not { } referencia || !OriginalesInbound.EsDelTenant(referencia, tenantContratista))
+        if (archivo is null)
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.OriginalSinArchivo);
+
+        // La marca de la apertura se lee en la misma sentencia que la da. Si no coincide con la del listado (el Tenant
+        // propietario marcó su tipo entre las dos lecturas) o viene marcada, el binario es de un certificado de aptitud y no
+        // se copia: error genérico, sin decir qué cambió en el otro Tenant.
+        if (archivo.SoloConclusionAptitud || archivo.SoloConclusionAptitud != original.SoloConclusionAptitud)
+            return Result.Fallo<Guid>(EvidenciaInboundErrores.NoEncontrada);
+
+        if (!OriginalesInbound.EsDelTenantDelContrato(archivo, tenantContratista))
             return Result.Fallo<Guid>(EvidenciaInboundErrores.OriginalSinArchivo);
 
         byte[] contenido;
         try
         {
-            contenido = await OriginalesInbound.LeerAsync(almacenOriginales, tenantContratista, referencia, cancellationToken);
+            contenido = await OriginalesInbound.LeerAsync(almacenOriginales, archivo, cancellationToken);
         }
         catch (FileNotFoundException)
         {
@@ -133,7 +161,7 @@ public class RegistrarEvidenciaInboundCommandHandler(
         var huella = Convert.ToHexString(SHA256.HashData(contenido)).ToLowerInvariant();
         string copia;
         using (var flujo = new MemoryStream(contenido, writable: false))
-            copia = await almacen.GuardarAsync(flujo, Path.GetFileName(referencia), cancellationToken);
+            copia = await almacen.GuardarAsync(flujo, Path.GetFileName(archivo.ArchivoUrl!), cancellationToken);
 
         try
         {
@@ -148,8 +176,19 @@ public class RegistrarEvidenciaInboundCommandHandler(
         catch
         {
             // Sin fila que la referencie, la copia sería un binario huérfano con datos personales del Tenant de la
-            // Empresa contratista. Se borra con CancellationToken.None: una cancelación no puede dejarla a medias.
-            await almacen.EliminarAsync(copia, CancellationToken.None);
+            // Empresa contratista. Se borra con CancellationToken.None: una cancelación no puede dejarla a medias. Si el
+            // borrado también falla, se registra y se propaga el error original, que es el que explica el fallo.
+            try
+            {
+                await almacen.EliminarAsync(copia, CancellationToken.None);
+            }
+            catch (Exception errorAlEliminar)
+            {
+                logger.LogError(errorAlEliminar,
+                    "No se pudo eliminar la copia {Copia} de una evidencia Inbound que no llegó a guardarse: queda huérfana en el almacenamiento del Tenant.",
+                    copia);
+            }
+
             throw;
         }
     }
@@ -160,6 +199,9 @@ public static class EvidenciaInboundErrores
     public static readonly Error NoEncontrada = Error.Crear(
         "EvidenciaInbound.NoEncontrada", "No encontramos el contrato de acceso, la autorización o el Documento seleccionados.");
 
+    public static readonly Error YaRegistrada = Error.Crear(
+        "EvidenciaInbound.YaRegistrada", "Este Documento ya tiene una evidencia registrada para este contrato de acceso.");
+
     public static readonly Error TipoNoEncontrado = Error.Crear(
         "EvidenciaInbound.TipoNoEncontrado", "No encontramos el tipo de documento seleccionado.");
 
@@ -169,9 +211,13 @@ public static class EvidenciaInboundErrores
     public static readonly Error ConclusionSobra = Error.Crear(
         "EvidenciaInbound.ConclusionSobra", "Solo un certificado de aptitud lleva conclusión de aptitud.");
 
+    public static readonly Error SoloConclusionNoAdmitida = Error.Crear(
+        "EvidenciaInbound.SoloConclusionNoAdmitida",
+        "Un Documento de Empresa no admite un tipo de solo conclusión de aptitud: la conclusión de aptitud es de un Trabajador.");
+
     public static readonly Error SinDocumentoIdentidad = Error.Crear(
         "EvidenciaInbound.SinDocumentoIdentidad",
-        "El Trabajador no tiene documento de identidad registrado por su empresa: la conclusión de aptitud no se puede registrar sin él.");
+        "El Trabajador no tiene documento de identidad (DNI, NIE o pasaporte) y sin él la conclusión de aptitud no se puede registrar. Lo corrige la Empresa contratista en la ficha del Trabajador.");
 
     public static readonly Error OriginalSinArchivo = Error.Crear(
         "EvidenciaInbound.OriginalSinArchivo", "El Documento original no tiene un archivo disponible.");

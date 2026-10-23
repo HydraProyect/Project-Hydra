@@ -12,6 +12,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.EvidenciasInbound;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CaeManager.Application.Tests.ContratosAcceso;
@@ -38,6 +39,7 @@ public class EvidenciasInboundTests
     private readonly AlmacenOriginalesInboundFalso _originales;
     private readonly AlmacenDelTenantFalso _almacen;
     private readonly RepositorioFalso _repositorio = new();
+    private readonly RegistroFalso _registro = new();
     private readonly UnidadDeTrabajoFalsa _unidad;
     private readonly ContratoAcceso _contrato;
     private readonly TipoDocumento _tipoFormacion;
@@ -68,6 +70,7 @@ public class EvidenciasInboundTests
         _referenciaOriginal = $"{_tenantContratista:N}/original.pdf";
         _originales.Archivos[(_tenantContratista, _referenciaOriginal)] = Contenido;
         _lector.Referencia = _referenciaOriginal;
+        _lector.TenantPropietario = _tenantContratista;
         _lector.Documentos.Add(Documento(_documento, soloConclusion: false));
     }
 
@@ -78,7 +81,8 @@ public class EvidenciasInboundTests
 
     private RegistrarEvidenciaInboundCommandHandler Registrar(string? rol = "GestorCae", Guid? clienteVisible = null) =>
         new(_contratos, _tipos, _empresas, Alcance(clienteVisible ?? _cliente), new UsuarioConRol(rol), _lector, _originales,
-            _almacen, _repositorio, _unidad, new RelojFijo(new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero)));
+            _almacen, _repositorio, _unidad, new RelojFijo(new DateTimeOffset(2026, 10, 23, 9, 0, 0, TimeSpan.Zero)),
+            new EvidenciasQueryContextFalso(_repositorio.Agregadas), _registro);
 
     private static AlcanceDatosServiceFalso Alcance(Guid clienteVisible) =>
         new(tieneAccesoTotal: false, clienteIdsVisibles: [clienteVisible]);
@@ -249,6 +253,103 @@ public class EvidenciasInboundTests
     }
 
     [Fact]
+    public async Task Si_tambien_falla_el_borrado_de_la_copia_se_registra_y_se_propaga_el_error_original()
+    {
+        _unidad.ExcepcionAlGuardar = new InvalidOperationException("fallo de guardado");
+        var errorAlEliminar = new IOException("fallo al borrar");
+        _almacen.ExcepcionAlEliminar = errorAlEliminar;
+
+        var registrar = () => Registrar().Handle(Comando(), CancellationToken.None);
+
+        await registrar.Should().ThrowAsync<InvalidOperationException>().WithMessage("fallo de guardado",
+            "el error del borrado no tapa el que explica el fallo");
+        _almacen.Eliminados.Should().ContainSingle();
+        _registro.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error)
+            .Which.Excepcion.Should().BeSameAs(errorAlEliminar, "la copia huérfana queda registrada");
+    }
+
+    [Fact]
+    public async Task Una_apertura_marcada_cuando_el_listado_no_lo_estaba_aborta_sin_copiar()
+    {
+        // El listado dijo «sin marca» y la apertura, leída en otra sentencia, viene marcada: el Tenant propietario marcó su
+        // tipo entre las dos lecturas. El binario es de un certificado de aptitud y no se copia. (Un listado marcado nunca
+        // llega a pedir la apertura: lo cubre Una_evidencia_de_solo_conclusion_nunca_abre_ni_copia_el_binario.)
+        _lector.SoloConclusionEnLaApertura = true;
+
+        var resultado = await Registrar().Handle(Comando(), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "error genérico: no dice qué cambió en el otro Tenant");
+        _originales.Aperturas.Should().BeEmpty("no se lee el binario");
+        _almacen.Guardados.Should().BeEmpty("ni se copia");
+        _repositorio.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Documento_ya_registrado_en_el_contrato_responde_ya_registrada_sin_leer_ni_copiar()
+    {
+        (await Registrar().Handle(Comando(), CancellationToken.None)).EsExitoso.Should().BeTrue();
+        _orden.Clear();
+
+        var otra = await Registrar().Handle(Comando(), CancellationToken.None);
+
+        otra.Error.Should().Be(EvidenciaInboundErrores.YaRegistrada);
+        _orden.Should().BeEmpty("ni lectura del otro Tenant, ni apertura, ni copia, ni guardado");
+        _almacen.Guardados.Should().ContainSingle("solo la copia de la primera");
+        _repositorio.Agregadas.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Un_Documento_de_Empresa_con_un_tipo_de_solo_conclusion_no_se_admite_y_no_es_falta_de_identidad()
+    {
+        var documento = Guid.NewGuid();
+        _lector.Documentos.Add(Documento(documento, soloConclusion: false, deTrabajador: false));
+
+        var resultado = await Registrar().Handle(Comando(_tipoAptitud, ConclusionAptitud.Apto, documento), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.SoloConclusionNoAdmitida);
+        _repositorio.Agregadas.Should().BeEmpty();
+        _lector.Llamadas.Should().NotContain("Archivo");
+    }
+
+    [Theory]
+    [InlineData("12345678Z")]
+    [InlineData("X1234567L")]
+    [InlineData("PAB123456")]
+    [InlineData("AB 123-45")]
+    public async Task La_conclusion_admite_cualquier_documento_de_identidad_no_vacio_sin_validar_su_formato(string documentoIdentidad)
+    {
+        var documento = Guid.NewGuid();
+        _lector.Documentos.Add(Documento(documento, soloConclusion: true, dni: documentoIdentidad));
+
+        var resultado = await Registrar().Handle(Comando(_tipoAptitud, ConclusionAptitud.Apto, documento), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(documentoIdentidad);
+        _repositorio.Agregadas.Should().ContainSingle().Which.SujetoDocumentoIdentidad.Should().Be(documentoIdentidad);
+    }
+
+    [Fact]
+    public void Sin_documento_de_identidad_el_mensaje_dice_que_lo_corrige_la_Empresa_contratista_en_la_ficha_del_Trabajador()
+    {
+        EvidenciaInboundErrores.SinDocumentoIdentidad.Mensaje.Should()
+            .Contain("Empresa contratista").And.Contain("ficha del Trabajador");
+    }
+
+    [Fact]
+    public async Task Una_apertura_con_un_Tenant_propietario_que_no_es_el_del_contrato_no_se_abre()
+    {
+        var otroTenant = Guid.NewGuid();
+        _lector.TenantPropietario = otroTenant;
+        _lector.Referencia = $"{otroTenant:N}/original.pdf";
+        _originales.Archivos[(otroTenant, _lector.Referencia)] = Contenido;
+
+        var resultado = await Registrar().Handle(Comando(), CancellationToken.None);
+
+        resultado.Error.Should().Be(EvidenciaInboundErrores.OriginalSinArchivo);
+        _originales.Aperturas.Should().BeEmpty();
+        _almacen.Guardados.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Rechazar_y_validar_aplican_la_misma_autoridad_y_solo_las_transiciones_existentes()
     {
         await Registrar().Handle(Comando(), CancellationToken.None);
@@ -306,6 +407,8 @@ public class EvidenciasInboundTests
         public List<string> Llamadas { get; } = [];
         public List<DocumentoInboundDto> Documentos { get; } = [];
         public string? Referencia { get; set; }
+        public Guid TenantPropietario { get; set; }
+        public bool SoloConclusionEnLaApertura { get; set; }
         public bool HabiaTransaccionAmbiental { get; private set; }
 
         public AutorizacionInboundDto? Autorizacion { get; set; } =
@@ -333,7 +436,7 @@ public class EvidenciasInboundTests
         public Task<ArchivoInboundDto?> ArchivoAutorizadoAsync(Guid contratoAccesoId, Guid documentoId, CancellationToken cancellationToken = default)
         {
             Apuntar("Archivo");
-            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, Referencia));
+            return Task.FromResult<ArchivoInboundDto?>(new(documentoId, TenantPropietario, Referencia, SoloConclusionEnLaApertura));
         }
     }
 
@@ -355,11 +458,25 @@ public class EvidenciasInboundTests
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException("El registro no abre nada del almacenamiento del Tenant del Cliente empresarial.");
 
+        public Exception? ExcepcionAlEliminar { get; set; }
+
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
         {
             Eliminados.Add(identificador);
-            return Task.CompletedTask;
+            return ExcepcionAlEliminar is { } excepcion ? throw excepcion : Task.CompletedTask;
         }
+    }
+
+    private sealed class RegistroFalso : ILogger<RegistrarEvidenciaInboundCommandHandler>
+    {
+        public List<(LogLevel Nivel, Exception? Excepcion)> Entradas { get; } = [];
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, exception));
     }
 
     private sealed class UnidadDeTrabajoFalsa(List<string> orden) : IUnitOfWork

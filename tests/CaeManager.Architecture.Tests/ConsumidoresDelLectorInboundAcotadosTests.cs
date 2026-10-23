@@ -48,10 +48,15 @@ public class ConsumidoresDelLectorInboundAcotadosTests
         typeof(OriginalesInbound),
     ];
 
+    // Infrastructure también: un servicio de fondo o un adaptador que inyectara el lector o el almacén de originales leería
+    // otro Tenant sin la cartera, igual que uno de Application o Web. Sus implementaciones no cuentan como consumidoras
+    // (implementar no es inyectar) y el registro de dependencias solo resuelve, no inyecta.
+    private static readonly string[] EnsambladosEscaneados = ["CaeManager.Application", "CaeManager.Web", "CaeManager.Infrastructure"];
+
     [Fact]
     public void Solo_los_handlers_que_deciden_la_cartera_dependen_del_lector_Inbound()
     {
-        var consumidores = new[] { "CaeManager.Application", "CaeManager.Web" }
+        var consumidores = EnsambladosEscaneados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
             .SelectMany(a => ReflexionArquitecturaHelper.TiposQueReferencianTipo(a, typeof(ILectorDocumentosInbound)))
             .Select(Exterior)
@@ -80,7 +85,7 @@ public class ConsumidoresDelLectorInboundAcotadosTests
     [Fact]
     public void Solo_los_consumidores_del_lector_abren_originales_del_Tenant_de_la_Empresa_contratista()
     {
-        var consumidores = new[] { "CaeManager.Application", "CaeManager.Web" }
+        var consumidores = EnsambladosEscaneados
             .Select(ReflexionArquitecturaHelper.CargarAssembly)
             .SelectMany(a => ReflexionArquitecturaHelper.TiposQueReferencianTipo(a, typeof(IAlmacenOriginalesInbound)))
             .Select(Exterior)

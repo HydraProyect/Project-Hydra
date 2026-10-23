@@ -213,4 +213,20 @@ public class TipoDocumentoTests
         tipo.Invoking(t => t.EstablecerSoloConclusionAptitud(true)).Should().Throw<InvalidOperationException>();
         tipo.SoloConclusionAptitud.Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData(AmbitoAplicacion.Cliente)]
+    [InlineData(AmbitoAplicacion.Empresa)]
+    [InlineData(AmbitoAplicacion.Vehiculo)]
+    [InlineData(AmbitoAplicacion.Proyecto)]
+    public void SoloConclusionAptitud_solo_se_marca_en_un_tipo_de_ambito_Trabajador(AmbitoAplicacion ambito)
+    {
+        var tipo = new TipoDocumento("Reconocimiento de salud", 12, aplicaVencimientoAutomatico: true, orden: 1,
+            ambito, sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+
+        tipo.Invoking(t => t.EstablecerSoloConclusionAptitud(true))
+            .Should().Throw<InvalidOperationException>().WithMessage("*Trabajador*");
+        tipo.SoloConclusionAptitud.Should().BeFalse();
+        tipo.Invoking(t => t.EstablecerSoloConclusionAptitud(false)).Should().NotThrow("desmarcar siempre se puede");
+    }
 }

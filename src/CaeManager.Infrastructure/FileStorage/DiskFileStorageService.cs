@@ -1,5 +1,7 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
+using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -63,7 +65,7 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// blobs legados?" pasa a ser una pregunta medible en vez de una suposición
 /// — que es lo que hace falta antes de poder retirar la rama legada del todo.
 /// </summary>
-public class DiskFileStorageService : IFileStorageService, CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound
+public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInbound
 {
     /// <summary>
     /// Prefijo de los archivos escritos con el formato v2. No puede colisionar
@@ -183,16 +185,18 @@ public class DiskFileStorageService : IFileStorageService, CaeManager.Applicatio
 
     /// <summary>
     /// Inbound M1, PR 4: abre un original del Tenant de la Empresa contratista desde la petición del Tenant del Cliente
-    /// empresarial. Es la única lectura del almacenamiento que cruza Tenants, y lo hace con el Tenant propietario del
-    /// archivo explícito: la carpeta del identificador tiene que ser la de <paramref name="tenantPropietarioId"/> (si no,
-    /// «no existe», igual que <see cref="AbrirAsync"/>) y se descifra con la clave derivada de ese Tenant, nunca con la
-    /// del Tenant activo. Quien llama obtiene ese Tenant del contrato de acceso y la referencia de la función
-    /// <c>app_inbound_archivo_autorizado</c>, que ya comprobó la autorización; la cartera la decide antes Application.
+    /// empresarial. Es la única lectura del almacenamiento que cruza Tenants, y lo hace con el Tenant propietario que
+    /// devolvió <c>app_inbound_archivo_autorizado</c> junto con la referencia, en el mismo <see cref="ArchivoInboundDto"/>:
+    /// la referencia tiene que empezar por la carpeta de ese Tenant (<see cref="OriginalesInbound.EsDelTenant"/>) y
+    /// resolver dentro de ella (si no, «no existe», igual que <see cref="AbrirAsync"/>), y se descifra con la clave derivada
+    /// de ese Tenant, nunca con la del Tenant activo. La autorización la comprobó la función; la cartera, Application.
     /// </summary>
-    public async Task<Stream> AbrirOriginalAsync(Guid tenantPropietarioId, string identificador, CancellationToken cancellationToken = default)
+    public async Task<Stream> AbrirOriginalAsync(ArchivoInboundDto archivo, CancellationToken cancellationToken = default)
     {
-        if (tenantPropietarioId == Guid.Empty)
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+        var tenantPropietarioId = archivo.TenantPropietarioId;
+        if (tenantPropietarioId == Guid.Empty || archivo.ArchivoUrl is not { } identificador
+            || !OriginalesInbound.EsDelTenant(identificador, tenantPropietarioId))
+            throw new FileNotFoundException("No encontramos el archivo solicitado.", archivo.ArchivoUrl);
 
         var rutaCompleta = ResolverRutaSegura(identificador, tenantPropietarioId);
         if (rutaCompleta is null || !File.Exists(rutaCompleta))

@@ -76,13 +76,13 @@ public class ObtenerArchivoInboundQueryHandler(
         // La referencia sale de la función de la base, que ya comprobó la autorización y dejó la traza de la apertura; aun
         // así tiene que ser de la carpeta del Tenant del contrato, y no sale de aquí: solo el contenido y su tipo MIME.
         var archivo = await lector.ArchivoAutorizadoAsync(request.ContratoAccesoId, request.DocumentoId, cancellationToken);
-        if (archivo?.ArchivoUrl is not { } referencia || !OriginalesInbound.EsDelTenant(referencia, tenantPropietario))
+        if (archivo is null || !OriginalesInbound.EsDelTenantDelContrato(archivo, tenantPropietario))
             return null;
 
         try
         {
-            var contenido = await OriginalesInbound.LeerAsync(almacenOriginales, tenantPropietario, referencia, cancellationToken);
-            return new ContenidoArchivoInboundDto(contenido, OriginalesInbound.TipoMime(referencia));
+            var contenido = await OriginalesInbound.LeerAsync(almacenOriginales, archivo, cancellationToken);
+            return new ContenidoArchivoInboundDto(contenido, OriginalesInbound.TipoMime(archivo.ArchivoUrl!));
         }
         catch (FileNotFoundException)
         {

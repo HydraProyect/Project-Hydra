@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
+using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using CaeManager.Domain.AutorizacionesLectura;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
@@ -226,8 +227,113 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
             "el certificado de aptitud de un tipo marcado pasa; el informe médico, de un tipo de salud sin marca, no");
         documentos.Single(d => d.DocumentoId == _aptitudMarcada).SoloConclusionAptitud.Should().BeTrue();
         documentos.Single(d => d.DocumentoId == _formacion).SoloConclusionAptitud.Should().BeFalse();
-        (await lector.ArchivoAutorizadoAsync(_contrato.Id, _aptitudMarcada)).Should().NotBeNull("el validador abre el certificado");
+        (await lector.ArchivoAutorizadoAsync(_contrato.Id, _aptitudMarcada)).Should().Be(
+            new ArchivoInboundDto(
+                _aptitudMarcada, _contratista.Id, $"{_contratista.Id:N}/aptitud.pdf", SoloConclusionAptitud: true),
+            "el validador abre el certificado, con el Tenant propietario y la marca que la base lee en la misma sentencia");
+        (await lector.ArchivoAutorizadoAsync(_contrato.Id, _formacion))!.SoloConclusionAptitud.Should().BeFalse();
         (await lector.ArchivoAutorizadoAsync(_contrato.Id, _informeSinMarca)).Should().BeNull("ni pidiéndolo por su identificador");
+    }
+
+    [Fact]
+    public async Task La_marca_que_gobierna_la_lectura_es_la_del_tipo_del_Tenant_de_la_Empresa_contratista()
+    {
+        // En el catálogo del Tenant del Cliente empresarial, al revés que en el de la Empresa contratista: el certificado de
+        // aptitud sin marca y el informe médico marcado. La lectura entre Tenants mira solo el tipo del original.
+        await using (var contexto = Contexto(_lector.Id))
+        {
+            var informeX = new TipoDocumento("Informe médico", null, false, 3, AmbitoAplicacion.Trabajador, sensibilidad: SensibilidadDocumental.CategoriaEspecialSalud);
+            informeX.EstablecerSoloConclusionAptitud(true);
+            contexto.TiposDocumento.Add(informeX);
+            (await contexto.TiposDocumento.SingleAsync(t => t.Id == _tipoAptitudX)).EstablecerSoloConclusionAptitud(false);
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var runtime = Contexto(_lector.Id, _usuarioLector);
+        var lector = new LectorDocumentosInboundEnBase(runtime);
+
+        (await lector.DocumentosAutorizadosAsync(_contrato.Id)).Select(d => d.DocumentoId).Should().BeEquivalentTo(
+            [_formacion, _aptitudMarcada],
+            "tipo del Tenant de la Empresa contratista sin marca y del Tenant del Cliente empresarial con marca: no da lectura; " +
+            "al revés, sí");
+        (await lector.ArchivoAutorizadoAsync(_contrato.Id, _informeSinMarca)).Should().BeNull("tampoco se abre");
+        (await lector.ArchivoAutorizadoAsync(_contrato.Id, _aptitudMarcada))!.SoloConclusionAptitud
+            .Should().BeTrue("la marca de la apertura también es la del tipo del original");
+    }
+
+    [Fact]
+    public async Task Un_INSERT_bajo_runtime_de_una_evidencia_con_archivo_de_un_tipo_marcado_lo_rechaza_el_trigger()
+    {
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        contexto.EvidenciasInbound.Add(EvidenciaInbound.Registrar(
+            new EvidenciaInbound.Procedencia(_contrato.Id, _contratista.Id, _formacion, _autorizacion), _tipoAptitudX,
+            new EvidenciaInbound.Sujeto(Guid.NewGuid(), "Ana Pérez", "12345678Z"), _hoy.AddMonths(-2), null,
+            soloConclusionAptitud: false, conclusion: null,
+            new EvidenciaInbound.ArchivoCopiado($"{_lector.Id:N}/copia.pdf", new string('a', 64)), _usuarioLector, DateTime.UtcNow));
+
+        var error = (await FluentActions.Awaiting(() => contexto.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+            .Which.InnerException.Should().BeOfType<PostgresException>().Subject;
+
+        error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        error.MessageText.Should().Contain("solo conclusión de aptitud");
+        error.ConstraintName.Should().BeNull("lo rechaza el trigger, no un CHECK de la tabla");
+    }
+
+    [Fact]
+    public async Task Una_segunda_evidencia_del_mismo_Documento_y_contrato_se_rechaza_en_el_handler_y_en_la_base()
+    {
+        await RegistrarAsync(_formacion, _tipoFormacionX);
+
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            var almacen = Almacen(_lector.Id);
+            var otra = await new RegistrarEvidenciaInboundCommandHandler(
+                    contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto), almacen, almacen,
+                    new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto,
+                    NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
+                .Handle(new(_contrato.Id, _formacion, _tipoFormacionX, null), CancellationToken.None);
+            otra.Error.Should().Be(EvidenciaInboundErrores.YaRegistrada);
+        }
+
+        Directory.GetFiles(Path.Combine(_rutaArchivos, _lector.Id.ToString("N"))).Should().ContainSingle("la segunda no copió nada");
+
+        await using (var contexto = Contexto(_lector.Id, _usuarioLector))
+        {
+            contexto.EvidenciasInbound.Add(EvidenciaInbound.Registrar(
+                new EvidenciaInbound.Procedencia(_contrato.Id, _contratista.Id, _formacion, _autorizacion), _tipoFormacionX,
+                new EvidenciaInbound.Sujeto(Guid.NewGuid(), "Ana Pérez", "12345678Z"), _hoy.AddMonths(-2), null,
+                soloConclusionAptitud: false, conclusion: null,
+                new EvidenciaInbound.ArchivoCopiado($"{_lector.Id:N}/otra.pdf", new string('b', 64)), _usuarioLector, DateTime.UtcNow));
+
+            var error = (await FluentActions.Awaiting(() => contexto.SaveChangesAsync()).Should().ThrowAsync<DbUpdateException>())
+                .Which.InnerException.Should().BeOfType<PostgresException>().Subject;
+            (error.SqlState, error.ConstraintName).Should().Be(
+                (PostgresErrorCodes.UniqueViolation, "IX_EvidenciasInbound_TenantId_ContratoAccesoId_DocumentoOrigenId"),
+                "saltándose el handler, la base tampoco admite dos evidencias del mismo original en el mismo contrato");
+        }
+    }
+
+    [Fact]
+    public async Task El_CHECK_de_la_medica_exige_Trabajador_documento_de_identidad_y_una_de_las_tres_conclusiones()
+    {
+        var medica = await InsertarMedicaAsync(ConclusionAptitud.Apto);
+
+        foreach (var (sentencia, motivo) in new[]
+                 {
+                     ($"UPDATE \"EvidenciasInbound\" SET \"TrabajadorOrigenId\" = NULL WHERE \"Id\" = '{medica}'", "sin Trabajador"),
+                     ($"UPDATE \"EvidenciasInbound\" SET \"SujetoDocumentoIdentidad\" = NULL WHERE \"Id\" = '{medica}'", "sin documento de identidad"),
+                     ($"UPDATE \"EvidenciasInbound\" SET \"ConclusionAptitud\" = 'Dudoso' WHERE \"Id\" = '{medica}'", "una conclusión que no existe"),
+                 })
+        {
+            var error = await EjecutarComoPropietarioAsync(sentencia);
+            error.Should().NotBeNull(motivo);
+            (error!.SqlState, error.ConstraintName).Should().Be(
+                (PostgresErrorCodes.CheckViolation, "CK_EvidenciasInbound_SujetoYConclusionDeLaMedica"), motivo);
+        }
+
+        (await EjecutarComoPropietarioAsync(
+                $"UPDATE \"EvidenciasInbound\" SET \"SujetoDocumentoIdentidad\" = 'PAB123456' WHERE \"Id\" = '{medica}'"))
+            .Should().BeNull("control: cualquier documento de identidad no vacío, un pasaporte también");
     }
 
     [Fact]
@@ -283,7 +389,8 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task El_CHECK_medico_impide_archivo_en_la_de_solo_conclusion_y_conclusion_en_la_otra()
     {
-        var medica = await RegistrarAsync(_aptitudMarcada, _tipoAptitudX, ConclusionAptitud.Apto);
+        // La médica se inserta sin el lector: este test mira el CHECK, no la lectura entre Tenants.
+        var medica = await InsertarMedicaAsync(ConclusionAptitud.Apto);
         var noMedica = await RegistrarAsync(_formacion, _tipoFormacionX);
 
         foreach (var (sentencia, motivo) in new[]
@@ -377,7 +484,7 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         {
             var otra = await new RegistrarEvidenciaInboundCommandHandler(
                     contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto),
-                    Almacen(_lector.Id), Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System)
+                    Almacen(_lector.Id), Almacen(_lector.Id), new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
                 .Handle(new(_contrato.Id, _formacion, _tipoFormacionX, null), CancellationToken.None);
             otra.Error.Should().Be(EvidenciaInboundErrores.NoEncontrada, "revocada, ya no se registra ninguna copia nueva");
         }
@@ -389,10 +496,24 @@ public class EvidenciasInboundBajoRuntimeTests : IAsyncLifetime
         var almacen = Almacen(_lector.Id);
         var resultado = await new RegistrarEvidenciaInboundCommandHandler(
                 contexto, contexto, contexto, Alcance(), Usuario(), new LectorDocumentosInboundEnBase(contexto), almacen, almacen,
-                new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System)
+                new EvidenciaInboundRepository(contexto), contexto, TimeProvider.System, contexto, NullLogger<RegistrarEvidenciaInboundCommandHandler>.Instance)
             .Handle(new(_contrato.Id, documento, tipo, conclusion), CancellationToken.None);
         resultado.EsExitoso.Should().BeTrue(resultado.EsExitoso ? null : resultado.Error.Mensaje);
         return resultado.Valor;
+    }
+
+    // Una evidencia de solo conclusión insertada bajo runtime sin pasar por el lector ni el handler, para los tests que
+    // miran la base y no la lectura entre Tenants.
+    private async Task<Guid> InsertarMedicaAsync(ConclusionAptitud conclusion)
+    {
+        await using var contexto = Contexto(_lector.Id, _usuarioLector);
+        var medica = EvidenciaInbound.Registrar(
+            new EvidenciaInbound.Procedencia(_contrato.Id, _contratista.Id, _aptitudMarcada, _autorizacion), _tipoAptitudX,
+            new EvidenciaInbound.Sujeto(Guid.NewGuid(), "Ana Pérez", "12345678Z"), _hoy.AddMonths(-1), null,
+            soloConclusionAptitud: true, conclusion, archivo: null, _usuarioLector, DateTime.UtcNow);
+        contexto.EvidenciasInbound.Add(medica);
+        await contexto.SaveChangesAsync();
+        return medica.Id;
     }
 
     private async Task<PostgresException?> EjecutarComoPropietarioAsync(string sentencia)

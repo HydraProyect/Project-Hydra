@@ -253,7 +253,8 @@ public class TipoDocumento : EntidadConTenant
     /// <summary>
     /// Tipo «solo conclusión de aptitud» (Inbound M1, PR 4; DN-5 (b) del 2026-10-23): el certificado de aptitud médica,
     /// que por ley lleva solo la conclusión (apto, apto con restricciones, no apto) y no el informe. Solo puede marcarse
-    /// en un tipo de categoría especial de salud (<see cref="RevelaSalud"/>), y la base lo repite con un CHECK. Tiene dos
+    /// en un tipo de categoría especial de salud (<see cref="RevelaSalud"/>), y la base lo repite con un CHECK, y de ámbito
+    /// <see cref="AmbitoAplicacion.Trabajador"/> (invariante de dominio). Tiene dos
     /// efectos y ninguno más:
     /// <list type="bullet">
     /// <item>En el catálogo del Tenant propietario de la Empresa contratista, la lectura entre Tenants
@@ -267,12 +268,19 @@ public class TipoDocumento : EntidadConTenant
     /// </summary>
     public bool SoloConclusionAptitud { get; private set; }
 
-    /// <summary>Marca o desmarca el tipo «solo conclusión de aptitud». Solo un tipo de salud admite la marca.</summary>
+    /// <summary>
+    /// Marca o desmarca el tipo «solo conclusión de aptitud». Solo un tipo de salud y de ámbito Trabajador admite la marca:
+    /// la conclusión de aptitud es de una persona, y una evidencia de solo conclusión necesita su Trabajador y su documento
+    /// de identidad.
+    /// </summary>
     public void EstablecerSoloConclusionAptitud(bool soloConclusion)
     {
         if (soloConclusion && !RevelaSalud)
             throw new InvalidOperationException(
                 "Solo un tipo de documento de categoría especial de salud puede ser de «solo conclusión de aptitud».");
+        if (soloConclusion && AmbitoAplicacion != AmbitoAplicacion.Trabajador)
+            throw new InvalidOperationException(
+                "Solo un tipo de documento de Trabajador puede ser de «solo conclusión de aptitud».");
 
         SoloConclusionAptitud = soloConclusion;
     }
