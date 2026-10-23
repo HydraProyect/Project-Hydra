@@ -929,6 +929,27 @@ public static class Ayudas
     }
 
     /// <summary>
+    /// En el listado de /delegaciones el detalle de cada Asignación de operación nace contraído: antes de buscar su
+    /// tarjeta (<c>.delegaciones-tarjeta</c>) hay que desplegar la fila, como haría la persona. Si ya está desplegada
+    /// no la pliega. La fila se reconoce por el nombre de la contraparte y, cuando hay dos con el mismo nombre
+    /// (la comercial y la de Soporte TALVEG), por la celda de tipo «Soporte».
+    /// </summary>
+    public static async Task AbrirDetalleDeDelegacionAsync(IPage page, string nombre, bool soporte = false)
+    {
+        var celdaSoporte = page.GetByRole(AriaRole.Cell, new PageGetByRoleOptions { Name = "Soporte", Exact = true });
+        var botonNombre = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = nombre });
+        var fila = page.Locator("tr.delegaciones-fila").Filter(new LocatorFilterOptions { Has = botonNombre });
+        fila = soporte
+            ? fila.Filter(new LocatorFilterOptions { Has = celdaSoporte })
+            : fila.Filter(new LocatorFilterOptions { HasNot = celdaSoporte });
+        var abrir = fila.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = nombre });
+        await abrir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        if (await abrir.GetAttributeAsync("aria-expanded") != "true")
+        {
+            await abrir.ClickAsync();
+        }
+    }
+    /// <summary>
     /// /centros nace sin agrupar (lista 1:1 con la maqueta; «Por Cliente» se elige en el desplegable
     /// «Agrupar» y los títulos de grupo no se contraen). Un recorrido que necesita una fila cualquiera
     /// asegura aquí el estado sin agrupar aunque la vista recordada o la URL traigan «Por Cliente»:

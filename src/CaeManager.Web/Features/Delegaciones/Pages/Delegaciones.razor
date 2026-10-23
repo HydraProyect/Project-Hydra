@@ -100,9 +100,10 @@
         {
         <table class="tabla-datos delegaciones-lista" aria-label="@TextosLista["Titulo"]">
             <thead><tr>
-                <th>@TextosLista["Organizacion"]</th><th>@TextosLista["Tipo"]</th><th>@TextosLista["Permiso"]</th><th>@TextosLista["Estado"]</th>
+                <th scope="col">@TextosLista["Organizacion"]</th><th scope="col">@TextosLista["Tipo"]</th><th scope="col">@TextosLista["Permiso"]</th><th scope="col">@TextosLista["Estado"]</th>
             </tr></thead>
             <tbody>
+            @{ var claves = new ClavesDeHermanos(); }
             @foreach (var bloque in BloquesLista)
             {
                 var delegacion = bloque.Fila;
@@ -124,7 +125,7 @@
                 </tr>
                 @if (_detallesLista.Contains(delegacion.Id))
                 {
-                <tr class="delegaciones-detalle"><td colspan="4">
+                <tr class="delegaciones-detalle" @key="claves.De((delegacion.Id, true))"><td colspan="4">
                 <div class="delegaciones-tarjeta">
                     <div class="delegaciones-tarjeta-cabecera">
                         <div>

@@ -23,7 +23,7 @@ public static class PantallasConVistaRecordada
     public const string Visitas = "Visitas";
     public const string Gestiones = "Gestiones";
     public const string Incidencias = "Incidencias";
-    public const string AsignacionesDeOperacion = "Delegaciones";
+    public const string AsignacionesDeOperacion = PantallasConFiltrosGuardados.AsignacionesDeOperacion;
 
     public static readonly string[] Admitidas =
         [Trabajadores, Empresas, Clientes, Documentos, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, AsignacionesDeOperacion];

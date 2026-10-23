@@ -226,22 +226,26 @@
 /*
   Revisión píxel a píxel contra la maqueta "Delegaciones TALVEG": cabecera de
   columnas en versalitas de 12 px y celdas de 12 px de alto por 16 de ancho.
-  Solo el listado nuevo; va en la página para no mover las demás pantallas que
+  Solo el listado nuevo y solo desde 641 px: por debajo vale el relleno
+  compacto de arriba. Va en la página para no mover las demás pantallas que
   comparten lista-design.css.
 */
-.delegaciones-lista th {
-    padding: 14px var(--space-4) 10px;
-    font: var(--font-caption);
-    font-weight: 600;
-    letter-spacing: .08em;
-    text-transform: uppercase;
-    color: var(--color-text-muted);
-    border-bottom: 1.5px solid var(--color-text);
+@media (min-width: 641px) {
+    .delegaciones-lista th {
+        padding: 14px var(--space-4) 10px;
+        font: var(--font-caption);
+        font-weight: 600;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: var(--color-text-muted);
+        border-bottom: 1.5px solid var(--color-text);
+    }
+
+    .delegaciones-lista td {
+        padding: var(--space-3) var(--space-4);
+    }
 }
 
-.delegaciones-lista td {
-    padding: var(--space-3) var(--space-4);
-}
 .delegaciones-lista .delegaciones-abrir {
     font: 600 14px/20px var(--font-family);
     padding: 0;
