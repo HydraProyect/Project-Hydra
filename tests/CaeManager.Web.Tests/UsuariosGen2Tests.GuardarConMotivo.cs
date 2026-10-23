@@ -21,7 +21,7 @@ public partial class UsuariosGen2Tests
         _mediador.Retener = peticion => peticion is BuscarEmpresaPorCifQuery ? respuesta.Task : null;
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
         cut.Find(".drawer-pie .boton-primario").HasAttribute("disabled").Should().BeFalse("sin búsqueda en vuelo se puede guardar");
 

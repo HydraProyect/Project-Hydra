@@ -122,3 +122,27 @@
     font: var(--font-body-sm);
     overflow-wrap: anywhere;
 }
+
+/*
+  Revisión píxel a píxel contra la maqueta "Usuarios TALVEG": cabecera de
+  columnas en versalitas de 12 px y celdas de 12 px de alto por 16 de ancho.
+  Va en la página y no en lista-design.css para no mover las demás pantallas
+  que comparten esa hoja.
+*/
+.lista-design .tabla-datos th {
+    padding: 14px var(--space-4) 10px;
+    font: var(--font-caption);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    border-bottom: 1.5px solid var(--color-text);
+}
+
+.lista-design .tabla-datos td {
+    padding: var(--space-3) var(--space-4);
+}
+
+.lista-design .tabla-datos .persona-identidad strong {
+    font-weight: 600;
+}

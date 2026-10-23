@@ -997,7 +997,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         // El formulario no pide contraseña: la cuenta nace sin ninguna.
         cut.FindAll(".drawer-cuerpo input[type=password]").Should().BeEmpty();
@@ -1024,7 +1024,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Retenido = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
         await GuardarAsync(cut);
@@ -1079,7 +1079,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Lanza = new InvalidOperationException("SMTP caído");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
         await GuardarAsync(cut);
@@ -1157,7 +1157,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Nombre completo", "Sin Correo");
         await GuardarAsync(cut);
 
@@ -1189,7 +1189,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         OpcionesDeRol(cut).Should().NotContain([RolesIdentidad.Administrador, RolesIdentidad.DireccionCae])
             .And.Contain([RolesIdentidad.CoordinadorCae, RolesIdentidad.GestorCae, RolesIdentidad.Consulta]);
@@ -1201,7 +1201,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         OpcionesDeRol(cut).Should().BeEquivalentTo(RolesIdentidad.Todos);
     }
@@ -1374,7 +1374,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _identidad.TokenRetenido = token;
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "doble@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Doble Clic");
 
@@ -1414,7 +1414,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _identidad.ResultadoDeAsignarRol = IdentityResult.Failed(new IdentityError { Description = "la tabla de roles se cayó" });
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "sinrol@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Sin Rol");
         await GuardarAsync(cut);
@@ -1451,7 +1451,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         CasillasEmpresasCartera(cut).Should().BeEmpty("la cartera solo se ofrece al elegir Gestor CAE");
 
         await EscribirAsync(cut, "Correo", "gestora@talveg.es");
@@ -1478,7 +1478,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
 
         _mediador.Enviadas.OfType<ObtenerEmpresasAsignablesEnAltaQuery>().Should().ContainSingle();
@@ -1492,7 +1492,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "consulta@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Consulta Nueva");
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
@@ -1807,7 +1807,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         Filas(cut).Select(f => f.QuerySelector(".lista-identificador")!.TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
         cut.Markup.Should().NotContain("otro.gestor@talveg.es").And.NotContain("marta.r@talveg.es").And.NotContain("c.consulta@talveg.es");
-        cut.FindAll(".acciones-cabecera button").Should().BeEmpty("sin alta de usuarios");
+        cut.FindAll(".cabecera-listado-primaria button").Should().BeEmpty("sin alta de usuarios");
         _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().ContainSingle();
 
         await AbrirMenuAsync(cut, "a.beitia@talveg.es");
@@ -1830,7 +1830,7 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar(actorId: MartaId);
 
         Filas(cut).Should().HaveCount(5);
-        cut.FindAll(".acciones-cabecera button").Should().NotBeEmpty();
+        cut.FindAll(".cabecera-listado-primaria button").Should().NotBeEmpty();
         _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().BeEmpty();
         await AbrirMenuAsync(cut, "a.beitia@talveg.es");
         Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
@@ -2040,7 +2040,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "portal@refrielectric.es");
         await EscribirAsync(cut, "Nombre completo", "Carmen Ruiz");
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
@@ -2058,7 +2058,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.EmpresasPorCif["A48220917"] = new EmpresaPorCifDto(EmpresaId, "Refrielectric S.A.", "A48220917");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
         await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
@@ -2093,7 +2093,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.EmpresasPorCif["B50331406"] = new EmpresaPorCifDto(EmpresaId, "Montajes Ebro S.L.", "B50331406");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
         // El primero se queda retenido; no se espera su escritura (colgaría).
