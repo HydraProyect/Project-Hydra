@@ -32,6 +32,9 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(ensamblado));
         services.AddValidatorsFromAssembly(ensamblado);
+        services.AddOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<CaeManager.Application.AsistenteIa.LimitadorConsultaIa>();
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();

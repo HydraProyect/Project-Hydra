@@ -59,7 +59,7 @@ public interface ICalculoEstadoDocumentalService
     /// <para>
     /// Trae una fila por documento: es para los propietarios de UNA página, no para todos los visibles (para
     /// filtrar u ordenar por estado está el agregado de <see cref="CalcularPeorEstadoAsync"/>). Ámbitos
-    /// admitidos: Trabajador, Empresa y Vehículo.
+    /// admitidos: Trabajador, Empresa, Vehículo y Proyecto.
     /// </para>
     /// </summary>
     Task<IReadOnlyDictionary<Guid, DesgloseDocumentalDto>> CalcularDesgloseAsync(
@@ -167,7 +167,10 @@ public class CalculoEstadoDocumentalService(
             AmbitoAplicacion.Vehiculo => documentos
                 .Where(d => d.VehiculoId != null && ids.Contains(d.VehiculoId!.Value))
                 .Select(d => new { PropietarioId = d.VehiculoId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento }),
-            // Hoy lo piden los listados de Trabajadores, de Vehículos y de Empresas (este último, desde
+            AmbitoAplicacion.Proyecto => documentos
+                .Where(d => d.ProyectoId != null && ids.Contains(d.ProyectoId!.Value))
+                .Select(d => new { PropietarioId = d.ProyectoId!.Value, d.Id, d.TipoDocumentoId, d.EstadoVigencia, d.FechaVencimiento }),
+            // Hoy lo piden los listados de Trabajadores, de Vehículos, de Empresas y de Proyectos (Empresas, desde
             // ObtenerEmpresasQuery). El ámbito de Cliente empresarial no se admite: no se añade aquí otro uso de
             // la columna legacy de Documento que ClienteIdNoSeExtiendeTests congela.
             _ => throw new ArgumentOutOfRangeException(

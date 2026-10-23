@@ -61,7 +61,7 @@ else
             {
                 <SoloConEscritura>
                     <div class="acordeon-asignaciones-cabecera">
-                        <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId })">+ Asignar trabajador</Boton>
+                        <Boton Variante="@(AsignarEsPrimaria ? VarianteBoton.Primario : VarianteBoton.Secundario)" Tamano="TamanoBoton.Pequeno" OnClick="() => _drawerAsignacion.AbrirAsync(new[] { CentroId }, TrabajadoresYaAsignados)">+ Asignar trabajador</Boton>
                         @* La maqueta de Centro 360 (20-10) no lo lleva: «sin Dar de baja seleccionados (no decidido)». *@
                         @if (!MostrarEstadoPlataforma)
                         {

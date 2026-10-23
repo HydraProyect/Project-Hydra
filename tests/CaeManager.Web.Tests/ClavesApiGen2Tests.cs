@@ -13,6 +13,7 @@ using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
+using System.Globalization;
 
 namespace CaeManager.Web.Tests;
 
@@ -57,7 +58,7 @@ public class ClavesApiGen2Tests : BunitContext
     }
 
     private static DelegacionDto Delegacion(Guid id, string nombre = "Organización Uno") => new(id, Guid.NewGuid(), "TALVEG", Guid.NewGuid(), nombre, true, true, DateTime.UtcNow, [], PropositoDelegacion.Soporte, null, null);
-    private static ClaveApiDto Clave(Guid id) => new(id, "Integración ERP", "tlv_xxxxxx", DateTime.UtcNow, null, true);
+    private static ClaveApiDto Clave(Guid id) => new(id, "Integración ERP", "tlv_xxxxxx", DateTime.UtcNow, null, true, DateTime.UtcNow.AddDays(30));
     // Las delegaciones se leen en OnInitializedAsync: configurarlas después de renderizar no llega al componente.
     private (IRenderedComponent<ClavesApi> Cut, Mediador Mediador) Renderizar(Action<Mediador>? configurar = null)
     {
@@ -273,7 +274,7 @@ public class ClavesApiGen2Tests : BunitContext
         cut.FindAll("tbody tr.fila-enfocada").Select(f => f.QuerySelector(".claves-api-nombre")!.TextContent.Trim()).ToList();
 
     private static ClaveApiDto ClaveLlamada(string nombre) =>
-        new(Guid.NewGuid(), nombre, "tlv_xxxxxx", DateTime.UtcNow, null, true);
+        new(Guid.NewGuid(), nombre, "tlv_xxxxxx", DateTime.UtcNow, null, true, DateTime.UtcNow.AddDays(30));
 
     /// <summary>
     /// I-13: la tabla de claves nunca tuvo recorrido por teclado. "j" y "k" la
@@ -424,4 +425,61 @@ public class ClavesApiGen2Tests : BunitContext
             await generacion.WaitAsync(TimeSpan.FromSeconds(10));
         }
     }
+
+    [Fact]
+    public async Task Generar_envia_el_motivo_y_como_caducidad_el_inicio_del_dia_siguiente_en_hora_peninsular()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+        var dia = DiaDeNegocio.Hoy().AddDays(30);
+
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await Campo(cut, "Motivo de la emisión").InputAsync(new ChangeEventArgs { Value = "Alta del conector del ERP" });
+        await Campo(cut, "Válida hasta").InputAsync(new ChangeEventArgs { Value = dia.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        var enviado = mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle().Subject;
+        enviado.Motivo.Should().Be("Alta del conector del ERP");
+        enviado.CaducaEnUtc.Should().Be(DiaDeNegocio.InicioEnUtc(dia.AddDays(1)),
+            "la fecha elegida vale entera en hora peninsular: caduca al empezar el día siguiente en Madrid");
+        enviado.CaducaEnUtc!.Value.Kind.Should().Be(DateTimeKind.Utc, "el validador rechaza una caducidad que no esté en UTC");
+        DiaDeNegocio.De(enviado.CaducaEnUtc.Value.AddTicks(-1)).Should().Be(dia, "el último instante válido cae en el día elegido");
+    }
+
+    [Fact]
+    public async Task Sin_caducidad_elegida_el_comando_sale_sin_fecha_para_que_lo_rechace_el_servidor()
+    {
+        var (cut, mediator) = Renderizar();
+        await Seleccionar(cut, mediator.DelegacionId);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar clave").ClickAsync(new MouseEventArgs());
+
+        await Campo(cut, "Nombre").InputAsync(new ChangeEventArgs { Value = "Integración ERP" });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Generar").ClickAsync(new MouseEventArgs());
+
+        mediator.Enviadas.OfType<GenerarClaveApiCommand>().Should().ContainSingle()
+            .Which.CaducaEnUtc.Should().BeNull("la página no inventa una caducidad por omisión");
+    }
+
+    [Fact]
+    public async Task La_lista_muestra_la_caducidad_y_marca_como_caducada_la_clave_vencida()
+    {
+        // Caduca al empezar el 05/03/2099 en Madrid: la lista muestra el último día en que vale.
+        var vigente = new ClaveApiDto(Guid.NewGuid(), "ERP vigente", "tlv_aaaaaa", DateTime.UtcNow, null, true, DiaDeNegocio.InicioEnUtc(new DateOnly(2099, 3, 5)));
+        var vencida = new ClaveApiDto(Guid.NewGuid(), "ERP vencido", "tlv_bbbbbb", DateTime.UtcNow.AddDays(-60), null, true, DateTime.UtcNow.AddDays(-1));
+        var (cut, mediator) = Renderizar(m => m.Claves = [vigente, vencida]);
+        await Seleccionar(cut, mediator.DelegacionId);
+
+        cut.FindAll("thead th").Select(th => th.TextContent.Trim()).Should().Contain("Válida hasta")
+            .And.NotContain(th => th.Contains("UTC"), "la lista muestra días en hora peninsular");
+        var filas = cut.FindAll("tbody tr");
+        filas.Should().HaveCount(2, "control positivo: el instrumento observa las dos claves");
+        var filaVigente = filas.Single(f => f.TextContent.Contains("ERP vigente"));
+        filaVigente.TextContent.Should().Contain("04/03/2099").And.Contain("Activa");
+        filas.Single(f => f.TextContent.Contains("ERP vencido")).QuerySelector("[data-pieza=pastilla]")!.TextContent.Trim()
+            .Should().Be("Caducada");
+    }
+
+    private static AngleSharp.Dom.IElement Campo(IRenderedComponent<ClavesApi> cut, string etiqueta) =>
+        cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == etiqueta).Find("input");
 }

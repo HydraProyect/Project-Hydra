@@ -1604,18 +1604,23 @@ public static class DatosPruebaSeeder
 
         // --- Claves API (activa y revocada), filtros guardados y preferencia
         // de dashboard: /configuracion/claves-api y los selectores de filtro
-        // no arrancan vacíos, y la API pública V1 es llamable con la clave de
-        // demo en claro (ver CredencialesDemo) ---
+        // no arrancan vacíos (ver CredencialesDemo). La clave «activa» ya no
+        // autentica en la API pública V1: la emite una cuenta del propio Tenant
+        // propietario, y no existe delegación de Soporte desde su organización
+        // de origen hacia ese mismo Tenant, que es lo único que se exige al
+        // autenticar además de no estar revocada ni caducada (ver
+        // ApiKeyAuthenticationHandler y CriterioSoporteClaveApi.PuedeAutenticar).
+        // Caduca a los 30 días de la siembra ---
         var creadorClaves = coordinadorPrincipal ?? gestoresPrueba.FirstOrDefault();
         if (creadorClaves is not null)
         {
             dbContext.ClavesApi.Add(new ClaveApi(
                 "Integración de demo (activa)", credenciales.ClaveApiActiva[..12],
-                HashSha256(credenciales.ClaveApiActiva), creadorClaves.Id));
+                HashSha256(credenciales.ClaveApiActiva), creadorClaves.Id, DateTime.UtcNow.AddDays(30), "Integración de demostración"));
 
             var claveRevocada = new ClaveApi(
                 "Integración antigua (revocada)", credenciales.ClaveApiRevocada[..12],
-                HashSha256(credenciales.ClaveApiRevocada), creadorClaves.Id);
+                HashSha256(credenciales.ClaveApiRevocada), creadorClaves.Id, DateTime.UtcNow.AddDays(30), "Integración de demostración");
             claveRevocada.Revocar();
             dbContext.ClavesApi.Add(claveRevocada);
         }

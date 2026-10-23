@@ -10,6 +10,7 @@ using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Application.Documentos;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -256,10 +257,10 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
 
         var panel = await new ObtenerTecnicosProyectoQueryHandler(contexto, contexto, alcance)
             .Handle(new ObtenerTecnicosProyectoQuery(_proyectoDelOtroTenant), CancellationToken.None);
-        var lista = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
+        var lista = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(new ObtenerProyectosQuery(_clienteDelOtroTenant), CancellationToken.None);
         // Sin Cliente empresarial la lista es la de todos los del Tenant en el que se opera: tampoco por ahí.
-        var listaDeTodos = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
+        var listaDeTodos = await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(new ObtenerProyectosQuery(TamanoPagina: 100), CancellationToken.None);
 
         panel.Should().BeEmpty();
@@ -307,7 +308,7 @@ public class TecnicosDeProyectoDentroDelAlcanceBajoRuntimeTests : IAsyncLifetime
         await using var contexto = ContextoRuntime(usuarioId, rol, tenantOrigen);
         var alcance = Alcance(contexto, usuarioId, rol, tenantOrigen);
 
-        var lista = (await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance)
+        var lista = (await new ObtenerProyectosQueryHandler(contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto))
             .Handle(new ObtenerProyectosQuery(_clienteA), CancellationToken.None)).Elementos;
         var panel = await new ObtenerTecnicosProyectoQueryHandler(contexto, contexto, alcance)
             .Handle(new ObtenerTecnicosProyectoQuery(_proyectoA), CancellationToken.None);

@@ -111,6 +111,14 @@ public class MotivoIncidenciasDocumentalesTests : BunitContext
     }
 
     [Fact]
+    public void Con_un_documento_exigido_sin_registrar_la_fraccion_y_su_lectura_accesible_cuentan_los_cinco()
+    {
+        // 4 vigentes de 4 registrados + 1 exigido que falta: el denominador que reciben las pantallas es 5.
+        MotivoIncidenciasUi.RegistradosVigentes(4, 5).Should().Be("4/5");
+        MotivoIncidenciasUi.RegistradosVigentesAccesible(4, 5).Should().StartWith("4 de 5");
+    }
+
+    [Fact]
     public void Sin_documentos_registrados_no_hay_fraccion()
     {
         MotivoIncidenciasUi.RegistradosVigentes(0, 0).Should().BeNull("la celda pinta una raya, no «0/0»");
