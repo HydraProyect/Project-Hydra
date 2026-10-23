@@ -38,7 +38,8 @@
   <data name="ToastIncidenciaRegistrada" xml:space="preserve"><value>Incidència registrada.</value></data>
   <data name="ToastIncidenciaRegistradaPara" xml:space="preserve"><value>Incidència registrada per a {0}.</value></data>
   <data name="ToastAccionDeshacer" xml:space="preserve"><value>Desfés</value></data>
-  <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidència eliminada. L’alerta continua confirmada.</value></data>
+  <data name="ToastIncidenciaEliminada" xml:space="preserve"><value>Incidència eliminada. L’alerta torna a estar pendent.</value></data>
   <data name="ErrorResolverIncidenciaQuedada" xml:space="preserve"><value>No s’ha pogut confirmar l’alerta i la incidència creada no s’ha pogut retirar. Revisa-la a Incidències.</value></data>
-  <data name="ErrorDeshacer" xml:space="preserve"><value>No s’ha pogut desfer. Elimina la incidència des d’Incidències.</value></data>
+  <data name="ErrorDeshacer" xml:space="preserve"><value>No s’ha pogut desfer. La incidència i l’alerta continuen com estaven.</value></data>
+  <data name="ErrorDeshacerOtraPendiente" xml:space="preserve"><value>No s’ha pogut desfer: ja hi ha una altra alerta pendent en aquesta conversa. La incidència i l’alerta continuen com estaven.</value></data>
 </root>

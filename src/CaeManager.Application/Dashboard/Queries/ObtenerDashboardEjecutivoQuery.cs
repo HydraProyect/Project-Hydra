@@ -15,8 +15,7 @@ public record DashboardEjecutivoDto(
     int Centros,
     int VisitasProgramadas,
     int VisitasUrgentes,
-    // Documentos de Trabajador vigentes, los de la tasa: la selección de Empresa solo trae los que avisan
-    // (DocumentosConAlertaDeVigencia.DeEmpresa), no los vigentes.
+    // Documentos de Trabajador y de Empresa vigentes, con la misma selección que el resto del semáforo.
     int DocumentosVigentes,
     // Próximos, urgentes y vencidos como en Alertas y Mi trabajo: de Trabajador y de Empresa (KpisDashboardDto.*ComoEnAlertas).
     int DocumentosProximos,
@@ -95,12 +94,13 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentU
         IReadOnlyList<(ClienteAutorizadoDto Cliente, CatalogoKpisValoresDto Valores)> porTenant,
         bool conImporteDeFacturacion = true)
     {
-        var vigentes = porTenant.Sum(p => p.Valores.Documental.DocumentosVigentes);
+        var vigentesTrabajador = porTenant.Sum(p => p.Valores.Documental.DocumentosVigentes);
+        var vigentes = vigentesTrabajador + porTenant.Sum(p => p.Valores.Documental.DocumentosEmpresaVigentes);
         // La tasa es la de CumplimientoDocumental sobre los recuentos de Documentos de Trabajador de todos los Tenants
         // sumados (misma definición que la de Inicio, incluidos «Sin confirmar» en el denominador y «Sin caducidad» en los
         // dos lados). Por eso usa los recuentos de Trabajador y no los «ComoEnAlertas» de abajo.
         var tasaCumplimiento = KpisDashboardDto.FraccionDe(
-            vigentes,
+            vigentesTrabajador,
             porTenant.Sum(p => p.Valores.Documental.DocumentosProximos),
             porTenant.Sum(p => p.Valores.Documental.DocumentosUrgentes),
             porTenant.Sum(p => p.Valores.Documental.DocumentosVencidos),

@@ -17,13 +17,14 @@ namespace CaeManager.Web.Tests;
 
 /// <summary>
 /// Flujo «Alerta crítica» de la maqueta «Flujos 13 Comunicaciones» de punta a punta, sin base de datos ni IA: «Registrar incidencia»
-/// crea la Incidencia y confirma la alerta, y el Deshacer del toast elimina la Incidencia.
+/// crea la Incidencia y confirma la alerta, y el Deshacer del toast elimina la Incidencia y devuelve la alerta a Pendiente.
 /// </summary>
 public class AlertaCriticaConversacionPanelTests : BunitContext
 {
     private static readonly Guid ConversacionId = Guid.NewGuid();
     private static readonly Guid CentroId = Guid.NewGuid();
     private static readonly Guid IncidenciaId = Guid.NewGuid();
+    private static readonly Guid AlertaId = Guid.NewGuid();
 
     private readonly MediatorFalso _mediator = new();
     private readonly ToastService _toasts = new();
@@ -38,10 +39,13 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
 
     private sealed class MediatorFalso : IMediator
     {
-        public AlertaCriticaDto Alerta { get; set; } = new("Trabajador sin curso de altura en cubierta", EstadoAlertaCritica.Pendiente, true, true, 91);
+        public AlertaCriticaDto Alerta { get; set; } = new(AlertaId, "Trabajador sin curso de altura en cubierta", EstadoAlertaCritica.Pendiente, true, true, 91);
         public bool ResolverFalla { get; set; }
         public bool ResolverLanza { get; set; }
         public bool EliminarFalla { get; set; }
+
+        /// <summary>Otra alerta llegó Pendiente a la conversación después de derivar: el Deshacer no cambia nada.</summary>
+        public bool OtraPendiente { get; set; }
 
         /// <summary>Otra persona resolvió la alerta entre tanto: Resolver falla y la alerta ya no está pendiente.</summary>
         public bool OtraPersonaResolvio { get; set; }
@@ -58,6 +62,7 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
                 CrearIncidenciaCommand => Result.Exito(IncidenciaId),
                 EliminarIncidenciaCommand => EliminarFalla ? Result.Fallo(Error.Crear("Incidencia.NoEncontrada", "No encontramos esta incidencia.")) : Result.Exito(),
                 ResolverAlertaCriticaCommand resolver => Resolver(resolver),
+                DeshacerDerivacionAlertaCriticaCommand => Deshacer(),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta!);
@@ -74,6 +79,13 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
 
             if (ResolverFalla) return Result.Fallo(Error.Crear("AlertaCritica.NoPendiente", "La alerta ya está resuelta."));
             Alerta = Alerta with { Estado = comando.ConfirmarYDerivar ? EstadoAlertaCritica.ConfirmadaYDerivada : EstadoAlertaCritica.Descartada, PuedeResolver = false };
+            return Result.Exito();
+        }
+
+        private Result Deshacer()
+        {
+            if (OtraPendiente) return Result.Fallo(Error.Crear("AlertaCritica.OtraPendiente", "Hay otra alerta pendiente en esta conversación."));
+            Alerta = Alerta with { Estado = EstadoAlertaCritica.Pendiente, PuedeResolver = true };
             return Result.Exito();
         }
 
@@ -131,23 +143,47 @@ public class AlertaCriticaConversacionPanelTests : BunitContext
         crear.Tipo.Should().Be(TipoIncidencia.Incumplimiento);
         crear.Gravedad.Should().Be(GravedadIncidencia.Grave);
         crear.Descripcion.Should().Contain("Obra Centro Norte").And.Contain("sin curso de altura");
-        _mediator.Enviados.OfType<ResolverAlertaCriticaCommand>().Should().ContainSingle().Which.ConfirmarYDerivar.Should().BeTrue();
+        var resolver = _mediator.Enviados.OfType<ResolverAlertaCriticaCommand>().Should().ContainSingle().Subject;
+        resolver.ConfirmarYDerivar.Should().BeTrue();
+        resolver.AlertaId.Should().Be(AlertaId);
+        resolver.IncidenciaId.Should().Be(IncidenciaId);
         var toast = _toasts.Mensajes.Should().ContainSingle().Subject;
         toast.Mensaje.Should().Be("Incidencia registrada.");
         toast.TextoAccion.Should().Be("Deshacer");
     }
 
     [Fact]
-    public async Task Deshacer_elimina_la_incidencia_registrada()
+    public async Task Deshacer_elimina_la_incidencia_registrada_y_devuelve_la_alerta_a_Pendiente()
     {
         var cut = Renderizar();
         ElegirCentroYRegistrar(cut);
         cut.WaitForAssertion(() => _toasts.Mensajes.Should().ContainSingle());
 
-        await _toasts.Mensajes[0].OnAccion!();
+        await cut.InvokeAsync(() => _toasts.Mensajes[0].OnAccion!());
 
-        _mediator.Enviados.OfType<EliminarIncidenciaCommand>().Should().ContainSingle().Which.Id.Should().Be(IncidenciaId);
-        _toasts.Mensajes.Should().Contain(m => m.Mensaje.StartsWith("Incidencia eliminada"));
+        // Una sola orden: el servidor elimina la Incidencia y devuelve la alerta a Pendiente en la misma transacción.
+        var deshacer = _mediator.Enviados.OfType<DeshacerDerivacionAlertaCriticaCommand>().Should().ContainSingle().Subject;
+        deshacer.Should().Be(new DeshacerDerivacionAlertaCriticaCommand(ConversacionId, AlertaId, IncidenciaId));
+        _mediator.Enviados.OfType<EliminarIncidenciaCommand>().Should().BeEmpty();
+        _mediator.Alerta.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+        _toasts.Mensajes.Should().Contain(m => m.Mensaje == "Incidencia eliminada. La alerta vuelve a estar pendiente.");
+        // La alerta vuelve a Pendiente y el modal reaparece para decidir de nuevo.
+        cut.WaitForAssertion(() => cut.Find("h2").TextContent.Trim().Should().Be("Alerta crítica"));
+    }
+
+    [Fact]
+    public async Task Si_llego_otra_alerta_pendiente_el_deshacer_lo_dice_y_no_reabre_el_modal()
+    {
+        _mediator.OtraPendiente = true;
+        var cut = Renderizar();
+        ElegirCentroYRegistrar(cut);
+        cut.WaitForAssertion(() => _toasts.Mensajes.Should().ContainSingle());
+
+        await cut.InvokeAsync(() => _toasts.Mensajes[0].OnAccion!());
+
+        _toasts.Mensajes.Should().Contain(m => m.Mensaje.StartsWith("No se pudo deshacer: ya hay otra alerta pendiente"));
+        _mediator.Alerta.Estado.Should().Be(EstadoAlertaCritica.ConfirmadaYDerivada);
+        cut.FindAll("h2").Should().BeEmpty();
     }
 
     [Fact]

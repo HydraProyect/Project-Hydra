@@ -37,15 +37,16 @@ public static class DocumentosConAlertaDeVigencia
             .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId && !t.Archivado));
     }
 
+    // Sin cota de fecha, incluye los vigentes para el semáforo ejecutivo; Alertas añade su ventana de aviso.
     // Solo documentos cuya Empresa y cuyo Tipo siguen existiendo (el filtro global oculta lo eliminado): una Empresa dada de baja
     // conserva sus Documentos, pero no hay fila en Mi trabajo que los explique, así que tampoco avisan ni cuentan como pendiente.
     public static IQueryable<Documento> DeEmpresa(IDocumentosQueryContext contexto,
         IEmpresasQueryContext empresas, ITiposDocumentoQueryContext tipos,
-        IReadOnlyList<Guid>? empresaIdsVisibles, DateOnly fechaLimite) =>
+        IReadOnlyList<Guid>? empresaIdsVisibles, DateOnly? fechaLimite = null) =>
         contexto.Documentos.Operativos()
             .Where(d => d.EmpresaId != null && d.TrabajadorId == null && d.VehiculoId == null)
             .Where(d => empresaIdsVisibles == null || empresaIdsVisibles.Contains(d.EmpresaId!.Value))
-            .Where(d => d.FechaVencimiento != null && d.FechaVencimiento <= fechaLimite)
+            .Where(d => d.FechaVencimiento != null && (fechaLimite == null || d.FechaVencimiento <= fechaLimite))
             .Where(d => empresas.Empresas.Any(e => e.Id == d.EmpresaId))
             .Where(d => tipos.TiposDocumento.Any(t => t.Id == d.TipoDocumentoId && !t.Archivado));
 }

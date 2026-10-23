@@ -135,6 +135,9 @@ public partial class UsuariosGen2Tests : BunitContext
 
         /// <summary>Los tokens con los que la página pidió la lista, para poder comprobar que se cancelan al retirarse.</summary>
         public List<CancellationToken> TokensDeCarga { get; } = [];
+
+        /// <summary>Cuánto espera la página al correo de activación antes de darlo por fallido.</summary>
+        public TimeSpan TopeEnvioCorreo { get; set; } = TimeSpan.FromSeconds(30);
     }
 
     /// <summary>La página real con su directorio sustituido; el resto —marcado, reglas, escrituras— es el suyo.</summary>
@@ -170,6 +173,8 @@ public partial class UsuariosGen2Tests : BunitContext
         protected override Task<IReadOnlyDictionary<Guid, string>> ObtenerRolesDeCuentasAsync(
             IReadOnlyCollection<Guid> usuarioIds, CancellationToken cancellationToken) =>
             Task.FromResult(Fuente.RolesDeCuentas());
+
+        protected override TimeSpan TopeEnvioCorreoActivacion => Fuente.TopeEnvioCorreo;
 
         /// <summary>
         /// Una segunda carga mientras la primera sigue retenida. Desde la
@@ -332,10 +337,17 @@ public partial class UsuariosGen2Tests : BunitContext
         public List<(string Destinatario, string Cuerpo)> Enviados { get; } = [];
         public Result? ResultadoForzado { get; set; }
 
+        /// <summary>Un servidor que no contesta hasta que el test lo decide (o nunca).</summary>
+        public TaskCompletionSource<Result>? Retenido { get; set; }
+
+        /// <summary>Un servicio que revienta en vez de devolver un resultado.</summary>
+        public Exception? Lanza { get; set; }
+
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default)
         {
             Enviados.Add((destinatarioEmail, cuerpoHtml));
-            return Task.FromResult(ResultadoForzado ?? Result.Exito());
+            if (Lanza is not null) throw Lanza;
+            return Retenido?.Task ?? Task.FromResult(ResultadoForzado ?? Result.Exito());
         }
     }
 
@@ -1003,6 +1015,131 @@ public partial class UsuariosGen2Tests : BunitContext
         cut.WaitForAssertion(() =>
             cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena"));
         cut.Find(".modal-contenido").TextContent.Should().Contain("Cuenta creada sin contraseña");
+    }
+
+    private async Task<IRenderedComponent<UsuariosControlados>> AltaConCorreoQueNoContestaAsync()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _correo.Retenido = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
+        await GuardarAsync(cut);
+        return cut;
+    }
+
+    /// <summary>
+    /// Defecto de staging: con el servidor SMTP sin responder, el alta se quedaba
+    /// en «Guardando…» más de un minuto aunque la cuenta ya existía. El guardado
+    /// no espera al correo: el drawer se cierra y el enlace sale al instante.
+    /// </summary>
+    [Fact]
+    public async Task El_alta_no_espera_al_correo_cierra_el_formulario_y_ensena_el_enlace_aunque_el_servidor_no_conteste()
+    {
+        var cut = await AltaConCorreoQueNoContestaAsync();
+
+        _identidad.Creadas.Should().ContainSingle().Which.Email.Should().Be("nuevo@talveg.es");
+        _correo.Enviados.Should().ContainSingle("el envío se lanzó, aunque nadie ha contestado todavía");
+        cut.FindAll(".drawer-panel").Should().BeEmpty("el formulario ya no está «Guardando…»");
+        cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena");
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Enviando el correo…");
+        cut.Find(".modal-contenido").TextContent.Should().NotContain("Le hemos enviado",
+            "mientras el correo está en vuelo no se afirma que salió");
+
+        // Cuando por fin responde con éxito, el modal pasa a su texto de siempre.
+        _correo.Retenido!.SetResult(Result.Exito());
+        cut.WaitForAssertion(() =>
+        {
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Enlace de activación");
+            cut.Find(".modal-contenido").TextContent.Should().Contain("Le hemos enviado por correo");
+        });
+    }
+
+    [Fact]
+    public async Task Si_el_correo_del_alta_acaba_fallando_se_avisa_despues_y_el_enlace_sigue_visible()
+    {
+        var cut = await AltaConCorreoQueNoContestaAsync();
+
+        _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
+
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"));
+        _toasts.Mensajes.Should().Contain(m => m.Mensaje.Contains("No pudimos enviar el correo"));
+        cut.Find(".modal-contenido").TextContent.Should().Contain("No pudimos enviarle el correo");
+        cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena");
+    }
+
+    [Fact]
+    public async Task Si_el_servicio_de_correo_revienta_el_alta_sigue_hecha_y_se_avisa()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        _correo.Lanza = new InvalidOperationException("SMTP caído");
+
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
+        await GuardarAsync(cut);
+
+        _identidad.Creadas.Should().ContainSingle();
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"));
+        _toasts.Mensajes.Should().Contain(m => m.Mensaje.Contains("No pudimos enviar el correo"));
+        cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty();
+    }
+
+    /// <summary>
+    /// Si el modal ya se cerró cuando el correo falla, el aviso no manda mirar un
+    /// enlace «abajo» que ya no está, y el modal no se reabre.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_correo_falla_con_el_modal_ya_cerrado_el_aviso_no_remite_a_un_enlace_que_no_esta()
+    {
+        var cut = await AltaConCorreoQueNoContestaAsync();
+        await cut.Find(".modal-pie .boton-primario").ClickAsync(new());
+        cut.FindAll(".enlace-activacion").Should().BeEmpty();
+
+        _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
+
+        cut.WaitForAssertion(() =>
+            _toasts.Mensajes.Should().Contain(m => m.Mensaje.Contains("No pudimos enviar el correo")));
+        _toasts.Mensajes.Should().NotContain(m => m.Mensaje.Contains("El enlace queda abajo"));
+        cut.FindAll(".enlace-activacion").Should().BeEmpty("un aviso tardío no reabre el modal");
+    }
+
+    /// <summary>Retirarse de la pantalla no esconde el fallo: la cuenta existe y no llegó el correo.</summary>
+    [Fact]
+    public async Task Si_el_correo_falla_tras_retirarse_de_la_pantalla_el_fallo_se_avisa_igual()
+    {
+        _ = await AltaConCorreoQueNoContestaAsync();
+        await DisposeComponentsAsync();
+
+        _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
+
+        await Task.Delay(300);
+        _toasts.Mensajes.Should().Contain(m => m.Mensaje.Contains("No pudimos enviar el correo"));
+    }
+
+    /// <summary>
+    /// Red de seguridad de la página: aunque el servicio no respete su propio
+    /// tope (o sea otro <see cref="IEmailService"/>), el modal no se queda
+    /// «enviando» para siempre.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_correo_no_contesta_nunca_la_pagina_lo_da_por_fallido_al_vencer_su_tope()
+    {
+        _fuente.TopeEnvioCorreo = TimeSpan.FromMilliseconds(150);
+
+        var cut = await AltaConCorreoQueNoContestaAsync();
+
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Enviando el correo…");
+        cut.WaitForAssertion(
+            () => cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"),
+            TimeSpan.FromSeconds(5));
+        cut.Find(".enlace-activacion").TextContent.Should().Contain("/cuenta/restablecer-contrasena");
     }
 
     /// <summary>
@@ -2074,6 +2211,28 @@ public partial class UsuariosGen2Tests : BunitContext
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
             "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
+    }
+
+    [Fact]
+    public async Task Un_reenvio_ensena_el_enlace_sin_esperar_a_un_correo_que_no_contesta()
+    {
+        var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia", pendienteActivacion: true);
+        Sembrar(
+            (Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador),
+            (ander, RolesIdentidad.GestorCae));
+        _correo.Retenido = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Enviando el correo…");
+        cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty();
+        _toasts.Mensajes.Should().BeEmpty("el resultado del envío aún no existe");
+
+        _correo.Retenido.SetResult(Result.Exito());
+        cut.WaitForAssertion(() =>
+            cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Correo reenviado"));
+        _toasts.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Be("Correo de activación reenviado.");
     }
 
     // ------------------------------- corregir el correo de una cuenta pendiente (H9)

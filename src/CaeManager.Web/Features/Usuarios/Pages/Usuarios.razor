@@ -402,9 +402,13 @@
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
        VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : "Enlace de activación")">
+       Titulo="@(_envioCorreoEnVuelo ? TextosUsuarios["EnvioCorreoEnCursoTitulo"].Value : _reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : _reenvioFallido ? TextosUsuarios["ReenvioCorreoFallido"].Value : "Enlace de activación")">
     <ChildContent>
-        @if (_reenvioEnCurso && _reenvioFallido)
+        @if (_envioCorreoEnVuelo)
+        {
+            <p>@TextosUsuarios["EnvioCorreoEnCursoCuerpo"]</p>
+        }
+        else if (_reenvioFallido)
         {
             <p>No pudimos enviarle el correo. Puedes hacerle llegar tú este enlace para que establezca su contraseña:</p>
         }

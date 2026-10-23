@@ -33,7 +33,16 @@ public static class SubcontratasEndpoints
             // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
             // abrir la PR — la exclusión original asumía lo contrario).
             var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
-            await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+            // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
+            try
+            {
+                await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+            }
+            catch
+            {
+                await flujo.DisposeAsync();
+                throw;
+            }
             return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
         });
 

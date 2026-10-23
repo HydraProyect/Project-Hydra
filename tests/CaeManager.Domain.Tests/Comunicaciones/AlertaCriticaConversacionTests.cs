@@ -56,6 +56,46 @@ public class AlertaCriticaConversacionTests
     }
 
     [Fact]
+    public void Deshacer_la_derivacion_devuelve_la_alerta_a_Pendiente_y_suelta_la_Incidencia()
+    {
+        var alerta = new AlertaCriticaConversacion(Mensaje("denuncia"), "denuncia", "denuncia", Guid.NewGuid(), DateTime.UtcNow);
+        var persona = Guid.NewGuid();
+        var incidencia = Guid.NewGuid();
+        alerta.Resolver(true, persona, DateTime.UtcNow, incidencia);
+        alerta.IncidenciaId.Should().Be(incidencia);
+
+        alerta.DeshacerDerivacion(incidencia, persona);
+
+        alerta.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+        alerta.IncidenciaId.Should().BeNull();
+        alerta.DecisionPorUsuarioId.Should().BeNull();
+        alerta.DecisionEnUtc.Should().BeNull();
+        // Vuelve a poder decidirse, también como «No es crítica».
+        alerta.Resolver(false, persona, DateTime.UtcNow);
+        alerta.Estado.Should().Be(EstadoAlertaCritica.Descartada);
+    }
+
+    [Fact]
+    public void Solo_se_deshace_la_derivacion_propia_con_su_Incidencia()
+    {
+        var persona = Guid.NewGuid();
+        var incidencia = Guid.NewGuid();
+        var derivada = new AlertaCriticaConversacion(Mensaje("denuncia"), "denuncia", "denuncia", Guid.NewGuid(), DateTime.UtcNow);
+        derivada.Resolver(true, persona, DateTime.UtcNow, incidencia);
+        derivada.Invoking(a => a.DeshacerDerivacion(Guid.NewGuid(), persona)).Should().Throw<InvalidOperationException>();
+        derivada.Invoking(a => a.DeshacerDerivacion(incidencia, Guid.NewGuid())).Should().Throw<InvalidOperationException>();
+
+        var sinIncidencia = new AlertaCriticaConversacion(Mensaje("denuncia"), "denuncia", "denuncia", Guid.NewGuid(), DateTime.UtcNow);
+        sinIncidencia.Resolver(true, persona, DateTime.UtcNow);
+        sinIncidencia.Invoking(a => a.DeshacerDerivacion(incidencia, persona)).Should().Throw<InvalidOperationException>();
+
+        var pendiente = new AlertaCriticaConversacion(Mensaje("denuncia"), "denuncia", "denuncia", Guid.NewGuid(), DateTime.UtcNow);
+        pendiente.Invoking(a => a.DeshacerDerivacion(incidencia, persona)).Should().Throw<InvalidOperationException>();
+        pendiente.Invoking(a => a.Resolver(false, persona, DateTime.UtcNow, incidencia)).Should().Throw<ArgumentException>();
+        pendiente.Estado.Should().Be(EstadoAlertaCritica.Pendiente);
+    }
+
+    [Fact]
     public void Conserva_el_texto_original_incluso_al_final_de_un_mensaje_largo()
     {
         var resultado = DetectorExpresionesCriticas.Detectar(Mensaje(new string('x', 6000) + " Nos visitará la Inspección de Trabajo mañana."));

@@ -608,6 +608,8 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
     /// El doble de arriba nunca abre sesión; este simula una cancelación que no
     /// tiene nada que ver con el cliente que se fue —el mismo sabor de excepción,
     /// una fuente distinta— para probar que el guard no la confunde con la otra.
+    /// Lanza en los dos métodos: el middleware revalida con RevalidarAsync (Z2-1),
+    /// y un doble que solo lanzara en ObtenerAsync dejaría de ejercitar el guard.
     /// </summary>
     private sealed class SesionPrivilegiadaActualQueLanzaCancelacionAjena : ISesionPrivilegiadaActual
     {
@@ -615,7 +617,7 @@ public class RevalidacionClienteActivoTests : IAsyncLifetime
             throw new OperationCanceledException("cancelación ajena al cliente, p. ej. un timeout de comando");
 
         public Task<SesionPrivilegiadaActiva?> RevalidarAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<SesionPrivilegiadaActiva?>(null);
+            throw new OperationCanceledException("cancelación ajena al cliente, p. ej. un timeout de comando");
     }
 
     /// <summary>

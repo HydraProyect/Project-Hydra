@@ -244,8 +244,10 @@ public partial class Cliente360PaginaTests : BunitContext
         Registrar(mediador);
         var cut = Renderizar(id);
         cut.Find(".fila-relacion-titulo .cliente360-bloqueo-plataforma").TextContent.Should().Be("Bloqueo de la plataforma CAE");
-        cut.Find(".fila-relacion-detalle").TextContent.Should().Be("Empresas: Ibertec GmbHTodo validado en la plataforma");
-        cut.Find(".fila-relacion").TextContent.Should().NotContain("bloqueado por la plataforma");
+        // Z5-2: el rótulo no convive con «Todo validado»; el texto de la fila nombra el bloqueo (maqueta 21-10).
+        cut.Find(".fila-relacion-detalle").TextContent.Should().Be(
+            "Empresas: Ibertec GmbH" + (cantidad == 1 ? "1 documento bloquea el acceso" : "2 documentos bloquean el acceso"));
+        cut.Find(".fila-relacion").TextContent.Should().NotContain("Todo validado").And.NotContain("bloqueado por la plataforma");
     }
 
     [Fact]

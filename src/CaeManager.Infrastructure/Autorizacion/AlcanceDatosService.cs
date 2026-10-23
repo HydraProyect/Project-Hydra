@@ -204,8 +204,9 @@ public class AlcanceDatosService(
     /// de su equipo; por la vía de Operación, el Coordinador CAE alcanza el Tenant entero por
     /// cartera universal (los mismos datos que Consulta, sin acceso total).</item>
     /// </list>
-    /// Solo puede estrechar: devuelve un perfil sin acceso total, y por la vía heredada (acceso de
-    /// soporte) no actúa, porque ahí el rol sale de otra asignación.
+    /// Por la vía heredada (acceso de soporte), decide el rol de su asignación vigente antes
+    /// del techo, nunca el perfil del Tenant de origen: Gestor CAE conserva su cartera,
+    /// Coordinador CAE la de su equipo y Consulta el acceso total. Sin asignación, falla cerrado.
     /// </summary>
     private async Task<string?> RolQueDecideAlcanceAsync()
     {
@@ -218,10 +219,14 @@ public class AlcanceDatosService(
             return Roles.GestorCae;
 
         if (rol == Roles.Consulta
-            && await currentUserService.ObtenerPerfilAntesDeRestringirAsync() is { } antes
-            && antes is Roles.GestorCae or Roles.CoordinadorCae
-            && (porOperacion || await OperaEnSuTenantDeOrigenAsync()))
-            return antes;
+            && await currentUserService.ObtenerPerfilAntesDeRestringirAsync() is { } antes)
+        {
+            if (!porOperacion && !await OperaEnSuTenantDeOrigenAsync())
+                return await currentUserService.ObtenerRolDeAsignacionHeredadaAsync();
+
+            if (antes is Roles.GestorCae or Roles.CoordinadorCae)
+                return antes;
+        }
 
         return rol;
     }

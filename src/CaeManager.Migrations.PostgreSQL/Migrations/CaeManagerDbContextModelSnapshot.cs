@@ -428,6 +428,136 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("MomentoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantOrigenLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "MomentoUtc")
+                        .HasDatabaseName("IX_AccesosLecturaInbound_Autorizacion");
+
+                    b.ToTable("AccesosLecturaInbound", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccesosLecturaInbound_DocumentoSegunTipo", "(\"Tipo\" = 'Listado' AND \"DocumentoId\" IS NULL) OR (\"Tipo\" = 'Apertura' AND \"DocumentoId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ConcedidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConcedidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IncluyeDocumentosEmpresa")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("VigenciaDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("VigenciaHasta")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantDestinatarioId", "ContratoAccesoId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLectura_UnaSinRevocarPorContrato")
+                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
+
+                    b.ToTable("AutorizacionesLecturaDocumental", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_DestinatarioAjeno", "\"TenantDestinatarioId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_HastaNoAnteriorADesde", "\"VigenciaHasta\" IS NULL OR \"VigenciaHasta\" >= \"VigenciaDesde\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_RevocacionEntera", "(\"RevocadaEnUtc\" IS NULL) = (\"RevocadaPorUsuarioId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TrabajadorId")
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Trabajador");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "TrabajadorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Unico");
+
+                    b.ToTable("AutorizacionesLecturaTrabajadores", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.Property<Guid>("Id")
@@ -789,6 +919,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("IncidenciaId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
 
@@ -817,7 +950,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.HasIndex("TenantId", "ConversacionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_AlertasCriticasConversacion_TenantId_ConversacionId_Pendiente")
+                        .HasFilter("\"Estado\" = 0");
 
                     b.ToTable("AlertasCriticasConversacion", (string)null);
                 });
@@ -1900,6 +2035,81 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("ContactosAgendaTiposDocumento", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("FechaCierreReal")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaFin")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("TenantContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId");
+
+                    b.HasIndex("TenantId", "EmpresaContratistaId");
+
+                    b.HasIndex("TenantId", "Id")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
+
+                    b.ToTable("ContratosAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContratosAcceso_CierreNoAnteriorAlInicio", "\"FechaCierreReal\" IS NULL OR \"FechaCierreReal\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_TenantContratistaAjeno", "\"TenantContratistaId\" IS NULL OR \"TenantContratistaId\" <> \"TenantId\"");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
@@ -9733,6 +9943,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9910,6 +10147,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TipoDocumentoId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaContratistaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id", "ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
