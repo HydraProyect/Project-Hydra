@@ -233,6 +233,10 @@ public class AlertaCriticaServiceTests
         (await Deshacer(_coordinador).Handle(new(conversacion.Id, alerta.Id, incidencia.Id), default)).Error.Codigo.Should().Be("AlertaCritica.NoDeshacible");
         (await Deshacer(_direccion).Handle(new(conversacion.Id, alerta.Id, Guid.NewGuid()), default)).Error.Codigo.Should().Be("AlertaCritica.NoDeshacible");
         (await Deshacer(_direccion).Handle(new(Guid.NewGuid(), alerta.Id, incidencia.Id), default)).EsFallido.Should().BeTrue();
+        // La Incidencia fuera del alcance de gestión de quien deshace tampoco se elimina.
+        var sinCentro = new DeshacerDerivacionAlertaCriticaCommandHandler(_repositorio, Acceso(_direccion), _incidencias,
+            new AlcanceDatosServiceFalso(centroIdsParaGestion: []), _avisos, _unidad);
+        (await sinCentro.Handle(new(conversacion.Id, alerta.Id, incidencia.Id), default)).Error.Codigo.Should().Be("AlertaCritica.IncidenciaNoDisponible");
 
         alerta.Estado.Should().Be(EstadoAlertaCritica.ConfirmadaYDerivada);
         incidencia.EstaEliminado.Should().BeFalse();

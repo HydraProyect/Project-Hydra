@@ -30,6 +30,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         }
 
         /// <inheritdoc />
+        // Volver atrás exige que cada conversación tenga como mucho una alerta: con una resuelta y otra posterior en el mismo hilo,
+        // el índice único completo no se puede recrear y la reversión falla sin borrar datos.
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropIndex(

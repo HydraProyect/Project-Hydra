@@ -95,6 +95,8 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
             var tenant = new TenantActualAmbiental { TenantId = _tenantA };
             var servicio = new AlertaCriticaService(new AlertaCriticaRepository(db, tenant), new NotificacionUsuarioRepository(db),
                 new Directorio(), tenant, new Opciones(), new Opinion(), new InstruccionHabilitada(), NullLogger<AlertaCriticaService>.Instance);
+            // La Descartada queda rastreada en Local, como en una ingesta que ya la leyó: tampoco ahí cuenta para deduplicar.
+            (await db.AlertasCriticasConversacion.SingleAsync()).Estado.Should().Be(EstadoAlertaCritica.Descartada);
             foreach (var texto in new[] { "Nos notifican una sanción", "Requerimiento oficial de la Inspección de Trabajo" })
             {
                 var mensaje = new Mensaje(_conversacion, DireccionMensaje.Entrante, CanalConversacion.Correo, "empresa@example.test", texto, DateTime.UtcNow);

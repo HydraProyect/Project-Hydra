@@ -186,27 +186,32 @@
 
     private async Task DeshacerAsync(Guid conversacionId, Guid alertaId, Guid incidenciaId)
     {
+        Result resultado;
+        try { resultado = await Mediator.Send(new DeshacerDerivacionAlertaCriticaCommand(conversacionId, alertaId, incidenciaId)); }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ErrorDeshacer"].Value, TonoToast.Error);
+            return;
+        }
+
+        if (resultado.EsFallido)
+        {
+            ToastService.Mostrar(Textos[resultado.Error.Codigo == "AlertaCritica.OtraPendiente" ? "ErrorDeshacerOtraPendiente" : "ErrorDeshacer"].Value, TonoToast.Error);
+            return;
+        }
+
+        ToastService.Mostrar(Textos["ToastIncidenciaEliminada"].Value, TonoToast.Info);
+        // La alerta vuelve a Pendiente: si la conversación sigue abierta, el modal reaparece para decidir de nuevo. Un fallo de este
+        // refresco no convierte en «No se pudo deshacer» un Deshacer que ya se guardó; la alerta se verá al reabrir la conversación.
+        if (ConversacionId != conversacionId) return;
         try
         {
-            var resultado = await Mediator.Send(new DeshacerDerivacionAlertaCriticaCommand(conversacionId, alertaId, incidenciaId));
-            if (resultado.EsFallido)
-            {
-                ToastService.Mostrar(Textos[resultado.Error.Codigo == "AlertaCritica.OtraPendiente" ? "ErrorDeshacerOtraPendiente" : "ErrorDeshacer"].Value, TonoToast.Error);
-                return;
-            }
-
-            ToastService.Mostrar(Textos["ToastIncidenciaEliminada"].Value, TonoToast.Info);
-            // La alerta vuelve a Pendiente: si la conversación sigue abierta, el modal reaparece para decidir de nuevo.
-            if (ConversacionId != conversacionId) return;
             var alerta = await Mediator.Send(new ObtenerAlertaCriticaQuery(conversacionId));
             if (ConversacionId != conversacionId) return;
             _alerta = alerta;
             if (alerta is { Estado: EstadoAlertaCritica.Pendiente, PuedeResolver: true }) await CargarListasAsync(conversacionId);
-            await InvokeAsync(StateHasChanged);
         }
-        catch (Exception)
-        {
-            ToastService.Mostrar(Textos["ErrorDeshacer"].Value, TonoToast.Error);
-        }
+        catch (Exception) { /* se conserva lo que había */ }
+        await InvokeAsync(StateHasChanged);
     }
 }
