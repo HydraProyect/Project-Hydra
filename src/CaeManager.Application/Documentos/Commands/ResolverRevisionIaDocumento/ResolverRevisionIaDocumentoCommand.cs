@@ -61,7 +61,11 @@ public class ResolverRevisionIaDocumentoCommandHandler(
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 
-        var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(revision.DocumentoId, cancellationToken);
+        // Una revisión histórica sin vínculo conserva la auditoría sin
+        // decisión; elegir la más reciente por documento sería ambiguo.
+        var auditoria = revision.AuditoriaExtraccionIaId is { } auditoriaId
+            ? await auditoriaRepositorio.ObtenerPorIdAsync(auditoriaId, cancellationToken)
+            : null;
         auditoria?.RegistrarDecisionHumana(DecisionHumanaIa.DescartadaManual, usuarioId.Value);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);

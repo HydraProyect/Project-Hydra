@@ -1,4 +1,5 @@
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
+using CaeManager.Application.Documentos.Commands.CorregirRevisionIaDocumento;
 using CaeManager.Application.Documentos.Commands.ResolverRevisionIaDocumento;
 using CaeManager.Application.Documentos.Queries.ObtenerRevisionesIaPendientes;
 using CaeManager.Web.Components.DesignSystem;
@@ -17,10 +18,13 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private bool _operacionEnCurso;
     private bool _confirmacionLoteVisible;
     private bool _confirmacionDescartarVisible;
+    private bool _correccionManualVisible;
     private bool _dispose;
     private Guid? _procesandoId;
     private Guid? _revisionIdSeleccionada;
     private Guid? _documentoIdExpandido;
+    private string _fechaEmisionManual = string.Empty;
+    private string? _errorFechaManual;
     private FiltroRevision _filtro;
     private CancellationTokenSource? _cargaCts;
     private int _generacionCarga;
@@ -179,6 +183,58 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         }
     }
 
+    private async Task CorregirSeleccionadaAsync()
+    {
+        if (_revisionIdSeleccionada is not { } revisionId || _operacionEnCurso)
+        {
+            return;
+        }
+
+        if (!DateOnly.TryParse(_fechaEmisionManual, out var fechaEmision))
+        {
+            _errorFechaManual = "Indica una fecha de emisión válida.";
+            return;
+        }
+
+        var generacionEntidad = _generacionEntidad;
+        _operacionEnCurso = true;
+        _procesandoId = revisionId;
+        _errorFechaManual = null;
+        StateHasChanged();
+
+        try
+        {
+            var resultado = await Mediator.Send(new CorregirRevisionIaDocumentoCommand(revisionId, fechaEmision));
+            if (resultado.EsFallido)
+            {
+                if (!_dispose && generacionEntidad == _generacionEntidad)
+                {
+                    ToastService.Mostrar(resultado.Error.Mensaje, TonoToast.Error);
+                }
+
+                return;
+            }
+
+            if (_dispose || generacionEntidad != _generacionEntidad)
+            {
+                return;
+            }
+
+            ToastService.Mostrar("Documento corregido y revisión resuelta.", TonoToast.Exito);
+            _correccionManualVisible = false;
+            await CargarAsync();
+        }
+        finally
+        {
+            if (!_dispose && generacionEntidad == _generacionEntidad)
+            {
+                _procesandoId = null;
+            }
+
+            _operacionEnCurso = false;
+        }
+    }
+
     private async Task ConfirmarLoteAsync()
     {
         if (_confirmandoLote || _operacionEnCurso)
@@ -236,6 +292,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _filtro = filtro;
         _confirmacionLoteVisible = false;
         _confirmacionDescartarVisible = false;
+        _correccionManualVisible = false;
         SeleccionarPrimeraVisible();
     }
 
@@ -268,11 +325,29 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _generacionEntidad++;
         _documentoIdExpandido = null;
         _confirmacionDescartarVisible = false;
+        _correccionManualVisible = false;
         _procesandoId = null;
     }
 
     private void PrepararConfirmacionLote() => _confirmacionLoteVisible = RevisionesConfirmablesEnLote.Count > 0;
     private void PrepararDescartar() => _confirmacionDescartarVisible = RevisionSeleccionada is not null;
+    private void PrepararCorreccionManual()
+    {
+        if (RevisionSeleccionada is not { } revision)
+        {
+            return;
+        }
+
+        _fechaEmisionManual = revision.FechaEmisionIntroducida?.ToString("yyyy-MM-dd") ?? string.Empty;
+        _errorFechaManual = null;
+        _correccionManualVisible = true;
+    }
+
+    private void CerrarCorreccionManual()
+    {
+        _correccionManualVisible = false;
+        _errorFechaManual = null;
+    }
     private void AlternarPrevisualizacion(Guid documentoId) => _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
 
     private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
@@ -303,6 +378,14 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private static string ResumenLote(int confirmadas, int solicitadas, int errores) => confirmadas == solicitadas
         ? $"{confirmadas} revisión(es) confirmada(s)."
         : $"Se aplicaron {confirmadas} de {solicitadas} revisiones; {errores} no se pudieron aplicar.";
+
+    private static string Fecha(DateOnly? fecha) => fecha?.ToString("dd/MM/yyyy") ?? "No disponible";
+    private static string Firma(bool? tieneFirma) => tieneFirma switch
+    {
+        true => "Detectada",
+        false => "No detectada",
+        _ => "No determinada"
+    };
 
     private static TonoBadge TonoConfianza(int confianza) => confianza switch
     {

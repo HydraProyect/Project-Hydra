@@ -16,6 +16,8 @@ public class RevisionIaDocumento : EntidadConTenant
     public const int LongitudMaximaMotivo = 500;
 
     public Guid DocumentoId { get; private set; }
+    /// <summary>Auditoría de la extracción que generó esta revisión. Null únicamente en revisiones históricas que no se pueden asociar sin adivinar.</summary>
+    public Guid? AuditoriaExtraccionIaId { get; private set; }
     public int ConfianzaGeneral { get; private set; }
     public string? TipoDetectado { get; private set; }
     public DateOnly? FechaEmisionDetectada { get; private set; }
@@ -58,4 +60,14 @@ public class RevisionIaDocumento : EntidadConTenant
         new(documentoId, confianzaGeneral, tipoDetectado, fechaEmisionDetectada, fechaVencimientoDetectada, tieneFirmaDetectada, motivo);
 
     public void Resolver() => Resuelta = true;
+
+    public void VincularAuditoriaExtraccionIa(Guid auditoriaId)
+    {
+        if (auditoriaId == Guid.Empty)
+            throw new ArgumentException("Debe indicarse la auditoría de extracción.", nameof(auditoriaId));
+        if (AuditoriaExtraccionIaId is not null)
+            throw new InvalidOperationException("La revisión ya está ligada a una auditoría de extracción.");
+
+        AuditoriaExtraccionIaId = auditoriaId;
+    }
 }

@@ -7,6 +7,9 @@ public class AuditoriaExtraccionIaRepository(CaeManagerDbContext dbContext) : IA
 {
     public void Agregar(AuditoriaExtraccionIa auditoria) => dbContext.AuditoriasExtraccionIa.Add(auditoria);
 
+    public Task<AuditoriaExtraccionIa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
+        dbContext.AuditoriasExtraccionIa.FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
+
     public async Task<AuditoriaExtraccionIa?> ObtenerUltimaSinDecisionPorDocumentoAsync(Guid documentoId, CancellationToken cancellationToken = default) =>
         await dbContext.AuditoriasExtraccionIa
             .Where(a => a.DocumentoId == documentoId && a.DecisionHumana == null)

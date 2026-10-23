@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.DocumentosIa;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -40,13 +41,20 @@ public record RevisionIaDocumentoDto(
     Guid? EmpresaId = null,
     Guid? ClienteId = null,
     string? ClienteNombre = null,
-    string? EmpresaNombre = null);
+    string? EmpresaNombre = null,
+    DateOnly? FechaVencimientoDetectada = null,
+    bool? TieneFirmaDetectada = null,
+    DateOnly? FechaEmisionIntroducida = null,
+    DateOnly? FechaVencimientoIntroducida = null,
+    int? NumeroPaginas = null,
+    Guid? AuditoriaExtraccionIaId = null);
 
 public class ObtenerRevisionesIaPendientesQueryHandler(
     IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext, IEmpresasQueryContext empresasContext,
     IResolverClientePrincipalService resolverClientePrincipal,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IDocumentosIaQueryContext documentosIaContext)
     : IRequestHandler<ObtenerRevisionesIaPendientesQuery, IReadOnlyList<RevisionIaDocumentoDto>>
 {
     public async Task<IReadOnlyList<RevisionIaDocumentoDto>> Handle(
@@ -91,7 +99,13 @@ public class ObtenerRevisionesIaPendientesQueryHandler(
                 documento.TrabajadorId != null ? trabajador!.EmpresaId : documento.EmpresaId,
                 null,
                 null,
-                documento.TrabajadorId == null && empresa != null ? empresa.RazonSocial : null);
+                documento.TrabajadorId == null && empresa != null ? empresa.RazonSocial : null,
+                revision.FechaVencimientoDetectada,
+                revision.TieneFirmaDetectada,
+                documento.FechaEmision,
+                documento.FechaVencimiento,
+                null,
+                revision.AuditoriaExtraccionIaId);
 
         var revisiones = await consulta.ToListAsync(cancellationToken);
         if (revisiones.Count == 0) return revisiones;
@@ -113,15 +127,32 @@ public class ObtenerRevisionesIaPendientesQueryHandler(
             .Select(r => r.EmpresaId!.Value)
             .Distinct()
             .ToList();
-        if (empresaIdsSinNombre.Count == 0) return conCliente;
+        var conNombresEmpresa = conCliente;
+        if (empresaIdsSinNombre.Count > 0)
+        {
+            var nombresPorEmpresa = await empresasContext.Empresas
+                .Where(e => empresaIdsSinNombre.Contains(e.Id))
+                .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
 
-        var nombresPorEmpresa = await empresasContext.Empresas
-            .Where(e => empresaIdsSinNombre.Contains(e.Id))
-            .ToDictionaryAsync(e => e.Id, e => e.RazonSocial, cancellationToken);
+            conNombresEmpresa = conCliente
+                .Select(r => r.TrabajadorId is not null && r.EmpresaId is { } empresaId && nombresPorEmpresa.TryGetValue(empresaId, out var nombre)
+                    ? r with { EmpresaNombre = nombre }
+                    : r)
+                .ToList();
+        }
 
-        return conCliente
-            .Select(r => r.TrabajadorId is not null && r.EmpresaId is { } empresaId && nombresPorEmpresa.TryGetValue(empresaId, out var nombre)
-                ? r with { EmpresaNombre = nombre }
+        var auditoriaIds = conNombresEmpresa
+            .Where(r => r.AuditoriaExtraccionIaId is not null)
+            .Select(r => r.AuditoriaExtraccionIaId!.Value)
+            .Distinct()
+            .ToList();
+        var paginasPorAuditoria = await documentosIaContext.AuditoriasExtraccionIa
+            .Where(a => auditoriaIds.Contains(a.Id))
+            .ToDictionaryAsync(a => a.Id, a => a.NumeroPaginas, cancellationToken);
+
+        return conNombresEmpresa
+            .Select(r => r.AuditoriaExtraccionIaId is { } auditoriaId && paginasPorAuditoria.TryGetValue(auditoriaId, out var numeroPaginas)
+                ? r with { NumeroPaginas = numeroPaginas }
                 : r)
             .ToList();
     }

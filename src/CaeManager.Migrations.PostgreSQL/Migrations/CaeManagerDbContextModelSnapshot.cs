@@ -1840,6 +1840,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("AuditoriaExtraccionIaId")
+                        .HasColumnType("uuid");
+
                     b.Property<int>("ConfianzaGeneral")
                         .HasColumnType("integer");
 
@@ -1874,6 +1877,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("character varying(150)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AuditoriaExtraccionIaId")
+                        .IsUnique();
 
                     b.HasIndex("DocumentoId", "Resuelta");
 

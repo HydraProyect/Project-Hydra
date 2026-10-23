@@ -80,7 +80,11 @@ public class AplicarDeteccionIaDocumentoCommandHandler(
         revision.Resolver();
         aprobacionRepositorio.Agregar(AprobacionDocumento.CrearManual(revision.DocumentoId, revision.ConfianzaGeneral, usuarioId.Value));
 
-        var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(revision.DocumentoId, cancellationToken);
+        // Solo se decide sobre la auditoría que generó la revisión, nunca
+        // sobre la última extracción que comparta documento.
+        var auditoria = revision.AuditoriaExtraccionIaId is { } auditoriaId
+            ? await auditoriaRepositorio.ObtenerPorIdAsync(auditoriaId, cancellationToken)
+            : null;
         auditoria?.RegistrarDecisionHumana(DecisionHumanaIa.ConfirmadaManual, usuarioId.Value);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
