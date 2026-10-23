@@ -1,0 +1,250 @@
+name: PR huérfanas
+
+# Guarda de PR huérfanas: una PR abierta a la que nadie ha tocado en más de 12 horas
+# (sin commits, comentarios, revisiones ni eventos de la cola de fusión) lleva la
+# etiqueta `Status: Huérfana`; cuando vuelve a haber actividad, se le quita. Cada
+# ejecución publica en su resumen una tabla con todas las PR abiertas.
+#
+# Qué NO hace, a propósito: no comenta en las PR (ruido), no las encola ni las
+# fusiona, no cierra nada. Solo lee PR, crea la etiqueta si falta y la pone o la quita.
+#
+# Etiqueta: el repositorio usa familias con prefijo (`Type:`, `Priority:`, `Status:`).
+# `Status: Huérfana` encaja en `Status:` junto a «Status: On Hold» y «Status: Review
+# Needed»; no toca las familias que exige gobernanza-pr.yml (`Type:` y `Priority:`).
+#
+# Qué cuenta como actividad (la más reciente de todas): creación de la PR, último
+# commit propio, último comentario, última revisión, último comentario de revisión en
+# un hilo, y los eventos de la cola (entrar o salir de la cola, activar o desactivar
+# el auto-merge) más los force-push y el paso de borrador a lista. NO cuentan las
+# etiquetas (las pone esta misma guarda) ni los commits «Merge branch 'main' into …»
+# de la actualización automática de la rama: si contaran, una PR abandonada que el
+# propio GitHub mantiene al día no se vería nunca.
+#
+# Se excluyen las PR con la etiqueta `desechable` (o `Status: desechable`) o con el
+# título que empieza por `[desechable]`.
+#
+# Seguridad: permisos mínimos y por job (`pull-requests: write` para leer y etiquetar
+# PR, `issues: write` para crear la etiqueta y ponerla); no hay checkout, así que no
+# se ejecuta código de ninguna rama; ninguna expresión de GitHub entra en el texto del script: los
+# valores de las entradas pasan por `env:` y el script los valida como número o
+# booleano. Los títulos de PR son datos ajenos: solo se escriben en el resumen,
+# escapados, y nunca en el log (donde una línea que empezase por `::` sería un comando).
+#
+# `schedule` solo corre desde la rama por defecto; `workflow_dispatch` permite lanzarlo
+# a mano: gh workflow run pr-huerfanas.yml  (-f horas=24 para cambiar el umbral,
+# -f simular=true para solo informar sin tocar etiquetas).
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      horas:
+        description: "Horas sin actividad a partir de las cuales una PR abierta es huérfana"
+        required: false
+        default: "12"
+        type: string
+      simular:
+        description: "Solo informar: no crea ni cambia etiquetas"
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: pr-huerfanas
+  cancel-in-progress: false
+
+jobs:
+  huerfanas:
+    name: Marcar PR huérfanas
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Buscar PR abiertas sin actividad y etiquetarlas
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          UMBRAL_HORAS: ${{ inputs.horas }}
+          SIMULAR: ${{ inputs.simular }}
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const ETIQUETA = 'Status: Huérfana';
+            const umbralHoras = Number(process.env.UMBRAL_HORAS || '12');
+            if (!Number.isFinite(umbralHoras) || umbralHoras <= 0) {
+              core.setFailed('UMBRAL_HORAS debe ser un número positivo.');
+              return;
+            }
+            const simular = String(process.env.SIMULAR).toLowerCase() === 'true';
+            const ahora = Date.now();
+
+            const consulta = `
+              query($owner: String!, $repo: String!, $cursor: String) {
+                repository(owner: $owner, name: $repo) {
+                  pullRequests(states: OPEN, first: 50, after: $cursor, orderBy: {field: CREATED_AT, direction: ASC}) {
+                    pageInfo { hasNextPage endCursor }
+                    nodes {
+                      number
+                      title
+                      url
+                      isDraft
+                      createdAt
+                      isInMergeQueue
+                      autoMergeRequest { enabledAt }
+                      labels(first: 50) { nodes { name } }
+                      commits(last: 10) { nodes { commit { committedDate messageHeadline } } }
+                      cabeza: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+                      comments(last: 1) { nodes { createdAt } }
+                      reviews(last: 1) { nodes { createdAt submittedAt } }
+                      reviewThreads(last: 20) { nodes { comments(last: 1) { nodes { createdAt } } } }
+                      timelineItems(last: 10, itemTypes: [
+                        ADDED_TO_MERGE_QUEUE_EVENT, REMOVED_FROM_MERGE_QUEUE_EVENT,
+                        AUTO_MERGE_ENABLED_EVENT, AUTO_MERGE_DISABLED_EVENT,
+                        HEAD_REF_FORCE_PUSHED_EVENT, READY_FOR_REVIEW_EVENT
+                      ]) {
+                        nodes {
+                          __typename
+                          ... on AddedToMergeQueueEvent { createdAt }
+                          ... on RemovedFromMergeQueueEvent { createdAt }
+                          ... on AutoMergeEnabledEvent { createdAt }
+                          ... on AutoMergeDisabledEvent { createdAt }
+                          ... on HeadRefForcePushedEvent { createdAt }
+                          ... on ReadyForReviewEvent { createdAt }
+                        }
+                      }
+                    }
+                  }
+                }
+              }`;
+
+            const prs = [];
+            let cursor = null;
+            do {
+              const r = await github.graphql(consulta, { owner, repo, cursor });
+              const pagina = r.repository.pullRequests;
+              prs.push(...pagina.nodes);
+              cursor = pagina.pageInfo.hasNextPage ? pagina.pageInfo.endCursor : null;
+            } while (cursor);
+
+            const esDesechable = (n) =>
+              /^\s*\[desechable\]/i.test(n.title) ||
+              n.labels.nodes.some((l) => /^(status:\s*)?desechable$/i.test(l.name));
+
+            // La actualización automática de la rama mete «Merge branch 'main' into …»: no es trabajo de nadie.
+            const esActualizacionDeRama = (headline) =>
+              /^Merge (remote-tracking )?branch '(origin\/)?(main|master)'/i.test(headline);
+
+            const ultimaActividad = (n) => {
+              const hitos = [[n.createdAt, 'creación']];
+              for (const { commit } of n.commits.nodes) {
+                if (!esActualizacionDeRama(commit.messageHeadline)) hitos.push([commit.committedDate, 'commit']);
+              }
+              for (const c of n.comments.nodes) hitos.push([c.createdAt, 'comentario']);
+              for (const rv of n.reviews.nodes) hitos.push([rv.submittedAt || rv.createdAt, 'revisión']);
+              for (const h of n.reviewThreads.nodes) {
+                for (const c of h.comments.nodes) hitos.push([c.createdAt, 'comentario de revisión']);
+              }
+              for (const e of n.timelineItems.nodes) {
+                const tipo = /MergeQueue/.test(e.__typename) || /AutoMerge/.test(e.__typename) ? 'cola' : 'push o listo';
+                hitos.push([e.createdAt, tipo]);
+              }
+              return hitos
+                .filter(([t]) => t)
+                .map(([t, tipo]) => ({ t: Date.parse(t), tipo }))
+                .reduce((a, b) => (b.t > a.t ? b : a));
+            };
+
+            const estadoCi = (n) => {
+              const cabeza = n.cabeza.nodes[0];
+              const estado = cabeza && cabeza.commit.statusCheckRollup && cabeza.commit.statusCheckRollup.state;
+              if (estado === 'SUCCESS') return 'verde';
+              if (estado === 'FAILURE' || estado === 'ERROR') return 'rojo';
+              return 'en curso';
+            };
+
+            const estadoCola = (n) => {
+              if (n.isInMergeQueue && n.autoMergeRequest) return 'cola + auto-merge';
+              if (n.isInMergeQueue) return 'cola';
+              if (n.autoMergeRequest) return 'auto-merge';
+              return 'no';
+            };
+
+            const escapar = (s) =>
+              String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '&#124;');
+
+            const excluidas = prs.filter(esDesechable).length;
+            const filas = prs
+              .filter((n) => !esDesechable(n))
+              .map((n) => {
+                const act = ultimaActividad(n);
+                const horas = Math.max(0, (ahora - act.t) / 36e5);
+                return {
+                  n,
+                  act,
+                  horas,
+                  huerfana: horas > umbralHoras,
+                  tiene: n.labels.nodes.some((l) => l.name === ETIQUETA),
+                };
+              })
+              .sort((a, b) => b.horas - a.horas);
+
+            const aPoner = filas.filter((f) => f.huerfana && !f.tiene);
+            const aQuitar = filas.filter((f) => !f.huerfana && f.tiene);
+
+            if (!simular && aPoner.length > 0) {
+              try {
+                await github.rest.issues.getLabel({ owner, repo, name: ETIQUETA });
+              } catch (e) {
+                if (e.status !== 404) throw e;
+                await github.rest.issues.createLabel({
+                  owner,
+                  repo,
+                  name: ETIQUETA,
+                  color: 'c5def5',
+                  description: 'PR abierta sin actividad reciente (la pone y la quita pr-huerfanas.yml)',
+                });
+              }
+            }
+            if (!simular) {
+              for (const f of aPoner) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number: f.n.number, labels: [ETIQUETA] });
+              }
+              for (const f of aQuitar) {
+                try {
+                  await github.rest.issues.removeLabel({ owner, repo, issue_number: f.n.number, name: ETIQUETA });
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+              }
+            }
+
+            const cabecera = ['PR', 'Título', 'Borrador', 'CI', 'Cola o auto-merge', 'Horas sin actividad', 'Última actividad', 'Huérfana']
+              .map((data) => ({ data, header: true }));
+            const filasTabla = filas.map((f) => [
+              `<a href="${f.n.url}">#${f.n.number}</a>`,
+              escapar(f.n.title),
+              f.n.isDraft ? 'sí' : 'no',
+              estadoCi(f.n),
+              estadoCola(f.n),
+              f.horas.toFixed(1),
+              f.act.tipo,
+              f.huerfana ? (simular ? 'sí (simulado)' : 'sí') : 'no',
+            ]);
+            core.summary
+              .addHeading('PR abiertas y horas sin actividad', 2)
+              .addRaw(
+                `Umbral: ${umbralHoras} h. PR abiertas: ${prs.length} (${excluidas} excluidas por «desechable»). ` +
+                  `Huérfanas: ${filas.filter((f) => f.huerfana).length}. ` +
+                  `Etiqueta puesta a ${simular ? 0 : aPoner.length}, quitada a ${simular ? 0 : aQuitar.length}` +
+                  `${simular ? ' (modo simular: no se ha cambiado nada)' : ''}.`,
+                true,
+              )
+              .addTable([cabecera, ...filasTabla]);
+            await core.summary.write();
+
+            core.info(`PR abiertas: ${prs.length}; excluidas: ${excluidas}; huérfanas: ${filas.filter((f) => f.huerfana).length}`);
+            core.info(`Etiqueta puesta a: ${aPoner.map((f) => '#' + f.n.number).join(', ') || 'ninguna'}`);
+            core.info(`Etiqueta quitada a: ${aQuitar.map((f) => '#' + f.n.number).join(', ') || 'ninguna'}`);
