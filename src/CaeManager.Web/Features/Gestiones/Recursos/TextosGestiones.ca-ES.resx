@@ -192,4 +192,20 @@
   <data name="ErrorRestaurar" xml:space="preserve">
     <value>No s'ha pogut desfer l'eliminació. Torna-ho a provar.</value>
   </data>
+  <data name="BotonGestionRapida" xml:space="preserve"><value>Gestió ràpida</value></data>
+  <data name="BotonSeguirCola" xml:space="preserve"><value>Continuar amb la cua ({0} de {1})</value></data>
+  <data name="ColaEtiqueta" xml:space="preserve"><value>Gestió ràpida</value></data>
+  <data name="ColaContador" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="ColaCompletarYSiguiente" xml:space="preserve"><value>Completar i següent</value></data>
+  <data name="ColaSaltar" xml:space="preserve"><value>Saltar</value></data>
+  <data name="ColaSalir" xml:space="preserve"><value>Sortir de la cua</value></data>
+  <data name="ColaSinPendientes" xml:space="preserve"><value>No hi ha gestions pendents en aquest filtre.</value></data>
+  <data name="ColaRecortada" xml:space="preserve"><value>La cua recorre les primeres {0} gestions pendents; la resta continua al llistat.</value></data>
+  <data name="ColaErrorAlIniciar" xml:space="preserve"><value>No s'ha pogut obrir la cua. Torna-ho a provar.</value></data>
+  <data name="ColaTerminada" xml:space="preserve"><value>Cua acabada. Completades: {0}; saltades: {1}.</value></data>
+  <data name="EtiquetaPlataformaCae" xml:space="preserve"><value>Plataforma CAE</value></data>
+  <data name="AbrirPortal" xml:space="preserve"><value>Obrir portal ↗</value></data>
+  <data name="SinPlataformaCae" xml:space="preserve"><value>Sense Plataforma CAE registrada</value></data>
+  <data name="RegistrarPlataformaEnCliente360" xml:space="preserve"><value>Registra-la al 360 del Client empresarial</value></data>
+  <data name="PlataformaDeCliente" xml:space="preserve"><value>Client empresarial: {0} · Centre: {1}</value></data>
 </root>

@@ -27,6 +27,16 @@
             <Menu>
                 <CaeManager.Web.Exportacion.EntradasExportar Ruta="/gestiones/exportar.xlsx" />
             </Menu>
+            @* «Gestión rápida»: la maqueta de Gestiones no la dibuja (la cola con avance automático más parecida es la
+               de «Revisión IA» en Mejoras Pro), así que el nombre es el que pidió el producto. Completar exige escritura. *@
+            <Primaria>
+                <SoloConEscritura>
+                    <Boton Variante="VarianteBoton.Primario" OnClick="GestionRapidaAsync" Cargando="_iniciandoCola"
+                           Deshabilitado="@(_errorCarga || (_cargando && _totalElementos == 0))" data-gestion-rapida="">
+                        @(ColaEnPausa ? Textos["BotonSeguirCola", _cola!.Posicion, _cola.Total] : Textos["BotonGestionRapida"])
+                    </Boton>
+                </SoloConEscritura>
+            </Primaria>
     </CabeceraListado>
 
     <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync"
@@ -215,7 +225,45 @@
             <button type="button" class="boton-cerrar-vista-rapida-gestion" aria-label="@Textos["AriaCerrarVistaRapida"]" @onclick="CerrarVistaRapida"><Icono Nombre="cerrar" /></button>
         </div>
 
+        @* Gestión rápida: solo cuando el panel enseña la Gestión que la cola tiene delante. El contador es «N de M»
+           (ColaDeGestiones); role=status lo anuncia a lectores de pantalla en cada avance. *@
+        @if (PanelEsDeLaCola(vista) && _cola is { } cola)
+        {
+            <div class="barra-cola-vista-rapida-gestion" role="status" data-cola-gestiones="">
+                <span class="etiqueta-cola-vista-rapida-gestion">@Textos["ColaEtiqueta"]</span>
+                <strong class="contador-cola-vista-rapida-gestion">@Textos["ColaContador", cola.Posicion, cola.Total]</strong>
+            </div>
+        }
+
         <div class="cuerpo-vista-rapida-gestion">
+            @* Dónde hay que hacerla: la Plataforma CAE del Cliente empresarial del Centro (caja «Plataforma CAE» de
+               Cliente 360). La Gestión no guarda plataforma propia; sin ella registrada se dice, y se lleva a Cliente 360. *@
+            <div class="plataforma-vista-rapida-gestion" data-plataforma-cae="">
+                <span>@Textos["EtiquetaPlataformaCae"]</span>
+                @if (!string.IsNullOrWhiteSpace(vista.PlataformaCaeNombre))
+                {
+                    <strong class="plataforma-nombre-vista-rapida-gestion">@vista.PlataformaCaeNombre</strong>
+                    @if (EnlacePortalSeguro(vista.PlataformaCaeUrlPortal) is { } portal)
+                    {
+                        <a class="enlace-vista-rapida-gestion" href="@portal" target="_blank" rel="noopener noreferrer">@Textos["AbrirPortal"]</a>
+                    }
+                }
+                else
+                {
+                    <strong class="plataforma-sin-registrar-vista-rapida-gestion">@Textos["SinPlataformaCae"]</strong>
+                    @if (vista.ClienteEmpresarialId != Guid.Empty)
+                    {
+                        <button type="button" class="enlace-vista-rapida-gestion" @onclick='() => AbrirWorkspaceAsync(EntidadWorkspace.Cliente, vista.ClienteEmpresarialId, vista.ClienteEmpresarialNombre, "informacion")'>
+                            @Textos["RegistrarPlataformaEnCliente360"]
+                        </button>
+                    }
+                }
+                @if (!string.IsNullOrWhiteSpace(vista.ClienteEmpresarialNombre))
+                {
+                    <small class="plataforma-cliente-vista-rapida-gestion">@Textos["PlataformaDeCliente", vista.ClienteEmpresarialNombre, vista.CentroNombre]</small>
+                }
+            </div>
+
             <div class="rejilla-vista-rapida-gestion">
                 <div class="celda-vista-rapida-gestion vista-rapida-centro"><span>@Textos["ColumnaCentro"]</span><strong>@vista.CentroNombre</strong></div>
                 <div class="celda-vista-rapida-gestion vista-rapida-tipo-documento"><span>@Textos["ListaTipoDocumento"]</span><strong>@vista.TipoDocumentoNombre</strong></div>
@@ -238,12 +286,28 @@
         @* Completar, reabrir y eliminar son ICommand: AutorizacionEscrituraBehavior los deniega
            a Consulta, así que no se le ofrecen (los botones rápidos de la fila van envueltos igual). *@
         <SoloConEscritura>
-            <div class="pie-vista-rapida-gestion">
-                <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
-                    @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
-                </Boton>
-                <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
-            </div>
+            @if (PanelEsDeLaCola(vista))
+            {
+                @* En la cola: completar abre la siguiente (CambiarEstadoAsync), «Saltar» pasa a la siguiente sin tocar la
+                   Gestión y «Salir de la cola» la deja. «Eliminar» no se ofrece aquí: la cola es para ir despachando de
+                   seguido, y borrar sin querer la que se tiene delante rompería el recorrido; se elimina desde el listado. *@
+                <div class="pie-vista-rapida-gestion pie-cola-vista-rapida-gestion">
+                    <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, true)">
+                        @Textos["ColaCompletarYSiguiente"]
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="SaltarEnCola">@Textos["ColaSaltar"]</Boton>
+                    <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="SalirDeLaCola">@Textos["ColaSalir"]</Boton>
+                </div>
+            }
+            else
+            {
+                <div class="pie-vista-rapida-gestion">
+                    <Boton Variante="VarianteBoton.Primario" Cargando="_cambiandoEstado.Contains(vista.Id)" OnClick="() => CambiarEstadoAsync(vista.Id, vista.Estado != EstadoGestion.Completada)">
+                        @(vista.Estado == EstadoGestion.Completada ? Textos["BotonReabrirGestion"] : Textos["AccionMarcarCompletada"])
+                    </Boton>
+                    <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="_cambiandoEstado.Contains(vista.Id)" OnClick="() => AbrirEliminar(vista.Id)">@Textos["AccionEliminar"]</Boton>
+                </div>
+            }
         </SoloConEscritura>
     </aside>
 }

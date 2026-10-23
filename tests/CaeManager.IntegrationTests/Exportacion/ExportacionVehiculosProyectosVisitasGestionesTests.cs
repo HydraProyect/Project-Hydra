@@ -108,6 +108,8 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
             c.Proyectos.AddRange(reforma, cubierta, ampliacion);
             c.Visitas.AddRange(visitaNorte, visitaSur, visitaPasada);
             c.Gestiones.AddRange(new Gestion(lucia.Id, centroNorte.Id, tipo.Id), new Gestion(iker.Id, centroSur.Id, tipo.Id));
+            // Solo el Cliente Norte tiene Plataforma CAE registrada: «Gestión rápida» la muestra en cada Gestión.
+            c.PlataformasCaeClienteEmpresarial.Add(new PlataformaCaeClienteEmpresarial(norte.Id, "Nalanda", "https://nalanda.example/portal", "COD-NORTE"));
             await c.SaveChangesAsync();
 
             c.ProyectosTecnicos.Add(new ProyectoTecnico(reforma.Id, lucia.Id, _hoy.AddDays(-30)));
@@ -147,6 +149,38 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
+
+    // ---- Gestiones: Plataforma CAE visible (la lee el listado, no la exportación) ----
+
+    [Fact]
+    public async Task Gestiones_trae_la_plataforma_cae_y_el_cliente_empresarial_del_centro_de_cada_una()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var resultado = await new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerGestionesQuery(null, null, null), default);
+
+        resultado.Elementos.Should().HaveCount(2, "la Gestión del otro Tenant no sale");
+        var norte = resultado.Elementos.Single(g => g.CentroNombre == "Planta Norte");
+        norte.ClienteEmpresarialId.Should().Be(_clienteNorte);
+        norte.ClienteEmpresarialNombre.Should().Be("Cliente Norte S.L.");
+        norte.PlataformaCaeNombre.Should().Be("Nalanda");
+        norte.PlataformaCaeUrlPortal.Should().Be("https://nalanda.example/portal");
+
+        var sur = resultado.Elementos.Single(g => g.CentroNombre == "Planta Sur");
+        sur.ClienteEmpresarialNombre.Should().Be("Cliente Sur S.L.");
+        sur.PlataformaCaeNombre.Should().BeNull("el Cliente Sur no tiene plataforma registrada: se dice, no se inventa");
+        sur.PlataformaCaeUrlPortal.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Gestiones_no_ensena_la_plataforma_a_quien_no_opera_desde_el_lado_de_gestion()
+    {
+        await using var contexto = CrearContexto(_tenant);
+        var resultado = await new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(ladoDeGestion: false))
+            .Handle(new ObtenerGestionesQuery(null, null, null), default);
+
+        resultado.Elementos.Should().OnlyContain(g => g.PlataformaCaeNombre == null && g.PlataformaCaeUrlPortal == null);
+    }
 
     // ---- Vehículos ----
 
@@ -522,7 +556,7 @@ public class ExportacionVehiculosProyectosVisitasGestionesTests : IAsyncLifetime
                     .Handle(consulta, cancellationToken),
                 ObtenerVisitasQuery consulta => await new ObtenerVisitasQueryHandler(c, c, c, c, c, c, alcance, c)
                     .Handle(consulta, cancellationToken),
-                ObtenerGestionesQuery consulta => await new ObtenerGestionesQueryHandler(c, c, c, c, alcance)
+                ObtenerGestionesQuery consulta => await new ObtenerGestionesQueryHandler(c, c, c, c, c, alcance)
                     .Handle(consulta, cancellationToken),
                 _ => throw new NotSupportedException(request.GetType().Name),
             };

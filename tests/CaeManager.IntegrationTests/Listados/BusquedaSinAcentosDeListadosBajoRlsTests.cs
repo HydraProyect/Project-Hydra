@@ -302,7 +302,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     private static async Task<IEnumerable<Guid>> BuscarGestionesAsync(
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
-        var handler = new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, alcance);
+        var handler = new ObtenerGestionesQueryHandler(contexto, contexto, contexto, contexto, contexto, alcance);
         var resultado = await handler.Handle(
             new ObtenerGestionesQuery(termino, Estado: null, TrabajadorId: null), CancellationToken.None);
         return resultado.Elementos.Select(g => g.Id).ToList();

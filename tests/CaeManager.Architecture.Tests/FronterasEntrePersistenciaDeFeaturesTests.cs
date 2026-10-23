@@ -582,6 +582,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "IDetalleSugerenciaGestionCorreoRepository"),
         ("Gestiones.CrearGestionesParaTrabajadorCommandHandler", "ITipoDocumentoRepository"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ICentrosQueryContext"),
+        // La Gestión muestra la Plataforma CAE y el Cliente empresarial de su Centro (caja «Plataforma CAE» de Cliente 360).
+        ("Gestiones.ObtenerGestionesQueryHandler", "IEmpresasQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITiposDocumentoQueryContext"),
         ("Gestiones.ObtenerGestionesQueryHandler", "ITrabajadoresQueryContext"),
         ("Importacion.EjecutarImportacionCombinadaCommandHandler", "ICentroRepository"),

@@ -192,4 +192,20 @@
   <data name="ErrorRestaurar" xml:space="preserve">
     <value>No se pudo deshacer la eliminación. Inténtalo de nuevo.</value>
   </data>
+  <data name="BotonGestionRapida" xml:space="preserve"><value>Gestión rápida</value></data>
+  <data name="BotonSeguirCola" xml:space="preserve"><value>Seguir con la cola ({0} de {1})</value></data>
+  <data name="ColaEtiqueta" xml:space="preserve"><value>Gestión rápida</value></data>
+  <data name="ColaContador" xml:space="preserve"><value>{0} de {1}</value></data>
+  <data name="ColaCompletarYSiguiente" xml:space="preserve"><value>Completar y siguiente</value></data>
+  <data name="ColaSaltar" xml:space="preserve"><value>Saltar</value></data>
+  <data name="ColaSalir" xml:space="preserve"><value>Salir de la cola</value></data>
+  <data name="ColaSinPendientes" xml:space="preserve"><value>No hay gestiones pendientes en este filtro.</value></data>
+  <data name="ColaRecortada" xml:space="preserve"><value>La cola recorre las primeras {0} gestiones pendientes; el resto sigue en el listado.</value></data>
+  <data name="ColaErrorAlIniciar" xml:space="preserve"><value>No se pudo abrir la cola. Inténtalo de nuevo.</value></data>
+  <data name="ColaTerminada" xml:space="preserve"><value>Cola terminada. Completadas: {0}; saltadas: {1}.</value></data>
+  <data name="EtiquetaPlataformaCae" xml:space="preserve"><value>Plataforma CAE</value></data>
+  <data name="AbrirPortal" xml:space="preserve"><value>Abrir portal ↗</value></data>
+  <data name="SinPlataformaCae" xml:space="preserve"><value>Sin Plataforma CAE registrada</value></data>
+  <data name="RegistrarPlataformaEnCliente360" xml:space="preserve"><value>Registrarla en el 360 del Cliente empresarial</value></data>
+  <data name="PlataformaDeCliente" xml:space="preserve"><value>Cliente empresarial: {0} · Centro: {1}</value></data>
 </root>

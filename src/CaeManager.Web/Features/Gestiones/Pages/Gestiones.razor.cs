@@ -183,11 +183,17 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         var deLaUrl = EstadosValidos(EstadoInicial);
         if (deLaUrl != _filtroEstado)
+        {
             _filtroEstado = deLaUrl;
+            OlvidarCola();
+        }
 
         var busquedaDeLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (busquedaDeLaUrl != _busqueda)
+        {
             _busqueda = busquedaDeLaUrl;
+            OlvidarCola();
+        }
 
         LeerOrden(OrdenInicial);
     }
@@ -290,6 +296,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task BuscarAsync(string valor)
     {
         _busqueda = valor;
+        OlvidarCola();
         NavigationManager.ActualizarFiltroEnUrl("q", valor);
         await RecargarAsync();
     }
@@ -297,6 +304,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task FiltrarPorEstadoAsync(string? valor)
     {
         _filtroEstado = valor ?? string.Empty;
+        OlvidarCola();
         NavigationManager.ActualizarFiltroEnUrl("estado", valor);
         await RecargarAsync();
     }
@@ -338,6 +346,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _busqueda = string.Empty;
         _filtroEstado = string.Empty;
+        OlvidarCola();
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { ["q"] = null, ["estado"] = null });
         await RecargarAsync();
     }
@@ -365,6 +374,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     {
         _busqueda = vista.GetValueOrDefault("q") ?? string.Empty;
         _filtroEstado = EstadosValidos(vista.GetValueOrDefault("estado"));
+        OlvidarCola();
         var cambiaElOrden = LeerOrden(vista.GetValueOrDefault("orden"));
         NavigationManager.ActualizarFiltrosEnUrl(new Dictionary<string, string?>
         {
@@ -385,6 +395,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task QuitarBusquedaAsync()
     {
         _busqueda = string.Empty;
+        OlvidarCola();
         NavigationManager.ActualizarFiltroEnUrl("q", string.Empty);
         await RecargarAsync();
     }
@@ -393,6 +404,7 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
     private async Task QuitarFiltroEstadoAsync()
     {
         _filtroEstado = string.Empty;
+        OlvidarCola();
         NavigationManager.ActualizarFiltroEnUrl("estado", string.Empty);
         await RecargarAsync();
     }
@@ -517,7 +529,138 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _vistaRapida = fila;
     }
 
+    /// <summary>Cerrar el panel no cancela la cola: la deja en pausa (el botón del listado pasa a «Seguir con la cola»).</summary>
     private void CerrarVistaRapida() => _vistaRapida = null;
+
+    // ---- Gestión rápida: la cola de pendientes del filtro actual (ver ColaDeGestiones) ----
+
+    private ColaDeGestiones? _cola;
+    private bool _iniciandoCola;
+
+    /// <summary>Hay una cola en marcha (aunque su panel esté cerrado): la que se tiene delante aún no se despachó.</summary>
+    private bool ColaActiva => _cola is { Actual: not null };
+
+    /// <summary>La cola sigue pero su panel está cerrado o enseña otra fila: el botón del listado ofrece seguir con ella.</summary>
+    private bool ColaEnPausa => _cola is { Actual: { } actual } && _vistaRapida?.Id != actual.Id;
+
+    /// <summary>
+    /// El panel enseña justo la Gestión que la cola tiene delante, y solo entonces lleva su barra, su contador y sus
+    /// botones: abrir otra fila desde el listado la muestra como una vista rápida cualquiera.
+    /// </summary>
+    /// <summary>
+    /// Solo http y https, como lo valida el alta de la plataforma: el dato ya está validado al guardarlo, pero un
+    /// enlace con un esquema distinto (<c>javascript:</c>) no se pinta nunca, venga de donde venga el valor.
+    /// </summary>
+    private static string? EnlacePortalSeguro(string? url) =>
+        !string.IsNullOrWhiteSpace(url) && CaeManager.Domain.Empresas.PlataformaCaeClienteEmpresarial.EsUrlDePortalValida(url) ? url : null;
+
+    private bool PanelEsDeLaCola(GestionListaDto vista) => _cola is { Actual: { } actual } && actual.Id == vista.Id;
+
+    /// <summary>
+    /// «Gestión rápida». Sin cola, la crea con las pendientes del filtro actual y abre la primera; con una en
+    /// pausa, vuelve a la que se tenía delante. La consulta es la del listado (misma búsqueda, mismo orden, mismo
+    /// alcance y cartera) pero pidiendo solo las pendientes y sin paginar: la cola no puede ver nada que el usuario
+    /// no vea ya en el listado. Un filtro que solo enseña completadas no tiene pendientes que recorrer.
+    /// </summary>
+    private async Task GestionRapidaAsync()
+    {
+        if (_desechado || _iniciandoCola)
+            return;
+
+        if (_cola is { Actual: { } enCurso })
+        {
+            MostrarEnCola(enCurso);
+            return;
+        }
+
+        if (EstadoDeLaConsulta == EstadoGestion.Completada)
+        {
+            ToastService.Mostrar(Textos["ColaSinPendientes"], TonoToast.Info);
+            return;
+        }
+
+        _iniciandoCola = true;
+        try
+        {
+            var resultado = await Mediator.Send(new ObtenerGestionesQuery(
+                Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
+                Estado: EstadoGestion.Pendiente,
+                TrabajadorId: null,
+                Pagina: 1,
+                TamanoPagina: ColaDeGestiones.TopeDeGestiones,
+                OrdenarPor: _ordenExportar,
+                Descendente: _descendenteExportar));
+
+            if (_desechado)
+                return;
+
+            var cola = ColaDeGestiones.Crear(resultado.Elementos);
+            if (cola is null)
+            {
+                ToastService.Mostrar(Textos["ColaSinPendientes"], TonoToast.Info);
+                return;
+            }
+
+            if (resultado.TotalElementos > cola.Total)
+                ToastService.Mostrar(Textos["ColaRecortada", cola.Total], TonoToast.Advertencia);
+
+            _cola = cola;
+            MostrarEnCola(cola.Actual!);
+        }
+        catch (Exception)
+        {
+            ToastService.Mostrar(Textos["ColaErrorAlIniciar"], TonoToast.Error);
+        }
+        finally
+        {
+            _iniciandoCola = false;
+        }
+    }
+
+    private void MostrarEnCola(GestionListaDto gestion)
+    {
+        _idEnfocado = gestion.Id;
+        _vistaRapida = gestion;
+    }
+
+    /// <summary>
+    /// Despacha la Gestión de la cola y abre la siguiente; si era la última, cierra el panel y avisa del resumen. La
+    /// cola acabada se conserva sin actual: así el «Deshacer» del último «Completada» todavía puede devolverla.
+    /// </summary>
+    private void AvanzarCola(DestinoEnCola destino)
+    {
+        if (_cola is null)
+            return;
+
+        _cola.Avanzar(destino);
+        if (_cola.Actual is { } siguiente)
+        {
+            MostrarEnCola(siguiente);
+            return;
+        }
+
+        _vistaRapida = null;
+        ToastService.Mostrar(Textos["ColaTerminada", _cola.Completadas, _cola.Saltadas], TonoToast.Exito);
+    }
+
+    private void SaltarEnCola()
+    {
+        if (_vistaRapida is { } vista && PanelEsDeLaCola(vista))
+            AvanzarCola(DestinoEnCola.Saltada);
+    }
+
+    /// <summary>«Salir de la cola»: la deja y cierra el panel. Lo hecho se queda hecho.</summary>
+    private void SalirDeLaCola()
+    {
+        _cola = null;
+        _vistaRapida = null;
+    }
+
+    /// <summary>
+    /// La cola es de un filtro: si cambian la búsqueda o el estado deja de describir lo que se ve y se olvida (el
+    /// panel, si estaba abierto, queda como una vista rápida normal).
+    /// </summary>
+    private void OlvidarCola() => _cola = null;
 
     /// <summary>
     /// Los 360 se abren desde la vista rápida: se cierra primero para no dejar
@@ -547,6 +690,14 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
             // comando viajaba se pudo abrir otra fila, y a esa no le ha pasado nada.
             if (_vistaRapida is { } vista && vista.Id == id)
                 _vistaRapida = vista with { Estado = completada ? EstadoGestion.Completada : EstadoGestion.Pendiente };
+
+            // Gestión rápida: completar la que la cola tiene delante abre la siguiente sola, y el «Deshacer» de
+            // esa misma finalización (o de cualquiera que la cola completó) la devuelve a primer plano. Antes de
+            // recargar, para que la siguiente se vea ya mientras se refresca la lista.
+            if (completada && _cola is { Actual: { } deLaCola } && deLaCola.Id == id)
+                AvanzarCola(DestinoEnCola.Completada);
+            else if (!completada && _cola?.Reabrir(id) == true)
+                MostrarEnCola(_cola.Actual!);
 
             // Maqueta «Flujos 10 Incidencias y Gestiones»: completar y reabrir avisan y ofrecen Deshacer (la
             // acción contraria). El propio Deshacer no encadena otro, para no dejar un bucle de avisos.

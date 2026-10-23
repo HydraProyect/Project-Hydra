@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Gestiones;
@@ -13,14 +14,27 @@ public record ObtenerGestionesQuery(
     string? OrdenarPor = null, bool Descendente = false, bool ConRecuentosPorEstado = false)
     : IRequest<ResultadoPaginado<GestionListaDto>>;
 
+/// <summary>
+/// Una Gestión del listado. Los cuatro últimos datos dicen DÓNDE hay que hacerla cuando es un trámite en una
+/// Plataforma CAE externa: la Gestión no guarda ninguna plataforma (solo Trabajador, Centro y Tipo de documento),
+/// pero el Centro cuelga de un Cliente empresarial y la Plataforma CAE es de ese Cliente empresarial
+/// (<see cref="Domain.Empresas.PlataformaCaeClienteEmpresarial"/>, caja «Plataforma CAE» de Cliente 360). Se leen,
+/// pues, por ese camino; nada se guarda en la Gestión.
+/// </summary>
+/// <param name="ClienteEmpresarialId">El Cliente empresarial del Centro (<c>Centro.ClienteId</c>, nombre heredado).</param>
+/// <param name="ClienteEmpresarialNombre">Su razón social; vacía si el Cliente empresarial no se pudo leer.</param>
+/// <param name="PlataformaCaeNombre">Nombre de la Plataforma CAE del Cliente empresarial; <c>null</c> si aún no tiene una registrada.</param>
+/// <param name="PlataformaCaeUrlPortal">Dirección del portal (http o https); <c>null</c> si no se registró. Nunca el código de cliente ni accesos.</param>
 public record GestionListaDto(
     Guid Id, Guid TrabajadorId, string TrabajadorNombre, Guid CentroId, string CentroNombre,
-    Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoGestion Estado, DateTime CreadoEnUtc);
+    Guid TipoDocumentoId, string TipoDocumentoNombre, EstadoGestion Estado, DateTime CreadoEnUtc,
+    Guid ClienteEmpresarialId = default, string ClienteEmpresarialNombre = "",
+    string? PlataformaCaeNombre = null, string? PlataformaCaeUrlPortal = null);
 
 public class ObtenerGestionesQueryHandler(
     IGestionesQueryContext gestionesContext, ITrabajadoresQueryContext trabajadoresContext,
     ICentrosQueryContext centrosContext, ITiposDocumentoQueryContext tiposDocumentoContext,
-    IAlcanceDatosService alcanceDatos)
+    IEmpresasQueryContext empresasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerGestionesQuery, ResultadoPaginado<GestionListaDto>>
 {
     public async Task<ResultadoPaginado<GestionListaDto>> Handle(ObtenerGestionesQuery request, CancellationToken cancellationToken)
@@ -88,14 +102,27 @@ public class ObtenerGestionesQueryHandler(
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(x => x.gestion.Id);
 
+        // La Plataforma CAE es del Cliente empresarial del Centro (ver GestionListaDto): subconsultas escalares sobre
+        // la página, sin unir las dos tablas a la consulta de filtrado ni de recuento.
         var elementos = await ordenada
             .Skip((request.Pagina - 1) * request.TamanoPagina)
             .Take(request.TamanoPagina)
             .Select(x => new GestionListaDto(
                 x.gestion.Id, x.trabajador.Id, x.trabajador.Nombre + " " + x.trabajador.Apellidos,
                 x.centro.Id, x.centro.Nombre, x.tipoDocumento.Id, x.tipoDocumento.Nombre,
-                x.gestion.Estado, x.gestion.CreadoEnUtc))
+                x.gestion.Estado, x.gestion.CreadoEnUtc,
+                x.centro.ClienteId,
+                empresasContext.Empresas.Where(e => e.Id == x.centro.ClienteId).Select(e => e.RazonSocial).FirstOrDefault() ?? string.Empty,
+                empresasContext.PlataformasCaeClienteEmpresarial
+                    .Where(p => p.ClienteEmpresarialId == x.centro.ClienteId).Select(p => p.Nombre).FirstOrDefault(),
+                empresasContext.PlataformasCaeClienteEmpresarial
+                    .Where(p => p.ClienteEmpresarialId == x.centro.ClienteId).Select(p => p.UrlPortal).FirstOrDefault()))
             .ToListAsync(cancellationToken);
+
+        // Como ObtenerPlataformaCaeClienteQuery: la plataforma con la que se acredita al Cliente empresarial es un
+        // artefacto interno de la gestión, no se le enseña a quien no opera desde ese lado.
+        if (!await alcanceDatos.OperaDesdeElLadoDeGestionAsync(cancellationToken))
+            elementos = elementos.Select(g => g with { PlataformaCaeNombre = null, PlataformaCaeUrlPortal = null }).ToList();
 
         return new ResultadoPaginado<GestionListaDto>(elementos, total, request.Pagina, request.TamanoPagina)
         {
