@@ -52,6 +52,71 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
     public string DirectorioAlmacen { get; }
     public IServiceScopeFactory FabricaDeAmbitos => _servicios.GetRequiredService<IServiceScopeFactory>();
 
+    /// <summary>La cadena del propietario de la base del arnés, para preparar datos o leer recuentos sin RLS.</summary>
+    internal string CadenaPropietario => _base.CadenaPropietario;
+
+    /// <summary>
+    /// Cuenta las sentencias que EF emite dentro de <see cref="ContadorSql.ContarAsync{T}"/>. Va registrado en el
+    /// DbContext de todo arnés; fuera de una medición no cuenta nada.
+    /// </summary>
+    internal static ContadorSql Contador { get; } = new();
+
+    internal sealed class ContadorSql : Microsoft.EntityFrameworkCore.Diagnostics.DbCommandInterceptor
+    {
+        private readonly AsyncLocal<System.Runtime.CompilerServices.StrongBox<int>?> _actual = new();
+
+        public async Task<(T Resultado, int Sentencias)> ContarAsync<T>(Func<Task<T>> lectura)
+        {
+            var caja = new System.Runtime.CompilerServices.StrongBox<int>();
+            _actual.Value = caja;
+            try
+            {
+                var resultado = await lectura();
+                return (resultado, caja.Value);
+            }
+            finally
+            {
+                _actual.Value = null;
+            }
+        }
+
+        private void Sumar()
+        {
+            if (_actual.Value is { } caja)
+                Interlocked.Increment(ref caja.Value);
+        }
+
+        public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> ReaderExecuting(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result)
+        { Sumar(); return result; }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader>> ReaderExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<System.Data.Common.DbDataReader> result, CancellationToken cancellationToken = default)
+        { Sumar(); return ValueTask.FromResult(result); }
+
+        public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<object> ScalarExecuting(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<object> result)
+        { Sumar(); return result; }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<object>> ScalarExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<object> result, CancellationToken cancellationToken = default)
+        { Sumar(); return ValueTask.FromResult(result); }
+
+        public override Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> NonQueryExecuting(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result)
+        { Sumar(); return result; }
+
+        public override ValueTask<Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int>> NonQueryExecutingAsync(
+            System.Data.Common.DbCommand command, Microsoft.EntityFrameworkCore.Diagnostics.CommandEventData eventData,
+            Microsoft.EntityFrameworkCore.Diagnostics.InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        { Sumar(); return ValueTask.FromResult(result); }
+    }
+
     public static async Task<ArnesPilotoOutbound> CrearAsync()
     {
         // La misma fuente que registra CaeManager.Web al arrancar: PDFsharp la resuelve de forma global.
@@ -75,6 +140,7 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
 
         builder.Services.AddApplication();
         builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);
+        builder.Services.ConfigureDbContext<CaeManagerDbContext>(opciones => opciones.AddInterceptors(Contador));
 
         // Lo que aporta la capa Web, con sus clases reales.
         builder.Services.AddHttpContextAccessor();
