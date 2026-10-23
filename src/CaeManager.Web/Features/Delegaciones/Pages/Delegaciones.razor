@@ -120,7 +120,7 @@
                     </button><div class="delegaciones-fecha">@TextosLista["Alta"] @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</div></td>
                     <td>@TextosLista[TipoDeLista(delegacion)]</td>
                     <td>@(delegacion.EsSoporte ? PermisoSoporteLista(delegacion) : TextoPersonasLista(delegacion.Operadores.Count))</td>
-                    <td><Badge Tono="@TonoEstadoLista(delegacion)">@TextoEstadoLista(delegacion)</Badge></td>
+                    <td><span class="estado-fila"><Badge Tono="@TonoEstadoLista(delegacion)">@TextoEstadoLista(delegacion)</Badge></span></td>
                 </tr>
                 @if (_detallesLista.Contains(delegacion.Id))
                 {
