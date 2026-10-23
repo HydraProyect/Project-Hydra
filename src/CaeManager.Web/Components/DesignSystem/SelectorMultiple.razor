@@ -124,7 +124,7 @@
     private bool SoloRelacionadosEfectivo => SoloRelacionados ?? _soloRelacionados;
 
     private bool EsRelacionado(Guid id) =>
-        Seleccionados.Contains(id) || (Relacionados is not null && Relacionados.Contains(id));
+        Seleccionados.Contains(id) || EstaBloqueado(id) || (Relacionados is not null && Relacionados.Contains(id));
 
     /// <summary>Lleva el foco al campo (p. ej. tras un error de validación al guardar).</summary>
     public async Task EnfocarAsync() => await _raiz.FocusAsync();

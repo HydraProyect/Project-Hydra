@@ -142,10 +142,12 @@ public partial class DrawerAsignacionMasiva : ComponentBase
         {
             _centroIdsSeleccionados.Remove(centroId);
             _celdasExcluidas.RemoveWhere(c => c.CentroId == centroId);
-            // Al volver al Centro anfitrión solo, los ya asignados vuelven a estar bloqueados: no pueden seguir marcados.
-            var bloqueados = _trabajadoresBloqueados;
-            _trabajadorIdsSeleccionados.RemoveWhere(bloqueados.Contains);
         }
+
+        // Tras cualquier cambio de Centros los ya asignados pueden volver a estar bloqueados (el Centro anfitrión de nuevo solo): un
+        // bloqueado se ve marcado y deshabilitado, así que no puede seguir en la selección, donde nadie podría quitarlo.
+        var bloqueados = _trabajadoresBloqueados;
+        _trabajadorIdsSeleccionados.RemoveWhere(bloqueados.Contains);
 
         await ActualizarPreflightAsync();
     }

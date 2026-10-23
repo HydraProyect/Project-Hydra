@@ -38,11 +38,10 @@ public partial class Trabajador360Gen2Tests
         Boton(cut, "Asignar a un centro");
     }
 
-    [Theory]
-    [InlineData(Roles.Consulta)]
-    public async Task Sin_permiso_de_escritura_el_estado_vacio_de_Centros_no_ofrece_la_accion(string rol)
+    [Fact]
+    public async Task Sin_permiso_de_escritura_el_estado_vacio_de_Centros_no_ofrece_la_accion()
     {
-        this.ConRolDeEscritura(rol);
+        this.ConRolDeEscritura(Roles.Consulta);
         var id = Guid.NewGuid();
         ConTrabajadorSinAsignaciones(id);
         var cut = Renderizar(id);
@@ -50,6 +49,7 @@ public partial class Trabajador360Gen2Tests
 
         cut.Markup.Should().Contain("Sin asignaciones activas");
         cut.FindAll("button").Select(b => b.TextContent.Trim()).Should().NotContain("Asignar a un centro");
+        cut.FindAll(".estado-vacio-accion").Should().BeEmpty("sin acción no queda ni el hueco de la acción");
     }
 
     [Fact]

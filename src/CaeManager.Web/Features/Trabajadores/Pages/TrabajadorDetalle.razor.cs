@@ -1230,22 +1230,36 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
         .Select(c => new OpcionBuscable(c.Id.ToString(), $"{c.Nombre} ({c.ClienteRazonSocial})"))
         .ToList();
 
+    private bool _abriendoAsignarCentro;
+
     private async Task AbrirAsignarCentroAsync()
     {
-        ++_faltantesVigente;
-        var carga = _cargaVigente;
-        var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(), _ciclo.Token);
-        if (!EsVigente(carga))
-            return;
+        // Un segundo clic mientras llega el selector no lanza otra apertura que pise a la primera.
+        if (_abriendoAsignarCentro || _asignarCentroVisible) return;
 
-        _centrosDisponiblesParaAsignar = centros;
-        _centroIdParaAsignar = string.Empty;
-        _fechaAltaParaAsignar = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
-        _documentosFaltantesParaAsignar = [];
-        _errorAsignarCentro = null;
-        _asignarCentroVisible = true;
-        // La fecha de alta de hoy viene puesta: no es un cambio de quien edita.
-        _instantaneaAsignarCentro.Fijar(_centroIdParaAsignar, _fechaAltaParaAsignar);
+        _abriendoAsignarCentro = true;
+        try
+        {
+            ++_faltantesVigente;
+            // Una recarga de la ficha durante la espera no la invalida; solo cambiar de Trabajador.
+            var trabajador = _trabajadorEnPantalla;
+            var centros = await Mediator.Send(new ObtenerCentrosParaSelectorQuery(), _ciclo.Token);
+            if (_desechado || _trabajadorEnPantalla != trabajador)
+                return;
+
+            _centrosDisponiblesParaAsignar = centros;
+            _centroIdParaAsignar = string.Empty;
+            _fechaAltaParaAsignar = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+            _documentosFaltantesParaAsignar = [];
+            _errorAsignarCentro = null;
+            _asignarCentroVisible = true;
+            // La fecha de alta de hoy viene puesta: no es un cambio de quien edita.
+            _instantaneaAsignarCentro.Fijar(_centroIdParaAsignar, _fechaAltaParaAsignar);
+        }
+        finally
+        {
+            _abriendoAsignarCentro = false;
+        }
     }
 
     private void CerrarAsignarCentro()

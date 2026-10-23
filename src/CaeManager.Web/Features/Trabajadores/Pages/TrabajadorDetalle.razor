@@ -268,13 +268,18 @@
                     @if (_centros.Count == 0)
                     {
                         @* Maqueta Trabajador 360: «Sin asignaciones activas» con «Asignar a un centro». Sin permiso de escritura no hay acción. *@
-                        <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]">
-                            <Accion>
-                                <SoloConEscritura>
-                                    <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAsignarCentroAsync">@Textos["AsignarCentroAccion"]</Boton>
-                                </SoloConEscritura>
-                            </Accion>
-                        </EstadoVacio>
+                        <AuthorizeView Roles="@CaeManager.Infrastructure.Identity.Roles.ConEscrituraCsv" Context="autorizacionAsignar">
+                            <Authorized>
+                                <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]">
+                                    <Accion>
+                                        <Boton Variante="VarianteBoton.Secundario" OnClick="AbrirAsignarCentroAsync">@Textos["AsignarCentroAccion"]</Boton>
+                                    </Accion>
+                                </EstadoVacio>
+                            </Authorized>
+                            <NotAuthorized>
+                                <EstadoVacio Titulo="@Textos["VacioAsignacionesTitulo"]" Descripcion="@Textos["VacioAsignacionesDescripcion"]" />
+                            </NotAuthorized>
+                        </AuthorizeView>
                     }
                     else
                     {
@@ -610,7 +615,7 @@
             VisibleChanged="v => _corregirDocumentoVisible = v" OnGuardada="CargarAsync" />
         @* Asignar este Trabajador a un Centro (la misma orden que «Asignar a centro» del listado, con él solo). El selector no
            ofrece los Centros donde ya está asignado. *@
-        <ModalFormulario Visible="_asignarCentroVisible" VisibleChanged="v => { if (v || !_asignandoCentro) CerrarAsignarCentro(); }"
+        <ModalFormulario Visible="_asignarCentroVisible" VisibleChanged="v => { if (!v && !_asignandoCentro) CerrarAsignarCentro(); }"
                          Titulo="@Textos["AsignarCentroAccion"]" Ancho="AnchoModal.Pequeno"
                          HayCambios="() => HayCambiosAsignarCentro" Guardando="_asignandoCentro" MensajeError="@_errorAsignarCentro"
                          MotivoGuardarDeshabilitado="@(string.IsNullOrEmpty(_centroIdParaAsignar) ? Textos["ErrorSeleccionaCentro"].Value : null)"
