@@ -219,6 +219,8 @@
     overflow-wrap: anywhere;
 }
 .documentos-propietario { max-width: 100%; min-width: 0; }
+/* Maqueta: el título del documento va en seminegrita y el propietario, en peso normal. */
+.documentos-propietario .documentos-propietario-nombre { font-weight: 400; }
 .documentos-vigencia { white-space: normal; }
 .documentos-tabla-desplazable ::deep .documentos-celda-expandir,
 .documentos-tabla-desplazable ::deep .documentos-celda-seleccion { width: 40px; }

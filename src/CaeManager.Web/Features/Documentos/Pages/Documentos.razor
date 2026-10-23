@@ -419,7 +419,7 @@
 
     private RenderFragment<DocumentoListaDto> CeldaPropietario => context => @<text>
                                     <span class="documentos-propietario">
-                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
+                                        <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida documentos-propietario-nombre" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
                                         @CeldaPlataformas(context)
                                     </span>
                                 

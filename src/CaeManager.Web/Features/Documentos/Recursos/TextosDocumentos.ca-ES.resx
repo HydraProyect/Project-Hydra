@@ -297,7 +297,7 @@
   <data name="ListaAcciones" xml:space="preserve"><value>Accions</value></data>
   <data name="ListaArchivo" xml:space="preserve"><value>Fitxer</value></data>
   <data name="ListaDocumento" xml:space="preserve"><value>Document</value></data>
-  <data name="ListaEstado" xml:space="preserve"><value>Estat</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estat documental</value></data>
   <data name="ListaPlataformas" xml:space="preserve"><value>Plataformes</value></data>
   <data name="ListaPortal" xml:space="preserve"><value>Portal</value></data>
   <data name="ListaPropietario" xml:space="preserve"><value>Propietari</value></data>
