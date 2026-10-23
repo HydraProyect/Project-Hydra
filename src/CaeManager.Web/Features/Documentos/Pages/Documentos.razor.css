@@ -229,3 +229,9 @@
 /* Maqueta: el título del documento va en seminegrita y el propietario, en peso normal. Más específico que la regla de arriba, que va antes y tiene la misma especificidad. */
 .documentos-tabla-visible ::deep .nombre-abre-vista-rapida.documentos-propietario-nombre { font-weight: 400; }
 .documentos-tabla-desplazable ::deep .documentos-acciones-fila { gap: 6px; }
+
+/* La hoja compartida del listado fuerza 860 px de mínimo a todo hijo directo de la tarjeta por debajo de 900 px y
+   desplaza la tarjeta entera. Aquí el desplazamiento es el del envoltorio de la tabla (de 768 px en adelante) y el de la
+   propia tabla por debajo, y la página no se mueve nunca (DocumentosTablaDesplazableE2ETests): el cuerpo del listado
+   no lleva ese mínimo. */
+.lista-design.lista-design .tarjeta-listado-contenido > .documentos-cuerpo { min-width: 0; }

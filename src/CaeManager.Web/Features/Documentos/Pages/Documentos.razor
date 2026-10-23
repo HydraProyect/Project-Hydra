@@ -198,7 +198,7 @@
                     <EstadoCargando Filas="6" />
                 }
                 @TarjetaListado.RenderizarMaqueta(@<text>
-                <div style="display:@(_cargando || (_totalElementos == 0 && !HayFiltrosActivos) ? "none" : "block")">
+                <div class="documentos-cuerpo" style="display:@(_cargando || (_totalElementos == 0 && !HayFiltrosActivos) ? "none" : "block")">
                         <div class="documentos-tabla-desplazable" tabindex="0" role="region" aria-label="@Textos["TablaDesplazableEtiqueta"]" @onkeydown="CerrarOrdenConTecla">
                         @if (_opcionesOrdenVisible is not null)
                         {
