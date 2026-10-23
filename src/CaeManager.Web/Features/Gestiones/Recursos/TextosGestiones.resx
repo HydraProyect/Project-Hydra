@@ -193,7 +193,7 @@
     <value>No se pudo deshacer la eliminación. Inténtalo de nuevo.</value>
   </data>
   <data name="EtiquetaPlataformaCae" xml:space="preserve"><value>Plataforma CAE</value></data>
-  <data name="SinPlataformaCae" xml:space="preserve"><value>Este Centro no tiene ninguna Plataforma CAE registrada</value></data>
+  <data name="SinPlataformaCae" xml:space="preserve"><value>Los canales de este Centro no incluyen ninguna Plataforma CAE</value></data>
   <data name="PlataformaCargando" xml:space="preserve"><value>Cargando la Plataforma CAE…</value></data>
   <data name="PlataformaErrorCarga" xml:space="preserve"><value>No se pudo cargar la Plataforma CAE</value></data>
   <data name="PlataformaPrincipal" xml:space="preserve"><value>Principal</value></data>

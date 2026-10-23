@@ -82,7 +82,7 @@ public partial class GestionesListaGen2Tests
         var (cut, _, _) = await VistaRapidaConCanales(CanalDeCorreo());
 
         cut.Find("aside.vista-rapida-gestion [data-plataforma-cae]").TextContent
-            .Should().Contain("Este Centro no tiene ninguna Plataforma CAE registrada");
+            .Should().Contain("Los canales de este Centro no incluyen ninguna Plataforma CAE");
         cut.FindAll("aside.vista-rapida-gestion [data-plataforma-cae] a").Should().BeEmpty();
         BotonesDeCopiar(cut).Should().BeEmpty();
     }
