@@ -1,4 +1,5 @@
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente;
 using CaeManager.Web.Components.DesignSystem;
@@ -11,6 +12,7 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
     [Parameter] public Guid ClienteId { get; set; }
     private CancellationTokenSource? _cicloCarga;
     private ClienteDetalleDto? _cliente;
+    private EstadoTratamientoIaActualDto _tratamientoIa = new(false);
     private IReadOnlyList<ConfiguracionIaTipoDocumentoDto> _configuracion = [];
     private bool _cargando = true;
     private bool _errorCarga;
@@ -31,6 +33,7 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
         _versionOperacion++;
         _actualizandoId = null;
         _cliente = null;
+        _tratamientoIa = new(false);
         _configuracion = [];
         return CargarAsync();
     }
@@ -63,10 +66,12 @@ public partial class ConfiguracionIaCliente : ComponentBase, IDisposable
         {
             var cliente = Mediator.Send(new ObtenerClientePorIdQuery(clienteId), token);
             var configuracion = Mediator.Send(new ObtenerConfiguracionIaPorClienteQuery(clienteId), token);
-            await Task.WhenAll(cliente, configuracion);
+            var tratamientoIa = Mediator.Send(new ObtenerEstadoTratamientoIaActualQuery(), token);
+            await Task.WhenAll(cliente, configuracion, tratamientoIa);
             if (!EsVigente(version, clienteId)) return;
             _cliente = await cliente;
             _configuracion = await configuracion;
+            _tratamientoIa = await tratamientoIa;
             _errorCarga = _cliente is null;
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

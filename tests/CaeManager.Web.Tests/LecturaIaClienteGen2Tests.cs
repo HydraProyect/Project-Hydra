@@ -1,6 +1,7 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientePorId;
+using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoTratamientoIaActual;
 using CaeManager.Application.TiposDocumento.Commands.ActualizarLecturaIaCliente;
 using CaeManager.Application.TiposDocumento.Queries.ObtenerConfiguracionIaPorCliente;
 using CaeManager.Domain.Common;
@@ -42,11 +43,13 @@ public class LecturaIaClienteGen2Tests : BunitContext
 
     private sealed class Escenario
     {
+        public bool InstruccionTratamientoIaVigente { get; set; } = true;
+
         public IReadOnlyList<ConfiguracionIaTipoDocumentoDto> Tipos { get; set; } =
         [
-            new(TipoA, "Certificado médico", true, null),
-            new(TipoB, "Formación PRL", true, false),
-            new(TipoC, "Seguro RC", false, null),
+            new(TipoA, "Certificado médico", true, null, false),
+            new(TipoB, "Formación PRL", true, false, true),
+            new(TipoC, "Seguro RC", false, null, false),
         ];
 
         public Func<object, CancellationToken, Task<object?>?> Interceptar { get; set; } = (_, _) => null;
@@ -56,6 +59,7 @@ public class LecturaIaClienteGen2Tests : BunitContext
             {
                 ObtenerClientePorIdQuery consulta => Detalle(consulta.Id),
                 ObtenerConfiguracionIaPorClienteQuery => Tipos,
+                ObtenerEstadoTratamientoIaActualQuery => new EstadoTratamientoIaActualDto(InstruccionTratamientoIaVigente),
                 ActualizarLecturaIaClienteCommand => Result.Exito(),
                 _ => throw new NotSupportedException($"Petición no prevista: {peticion.GetType().Name}"),
             });
@@ -88,15 +92,36 @@ public class LecturaIaClienteGen2Tests : BunitContext
     }
 
     [Fact]
-    public void Explica_los_tres_niveles_sin_inventar_la_vigencia_del_tratamiento()
+    public void Expone_el_estado_real_del_Nivel_cero_sin_inventar_una_fecha_de_vigencia()
     {
         var (cut, _, _) = Renderizar(new Escenario());
 
         var niveles = cut.FindAll(".lectura-ia-nivel");
         niveles.Should().HaveCount(3, "el control positivo confirma que se muestran los tres niveles");
-        niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 0 · Tratamiento con IA") && t.Contains("Estado no disponible"));
+        niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 0 · Tratamiento con IA") && t.Contains("Instrucción vigente"));
         niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 1 · Configuración general") && t.Contains("2 de 3 activos") && t.Contains("no se puede reactivar abajo"));
         niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 2 · Este Cliente empresarial") && t.Contains("Estás aquí"));
+    }
+
+    [Fact]
+    public void Muestra_cuando_no_hay_instruccion_vigente_en_el_Nivel_cero()
+    {
+        var (cut, _, _) = Renderizar(new Escenario { InstruccionTratamientoIaVigente = false });
+
+        var niveles = cut.FindAll(".lectura-ia-nivel");
+        niveles.Should().HaveCount(3, "el control positivo confirma que el Nivel 0 está presente");
+        niveles.Select(n => n.TextContent).Should().ContainSingle(t => t.Contains("Nivel 0 · Tratamiento con IA") && t.Contains("Sin instrucción vigente"));
+    }
+
+    [Fact]
+    public void Pinta_la_marca_de_deteccion_de_personal_solo_cuando_el_DTO_la_activa()
+    {
+        var (cut, _, _) = Renderizar(new Escenario());
+
+        Filas(cut).Should().HaveCount(3, "el control positivo confirma que la tabla contiene los tres tipos del doble");
+        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Formación PRL") && t.Contains("También detecta personal"));
+        Filas(cut).Select(f => f.TextContent).Should().ContainSingle(t => t.Contains("Certificado médico") && !t.Contains("También detecta personal"));
+        cut.Find(".lectura-ia-aviso-informacion").TextContent.Should().Contain("todos los Clientes empresariales vinculados");
     }
 
     [Fact]
@@ -238,9 +263,9 @@ public class LecturaIaClienteGen2Tests : BunitContext
 
         Consultas<ObtenerConfiguracionIaPorClienteQuery>(mediador).Should().Be(1, "el control positivo confirma que la primera carga quedó retenida");
         cut.Render(p => p.Add(x => x.ClienteId, ClienteB));
-        mediador.Enviados.Where(e => e.Peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery)
+        mediador.Enviados.Where(e => e.Peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery or ObtenerEstadoTratamientoIaActualQuery)
             .Should().Contain(e => e.Token.IsCancellationRequested, "el ciclo anterior se cancela al cambiar de Cliente empresarial");
-        await cut.InvokeAsync(() => configuracionA.SetResult((IReadOnlyList<ConfiguracionIaTipoDocumentoDto>)[new ConfiguracionIaTipoDocumentoDto(TipoA, "Obsoleto", true, null)]));
+        await cut.InvokeAsync(() => configuracionA.SetResult((IReadOnlyList<ConfiguracionIaTipoDocumentoDto>)[new ConfiguracionIaTipoDocumentoDto(TipoA, "Obsoleto", true, null, false)]));
 
         Consultas<ObtenerConfiguracionIaPorClienteQuery>(mediador).Should().Be(2);
         Filas(cut).Should().HaveCount(3, "la segunda entidad recibió los datos vigentes del doble");
@@ -249,20 +274,20 @@ public class LecturaIaClienteGen2Tests : BunitContext
     }
 
     [Fact]
-    public async Task Al_desechar_el_componente_se_cancelan_las_dos_consultas_de_carga()
+    public async Task Al_desechar_el_componente_se_cancelan_las_tres_consultas_de_carga()
     {
         var escenario = new Escenario();
         var cargaRetenida = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
-        escenario.Interceptar = (peticion, _) => peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery
+        escenario.Interceptar = (peticion, _) => peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery or ObtenerEstadoTratamientoIaActualQuery
             ? cargaRetenida.Task
             : null;
         var (cut, mediador, _) = Renderizar(escenario);
         var tokensCarga = mediador.Enviados
-            .Where(e => e.Peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery)
+            .Where(e => e.Peticion is ObtenerClientePorIdQuery or ObtenerConfiguracionIaPorClienteQuery or ObtenerEstadoTratamientoIaActualQuery)
             .Select(e => e.Token)
             .ToList();
 
-        tokensCarga.Should().HaveCount(2, "el control positivo confirma que el ciclo inició ambas consultas");
+        tokensCarga.Should().HaveCount(3, "el control positivo confirma que el ciclo inició las tres consultas");
         await DisposeComponentsAsync();
 
         tokensCarga.Should().OnlyContain(token => token.IsCancellationRequested, "Dispose cancela el ciclo de carga antes de liberar sus recursos");
