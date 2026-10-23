@@ -766,6 +766,8 @@ public static class TipoDocumentoSeedData
             Naturaleza = NaturalezaDe(d.Nombre),
             Sensibilidad = SensibilidadDe(d.Nombre),
             LecturaIaActiva = true,
+            // Ningún tipo semilla nace de «solo conclusión de aptitud» (Inbound M1, PR 4): marcarlo es decisión de cada Tenant.
+            SoloConclusionAptitud = false,
             DeteccionTrabajadoresActiva = IdsConDeteccionTrabajadores.Contains(d.Id),
             // Empieza desactivada para todo el catálogo semilla — mismo
             // criterio que DeteccionTrabajadoresActiva: el Administrador la

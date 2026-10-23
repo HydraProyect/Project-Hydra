@@ -47,4 +47,13 @@
   <data name="BuscarBuzon" xml:space="preserve"><value>Cercar a la bústia</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Cercar assumpte, remitent o Treballador</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversa</value></data>
+  <data name="SiguienteConversacion" xml:space="preserve"><value>Conversa següent</value></data>
+  <data name="ResumenCerrada" xml:space="preserve"><value>Tancada</value></data>
+  <data name="ResumenResuelta" xml:space="preserve"><value>Resolta</value></data>
+  <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Per tancar-la falta</value></data>
+  <data name="SinAccionesCierre" xml:space="preserve"><value>No queden accions de tancament.</value></data>
+  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar el remitent i assignar el Client abans de tramitar la conversa.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Rebre la resposta del Client i revisar el que s'ha rebut.</value></data>
+  <data name="EsperarTerceroCierre" xml:space="preserve"><value>Rebre la resposta del tercer i revisar el que s'ha rebut.</value></data>
+  <data name="RevisarCierre" xml:space="preserve"><value>Revisar el fil i confirmar que la gestió està resolta.</value></data>
 </root>
