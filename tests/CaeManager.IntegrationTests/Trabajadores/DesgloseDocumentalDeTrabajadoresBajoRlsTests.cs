@@ -528,8 +528,10 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         new(nombre, null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
 
     /// <summary>
-    /// Cuenta las consultas del desglose: las únicas de estos handlers que unen <c>Documentos</c> con
-    /// <c>TiposDocumento</c>.
+    /// Cuenta las consultas del desglose por su etiqueta SQL (<see cref="CalculoEstadoDocumentalService.EtiquetaDesglose"/>).
+    /// Ya no basta con buscar <c>Documentos</c> y <c>TiposDocumento</c> en el texto: la evaluación de requisitos
+    /// obligatorios de Centro, que decide el estado de la fila, también los lee, y no es el desglose. Por eso se exige
+    /// además que la consulta toque esas dos tablas.
     /// </summary>
     private sealed class ContadorDeConsultasDeDesglose : DbCommandInterceptor
     {
@@ -542,7 +544,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
+            if (command.CommandText.Contains("-- " + CalculoEstadoDocumentalService.EtiquetaDesglose, StringComparison.Ordinal)
+                && command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
                 && command.CommandText.Contains("\"TiposDocumento\"", StringComparison.Ordinal))
                 Interlocked.Increment(ref _consultas);
 
