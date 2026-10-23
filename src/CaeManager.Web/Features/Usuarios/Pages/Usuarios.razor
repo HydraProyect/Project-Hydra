@@ -16,19 +16,20 @@
 
 @{ var vistaLista = CrearVistaLista(); }
 <div class="@(ClaseContenedorPagina + " lista-design")">
-    @* Gen 2: la cabecera es la primitiva, no un div a mano. Integrada resuelve
-       h1/h2 igual que TituloPaginaIntegrable, y las acciones entran por
-       .acciones-cabecera, que es lo que el mockup nombra. *@
-    <CabeceraPagina Titulo="@TextosUsuarios["ListaTitulo"]" Integrada="IntegradaEnConfiguracion">
-        <Acciones>
+    @* Cabecera de listado (maqueta «Usuarios»): título con su contador, ⌨ y la acción primaria. Integrada resuelve
+       h1/h2 igual que TituloPaginaIntegrable. La selección múltiple, la exportación y el menú ⋯ de la maqueta no
+       se pintan: no hay acciones masivas, exportación ni «Roles y permisos» en el menú todavía. *@
+    <CabeceraListado Titulo="@TextosUsuarios["ListaTitulo"]" Integrada="IntegradaEnConfiguracion"
+                     Contador="@(_cargando || _errorCarga ? null : (int?)vistaLista.Filtrados.Count)">
+        <Primaria>
             @if (!_modoEquipo)
             {
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@TextosUsuarios["ListaNuevo"]</Boton></SoloConEscritura>
             }
-        </Acciones>
-    </CabeceraPagina>
+        </Primaria>
+    </CabeceraListado>
 
-    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : vistaLista.Filtrados.Count)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
                   HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
                   FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
                   OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar" VistaRecordada="_vistaRecordada">
