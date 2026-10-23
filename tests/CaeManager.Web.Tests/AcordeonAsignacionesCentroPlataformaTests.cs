@@ -49,6 +49,6 @@ public partial class AcordeonAsignacionesCentroVigenciaSinConfirmarTests
         var celdas = cut.FindAll(".fila-plataforma-centro [role=cell]");
         celdas[1].TextContent.Should().Contain("Sin datos de plataforma");
         celdas[3].TextContent.Trim().Should().Be("—");
-        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("1 de 1");
+        cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("1/1");
     }
 }
