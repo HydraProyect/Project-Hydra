@@ -1,0 +1,20 @@
+.lectura-ia-cliente { display: flex; flex-direction: column; gap: var(--space-5); }
+.lectura-ia-rastro { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; color: var(--color-text-muted); font: var(--font-caption); }
+.lectura-ia-niveles, .lectura-ia-tabla-contenedor, .lectura-ia-aviso { border: 1px solid var(--color-border); border-radius: var(--radius-lg); background: var(--color-surface); }
+.lectura-ia-niveles { padding: var(--space-4) var(--space-5); }
+.lectura-ia-niveles-titulo { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-3); }
+.lectura-ia-niveles-titulo h2 { margin: 0; color: var(--color-system-text); font: var(--font-label); }
+.indicador-sistema { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--color-system-indicator); }
+.lectura-ia-niveles-lista { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: var(--space-3); }
+.lectura-ia-nivel { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text-muted); font: var(--font-caption); }
+.lectura-ia-nivel strong { color: var(--color-text); }
+.lectura-ia-nivel-cabecera { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.lectura-ia-nivel-actual { border-color: var(--color-primary-500); }
+.lectura-ia-tabla-contenedor { overflow-x: auto; }
+.lectura-ia-tabla { min-width: 70rem; }
+.lectura-ia-guardando { width: 12px; height: 12px; border: 2px solid var(--color-primary-500); border-top-color: transparent; border-radius: var(--radius-full); animation: lectura-ia-girar var(--motion-fast) linear infinite; }
+.lectura-ia-aviso { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-4); border-color: var(--color-warning-500); background: var(--color-warning-50); }
+.lectura-ia-aviso-informacion { border-color: var(--color-border); background: var(--color-surface); }
+.lectura-ia-aviso-mejora { border-style: dashed; border-color: var(--color-border-strong); background: var(--color-surface); }
+@keyframes lectura-ia-girar { to { transform: rotate(360deg); } }
+@media (max-width: 48rem) { .lectura-ia-rastro > span { display: none; } }
