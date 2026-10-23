@@ -69,13 +69,13 @@
   <data name="VerRestantes" xml:space="preserve">
     <value>Veure els {0} restants</value>
   </data>
-  <data name="SinDelegaciones" xml:space="preserve">
+  <data name="SinAsignaciones" xml:space="preserve">
     <value>Sense delegacions</value>
   </data>
   <data name="SinResultados" xml:space="preserve">
     <value>Cap delegació amb aquests filtres</value>
   </data>
   <data name="SinResultadosDescripcion" xml:space="preserve"><value>Canvia o esborra els filtres per trobar delegacions.</value></data>
-  <data name="SinDelegacionesDescripcion" xml:space="preserve"><value>Aquesta organització no presta ni rep servei CAE delegat.</value></data>
+  <data name="SinAsignacionesDescripcion" xml:space="preserve"><value>Aquesta organització no presta ni rep servei CAE delegat.</value></data>
   <data name="Persona" xml:space="preserve"><value>1 persona autoritzada</value></data>
 </root>

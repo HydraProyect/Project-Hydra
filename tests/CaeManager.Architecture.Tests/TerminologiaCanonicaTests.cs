@@ -457,11 +457,14 @@ public class TerminologiaCanonicaTests
         // DirectorioUsuariosTenant.OperadoresDelegadosVigentes, para que Soporte TALVEG conserve su rol guardado
         // igual que en /delegaciones. Es el enum de dominio que ya existe, sin nombre canónico; renombrarlo es un
         // incremento propio.
-        // 351 → 375 (2026-10-23, listado nuevo de la pantalla ya existente): recuento de la suite completa.
-        // Son referencias al DTO DelegacionDto, a la página y a sus recursos/constantes de preferencias,
-        // no tipos de dominio nuevos. La deuda sigue representando Asignación de Operación; se conservan
-        // los nombres de productores y consumidores existentes, cuyo renombrado exige otro incremento.
-        ["Delegacion"] = 375,
+        // 351 → 344 (2026-10-23, listado nuevo de la pantalla ya existente): −7. La pantalla estrena lista sin añadir
+        // identificadores con el término. El DTO DelegacionDto se nombra una sola vez en Delegaciones.razor.cs, en un
+        // alias de uso (AsignacionLista), y todo el código de la página y de la lista nueva lo usa por ese alias (antes
+        // lo nombraba en cada declaración). Los recursos y las claves de pantalla nuevos usan el nombre canónico
+        // (TextosAsignacionesOperacion, PantallasConVistaRecordada.AsignacionesDeOperacion), que son artefactos nuevos y
+        // no renombran nada. Queda solo el texto visible del título de la pantalla en el recurso, que es la rotulación
+        // actual y no se cambia aquí.
+        ["Delegacion"] = 344,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

@@ -24,7 +24,7 @@ public class GuardarFiltroCommandValidatorTests
     [InlineData(PantallasConFiltrosGuardados.Visitas)]
     [InlineData(PantallasConFiltrosGuardados.Gestiones)]
     [InlineData(PantallasConFiltrosGuardados.Incidencias)]
-    [InlineData(PantallasConFiltrosGuardados.Delegaciones)]
+    [InlineData(PantallasConFiltrosGuardados.AsignacionesDeOperacion)]
     public void Admite_los_listados_con_filtros_guardados(string pantalla)
     {
         var resultado = Validador.Validate(new GuardarFiltroCommand(pantalla, "Vencidos", "{\"estado\":\"Vencido\"}"));

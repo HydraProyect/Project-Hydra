@@ -6,7 +6,7 @@
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
+    <PageTitle>@TextosLista["Titulo"] — @Marca.Nombre</PageTitle>
 }
 
 <div class="@ClaseContenedorPagina delegaciones-pantalla lista-design">
@@ -64,9 +64,9 @@
                             Keytip="A" Opciones="AgrupacionesLista" ValorChanged="CambiarAgrupacionListaAsync" />
         </Herramientas>
     </BarraFiltros>
-    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.Delegaciones"
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.AsignacionesDeOperacion"
                               ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
-    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Delegaciones"
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.AsignacionesDeOperacion"
                             ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
     @if (_error)
     {
@@ -92,8 +92,8 @@
             }
             else
             {
-                <EstadoVacio Titulo="@TextosLista["SinDelegaciones"]"
-                             Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : TextosLista["SinDelegacionesDescripcion"])" />
+                <EstadoVacio Titulo="@TextosLista["SinAsignaciones"]"
+                             Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : TextosLista["SinAsignacionesDescripcion"])" />
             }
         }
         else
