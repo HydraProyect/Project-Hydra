@@ -124,7 +124,16 @@ public static class AuditoriaEndpoints
                 // Documento aunque el archivo servido sea una versión
                 // anterior.
                 var flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
-                await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
+                // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
+                try
+                {
+                    await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
+                }
+                catch
+                {
+                    await flujo.DisposeAsync();
+                    throw;
+                }
                 return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
             }
             catch (FileNotFoundException)

@@ -174,6 +174,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
 
+        // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
+        // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
+        // conexión lleva cae_app_soporte (solo SELECT sobre RegistrosAccesoDocumentoSensible),
+        // así que la única puerta es la función SECURITY DEFINER
+        // app_registrar_acceso_documento_sensible_por_soporte (migración
+        // RegistraAccesoDocumentoSensiblePorSoporte), ejecutable solo por ese rol, que vuelve
+        // a comprobar la sesión y la concesión contra el contexto RLS firmado y pone ella
+        // Tenant, actor y vía. No lee filas: devuelve un código. Los cinco valores van
+        // parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RegistroAccesoDocumentoSensibleRepository.cs",
+            ".SqlQuery<string>(")] = 1,
+
         // Anonimizar a un Trabajador enmascara sus datos personales en el historial de
         // auditoría (decisión de Chris, 2026-10-15). RegistrosAuditoria es de solo
         // inserción para cae_app_runtime; la única reescritura es la función SECURITY

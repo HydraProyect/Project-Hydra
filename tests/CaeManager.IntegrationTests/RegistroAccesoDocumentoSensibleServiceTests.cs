@@ -345,14 +345,19 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// La conexión real de una sesión privilegiada de plataforma (ADR-011 §
+    /// La conexión real de una Sesión Privilegiada de plataforma (ADR-011 §
     /// 4bis) adopta <c>cae_app_soporte</c> con <c>SET ROLE</c>, sin
-    /// privilegio de escritura sobre ninguna tabla — deliberado (ver
-    /// RolSoporteSoloLectura). El repositorio debe tolerar ese fallo, no
-    /// romper la descarga que lo desencadenó (Codex, HO-099-01).
+    /// <c>INSERT</c> sobre ninguna tabla — deliberado (ver
+    /// RolSoporteSoloLectura). Su registro va por la función
+    /// <c>app_registrar_acceso_documento_sensible_por_soporte</c>; si no queda
+    /// escrito —aquí, porque la conexión no lleva contexto RLS firmado—, el
+    /// repositorio devuelve false y el servicio falla en cerrado (DEC-36,
+    /// REC-208; revisión extensa 2026-10-23, Z2-2). El camino positivo y cada
+    /// precondición de la función están en
+    /// <c>RegistroAccesoDocumentoSensiblePorSoporteBajoRuntimeTests</c>.
     /// </summary>
     [Fact]
-    public async Task El_repositorio_no_revienta_cuando_la_sesion_no_tiene_privilegio_de_escritura()
+    public async Task Sin_registro_en_la_conexion_de_soporte_el_servicio_falla_en_cerrado()
     {
         await using var conexionSoporte = new NpgsqlConnection(_cadenaConexion);
         await conexionSoporte.OpenAsync();
@@ -369,6 +374,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         await using var dbContextSoporte = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), _tenantActual);
         var repositorio = new RegistroAccesoDocumentoSensibleRepository(dbContextSoporte, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance);
 
+        // Vía SesionPrivilegiada: va por la función, que sin contexto firmado no escribe.
         var registro = new RegistroAccesoDocumentoSensible(
             Guid.NewGuid(), SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
             Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.SesionPrivilegiada, Guid.NewGuid(), TipoActorAuditoria.Persona);
@@ -377,15 +383,35 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         (await guardar.Should().NotThrowAsync()).Which.Should().BeFalse();
 
-        // Y que el rechazo sea POR PRIVILEGIO, no por RLS. Importa porque
-        // 42501 es el mismo SQLSTATE para «permission denied for table» y para
-        // «new row violates row-level security policy», y el repositorio
-        // captura por código sin distinguirlos: este contexto no registra
-        // TenantSelladoInterceptor ni TenantRlsConnectionInterceptor, así que
-        // la fila va con TenantId vacío y app.tenant_id sin fijar, y el WITH
-        // CHECK de aislamiento_tenant la rechazaría igual. Sin esta
-        // comprobación, conceder INSERT a cae_app_soporte —la regresión que
-        // este test vigila— dejaría el verde intacto.
+        // Otra vía en una conexión de soporte: el INSERT por EF choca con la ACL y tampoco escribe.
+        var registroSinVia = new RegistroAccesoDocumentoSensible(
+            Guid.NewGuid(), SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
+            Guid.NewGuid(), Guid.NewGuid(), TipoViaAccesoAuditoria.Normal, null, TipoActorAuditoria.Persona);
+
+        (await repositorio.GuardarAsync(registroSinVia)).Should().BeFalse();
+
+        // Y el servicio falla en cerrado: el punto de servicio no llega a entregar el contenido.
+        var documentoId = Guid.NewGuid();
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            dbContextSoporte, dbContextSoporte,
+            new ActorAuditoriaFalso(new ActorAuditoria(Guid.NewGuid(), null, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid())),
+            repositorio);
+
+        var registrar = () => servicio.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura);
+
+        (await registrar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
+            .Which.RecursoId.Should().Be(documentoId);
+
+        // Y que la conexión de soporte siga sin INSERT: la función es la única
+        // puerta. Importa porque 42501 es el mismo SQLSTATE para «permission
+        // denied for table» y para «new row violates row-level security
+        // policy», y el repositorio captura por código sin distinguirlos: este
+        // contexto no registra TenantSelladoInterceptor ni
+        // TenantRlsConnectionInterceptor, así que la fila va con TenantId vacío
+        // y app.tenant_id sin fijar, y el WITH CHECK de aislamiento_tenant la
+        // rechazaría igual. Sin esta comprobación, conceder INSERT a
+        // cae_app_soporte —la regresión que este test vigila— dejaría el verde
+        // intacto.
         //
         // Se pregunta al catálogo y no al texto del error a propósito: los
         // mensajes de PostgreSQL dependen de lc_messages y una aserción sobre
@@ -408,6 +434,22 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
         lector.GetBoolean(1).Should().BeTrue(
             "control positivo: la inspección de soporte SÍ lee (RolSoporteSoloLectura). Sin esto, un rol sin " +
             "ningún privilegio —o inexistente— daría exactamente el mismo verde que uno de solo lectura");
+
+        await lector.CloseAsync();
+        (await EscalarComoPropietarioAsync<long>(
+            """SELECT COUNT(*) FROM "RegistrosAccesoDocumentoSensible" WHERE "DocumentoId" = ANY(@ids);""",
+            [registro.DocumentoId, registroSinVia.DocumentoId, documentoId]))
+            .Should().Be(0, "ninguno de los tres intentos dejó fila");
+    }
+
+    private async Task<T> EscalarComoPropietarioAsync<T>(string sql, Guid[] ids)
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = sql;
+        comando.Parameters.AddWithValue("ids", ids);
+        return (T)(await comando.ExecuteScalarAsync())!;
     }
 
     /// <summary>
