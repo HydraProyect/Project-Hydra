@@ -47,4 +47,13 @@
   <data name="BuscarBuzon" xml:space="preserve"><value>Buscar en el buzón</value></data>
   <data name="BuscarPlaceholder" xml:space="preserve"><value>Buscar asunto, remitente o Trabajador</value></data>
   <data name="RecuentoConversacion" xml:space="preserve"><value>{0} conversación</value></data>
+  <data name="SiguienteConversacion" xml:space="preserve"><value>Siguiente conversación</value></data>
+  <data name="ResumenCerrada" xml:space="preserve"><value>Cerrada</value></data>
+  <data name="ResumenResuelta" xml:space="preserve"><value>Resuelta</value></data>
+  <data name="ParaCerrarlaFalta" xml:space="preserve"><value>Para cerrarla falta</value></data>
+  <data name="SinAccionesCierre" xml:space="preserve"><value>No quedan acciones de cierre.</value></data>
+  <data name="IdentificarClienteCierre" xml:space="preserve"><value>Identificar al remitente y asignar el Cliente antes de tramitar la conversación.</value></data>
+  <data name="EsperarClienteCierre" xml:space="preserve"><value>Recibir la respuesta del Cliente y revisar lo recibido.</value></data>
+  <data name="EsperarTerceroCierre" xml:space="preserve"><value>Recibir la respuesta del tercero y revisar lo recibido.</value></data>
+  <data name="RevisarCierre" xml:space="preserve"><value>Revisar el hilo y confirmar que la gestión está resuelta.</value></data>
 </root>

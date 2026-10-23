@@ -87,6 +87,7 @@ public class CaeManagerDbContext(
         IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
         CaeManager.Application.Plataforma.IPlataformaQueryContext,
         CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext,
+        CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext,
         CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
@@ -260,6 +261,9 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
     public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
     public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
+    // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
+    public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
+    IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
     IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
     public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();

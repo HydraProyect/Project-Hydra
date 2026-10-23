@@ -27,6 +27,12 @@
             }
         </div>
     }
+
+    @if (Canal == CanalConversacion.WhatsApp)
+    {
+        <div class="composer-macros-whatsapp">@BloqueMacros</div>
+    }
+
     @if (Canal == CanalConversacion.WhatsApp && !VentanaAbierta)
     {
         <div class="composer-banner composer-banner-cerrado">
@@ -70,32 +76,6 @@
            sigue siendo salto de línea: un correo es texto largo, no un chat. *@
         <div class="composer-correo" @onkeydown="ManejarAtajoCorreoAsync">
             <div class="composer-correo-prellenados">
-                @if (MostrarMacros)
-                {
-                    <div class="composer-macro-campo">
-                        <CampoSelect Etiqueta="Macro / plantilla" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
-                            <option value="">Sin macro</option>
-                            @foreach (var macro in Macros)
-                            {
-                                <option value="@macro.Id">@macro.Titulo</option>
-                            }
-                        </CampoSelect>
-                        @* Administrar (crear/editar) macros vive en Configuración (H-5) —
-                           este es el único punto de acceso contextual desde el redactor;
-                           la barra diaria de Comunicaciones ya no lleva un enlace propio.
-                           OJO: el destino es la ruta literal /comunicaciones/macros
-                           (Macros.razor, [Authorize(Roles=RolesComunicaciones.Gestion)]),
-                           NO /configuracion/macros — esa segunda URL pasa por el hub de
-                           Configuración, gateado solo a Administrador, y dejaría fuera a
-                           DireccionCae/CoordinadorCae/GestorCae/Consulta, que sí pueden
-                           ver este composer (hallazgo de revisión adversaria de Codex). *@
-                        <a class="composer-macro-administrar" href="/comunicaciones/macros" target="_blank" rel="noopener">
-                            Administrar macros
-                        </a>
-                    </div>
-
-                }
-
                 @if (Centros.Count > 0)
                 {
                     <CampoSelect Etiqueta="Compartir formatos de centro" Valor="@CentroFormatosSeleccionado" ValorChanged="v => OnCompartirFormatos.InvokeAsync(v)">
@@ -129,6 +109,7 @@
             }
 
             <div class="composer-acciones">
+                @BloqueMacros
                 <label class="composer-boton-adjuntar" title="Adjuntar archivo">
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
@@ -142,6 +123,39 @@
 </div>
 
 @code {
+    // Maqueta (.ed-pie): «Macros ▾» es un botón del pie del editor y su lista se abre como ventana flotante hacia
+    // arriba (.pop-arriba), no un bloque desplegado sobre el textarea. Sigue siendo un <details>, así abre y cierra
+    // sin interop; en WhatsApp, que no tiene pie de correo, va en su propia fila sobre el aviso de ventana.
+    private RenderFragment BloqueMacros => @<text>
+    <details class="composer-macro-campo">
+        <summary>@TextosAccesibles["Macros"]</summary>
+        <div class="composer-macro-panel">
+        <p>@TextosAccesibles["AyudaMacros"]</p>
+        <CampoTexto Etiqueta="@TextosAccesibles["BuscarMacro"]" Placeholder="@TextosAccesibles["BuscarMacroAyuda"]" Valor="@_busquedaMacro" ValorChanged="v => _busquedaMacro = v" />
+        <CampoSelect Etiqueta="@TextosAccesibles["MacroPlantilla"]" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
+            <option value="">@TextosAccesibles["SinMacro"]</option>
+            @foreach (var macro in MacrosFiltradas)
+            {
+                <option value="@macro.Id">@macro.Titulo</option>
+            }
+        </CampoSelect>
+        @if (!MacrosFiltradas.Any())
+        {
+            <p role="status">@TextosAccesibles["SinMacros"]</p>
+        }
+        @* Las macros vuelven al redactor por decisión de producto del 2026-10-23.
+           OJO: el destino es la ruta literal /comunicaciones/macros
+           (Macros.razor, [Authorize(Roles=RolesComunicaciones.Gestion)]),
+           NO /configuracion/macros — esa segunda URL pasa por el hub de
+           Configuración, gateado solo a Administrador, y dejaría fuera a
+           DireccionCae/CoordinadorCae/GestorCae/Consulta, que sí pueden
+           ver este composer (hallazgo de revisión adversaria de Codex). *@
+        <a class="composer-macro-administrar" href="/comunicaciones/macros" target="_blank" rel="noopener">
+            @TextosAccesibles["GestionarMacros"]
+        </a>
+        </div>
+    </details>
+</text>;
     [Parameter, EditorRequired] public CanalConversacion Canal { get; set; }
     [Parameter] public bool VentanaAbierta { get; set; } = true;
     [Parameter] public string CierreVentanaLocal { get; set; } = string.Empty;
@@ -153,12 +167,46 @@
 
     private IReadOnlyList<string> VariablesPendientes => VariablesPlantillaRespuesta.Pendientes(Texto);
 
-    [Parameter] public bool MostrarMacros { get; set; } = true;
-
     // --- Modo Correo ---
     [Parameter] public IReadOnlyList<MacroListaDto> Macros { get; set; } = [];
     [Parameter] public string MacroSeleccionadaId { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> OnAplicarMacro { get; set; }
+    private string _busquedaMacro = string.Empty;
+
+    // Texto buscable de cada macro (título + cuerpo SIN etiquetas, sin tildes ni mayúsculas), calculado
+    // una vez por lista recibida: el HTML bruto haría casar «strong» o «href» con casi todo.
+    private IReadOnlyList<MacroListaDto>? _macrosIndexadas;
+    private List<(MacroListaDto Macro, string Texto)> _indiceMacros = [];
+
+    protected override void OnParametersSet()
+    {
+        if (ReferenceEquals(_macrosIndexadas, Macros)) return;
+        _macrosIndexadas = Macros;
+        _indiceMacros = Macros
+            .Select(m => (m, NormalizarParaBuscar($"{m.Titulo} {AvisoSinBuzonCorreo.HtmlATexto(m.CuerpoHtml)}")))
+            .ToList();
+    }
+
+    /// <summary>Todas las palabras de la búsqueda deben aparecer (en cualquier orden), ignorando tildes y mayúsculas.</summary>
+    private IEnumerable<MacroListaDto> MacrosFiltradas
+    {
+        get
+        {
+            var palabras = NormalizarParaBuscar(_busquedaMacro).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            return _indiceMacros.Where(i => palabras.All(p => i.Texto.Contains(p, StringComparison.Ordinal))).Select(i => i.Macro);
+        }
+    }
+
+    internal static string NormalizarParaBuscar(string? texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return string.Empty;
+        var descompuesto = texto.Normalize(System.Text.NormalizationForm.FormD);
+        var sinTildes = new System.Text.StringBuilder(descompuesto.Length);
+        foreach (var c in descompuesto)
+            if (System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != System.Globalization.UnicodeCategory.NonSpacingMark)
+                sinTildes.Append(c);
+        return sinTildes.ToString().Normalize(System.Text.NormalizationForm.FormC).ToLowerInvariant();
+    }
     [Parameter] public IReadOnlyList<CentroSelectorDto> Centros { get; set; } = [];
     [Parameter] public string CentroFormatosSeleccionado { get; set; } = string.Empty;
     [Parameter] public EventCallback<string> OnCompartirFormatos { get; set; }

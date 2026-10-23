@@ -18,4 +18,12 @@
   <data name="BotonEnviarMensaje" xml:space="preserve">
     <value>Enviar mensaje</value>
   </data>
+  <data name="Macros" xml:space="preserve"><value>Macros</value></data>
+  <data name="AyudaMacros" xml:space="preserve"><value>Plantillas · se rellenan con esta conversación</value></data>
+  <data name="BuscarMacro" xml:space="preserve"><value>Buscar macro</value></data>
+  <data name="BuscarMacroAyuda" xml:space="preserve"><value>Buscar por nombre, texto o dato que rellena</value></data>
+  <data name="MacroPlantilla" xml:space="preserve"><value>Macro / plantilla</value></data>
+  <data name="SinMacro" xml:space="preserve"><value>Sin macro</value></data>
+  <data name="SinMacros" xml:space="preserve"><value>Ninguna macro coincide. Prueba con otra palabra.</value></data>
+  <data name="GestionarMacros" xml:space="preserve"><value>Gestionar macros</value></data>
 </root>

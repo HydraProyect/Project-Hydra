@@ -645,6 +645,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // solo por su Id, igual que AsignarTecnicoProyecto.
         ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
         ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
+        // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
+        // (Domain.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
+        // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
+        // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEmpresasQueryContext"),
+        ("ContratosAcceso.RechazarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),

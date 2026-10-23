@@ -15,8 +15,8 @@ namespace CaeManager.Application.Clientes.Queries.ObtenerClientes;
 /// <param name="OrdenarPor">
 /// Nombre de una propiedad de <see cref="ClienteListaDto"/>. <c>EstadoDocumentalPeor</c> ordena por
 /// el peor estado documental (ascendente: el peor primero; empates por razón social), exacto para
-/// toda la cartera; solo combinado con <paramref name="EstadoDocumental"/> hereda el tope de 2000
-/// candidatos de ese filtro. Sin valor, por razón social.
+/// toda la cartera, también combinado con <paramref name="EstadoDocumental"/> (el filtro va en SQL, sin tope
+/// de candidatos). Sin valor, por razón social.
 /// </param>
 /// <param name="EstadosDocumentales">
 /// Varios estados a la vez (la franja de estado del listado deja marcar más de uno): pasa el Cliente empresarial
@@ -204,9 +204,9 @@ public class ObtenerClientesQueryHandler(
             consulta = consulta.Where(c => c.EjecutivoUsuarioId == ejecutivoId);
 
         // Estado documental filtra sobre el agregado por Cliente, que solo se
-        // puede calcular tras resolver las alertas (más abajo) — se aplica
-        // como segundo paso, no en SQL, igual que el resto de este método
-        // hace la paginación en SQL pero el enriquecido en memoria por lote.
+        // puede calcular tras resolver las alertas (más abajo): ese agregado
+        // se resuelve en memoria, pero el filtro que sale de él se aplica en
+        // SQL como conjuntos de Id (FiltrarPorEstado), y se cuenta y pagina allí.
         var totalSinEstado = await consulta.CountAsync(cancellationToken);
 
         var ordenada = (request.OrdenarPor, request.Descendente) switch
@@ -262,35 +262,19 @@ public class ObtenerClientesQueryHandler(
         }
         else
         {
-            // Filtro por Estado documental: sigue acotado a un límite razonable de candidatos
-            // (mismo principio que otros filtros calculados de este código base) en vez de traer
-            // toda la cartera; el total es el de los que coinciden entre esos candidatos. Con
-            // orden por estado, OrderBy de LINQ es estable y la razón social (rama por defecto
-            // del switch de arriba) queda como desempate.
-            const int limiteCandidatosConFiltroCalculado = 2000;
-            var candidatos = ConEstado(await Proyectar(ordenada.Take(limiteCandidatosConFiltroCalculado))
-                .ToListAsync(cancellationToken), estadoPorCliente);
-            if (ordenarPorEstado)
-                candidatos = OrdenarPorEstado(candidatos, request.Descendente);
-
-            // Un estado pregunta si HAY alguna alerta en él, no si el PEOR
-            // estado es exactamente ese — un Cliente con Vencidos Y
-            // Urgentes a la vez (Vencido pesa más, ver PrioridadEstado) no
-            // puede desaparecer de «Por vencer» solo porque además tenga
-            // algo peor. EstadoDocumento.Vigente como centinela de «sin
-            // incidencias»: nunca es un valor real de EstadosPresentes
-            // (ObtenerAlertasQuery no emite alertas Vigente), así que sirve
-            // para pedir «sin ninguna alerta abierta» sin un parámetro de
-            // tipo bool aparte. Con varios estados pasa quien cumpla
-            // cualquiera.
-            var pideSinAlertas = estadosPedidos.Contains(EstadoDocumento.Vigente);
-            var filtrados = candidatos
-                .Where(c => estadoPorCliente.TryGetValue(c.Id, out var estado)
-                    ? estado.EstadosPresentes.Overlaps(estadosPedidos)
-                    : pideSinAlertas)
-                .ToList();
-            total = filtrados.Count;
-            elementos = filtrados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
+            // Filtro por Estado documental, en SQL y sin tope de candidatos: el agregado por Cliente
+            // empresarial ya está resuelto en memoria (estadoPorCliente, solo quien tiene alertas), así
+            // que el filtro se traduce a dos conjuntos de Id que la base aplica sobre la consulta con
+            // el alcance, la búsqueda y los demás filtros. Se cuenta y se pagina en SQL como el camino
+            // normal; con orden por estado, el mismo reparto en dos tramos que sin filtro.
+            var filtrada = FiltrarPorEstado(consulta, estadoPorCliente, estadosPedidos);
+            total = await filtrada.CountAsync(cancellationToken);
+            elementos = ordenarPorEstado
+                ? await PaginaOrdenadaPorEstadoAsync(filtrada, estadoPorCliente, request, total, cancellationToken)
+                : ConEstado(await Proyectar(FiltrarPorEstado(ordenada, estadoPorCliente, estadosPedidos)
+                        .Skip((request.Pagina - 1) * request.TamanoPagina)
+                        .Take(request.TamanoPagina))
+                    .ToListAsync(cancellationToken), estadoPorCliente);
         }
 
         // Una sola consulta para la página entera, no una por fila.
@@ -382,6 +366,32 @@ public class ObtenerClientesQueryHandler(
             [nameof(EstadoDocumento.Vigente)] = totalSinEstado - visiblesConAlertas.Count
         };
         return recuentos;
+    }
+
+    /// <summary>
+    /// Los Clientes empresariales de <paramref name="consulta"/> que pasan el filtro por Estado documental, como
+    /// condición SQL. Un estado pregunta si HAY alguna alerta en él, no si el PEOR estado es exactamente ese — un
+    /// Cliente con Vencidos Y Urgentes a la vez (Vencido pesa más, ver <see cref="PrioridadEstado"/>) no puede
+    /// desaparecer de «Por vencer» solo porque además tenga algo peor. <see cref="EstadoDocumento.Vigente"/> es el
+    /// centinela de «sin incidencias»: nunca es un valor real de <c>EstadosPresentes</c> (<c>ObtenerAlertasQuery</c>
+    /// no emite alertas Vigente), así que pide «sin ninguna alerta abierta» sin un parámetro bool aparte. Con varios
+    /// estados pasa quien cumpla cualquiera. Mismo criterio que <see cref="ContarPorEstadoAsync"/>: la cifra de la
+    /// franja y el filtro no pueden contar cosas distintas.
+    /// </summary>
+    private static IQueryable<Empresa> FiltrarPorEstado(
+        IQueryable<Empresa> consulta,
+        Dictionary<Guid, (EstadoDocumento Peor, int Cantidad, HashSet<EstadoDocumento> EstadosPresentes)> estadoPorCliente,
+        HashSet<EstadoDocumento> estadosPedidos)
+    {
+        var idsQueCoinciden = estadoPorCliente
+            .Where(par => par.Value.EstadosPresentes.Overlaps(estadosPedidos))
+            .Select(par => par.Key)
+            .ToList();
+        if (!estadosPedidos.Contains(EstadoDocumento.Vigente))
+            return consulta.Where(c => idsQueCoinciden.Contains(c.Id));
+
+        var idsConAlertas = estadoPorCliente.Keys.ToList();
+        return consulta.Where(c => idsQueCoinciden.Contains(c.Id) || !idsConAlertas.Contains(c.Id));
     }
 
     /// <summary>

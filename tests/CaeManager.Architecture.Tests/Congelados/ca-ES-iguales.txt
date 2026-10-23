@@ -58,7 +58,6 @@ src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx ::
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: TeclaAltClic = 1
 src/CaeManager.Web/Features/AtajosGlobales/Recursos/TextosAtajosGlobales.resx :: TituloAyuda = 1
 src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: EmpresasConsultadasUna = 1
-src/CaeManager.Web/Features/Bandeja/Recursos/TextosMiTrabajo.resx :: PlataformaCae = 1
 src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: ErrorCargaDetalle = 1
 src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: ErrorCargaTitulo = 1
 src/CaeManager.Web/Features/Calendario/Recursos/TextosCalendario.resx :: LeyendaExplicacion = 1
