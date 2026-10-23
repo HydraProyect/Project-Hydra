@@ -802,4 +802,8 @@
     <value>Reclamar para acceso</value>
     <comment>Cabecera de Empresa 360: abre la reclamación por acceso de la Empresa.</comment>
   </data>
+  <data name="EstadoDocumentalFaltanteTitulo" xml:space="preserve">
+    <value>Un Centro donde opera le exige como obligatorio un documento de Empresa que falta o ya no vale</value>
+    <comment>Título del estado «Pendiente» de una Empresa en el listado: un requisito obligatorio de Empresa incumplido.</comment>
+  </data>
 </root>

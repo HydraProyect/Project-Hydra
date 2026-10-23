@@ -759,11 +759,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// próximo son configurables (<c>CalculadoraEstadoDocumento</c>), así que
     /// no se escribe ningún número.
     /// </summary>
-    private static string TituloEstadoDocumental(EstadoDocumento? estado) =>
+    private string TituloEstadoDocumental(EstadoDocumento? estado) =>
         estado switch
         {
             null => "Todavía no tiene ningún documento",
-            EstadoDocumento.Faltante => "Un Centro donde opera le exige como obligatorio un documento de Empresa que falta o ya no vale",
+            EstadoDocumento.Faltante => Textos["EstadoDocumentalFaltanteTitulo"],
             _ => $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}"
         };
 
