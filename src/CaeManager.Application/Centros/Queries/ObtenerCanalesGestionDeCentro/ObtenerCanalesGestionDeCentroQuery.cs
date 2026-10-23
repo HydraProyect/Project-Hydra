@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 
 /// <summary>
-/// Respalda la pestaña "Plataforma" del Context Workspace. Devuelve los N
+/// Respalda la pestaña "Plataforma" del Context Workspace y el bloque "Plataforma CAE" de la vista rápida de una Gestión. Devuelve los N
 /// canales del Centro (Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.6, Lote 0-E — antes era uno
 /// solo), con el principal primero.
 ///

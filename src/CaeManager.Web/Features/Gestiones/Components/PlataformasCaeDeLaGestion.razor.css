@@ -1,0 +1,50 @@
+/* Plataforma CAE donde se hace la Gestión: caja de la vista rápida (Gestiones.razor.css), con sus canales de gestión. */
+.plataforma-vista-rapida-gestion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-surface-subtle);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+}
+
+.plataforma-etiqueta-vista-rapida-gestion,
+.plataforma-centro-vista-rapida-gestion,
+.plataforma-proposito-vista-rapida-gestion {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+}
+
+.plataforma-canal-vista-rapida-gestion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-1);
+    min-width: 0;
+}
+
+.plataforma-nombre-vista-rapida-gestion {
+    display: inline-flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    font: var(--font-body-md);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.plataforma-estado-vista-rapida-gestion {
+    font: var(--font-body-md);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.plataforma-acceso-vista-rapida-gestion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+}
