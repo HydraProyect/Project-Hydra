@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.IO.Compression;
+using System.Net;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -57,7 +58,7 @@ public class PaqueteDocumentalVisitaService(
 
         var cuerpo =
             $"""
-            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{paquete.CentroNombre}</strong>
+            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{WebUtility.HtmlEncode(paquete.CentroNombre)}</strong>
             del {paquete.FechaInicio:dd/MM/yyyy} al {paquete.FechaFin:dd/MM/yyyy} ({paquete.Documentos.Count} documento(s)).</p>
             """;
 

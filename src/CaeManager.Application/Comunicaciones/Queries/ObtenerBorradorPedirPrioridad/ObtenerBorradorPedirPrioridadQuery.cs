@@ -13,6 +13,7 @@ using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using System.Text;
+using System.Net;
 
 namespace CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
 
@@ -118,7 +119,7 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
     {
         var sb = new StringBuilder();
         sb.Append("<p>Buenos días,</p>");
-        sb.Append($"<p>Os escribimos para pedir, con carácter prioritario, la validación de la siguiente documentación pendiente en <strong>{centroNombre}</strong>:</p>");
+        sb.Append($"<p>Os escribimos para pedir, con carácter prioritario, la validación de la siguiente documentación pendiente en <strong>{WebUtility.HtmlEncode(centroNombre)}</strong>:</p>");
 
         var porEmpleador = faltantes
             .GroupBy(f => empleadorPorTrabajador.GetValueOrDefault(f.TrabajadorId, "Sin empleador"))
@@ -126,7 +127,7 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
 
         foreach (var grupoEmpleador in porEmpleador)
         {
-            sb.Append($"<p><strong>{grupoEmpleador.Key}</strong></p><ul>");
+            sb.Append($"<p><strong>{WebUtility.HtmlEncode(grupoEmpleador.Key)}</strong></p><ul>");
 
             var porTrabajador = grupoEmpleador
                 .GroupBy(f => (f.TrabajadorId, f.TrabajadorNombre))
@@ -136,9 +137,9 @@ public class ObtenerBorradorPedirPrioridadQueryHandler(
             {
                 var tipos = grupoTrabajador
                     .OrderBy(f => ordenPorTipo.GetValueOrDefault(f.TipoDocumentoId, int.MaxValue))
-                    .Select(f => f.TipoDocumentoNombre);
+                    .Select(f => WebUtility.HtmlEncode(f.TipoDocumentoNombre));
 
-                sb.Append($"<li>{grupoTrabajador.Key.TrabajadorNombre}: {string.Join(", ", tipos)}</li>");
+                sb.Append($"<li>{WebUtility.HtmlEncode(grupoTrabajador.Key.TrabajadorNombre)}: {string.Join(", ", tipos)}</li>");
             }
 
             sb.Append("</ul>");
