@@ -72,22 +72,68 @@ public partial class ProyectosGen2Tests
     }
 
     [Fact]
-    public async Task Agrupar_pide_el_orden_en_servidor_y_conserva_las_filas_de_Evento()
+    public async Task Agrupar_pide_todas_las_filas_en_servidor_y_nace_plegado_conservando_las_filas_de_Evento()
     {
         _mediator.Proyectos = [ProyectoAbierto with { Tipo = TipoProyecto.Evento }];
         _mediator.ProyectosClienteB = [ProyectoDeB];
         var cut = Renderizar();
         var filtro = cut.FindComponents<PastillaFiltro>().Single(c => c.Instance.Etiqueta == "Agrupar");
         await cut.InvokeAsync(() => filtro.Instance.ValorChanged.InvokeAsync("empresa"));
-        cut.FindAll("tr.proyectos-grupo").Select(f => f.TextContent.Trim())
+        cut.FindAll("tr.proyectos-grupo .grupo-lista-nombre").Select(f => f.TextContent.Trim())
             .Should().BeEquivalentTo("Refrielectric S.L.", "Frigoríficos Arcos S.A.");
-        _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last().AgruparPorEmpresa.Should().BeTrue();
-        cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(2);
+        var consulta = _mediator.Enviados.OfType<ObtenerProyectosQuery>().Last();
+        consulta.AgruparPorEmpresa.Should().BeTrue();
+        consulta.TamanoPagina.Should().Be(AgrupacionDeLista.TamanoPaginaAgrupada, "los grupos se calculan sobre todas las filas filtradas");
+        cut.FindAll("tbody .nombre-proyecto").Should().BeEmpty("todo nace plegado");
+        cut.FindAll("tr.proyectos-grupo button.grupo-lista-cabecera").Should().OnlyContain(b => b.GetAttribute("aria-expanded") == "false");
+
+        await AlternarGrupoDeClienteAsync(cut, "Refrielectric S.L.");
+        cut.FindAll("tbody .nombre-proyecto").Should().ContainSingle();
         cut.Markup.Should().Contain("Evento");
+        await AlternarGrupoDeClienteAsync(cut, "Frigoríficos Arcos S.A.");
+        cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(2);
+        await AlternarGrupoDeClienteAsync(cut, "Refrielectric S.L.");
+        cut.FindAll("tbody .nombre-proyecto").Should().ContainSingle("plegar un grupo oculta sus filas");
+
         await cut.InvokeAsync(() => filtro.Instance.ValorChanged.InvokeAsync(string.Empty));
         cut.FindAll("tr.proyectos-grupo").Should().BeEmpty();
+        cut.FindAll("tbody .nombre-proyecto").Should().HaveCount(2);
     }
 
+    [Fact]
+    public async Task El_grupo_plegado_dice_cuantos_proyectos_estan_en_rojo_y_abierto_no()
+    {
+        _mediator.Proyectos = [ProyectoAbierto with { EstadoDocumental = EstadoDocumento.Vencido }, ProyectoAbierto2 with { EstadoDocumental = EstadoDocumento.Vigente }];
+        var cut = Renderizar();
+        var filtro = cut.FindComponents<PastillaFiltro>().Single(c => c.Instance.Etiqueta == "Agrupar");
+        await cut.InvokeAsync(() => filtro.Instance.ValorChanged.InvokeAsync("empresa"));
+        cut.Find("tr.proyectos-grupo .grupo-lista-contador").TextContent.Trim().Should().Be("· 2");
+        cut.Find("tr.proyectos-grupo .grupo-lista-incidencias").TextContent.Should().Contain("1 con incidencia");
+
+        await AlternarGrupoDeClienteAsync(cut, "Refrielectric S.L.");
+        cut.FindAll("tr.proyectos-grupo .grupo-lista-incidencias").Should().BeEmpty("abierto, las filas rojas ya se ven");
+    }
+
+    [Fact]
+    public async Task Expandir_todo_solo_alcanza_las_filas_de_los_grupos_abiertos()
+    {
+        Services.AddScoped<ContextWorkspaceService>();
+        _mediator.Proyectos = [ProyectoAbierto];
+        _mediator.ProyectosClienteB = [ProyectoDeB];
+        var cut = Renderizar();
+        var filtro = cut.FindComponents<PastillaFiltro>().Single(c => c.Instance.Etiqueta == "Agrupar");
+        await cut.InvokeAsync(() => filtro.Instance.ValorChanged.InvokeAsync("empresa"));
+        await AlternarGrupoDeClienteAsync(cut, "Refrielectric S.L.");
+
+        await cut.FindAll(".barra-herramientas-lista button").Single(b => b.TextContent.Contains("Expandir todo")).ClickAsync(new());
+
+        cut.FindAll("tr.proyecto-documentacion").Should().ContainSingle("la fila del grupo plegado no se ve y no se expande");
+        _mediator.Enviados.OfType<ObtenerDocumentosQuery>().Should().ContainSingle(q => q.PropietarioId == AbiertoId);
+    }
+
+    private static async Task AlternarGrupoDeClienteAsync(IRenderedComponent<Proyectos> cut, string cliente) =>
+        await cut.FindAll("tr.proyectos-grupo").Single(g => g.QuerySelector(".grupo-lista-nombre")!.TextContent.Trim() == cliente)
+            .QuerySelector("button.grupo-lista-cabecera")!.ClickAsync(new());
     private static DocumentoListaDto DocumentoVigente() => new(Guid.NewGuid(), AmbitoAplicacion.Proyecto,
         "Proyecto", "Evaluación de riesgos", new DateOnly(2026, 10, 1), new DateOnly(2027, 10, 1), EstadoDocumento.Vigente, null, []);
 
@@ -130,5 +176,18 @@ public partial class ProyectosGen2Tests
         _mediator.FallarDocumentacion = false;
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new());
         cut.Markup.Should().Contain("Sin documentos registrados").And.NotContain("Todo lo exigido está al día");
+    }
+
+    [Fact]
+    public async Task La_documentacion_ensena_los_diez_primeros_y_Ver_los_N_restantes_despliega_el_resto()
+    {
+        _mediator.Documentos = Enumerable.Range(0, 12).Select(_ => DocumentoVigente()).ToList();
+        var cut = RenderizarDocumentacion();
+        cut.FindAll(".documento-proyecto").Should().HaveCount(10);
+
+        await cut.Find("button[data-accion=ver-restantes]").ClickAsync(new());
+
+        cut.FindAll(".documento-proyecto").Should().HaveCount(12);
+        cut.FindAll("button[data-accion=ver-restantes]").Should().BeEmpty();
     }
 }

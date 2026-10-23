@@ -349,7 +349,7 @@
 .proyecto-expandir ::deep .icono { transition: transform var(--motion-transition) var(--ease-fluid); }
 .proyecto-expandir[aria-expanded="false"] ::deep .icono { transform: rotate(-90deg); }
 .proyecto-expandir:focus-visible { outline: 2px solid var(--color-primary-500); outline-offset: 2px; }
-.proyectos-grupo th { padding: 10px var(--space-4); background: var(--color-surface-subtle); font: var(--font-label); text-align: left; }
+.proyectos-grupo th { padding: 0; border-bottom: 1px solid var(--color-border); font: inherit; text-align: left; }
 .proyecto-documentacion td { padding: 0; background: var(--color-surface-subtle); }
 @media (prefers-reduced-motion: reduce) {
     .proyecto-expandir ::deep .icono { transition: none; }

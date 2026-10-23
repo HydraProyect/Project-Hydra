@@ -145,14 +145,22 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var bloque in BloquesDeProyectos)
+                            @foreach (var filaDeGrupo in FilasConGrupo())
                             {
-                            @if (_agrupar == "empresa")
-                            {
-                                <tr class="proyectos-grupo"><th colspan="9" scope="rowgroup">@bloque.Key.Nombre</th></tr>
-                            }
-                            @foreach (var proyecto in bloque)
-                            {
+                                var proyecto = filaDeGrupo.Fila;
+                                @if (filaDeGrupo.Cabecera is { } grupo)
+                                {
+                                    @* Grupo «Por Cliente» (maqueta de Proyectos), plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado,
+                                       con «· N» y, plegado, la pastilla roja de los Proyectos en rojo. *@
+                                    <tr class="proyectos-grupo" data-grupo-cliente="@grupo.Nombre"><th colspan="9" scope="rowgroup">
+                                        <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Incidencias="grupo.Incidencias"
+                                                            Abierto="filaDeGrupo.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" />
+                                    </th></tr>
+                                }
+                                @if (filaDeGrupo.Oculta)
+                                {
+                                    continue;
+                                }
                                 var finPrevistoSuperado = TextoFinPrevistoSuperado(proyecto);
                                 @* Patrón de listados: la fila no lleva menú «⋯». Un clic en cualquier punto de la
                                    fila abre la vista rápida (el panel lateral), igual que Enter sobre la fila
@@ -284,7 +292,6 @@
                                         <DocumentacionFilaProyecto ProyectoId="proyecto.Id" />
                                     </td></tr>
                                 }
-                            }
                             }
                         </tbody>
                     </table>
@@ -635,7 +642,7 @@
         {
             <PaginadorSimple PresentacionMaqueta="presentacionMaqueta" PaginaActual="_paginaActual" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                      PaginaActualChanged="CambiarPaginaAsync"
-                                     TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="_proyectos.Count">
+                                     TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="FilasPintadas.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["x"])" /></Centro>
                 </PaginadorSimple>
         }
