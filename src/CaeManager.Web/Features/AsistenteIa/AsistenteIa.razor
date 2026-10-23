@@ -184,7 +184,7 @@
                               placeholder="@Textos["PlaceholderMensaje"]"
                               value="@_valorMostrado"
                               disabled="@_enviando"
-                              maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : (int?)null)"
+                              maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : LimitesConsulta.Value.MaxCaracteresPregunta)"
                               @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
                               @onkeydown="ManejarTeclaAsync"></textarea>
                     <button type="button" class="asistente-boton-enviar" aria-label="@Textos["BotonEnviar"]"
