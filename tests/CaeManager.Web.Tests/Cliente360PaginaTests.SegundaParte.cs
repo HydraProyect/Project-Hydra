@@ -1,4 +1,6 @@
 using Bunit;
+using CaeManager.Application.Centros;
+using CaeManager.Application.Centros.Queries.ObtenerCentros;
 using CaeManager.Application.Clientes.Commands.RestaurarCliente;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Centros;
@@ -95,6 +97,72 @@ public partial class Cliente360PaginaTests
 
         filas[0].TextContent.Should().Contain("Todo validado en la plataforma");
         filas[1].TextContent.Should().Contain("1 vencido").And.NotContain("Todo validado en la plataforma");
+    }
+
+    // Z5-2: estado TALVEG ≠ estado en la plataforma. «Todo validado en la plataforma» no se afirma con un rechazo de la
+    // plataforma, un pendiente allí ni en un Centro sin gestión CAE.
+
+    [Fact]
+    public void Un_Centro_bloqueado_por_la_plataforma_no_dice_que_todo_esta_validado()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta rechazada", EstadoCentro.Bloqueado) with
+        {
+            Recuentos = new RecuentosCentroDto([new IncidenciaCentroDto("Acceso denegado", AmbitoCausa.Empresa, null, null, null, null)], [])
+        });
+        Registrar(mediador);
+
+        var fila = Renderizar(id).Find("li.fila-relacion");
+
+        fila.QuerySelector(".cliente360-bloqueo-plataforma")!.TextContent.Should().Be("Bloqueo de la plataforma CAE");
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Contain("1 documento bloquea el acceso")
+            .And.NotContain("Todo validado");
+    }
+
+    [Fact]
+    public void Un_Centro_pendiente_solo_en_la_plataforma_nombra_el_pendiente_y_no_dice_que_todo_esta_validado()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta pendiente", EstadoCentro.Pendiente) with
+        {
+            Recuentos = new RecuentosCentroDto([], [], [new IncidenciaCentroDto("Seguro RC", AmbitoCausa.Empresa, null, null, null, null),
+                new IncidenciaCentroDto("TC2", AmbitoCausa.Empresa, null, null, null, null)])
+        });
+        Registrar(mediador);
+
+        var fila = Renderizar(id).Find("li.fila-relacion");
+
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Contain("2 pendientes de validación")
+            .And.NotContain("Todo validado");
+    }
+
+    [Theory]
+    [InlineData(EstadoCentro.Bloqueado)]
+    [InlineData(EstadoCentro.Pendiente)]
+    [InlineData(EstadoCentro.Vencido)]
+    [InlineData(EstadoCentro.Faltante)]
+    [InlineData(EstadoCentro.Urgente)]
+    [InlineData(EstadoCentro.Proximo)]
+    public void Un_estado_con_problema_sin_causa_en_los_recuentos_calla_en_vez_de_afirmar_que_todo_esta_validado(EstadoCentro estado)
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Planta sin detalle", estado));
+        Registrar(mediador);
+
+        Renderizar(id).Find("li.fila-relacion").TextContent.Should().NotContain("Todo validado");
+    }
+
+    [Fact]
+    public void Un_Centro_sin_gestion_CAE_muestra_solo_Sin_gestion_CAE_y_nunca_Todo_validado()
+    {
+        var (id, mediador) = ClienteBase();
+        mediador.Centros.Add(Centro("Almacén externo", EstadoCentro.SinGestionCae, cumplimiento: null));
+        Registrar(mediador);
+
+        var fila = Renderizar(id).Find("section.cliente360-sin-gestion-cae li.fila-relacion");
+
+        fila.QuerySelector(".fila-relacion-detalle")!.TextContent.Should().Be("Sin gestión CAE");
+        fila.TextContent.Should().NotContain("Todo validado");
     }
 
     [Fact]

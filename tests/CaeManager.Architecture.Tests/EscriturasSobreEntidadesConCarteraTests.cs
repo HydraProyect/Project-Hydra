@@ -1,5 +1,7 @@
 using System.Reflection;
+using CaeManager.Application.AutorizacionesLectura;
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Identity;
 using FluentAssertions;
 using MediatR;
 
@@ -58,6 +60,15 @@ public class EscriturasSobreEntidadesConCarteraTests
         ["RegistrarHistorialInformeCommandHandler"] =
             "anota en el historial del propio usuario qué informe generó; no escribe sobre el Cliente empresarial, y " +
             "el informe ya sale filtrado por la cartera",
+        ["ConcederAutorizacionLecturaCommandHandler"] =
+            "autorización de lectura del Tenant de la Empresa contratista: acto de Propiedad del Tenant propietario; " +
+            "el handler exige rol efectivo Administrador (AutorizacionLecturaAutoridad), cuyo alcance de " +
+            "IAlcanceDatosService es null (sin recorte de cartera), y los Trabajadores se comprueban contra el propio " +
+            "Tenant. La exención vale SOLO mientras la autoridad sea únicamente Administrador: si DN-2 la amplía a un " +
+            "rol con cartera, el handler tiene que consultar el alcance y esta entrada se retira. La ata " +
+            "La_autoridad_de_las_autorizaciones_de_lectura_exentas_es_solo_Administrador",
+        ["AsignarTrabajadoresAutorizacionCommandHandler"] = "mismo motivo que ConcederAutorizacionLecturaCommandHandler",
+        ["RetirarTrabajadorAutorizacionCommandHandler"] = "mismo motivo que ConcederAutorizacionLecturaCommandHandler",
         ["IniciarLoteGeneracionDocumentosCommandHandler"] =
             "solo encola el lote; cada documento lo escribe GenerarDocumentoIndividualCommandHandler, que comprueba " +
             "el alcance del Trabajador o Cliente empresarial ítem a ítem",
@@ -124,6 +135,37 @@ public class EscriturasSobreEntidadesConCarteraTests
 
         string.Join(" | ", Pendientes.Except(infractores)).Should().BeEmpty(
             "estos handlers ya consultan el alcance: retíralos de Pendientes para que no puedan volver a perderlo");
+    }
+
+    /// <summary>
+    /// Ata la exención de ConcederAutorizacionLectura, AsignarTrabajadoresAutorizacion y RetirarTrabajadorAutorizacion
+    /// a su motivo: de todos los roles, solo Administrador (alcance null en <see cref="IAlcanceDatosService"/>) pasa
+    /// <c>AutorizacionLecturaAutoridad</c>. Si alguien amplía la autoridad a un rol con cartera, este test falla y
+    /// obliga a retirar la exención y consultar el alcance en esos handlers.
+    /// </summary>
+    [Fact]
+    public async Task La_autoridad_de_las_autorizaciones_de_lectura_exentas_es_solo_Administrador()
+    {
+        Roles.Todos.Should().Contain(Roles.Administrador, "control positivo: la lista de roles incluye al que sí pasa");
+
+        var queAutorizan = new List<string?>();
+        foreach (var rol in Roles.Todos.Cast<string?>().Append(null))
+        {
+            if (await AutorizacionLecturaAutoridad.EsAdministradorAsync(new UsuarioConRol(rol)))
+                queAutorizan.Add(rol);
+        }
+
+        queAutorizan.Should().Equal([Roles.Administrador],
+            "la exención de cartera de las autorizaciones de lectura vale solo mientras la autoridad sea únicamente Administrador");
+    }
+
+    private sealed class UsuarioConRol(string? rol) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Guid.NewGuid());
+        public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(rol);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult(rol);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(null);
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
     }
 
     /// <summary>

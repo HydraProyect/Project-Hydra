@@ -394,7 +394,7 @@
     <value>Mostrando {0} de {1} · del peor estado al mejor</value>
   </data>
   <data name="FraccionDocumental360" xml:space="preserve">
-    <value>{0} de {1}</value>
+    <value>{0}/{1}</value>
   </data>
   <data name="PedirDocumentacion360" xml:space="preserve">
     <value>Gestionar</value>

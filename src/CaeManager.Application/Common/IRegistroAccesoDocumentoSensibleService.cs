@@ -29,6 +29,15 @@ namespace CaeManager.Application.Common;
 /// una llamada explícita en capa de aplicación, con contexto suficiente para
 /// saber quién accede, a qué Documento y bajo qué vía.
 /// </para>
+///
+/// <para>
+/// <b>Falla en cerrado.</b> Si el acceso sensible no queda registrado —también
+/// el de Soporte TALVEG en una Sesión Privilegiada, que se escribe por la
+/// función de base que vuelve a comprobar la sesión— lanza
+/// <see cref="Auditoria.AccesoDocumentoSensibleNoRegistradoException"/>, y el
+/// punto de servicio no entrega el contenido. Por eso se llama antes de
+/// devolver el contenido, nunca después.
+/// </para>
 /// </summary>
 public interface IRegistroAccesoDocumentoSensibleService
 {

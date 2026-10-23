@@ -13,7 +13,7 @@ public interface ICurrentUserService
     /// <summary>
     /// Rol <b>efectivo</b> del usuario en el Tenant que se está operando ahora
     /// (el sistema asigna exactamente uno por usuario y contexto). Es el único
-    /// rol que vale para autorización, alcance de datos, middleware y la UI
+    /// rol que vale para autorizar escritura, middleware y la UI
     /// del Tenant actual:
     /// <list type="bullet">
     /// <item>sin Workspace operativo derivado, el rol de la sesión en el
@@ -23,7 +23,7 @@ public interface ICurrentUserService
     /// Operación, el perfil de la sesión en el Tenant de origen, mientras la
     /// operación le siga autorizando ese Tenant (decisión Chris 2026-10-20: la
     /// cartera solo da acceso y alcance al Gestor CAE, no el rol); por la
-    /// delegación heredada (acceso de soporte), el rol de su fila;</item>
+    /// delegación heredada (acceso de soporte), el rol de su fila acotado por el techo de login local;</item>
     /// <item>bajo <c>AmbitoTenantExplicito</c> (fan-out multi-Tenant), el del
     /// Tenant visitado en cada vuelta — el de sesión si es el de origen;</item>
     /// <item>null bajo una Sesión Privilegiada de plataforma, sin sesión, o
@@ -70,6 +70,14 @@ public interface ICurrentUserService
     /// La implementación por defecto, sin restricción, solo sirve a dobles de prueba.
     /// </summary>
     Task<string?> ObtenerPerfilAntesDeRestringirAsync() => Task.FromResult<string?>(null);
+
+    /// <summary>
+    /// Rol de la asignación heredada vigente en el Tenant propietario del contexto, antes del
+    /// techo de login local. Solo decide el ámbito efectivo de datos, nunca autoriza escritura.
+    /// No es el perfil del Tenant de origen. Null por otras vías o sin asignación vigente.
+    /// La implementación por defecto falla cerrada para dobles sin asignación heredada.
+    /// </summary>
+    Task<string?> ObtenerRolDeAsignacionHeredadaAsync() => Task.FromResult<string?>(null);
 
     /// <summary>
     /// Alias obsoleto de <see cref="ObtenerRolEfectivoAsync"/> (decisión P7,

@@ -326,6 +326,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IProyectoRequisitoRepository, ProyectoRequisitoRepository>();
+        services.AddScoped<CaeManager.Domain.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
+        services.AddScoped<CaeManager.Domain.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
         services.AddScoped<IPlantillaRequisitosEventoRepository, PlantillaRequisitosEventoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
@@ -429,6 +431,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -528,6 +532,7 @@ public static class InfrastructureServiceCollectionExtensions
             AdministradorDelTenantPropietarioEnBase>();
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
