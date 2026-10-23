@@ -133,7 +133,13 @@ public class DocumentAIRouterService(
 
         var estructuracion = await EstructurarAsync(
             proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
-        var resultado = estructuracion.Resultado;
+
+        // El contraste determinista se calcula sobre el mismo texto que vio el
+        // modelo y viaja con la extracción, también a la caché: quien decide
+        // con ella no tiene que fiarse solo de lo que el modelo diga del texto.
+        var resultado = estructuracion.Resultado.EsExitoso
+            ? Result.Exito(estructuracion.Resultado.Valor with { Contraste = ContrasteTextoDocumento.Analizar(texto.Valor.Texto) })
+            : estructuracion.Resultado;
 
         if (resultado.EsFallido)
         {

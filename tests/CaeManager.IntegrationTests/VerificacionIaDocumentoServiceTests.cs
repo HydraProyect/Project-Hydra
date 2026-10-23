@@ -1,6 +1,7 @@
-﻿using CaeManager.Application.Common;
+using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -77,7 +78,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 62, "Escaneado con baja resolución");
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 62, "Escaneado con baja resolución", ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -99,7 +100,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision.AddDays(-30), null, true, 99, null);
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision.AddDays(-30), null, true, 99, null, ContrasteLimpio(fechaEmision.AddDays(-30)));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -121,7 +122,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, confianza, null);
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, confianza, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)),
             transaccion: new TransaccionQueRepiteTrasConfirmar(documento.Version));
 
@@ -143,7 +144,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null);
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -172,7 +173,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.AuditoriasExtraccionIa.Add(auditoria);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null);
+        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -182,6 +183,40 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         auditoriaActualizada.UsuarioDecisionId.Should().BeNull();
         auditoriaActualizada.FechaDecisionUtc.Should().NotBeNull();
     }
+
+    /// <summary>
+    /// Inyección de prompt con un modelo que obedece: todo lo que dice el modelo
+    /// es favorable (tipo, fecha que coincide, firma, confianza 99), pero el
+    /// contraste determinista ha visto en el texto órdenes dirigidas al modelo o
+    /// un «no apto». Ninguna de las dos lecturas puede cerrar el documento sola.
+    /// </summary>
+    [Theory]
+    [InlineData(true, false, "dirigido al sistema de lectura")]
+    [InlineData(false, true, "no apto")]
+    public async Task Revisa_en_vez_de_aprobar_cuando_el_contraste_ve_una_inyeccion_o_un_no_apto(
+        bool dirigidoAlModelo, bool noApto, string motivoEsperado)
+    {
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DiaDeNegocio.Hoy();
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto(
+            "Apto médico", fechaEmision, null, true, 99, null,
+            new ContrasteTextoDocumentoDto(dirigidoAlModelo, noApto, [fechaEmision]));
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
+
+        var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
+        revisiones.Should().ContainSingle();
+        revisiones[0].Motivo.Should().Contain(motivoEsperado);
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
+    }
+
+    private static ContrasteTextoDocumentoDto ContrasteLimpio(DateOnly fechaEnElTexto) => new(false, false, [fechaEnElTexto]);
 
     /// <summary>
     /// El agujero que cerró este incremento: con confianza alta, las tres
@@ -210,7 +245,8 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
             null,
             hayFirma ? true : null,
             99,
-            null);
+            null,
+            ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -238,7 +274,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, null, 99, null);
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, null, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -263,7 +299,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto(null, fechaEmision, null, true, 99, null);
+        var extraido = new MetadatosDocumentoExtraidosDto(null, fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
