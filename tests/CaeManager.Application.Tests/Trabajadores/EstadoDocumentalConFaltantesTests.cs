@@ -1,4 +1,4 @@
-using CaeManager.Application.Alertas;
+using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Documentos;
@@ -39,6 +39,8 @@ public class EstadoDocumentalConFaltantesTests
         _centro = new Centro(Guid.NewGuid(), _empresa.Id, "Obra");
         _centros.ListaCentros.Add(_centro);
         _tipos.ListaTiposDocumento.AddRange([_exigido, _otro]);
+        // El Centro marca el Tipo como obligatorio («bloquea el acceso»): solo eso tiñe el estado (decisión del 2026-10-23).
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_exigido.Id, _centro.Id, incluido: true, bloqueaAcceso: true));
         _configuracion.ListaParametrosSistema.Add(new ParametroSistema(30, 15));
         Agregar("Correcto", 90, conExigido: true);
         Agregar("Faltante", 90);
@@ -64,7 +66,9 @@ public class EstadoDocumentalConFaltantesTests
     private ObtenerTrabajadoresQueryHandler Handler(AlcanceDatosServiceFalso? alcance = null) =>
         new(_empresas, _trabajadores, _documentos, _configuracion, alcance ?? new(),
             new CalculoEstadoDocumentalService(_documentos, _configuracion, _tipos), _asignaciones, _proyectos,
-            new DocumentosFaltantesService(_tipos, _documentos, _centros));
+            new RequisitosObligatoriosIncumplidosService(
+                new EvaluacionDeAccesoPorCentroService(_centros, _tipos, _trabajadores, _asignaciones, _documentos, alcance ?? new()),
+                _asignaciones, _trabajadores, _tipos));
 
     [Theory]
     [InlineData("Faltante", 3)]
@@ -121,13 +125,23 @@ public class EstadoDocumentalConFaltantesTests
     }
 
     [Fact]
-    public async Task La_regla_compartida_excluye_requisitos_desmarcados_y_centros_sin_gestion_cae()
+    public async Task La_regla_compartida_excluye_requisitos_desmarcados_no_obligatorios_y_centros_sin_gestion_cae()
     {
+        _tipos.ListaTiposDocumentoCentros.Clear();
         _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_exigido.Id, _centro.Id, incluido: false));
         var sinRequisito = await Handler().Handle(new(null, EstadoDocumental: "Faltante"), CancellationToken.None);
         sinRequisito.TotalElementos.Should().Be(0);
 
+        // Exigido por el Centro (y por el criterio global, RequisitoDocumental.Si) pero sin la marca «bloquea el acceso»:
+        // no bloquea el Centro, así que no genera alarma ni tiñe a nadie de Pendiente.
         _tipos.ListaTiposDocumentoCentros.Clear();
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_exigido.Id, _centro.Id, incluido: true, bloqueaAcceso: false));
+        var noObligatorio = await Handler().Handle(new(null, ConRecuentosPorEstado: true, TamanoPagina: 10), CancellationToken.None);
+        noObligatorio.RecuentosPorEstado![nameof(EstadoDocumento.Faltante)].Should().Be(0);
+        noObligatorio.Elementos.Should().OnlyContain(t => t.DocumentosFaltantes.Count == 0 && t.EstadoDocumental != EstadoDocumento.Faltante);
+
+        _tipos.ListaTiposDocumentoCentros.Clear();
+        _tipos.ListaTiposDocumentoCentros.Add(new TipoDocumentoCentro(_exigido.Id, _centro.Id, incluido: true, bloqueaAcceso: true));
         _centro.EstablecerGestionCae(ModalidadGestionCae.SinGestionCae);
         var sinGestion = await Handler().Handle(new(null, EstadoDocumental: "Faltante"), CancellationToken.None);
         sinGestion.TotalElementos.Should().Be(0);

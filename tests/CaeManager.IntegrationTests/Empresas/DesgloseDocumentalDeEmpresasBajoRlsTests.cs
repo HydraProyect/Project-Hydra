@@ -176,7 +176,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             _runtime, new AlcanceDatosServiceFalso(empresaIds: [_montajes, _clienteDentro, _elevaciones]),
             new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
             _runtime, _runtime, _runtime, _runtime,
-            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime), RequisitosObligatoriosDePrueba.Servicio(_runtime));
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
 
         resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(_montajes);
@@ -395,7 +395,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         _runtime, new AlcanceDatosServiceFalso(),
         new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
         _runtime, _runtime, _runtime, _runtime,
-        new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+        new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime), RequisitosObligatoriosDePrueba.Servicio(_runtime));
 
     private ObtenerEmpresasQueryHandler HandlerDelGestor() => new(
         _runtimeDelGestor,
@@ -403,7 +403,9 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor),
         _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor,
         new CalculoEstadoCentroService(
-            _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor));
+            _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor),
+        RequisitosObligatoriosDePrueba.Servicio(
+            _runtimeDelGestor, new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente())));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 

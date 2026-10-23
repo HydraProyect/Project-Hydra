@@ -38,12 +38,15 @@ public static class SeveridadEstadoDocumento
     };
 
     /// <summary>
-    /// El estado documental de un propietario al que un Centro le exige un Tipo de documento que no tiene. El peor
-    /// estado de sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo exigido se
+    /// El estado documental de un propietario (Empresa o Trabajador) que incumple un requisito OBLIGATORIO de un Centro
+    /// —un Tipo de su ámbito que ese Centro marca «bloquea el acceso» y que falta o ya no vale allí
+    /// (<c>RequisitosObligatoriosIncumplidos</c>, decisión del 2026-10-23); lo exigido sin esa marca no tiñe—. El peor
+    /// estado de sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo obligatorio se
     /// leería como «Sin incidencias». Si ya hay algo más grave (un vencido), manda ese: Vencido, luego Pendiente
     /// (<see cref="EstadoDocumento.Faltante"/>), luego lo que está por vencer y lo demás, por <see cref="Rango"/>.
-    /// Es la única combinación de los dos: el listado de Trabajadores, Empresa 360 y la cabecera de Trabajador 360
-    /// leen el resultado ya combinado de <c>ObtenerTrabajadoresQuery</c>.
+    /// Es la única combinación de los dos: el listado de Empresas lee el resultado ya combinado de
+    /// <c>ObtenerEmpresasQuery</c>, y el listado de Trabajadores, Empresa 360 y la cabecera de Trabajador 360, el de
+    /// <c>ObtenerTrabajadoresQuery</c>.
     /// </summary>
     public static EstadoDocumento? ConFaltantes(EstadoDocumento? estado, bool hayFaltantes) =>
         hayFaltantes && (estado is null || Rango(EstadoDocumento.Faltante) < Rango(estado.Value))

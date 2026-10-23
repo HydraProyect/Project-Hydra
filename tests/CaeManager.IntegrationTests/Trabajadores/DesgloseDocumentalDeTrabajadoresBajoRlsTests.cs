@@ -147,8 +147,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Lo exigido y sin documento sale en la fila con la regla única de faltantes: Iker, con Asignación activa en un
-    /// Centro que exige los cuatro Tipos y solo la aptitud registrada, tiene tres; Nora los tiene todos, y Ana, de
+    /// Lo obligatorio y sin documento sale en la fila con la regla única de requisitos obligatorios: Iker, con Asignación
+    /// activa en un Centro que marca los cuatro Tipos como obligatorios y solo la aptitud registrada, tiene tres; Nora los tiene todos, y Ana, de
     /// baja en su único Centro, no tiene exigencia alguna. Desde la revisión 1:1 del 2026-10-21 salen también sin
     /// desglose, y el estado de la fila ya llega combinado con ellos: es el mismo estado en el listado, Empresa 360 y
     /// Trabajador 360, pidan o no el desglose.
@@ -403,13 +403,14 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     private ObtenerTrabajadoresQueryHandler HandlerSinCartera() => new(
         _runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(),
         new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime), _runtime, _runtime,
-        new DocumentosFaltantesService(_runtime, _runtime, _runtime));
+        RequisitosObligatoriosDePrueba.Servicio(_runtime));
 
     private ObtenerTrabajadoresQueryHandler HandlerDelGestor() => new(
         _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor,
         new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente()),
         new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor), _runtimeDelGestor, _runtimeDelGestor,
-        new DocumentosFaltantesService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor));
+        RequisitosObligatoriosDePrueba.Servicio(
+            _runtimeDelGestor, new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente())));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 
@@ -452,6 +453,13 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         var iker = Trabajador.DeSubcontrata(subcontrataFuera.Id, "Iker", "Fuera", "33445566R");
         _propietario.Centros.AddRange(centroDentro, centroFuera);
         _propietario.Trabajadores.AddRange(nora, ana, iker);
+        await _propietario.SaveChangesAsync();
+
+        // Sector 7G marca los cuatro como obligatorios (bloquean el acceso): solo lo obligatorio pinta en rojo y sale
+        // como «Falta» en la fila (regla del 2026-10-23).
+        _propietario.TiposDocumentoCentros.AddRange(
+            new[] { aptitud, formacion, epi, contrato }.Select(t =>
+                new TipoDocumentoCentro(t.Id, centroFuera.Id, incluido: true, bloqueaAcceso: true)));
         await _propietario.SaveChangesAsync();
 
         var bajaDeAna = new Asignacion(ana.Id, centroDentro.Id, hoy.AddDays(-30));

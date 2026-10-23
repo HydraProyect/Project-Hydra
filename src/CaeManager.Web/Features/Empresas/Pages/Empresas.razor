@@ -104,7 +104,7 @@
             }
         </Pastillas>
         <Estados>
-            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaConPendiente" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
@@ -347,10 +347,12 @@
                                 }
                                 else
                                 {
+                                    @* Sin documentos que explicar, el motivo son los Tipos obligatorios de algún Centro que faltan. *@
                                     <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
                                                 Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
                                                 Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
-                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
+                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)"
+                                                Motivo="@MotivoIncidenciasUi.Texto(empresa.Incidencias, empresa.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" />
                                 }
                             </span>
                             @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:

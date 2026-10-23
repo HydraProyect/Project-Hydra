@@ -279,8 +279,8 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 
         // 1-3. Listas de Trabajadores, Empresas y Vehículos: el estado que rotula cada fila Y el filtro por estado
         //      (que repite los umbrales en SQL) dan el estado de la tabla.
-        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c, c, new DocumentosFaltantesService(c, c, c));
-        var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro);
+        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c, c, RequisitosObligatoriosDePrueba.Servicio(c, alcance));
+        var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro, RequisitosObligatoriosDePrueba.Servicio(c, alcance));
         var vehiculos = new ObtenerVehiculosQueryHandler(c, c, alcance, c, c, calculoDocumental);
 
         await ComprobarListaAsync("Lista de Trabajadores", _casos, caso => caso.TrabajadorId,
@@ -504,8 +504,8 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         var alcance = new AlcanceDatosServiceFalso();
         var calculoDocumental = new CalculoEstadoDocumentalService(c, c, c);
         var calculoCentro = new CalculoEstadoCentroService(c, c, c, c, c, c, c, c, c);
-        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c, c, new DocumentosFaltantesService(c, c, c));
-        var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro);
+        var trabajadores = new ObtenerTrabajadoresQueryHandler(c, c, c, c, alcance, calculoDocumental, c, c, RequisitosObligatoriosDePrueba.Servicio(c, alcance));
+        var empresas = new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro, RequisitosObligatoriosDePrueba.Servicio(c, alcance));
         var vehiculos = new ObtenerVehiculosQueryHandler(c, c, alcance, c, c, calculoDocumental);
         var documentos = new ObtenerDocumentosQueryHandler(c, c, c, c, c, c, c, alcance, c, c);
 

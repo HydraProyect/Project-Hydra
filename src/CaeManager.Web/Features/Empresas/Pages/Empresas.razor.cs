@@ -303,7 +303,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
     }
 
-    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial, incluirFaltantes: true);
 
     private Guid? ClienteDesdeUrl() =>
         Guid.TryParse(ClienteFiltroInicial, out var id) && _clientesFiltro.Any(c => c.Id == id) ? id : null;
@@ -758,9 +758,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// no se escribe ningún número.
     /// </summary>
     private static string TituloEstadoDocumental(EstadoDocumento? estado) =>
-        estado is null
-            ? "Todavía no tiene ningún documento"
-            : $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}";
+        estado switch
+        {
+            null => "Todavía no tiene ningún documento",
+            EstadoDocumento.Faltante => "Un Centro donde opera le exige como obligatorio un documento de Empresa que falta o ya no vale",
+            _ => $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}"
+        };
 
     private async Task AbrirCrear()
     {

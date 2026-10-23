@@ -265,7 +265,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     {
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
-            contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
         var resultado = await handler.Handle(new ObtenerTrabajadoresQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(t => t.Id).ToList();
     }
@@ -276,7 +276,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         var handler = new ObtenerEmpresasQueryHandler(
             contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(e => e.Id).ToList();
     }

@@ -198,8 +198,8 @@ public static class EstadoDocumentoUi
     };
 
     /// <summary>
-    /// Botones de la franja de estado de los listados de propietarios (Empresas, Vehículos; Trabajadores usa
-    /// <see cref="FranjaDeTrabajadores"/>, que añade Faltante), de peor
+    /// Botones de la franja de estado de los listados de propietarios (Vehículos, Subcontratas; Empresas y Trabajadores usan
+    /// <see cref="FranjaConPendiente"/>, que añade Faltante), de peor
     /// a mejor. «Por vencer» marca Urgente y Próximo a la vez, y «Sin incidencias» Vigente y Sin caducidad: es el
     /// mismo agrupado que hace <see cref="TextoDocumental"/> al rotular la fila, así que cada botón filtra
     /// exactamente las filas que llevan su rótulo. Se construye en cada lectura (textos localizados).
@@ -214,8 +214,11 @@ public static class EstadoDocumentoUi
         new(SinIncidencias, TonoBadge.Exito, nameof(EstadoDocumento.Vigente), nameof(EstadoDocumento.SinCaducidad))
     ];
 
-    /// <summary>La franja de Trabajadores incluye los requisitos exigidos sin documento registrado.</summary>
-    public static IReadOnlyList<OpcionFranjaEstado> FranjaDeTrabajadores =>
+    /// <summary>
+    /// La franja de Empresas y de Trabajadores: añade «Pendiente», el requisito obligatorio de un Centro que falta o ya no
+    /// vale (<c>RequisitosObligatoriosIncumplidos</c>, decisión del 2026-10-23).
+    /// </summary>
+    public static IReadOnlyList<OpcionFranjaEstado> FranjaConPendiente =>
     [
         FranjaDocumental[0],
         new(Texto(EstadoDocumento.Faltante), TonoBadge.Peligro, nameof(EstadoDocumento.Faltante)),
