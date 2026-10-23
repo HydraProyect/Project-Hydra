@@ -125,7 +125,8 @@ public class ContratoAcceso : EntidadBase
     /// Vincula el contrato con el Tenant de la Empresa contratista. <b>Una sola vez</b>: un vínculo equivocado se
     /// corrige cerrando este contrato y creando otro, nunca cambiándolo. Cambiar el vínculo después de que el Tenant
     /// de la Empresa contratista haya concedido su autorización de lectura redirigiría en silencio esa lectura hacia
-    /// los Documentos de otro Tenant, con la autorización que dio un tercero.
+    /// los Documentos de otro Tenant, con la autorización que dio un tercero. La base lo repite con el trigger
+    /// <c>TR_ContratosAcceso_TenantContratistaUnaVez</c>: escrito el vínculo, no cambia ni se vacía para ningún rol.
     ///
     /// <para>
     /// Tampoco puede ser el propio Tenant del contrato. <see cref="EntidadConTenant.TenantId"/> solo se conoce aquí

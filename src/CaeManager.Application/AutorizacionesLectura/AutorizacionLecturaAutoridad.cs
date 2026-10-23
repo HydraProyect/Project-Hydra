@@ -7,8 +7,11 @@ namespace CaeManager.Application.AutorizacionesLectura;
 /// Quién concede, cambia, revoca y lee las autorizaciones de lectura documental del Tenant de la Empresa contratista.
 ///
 /// <para>
-/// <b>Solo rol efectivo Administrador en el Tenant activo</b> (decisión DN-2 abierta: es la opción más estrecha, y
-/// falla cerrado). Es el mismo mecanismo que los demás actos solo de Administrador
+/// <b>Solo rol efectivo Administrador en el Tenant activo</b>, y falla cerrado. DN-2 (quién concede) sigue abierta:
+/// esto no es «solo el Administrador miembro del Tenant propietario», porque el rol efectivo Administrador incluye
+/// también a quien administra por encargo pleno y al Administrador de un Operador CAE externo con Asignación de
+/// Operación (ver abajo). Con encargo no pleno, el área entera queda fuera (<c>ActosExcluidosDelEncargo.AreasExcluidas</c>).
+/// Es el mismo mecanismo que los demás actos solo de Administrador
 /// (<c>ActualizarLecturaIaGlobalCommand</c> y hermanos): <see cref="ICurrentUserService.ObtenerRolEfectivoAsync"/>
 /// comparado con «Administrador». No se inventa otro. Gestor CAE, Coordinador CAE, Dirección CAE, Consulta y Cliente
 /// quedan fuera aunque su rol escriba.

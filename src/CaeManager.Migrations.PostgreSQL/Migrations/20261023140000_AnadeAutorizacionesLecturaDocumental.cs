@@ -93,8 +93,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 unique: true);
 
             // "ContratosAcceso"."TenantContratistaId" no necesita GRANT nuevo: el runtime ya tiene UPDATE sobre la tabla
-            // entera (AnadeContratosAcceso). Que se escriba una sola vez lo garantiza el dominio
-            // (ContratoAcceso.VincularTenantContratista); la base solo exige que no sea el propio Tenant (CHECK de arriba).
+            // entera (AnadeContratosAcceso). Que no sea el propio Tenant lo exige el CHECK de arriba; que se escriba una
+            // sola vez, el dominio (ContratoAcceso.VincularTenantContratista) y además la base, con
+            // TR_ContratosAcceso_TenantContratistaUnaVez: una vez escrito, cambiarlo o vaciarlo redirigiría en silencio
+            // la lectura que el Tenant de la Empresa contratista autorizó, así que solo pasa de NULL a un valor.
             //
             // Las dos tablas nuevas viven en el Tenant de la Empresa contratista: RLS estándar por TenantId, como
             // ContratosAcceso. Ninguna lectura entre Tenants en esta migración: el Tenant destinatario de una
@@ -121,12 +123,18 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             //     cambian las columnas de nacimiento (Tenant, destinatario, contrato, alcance, vigencia y quién y cuándo
             //     concedió). Con los privilegios de columna, el runtime ni siquiera llega a intentarlo; el disparador
             //     cubre a quien sí tiene UPDATE completo.
-            //   TR_AutorizacionesLecturaTrabajadores_SoloSinRevocar (BEFORE INSERT OR DELETE): no se asignan ni se retiran
-            //     Trabajadores de una autorización revocada; su lista queda como constancia de qué se autorizó. Lee la
-            //     autorización con los permisos de quien escribe y bajo su RLS, y la bloquea con FOR SHARE para que una
-            //     revocación simultánea espere a que termine la escritura de la fila hija (y al revés). FOR SHARE pide
-            //     UPDATE sobre alguna columna, que el runtime tiene. Efecto conocido: la retirada de un Tenant de demo con
-            //     una autorización revocada fallaría al borrar sus filas hijas; hoy ninguna siembra crea autorizaciones.
+            //   TR_AutorizacionesLecturaTrabajadores_SoloSinRevocar (BEFORE INSERT OR UPDATE OR DELETE): no se asignan,
+            //     cambian ni retiran Trabajadores de una autorización revocada; su lista queda como constancia de qué se
+            //     autorizó. Lee la autorización con los permisos de quien escribe y bajo su RLS, y la bloquea con FOR SHARE
+            //     para que una revocación simultánea espere a que termine la escritura de la fila hija (y al revés). FOR
+            //     SHARE pide UPDATE sobre alguna columna, que el runtime tiene. Una sola excepción: el DELETE de una
+            //     identidad que no sea cae_app_runtime pasa sin mirar la autorización. Es el borrado de la retirada de un
+            //     Tenant de demo (RetiradaTenantDemoService, con la identidad propietaria de bootstrap), que borra las
+            //     filas hijas antes que la autorización revocada; ningún otro rol tiene DELETE sobre la tabla (Soporte y
+            //     aprovisionamiento no lo tienen), y como la función no es SECURITY DEFINER, current_user es quien borra.
+            //     INSERT y UPDATE siguen bloqueados para todos, propietario incluido.
+            //   TR_ContratosAcceso_TenantContratistaUnaVez (BEFORE UPDATE OF "TenantContratistaId", con WHEN): una vez
+            //     escrito, "TenantContratistaId" no cambia ni se vacía, para ningún rol.
             migrationBuilder.Sql("""
                 ALTER TABLE public."AutorizacionesLecturaDocumental" ENABLE ROW LEVEL SECURITY;
                 ALTER TABLE ONLY public."AutorizacionesLecturaDocumental" FORCE ROW LEVEL SECURITY;
@@ -179,34 +187,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     SET search_path TO 'pg_catalog', 'pg_temp'
                     AS $$
                 DECLARE
-                    fila_tenant uuid;
-                    fila_autorizacion uuid;
                     revocada timestamp with time zone;
                 BEGIN
-                    IF TG_OP = 'DELETE' THEN
-                        fila_tenant := OLD."TenantId";
-                        fila_autorizacion := OLD."AutorizacionId";
-                    ELSE
-                        fila_tenant := NEW."TenantId";
-                        fila_autorizacion := NEW."AutorizacionId";
+                    -- La retirada de un Tenant de demo borra con la identidad propietaria: ver el comentario de la migración.
+                    IF TG_OP = 'DELETE' AND current_user <> 'cae_app_runtime' THEN
+                        RETURN OLD;
                     END IF;
-                    SELECT a."RevocadaEnUtc" INTO revocada
-                        FROM public."AutorizacionesLecturaDocumental" a
-                        WHERE a."TenantId" = fila_tenant AND a."Id" = fila_autorizacion
-                        FOR SHARE;
-                    IF revocada IS NOT NULL THEN
-                        RAISE EXCEPTION 'La autorización de lectura % está revocada: sus Trabajadores ya no cambian.', fila_autorizacion
-                            USING ERRCODE = 'check_violation';
+                    IF TG_OP IN ('UPDATE', 'DELETE') THEN
+                        SELECT a."RevocadaEnUtc" INTO revocada
+                            FROM public."AutorizacionesLecturaDocumental" a
+                            WHERE a."TenantId" = OLD."TenantId" AND a."Id" = OLD."AutorizacionId"
+                            FOR SHARE;
+                        IF revocada IS NOT NULL THEN
+                            RAISE EXCEPTION 'La autorización de lectura % está revocada: sus Trabajadores ya no cambian.', OLD."AutorizacionId"
+                                USING ERRCODE = 'check_violation';
+                        END IF;
                     END IF;
                     IF TG_OP = 'DELETE' THEN
                         RETURN OLD;
+                    END IF;
+                    SELECT a."RevocadaEnUtc" INTO revocada
+                        FROM public."AutorizacionesLecturaDocumental" a
+                        WHERE a."TenantId" = NEW."TenantId" AND a."Id" = NEW."AutorizacionId"
+                        FOR SHARE;
+                    IF revocada IS NOT NULL THEN
+                        RAISE EXCEPTION 'La autorización de lectura % está revocada: sus Trabajadores ya no cambian.', NEW."AutorizacionId"
+                            USING ERRCODE = 'check_violation';
                     END IF;
                     RETURN NEW;
                 END;
                 $$;
 
+                CREATE FUNCTION public.contrato_acceso_tenant_contratista_una_vez() RETURNS trigger
+                    LANGUAGE plpgsql
+                    SET search_path TO 'pg_catalog', 'pg_temp'
+                    AS $$
+                BEGIN
+                    RAISE EXCEPTION 'El contrato de acceso % ya está vinculado con el Tenant de la Empresa contratista: el vínculo no cambia ni se vacía.', OLD."Id"
+                        USING ERRCODE = 'check_violation';
+                END;
+                $$;
+
                 CREATE TRIGGER "TR_AutorizacionesLectura_Inmutable" BEFORE UPDATE ON public."AutorizacionesLecturaDocumental" FOR EACH ROW EXECUTE FUNCTION public.autorizacion_lectura_inmutable();
-                CREATE TRIGGER "TR_AutorizacionesLecturaTrabajadores_SoloSinRevocar" BEFORE INSERT OR DELETE ON public."AutorizacionesLecturaTrabajadores" FOR EACH ROW EXECUTE FUNCTION public.autorizacion_lectura_trabajador_solo_sin_revocar();
+                CREATE TRIGGER "TR_AutorizacionesLecturaTrabajadores_SoloSinRevocar" BEFORE INSERT OR UPDATE OR DELETE ON public."AutorizacionesLecturaTrabajadores" FOR EACH ROW EXECUTE FUNCTION public.autorizacion_lectura_trabajador_solo_sin_revocar();
+                CREATE TRIGGER "TR_ContratosAcceso_TenantContratistaUnaVez" BEFORE UPDATE OF "TenantContratistaId" ON public."ContratosAcceso"
+                    FOR EACH ROW
+                    WHEN (OLD."TenantContratistaId" IS NOT NULL AND NEW."TenantContratistaId" IS DISTINCT FROM OLD."TenantContratistaId")
+                    EXECUTE FUNCTION public.contrato_acceso_tenant_contratista_una_vez();
                 """);
         }
 
@@ -219,9 +246,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             migrationBuilder.DropTable(
                 name: "AutorizacionesLecturaDocumental");
 
-            // Los disparadores caen con las tablas; sus funciones, no.
+            // Los disparadores de las tablas nuevas caen con ellas; sus funciones, no. El de ContratosAcceso se quita a mano
+            // antes que la columna que vigila.
             migrationBuilder.Sql(
                 """
+                DROP TRIGGER "TR_ContratosAcceso_TenantContratistaUnaVez" ON public."ContratosAcceso";
+                DROP FUNCTION public.contrato_acceso_tenant_contratista_una_vez();
                 DROP FUNCTION public.autorizacion_lectura_trabajador_solo_sin_revocar();
                 DROP FUNCTION public.autorizacion_lectura_inmutable();
                 """);

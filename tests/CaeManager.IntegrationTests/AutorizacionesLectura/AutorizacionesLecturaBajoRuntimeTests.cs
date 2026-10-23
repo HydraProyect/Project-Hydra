@@ -23,9 +23,11 @@ namespace CaeManager.IntegrationTests.AutorizacionesLectura;
 /// Autorización de lectura del Tenant de la Empresa contratista (Inbound M1, PR 2) bajo <c>cae_app_runtime</c> con
 /// contexto firmado. Lo que prueba aquí la base y no Application: RLS aísla las dos tablas por Tenant; el runtime solo
 /// puede escribir las columnas de la revocación (GRANT por columna) y nunca borra la autorización; el trigger hace
-/// definitiva la revocación y congela sus Trabajadores; el índice único parcial deja una sola autorización sin revocar
-/// por destinatario y contrato; la FK compuesta no admite un Trabajador de otro Tenant; los CHECK impiden autorizarse a
-/// uno mismo y vincular un contrato con su propio Tenant. Ninguna lectura cruza Tenants en este PR.
+/// definitiva la revocación y congela sus Trabajadores (salvo el borrado de la identidad propietaria, que es el de la
+/// retirada de un Tenant de demo); el índice único parcial deja una sola autorización sin revocar por destinatario y
+/// contrato; la FK compuesta no admite un Trabajador de otro Tenant; los CHECK impiden autorizarse a uno mismo y vincular
+/// un contrato con su propio Tenant, y un trigger hace que ese vínculo se escriba una sola vez. Ninguna lectura cruza
+/// Tenants en este PR.
 /// </summary>
 public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
 {
@@ -61,7 +63,8 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
             var otroTrabajador = Trabajador.DeEmpresa(empresa.Id, "Luis", "García", "00000000T");
             contexto.Trabajadores.AddRange(trabajador, otroTrabajador);
             var autorizacion = Conceder(_tenantCliente.Id, _contratoDelCliente);
-            var revocada = Conceder(_tenantCliente.Id, _contratoDelCliente);
+            // Otro contrato: dos sin revocar para el mismo destinatario y contrato las rechaza el índice único parcial.
+            var revocada = Conceder(_tenantCliente.Id, Guid.NewGuid());
             contexto.AutorizacionesLecturaDocumental.AddRange(autorizacion, revocada);
             await contexto.SaveChangesAsync();
             contexto.AutorizacionesLecturaTrabajadores.AddRange(
@@ -74,10 +77,10 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
         }
         await using (var contexto = Contexto(_tenantCliente.Id))
         {
-            var cliente = Empresa.CrearComoCliente("Cliente empresarial titular", "B10380186", false, null, null);
+            var cliente = Empresa.CrearComoCliente("Cliente empresarial", "B10380186", false, null, null);
             var contratista = new Empresa("Empresa contratista", "B10380194");
             contexto.Empresas.AddRange(cliente, contratista);
-            var centro = new Centro(cliente.Id, cliente.Id, "Centro de trabajo del titular");
+            var centro = new Centro(cliente.Id, cliente.Id, "Centro de trabajo del Cliente empresarial");
             contexto.Centros.Add(centro);
             await contexto.SaveChangesAsync();
             var trabajador = Trabajador.DeEmpresa(contratista.Id, "Eva", "Ruiz", "00000001R");
@@ -179,6 +182,55 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task La_identidad_propietaria_borra_los_Trabajadores_de_una_revocada_como_la_retirada_de_demo()
+    {
+        await using (var runtime = Contexto(_tenantContratista.Id, _administrador))
+        {
+            var retirar = () => runtime.Database.ExecuteSqlAsync(
+                $"DELETE FROM \"AutorizacionesLecturaTrabajadores\" WHERE \"AutorizacionId\" = {_revocada};");
+            (await retirar.Should().ThrowAsync<PostgresException>())
+                .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation, "bajo cae_app_runtime la excepción no aplica");
+        }
+
+        // RetiradaTenantDemoService borra con la identidad propietaria, primero las filas hijas y después la autorización.
+        await using var propietario = Contexto(_tenantContratista.Id);
+        var anadir = () => propietario.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "AutorizacionesLecturaTrabajadores" ("Id", "TenantId", "AutorizacionId", "TrabajadorId")
+            VALUES ({Guid.NewGuid()}, {_tenantContratista.Id}, {_revocada}, {_otroTrabajador});
+            """);
+        (await anadir.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation, "la excepción es solo para DELETE: el propietario tampoco añade");
+
+        (await propietario.Database.ExecuteSqlAsync(
+            $"DELETE FROM \"AutorizacionesLecturaTrabajadores\" WHERE \"AutorizacionId\" = {_revocada};")).Should().Be(1);
+        (await propietario.Database.ExecuteSqlAsync(
+            $"DELETE FROM \"AutorizacionesLecturaDocumental\" WHERE \"Id\" = {_revocada};")).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task El_vinculo_con_el_Tenant_de_la_Empresa_contratista_se_escribe_una_sola_vez_en_la_base()
+    {
+        await using var contexto = Contexto(_tenantCliente.Id, _administradorCliente);
+        Task<int> Vincular(Guid? tenantContratista) => contexto.Database.ExecuteSqlInterpolatedAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"TenantContratistaId\" = {tenantContratista} WHERE \"Id\" = {_contratoAcceso};");
+
+        // De NULL a un valor pasa: es el alta del vínculo.
+        (await Vincular(_tenantContratista.Id)).Should().Be(1);
+
+        var cambiar = () => Vincular(Guid.NewGuid());
+        (await cambiar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation, "TR_ContratosAcceso_TenantContratistaUnaVez: X → Y no");
+
+        var vaciar = () => Vincular(null);
+        (await vaciar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.CheckViolation, "TR_ContratosAcceso_TenantContratistaUnaVez: X → NULL no");
+
+        (await contexto.ContratosAcceso.IgnoreQueryFilters().Where(c => c.Id == _contratoAcceso)
+                .Select(c => c.TenantContratistaId).SingleAsync())
+            .Should().Be(_tenantContratista.Id);
+    }
+
+    [Fact]
     public async Task El_runtime_no_puede_borrar_una_autorizacion_y_si_retirar_un_Trabajador()
     {
         await using var contexto = Contexto(_tenantContratista.Id, _administrador);
@@ -233,10 +285,11 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
 
         contexto.AutorizacionesLecturaTrabajadores.Add(autorizacion.AsignarTrabajador(_trabajadorDelCliente));
         var guardar = () => contexto.SaveChangesAsync();
-        (await guardar.Should().ThrowAsync<DbUpdateException>())
-            .WithInnerException<PostgresException>()
-            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation,
-                "la FK (TenantId, TrabajadorId) contra Trabajadores no casa con un Trabajador de otro Tenant");
+        var error = (await guardar.Should().ThrowAsync<DbUpdateException>()).WithInnerException<PostgresException>().Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation,
+            "la FK (TenantId, TrabajadorId) contra Trabajadores no casa con un Trabajador de otro Tenant");
+        // Nombre recortado por EF a 63 caracteres, tal cual lo crea la migración.
+        error.ConstraintName.Should().Be("FK_AutorizacionesLecturaTrabajadores_Trabajadores_TenantId_Tra~");
     }
 
     [Fact]
