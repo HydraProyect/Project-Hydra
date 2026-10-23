@@ -14,46 +14,39 @@
     <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
 }
 
-<div class="@ClaseContenedorPagina">
+<div class="@(ClaseContenedorPagina + " lista-design")">
     @* Gen 2: la cabecera es la primitiva, no un div a mano. Integrada resuelve
        h1/h2 igual que TituloPaginaIntegrable, y las acciones entran por
        .acciones-cabecera, que es lo que el mockup nombra. *@
-    <CabeceraPagina Titulo="Usuarios" Integrada="IntegradaEnConfiguracion">
+    <CabeceraPagina Titulo="@TextosUsuarios["ListaTitulo"]" Integrada="IntegradaEnConfiguracion">
         <Acciones>
             @if (!_modoEquipo)
             {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@TextosUsuarios["ListaNuevo"]</Boton></SoloConEscritura>
             }
         </Acciones>
     </CabeceraPagina>
 
-    @* Mismo sitio y misma composición que las demás listas (list-page.css
-       ".barra-filtros"): buscador a la izquierda, filtros a su derecha, nunca
-       escondidos tras un menú. Se filtra en memoria — ver UsuariosFiltrados.
-
-       El mockup Gen 2 no los pinta, y aun así se quedan: omitir un control en
-       un mockup no es pedir que se retire del producto, y sin ellos una
-       organización con cuarenta cuentas solo puede buscar a ojo. Ver también
-       el estado vacío por filtro, que existe justamente por esta barra.
-
-       Solo se pinta cuando hay algo que filtrar: sobre el error de carga
-       mentiría (no hay lista sobre la que actuar) y sobre una organización
-       recién creada serían tres controles que no pueden hacer nada. A
-       diferencia de Empresas, aquí filtrar no es una consulta al servidor
-       que pueda devolver cero de por sí. *@
-    @if (!_errorCarga && !_cargando && _usuarios.Count > 0)
-    {
-        <section class="barra-filtros-lista">
-        <div class="barra-filtros-lista-fila">
-                <CampoTexto Etiqueta="@ComunesListados["ListaBuscar"]" Placeholder="Buscar por nombre o correo…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                <FiltroEstado Etiqueta="Rol" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync"
-                              Opciones="OpcionesRol" />
-                <FiltroEstado Etiqueta="Estado" Valor="@_activacionFiltro" ValorChanged="FiltrarPorActivacionAsync"
-                              Opciones="OpcionesActivacion" />
-            </div>
-    </section>
-    }
-
+    <BarraFiltros PresentacionMaqueta="true" Contador="@(_cargando || _errorCarga ? null : UsuariosFiltrados.Count)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="AlternarSeleccionMultiple" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar" VistaRecordada="_vistaRecordada">
+        <Pastillas><PastillaFiltro Etiqueta="@TextosUsuarios["ListaRol"]" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync" Opciones="OpcionesRol" /></Pastillas>
+        <Estados><FranjaEstado Opciones="OpcionesEstadoLista" Valor="@_activacionFiltro" ValorChanged="CambiarEstadoListaAsync" Recuentos="RecuentosEstadoLista" TextoTodos="@TextosUsuarios["ListaTodos"]" /></Estados>
+        <Herramientas><DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacionAsync" /></Herramientas>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@_busqueda" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_rolFiltro))
+            {
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@Roles.NombreVisible(_rolFiltro)" OnQuitar="() => FiltrarPorRolAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Usuarios" ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar los usuarios" Descripcion="Intenta nuevamente en unos segundos.">
@@ -87,40 +80,36 @@
     {
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
-        <table class="tabla-datos">
+        <div class="tarjeta-listado"><div class="tarjeta-listado-contenido"><div class="tabla-contenedor"><table class="tabla-datos">
             <thead>
                 <tr>
-                    <th scope="col">Correo</th>
-                    <th scope="col">Nombre</th>
-                    <th scope="col">Rol</th>
-                    <th scope="col">Ámbito efectivo</th>
-                    <th scope="col">Estado</th>
+                    @if (_seleccionMultiple) { <th scope="col"><input type="checkbox" aria-label="@TextosUsuarios["ListaSeleccionTodos"]" checked="@(UsuariosVisibles.Count > 0 && UsuariosVisibles.All(u => _seleccionados.Contains(u.Id)))" @onchange="e => SeleccionarVisibles((bool)e.Value!)" /></th> }
+                    <th scope="col">@TextosUsuarios["ListaUsuario"]</th>
+                    <th scope="col">@TextosUsuarios["ListaRol"]</th>
+                    <th scope="col">@TextosUsuarios["ListaAmbito"]</th>
+                    <th scope="col">@TextosUsuarios["ListaEstado"]</th>
                     @* La columna de acciones no lleva rótulo visible, pero sí
                        nombre: una cabecera vacía deja a quien navega con
                        lector de pantalla sin saber de qué columna es la celda
                        en la que está. *@
-                    <th scope="col"><span class="encabezado-solo-lectores">Acciones</span></th>
+                    <th scope="col"><span class="encabezado-solo-lectores">@TextosUsuarios["ListaAcciones"]</span></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var usuario in UsuariosDePagina)
+                @foreach (var fila in FilasAgrupadas)
                 {
+                    var usuario = fila.Fila;
+                    @if (fila.Cabecera is { } grupo)
+                    {
+                        <tr class="fila-grupo"><td colspan="@(_seleccionMultiple ? 6 : 5)"><CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Abierto="fila.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" /></td></tr>
+                    }
+                    @if (fila.Oculta || OcultaPorLimite(usuario)) { continue; }
                     <tr class="@ClaseFila(usuario.Id)">
+                        @if (_seleccionMultiple) { <td><input type="checkbox" aria-label="@TextosUsuarios["ListaSeleccionFila", usuario.NombreCompleto]" checked="@_seleccionados.Contains(usuario.Id)" @onchange="e => Seleccionar(usuario.Id, (bool)e.Value!)" /></td> }
                         <td>
-                            @usuario.Email
-                            @if (usuario.Id == _usuarioActualId)
-                            {
-                                @* Quién eres tú en esta lista. Es la fila en la
-                                   que ni puedes desactivarte ni tocar tu propio
-                                   permiso sobre documentos sensibles, así que
-                                   conviene que se distinga antes de intentarlo. *@
-                                <span class="marca-eres-tu">tú</span>
-                            }
-                        </td>
-                        <td>
-                            <span class="persona-identidad">
-                                <AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@usuario.NombreCompleto
-                            </span>
+                            <span class="persona-identidad"><AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" /><strong>@usuario.NombreCompleto</strong></span>
+                            <span class="lista-identificador">@usuario.Email</span>
+                            @if (usuario.Id == _usuarioActualId) { <span class="marca-eres-tu">@TextosUsuarios["ListaTu"]</span> }
                         </td>
                         <td>
                             @Roles.NombreVisible(usuario.Rol)
@@ -239,14 +228,31 @@
                             </MenuAcciones>
                         </td>
                     </tr>
+                    @if (RestantesTras(usuario) is var restantes && restantes > 0)
+                    {
+                        <tr class="fila-restantes"><td colspan="@(_seleccionMultiple ? 6 : 5)"><Boton Variante="VarianteBoton.Fantasma" OnClick="() => VerRestantes(usuario.Rol)">@TextosUsuarios["ListaRestantes", restantes]</Boton></td></tr>
+                    }
                 }
             </tbody>
-        </table>
+        </table></div></div></div>
 
-        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="UsuariosDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
-                          Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
     }
+@if (!_errorCarga)
+{
+    <div class="tarjeta-listado-pie">
+        @if (_agruparPor is not null)
+        {
+            <span>@TextosUsuarios["ListaTotal", UsuariosFiltrados.Count]</span>
+        }
+        else
+        {
+        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="UsuariosDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
+                          Etiqueta="@TextosUsuarios["ListaUnidad"]" PaginaActualChanged="IrAPaginaAsync"
+                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        }
+    </div>
+}
+
 </div>
 
 @* «Guardar» queda deshabilitado mientras viaja la comprobación del CIF: guardar en ese instante decidiría con un resultado que

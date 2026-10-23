@@ -75,6 +75,8 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "rol", "estado", "agrupar"];
+
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -150,12 +152,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private const string ActivacionActivos = "activos";
     private const string ActivacionDesactivados = "desactivados";
 
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesActivacion =
-    [
-        new(ActivacionActivos, "Activos"),
-        new(ActivacionDesactivados, "Desactivados")
-    ];
-
     /// <summary>
     /// El filtrado es en memoria a propósito: <see cref="CargarAsync"/> ya trae
     /// la lista entera de usuarios del tenant —son decenas, no miles— y la
@@ -185,13 +181,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             if (!string.IsNullOrWhiteSpace(_rolFiltro))
                 filtrados = filtrados.Where(u => u.Rol == _rolFiltro);
 
-            filtrados = _activacionFiltro switch
-            {
-                ActivacionActivos => filtrados.Where(u => u.Activo),
-                ActivacionDesactivados => filtrados.Where(u => !u.Activo),
-                _ => filtrados
-            };
-
+            if (!string.IsNullOrEmpty(_activacionFiltro))
+                filtrados = filtrados.Where(u => _activacionFiltro.Split(',').Contains(EstadoLista(u)));
             return filtrados.ToList();
         }
     }
@@ -251,7 +242,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _busqueda = valor;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task FiltrarPorRolAsync(string valor)
@@ -259,15 +250,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _rolFiltro = valor;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
-    }
-
-    private Task FiltrarPorActivacionAsync(string valor)
-    {
-        _activacionFiltro = valor;
-        _pagina = 1;
-        _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task LimpiarFiltrosAsync()
@@ -277,12 +260,13 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _activacionFiltro = string.Empty;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task IrAPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        _seleccionados.Clear();
         _idEnfocado = null;
         return Task.CompletedTask;
     }
@@ -291,6 +275,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private Task CambiarTamanoPaginaAsync(int tamano)
     {
         _tamanoPagina = tamano;
+        _seleccionados.Clear();
         _pagina = 1;
         _idEnfocado = null;
         return Task.CompletedTask;
@@ -309,13 +294,12 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>
     /// "j"/"k" recorren la página visible y "Enter" abre la edición del usuario
-    /// enfocado — la misma acción que "Editar" en su menú. "x" no tiene efecto:
-    /// la pantalla no tiene selección múltiple, así que no hay nada que marcar,
-    /// y dársela sería una decisión de producto, no la reparación de este hueco.
+    /// enfocado — la misma acción que "Editar" en su menú. "x" alterna la selección
+    /// de la fila visible enfocada cuando la selección múltiple está activa.
     /// </summary>
     private async Task ManejarAtajoAsync(string tecla)
     {
-        var visibles = UsuariosDePagina;
+        var visibles = UsuariosVisibles;
         if (visibles.Count == 0) return;
 
         var indice = -1;
@@ -330,6 +314,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                 break;
             case "k":
                 _idEnfocado = visibles[indice <= 0 ? 0 : indice - 1].Id;
+                break;
+            case "x" when _seleccionMultiple && indice >= 0:
+                Seleccionar(visibles[indice].Id, !_seleccionados.Contains(visibles[indice].Id));
                 break;
             case "Enter":
                 if (indice >= 0)
@@ -449,6 +436,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
                         Avatar: m.Avatar))
                     .ToList();
                 _pagina = 1;
+                ReiniciarVistaLista();
                 return;
             }
 
@@ -532,6 +520,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             if (version != _versionCarga) return;
 
             _usuarios = usuarios;
+            ReiniciarVistaLista();
             _pagina = 1;
         }
         catch (OperationCanceledException)

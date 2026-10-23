@@ -821,7 +821,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var encabezados = cut.FindAll("table.tabla-datos thead th");
         encabezados.Select(th => th.TextContent.Trim())
-            .Should().Equal("Correo", "Nombre", "Rol", "Ámbito efectivo", "Estado", "Acciones");
+            .Should().Equal("Usuario", "Rol", "Ámbito efectivo", "Estado", "Acciones");
         encabezados.Should().OnlyContain(th => th.GetAttribute("scope") == "col");
         encabezados[^1].QuerySelector(".encabezado-solo-lectores").Should().NotBeNull(
             "el rótulo existe para el lector de pantalla, no para la vista");
@@ -855,17 +855,17 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar();
 
         var fila = Fila(cut, "soporte.ops@plataforma-cae.es");
-        Celdas(fila)[2].TextContent.Should().Contain("Consulta").And.NotContain("Administrador");
+        Celdas(fila)[1].TextContent.Should().Contain("Consulta").And.NotContain("Administrador");
         fila.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Delegado");
     }
 
     [Fact]
-    public void Una_organizacion_sin_cuentas_no_ofrece_filtros_que_no_pueden_hacer_nada()
+    public void Una_organizacion_sin_cuentas_conserva_la_barra_y_su_vista()
     {
         var cut = Renderizar();
 
         cut.Find(".estado-vacio").TextContent.Should().Contain("Aún no hay usuarios");
-        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().ContainSingle();
         cut.Find(".estado-vacio").QuerySelector(".estado-vacio-accion").Should().BeNull(
             "el alta ya está en la cabecera");
     }
@@ -881,7 +881,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".barra-filtros-lista input").InputAsync(new() { Value = "no-existe-nadie-asi" });
+        await cut.Find(".barra-filtros-pastillas input").InputAsync(new() { Value = "no-existe-nadie-asi" });
 
         var vacio = cut.Find(".estado-vacio").TextContent;
         vacio.Should().Contain("Ningún usuario coincide");
@@ -1804,7 +1804,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: CoordinadoraId, rolActor: RolesIdentidad.CoordinadorCae);
 
-        Filas(cut).Select(f => Celdas(f)[0].TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
+        Filas(cut).Select(f => f.QuerySelector(".lista-identificador")!.TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
         cut.Markup.Should().NotContain("otro.gestor@talveg.es").And.NotContain("marta.r@talveg.es").And.NotContain("c.consulta@talveg.es");
         cut.FindAll(".acciones-cabecera button").Should().BeEmpty("sin alta de usuarios");
         _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().ContainSingle();
@@ -1844,7 +1844,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar(actorId: MartaId);
-        cut.Find(".menu-acciones-disparador").Click();
+        Fila(cut, "marta.r@talveg.es").QuerySelector(".menu-acciones-disparador")!.Click();
         cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").Click();
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Editar usuario"));
@@ -2357,8 +2357,8 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
 
-        cut.FindComponent<DialogoConfirmacion>().Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
-        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+        cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
 
         _identidad.Eliminadas.Should().ContainSingle().Which.Should().Be(AnderId);
         _identidad.Cuentas.Should().NotContainKey(AnderId);
@@ -2438,7 +2438,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
-        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
 
         _identidad.Eliminadas.Should().BeEmpty();
         _identidad.Cuentas.Should().ContainKey(AnderId);
@@ -2640,7 +2640,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await Atajo(cut, "j");
         CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("j.ibarra@talveg.es");
 
-        var buscador = cut.Find("input[placeholder='Buscar por nombre o correo…']");
+        var buscador = cut.Find("[data-filtro-pantalla]");
         await buscador.InputAsync(new ChangeEventArgs { Value = "iker" });
         CorreosEnfocados(cut).Should().BeEmpty();
 

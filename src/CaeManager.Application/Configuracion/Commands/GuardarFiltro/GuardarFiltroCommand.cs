@@ -42,9 +42,10 @@ public static class PantallasConFiltrosGuardados
     public const string Visitas = "Visitas";
     public const string Gestiones = "Gestiones";
     public const string Incidencias = "Incidencias";
+    public const string Usuarios = "Usuarios";
 
     public static readonly string[] Admitidas =
-        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias];
+        [Clientes, Documentos, Trabajadores, Empresas, Centros, Subcontratas, Vehiculos, Proyectos, Visitas, Gestiones, Incidencias, Usuarios];
 }
 
 public class GuardarFiltroCommandValidator : AbstractValidator<GuardarFiltroCommand>
