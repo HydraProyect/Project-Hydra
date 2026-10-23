@@ -1411,7 +1411,8 @@ public static class Ayudas
         {
             var estado = await DescribirEstadoDelDrawerAsync(page);
             throw new TimeoutException(
-                "No se pudo pulsar «Guardar» del drawer. Estado del DOM en ese instante: " + estado, excepcion);
+                "No se pudo pulsar «Guardar» del drawer (no existe, está tapado o no se habilita). Estado del DOM en ese instante: " + estado,
+                excepcion);
         }
     }
 
@@ -1419,17 +1420,18 @@ public static class Ayudas
     {
         try
         {
+            // Sin tope, una página con el hilo principal bloqueado dejaría colgado el diagnóstico en vez de fallar.
             return await page.EvaluateAsync<string>(@"() => JSON.stringify({
                 url: location.href,
                 drawers: document.querySelectorAll('.drawer-panel').length,
                 titulosDeDialogo: [...document.querySelectorAll('[role=dialog]')].map(d => (d.querySelector('h2, h1')?.textContent || d.getAttribute('aria-label') || '').trim()),
                 pies: [...document.querySelectorAll('.drawer-pie')].map(p => p.innerText.replace(/\s+/g, ' ').trim()),
                 dialogosNativosAbiertos: document.querySelectorAll('dialog[open]').length,
-                avisoDeErrorDeBlazor: getComputedStyle(document.getElementById('blazor-error-ui') || document.body).display,
+                avisoDeErrorDeBlazor: document.getElementById('blazor-error-ui') ? getComputedStyle(document.getElementById('blazor-error-ui')).display : 'ausente',
                 clasesDeReconexion: [...document.querySelectorAll('[class*=components-reconnect]')].map(e => e.className).slice(0, 3),
                 aviso: (document.querySelector('.drawer-aviso')?.innerText || '').trim().slice(0, 200),
                 texto: document.body.innerText.replace(/\s+/g, ' ').trim().slice(0, 400)
-            })");
+            })").WaitAsync(TimeSpan.FromSeconds(5));
         }
         catch (Exception excepcion) when (excepcion is PlaywrightException or TimeoutException)
         {
