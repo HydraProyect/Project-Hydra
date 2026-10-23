@@ -27,32 +27,11 @@
             }
         </div>
     }
-    <details class="composer-macro-campo">
-        <summary>@TextosAccesibles["Macros"]</summary>
-        <p>@TextosAccesibles["AyudaMacros"]</p>
-        <CampoTexto Etiqueta="@TextosAccesibles["BuscarMacro"]" Placeholder="@TextosAccesibles["BuscarMacroAyuda"]" Valor="@_busquedaMacro" ValorChanged="v => _busquedaMacro = v" />
-        <CampoSelect Etiqueta="@TextosAccesibles["MacroPlantilla"]" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
-            <option value="">@TextosAccesibles["SinMacro"]</option>
-            @foreach (var macro in MacrosFiltradas)
-            {
-                <option value="@macro.Id">@macro.Titulo</option>
-            }
-        </CampoSelect>
-        @if (!MacrosFiltradas.Any())
-        {
-            <p role="status">@TextosAccesibles["SinMacros"]</p>
-        }
-        @* Las macros vuelven al redactor por decisión de producto del 2026-10-23.
-           OJO: el destino es la ruta literal /comunicaciones/macros
-           (Macros.razor, [Authorize(Roles=RolesComunicaciones.Gestion)]),
-           NO /configuracion/macros — esa segunda URL pasa por el hub de
-           Configuración, gateado solo a Administrador, y dejaría fuera a
-           DireccionCae/CoordinadorCae/GestorCae/Consulta, que sí pueden
-           ver este composer (hallazgo de revisión adversaria de Codex). *@
-        <a class="composer-macro-administrar" href="/comunicaciones/macros" target="_blank" rel="noopener">
-            @TextosAccesibles["GestionarMacros"]
-        </a>
-    </details>
+
+    @if (Canal == CanalConversacion.WhatsApp)
+    {
+        <div class="composer-macros-whatsapp">@BloqueMacros</div>
+    }
 
     @if (Canal == CanalConversacion.WhatsApp && !VentanaAbierta)
     {
@@ -130,6 +109,7 @@
             }
 
             <div class="composer-acciones">
+                @BloqueMacros
                 <label class="composer-boton-adjuntar" title="Adjuntar archivo">
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
@@ -143,6 +123,39 @@
 </div>
 
 @code {
+    // Maqueta (.ed-pie): «Macros ▾» es un botón del pie del editor y su lista se abre como ventana flotante hacia
+    // arriba (.pop-arriba), no un bloque desplegado sobre el textarea. Sigue siendo un <details>, así abre y cierra
+    // sin interop; en WhatsApp, que no tiene pie de correo, va en su propia fila sobre el aviso de ventana.
+    private RenderFragment BloqueMacros => @<text>
+    <details class="composer-macro-campo">
+        <summary>@TextosAccesibles["Macros"]</summary>
+        <div class="composer-macro-panel">
+        <p>@TextosAccesibles["AyudaMacros"]</p>
+        <CampoTexto Etiqueta="@TextosAccesibles["BuscarMacro"]" Placeholder="@TextosAccesibles["BuscarMacroAyuda"]" Valor="@_busquedaMacro" ValorChanged="v => _busquedaMacro = v" />
+        <CampoSelect Etiqueta="@TextosAccesibles["MacroPlantilla"]" Valor="@MacroSeleccionadaId" ValorChanged="v => OnAplicarMacro.InvokeAsync(v)">
+            <option value="">@TextosAccesibles["SinMacro"]</option>
+            @foreach (var macro in MacrosFiltradas)
+            {
+                <option value="@macro.Id">@macro.Titulo</option>
+            }
+        </CampoSelect>
+        @if (!MacrosFiltradas.Any())
+        {
+            <p role="status">@TextosAccesibles["SinMacros"]</p>
+        }
+        @* Las macros vuelven al redactor por decisión de producto del 2026-10-23.
+           OJO: el destino es la ruta literal /comunicaciones/macros
+           (Macros.razor, [Authorize(Roles=RolesComunicaciones.Gestion)]),
+           NO /configuracion/macros — esa segunda URL pasa por el hub de
+           Configuración, gateado solo a Administrador, y dejaría fuera a
+           DireccionCae/CoordinadorCae/GestorCae/Consulta, que sí pueden
+           ver este composer (hallazgo de revisión adversaria de Codex). *@
+        <a class="composer-macro-administrar" href="/comunicaciones/macros" target="_blank" rel="noopener">
+            @TextosAccesibles["GestionarMacros"]
+        </a>
+        </div>
+    </details>
+</text>;
     [Parameter, EditorRequired] public CanalConversacion Canal { get; set; }
     [Parameter] public bool VentanaAbierta { get; set; } = true;
     [Parameter] public string CierreVentanaLocal { get; set; } = string.Empty;

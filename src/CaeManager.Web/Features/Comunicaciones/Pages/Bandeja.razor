@@ -394,9 +394,11 @@
                   <SoloConEscritura>
                     <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
 
-                    <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
-                        <button type="button" aria-pressed="@(!_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = false">@TextosLista["RespuestaPublica"]</button>
-                        <button type="button" aria-pressed="@(_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = true">@TextosLista["NotaInterna"]</button>
+                    <div class="hilo-editor-cabecera">
+                        <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
+                            <button type="button" aria-pressed="@(!_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = false">@TextosLista["RespuestaPublica"]</button>
+                            <button type="button" aria-pressed="@(_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = true">@TextosLista["NotaInterna"]</button>
+                        </div>
                     </div>
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
                     <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
