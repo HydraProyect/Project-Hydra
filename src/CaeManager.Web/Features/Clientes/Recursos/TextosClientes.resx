@@ -517,6 +517,10 @@
   <data name="DetalleTrabajadorBloqueadoUno" xml:space="preserve"><value>1 trabajador bloqueado</value></data>
   <data name="DetalleBloqueoPlataformaUno" xml:space="preserve"><value>1 bloqueado por la plataforma</value></data>
   <data name="DetalleBloqueosPlataformaVarios" xml:space="preserve"><value>{0} bloqueados por la plataforma</value></data>
+  <data name="DetalleBloqueaAccesoUno" xml:space="preserve"><value>1 documento bloquea el acceso</value></data>
+  <data name="DetalleBloqueanAccesoVarios" xml:space="preserve"><value>{0} documentos bloquean el acceso</value></data>
+  <data name="DetallePendienteValidacionUno" xml:space="preserve"><value>1 pendiente de validación</value></data>
+  <data name="DetallePendientesValidacionVarios" xml:space="preserve"><value>{0} pendientes de validación</value></data>
   <data name="FraccionCentroUno" xml:space="preserve"><value>{0} de {1} centro</value></data>
   <data name="AnilloCentroUno" xml:space="preserve"><value>{0} de {1} centro con gestión CAE sin incidencias</value></data>
   <data name="ListaCentrosSinGestionCae" xml:space="preserve"><value>Centros sin gestión CAE</value></data>
