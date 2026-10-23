@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Patrón de lista</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--p:#235bc2;--p6:#1e4a9e;--p50:#eef5ff;--bg:#f6f8fa;--s:#fff;--sh:#f1f5f7;--t:#161e27;--m:#5f6e84;--b:#e2e8ec;--bs:#cbd5e1;--ok:#15803d;--ok5:#eefdf3;--wa:#b45309;--wa5:#fff8eb;--ko:#991b1b;--ko5:#fef2f2}
+*{box-sizing:border-box}body{margin:0;font:400 14px/20px Inter,system-ui,sans-serif;color:var(--t);background:var(--bg)}
+.shell{display:flex;min-height:100vh}
+aside.lat{width:260px;background:var(--s);border-right:1px solid var(--b);padding:16px 12px;flex-shrink:0}
+.marca{display:flex;align-items:center;gap:6px;font:700 18px Inter;letter-spacing:.12em;margin:0 8px 14px}.marca small{font:600 10px Inter;letter-spacing:.05em;border:1px solid var(--b);border-radius:4px;padding:1px 5px;color:var(--m)}
+.emp{display:flex;align-items:center;gap:10px;border:1px solid var(--bs);border-radius:10px;padding:8px 10px;margin-bottom:18px;cursor:pointer}
+.ava{width:32px;height:32px;border-radius:8px;background:#e1f5ee;color:#085041;display:flex;align-items:center;justify-content:center;font:600 12px Inter;flex-shrink:0}
+.emp .lbl{font:500 11px Inter;color:var(--m)}.emp .nom{font:600 13px Inter}.emp svg{margin-left:auto}
+.grp{font:600 11px Inter;letter-spacing:.08em;color:var(--m);margin:14px 10px 6px;display:flex;justify-content:space-between}
+.it{display:flex;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;color:#334155}.it.on{background:var(--p50);color:var(--p);font-weight:600}
+.ico{width:16px;height:16px;border:1.6px solid currentColor;border-radius:4px;opacity:.8}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.top{height:60px;background:var(--s);border-bottom:1px solid var(--b);display:flex;align-items:center;gap:12px;padding:0 24px}
+.bus{border:1px solid var(--bs);border-radius:7px;padding:5px 10px;color:var(--m);font-size:13px}.bus kbd{font:500 11px Inter;border:1px solid var(--b);border-radius:4px;padding:0 4px;margin-left:8px}
+.top .u{margin-left:auto;color:var(--p);text-decoration:underline;font-size:13px}.btn{border:1px solid var(--bs);border-radius:7px;padding:6px 12px;background:var(--s);font:500 13px Inter;color:var(--t);white-space:nowrap}
+.cont{padding:28px 32px;display:flex;gap:20px;align-items:flex-start}
+.col{flex:1;min-width:0}
+.num{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#e24b4a;color:#fff;font:700 12px Inter;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 0 0 3px #fff}
+.cab{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px}
+.kick{font:600 12px Inter;letter-spacing:.08em;color:var(--m);display:flex;gap:8px;align-items:center}
+h1{font:700 32px/40px Inter;margin:4px 0 0}
+.acc{display:flex;gap:14px;align-items:center}.lnk{color:#334155;font:500 13px Inter}
+.pri{background:var(--p);color:#fff;border:none;border-radius:7px;padding:10px 18px;font:600 14px Inter}
+.filt{background:var(--s);border:1px solid var(--b);border-radius:12px;padding:14px 16px;margin-bottom:14px}
+.frow{display:flex;gap:12px;align-items:flex-end}.f{display:flex;flex-direction:column;gap:4px}.f label{font:600 12px Inter;color:#334155}
+.in{height:40px;border:1px solid var(--bs);border-radius:8px;display:flex;align-items:center;padding:0 12px;color:var(--m);background:#fff;justify-content:space-between}
+.chips{display:flex;gap:8px;align-items:center;margin-top:12px}.chip{background:var(--p50);color:var(--p6);border-radius:999px;padding:3px 10px;font:500 12px Inter}
+.herr{display:flex;gap:10px;align-items:center;margin-bottom:10px}.cnt{color:var(--m);font-size:13px}
+.tabla{background:var(--s);border:1px solid var(--b);border-radius:12px;overflow:hidden}
+table{width:100%;border-collapse:collapse}th{font:600 11px Inter;letter-spacing:.06em;text-transform:uppercase;color:var(--m);text-align:left;padding:12px 16px;border-bottom:1px solid var(--b);background:#fafbfc}
+td{padding:12px 16px;border-bottom:1px solid var(--b)}tr.sel td{background:var(--p50)}
+.nm{font-weight:600;color:var(--t);cursor:pointer}.bd{display:inline-flex;gap:5px;align-items:center;border-radius:999px;padding:2px 10px;font:600 12px Inter}
+.ok{background:var(--ok5);color:var(--ok)}.wa{background:var(--wa5);color:var(--wa)}.ko{background:var(--ko5);color:var(--ko)}
+.dots{color:var(--m);font-weight:700;letter-spacing:2px}
+.pie{display:flex;justify-content:space-between;align-items:center;margin-top:14px}
+.prev{width:320px;background:var(--s);border:1px solid var(--b);border-radius:12px;padding:18px;flex-shrink:0;position:relative}
+.bar{height:6px;border-radius:3px;background:var(--b);margin:6px 0 14px}.bar i{display:block;height:6px;border-radius:3px;width:60%;background:#f59e0b}
+.doc{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--b);font-size:13px}
+.tag{position:absolute;display:flex;gap:6px;align-items:center;font:600 12px Inter;color:#e24b4a;white-space:nowrap}
+</style></head><body>
+<div class="shell">
+<aside class="lat">
+ <div class="marca">TALVEG <small>CAE</small></div>
+ <div class="emp"><div class="ava">DU</div><div><div class="lbl">Empresa gestionada</div><div class="nom">Cervezas Duff Ibérica</div></div><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5f6e84" stroke-width="2"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4"/></svg></div>
+ <div class="grp">DASHBOARDS <span>⌄</span></div><div class="it"><span class="ico"></span>Inicio</div><div class="it"><span class="ico"></span>Visión de cartera</div>
+ <div class="grp">NEGOCIO <span>⌄</span></div><div class="it"><span class="ico"></span>Empresas</div><div class="it"><span class="ico"></span>Subcontratas</div><div class="it on"><span class="ico"></span>Trabajadores</div><div class="it"><span class="ico"></span>Clientes empresariales</div><div class="it"><span class="ico"></span>Centros</div><div class="it"><span class="ico"></span>Documentos</div>
+ <div class="grp">OPERACIÓN <span>⌄</span></div><div class="it"><span class="ico"></span>Comunicaciones</div><div class="it"><span class="ico"></span>Gestiones</div><div class="it"><span class="ico"></span>Incidencias</div><div class="it"><span class="ico"></span>Visitas</div>
+</aside>
+<div class="main">
+ <div class="top"><span class="bus">⌕ Buscar <kbd>Ctrl+K</kbd></span><span class="u">demo.coordinador@talveg.es</span><span class="btn">Cerrar sesión</span></div>
+ <div class="cont">
+  <div class="col">
+   <div class="cab">
+    <div><div class="kick"><span class="num">1</span>NEGOCIO</div><h1>Trabajadores</h1></div>
+    <div class="acc"><span class="lnk">⤓ Exportar a Excel</span><span class="btn">Más ▾</span><button class="pri">+ Nuevo trabajador</button></div>
+   </div>
+   <div class="filt">
+    <div class="frow">
+     <span class="num" style="align-self:center">2</span>
+     <div class="f" style="flex:2"><label>Buscar</label><div class="in">⌕ Nombre, apellidos, DNI o alias</div></div>
+     <div class="f" style="flex:1"><label>Documentación</label><div class="in">Todas <span>▾</span></div></div>
+     <div class="f" style="flex:1"><label>Empresa</label><div class="in">Todas <span>▾</span></div></div>
+     <div class="f" style="flex:1"><label>Centro</label><div class="in">Todos <span>▾</span></div></div>
+     <span class="btn" style="height:40px;display:flex;align-items:center">☆ Filtros guardados ▾</span>
+    </div>
+    <div class="chips"><span class="chip">Documentación: sin confirmar ✕</span><span class="chip">Empresa: Electricidad Nexus S.L. ✕</span><span class="lnk" style="color:var(--p)">Limpiar todo</span><span class="lnk" style="margin-left:auto;color:var(--p)">Guardar filtro</span></div>
+   </div>
+   <div class="herr"><span class="num">3</span><span class="btn">Selección múltiple</span><span class="cnt">5 de 8 trabajadores</span></div>
+   <div class="tabla">
+    <table>
+     <tr><th style="width:30%"><span class="num" style="margin-right:8px">4</span>Nombre</th><th>DNI</th><th>Empresa / Subcontrata</th><th>Documentación</th><th style="width:60px"></th></tr>
+     <tr class="sel"><td><span class="nm">Carla Cano Prieto</span></td><td>60004004V</td><td>Electricidad Nexus S.L.</td><td><span class="bd wa">⚠ Sin confirmar</span></td><td class="dots">···</td></tr>
+     <tr><td><span class="nm">Héctor Ferrer Pons</span></td><td>X1004001M</td><td>Electricidad Nexus S.L.</td><td><span class="bd ok">✓ Vigente</span></td><td class="dots">···</td></tr>
+     <tr><td><span class="nm">Mateo Ibarra Sanz</span></td><td>X1004005D</td><td>Electricidad Nexus S.L.</td><td><span class="bd wa">⚠ Sin confirmar</span></td><td class="dots">···</td></tr>
+     <tr><td><span class="nm">Irene Molina Ríos</span></td><td>60004002S</td><td>Electricidad Nexus S.L.</td><td><span class="bd ko">✕ Caducado</span></td><td class="dots">···</td></tr>
+     <tr><td><span class="nm">Sonia Lozano Marín</span></td><td>60004006L</td><td>Vigilancia Replicante S.L.</td><td><span class="bd ok">✓ Vigente</span></td><td class="dots"><span class="num" style="margin-right:6px">5</span>···</td></tr>
+    </table>
+   </div>
+   <div class="pie"><div style="display:flex;gap:10px;align-items:center"><span class="num">7</span><span class="btn">← Anterior</span><span class="cnt">Página 1 de 1 — 5 trabajadores</span></div><div style="display:flex;gap:10px;align-items:center"><span class="cnt">Mostrar</span><span class="btn">20 ▾</span><span class="btn">Siguiente →</span></div></div>
+  </div>
+  <div class="prev">
+   <div style="display:flex;justify-content:space-between;align-items:center"><span class="num">6</span><span style="color:var(--m)">✕</span></div>
+   <div style="font:700 18px Inter;margin-top:10px">Carla Cano Prieto</div><div style="color:var(--m);font-size:13px;margin-bottom:14px">Electricidad Nexus S.L. · 60004004V</div>
+   <div style="font:600 12px Inter;color:var(--m)">DOCUMENTACIÓN · 3 DE 5</div><div class="bar"><i></i></div>
+   <div class="doc"><span>Documento de identidad</span><span class="bd wa">Sin confirmar</span></div>
+   <div class="doc"><span>Información Art. 18</span><span class="bd wa">Sin confirmar</span></div>
+   <div class="doc"><span>Aptitud médica</span><span class="bd ok">Vigente</span></div>
+   <div class="doc"><span>Entrega de EPI</span><span class="bd ok">Vigente</span></div>
+   <div class="doc" style="border:none"><span>Formación Art. 19</span><span class="bd ok">Vigente</span></div>
+   <button class="pri" style="width:100%;margin-top:14px">Abrir ficha 360</button>
+  </div>
+ </div>
+</div></div>
+</body></html>
