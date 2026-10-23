@@ -22,22 +22,34 @@ public class RegistroInicioSesionBajoRuntimeTests
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);
         var usuario = Guid.NewGuid();
+        Guid registroId;
 
         // Camino real: EF bajo el runtime, con el Tenant explícito como en el login.
         using (var ambito = arnes.Servicios.CreateScope())
         {
             var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
             using var ambitoTenant = AmbitoTenantExplicito.Establecer(TenantSeedData.IdPorDefecto);
-            contexto.RegistrosInicioSesion.Add(new RegistroInicioSesion(usuario, null, DateTime.UtcNow, MetodoInicioSesion.Contrasena,
+            var registro = new RegistroInicioSesion(usuario, null, DateTime.UtcNow, MetodoInicioSesion.Contrasena,
                 ResultadoInicioSesion.Correcto, "203.0.113.7", "ES", "Madrid", 40.4, -3.7, "huella", "Chrome · Windows",
-                SenalesInicioSesion.DispositivoNuevo));
+                SenalesInicioSesion.DispositivoNuevo);
+            contexto.RegistrosInicioSesion.Add(registro);
             await contexto.SaveChangesAsync();
+            registroId = registro.Id;
         }
 
         var otroTenant = Guid.NewGuid();
 
         await using (var propio = await ConexionRuntimeAsync(arnes, TenantSeedData.IdPorDefecto))
+        {
             (await ContarAsync(propio, usuario)).Should().Be(1, "control positivo: el Tenant propietario ve su fila");
+
+            // El registro de inicios de sesión es ya la auditoría, con purga a 12
+            // meses: no se duplica en RegistrosAuditoria, que no se purga y
+            // guardaría IP, ciudad y huella para siempre.
+            await using var auditoria = new NpgsqlCommand("""SELECT COUNT(*) FROM "RegistrosAuditoria" WHERE "EntidadId" = @id;""", propio);
+            auditoria.Parameters.AddWithValue("id", registroId);
+            ((long)(await auditoria.ExecuteScalarAsync())!).Should().Be(0);
+        }
 
         await using var ajeno = await ConexionRuntimeAsync(arnes, otroTenant);
         (await ContarAsync(ajeno, usuario)).Should().Be(0, "la RLS oculta la fila a cualquier otro Tenant");

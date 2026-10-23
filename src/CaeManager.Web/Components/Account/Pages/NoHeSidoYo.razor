@@ -2,38 +2,46 @@
 @layout CaeManager.Web.Components.Layout.AccesoLayout
 @attribute [AllowAnonymous]
 @using Microsoft.AspNetCore.Authorization
+@using Microsoft.Extensions.Localization
 @using CaeManager.Infrastructure.Seguridad
+@using CaeManager.Web.Components.Account.Recursos
 @inject IVigilanciaInicioSesion Vigilancia
+@inject IStringLocalizer<TextosCuenta> Textos
 
 @* Destino del enlace «no he sido yo» del aviso de inicio de sesión inusual.
    El GET no cambia nada: los antivirus y las vistas previas del correo abren
    los enlaces por su cuenta, y si abrirlo bastara, cualquier escáner cerraría
    las sesiones de la persona. Lo que actúa es el POST del botón (con
-   antiforgery), y el token lo comprueba VigilanciaInicioSesionService. *@
+   antiforgery), y el token lo comprueba VigilanciaInicioSesionService. La
+   página no promete un correo que no salió: el texto sigue al desenlace. *@
 
-<PageTitle>No he sido yo — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["NoHeSidoYoTituloPagina"] — @Marca.Nombre</PageTitle>
 
 <div class="acceso-tarjeta">
-    @if (_enlaceInvalido)
+    @if (_resultado == ResultadoNoHeSidoYo.EnlaceNoValido)
     {
-        <CabeceraAcceso Titulo="Enlace no válido"
-                        Explicacion="Este enlace no es válido, ya se usó o caducó. Si crees que alguien ha entrado en tu cuenta, cambia tu contraseña." />
-        <a class="acceso-entrar" href="/cuenta/olvide-contrasena">Cambiar mi contraseña</a>
+        <CabeceraAcceso Titulo="@Textos["NoHeSidoYoEnlaceNoValidoTitulo"]"
+                        Explicacion="@Textos["NoHeSidoYoEnlaceNoValidoExplicacion"]" />
+        <a class="acceso-entrar" href="/cuenta/olvide-contrasena">@Textos["NoHeSidoYoCambiarContrasena"]</a>
     }
-    else if (_completado)
+    else if (_resultado is { } resultado)
     {
         <CabeceraAcceso />
         <span class="acceso-exito" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Grande" /></span>
-        <h2 class="acceso-titulo">Cuenta protegida</h2>
-        <p class="acceso-explica">Hemos cerrado todas tus sesiones y tu contraseña anterior ya no sirve. Te hemos enviado un correo para crear una nueva.</p>
+        <h2 class="acceso-titulo">@Textos["NoHeSidoYoProtegidaTitulo"]</h2>
+        <p class="acceso-explica">@Textos[ClaveExplicacion(resultado)]</p>
+        @if (resultado == ResultadoNoHeSidoYo.ProtegidaSinCorreo)
+        {
+            <a class="acceso-entrar" href="/cuenta/olvide-contrasena">@Textos["NoHeSidoYoPedirEnlace"]</a>
+        }
     }
     else
     {
-        <CabeceraAcceso Titulo="¿No has sido tú?"
-                        Explicacion="Si lo confirmas, cerraremos todas las sesiones abiertas de tu cuenta, tu contraseña actual dejará de servir y te enviaremos un correo para crear una nueva." />
+        <CabeceraAcceso Titulo="@Textos["NoHeSidoYoPreguntaTitulo"]"
+                        Explicacion="@Textos["NoHeSidoYoPreguntaExplicacion"]" />
         <form method="post" @formname="no-he-sido-yo" @onsubmit="ConfirmarAsync">
             <AntiforgeryToken />
-            <button type="submit" class="acceso-entrar">Proteger mi cuenta</button>
+            <button type="submit" class="acceso-entrar">@Textos["NoHeSidoYoBoton"]</button>
         </form>
     }
 </div>
@@ -45,20 +53,26 @@
     [SupplyParameterFromQuery(Name = "code")]
     private string? Code { get; set; }
 
-    private bool _enlaceInvalido;
-    private bool _completado;
+    private ResultadoNoHeSidoYo? _resultado;
 
     protected override void OnInitialized()
-        => _enlaceInvalido = string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code);
+    {
+        if (string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code))
+            _resultado = ResultadoNoHeSidoYo.EnlaceNoValido;
+    }
 
     private async Task ConfirmarAsync()
     {
-        if (_enlaceInvalido)
+        if (_resultado == ResultadoNoHeSidoYo.EnlaceNoValido)
             return;
 
-        if (await Vigilancia.ConfirmarNoHeSidoYoAsync(UserId!, Code!))
-            _completado = true;
-        else
-            _enlaceInvalido = true;
+        _resultado = await Vigilancia.ConfirmarNoHeSidoYoAsync(UserId!, Code!);
     }
+
+    private static string ClaveExplicacion(ResultadoNoHeSidoYo resultado) => resultado switch
+    {
+        ResultadoNoHeSidoYo.ProtegidaSinCorreo => "NoHeSidoYoProtegidaSinCorreoExplicacion",
+        ResultadoNoHeSidoYo.ProtegidaCuentaMicrosoft => "NoHeSidoYoMicrosoftExplicacion",
+        _ => "NoHeSidoYoProtegidaExplicacion",
+    };
 }

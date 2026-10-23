@@ -2,9 +2,11 @@ using System.Data.Common;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Seguridad;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using CaeManager.Web.Services;
@@ -75,6 +77,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>();
+        // El registro de inicios de sesión tiene su propio test
+        // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
+        servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -509,4 +514,15 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             return base.ReaderExecutingAsync(comando, datos, resultado, cancellationToken);
         }
     }
-}
+
+    private sealed class VigilanciaSinEfecto : IVigilanciaInicioSesion
+    {
+        public Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default) => Task.FromResult(true);
+
+        public Task RegistrarAsync(
+            Guid? usuarioId, Guid? tenantId, MetodoInicioSesion metodo, ResultadoInicioSesion resultado,
+            SenalesInicioSesion senalesConocidas = SenalesInicioSesion.Ninguna, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
+            => Task.FromResult(ResultadoNoHeSidoYo.EnlaceNoValido);
+    }}

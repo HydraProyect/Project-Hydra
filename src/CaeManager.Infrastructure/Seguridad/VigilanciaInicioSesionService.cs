@@ -3,6 +3,7 @@ using System.Net;
 using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.Seguridad.InicioSesion;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Notificaciones;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Identity;
@@ -43,9 +44,27 @@ public interface IVigilanciaInicioSesion
     /// <summary>
     /// «No he sido yo»: invalida la contraseña, cierra todas las sesiones de la
     /// cuenta, envía el enlace para crear una contraseña nueva y avisa al
-    /// Administrador del Tenant. Falso si el enlace no es válido, caducó o ya se usó.
+    /// Administrador del Tenant. Una cuenta que solo entra con Microsoft no
+    /// recibe enlace de contraseña: abrirle una credencial local sería una vía
+    /// de entrada nueva; tiene que asegurar su cuenta de Microsoft.
     /// </summary>
-    Task<bool> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default);
+    Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default);
+}
+
+/// <summary>Desenlace de «no he sido yo», para que la página no prometa un correo que no salió.</summary>
+public enum ResultadoNoHeSidoYo
+{
+    /// <summary>El enlace no es válido, caducó o ya se usó. No se ha cambiado nada.</summary>
+    EnlaceNoValido = 0,
+
+    /// <summary>Sesiones cerradas, contraseña invalidada y enlace de contraseña nueva enviado.</summary>
+    Protegida = 1,
+
+    /// <summary>Sesiones cerradas y contraseña invalidada, pero el correo con el enlace no salió.</summary>
+    ProtegidaSinCorreo = 2,
+
+    /// <summary>Cuenta sin contraseña local (solo Microsoft): sesiones cerradas, sin enlace de contraseña.</summary>
+    ProtegidaCuentaMicrosoft = 3,
 }
 
 /// <summary>
@@ -78,8 +97,6 @@ public sealed class VigilanciaInicioSesionService(
 {
     /// <summary>Cookie con el identificador aleatorio del navegador (estrictamente necesaria, de seguridad).</summary>
     public const string CookieDispositivo = "talveg_dispositivo";
-
-    private static readonly TimeZoneInfo ZonaMadrid = ResolverZonaMadrid();
 
     public async Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default)
     {
@@ -120,8 +137,13 @@ public sealed class VigilanciaInicioSesionService(
             var dispositivo = DispositivoDeInicioSesion.Describir(accesoHttp.HttpContext?.Request.Headers.UserAgent.ToString());
             var senales = senalesConocidas;
 
+            // El fallo contra una cuenta inexistente cuenta para la ráfaga, pero
+            // no la da por avisada: no hay Administrador del Tenant al que avisar,
+            // y el aviso tiene que salir con el primer intento que dé con una
+            // cuenta real dentro de la ventana.
+            var hayAQuienAvisar = usuarioId is not null && tenantId is not null;
             if (resultado is ResultadoInicioSesion.Fallido or ResultadoInicioSesion.Bloqueado
-                && ip is not null && rafagas.RegistrarFallo(ip.ToString(), ahora))
+                && ip is not null && rafagas.RegistrarFallo(ip.ToString(), ahora, hayAQuienAvisar))
             {
                 senales |= SenalesInicioSesion.RafagaFallos;
                 logger.LogWarning("Ráfaga de inicios de sesión fallidos desde una misma IP (último intento contra la cuenta {UsuarioId}).",
@@ -182,7 +204,7 @@ public sealed class VigilanciaInicioSesionService(
         }
     }
 
-    public async Task<bool> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
+    public async Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
     {
         string token;
         try
@@ -191,27 +213,38 @@ public sealed class VigilanciaInicioSesionService(
         }
         catch (FormatException)
         {
-            return false;
+            return ResultadoNoHeSidoYo.EnlaceNoValido;
         }
 
-        using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
+        // Un identificador que no es GUID haría lanzar al almacén de Identity.
+        if (!Guid.TryParse(usuarioId, out _))
+            return ResultadoNoHeSidoYo.EnlaceNoValido;
+
+        ApplicationUser? usuario;
         using var ambito = ambitos.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            usuario = await userManager.FindByIdAsync(usuarioId);
+            if (usuario is null
+                || !await userManager.VerifyUserTokenAsync(usuario, ProveedorTokenNoHeSidoYo.Nombre, ProveedorTokenNoHeSidoYo.Proposito, token))
+                return ResultadoNoHeSidoYo.EnlaceNoValido;
+        }
 
-        var usuario = await userManager.FindByIdAsync(usuarioId);
-        if (usuario is null
-            || !await userManager.VerifyUserTokenAsync(usuario, ProveedorTokenNoHeSidoYo.Nombre, ProveedorTokenNoHeSidoYo.Proposito, token))
-            return false;
+        // Todo lo que escribe va con el Tenant de la propia cuenta, no con el del
+        // workspace que el navegador tenga abierto si hay otra sesión iniciada.
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(usuario.TenantId);
 
         // 1. La contraseña que se usó deja de valer: sin contraseña local no se
         //    entra con ella, y la nueva solo se crea desde el buzón de la persona.
-        if (await userManager.HasPasswordAsync(usuario))
+        var teniaContrasena = await userManager.HasPasswordAsync(usuario);
+        if (teniaContrasena)
         {
             var quitada = await userManager.RemovePasswordAsync(usuario);
             if (!quitada.Succeeded)
             {
                 logger.LogError("«No he sido yo»: no se pudo invalidar la contraseña de la cuenta {UsuarioId}.", usuario.Id);
-                return false;
+                return ResultadoNoHeSidoYo.EnlaceNoValido;
             }
         }
 
@@ -220,41 +253,49 @@ public sealed class VigilanciaInicioSesionService(
         await userManager.UpdateSecurityStampAsync(usuario);
         logger.LogWarning("«No he sido yo» confirmado: contraseña invalidada y sesiones cerradas para la cuenta {UsuarioId}.", usuario.Id);
 
-        // 3. Enlace para crear la contraseña nueva, al mismo buzón.
-        if (!string.IsNullOrWhiteSpace(usuario.Email) && UrlBase() is { } urlBase)
+        // 3. Enlace para crear la contraseña nueva, al mismo buzón. Solo si la
+        //    cuenta tenía contraseña: a una cuenta que entra con Microsoft no se
+        //    le abre una credencial local nueva.
+        var resultado = ResultadoNoHeSidoYo.ProtegidaCuentaMicrosoft;
+        if (teniaContrasena)
         {
-            var reset = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await userManager.GeneratePasswordResetTokenAsync(usuario)));
-            var enlace = $"{urlBase}/cuenta/restablecer-contrasena?userId={usuario.Id}&code={reset}";
-            var cuerpo = $"""
-                <p>Has indicado que un inicio de sesión en tu cuenta de {Marca.Nombre} no fuiste tú.</p>
-                <p>Hemos cerrado todas tus sesiones abiertas y tu contraseña anterior ya no sirve.</p>
-                <p><a href="{WebUtility.HtmlEncode(enlace)}">Crear una contraseña nueva</a></p>
-                <p>Este enlace caduca en 60 minutos. Si caduca, pide otro desde «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión.</p>
-                """;
-            var email = ambito.ServiceProvider.GetRequiredService<IEmailService>();
-            var envio = await email.EnviarAsync(usuario.Email, $"Tu cuenta está protegida — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
-            if (envio.EsFallido)
-                logger.LogWarning("No se pudo enviar el enlace de contraseña nueva tras «no he sido yo» a {UsuarioId}.", usuario.Id);
+            resultado = ResultadoNoHeSidoYo.ProtegidaSinCorreo;
+            if (!string.IsNullOrWhiteSpace(usuario.Email) && UrlBase() is { } urlBase)
+            {
+                var reset = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(await userManager.GeneratePasswordResetTokenAsync(usuario)));
+                var enlace = $"{urlBase}/cuenta/restablecer-contrasena?userId={usuario.Id}&code={reset}";
+                var cuerpo = $"""
+                    <p>Has indicado que un inicio de sesión en tu cuenta de {Marca.Nombre} no fuiste tú.</p>
+                    <p>Hemos cerrado todas tus sesiones abiertas y tu contraseña anterior ya no sirve.</p>
+                    <p><a href="{WebUtility.HtmlEncode(enlace)}">Crear una contraseña nueva</a></p>
+                    <p>Este enlace caduca en 60 minutos. Si caduca, pide otro desde «¿Olvidaste tu contraseña?» en la pantalla de inicio de sesión.</p>
+                    """;
+                var email = ambito.ServiceProvider.GetRequiredService<IEmailService>();
+                var envio = await email.EnviarAsync(usuario.Email, $"Tu cuenta está protegida — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Seguridad);
+                if (envio.EsFallido)
+                    logger.LogWarning("No se pudo enviar el enlace de contraseña nueva tras «no he sido yo» a {UsuarioId}.", usuario.Id);
+                else
+                    resultado = ResultadoNoHeSidoYo.Protegida;
+            }
         }
 
         // 4. Aviso al Administrador del Tenant.
         try
         {
-            using (AmbitoTenantExplicito.Establecer(usuario.TenantId))
-            {
-                var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-                var administradores = await AdministradoresAsync(userManager, usuario);
-                var texto = $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones y debe crear una contraseña nueva.";
-                await NotificarAdministradoresAsync(ambito.ServiceProvider, db, administradores,
-                    "Cuenta protegida por «no he sido yo»", texto, $"<p>{WebUtility.HtmlEncode(texto)}</p>", ct);
-            }
+            var db = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            var administradores = await AdministradoresAsync(userManager, usuario);
+            var texto = teniaContrasena
+                ? $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones y debe crear una contraseña nueva."
+                : $"{usuario.NombreCompleto} ha indicado que un inicio de sesión en su cuenta no fue suyo. Se han cerrado sus sesiones; entra con Microsoft, así que tiene que asegurar su cuenta de Microsoft.";
+            await NotificarAdministradoresAsync(ambito.ServiceProvider, db, administradores,
+                "Cuenta protegida por «no he sido yo»", texto, $"<p>{WebUtility.HtmlEncode(texto)}</p>", ct);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "No se pudo avisar al Administrador del Tenant del «no he sido yo» de la cuenta {UsuarioId}.", usuario.Id);
         }
 
-        return true;
+        return resultado;
     }
 
     private async Task AvisarAsync(
@@ -265,7 +306,7 @@ public sealed class VigilanciaInicioSesionService(
         if (usuario is null || usuario.TenantId != tenantId)
             return;
 
-        var momento = TimeZoneInfo.ConvertTimeFromUtc(registro.OcurridoEnUtc, ZonaMadrid).ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
+        var momento = registro.OcurridoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm", CultureInfo.InvariantCulture);
         var lugar = Lugar(registro);
         var motivos = Motivos(registro.Senales);
         var detalle = $"""
@@ -335,10 +376,14 @@ public sealed class VigilanciaInicioSesionService(
         if (contexto is null)
             return (null, null);
 
+        // Sin la captura de Program.cs no se sabe qué par habló de verdad:
+        // Connection.RemoteIpAddress ya pasó por UseForwardedHeaders, que acepta
+        // X-Forwarded-For de cualquiera. Mejor IP desconocida que una inventada.
         var capturado = contexto.Features.Get<OrigenConexionCapturado>();
-        var ip = capturado is null
-            ? contexto.Connection.RemoteIpAddress
-            : IpClienteDeConfianza.Resolver(capturado.ParConexion, capturado.XForwardedFor, opciones.Value.RedesDeConfianza());
+        if (capturado is null)
+            return (null, null);
+
+        var ip = IpClienteDeConfianza.Resolver(capturado.ParConexion, capturado.XForwardedFor, opciones.Value.RedesDeConfianza());
         return (ip, geolocalizador.Ubicar(ip));
     }
 
@@ -410,18 +455,6 @@ public sealed class VigilanciaInicioSesionService(
         finally
         {
             CultureInfo.CurrentUICulture = anterior;
-        }
-    }
-
-    private static TimeZoneInfo ResolverZonaMadrid()
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Madrid");
-        }
-        catch (TimeZoneNotFoundException)
-        {
-            return TimeZoneInfo.Utc;
         }
     }
 }

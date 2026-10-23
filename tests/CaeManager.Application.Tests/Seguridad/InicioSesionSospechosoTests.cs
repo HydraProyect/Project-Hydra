@@ -265,6 +265,32 @@ public class RafagaFallosPorIpTests
         var despues = T0.AddMinutes(40);
         Enumerable.Range(0, 3).Select(_ => rafagas.RegistrarFallo("198.51.100.1", despues)).Should().ContainSingle(a => a);
     }
+
+    [Fact]
+    public void Los_fallos_contra_cuentas_inexistentes_cuentan_pero_no_gastan_el_aviso()
+    {
+        var rafagas = new RafagaFallosPorIp(new OpcionesDeteccionInicioSesion { UmbralRafagaFallos = 3, MinutosVentanaRafaga = 15 });
+
+        // Un barrido con correos inventados cruza el umbral sin nadie a quien avisar...
+        Enumerable.Range(0, 5).Select(i => rafagas.RegistrarFallo("203.0.113.9", T0.AddSeconds(i), hayAQuienAvisar: false))
+            .Should().NotContain(true);
+
+        // ...y el primer intento contra una cuenta real dentro de la ventana avisa.
+        rafagas.RegistrarFallo("203.0.113.9", T0.AddSeconds(10)).Should().BeTrue();
+        rafagas.RegistrarFallo("203.0.113.9", T0.AddSeconds(11)).Should().BeFalse("ya avisó en esta ventana");
+    }
+
+    [Fact]
+    public void Con_el_tope_lleno_de_ips_recientes_una_ip_nueva_no_se_vigila()
+    {
+        var rafagas = new RafagaFallosPorIp(new OpcionesDeteccionInicioSesion { UmbralRafagaFallos = 1, MinutosVentanaRafaga = 15 });
+        for (var i = 0; i < RafagaFallosPorIp.MaximoIps; i++)
+            rafagas.RegistrarFallo($"10.{i >> 16 & 255}.{i >> 8 & 255}.{i & 255}", T0, hayAQuienAvisar: false);
+
+        rafagas.RegistrarFallo("203.0.113.50", T0.AddSeconds(1)).Should().BeFalse("el tope es duro: la memoria no crece");
+        rafagas.RegistrarFallo("10.0.0.1", T0.AddSeconds(1)).Should().BeTrue("las IPs ya vigiladas siguen contando");
+        rafagas.RegistrarFallo("203.0.113.50", T0.AddMinutes(20)).Should().BeTrue("pasada la ventana, la poda libera sitio");
+    }
 }
 
 public class PoliticaPaisesInicioSesionTests

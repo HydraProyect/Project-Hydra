@@ -391,6 +391,13 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // UsuarioId del Gestor CAE y la transición entera, visible en /auditoria — el autor por la puerta de atrás.
             if (entrada.Entity is CambioEstadoConversacion) continue;
 
+            // Inicios de sesión: el propio RegistroInicioSesion ya es el registro
+            // de auditoría, con retención de 12 meses y su purga. Duplicarlo como
+            // «Creado» en RegistroAuditoria (sin purga, P1-M2) guardaría para
+            // siempre IP, ciudad, coordenadas y huella de dispositivo de cada
+            // intento, y rompería la minimización del RGPD.
+            if (entrada.Entity is CaeManager.Domain.Seguridad.RegistroInicioSesion) continue;
+
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
             var esIdentidadAuditada = TiposDeIdentidadAuditados.ContainsKey(entrada.Entity.GetType());
             if (!esDominio && !esIdentidadAuditada) continue;
