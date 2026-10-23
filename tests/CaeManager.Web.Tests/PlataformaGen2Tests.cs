@@ -1,6 +1,8 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio;
+using CaeManager.Application.Common;
+using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma;
 using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
@@ -27,6 +29,7 @@ public class PlataformaGen2Tests : BunitContext
     {
         public List<object> Enviados { get; } = [];
         public List<CancellationToken> TokensDeConsulta { get; } = [];
+        public List<CancellationToken> TokensDeIdentidad { get; } = [];
 
         public Task<TResponse> Send<TResponse>(
             IRequest<TResponse> request,
@@ -36,6 +39,10 @@ public class PlataformaGen2Tests : BunitContext
             if (request is PuedeInicializarPlataformaQuery)
             {
                 TokensDeConsulta.Add(cancellationToken);
+            }
+            if (request is ObtenerIdentidadPlataformaQuery)
+            {
+                TokensDeIdentidad.Add(cancellationToken);
             }
             var respuesta = responder(request);
             return respuesta is Task<TResponse> tarea ? tarea : Task.FromResult((TResponse)respuesta);
@@ -89,12 +96,17 @@ public class PlataformaGen2Tests : BunitContext
     private static long LeerGeneracion(Plataforma instancia)
         => (long)typeof(Plataforma).GetField("_generacion", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(instancia)!;
 
+    private static readonly IdentidadPlataformaDto IdentidadNormal = new(
+        Guid.Parse("11111111-1111-1111-1111-111111111111"), null,
+        TipoViaAcceso.Normal, null, null);
+
     [Fact]
     public void La_puerta_disponible_explica_el_acto_y_ofrece_solo_las_dos_rutas_globales_dibujadas()
     {
         var (cut, _) = Renderizar(peticion => peticion switch
         {
             PuedeInicializarPlataformaQuery => true,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -115,6 +127,7 @@ public class PlataformaGen2Tests : BunitContext
         {
             PuedeInicializarPlataformaQuery => true,
             AutoConcederPrivilegioCommand => Result.Exito(Guid.NewGuid()),
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -141,6 +154,7 @@ public class PlataformaGen2Tests : BunitContext
         {
             PuedeInicializarPlataformaQuery => true,
             AutoConcederPrivilegioCommand => Result.Fallo<Guid>(Error.Crear("ConcesionPrivilegio.SinDobleFactor", "Activa la autenticación en dos pasos.")),
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -161,6 +175,7 @@ public class PlataformaGen2Tests : BunitContext
         {
             PuedeInicializarPlataformaQuery => true,
             AutoConcederPrivilegioCommand => pendiente.Task,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -185,6 +200,7 @@ public class PlataformaGen2Tests : BunitContext
         {
             PuedeInicializarPlataformaQuery when intentos++ == 0 => throw new InvalidOperationException("fallo simulado"),
             PuedeInicializarPlataformaQuery => true,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -206,6 +222,7 @@ public class PlataformaGen2Tests : BunitContext
         var (cut, mediator) = Renderizar(peticion => peticion switch
         {
             PuedeInicializarPlataformaQuery => ++consultas switch { 1 => true, 2 => primera.Task, _ => segunda.Task },
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -213,6 +230,8 @@ public class PlataformaGen2Tests : BunitContext
         var cargaNueva = CargarDirectamente(cut.Instance);
         mediator.TokensDeConsulta.Should().HaveCount(3, "control positivo: la carga inicial y las dos cargas solapadas recibieron token observable");
         mediator.TokensDeConsulta[1].IsCancellationRequested.Should().BeTrue("la carga nueva cancela el ciclo antiguo");
+        mediator.TokensDeIdentidad.Should().HaveCount(3, "control positivo: cada ciclo también consultó la identidad");
+        mediator.TokensDeIdentidad[1].IsCancellationRequested.Should().BeTrue("la carga nueva cancela la consulta de identidad antigua");
         await cut.InvokeAsync(() => segunda.SetResult(false));
         await cargaNueva.WaitAsync(TimeSpan.FromSeconds(10));
         await cut.InvokeAsync(() => primera.SetResult(true));
@@ -230,6 +249,7 @@ public class PlataformaGen2Tests : BunitContext
         var (cut, mediator) = Renderizar(peticion => peticion switch
         {
             PuedeInicializarPlataformaQuery => pendiente.Task,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -253,6 +273,7 @@ public class PlataformaGen2Tests : BunitContext
         {
             PuedeInicializarPlataformaQuery => true,
             AutoConcederPrivilegioCommand => pendiente.Task,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
             _ => throw new NotSupportedException()
         });
 
@@ -274,5 +295,41 @@ public class PlataformaGen2Tests : BunitContext
             .GetAttribute("disabled")
             .Should()
             .NotBeNull("el desenlace tardío no liberó la operación del ciclo anterior");
+    }
+
+    [Fact]
+    public void La_identidad_muestra_actor_y_simulado_en_campos_distintos_sin_convertir_la_via_en_autoridad()
+    {
+        var actorReal = Guid.Parse("22222222-2222-2222-2222-222222222222");
+        var usuarioSimulado = Guid.Parse("33333333-3333-3333-3333-333333333333");
+        var sesionId = Guid.Parse("44444444-4444-4444-4444-444444444444");
+        var identidad = new IdentidadPlataformaDto(
+            actorReal, usuarioSimulado, TipoViaAcceso.SesionPrivilegiada,
+            sesionId, CapacidadPrivilegio.Impersonacion);
+        var (cut, mediator) = Renderizar(peticion => peticion switch
+        {
+            PuedeInicializarPlataformaQuery => false,
+            ObtenerIdentidadPlataformaQuery => identidad,
+            _ => throw new NotSupportedException()
+        });
+
+        mediator.Enviados.OfType<ObtenerIdentidadPlataformaQuery>()
+            .Should().ContainSingle("control positivo: la pantalla solicitó el contexto de identidad");
+        var campos = cut.FindAll(".administracion-global-identidad div").ToList();
+        campos.Should().HaveCount(4, "control positivo: se renderizaron los cuatro campos de identidad");
+        var campoActor = campos.Single(campo => campo.TextContent.Contains("Actor real"));
+        var campoSimulado = campos.Single(campo => campo.TextContent.Contains("Usuario simulado"));
+        campoActor.TextContent.Should().Contain(actorReal.ToString());
+        campoActor.TextContent.Should().NotContain(usuarioSimulado.ToString());
+        campoSimulado.TextContent.Should().Contain(usuarioSimulado.ToString());
+        campoSimulado.TextContent.Should().NotContain(actorReal.ToString());
+        campos.Select(campo => campo.TextContent).Should().Contain(texto => texto.Contains("Sesión privilegiada"));
+        campos.Select(campo => campo.TextContent).Should().Contain(texto => texto.Contains("Impersonacion"));
+        cut.Find(".administracion-global-identidad").TextContent
+            .Should().Contain("última sesión privilegiada resuelta; no decide autorizaciones");
+        var aviso = cut.Find(".administracion-global-aviso-impersonacion").TextContent;
+        aviso.Should().Contain("El actor real se conserva en auditoría.");
+        aviso.Should().Contain("todavía no habilita autorización como ese usuario.");
+        aviso.Should().NotContain("La autorización se evalúa con el contexto del usuario simulado");
     }
 }

@@ -202,6 +202,54 @@
     border-top: 1px solid var(--color-border);
 }
 
+.administracion-global-identidad {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4) var(--space-8);
+    margin: 0;
+    padding: var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.administracion-global-identidad div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    min-width: 0;
+    padding-left: var(--space-3);
+    border-left: 2px solid var(--color-border);
+}
+
+.administracion-global-identidad dt {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.administracion-global-identidad dd {
+    margin: 0;
+    font: var(--font-body-lg);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.administracion-global-identidad small,
+.administracion-global-aviso-impersonacion {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.administracion-global-aviso-impersonacion {
+    margin: 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-subtle);
+}
+
 .administracion-global-detalle-sesion div {
     display: flex;
     flex-direction: column;
@@ -309,7 +357,8 @@
 
 @media (max-width: 768px) {
     .administracion-global-enlaces,
-    .administracion-global-detalle-sesion {
+    .administracion-global-detalle-sesion,
+    .administracion-global-identidad {
         grid-template-columns: 1fr;
     }
 

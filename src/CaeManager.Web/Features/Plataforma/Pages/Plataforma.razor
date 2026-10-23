@@ -3,6 +3,7 @@
 @attribute [Authorize]
 @using CaeManager.Application.Plataforma.Commands.AutoConcederPrivilegio
 @using CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId
+@using CaeManager.Application.Plataforma.Queries.ObtenerIdentidadPlataforma
 @using CaeManager.Application.Plataforma.Queries.PuedeInicializarPlataforma
 @using CaeManager.Domain.Plataforma
 @using MediatR
@@ -39,6 +40,45 @@
                 <span>Autoría conservada</span>
             </div>
         </div>
+    </section>
+
+    <section class="administracion-global-seccion" aria-labelledby="identidad-operativa">
+        <h2 id="identidad-operativa">Identidad con la que operas</h2>
+        @if (_cargando)
+        {
+            <EstadoCargando Filas="2" />
+        }
+        else if (_identidad is { } identidad)
+        {
+            <dl class="administracion-global-identidad">
+                <div>
+                    <dt>Actor real</dt>
+                    <dd>@TextoIdentificador(identidad.ActorRealUsuarioId, "No resuelto")</dd>
+                    <small>Quien está detrás de la acción; nunca se sustituye.</small>
+                </div>
+                <div>
+                    <dt>Usuario simulado</dt>
+                    <dd>@TextoIdentificador(identidad.UsuarioSimuladoId, "Ninguno")</dd>
+                    <small>Solo aparece durante una impersonación activa.</small>
+                </div>
+                <div>
+                    <dt>Vía de acceso</dt>
+                    <dd>@TextoVia(identidad.ViaAcceso)</dd>
+                    <small>@TextoIdentificador(identidad.ViaAccesoId, "Sin identificador de vía")</small>
+                </div>
+                <div>
+                    <dt>Capacidad activa</dt>
+                    <dd>@(identidad.CapacidadActiva?.ToString() ?? "Ninguna")</dd>
+                    <small>Refleja la última sesión privilegiada resuelta; no decide autorizaciones.</small>
+                </div>
+            </dl>
+            @if (identidad.UsuarioSimuladoId is not null)
+            {
+                <p class="administracion-global-aviso-impersonacion">
+                    El actor real se conserva en auditoría. La impersonación mostrada todavía no habilita autorización como ese usuario.
+                </p>
+            }
+        }
     </section>
 
     <section class="administracion-global-seccion" aria-labelledby="acto-fundacional">
@@ -250,6 +290,7 @@
     private string? _error;
     private AntiforgeryRequestToken? _token;
     private SesionPrivilegiadaDetalleDto? _detalleSesion;
+    private IdentidadPlataformaDto? _identidad;
 
     [SupplyParameterFromQuery(Name = "sesionParaCerrar")]
     public Guid? SesionParaCerrar { get; set; }
@@ -279,10 +320,15 @@
         _cargando = true;
         _errorCarga = false;
         _detalleSesion = null;
+        _identidad = null;
 
         try
         {
-            var puedeInicializar = await Mediator.Send(new PuedeInicializarPlataformaQuery(), cancellationToken);
+            var puedeInicializarTask = Mediator.Send(new PuedeInicializarPlataformaQuery(), cancellationToken);
+            var identidadTask = Mediator.Send(new ObtenerIdentidadPlataformaQuery(), cancellationToken);
+            await Task.WhenAll(puedeInicializarTask, identidadTask);
+            var puedeInicializar = await puedeInicializarTask;
+            var identidad = await identidadTask;
             SesionPrivilegiadaDetalleDto? detalle = null;
 
             if (SesionParaCerrar is { } sesion)
@@ -296,6 +342,7 @@
             }
 
             _puedeInicializar = puedeInicializar;
+            _identidad = identidad;
             _detalleSesion = detalle;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -390,6 +437,17 @@
         "SesionPrivilegiada.YaCerrada" => "Esa sesión de soporte ya estaba cerrada.",
         "SesionPrivilegiada.NoEncontrada" => "No encontramos esa sesión de soporte.",
         _ => "No se pudo cerrar la sesión de soporte.",
+    };
+
+    private static string TextoIdentificador(Guid? identificador, string ausencia) =>
+        identificador?.ToString() ?? ausencia;
+
+    private static string TextoVia(TipoViaAcceso via) => via switch
+    {
+        TipoViaAcceso.Normal => "Normal",
+        TipoViaAcceso.OperacionDelegada => "Asignación de operación",
+        TipoViaAcceso.SesionPrivilegiada => "Sesión privilegiada",
+        _ => "No resuelta",
     };
 
     public void Dispose()
