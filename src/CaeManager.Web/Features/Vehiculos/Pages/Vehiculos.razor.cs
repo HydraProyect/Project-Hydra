@@ -339,20 +339,39 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
+        // Todo filtro que la URL cambia exige recargar la lista, igual que el orden y el agrupado más abajo. Antes
+        // solo lo exigían estos dos: si un render llegaba mientras OnInitializedAsync seguía esperando sus
+        // consultas de selectores (con _resolviendoEmpresa ya en false pero esta primera sincronización con la URL
+        // aún sin ejecutar), OnAfterRender cargaba la lista SIN filtros y la sincronización posterior ponía la
+        // búsqueda sin pedir otra carga: la página quedaba mostrando el listado entero con ?q=… en la URL
+        // (VistaRecordadaE2ETests.Vehiculos_…, intermitente en la cola de fusión).
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
+        {
             _busqueda = deLaUrl;
+            _cargaPendiente = true;
+        }
 
         var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
         if (estadoDeLaUrl != _estadoFiltro)
+        {
             _estadoFiltro = estadoDeLaUrl;
+            _cargaPendiente = true;
+        }
 
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
         if (subcontrataDeLaUrl != _filtroSubcontrataId)
+        {
             _filtroSubcontrataId = subcontrataDeLaUrl;
+            _cargaPendiente = true;
+        }
+
         if (empresaDeLaUrl != _filtroEmpresaId)
+        {
             _filtroEmpresaId = empresaDeLaUrl;
+            _cargaPendiente = true;
+        }
 
         if (LeerOrden(OrdenInicial)) _cargaPendiente = true;
 
