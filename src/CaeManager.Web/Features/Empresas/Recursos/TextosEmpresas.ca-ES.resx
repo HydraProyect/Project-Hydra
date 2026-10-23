@@ -710,4 +710,8 @@
     <value>Reclamar per a l&apos;accés</value>
     <comment>Cabecera de Empresa 360: abre la reclamación por acceso de la Empresa.</comment>
   </data>
+  <data name="EstadoDocumentalFaltanteTitulo" xml:space="preserve">
+    <value>Un Centre on opera li exigeix com a obligatori un document d'Empresa que falta o ja no és vàlid</value>
+    <comment>Título del estado «Pendiente» de una Empresa en el listado: un requisito obligatorio de Empresa incumplido.</comment>
+  </data>
 </root>
