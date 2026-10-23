@@ -22,7 +22,9 @@ on:
 
 concurrency:
   group: seguridad-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Solo se cancelan los runs de PR: los de main (push, semanal, manual) son la
+  # base con la que code scanning compara las alertas de cada PR.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -35,6 +37,13 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.lenguaje }})
     runs-on: ubuntu-latest
+    # Las PR de forks y de Dependabot reciben un GITHUB_TOKEN de solo lectura:
+    # la subida del SARIF fallaría sin que el código tenga nada. Sus cambios se
+    # analizan igualmente en el push a main.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
     permissions:
       contents: read
       actions: read
@@ -44,9 +53,11 @@ jobs:
       matrix:
         # build-mode none: C# se analiza sin compilar (extracción desde el
         # código fuente), así el job no depende del SDK ni duplica la
-        # compilación del CI. `actions` analiza los propios workflows
-        # (inyección de expresiones, permisos excesivos, checkout inseguro).
-        lenguaje: [csharp, actions]
+        # compilación del CI. `javascript-typescript` cubre el JS propio de
+        # wwwroot y la extensión de navegador, que maneja credenciales de
+        # plataformas CAE. `actions` analiza los propios workflows (inyección
+        # de expresiones, permisos excesivos, checkout inseguro).
+        lenguaje: [csharp, javascript-typescript, actions]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -185,12 +196,12 @@ jobs:
           docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" \
             ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
             zap-baseline.py -t http://127.0.0.1:5080 -m 3 -I \
-            -c reglas-baseline.tsv -r informe-zap.html -J informe-zap.json -w informe-zap.md
+            -c reglas-baseline.tsv -r informe-zap.html -J informe-zap.json -w informe-zap.markdown
 
       - name: Resumen del escaneo
         if: always()
         run: |
-          if [ -f zap/informe-zap.md ]; then cat zap/informe-zap.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f zap/informe-zap.markdown ]; then cat zap/informe-zap.markdown >> "$GITHUB_STEP_SUMMARY"; fi
 
       - name: Log de la aplicación si falla
         if: failure()
