@@ -15,7 +15,7 @@ public static class IdentityEndpointsExtensions
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/cuenta/cerrar-sesion", async (
-            SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
+            IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
         {
             var usuarioId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
             loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)

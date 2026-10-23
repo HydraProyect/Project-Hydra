@@ -57,7 +57,7 @@ public static class SesionSoporteEndpoints
 
         // La salida. POST por el mismo motivo que la apertura: borra la cookie de
         // contexto, que es estado de servidor.
-        endpoints.MapPost("/cuenta/soporte/salir", (
+        endpoints.MapPost("/cuenta/soporte/salir", (IFormCollection formulario,
             HttpContext httpContext, ICurrentUserService currentUserService,
             IClienteActivoSeleccionado clienteActivoSeleccionado) =>
             SalirAsync(httpContext, currentUserService, clienteActivoSeleccionado));
