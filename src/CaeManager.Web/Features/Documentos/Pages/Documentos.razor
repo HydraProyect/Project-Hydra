@@ -176,7 +176,7 @@
                                          ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
             }
 
-            @* Selector desplegable de estado: conserva la semántica de la franja para «Estado». Admite varios estados a la vez, viaja en la URL
+            @* Franja visible de estado: admite varios estados a la vez, viaja en la URL
                como «Estado» (estados de código separados por coma) y cada botón dice cuántos Documentos hay, con
                los demás filtros aplicados. «Por vencer» reúne Urgente y Próximo. *@
 
@@ -429,13 +429,13 @@
                                     <span class="documentos-vigencia">
                                         @if (context.FechaVencimiento is null)
                                         {
-                                            <span>@Textos["ListaNoCaduca"]</span>
-                                            <span class="documentos-ambito">@Textos["ListaEmitido", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
+                                            <span>@Textos[context.Estado == EstadoDocumento.SinCaducidad ? "ListaNoCaduca" : "ListaVencimientoSinConfirmar"]</span>
+                                            <span class="documentos-vigencia-subtitulo">@Textos["ListaEmisionFecha", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
                                         }
                                         else
                                         {
                                             <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
-                                            <span class="documentos-ambito">@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)</span>
+                                            <span class="documentos-vigencia-subtitulo">@SubtituloVencimiento(context)</span>
                                         }
                                     </span>
                                 

@@ -262,7 +262,6 @@
   <data name="ListaOrdenarAmbito" xml:space="preserve"><value>Ordenar per àmbit</value></data>
   <data name="ListaOrdenarEmision" xml:space="preserve"><value>Ordenar per emissió</value></data>
   <data name="ListaOrdenarVencimiento" xml:space="preserve"><value>Ordenar per venciment</value></data>
-  <data name="ListaEmitido" xml:space="preserve"><value>Emès {0}</value></data>
   <data name="ListaEntidadAsociada" xml:space="preserve"><value>Pertany a</value></data>
   <data name="FiltroGuardadoBorrarTitulo" xml:space="preserve">
     <value>Vols esborrar el filtre desat «{0}»?</value>
@@ -284,7 +283,6 @@
   <data name="AccionRapidaSubir" xml:space="preserve"><value>Puja</value></data>
   <data name="AccionRapidaRenovarAria" xml:space="preserve"><value>Renova {0} de {1}</value></data>
   <data name="AccionRapidaSubirAria" xml:space="preserve"><value>Puja el fitxer de {0} de {1}</value></data>
-  <data name="VerPdf" xml:space="preserve"><value>Veure el PDF</value></data>
   <data name="VerPdfAria" xml:space="preserve"><value>Veure el PDF de {0} de {1}</value></data>
   <data name="SegundaLineaReclamado" xml:space="preserve"><value>Reclamat el {0}</value></data>
   <data name="SegundaLineaReclamadoSinRespuesta" xml:space="preserve"><value>Reclamat el {0}, sense resposta</value></data>
@@ -333,4 +331,11 @@
   <data name="ListaNoCaduca" xml:space="preserve"><value>Sense caducitat</value></data>
   <data name="ListaVer" xml:space="preserve"><value>Veure</value></data>
   <data name="ListaSinAdjunto" xml:space="preserve"><value>Sense adjunt</value></data>
+  <data name="ListaVencimientoSinConfirmar" xml:space="preserve"><value>Sense confirmar</value></data>
+  <data name="ListaEmisionFecha" xml:space="preserve"><value>Emissió {0}</value></data>
+  <data name="ListaVenceHoy" xml:space="preserve"><value>avui</value></data>
+  <data name="ListaHaceUnDia" xml:space="preserve"><value>fa 1 dia</value></data>
+  <data name="ListaEnUnDia" xml:space="preserve"><value>d'aquí a 1 dia</value></data>
+  <data name="ListaHaceDias" xml:space="preserve"><value>fa {0} dies</value></data>
+  <data name="ListaEnDias" xml:space="preserve"><value>d'aquí a {0} dies</value></data>
 </root>

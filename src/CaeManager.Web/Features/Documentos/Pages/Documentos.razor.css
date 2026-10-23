@@ -9,6 +9,11 @@
     color: var(--color-text-muted);
 }
 
+.documentos-vigencia-subtitulo {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+}
+
 .documentos-vigencia {
     white-space: nowrap;
     font: var(--font-caption);
@@ -44,7 +49,7 @@
     background: var(--color-surface-hover);
 }
 
-/* Última celda de la fila: «Gestionar» y el icono 360 del tipo. */
+/* Última celda de la fila: archivo, «Gestionar» y el icono 360 del tipo. */
 .documentos-acciones-fila {
     display: inline-flex;
     align-items: center;
@@ -52,7 +57,7 @@
     gap: var(--space-2);
 }
 
-/* La tabla conserva su propio desplazamiento horizontal, también en móvil. */
+/* Desde 768 px el envoltorio desplaza la tabla horizontalmente. */
 @media (min-width: 768px) {
     .documentos-tabla-desplazable {
         overflow-x: auto;
