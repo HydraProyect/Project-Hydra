@@ -29,5 +29,16 @@ public interface IClaveApiRepository
     /// </summary>
     Task<ClaveApi?> ObtenerPorHashAsync(string hashClave, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// ¿Existe en el Tenant propietario de la clave una delegación que cumpla
+    /// <see cref="CriterioSoporteClaveApi.PuedeAutenticar"/> desde la organización de origen de
+    /// la cuenta <paramref name="creadaPorUsuarioId"/>? Solo existencia: no exige que esté activa
+    /// ni vigente (eso lo exige la emisión, con <see cref="CriterioSoporteClaveApi.PuedeEmitir"/>).
+    /// Devuelve false si la cuenta emisora ya no existe. El origen se resuelve por la cuenta, no
+    /// por la sesión: en la autenticación por clave no hay persona ni Tenant de sesión. Se llama
+    /// dentro del <c>AmbitoTenantExplicito</c> del Tenant propietario.
+    /// </summary>
+    Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default);
+
     void Agregar(ClaveApi clave);
 }
