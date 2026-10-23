@@ -1,0 +1,320 @@
+.administracion-global {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    max-width: 1180px;
+}
+
+.enlace-volver-configuracion {
+    align-self: flex-start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    font: var(--font-label);
+}
+
+.administracion-global-cabecera {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.administracion-global-ceja {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.administracion-global-cabecera .titulo-pagina,
+.administracion-global-contexto h2,
+.administracion-global-seccion > h2,
+.administracion-global-tarjeta h3 {
+    margin: 0;
+}
+
+.administracion-global-contexto,
+.administracion-global-tarjeta,
+.administracion-global-sesion,
+.administracion-global-registro,
+.administracion-global-error {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.administracion-global-contexto {
+    display: flex;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    border-left: 3px solid var(--color-info-500);
+    background: var(--color-info-50);
+}
+
+.administracion-global-contexto p,
+.administracion-global-tarjeta p {
+    margin: var(--space-2) 0 0;
+    color: var(--color-text-muted);
+    max-width: 80ch;
+}
+
+.administracion-global-contexto-icono {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-info-500);
+}
+
+.administracion-global-etiquetas,
+.administracion-global-acciones {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.administracion-global-etiquetas span {
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    padding: 3px 10px;
+    background: var(--color-surface);
+    color: var(--color-info-500);
+    font: var(--font-caption);
+}
+
+.administracion-global-seccion {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.administracion-global-seccion > h2 {
+    font: var(--font-h3);
+}
+
+.administracion-global-tarjeta,
+.administracion-global-sesion {
+    padding: var(--space-5);
+}
+
+.administracion-global-tarjeta-cuerpo {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.administracion-global-consecuencias {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0;
+    margin: var(--space-3) 0 0;
+    list-style: none;
+}
+
+.administracion-global-consecuencias li,
+.administracion-global-advertencia,
+.administracion-global-exito,
+.administracion-global-estado-consumido {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+}
+
+.administracion-global-consecuencias ::deep .icono {
+    color: var(--color-info-500);
+}
+
+.administracion-global-advertencia {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-warning-500);
+    border-radius: var(--radius-md);
+    background: var(--color-warning-50);
+    color: var(--color-warning-700) !important;
+}
+
+.administracion-global-acciones {
+    align-items: center;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.administracion-global-acciones span {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.administracion-global-error {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    border-color: var(--color-danger-500);
+}
+
+.administracion-global-error > ::deep .icono {
+    color: var(--color-danger-700);
+}
+
+.administracion-global-error div {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.administracion-global-error span {
+    color: var(--color-text-muted);
+}
+
+.administracion-global-error-comando {
+    margin: var(--space-4) 0 0;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--color-danger-500);
+    border-radius: var(--radius-md);
+    background: var(--color-danger-50);
+    color: var(--color-danger-700) !important;
+}
+
+.administracion-global-sesion {
+    border-left: 3px solid var(--color-info-500);
+}
+
+.administracion-global-sesion > p {
+    margin-top: 0;
+    max-width: 80ch;
+}
+
+.administracion-global-detalle-sesion {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4) var(--space-8);
+    margin: var(--space-4) 0;
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--color-border);
+}
+
+.administracion-global-detalle-sesion div {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.administracion-global-detalle-sesion dt {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.administracion-global-detalle-sesion dd {
+    margin: 0;
+}
+
+.administracion-global-exito {
+    align-items: center;
+    margin: 0;
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--color-success-500);
+    border-radius: var(--radius-lg);
+    background: var(--color-success-50);
+    color: var(--color-success-700);
+    font: var(--font-body-lg);
+    font-weight: 600;
+}
+
+.administracion-global-registro {
+    overflow: hidden;
+}
+
+.administracion-global-registro div {
+    display: grid;
+    grid-template-columns: 190px 1fr;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    border-top: 1px solid var(--color-border);
+}
+
+.administracion-global-registro div:first-child {
+    border-top: 0;
+}
+
+.administracion-global-registro strong {
+    color: var(--color-text-muted);
+    font: var(--font-label);
+}
+
+.administracion-global-enlace-auditoria {
+    align-self: flex-start;
+    font: var(--font-label);
+}
+
+.administracion-global-enlaces {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
+}
+
+.administracion-global-enlaces a {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    color: var(--color-text);
+}
+
+.administracion-global-enlaces a:hover {
+    border-color: var(--color-primary-500);
+    background: var(--color-surface-hover);
+    color: var(--color-text);
+}
+
+.administracion-global-enlaces > a > ::deep .icono {
+    color: var(--color-info-500);
+}
+
+.administracion-global-enlaces span {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.administracion-global-enlaces small {
+    color: var(--color-text-muted);
+    font: var(--font-caption);
+}
+
+.administracion-global-confirmacion {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+    cursor: pointer;
+}
+
+.administracion-global-confirmacion input {
+    width: 18px;
+    height: 18px;
+    margin-top: 3px;
+    accent-color: var(--color-primary-500);
+}
+
+@media (max-width: 768px) {
+    .administracion-global-enlaces,
+    .administracion-global-detalle-sesion {
+        grid-template-columns: 1fr;
+    }
+
+    .administracion-global-registro div {
+        grid-template-columns: 1fr;
+        gap: var(--space-1);
+    }
+}
