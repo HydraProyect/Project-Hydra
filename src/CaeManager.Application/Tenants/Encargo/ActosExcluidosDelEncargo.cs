@@ -111,7 +111,7 @@ public static class ActosExcluidosDelEncargo
     public static readonly IReadOnlySet<string> AreasPermitidas = new HashSet<string>(StringComparer.Ordinal)
     {
         "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "Bandeja", "Blindaje42", "BusquedaGlobal",
-        "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos",
+        "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos", "ContratosAcceso",
         "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "Incidencias",
         "Integraciones", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",
         "Reclamaciones", "Reportes", "Subcontratas", "Telemetria", "Tenants",
