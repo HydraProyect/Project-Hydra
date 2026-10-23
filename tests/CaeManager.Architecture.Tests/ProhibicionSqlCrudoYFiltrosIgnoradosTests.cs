@@ -150,6 +150,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
             """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
 
+        // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
+        // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
+        // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
+        // usuario del contexto firmado, y deja la traza. Solo los identificadores del contrato y del Documento, parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaAutorizacion>($"SELECT * FROM app_inbound_autorizacion_del_contrato({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista

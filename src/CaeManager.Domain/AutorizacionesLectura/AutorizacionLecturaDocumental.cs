@@ -11,10 +11,12 @@ namespace CaeManager.Domain.AutorizacionesLectura;
 /// y RLS por Tenant: es él quien la concede y quien la revoca.
 ///
 /// <para>
-/// <b>Esta entidad no da lectura todavía.</b> Es la mitad del Tenant de la Empresa contratista en un apretón de dos
+/// <b>Esta entidad sola no da lectura.</b> Es la mitad del Tenant de la Empresa contratista en un apretón de dos
 /// actos: la otra mitad es <c>ContratoAcceso.TenantContratistaId</c> en el Tenant del Cliente empresarial. La lectura
-/// entre Tenants llegará con el PR 3 de Inbound M1 y exigirá a la vez esta autorización vigente y el contrato de
-/// acceso vigente. Revocar corta esa lectura; las copias que el Tenant del Cliente empresarial ya guardó se quedan.
+/// entre Tenants (las funciones <c>app_inbound_*</c> de la migración <c>AnadeLecturaInboundEntreTenants</c>) exige a la
+/// vez esta autorización vigente y el contrato de acceso vigente y vinculado, y deja cada lectura en
+/// <see cref="AccesoLecturaInbound"/>. Revocar corta esa lectura desde ese instante; las copias que el Tenant del Cliente
+/// empresarial ya guardó se quedan.
 /// </para>
 ///
 /// <para>
@@ -149,7 +151,8 @@ public class AutorizacionLecturaDocumental : EntidadConTenant, IVersionable
     /// <summary>
     /// Sin revocar y dentro de su vigencia; el primer y el último día cuentan como vigentes. Es la versión en memoria
     /// de <see cref="EstaVigenteEn"/>: un test de dominio comprueba que las dos coinciden en cada borde. Que la lectura
-    /// surta efecto exigirá además el contrato de acceso vigente (PR 3).
+    /// surta efecto exige además el contrato de acceso vigente y vinculado: lo comprueban, con este mismo criterio escrito
+    /// en SQL, las funciones <c>app_inbound_*</c> de la migración <c>AnadeLecturaInboundEntreTenants</c>.
     /// </summary>
     public bool VigenteEn(DateOnly fecha) =>
         RevocadaEnUtc == null
