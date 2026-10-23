@@ -1293,7 +1293,7 @@ public partial class DocumentosGen2Tests : BunitContext
         var mediador = ConDocumentos(Enumerable.Range(1, 21).Select(i => Documento("Contrato " + i)).ToArray());
         var (cut, _) = Renderizar(mediador);
         var consultasAntes = mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Count();
-        cut.Find(".pie-lista-opciones select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent.Trim() == "50").Click();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().HaveCount(consultasAntes + 1);
     }
@@ -1546,13 +1546,15 @@ public partial class DocumentosGen2Tests : BunitContext
         filas.Should().HaveCount(3);
         cut.Find(".cabecera-pagina .cabecera-listado-contador").TextContent.Trim().Should().Be("3");
         var celda = filas[0].QuerySelectorAll("td").Single(td => td.TextContent.Contains(vencido.PropietarioNombre));
-        celda.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
-        filas[0].TextContent.Should().Contain(vencido.FechaEmision.ToString("dd/MM/yyyy"))
-            .And.Contain(vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
+        celda.TextContent.Should().Contain(vencido.PropietarioNombre);
+        filas[0].QuerySelector(".documentos-propietario")!.TextContent.Should().Contain("Cliente").And.NotContain("Cliente empresarial");
+        filas[0].TextContent.Should().Contain(vencido.FechaVencimiento!.Value.ToString("dd/MM/yyyy"));
         filas[2].TextContent.Should().Contain("Emitido " + sinVence.FechaEmision.ToString("dd/MM/yyyy"));
         cut.FindComponents<TextoFechaCopiable>().Should().HaveCount(2);
         cut.FindComponents<TextoFechaCopiable>().Select(c => c.Instance.Fecha).Should()
             .Equal(vencido.FechaVencimiento, urgente.FechaVencimiento);
+        cut.FindComponents<TextoFechaCopiable>().Select(c => c.Instance.FechaEmision).Should()
+            .Equal(vencido.FechaEmision, urgente.FechaEmision);
         filas[0].ClassList.Should().Contain("fila-tintada-peligro");
         filas[1].ClassList.Should().Contain("fila-tintada-aviso");
         filas[2].ClassList.Should().NotContain("fila-tintada-peligro").And.NotContain("fila-tintada-aviso");

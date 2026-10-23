@@ -29,11 +29,11 @@
 @inject ILogger<Documentos> Logger
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>Documentos — @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloPagina"] — @Marca.Nombre</PageTitle>
 
-<div class="contenedor-pagina">
+<div class="contenedor-pagina lista-design">
     @* Fase 1: el selector lateral ya identifica la Empresa seleccionada; las seis pestañas conservan su comportamiento. *@
-    <CabeceraListado Titulo="Documentos"
+    <CabeceraListado Titulo="@Textos["TituloPagina"]"
                      Contador="@(_pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_cargando && !_errorCarga ? _totalElementos : (int?)null)"
                      SeleccionMultiple="_seleccionMultiple"
                      SeleccionMultipleChanged="@(_puedeEscribir && _pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)"
@@ -113,16 +113,16 @@
         }
         else
         {
-            <BarraFiltros PresentacionMaqueta="false" Contador="@(_pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_cargando && !_errorCarga ? _totalElementos : (int?)null)" SeleccionMultiple="_seleccionMultiple" SeleccionMultipleChanged="@(_puedeEscribir && _pestanaActiva == "listado" && !_sinEmpresaSeleccionada && !_resolviendoEmpresa && !_alcanceCero ? EventCallback.Factory.Create<bool>(this, AlternarSeleccionMultiple) : default)" Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
+            <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@Textos["ListaFiltrarPlaceholder"]"
                           HayFiltrosActivos="HayFiltrosActivos"
                           OnLimpiarTodo="LimpiarFiltrosAsync"
                           OnGuardarFiltro="AbrirGuardarFiltro"
                           FiltrosGuardados="OpcionesFiltrosGuardados" OnAplicarFiltroGuardado="AplicarFiltroGuardadoAsync"
                           OnBorrarFiltroGuardado="PedirEliminarFiltroGuardado"
-                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_plataformaFiltro))"
+                          MasFiltrosActivos="@(!string.IsNullOrEmpty(_tipoFiltro))"
                           VistaRecordada="_vistaRecordada">
                 <Pastillas>
-                    <PastillaFiltro PresentacionCampo="false" Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
+                    <PastillaFiltro Etiqueta="@Textos["ListaFiltroAmbito"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_ambitoFiltro"
                                     ValorChanged="CambiarAmbitoFiltroAsync" Opciones="OpcionesAmbitoListado" />
                     <PastillaEntidadAsociadaDocumento Valor="@(Guid.TryParse(_propietarioFiltro, out var entidadSeleccionada) ? entidadSeleccionada : (Guid?)null)"
                                                       Ambito="@(Enum.TryParse<AmbitoAplicacion>(_ambitoFiltro, out var ambitoSeleccionado) ? ambitoSeleccionado : (AmbitoAplicacion?)null)"
@@ -130,9 +130,11 @@
                     <PastillaFiltro Etiqueta="@Textos["ListaPortal"]" TextoTodos="@Textos["ListaTodas"]" Valor="@_plataformaFiltro"
                                     ValorChanged="CambiarPlataformaFiltroAsync" Opciones="_opcionesPlataforma" />
                 </Pastillas>
-                <MasFiltros>
+                <Estados>
                     <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDeDocumentos" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoFiltroAsync"
                                   Recuentos="_recuentosPorEstado" />
+                </Estados>
+                <MasFiltros>
                     <PastillaFiltro Etiqueta="@Textos["ListaFiltroTipo"]" TextoTodos="@Textos["ListaTodos"]" Valor="@_tipoFiltro"
                                     ValorChanged="CambiarTipoFiltroAsync" Opciones="_opcionesTipo" />
                 </MasFiltros>
@@ -233,11 +235,11 @@
                                     }
                                 </th>
                                 <th scope="col" aria-sort="@AriaOrdenGrupo("estado")"><button type="button" class="col-title documentos-orden-grupo" @onclick="() => OrdenarGrupoAsync(_columnaEstado)">@Textos["ListaEstado"]</button></th>
-                                <th scope="col">@Textos["ListaPlataformas"]</th><th scope="col">@Textos["ListaArchivo"]</th><th scope="col">@Textos["ListaAcciones"]</th>
+                                <th scope="col" class="documentos-celda-acciones"><span class="documentos-solo-lectores">@Textos["ListaAcciones"]</span></th>
                             </tr></thead>
                             @if (_totalElementos == 0 && !_cargando && HayFiltrosActivos)
                             {
-                                <tbody><tr class="documentos-vacio-filtro"><td colspan="@(7 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
+                                <tbody><tr class="documentos-vacio-filtro"><td colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
                                     <EstadoVacio NombreIcono="vacio" Titulo="@Textos["VacioFiltroTituloDesign"]">
                                         <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="LimpiarFiltrosAsync">@Textos["VacioFiltroQuitarDesign"]</Boton></Accion>
                                     </EstadoVacio>
@@ -252,7 +254,7 @@
                                     {
                                         @* Grupo «Por Ámbito» plegable (bloque 1 de CAMBIOS-SESION 2026-10-21): nace plegado, con «· N» y,
                                            plegado, la pastilla roja de los Documentos en rojo. *@
-                                        <tr class="documentos-cabecera-grupo"><th colspan="@(7 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))" scope="rowgroup">
+                                        <tr class="documentos-cabecera-grupo"><th colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))" scope="rowgroup">
                                             <CabeceraGrupoLista Nombre="@EtiquetaAmbitoListado(grupo.Key)" Total="grupo.Count()" Incidencias="grupo.Count(EsFilaRoja)"
                                                                 Abierto="grupoAbierto" OnAlternar="() => AlternarGrupo(grupo.Key.ToString())" />
                                         </th></tr>
@@ -274,11 +276,11 @@
                                                     }
                                                 </td>
                                             }
-                                            <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td><td>@CeldaPlataformas(documento)</td><td>@CeldaArchivo(documento)</td><td>@CeldaAcciones(documento)</td>
+                                            <td>@CeldaDocumento(documento)</td><td>@CeldaPropietario(documento)</td><td>@CeldaVigencia(documento)</td><td class="col-estado">@CeldaEstado(documento)</td><td>@CeldaAcciones(documento)</td>
                                         </tr>
                                         @if (_documentosAbiertos.Contains(documento.Id) && documento.DestinosEnCentros?.Count > 0)
                                         {
-                                            <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@(7 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
+                                            <tr @key="clavesFilas.De((documento.Id, true))" class="documentos-fila-hijos"><td colspan="@(5 + (_seleccionMultiple ? 1 : 0) + (HayDestinos ? 1 : 0))">
                                                 <div class="documentos-hijos" role="list" aria-label="@Textos["ListaDestino"]">
                                                     @{ var clavesDestinos = new ClavesDeHermanos(); }
                                                     @foreach (var destino in VerRestantes.Recortar(documento.DestinosEnCentros, _destinosCompletos.Contains(documento.Id)))
@@ -397,7 +399,7 @@
     private RenderFragment? PieDelListado => _errorCarga || (_cargando && _totalElementos == 0) ? null : @<text>
         @if (!_errorCarga && (!_cargando || _totalElementos > 0))
         {
-            <PaginadorSimple PresentacionMaqueta="true" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
+            <PaginadorSimple PresentacionMaqueta="@(_totalElementos == 0)" PaginaActual="@(_paginacion.CurrentPageIndex + 1)" TotalPaginas="TotalPaginas" TotalElementos="_totalElementos"
                                           PaginaActualChanged="CambiarPaginaAsync"
                                           TamanoPagina="_paginacion.ItemsPerPage" TamanoPaginaChanged="CambiarTamanoPaginaAsync" ElementosEnPagina="ElementosVisibles.Count">
                     <Centro><LeyendaAtajosLista Omitir="@(["e"])" /></Centro>
@@ -418,7 +420,7 @@
     private RenderFragment<DocumentoListaDto> CeldaPropietario => context => @<text>
                                     <span class="documentos-propietario">
                                         <button type="button" class="enlace-nombre-fila nombre-fila-entidad nombre-abre-vista-rapida" @onclick="() => AbrirPanelAsync(context.Id)"><TextoResaltado Texto="@context.PropietarioNombre" Termino="@_busqueda" /></button>
-                                        <span class="documentos-ambito">@EtiquetaAmbitoListado(context.Ambito)</span>
+                                        @CeldaPlataformas(context)
                                     </span>
                                 
     </text>;
@@ -427,15 +429,13 @@
                                     <span class="documentos-vigencia">
                                         @if (context.FechaVencimiento is null)
                                         {
-                                            <span>@Textos["ListaEmitido", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
+                                            <span>@Textos["ListaNoCaduca"]</span>
+                                            <span class="documentos-ambito">@Textos["ListaEmitido", context.FechaEmision.ToString("dd/MM/yyyy")]</span>
                                         }
                                         else
                                         {
-                                            <span>@context.FechaEmision.ToString("dd/MM/yyyy")</span>
-                                            <span aria-hidden="true"> → </span>
-                                            @* Un clic copia el vencimiento; Alt + clic, la emisión (decisión del 2026-10-08).
-                                               La emisión se sigue pintando como texto: el botón es solo el vencimiento. *@
                                             <TextoFechaCopiable Fecha="context.FechaVencimiento" FechaEmision="context.FechaEmision">@context.FechaVencimiento.Value.ToString("dd/MM/yyyy")</TextoFechaCopiable>
+                                            <span class="documentos-ambito">@EstadoDocumentoUi.MotivoDeDocumento(context.Estado, context.FechaVencimiento, _hoy)</span>
                                         }
                                     </span>
                                 
@@ -484,17 +484,18 @@
                                        «Abrir en pestaña nueva» sigue dentro del propio visor. *@
                                     <Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno"
                                            aria-label="@Textos["VerPdfAria", context.TipoDocumentoNombre, context.PropietarioNombre]"
-                                           OnClick="() => AbrirVisor(context)">@Textos["VerPdf"]</Boton>
+                                           OnClick="() => AbrirVisor(context)">@Textos["ListaVer"]</Boton>
                                 }
                                 else
                                 {
-                                    <span class="detalle-tecnico">Sin adjunto</span>
+                                    <span class="detalle-tecnico">@Textos["ListaSinAdjunto"]</span>
                                 }
                             
     </text>;
 
     private RenderFragment<DocumentoListaDto> CeldaAcciones => context => @<text>
                                 <span class="documentos-acciones-fila">
+                                    @CeldaArchivo(context)
                                     <SoloConEscritura>
                                         <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                                class="@($"documentos-accion-rapida {(EstadoDocumentoUi.EsCorrecto(context.Estado) ? "documentos-accion-correcta" : null)}")"

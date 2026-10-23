@@ -13,6 +13,54 @@ namespace CaeManager.Web.Tests;
 
 public partial class DocumentosGen2Tests
 {
+    [Fact]
+    public void El_listado_usa_el_diseno_nuevo_con_estado_visible_columnas_de_maqueta_y_pie_separado()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila()));
+        cut.WaitForAssertion(() => cut.Find("tbody button.enlace-nombre-fila"));
+
+        cut.Find(".contenedor-pagina").ClassList.Should().Contain("lista-design");
+        cut.FindAll(".cabecera-pagina button[aria-label='Selección múltiple']").Should().ContainSingle();
+        cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty();
+        cut.FindAll(".franja-estado").Should().ContainSingle("el estado está visible sin abrir Más filtros");
+        cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim())
+            .Should().Equal("Documento", "Propietario", "Vence", "Estado", "Acciones");
+        cut.FindAll(".tarjeta-listado").Should().ContainSingle();
+        cut.Find(".tarjeta-listado-pie").QuerySelector(".paginador-pie-listado").Should().NotBeNull();
+        cut.Find(".tarjeta-listado-contenido").QuerySelector(".paginador-pie-listado").Should().BeNull();
+        cut.Find(".documentos-acciones-fila").TextContent.Should().Contain("Ver").And.Contain("Gestionar");
+    }
+
+    [Fact]
+    public void Un_documento_sin_vencimiento_dice_No_caduca_y_conserva_su_fecha_de_emision()
+    {
+        var documento = DocumentoDeFila() with { FechaVencimiento = null };
+        var (cut, _) = Renderizar(ConDocumentos(documento));
+        cut.WaitForAssertion(() => cut.Find(".documentos-vigencia").TextContent.Should().Contain("No caduca"));
+        cut.Find(".documentos-vigencia").TextContent.Should().Contain(documento.FechaEmision.ToString("dd/MM/yyyy"));
+    }
+
+    [Fact]
+    public async Task Seleccionar_todos_solo_marca_los_grupos_visibles_y_plegarlos_vacia_la_seleccion()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila(), DocumentoDeFila() with { Ambito = AmbitoAplicacion.Empresa }));
+        await cut.Find("button[aria-label='Agrupar: no']").ClickAsync(new MouseEventArgs());
+        await cut.FindAll("[role=menuitemradio]").Single(b => b.TextContent.Trim() == "Por ámbito").ClickAsync(new MouseEventArgs());
+        await cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".documentos-tabla-visible tbody input[type=checkbox]").Should().BeEmpty();
+        await cut.Find(".documentos-tabla-visible thead input[type=checkbox]").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = true });
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+
+        await cut.Find("button.grupo-lista-cabecera").ClickAsync(new MouseEventArgs());
+        await cut.Find(".documentos-tabla-visible thead input[type=checkbox]").ChangeAsync(new Microsoft.AspNetCore.Components.ChangeEventArgs { Value = true });
+        cut.FindAll(".documentos-tabla-visible tbody input:checked").Should().ContainSingle();
+        cut.FindAll(".barra-acciones-lote").Should().ContainSingle();
+
+        await cut.Find("button.grupo-lista-cabecera").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".barra-acciones-lote").Should().BeEmpty();
+        cut.FindAll(".documentos-tabla-visible tbody input[type=checkbox]").Should().BeEmpty();
+    }
+
     [Theory]
     [InlineData("Administrador", true, true)]
     [InlineData("DireccionCae", true, false)]
@@ -29,7 +77,7 @@ public partial class DocumentosGen2Tests
         Pestanas(cut).Select(p => string.Concat(p.ChildNodes.Where(n => n.NodeType == NodeType.Text).Select(n => n.TextContent)).Trim()).Should().Equal(
             "Estado", "Plataformas CAE", "Reclamaciones", "Preventivo", "Revisión IA", "Plantillas");
         cut.FindAll("tbody button.enlace-nombre-fila").Should().Contain(b => b.TextContent == "Javier Salas Moreno");
-        cut.FindAll("tbody button").Should().Contain(b => b.TextContent.Trim() == "Ver PDF",
+        cut.FindAll("tbody button").Should().Contain(b => b.TextContent.Trim() == "Ver",
             "Consulta conserva el acceso de lectura al archivo");
         cut.FindAll("tbody .documentos-accion-rapida").Should().HaveCount(escritura ? 1 : 0);
         cut.FindAll("tbody a.boton-360-pagina").Should().HaveCount(escritura ? 1 : 0);
@@ -74,7 +122,7 @@ public partial class DocumentosGen2Tests
     {
         var (cut, _) = Renderizar(ConDocumentos(DocumentoDeFila(archivoUrl: null)), rol: rol);
         cut.WaitForAssertion(() => cut.Find("tbody tr").TextContent.Should().Contain("Sin adjunto"));
-        cut.FindAll("tbody button").Should().NotContain(b => b.TextContent.Trim() == "Ver PDF");
+        cut.FindAll("tbody button").Should().NotContain(b => b.TextContent.Trim() == "Ver");
     }
 
     [Fact]

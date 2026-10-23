@@ -329,4 +329,8 @@
   <data name="RecDelegacionEmpresaSinContactoVisible" xml:space="preserve">
     <value>No puedes ver el contacto de reclamación de esta Delegación, así que no puedes enviarle la reclamación.</value>
   </data>
+  <data name="TituloPagina" xml:space="preserve"><value>Documentos</value></data>
+  <data name="ListaNoCaduca" xml:space="preserve"><value>No caduca</value></data>
+  <data name="ListaVer" xml:space="preserve"><value>Ver</value></data>
+  <data name="ListaSinAdjunto" xml:space="preserve"><value>Sin adjunto</value></data>
 </root>
