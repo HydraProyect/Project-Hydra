@@ -24,7 +24,7 @@ public partial class DocumentosGen2Tests
         cut.FindAll(".barra-herramientas-lista button[aria-label='Selección múltiple']").Should().BeEmpty();
         cut.FindAll(".franja-estado").Should().ContainSingle("el estado está visible sin abrir Más filtros");
         cut.FindAll(".documentos-tabla-visible thead th").Select(h => h.TextContent.Trim())
-            .Should().Equal("Documento", "Propietario", "Vence", "Estado", "Acciones");
+            .Should().Equal("Documento", "Propietario", "Vence", "Estado documental", "Acciones");
         cut.FindAll(".tarjeta-listado").Should().ContainSingle();
         cut.Find(".tarjeta-listado-pie").QuerySelector(".paginador-pie-listado").Should().NotBeNull();
         cut.Find(".tarjeta-listado-contenido").QuerySelector(".paginador-pie-listado").Should().BeNull();
