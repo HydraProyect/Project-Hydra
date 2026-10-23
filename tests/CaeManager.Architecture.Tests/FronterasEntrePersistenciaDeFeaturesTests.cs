@@ -92,7 +92,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ITrabajadoresQueryContext"),
         ("ApiKeys.GenerarClaveApiCommandHandler", "IDelegacionTenantRepository"),
-        ("ApiKeys.GenerarClaveApiCommandHandler", "ITenantsQueryContext"),
         ("ApiKeys.ObtenerClavesApiQueryHandler", "ITenantsQueryContext"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "IDelegacionTenantRepository"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "ITenantsQueryContext"),

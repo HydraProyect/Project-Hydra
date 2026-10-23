@@ -22,6 +22,8 @@ public class ClaveApi : EntidadBase
     public Guid CreadaPorUsuarioId { get; private set; }
     public DateTime? UltimoUsoUtc { get; private set; }
     public DateTime? RevocadaEnUtc { get; private set; }
+    public DateTime CaducaEnUtc { get; private set; }
+    public string? MotivoEmision { get; private set; }
 
     public bool EstaActiva => RevocadaEnUtc is null;
 
@@ -30,7 +32,8 @@ public class ClaveApi : EntidadBase
         // Requerido por EF Core.
     }
 
-    public ClaveApi(string nombreDescriptivo, string prefijoVisible, string hashClave, Guid creadaPorUsuarioId)
+    public ClaveApi(string nombreDescriptivo, string prefijoVisible, string hashClave, Guid creadaPorUsuarioId,
+        DateTime caducaEnUtc, string motivoEmision)
     {
         if (string.IsNullOrWhiteSpace(nombreDescriptivo))
             throw new ArgumentException("La clave necesita un nombre que identifique para qué se usa.", nameof(nombreDescriptivo));
@@ -40,11 +43,18 @@ public class ClaveApi : EntidadBase
             throw new ArgumentException("Falta el hash de la clave.", nameof(hashClave));
         if (creadaPorUsuarioId == Guid.Empty)
             throw new ArgumentException("La clave debe registrar quién la generó.", nameof(creadaPorUsuarioId));
+        var ahora = DateTime.UtcNow;
+        if (caducaEnUtc.Kind != DateTimeKind.Utc || caducaEnUtc <= ahora || caducaEnUtc > ahora.AddDays(365))
+            throw new ArgumentException("La caducidad debe estar en el futuro y no superar 365 días.", nameof(caducaEnUtc));
+        if (string.IsNullOrWhiteSpace(motivoEmision) || motivoEmision.Length > 500)
+            throw new ArgumentException("Indica el motivo de la emisión, con un máximo de 500 caracteres.", nameof(motivoEmision));
 
         NombreDescriptivo = nombreDescriptivo.Trim();
         PrefijoVisible = prefijoVisible;
         HashClave = hashClave;
         CreadaPorUsuarioId = creadaPorUsuarioId;
+        CaducaEnUtc = caducaEnUtc;
+        MotivoEmision = motivoEmision.Trim();
     }
 
     public void Revocar()
@@ -54,4 +64,6 @@ public class ClaveApi : EntidadBase
     }
 
     public void RegistrarUso() => UltimoUsoUtc = DateTime.UtcNow;
+
+    public bool EstaVigente(DateTime ahoraUtc) => EstaActiva && ahoraUtc < CaducaEnUtc;
 }

@@ -213,7 +213,7 @@ public class AislamientoPorAgregadoTests : IAsyncLifetime
 
     [Fact]
     public Task Aislamiento_ClaveApi() => VerificarAislamientoAsync(
-        () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid()));
+        () => new ClaveApi("Integración de prueba", "hydra_ab12cd", $"hash-{Guid.NewGuid():N}", Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba de aislamiento"));
 
     // Command Palette, grupo "Recientes" (ver plan de implementación) — mismo
     // UsuarioId en ambos tenants a propósito: el aislamiento tiene que venir

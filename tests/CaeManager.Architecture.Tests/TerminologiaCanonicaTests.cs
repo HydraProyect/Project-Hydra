@@ -457,7 +457,14 @@ public class TerminologiaCanonicaTests
         // DirectorioUsuariosTenant.OperadoresDelegadosVigentes, para que Soporte TALVEG conserve su rol guardado
         // igual que en /delegaciones. Es el enum de dominio que ya existe, sin nombre canónico; renombrarlo es un
         // incremento propio.
-        ["Delegacion"] = 351,
+        // 351 → 354 (2026-10-23, claves de API fuera de la Sesión Privilegiada): CriterioSoporteClaveApi
+        // nombra DelegacionTenant y PropositoDelegacion.Soporte, y ClaveApiRepository lee DelegacionesTenant
+        // para exigir al autenticar el mismo acceso de soporte vigente que al emitir. Son los tipos de dominio
+        // y el DbSet que ya existen; renombrarlos es un incremento propio.
+        // 354 → 355 (mismo día, decisión de autenticar con la ventana cerrada): el criterio se parte en
+        // PuedeAutenticar (expresión) y PuedeEmitir, que recibe la DelegacionTenant ya cargada; el tipo
+        // de su parámetro es el único uso nuevo.
+        ["Delegacion"] = 355,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
