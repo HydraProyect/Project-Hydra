@@ -1965,7 +1965,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
 
-                    b.ToTable("ContratosAcceso", (string)null);
+                    b.ToTable("ContratosAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContratosAcceso_CierreNoAnteriorAlInicio", "\"FechaCierreReal\" IS NULL OR \"FechaCierreReal\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>

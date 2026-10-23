@@ -108,26 +108,64 @@ public class ContratoAccesoAutorizacionTests
     }
 
     [Fact]
-    public async Task Crear_con_la_Empresa_contratista_igual_al_Cliente_empresarial_falla_sin_guardar()
+    public async Task Crear_con_el_Centro_de_un_Cliente_empresarial_que_no_ves_responde_no_encontrado_sin_guardar()
+    {
+        // El actor ve al Cliente empresarial del comando pero no al titular del Centro: «no pertenece» confirmaría que el
+        // Centro existe.
+        var resultado = await Crear(AlcanceSinAcceso(_cliente.Id)).Handle(
+            new CrearContratoAccesoCommand(_cliente.Id, _centroDeOtroCliente.Id, _contratista.Id, Inicio, null, null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.CentroNoEncontrado");
+        _repositorio.Contratos.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Crear_con_el_Centro_de_otro_Cliente_empresarial_visible_responde_no_pertenece()
+    {
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_cliente.Id, _otroCliente.Id]);
+
+        var resultado = await Crear(alcance).Handle(
+            new CrearContratoAccesoCommand(_cliente.Id, _centroDeOtroCliente.Id, _contratista.Id, Inicio, null, null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.CentroNoPerteneceACliente");
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Crear_con_la_Empresa_contratista_igual_al_Cliente_empresarial_responde_el_mismo_no_encontrado()
     {
         var comando = new CrearContratoAccesoCommand(_cliente.Id, _centro.Id, _cliente.Id, Inicio, null, null);
 
         new CrearContratoAccesoCommandValidator().Validate(comando).IsValid.Should().BeFalse();
         var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(comando, CancellationToken.None);
 
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("ContratoAcceso.ContratistaEsElCliente");
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.CentroNoEncontrado");
         _repositorio.Contratos.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
-    public async Task Crear_con_una_Empresa_contratista_que_no_existe_en_el_Tenant_falla_sin_guardar()
+    public async Task Crear_con_una_Empresa_contratista_que_no_existe_en_el_Tenant_responde_el_mismo_no_encontrado()
     {
         var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(
             new CrearContratoAccesoCommand(_cliente.Id, _centro.Id, Guid.NewGuid(), Inicio, null, null), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("ContratoAcceso.ContratistaNoEncontrada");
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.CentroNoEncontrado",
+            "el mismo error que un Centro inexistente: no revela qué Empresas hay en el Tenant");
+        _repositorio.Contratos.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Crear_con_una_Empresa_contratista_dada_de_baja_responde_el_mismo_no_encontrado()
+    {
+        _contratista.MarcarComoEliminado(Guid.NewGuid());
+
+        var resultado = await Crear(new AlcanceDatosServiceFalso()).Handle(
+            new CrearContratoAccesoCommand(_cliente.Id, _centro.Id, _contratista.Id, Inicio, null, null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.CentroNoEncontrado");
         _repositorio.Contratos.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -151,6 +189,34 @@ public class ContratoAccesoAutorizacionTests
             .Handle(new ActualizarContratoAccesoCommand(contrato.Id, Inicio.AddDays(10), "Cambiada", contrato.Version), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("ContratoAcceso.NoEncontrado");
+        contrato.FechaFin.Should().BeNull();
+        contrato.Notas.Should().Be("Nota");
+        _unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Actualizar_dentro_del_alcance_cambia_fin_y_notas_y_guarda()
+    {
+        var contrato = ContratoExistente();
+
+        var resultado = await new ActualizarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new ActualizarContratoAccesoCommand(contrato.Id, Inicio.AddDays(10), "Cambiada", contrato.Version), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        contrato.FechaFin.Should().Be(Inicio.AddDays(10));
+        contrato.Notas.Should().Be("Cambiada");
+        _unitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Actualizar_con_un_fin_anterior_al_inicio_responde_FechaFinInvalida_sin_guardar()
+    {
+        var contrato = ContratoExistente();
+
+        var resultado = await new ActualizarContratoAccesoCommandHandler(_repositorio, AlcanceSinAcceso(_cliente.Id), _unitOfWork)
+            .Handle(new ActualizarContratoAccesoCommand(contrato.Id, Inicio.AddDays(-1), "Cambiada", contrato.Version), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("ContratoAcceso.FechaFinInvalida");
         contrato.FechaFin.Should().BeNull();
         contrato.Notas.Should().Be("Nota");
         _unitOfWork.VecesGuardado.Should().Be(0);

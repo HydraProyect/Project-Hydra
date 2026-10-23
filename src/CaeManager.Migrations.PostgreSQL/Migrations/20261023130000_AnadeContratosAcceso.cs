@@ -51,6 +51,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         principalTable: "Empresas",
                         principalColumns: new[] { "TenantId", "Id" },
                         onDelete: ReferentialAction.Restrict);
+                    table.CheckConstraint("CK_ContratosAcceso_CierreNoAnteriorAlInicio", "\"FechaCierreReal\" IS NULL OR \"FechaCierreReal\" >= \"FechaInicio\"");
+                    table.CheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
+                    table.CheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
                 });
 
             migrationBuilder.CreateIndex(

@@ -42,9 +42,11 @@ public class CrearContratoAccesoCommandHandler(
 {
     public async Task<Result<Guid>> Handle(CrearContratoAccesoCommand request, CancellationToken cancellationToken)
     {
-        // Mismo error para «no existe» y «no lo ves»: la respuesta no revela qué Clientes empresariales hay fuera del
+        // Un único error para «no existe», «está dado de baja» y «no lo ves», sea el Cliente empresarial, el Centro o la
+        // Empresa contratista: la respuesta no sirve de oráculo de qué Empresas o Centros hay en el Tenant ni fuera del
         // alcance del actor.
-        var noEncontrado = Error.Crear("ContratoAcceso.CentroNoEncontrado", "No encontramos este Centro de trabajo.");
+        var noEncontrado = Error.Crear(
+            "ContratoAcceso.CentroNoEncontrado", "No encontramos el Centro de trabajo o la Empresa contratista seleccionados.");
 
         if (!await ContratoAccesoAutorizacion.VisibleAsync(request.ClienteEmpresarialId, alcanceDatos, cancellationToken))
             return Result.Fallo<Guid>(noEncontrado);
@@ -58,20 +60,22 @@ public class CrearContratoAccesoCommandHandler(
             return Result.Fallo<Guid>(noEncontrado);
 
         if (centro.ClienteId != request.ClienteEmpresarialId)
+        {
+            // Decir «no pertenece» de un Centro cuyo Cliente empresarial no ves confirmaría que ese Centro existe.
+            if (!await ContratoAccesoAutorizacion.VisibleAsync(centro.ClienteId, alcanceDatos, cancellationToken))
+                return Result.Fallo<Guid>(noEncontrado);
             return Result.Fallo<Guid>(Error.Crear(
                 "ContratoAcceso.CentroNoPerteneceACliente", "Este Centro de trabajo no pertenece al Cliente seleccionado."));
+        }
 
-        if (request.EmpresaContratistaId == request.ClienteEmpresarialId)
-            return Result.Fallo<Guid>(Error.Crear(
-                "ContratoAcceso.ContratistaEsElCliente", "La Empresa contratista no puede ser el propio Cliente."));
-
-        // Existencia en el Tenant actual (filtro de tenant y soft delete, y RLS debajo); la autoridad no pasa por la
-        // Empresa contratista (ver ContratoAccesoAutorizacion).
-        var contratistaExiste = await empresasContext.Empresas
-            .AnyAsync(e => e.Id == request.EmpresaContratistaId, cancellationToken);
-        if (!contratistaExiste)
-            return Result.Fallo<Guid>(Error.Crear(
-                "ContratoAcceso.ContratistaNoEncontrada", "No encontramos esta Empresa contratista."));
+        // Existencia en el Tenant actual, sin baja (también la filtran el filtro global y RLS debajo); la autoridad no
+        // pasa por la Empresa contratista (ver ContratoAccesoAutorizacion). La contratista igual al Cliente empresarial
+        // la rechaza antes el validador con su mensaje de campo; aquí cae en el mismo error genérico.
+        var contratistaValida = request.EmpresaContratistaId != request.ClienteEmpresarialId
+            && await empresasContext.Empresas
+                .AnyAsync(e => e.Id == request.EmpresaContratistaId && !e.EstaEliminado, cancellationToken);
+        if (!contratistaValida)
+            return Result.Fallo<Guid>(noEncontrado);
 
         var contrato = ContratoAcceso.Crear(
             request.ClienteEmpresarialId, request.CentroId, request.EmpresaContratistaId, request.FechaInicio, request.FechaFin, request.Notas);

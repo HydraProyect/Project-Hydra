@@ -572,8 +572,9 @@ src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedServic
 
 # Contrato de acceso (Inbound M1, 2026-10-23): la tabla nueva usa ClienteEmpresarialId; quedan el join con la
 # columna legacy Centro.ClienteId (alta y FK compuesta contra la clave alternativa de Centro) y el alcance de
-# Clientes visibles (ObtenerClienteIdsVisiblesAsync), el mismo criterio de autorización que Proyecto.
-src/CaeManager.Application/ContratosAcceso/Commands/CrearContratoAcceso/CrearContratoAccesoCommand.cs :: ClienteId = 2
+# Clientes visibles (ObtenerClienteIdsVisiblesAsync), el mismo criterio de autorización que Proyecto. En el alta, el
+# tercer uso comprueba si el actor ve al titular del Centro antes de decir que el Centro no pertenece al Cliente.
+src/CaeManager.Application/ContratosAcceso/Commands/CrearContratoAcceso/CrearContratoAccesoCommand.cs :: ClienteId = 3
 src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: clienteIdsVisibles = 3
 src/CaeManager.Application/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1

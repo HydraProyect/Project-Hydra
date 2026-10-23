@@ -39,6 +39,7 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
     private Guid _contratoVigente;
     private Guid _contratoCaducado;
     private Guid _contratoAjeno;
+    private Guid _contratistaAjena;
 
     public async Task InitializeAsync()
     {
@@ -76,6 +77,7 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             contexto.ContratosAcceso.Add(ajeno);
             await contexto.SaveChangesAsync();
             _contratoAjeno = ajeno.Id;
+            _contratistaAjena = contratista.Id;
         }
     }
 
@@ -129,6 +131,107 @@ public class ContratosAccesoBajoRuntimeTests : IAsyncLifetime
             .WithInnerException<PostgresException>()
             .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation,
                 "la FK compuesta (TenantId, CentroId, ClienteEmpresarialId) contra Centros lo hace irrepresentable");
+    }
+
+    [Fact]
+    public async Task Un_INSERT_por_SQL_con_el_TenantId_de_otro_Tenant_lo_rechaza_el_WITH_CHECK()
+    {
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+        var hoy = DiaDeNegocio.Hoy();
+        Task<int> Insertar(Guid tenantId) => contexto.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO "ContratosAcceso" ("Id", "TenantId", "ClienteEmpresarialId", "CentroId", "EmpresaContratistaId",
+                "FechaInicio", "Version", "CreadoEnUtc", "EstaEliminado")
+            VALUES ({Guid.NewGuid()}, {tenantId}, {_cliente}, {_centro}, {_contratista}, {hoy}, {Guid.NewGuid()}, now(), false);
+            """);
+
+        var ajeno = () => Insertar(_ajeno.Id);
+        (await ajeno.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "la política aislamiento_tenant no deja escribir una fila con otro TenantId (new row violates row-level security)");
+
+        // Control positivo: la misma fila con el TenantId del contexto entra.
+        (await Insertar(_propietario.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Soporte_lee_los_contratos_de_su_Tenant_y_no_puede_insertar()
+    {
+        await using var conexion = new NpgsqlConnection(_cadena);
+        await conexion.OpenAsync();
+        await using var transaccion = await conexion.BeginTransactionAsync();
+        await using (var preparar = conexion.CreateCommand())
+        {
+            preparar.CommandText = "SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE cae_app_soporte;";
+            preparar.Parameters.AddWithValue("tenant", _propietario.Id.ToString());
+            await preparar.ExecuteNonQueryAsync();
+        }
+
+        await using (var leer = conexion.CreateCommand())
+        {
+            leer.CommandText = "SELECT count(*) FROM \"ContratosAcceso\";";
+            ((long)(await leer.ExecuteScalarAsync())!).Should().Be(2, "Soporte lee los dos contratos del Tenant propietario y no el ajeno");
+        }
+
+        await using var escribir = conexion.CreateCommand();
+        escribir.CommandText = """
+            INSERT INTO "ContratosAcceso" ("Id", "TenantId", "ClienteEmpresarialId", "CentroId", "EmpresaContratistaId",
+                "FechaInicio", "Version", "CreadoEnUtc", "EstaEliminado")
+            VALUES (@id, @tenant, @cliente, @centro, @contratista, @inicio, @version, now(), false);
+            """;
+        escribir.Parameters.AddWithValue("id", Guid.NewGuid());
+        escribir.Parameters.AddWithValue("tenant", _propietario.Id);
+        escribir.Parameters.AddWithValue("cliente", _cliente);
+        escribir.Parameters.AddWithValue("centro", _centro);
+        escribir.Parameters.AddWithValue("contratista", _contratista);
+        escribir.Parameters.AddWithValue("inicio", DiaDeNegocio.Hoy());
+        escribir.Parameters.AddWithValue("version", Guid.NewGuid());
+        (await FluentActions.Awaiting(() => escribir.ExecuteNonQueryAsync()).Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "la migración solo concede SELECT a cae_app_soporte");
+    }
+
+    [Fact]
+    public async Task La_base_rechaza_una_Empresa_contratista_de_otro_Tenant()
+    {
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+        var hoy = DiaDeNegocio.Hoy();
+
+        // Control positivo: con la Empresa contratista del propio Tenant, el mismo alta pasa.
+        contexto.ContratosAcceso.Add(ContratoAcceso.Crear(_cliente, _centro, _contratista, hoy, null, null));
+        await contexto.SaveChangesAsync();
+
+        contexto.ContratosAcceso.Add(ContratoAcceso.Crear(_cliente, _centro, _contratistaAjena, hoy, null, null));
+        var guardar = () => contexto.SaveChangesAsync();
+        (await guardar.Should().ThrowAsync<DbUpdateException>())
+            .WithInnerException<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.ForeignKeyViolation,
+                "la FK (TenantId, EmpresaContratistaId) contra Empresas no casa con una Empresa de otro Tenant");
+    }
+
+    [Theory]
+    [InlineData("CK_ContratosAcceso_FinNoAnteriorAlInicio")]
+    [InlineData("CK_ContratosAcceso_CierreNoAnteriorAlInicio")]
+    [InlineData("CK_ContratosAcceso_ContratistaDistintaDelCliente")]
+    public async Task Un_UPDATE_por_SQL_que_rompe_una_invariante_lo_rechaza_su_CHECK(string restriccion)
+    {
+        await using var contexto = Contexto(_propietario.Id, _administrador);
+
+        // Control positivo: el borde permitido (fin y cierre el mismo día del inicio) pasa.
+        (await contexto.Database.ExecuteSqlAsync(
+            $"UPDATE \"ContratosAcceso\" SET \"FechaFin\" = \"FechaInicio\", \"FechaCierreReal\" = \"FechaInicio\" WHERE \"Id\" = {_contratoVigente};"))
+            .Should().Be(1);
+
+        var sql = restriccion switch
+        {
+            "CK_ContratosAcceso_FinNoAnteriorAlInicio" =>
+                "UPDATE \"ContratosAcceso\" SET \"FechaFin\" = \"FechaInicio\" - 1 WHERE \"Id\" = {0};",
+            "CK_ContratosAcceso_CierreNoAnteriorAlInicio" =>
+                "UPDATE \"ContratosAcceso\" SET \"FechaCierreReal\" = \"FechaInicio\" - 1 WHERE \"Id\" = {0};",
+            _ => "UPDATE \"ContratosAcceso\" SET \"EmpresaContratistaId\" = \"ClienteEmpresarialId\" WHERE \"Id\" = {0};",
+        };
+        var romper = () => contexto.Database.ExecuteSqlRawAsync(sql, _contratoVigente);
+        var error = (await romper.Should().ThrowAsync<PostgresException>()).Which;
+        error.SqlState.Should().Be(PostgresErrorCodes.CheckViolation);
+        error.ConstraintName.Should().Be(restriccion);
     }
 
     [Fact]

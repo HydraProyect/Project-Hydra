@@ -10,7 +10,22 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
 {
     public void Configure(EntityTypeBuilder<ContratoAcceso> builder)
     {
-        builder.ToTable("ContratosAcceso");
+        // Respaldo en la base de las invariantes de ContratoAcceso.Crear/Actualizar/Cerrar y del validador del alta:
+        // una escritura que se salte el dominio (SQL, migración de datos) tampoco puede dejarlas rotas.
+        builder.ToTable("ContratosAcceso", t =>
+        {
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_ContratistaDistintaDelCliente",
+                $"\"{nameof(ContratoAcceso.ClienteEmpresarialId)}\" <> \"{nameof(ContratoAcceso.EmpresaContratistaId)}\"");
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_FinNoAnteriorAlInicio",
+                $"\"{nameof(ContratoAcceso.FechaFin)}\" IS NULL " +
+                $"OR \"{nameof(ContratoAcceso.FechaFin)}\" >= \"{nameof(ContratoAcceso.FechaInicio)}\"");
+            t.HasCheckConstraint(
+                "CK_ContratosAcceso_CierreNoAnteriorAlInicio",
+                $"\"{nameof(ContratoAcceso.FechaCierreReal)}\" IS NULL " +
+                $"OR \"{nameof(ContratoAcceso.FechaCierreReal)}\" >= \"{nameof(ContratoAcceso.FechaInicio)}\"");
+        });
         builder.HasKey(c => c.Id);
 
         builder.Property(c => c.Notas).HasMaxLength(ContratoAcceso.LongitudMaximaNotas);
