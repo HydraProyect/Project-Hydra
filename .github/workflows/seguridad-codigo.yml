@@ -1,0 +1,206 @@
+name: Seguridad del código
+
+# Pruebas de código seguro que no caben en el CI obligatorio: análisis estático
+# (CodeQL), inventario de dependencias (SBOM CycloneDX) y escaneo pasivo de la
+# aplicación en marcha (ZAP baseline). Ninguno de estos checks es `required`:
+# informan y dejan evidencia, pero no bloquean la cola de fusión. Por eso no
+# hay disparador `merge_group`.
+#
+# ZAP se lanza contra una instancia levantada dentro de este mismo runner,
+# nunca contra staging: staging envía correo real por SMTP y un escáner que
+# recorre formularios podría disparar envíos.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  # Semanal: CodeQL actualiza sus consultas y ZAP sus reglas aunque el código
+  # no cambie.
+  schedule:
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: seguridad-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.lenguaje }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # build-mode none: C# se analiza sin compilar (extracción desde el
+        # código fuente), así el job no depende del SDK ni duplica la
+        # compilación del CI. `actions` analiza los propios workflows
+        # (inyección de expresiones, permisos excesivos, checkout inseguro).
+        lenguaje: [csharp, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Inicializar CodeQL
+        uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.lenguaje }}
+          build-mode: none
+          queries: security-extended
+
+      - name: Analizar
+        uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: "/language:${{ matrix.lenguaje }}"
+
+  sbom:
+    name: SBOM CycloneDX
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      # Trivy (la misma versión fijada que escanea la imagen en ci.yml) lee los
+      # packages.lock.json de cada proyecto: el inventario sale de las
+      # versiones exactas resueltas, no de los rangos del .csproj.
+      - name: Generar SBOM del código fuente
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: cyclonedx
+          output: sbom.cdx.json
+
+      - name: Comprobar que el SBOM no está vacío
+        run: |
+          componentes=$(jq '.components | length' sbom.cdx.json)
+          echo "Componentes en el SBOM: $componentes"
+          if [ "$componentes" -lt 50 ]; then
+            echo "::error::El SBOM solo tiene $componentes componentes: Trivy no ha leído los packages.lock.json."
+            exit 1
+          fi
+
+      - name: Publicar SBOM
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90
+
+  zap-baseline:
+    name: ZAP baseline (instancia local)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    services:
+      postgres:
+        # Espejo GHCR, mismo digest que producción: ver el servicio postgres del
+        # job tests-integracion en ci.yml.
+        image: ghcr.io/hydraproyect/postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          dotnet-version: "10.0.3xx"
+
+      - name: Compilar la aplicación
+        run: dotnet build src/CaeManager.Web -c Release
+
+      # Mismo prerrequisito que los jobs de integración y E2E: los roles de
+      # clúster no los crea ninguna migración.
+      - name: Bootstrap de roles de clúster
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -f deploy/bootstrap/roles-de-cluster.sql
+
+      # Contraseña efímera de este runner, igual que AccesoBajoRolRuntimeTests:
+      # el tráfico va por cae_app_runtime (sometido a RLS), como en producción,
+      # y no hace falta la degradación insegura fuera de Development.
+      - name: Dar LOGIN al rol de tráfico
+        env:
+          PGPASSWORD: postgres
+        run: >
+          psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
+          -c "ALTER ROLE cae_app_runtime LOGIN PASSWORD 'zap-ci-efimera';"
+
+      # Entorno distinto de Development a propósito: activa el manejador de
+      # errores, HSTS y el resto del comportamiento de un entorno desplegado,
+      # que es lo que el escáner debe ver. Sin proveedores de IA, SMTP ni
+      # Sentry: ninguna clave llega a este job.
+      - name: Arrancar la aplicación
+        env:
+          ASPNETCORE_ENVIRONMENT: Escaneo
+          ASPNETCORE_URLS: http://127.0.0.1:5080
+          ConnectionStrings__CaeManagerDb: Host=localhost;Database=cae_zap;Username=postgres;Password=postgres
+          ConnectionStrings__CaeManagerDbRuntime: Host=localhost;Database=cae_zap;Username=cae_app_runtime;Password=zap-ci-efimera
+        run: |
+          cd src/CaeManager.Web/bin/Release/net10.0
+          nohup dotnet CaeManager.Web.dll > "$RUNNER_TEMP/app.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fsS -o /dev/null http://127.0.0.1:5080/salud; then
+              echo "La aplicación responde en /salud tras ${i} intentos."
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::La aplicación no respondió en /salud."
+          tail -n 200 "$RUNNER_TEMP/app.log"
+          exit 1
+
+      # Imagen oficial de ZAP fijada por digest (2.17.0) en vez de la acción de
+      # terceros: la acción pide permiso para abrir issues y aquí solo hace
+      # falta el informe. Escaneo pasivo: araña las páginas públicas sin enviar
+      # formularios. -I: los avisos no hacen fallar el job; solo las reglas
+      # marcadas FAIL en .zap/reglas-baseline.tsv.
+      - name: Escanear con ZAP baseline
+        run: |
+          mkdir -p zap
+          cp .zap/reglas-baseline.tsv zap/
+          chmod -R 777 zap
+          docker run --rm --network host -v "$PWD/zap:/zap/wrk:rw" \
+            ghcr.io/zaproxy/zaproxy@sha256:5ccfff9a411743ab2615136a2edd7416bec9ce41572fa94e935df38c14adb2b6 \
+            zap-baseline.py -t http://127.0.0.1:5080 -m 3 -I \
+            -c reglas-baseline.tsv -r informe-zap.html -J informe-zap.json -w informe-zap.md
+
+      - name: Resumen del escaneo
+        if: always()
+        run: |
+          if [ -f zap/informe-zap.md ]; then cat zap/informe-zap.md >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Log de la aplicación si falla
+        if: failure()
+        run: tail -n 200 "$RUNNER_TEMP/app.log" || true
+
+      - name: Publicar informe de ZAP
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: informe-zap-baseline
+          path: zap/informe-zap.*
+          retention-days: 90
+          if-no-files-found: ignore
