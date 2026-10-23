@@ -110,7 +110,9 @@ public static class ActosExcluidosDelEncargo
     /// </summary>
     public static readonly IReadOnlySet<string> AreasPermitidas = new HashSet<string>(StringComparer.Ordinal)
     {
-        "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "Bandeja", "Blindaje42", "BusquedaGlobal",
+        // AutorizacionesLectura: solo rol Administrador; con encargo pleno quien administra por encargo es Administrador
+        // pleno (decisión del 2026-10-15), y con encargo no pleno el Tenant tiene Administrador propio que la concede.
+        "Alertas", "Asignaciones", "AsistenteIa", "Auditoria", "AutorizacionesLectura", "Bandeja", "Blindaje42", "BusquedaGlobal",
         "Calendario", "Centros", "Clientes", "Comercial", "Comunicaciones", "Configuracion", "Contactos", "ContratosAcceso",
         "Cumplimiento", "Dashboard", "Documentos", "DocumentosIa", "Empresas", "Gestiones", "Incidencias",
         "Integraciones", "Notificaciones", "Operaciones", "Plantillas", "Plataforma", "Proyectos",

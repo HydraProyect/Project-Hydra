@@ -203,6 +203,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.CrearContratoAccesoCommandHandler",
         "ContratosAcceso.EliminarContratoAccesoCommandHandler",
         "ContratosAcceso.ReabrirContratoAccesoCommandHandler",
+        "ContratosAcceso.VincularTenantContratistaCommandHandler",
 
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",
@@ -475,6 +476,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["ApiKeys"] =
             "claves de API de una delegación de soporte: plano de Plataforma, solo desde el Tenant de la consultora " +
             "delegada; no escribe filas de una cartera",
+        ["AutorizacionesLectura"] =
+            "autorización de lectura documental que el Tenant de la Empresa contratista concede al Tenant del Cliente " +
+            "empresarial (Inbound M1): plano de Propiedad, solo rol Administrador (AutorizacionLecturaAutoridad), que no " +
+            "tiene restricción de cartera; ninguna fila con cartera",
         ["Comercial"] =
             "estado comercial y suscripción del Tenant: plano Comercial, autorizado por " +
             "IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync",

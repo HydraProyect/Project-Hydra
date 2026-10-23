@@ -423,6 +423,90 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ConcedidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConcedidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IncluyeDocumentosEmpresa")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("VigenciaDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("VigenciaHasta")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantDestinatarioId", "ContratoAccesoId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLectura_UnaSinRevocarPorContrato")
+                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
+
+                    b.ToTable("AutorizacionesLecturaDocumental", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_DestinatarioAjeno", "\"TenantDestinatarioId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_HastaNoAnteriorADesde", "\"VigenciaHasta\" IS NULL OR \"VigenciaHasta\" >= \"VigenciaDesde\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_RevocacionEntera", "(\"RevocadaEnUtc\" IS NULL) = (\"RevocadaPorUsuarioId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TrabajadorId")
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Trabajador");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "TrabajadorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Unico");
+
+                    b.ToTable("AutorizacionesLecturaTrabajadores", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1942,6 +2026,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<Guid?>("TenantContratistaId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -1969,6 +2056,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
 
                             t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_TenantContratistaAjeno", "\"TenantContratistaId\" IS NULL OR \"TenantContratistaId\" <> \"TenantId\"");
                         });
                 });
 
@@ -9800,6 +9889,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany("Turnos")
                         .HasForeignKey("TareaAsistenteId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 

@@ -327,6 +327,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IProyectoRequisitoRepository, ProyectoRequisitoRepository>();
         services.AddScoped<CaeManager.Domain.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
+        services.AddScoped<CaeManager.Domain.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
         services.AddScoped<IPlantillaRequisitosEventoRepository, PlantillaRequisitosEventoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
@@ -431,6 +432,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());

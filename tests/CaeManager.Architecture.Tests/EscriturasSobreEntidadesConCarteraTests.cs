@@ -58,6 +58,12 @@ public class EscriturasSobreEntidadesConCarteraTests
         ["RegistrarHistorialInformeCommandHandler"] =
             "anota en el historial del propio usuario qué informe generó; no escribe sobre el Cliente empresarial, y " +
             "el informe ya sale filtrado por la cartera",
+        ["ConcederAutorizacionLecturaCommandHandler"] =
+            "autorización de lectura del Tenant de la Empresa contratista: acto de Propiedad del Tenant propietario; " +
+            "el handler exige rol efectivo Administrador (AutorizacionLecturaAutoridad), que no tiene restricción de " +
+            "cartera, y los Trabajadores se comprueban contra el propio Tenant",
+        ["AsignarTrabajadoresAutorizacionCommandHandler"] = "mismo motivo que ConcederAutorizacionLecturaCommandHandler",
+        ["RetirarTrabajadorAutorizacionCommandHandler"] = "mismo motivo que ConcederAutorizacionLecturaCommandHandler",
         ["IniciarLoteGeneracionDocumentosCommandHandler"] =
             "solo encola el lote; cada documento lo escribe GenerarDocumentoIndividualCommandHandler, que comprueba " +
             "el alcance del Trabajador o Cliente empresarial ítem a ítem",

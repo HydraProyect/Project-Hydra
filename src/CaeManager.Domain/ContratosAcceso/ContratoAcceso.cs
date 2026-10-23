@@ -52,6 +52,15 @@ public class ContratoAcceso : EntidadBase
     public DateOnly? FechaCierreReal { get; private set; }
     public string? Notas { get; private set; }
 
+    /// <summary>
+    /// El Tenant de la Empresa contratista (Inbound M1, PR 2): el otro extremo del contrato, donde viven los Documentos
+    /// originales de la Empresa contratista y donde ella concede su <c>AutorizacionLecturaDocumental</c> para este
+    /// contrato. Null mientras no se haya vinculado. No es <see cref="EmpresaContratistaId"/>: aquel es la Empresa
+    /// contraparte local de este Tenant; este es otro Tenant, y no hay FK posible hacia él. Ver
+    /// <see cref="VincularTenantContratista"/>.
+    /// </summary>
+    public Guid? TenantContratistaId { get; private set; }
+
     public bool EstaAbierto => FechaCierreReal is null;
 
     private ContratoAcceso()
@@ -110,6 +119,33 @@ public class ContratoAcceso : EntidadBase
             throw new InvalidOperationException("El contrato de acceso no está cerrado.");
 
         FechaCierreReal = null;
+    }
+
+    /// <summary>
+    /// Vincula el contrato con el Tenant de la Empresa contratista. <b>Una sola vez</b>: un vínculo equivocado se
+    /// corrige cerrando este contrato y creando otro, nunca cambiándolo. Cambiar el vínculo después de que el Tenant
+    /// de la Empresa contratista haya concedido su autorización de lectura redirigiría en silencio esa lectura hacia
+    /// los Documentos de otro Tenant, con la autorización que dio un tercero.
+    ///
+    /// <para>
+    /// Tampoco puede ser el propio Tenant del contrato. <see cref="EntidadConTenant.TenantId"/> solo se conoce aquí
+    /// cuando el contrato ya se guardó (lo sella el interceptor al guardar): para un contrato recién creado la
+    /// comprobación la repiten <c>VincularTenantContratistaCommand</c>, contra el Tenant activo, y el CHECK
+    /// <c>CK_ContratosAcceso_TenantContratistaAjeno</c> en la base.
+    /// </para>
+    /// </summary>
+    public void VincularTenantContratista(Guid tenantContratistaId)
+    {
+        if (tenantContratistaId == Guid.Empty)
+            throw new ArgumentException("El Tenant de la Empresa contratista es obligatorio.", nameof(tenantContratistaId));
+        if (tenantContratistaId == TenantId)
+            throw new ArgumentException(
+                "El Tenant de la Empresa contratista no puede ser el propio Tenant del contrato.", nameof(tenantContratistaId));
+        if (TenantContratistaId is not null)
+            throw new InvalidOperationException(
+                "El contrato de acceso ya está vinculado con el Tenant de la Empresa contratista: para corregirlo, cierra este contrato y crea otro.");
+
+        TenantContratistaId = tenantContratistaId;
     }
 
     /// <summary>
