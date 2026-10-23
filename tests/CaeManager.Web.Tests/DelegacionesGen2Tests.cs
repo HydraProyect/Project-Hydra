@@ -207,6 +207,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         _configurarMediador?.Invoke(mediador);
 
         var toasts = new ToastService();
+        Services.AddSeguridadCuentaDePrueba();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped(_ => toasts);
         Services.AddScoped<PuertaAccesoDatos>();
@@ -558,9 +559,9 @@ public partial class DelegacionesGen2Tests : BunitContext
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
+        // El enlace sale de la URL pública configurada, no del Host de la petición.
         cut.Find(".operadores-cae-enlace").TextContent.Trim().Should().Be(
-            Services.GetRequiredService<NavigationManager>()
-                .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={administradorId}&code=TOKEN-123").ToString());
+            $"https://cuentas.example/cuenta/restablecer-contrasena?userId={administradorId}&code=TOKEN-123");
         var dialogo = cut.Find("[role=dialog]");
         dialogo.TextContent.Should().Contain("Operador CAE externo creado")
             .And.Contain("Marta Ruiz").And.Contain("marta@operador-sur.test")
@@ -601,6 +602,29 @@ public partial class DelegacionesGen2Tests : BunitContext
         cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
         cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
             ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "el rechazo no tira lo escrito");
+        toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
+    }
+
+    /// <summary>
+    /// Sin URL pública configurada (fuera de Development) no hay enlace que entregar, y el token
+    /// solo existe en la respuesta del alta: el panel no envía el Command, no crea nada y lo dice.
+    /// </summary>
+    [Fact]
+    public async Task Sin_url_publica_no_se_crea_el_Operador_CAE_externo_y_se_dice()
+    {
+        _configurarMediador = _ => Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var (cut, mediador, toasts) = Renderizar(esAdministradorPlataforma: true);
+        mediador.ResultadoAltaOperador = Result.Exito(new OperadorCaeExternoCreado(Guid.NewGuid(), Guid.NewGuid(), "TOKEN-123"));
+        await RellenarAltaDeOperadorAsync(cut);
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is CrearOperadorCaeExternoCommand,
+            "sin base pública el alta no se envía: crear la cuenta dejaría un token que nadie puede entregar");
+        cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se creó el Operador CAE externo");
+        cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
+        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
+            ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "lo escrito no se pierde");
         toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
     }
 

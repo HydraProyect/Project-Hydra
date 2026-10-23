@@ -342,4 +342,13 @@
   <data name="AlcanceEmpresaGestionadaParcial" xml:space="preserve">
     <value>{0} (solo un Cliente)</value>
   </data>
+  <data name="ActivacionUrlPublicaNoConfigurada" xml:space="preserve">
+    <value>No se pudo generar el enlace de activación.</value>
+  </data>
+  <data name="AltaSinUrlPublica" xml:space="preserve">
+    <value>No se creó el usuario: falta la URL pública de la aplicación para generar su enlace de activación.</value>
+  </data>
+  <data name="EnlaceSinUrlPublica" xml:space="preserve">
+    <value>No se ha generado ningún enlace ni se ha cambiado nada: falta la URL pública de la aplicación.</value>
+  </data>
 </root>
