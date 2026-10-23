@@ -70,7 +70,8 @@ public class DocumentAIRouterService(
     /// — solo se intenta uno por documento, nunca hay fallback en el paso de
     /// OCR, así que basta con un único código, no una lista).
     /// </summary>
-    private sealed record TextoExtraidoDto(string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null, string? ProveedorOcrCodigo = null);
+    private sealed record TextoExtraidoDto(
+        string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null, string? ProveedorOcrCodigo = null, string? TextoCompleto = null);
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
         byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default)
@@ -137,8 +138,13 @@ public class DocumentAIRouterService(
         // El contraste determinista se calcula sobre el mismo texto que vio el
         // modelo y viaja con la extracción, también a la caché: quien decide
         // con ella no tiene que fiarse solo de lo que el modelo diga del texto.
+        // Si el contraste no se puede calcular queda null, que para decidir
+        // cuenta como «no contrastado»: nunca tumba una lectura ya pagada.
         var resultado = estructuracion.Resultado.EsExitoso
-            ? Result.Exito(estructuracion.Resultado.Valor with { Contraste = ContrasteTextoDocumento.Analizar(texto.Valor.Texto) })
+            ? Result.Exito(estructuracion.Resultado.Valor with
+            {
+                Contraste = ContrasteTextoDocumento.AnalizarSinFallar(texto.Valor.Texto, texto.Valor.TextoCompleto),
+            })
             : estructuracion.Resultado;
 
         if (resultado.EsFallido)
@@ -426,7 +432,9 @@ public class DocumentAIRouterService(
         var texto = string.Join("\n\n", indicesRelevantes.Select(indice => paginas[indice]));
         var nota = $"Documento grande ({paginas.Count} páginas): se seleccionaron {indicesRelevantes.Count} páginas relevantes antes de enviar a IA.";
 
-        return new TextoExtraidoDto(texto, nota);
+        // El contraste determinista mira todas las páginas, no solo las que se
+        // envían: un «no apto» en una página descartada no puede pasar sin verse.
+        return new TextoExtraidoDto(texto, nota, TextoCompleto: string.Join("\n\n", paginas));
     }
 
     /// <summary>

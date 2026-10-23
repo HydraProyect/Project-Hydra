@@ -9,7 +9,7 @@ namespace CaeManager.Application.DocumentosIa.Common;
 /// envió al proveedor de IA. Lo calcula <see cref="ContrasteTextoDocumento.Analizar"/>
 /// en el router y viaja con la extracción (también a la caché documental), para
 /// que quien decida con esa extracción pueda contrastar lo que dice el modelo con
-/// lo que de verdad pone el documento.
+/// lo que de verdad pone el documento. El router usa <see cref="ContrasteTextoDocumento.AnalizarSinFallar"/>.
 /// </summary>
 /// <param name="PareceDirigidoAlModelo">
 /// El texto contiene algo que no tiene sentido en un documento y sí en un intento de
@@ -66,6 +66,38 @@ public static partial class ContrasteTextoDocumento
             ExtraerFechas(normalizado));
     }
 
+    /// <summary>
+    /// Lo que usa el router. Las señales de manipulación y de «no apto» se buscan en el
+    /// texto completo del documento (<paramref name="textoCompleto"/>, cuando el router
+    /// solo envió parte de las páginas), porque una página que el modelo no vio también
+    /// puede decir «no apto»; las fechas, en el texto enviado, que es el que pudo leer.
+    /// <para>
+    /// Nunca lanza: si el análisis falla devuelve <c>null</c>, que
+    /// <c>ComputarMotivos</c> trata como «no contrastado» y manda a revisión. Un fallo
+    /// aquí no puede tumbar una extracción ya pagada ni, menos aún, aprobarla.
+    /// </para>
+    /// </summary>
+    public static ContrasteTextoDocumentoDto? AnalizarSinFallar(string? textoEnviado, string? textoCompleto = null)
+    {
+        try
+        {
+            var enviado = Analizar(textoEnviado);
+            if (string.IsNullOrWhiteSpace(textoCompleto))
+                return enviado;
+
+            var completo = Analizar(textoCompleto);
+            return enviado with
+            {
+                PareceDirigidoAlModelo = enviado.PareceDirigidoAlModelo || completo.PareceDirigidoAlModelo,
+                MencionaNoAptoORestriccion = enviado.MencionaNoAptoORestriccion || completo.MencionaNoAptoORestriccion,
+            };
+        }
+        catch (Exception ex) when (ex is ArgumentException or RegexMatchTimeoutException or FormatException or OverflowException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Misma señal que <see cref="ContrasteTextoDocumentoDto.PareceDirigidoAlModelo"/>, sobre cualquier texto externo.</summary>
     public static bool PareceDirigidoAlModelo(string? texto) =>
         !string.IsNullOrWhiteSpace(texto) && PareceDirigidoAlModeloNormalizado(Normalizar(texto));
@@ -82,7 +114,8 @@ public static partial class ContrasteTextoDocumento
     /// </summary>
     private static string Normalizar(string texto)
     {
-        var sinInvisibles = RegexInvisibles().Replace(texto, string.Empty);
+        var sinInvisibles = RegexInvisibles().Replace(
+            CaeManager.Application.AsistenteIa.Preparacion.NeutralizadorTextoExterno.RepararSustitutos(texto), string.Empty);
         var descompuesto = sinInvisibles.Normalize(NormalizationForm.FormD);
         var resultado = new StringBuilder(descompuesto.Length);
         foreach (var c in descompuesto)
@@ -103,23 +136,32 @@ public static partial class ContrasteTextoDocumento
 
         foreach (Match m in RegexFechaNumerica().Matches(normalizado))
         {
-            var anio = int.Parse(m.Groups["a"].Value, CultureInfo.InvariantCulture);
+            if (!Entero(m, "a", out var anio) || !Entero(m, "m", out var mes) || !Entero(m, "d", out var dia))
+                continue;
             if (anio < 100)
                 anio += 2000;
-            Añadir(fechas, anio, int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture));
+            Añadir(fechas, anio, mes, dia);
         }
 
         foreach (Match m in RegexFechaIso().Matches(normalizado))
-            Añadir(fechas, int.Parse(m.Groups["a"].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups["m"].Value, CultureInfo.InvariantCulture), int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture));
+        {
+            if (Entero(m, "a", out var anio) && Entero(m, "m", out var mes) && Entero(m, "d", out var dia))
+                Añadir(fechas, anio, mes, dia);
+        }
 
         foreach (Match m in RegexFechaEnLetra().Matches(normalizado))
         {
             var mes = Array.IndexOf(Meses, m.Groups["m"].Value == "setiembre" ? "septiembre" : m.Groups["m"].Value) + 1;
-            Añadir(fechas, int.Parse(m.Groups["a"].Value, CultureInfo.InvariantCulture), mes, int.Parse(m.Groups["d"].Value, CultureInfo.InvariantCulture));
+            if (Entero(m, "a", out var anio) && Entero(m, "d", out var dia))
+                Añadir(fechas, anio, mes, dia);
         }
 
         return fechas.OrderBy(f => f).ToList();
     }
+
+    // Las regex solo casan [0-9], pero un fallo de lectura aquí nunca puede lanzar.
+    private static bool Entero(Match m, string grupo, out int valor) =>
+        int.TryParse(m.Groups[grupo].Value, NumberStyles.None, CultureInfo.InvariantCulture, out valor);
 
     private static void Añadir(HashSet<DateOnly> fechas, int anio, int mes, int dia)
     {
@@ -153,30 +195,42 @@ public static partial class ContrasteTextoDocumento
         + @"|\b(?:eres|actua\s+como|you\s+are)\s+(?:un|una|an?)\s+(?:modelo|asistente|ia|sistema|language\s+model|ai\b)"
         + @"|\b(?:modelo|asistente)\s+de\s+(?:ia|lenguaje|inteligencia\s+artificial)"
         + @"|\b(?:responde|contesta|devuelve|return|respond)\s+(?:solo|unicamente|exclusivamente|only)\b"
-        + @"|\b(?:devuelve|pon|marca|asigna|establece|set|return)\w*\b[^.\n]{0,30}\bconfianza\b"
-        + @"|\bconfianza\s*(?:de\s*|del\s*|=|:)?\s*(?:1(?:[.,]0+)?|100\s*%?)(?![\d.,])"
+        + @"|\b(?:devuelve|pon|marca|asigna|establece|sube|subir|aumenta|eleva|set|return|raise|increase)\w*\b[^.\n]{0,30}\b(?:confianza|confidence)\b"
+        + @"|\b(?:confianza|confidence)\s*(?:de\s*|del\s*|of\s*|=|:)?\s*(?:1(?:[.,]0+)?|100\s*%?)(?![0-9.,])"
+        + @"|\b(?:confianza|confidence)\s+(?:maxima|total|maximum|full)\b"
+        + @"|\b(?:nuevas|new)\s+(?:instrucciones|instructions)\b"
+        + @"|\bconsidera\w*\b[^.\n]{0,40}\b(?:valido|firmad|vigente|apto|aprobad)"
         + @"|\b(?:marca|marcalo|marcar|marcame)\b[^.\n]{0,25}\b(?:como\s+)?(?:apto|valido|firmad|vigente|aprobad)"
-        + @"|\b(?:marca|marcar|pon|indica)\b[^.\n]{0,25}\b(?:la\s+)?firma\s+(?:como\s+)?(?:presente|valida|verdadera|true)")]
+        + @"|\b(?:marca|marcar|pon|indica)\b[^.\n]{0,25}\b(?:la\s+)?firma\s+(?:como\s+)?(?:presente|valida|verdadera|true)",
+        RegexOptions.None, 1000)]
     private static partial Regex RegexOrdenAlModelo();
 
     [GeneratedRegex(
-        @"\bno\s+apt[oa]s?\b"
-        + @"|\bapt[oa]s?\s+(?:con|bajo)\s+(?:restriccion|limitacion|adaptacion|condicion)"
-        + @"|\bapt[oa]s?\s+condicionad"
-        // «Apto sin restricciones para el puesto» es la fórmula del apto limpio.
-        + @"|(?<!\b(?:sin|ninguna|no\s+hay)\s{1,3})\b(?:restriccion|restricciones|limitacion|limitaciones)\s+(?:medica|laboral|funcional|para|de\s+(?:tareas|puesto|actividad))"
-        + @"|\bno\s+(?:puede|podra|debe)\s+(?:realizar|trabajar|desempenar|manipular|conducir|subir|levantar)")]
+        // «no apto», «no es apto», «no resulta apta para el puesto».
+        @"\bno\b(?:\s+\w+){0,3}?\s+apt[oa]s?\b"
+        + @"|\binapt[oa]"
+        + @"|\bapt[oa]s?\s*[:\-]\s*no\b"
+        // «Apto con restricciones», «Apto (con restricciones)», «Apto, con limitaciones».
+        + @"|\bapt[oa]s?\W{1,3}(?:con|bajo)\s+(?:restriccion|limitacion|adaptacion|condicion)"
+        + @"|\bapt[oa]s?\W{1,3}condiciona"
+        // «Apto sin restricciones para el puesto» («ni limitaciones») es la fórmula del apto limpio.
+        + @"|(?<!\b(?:sin|ninguna|no\s+hay|ni)\s{1,3})\b(?:restriccion|restricciones|limitacion|limitaciones)\s+(?:medica|laboral|funcional|para|de\s+(?:tareas|puesto|actividad))"
+        // «Restricciones: no levantar cargas»; «Restricciones: ninguna» o «Limitaciones: no» no cuentan.
+        + @"|\b(?:restriccion|restricciones|limitacion|limitaciones)\s*[:\-]\s*(?!ninguna|ninguno|no\s*(?:$|[.,;)\n])|no\s+(?:hay|tiene|presenta|consta)|sin\b|n/?a\b)\w"
+        + @"|\bno\s+(?:puede|podra|debe)\s+(?:realizar|trabajar|desempenar|manipular|conducir|subir|levantar)",
+        RegexOptions.None, 1000)]
     private static partial Regex RegexNoAptoORestriccion();
 
-    // dd/mm/aaaa, d-m-aa, dd.mm.aaaa.
-    [GeneratedRegex(@"(?<!\d)(?<d>\d{1,2})\s*[/\-.]\s*(?<m>\d{1,2})\s*[/\-.]\s*(?<a>\d{4}|\d{2})(?!\d)")]
+    // dd/mm/aaaa, d-m-aa, dd.mm.aaaa. [0-9] y no \d: \d casa también dígitos de otras
+    // escrituras («０１»), que no son una fecha del documento.
+    [GeneratedRegex(@"(?<![0-9])(?<d>[0-9]{1,2})\s*[/\-.]\s*(?<m>[0-9]{1,2})\s*[/\-.]\s*(?<a>[0-9]{4}|[0-9]{2})(?![0-9])")]
     private static partial Regex RegexFechaNumerica();
 
     // aaaa-mm-dd y aaaa/mm/dd.
-    [GeneratedRegex(@"(?<!\d)(?<a>\d{4})\s*[/\-.]\s*(?<m>\d{1,2})\s*[/\-.]\s*(?<d>\d{1,2})(?!\d)")]
+    [GeneratedRegex(@"(?<![0-9])(?<a>[0-9]{4})\s*[/\-.]\s*(?<m>[0-9]{1,2})\s*[/\-.]\s*(?<d>[0-9]{1,2})(?![0-9])")]
     private static partial Regex RegexFechaIso();
 
     // «12 de marzo de 2026», «1 marzo 2026».
-    [GeneratedRegex(@"(?<!\d)(?<d>\d{1,2})\s*(?:de\s+)?(?<m>enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s*(?:de\s+|del\s+)?(?<a>\d{4})(?!\d)")]
+    [GeneratedRegex(@"(?<![0-9])(?<d>[0-9]{1,2})\s*(?:de\s+)?(?<m>enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|setiembre|octubre|noviembre|diciembre)\s*(?:de\s+|del\s+)?(?<a>[0-9]{4})(?![0-9])")]
     private static partial Regex RegexFechaEnLetra();
 }

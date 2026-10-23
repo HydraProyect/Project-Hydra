@@ -34,6 +34,44 @@ public sealed class DeteccionGestionCorreoInyeccionTests
         Escríbeme a persona@externa.example.com
         """;
 
+    // El cuerpo llega como HTML y los documentos se escriben de mil maneras: ninguna
+    // de estas formas puede dejar los ocho dígitos en claro dentro del correo enviado.
+    [Theory]
+    [InlineData("12345678&nbsp;Z")]
+    [InlineData("12<b>345</b>678Z")]
+    [InlineData("<table><tr><td>12345678</td><td>Z</td></tr></table>")]
+    [InlineData("12 345 678 Z")]
+    [InlineData("12-345-678-Z")]
+    [InlineData("12345678 - Z")]
+    [InlineData("12345678.Z")]
+    [InlineData("DNI12345678Z")]
+    [InlineData("DNI.12345678Z")]
+    [InlineData("DNI&nbsp;12345678")]
+    public async Task Ninguna_forma_de_escribir_el_DNI_lo_deja_salir_en_claro(string forma)
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+
+        await Servicio(manejador).DetectarAsync($"<p>Adjunto la entrega de EPI de la trabajadora {forma}.</p>", [Ana], [Epi]);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        var inicio = usuario.IndexOf("<<<INICIO_DEL_CORREO>>>", StringComparison.Ordinal);
+        var fin = usuario.IndexOf("<<<FIN_DEL_CORREO>>>", StringComparison.Ordinal);
+        var digitosDelCorreo = new string(usuario[inicio..fin].Where(char.IsAsciiDigit).ToArray());
+        digitosDelCorreo.Should().NotContain("12345678");
+    }
+
+    [Fact]
+    public async Task Un_emoji_partido_por_el_recorte_del_cuerpo_no_tumba_la_deteccion()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+        var cuerpo = new string('a', 7999) + "\U0001F600 fin";
+
+        var detectar = () => Servicio(manejador).DetectarAsync(cuerpo, [Ana], [Epi]);
+
+        await detectar.Should().NotThrowAsync();
+        manejador.CuerpoRecibido.Should().NotBeNull();
+    }
+
     [Fact]
     public async Task El_correo_llega_neutralizado_delimitado_y_sin_ningun_DNI_en_claro()
     {

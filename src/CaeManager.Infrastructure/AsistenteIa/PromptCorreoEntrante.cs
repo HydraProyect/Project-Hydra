@@ -1,3 +1,5 @@
+using System.Net;
+using System.Text.RegularExpressions;
 using CaeManager.Application.AsistenteIa.Preparacion;
 
 namespace CaeManager.Infrastructure.AsistenteIa;
@@ -20,7 +22,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// resultado es una sugerencia que decide el Gestor CAE, nunca una Gestión creada sola.
 /// </para>
 /// </summary>
-internal static class PromptCorreoEntrante
+internal static partial class PromptCorreoEntrante
 {
     internal const string MarcaInicio = "<<<INICIO_DEL_CORREO>>>";
     internal const string MarcaFin = "<<<FIN_DEL_CORREO>>>";
@@ -69,9 +71,51 @@ internal static class PromptCorreoEntrante
     /// la tabla del enmascarado, para casar los documentos de los candidatos con los
     /// marcadores y para restaurar lo que el modelo devuelva en texto.
     /// </summary>
-    public static TextoEnmascarado Preparar(string textoDelCorreo) =>
-        EnmascaradorIdentificadores.Enmascarar(
-            PromptDocumental.RetirarMarcas(NeutralizadorTextoExterno.Neutralizar(textoDelCorreo, CamposDeLaRespuesta)));
+    public static TextoEnmascarado Preparar(string textoDelCorreo)
+    {
+        var enmascarado = EnmascaradorIdentificadores.Enmascarar(
+            PromptDocumental.RetirarMarcas(NeutralizadorTextoExterno.Neutralizar(ATextoPlano(textoDelCorreo), CamposDeLaRespuesta)));
+
+        // Segunda pasada, más laxa que la del enmascarador compartido, para las formas
+        // que un correo HTML o escrito a mano produce y aquel no reconoce: «12 345 678 Z»,
+        // «12-345-678-Z», «12345678.Z», «DNI12345678». Lo que casa aquí se oculta sin
+        // marcador restaurable: el modelo no lo necesita y no debe salir de TALVEG.
+        return enmascarado with { Texto = RegexDocumentoResidual().Replace(enmascarado.Texto, DocumentoOculto) };
+    }
+
+    /// <summary>Lo que queda en el sitio de un documento de identidad que solo reconoce la segunda pasada.</summary>
+    internal const string DocumentoOculto = "[DOC_OCULTO]";
+
+    /// <summary>
+    /// El cuerpo llega como HTML: «12345678&amp;nbsp;Z» o «12&lt;b&gt;345&lt;/b&gt;678Z»
+    /// esconderían el documento al enmascarador. Las etiquetas de bloque pasan a espacio,
+    /// las demás se quitan y las entidades se decodifican.
+    /// </summary>
+    internal static string ATextoPlano(string texto)
+    {
+        if (string.IsNullOrEmpty(texto))
+            return texto ?? string.Empty;
+        var sinBloques = RegexEtiquetaDeBloque().Replace(texto, " ");
+        var sinEtiquetas = RegexEtiqueta().Replace(sinBloques, string.Empty);
+        return WebUtility.HtmlDecode(sinEtiquetas).Replace(' ', ' ');
+    }
+
+    [GeneratedRegex(@"</?\s*(?:td|th|tr|p|div|br|li|ul|ol|table|tbody|thead|h[1-6]|blockquote)\b[^>]*>", RegexOptions.IgnoreCase, 1000)]
+    private static partial Regex RegexEtiquetaDeBloque();
+
+    [GeneratedRegex(@"</?\s*[a-zA-Z][^>]*>", RegexOptions.None, 1000)]
+    private static partial Regex RegexEtiqueta();
+
+    // Con palabra clave (dni, nif, nie) la letra final es opcional; sin ella se exige
+    // una letra mayúscula, para no ocultar fechas ni importes. Los dígitos admiten
+    // espacio, punto o guion entre ellos.
+    [GeneratedRegex(
+        @"(?<![\p{L}\p{N}])(?:"
+        + @"(?i:dni|nif|nie)[\s.:º\-]{0,3}(?i:[xyz])?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}(?:[\s.\-]{0,3}(?i:[a-z]))?"
+        + @"|[XYZ]?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}[\s.\-]{0,3}[A-Z]"
+        + @")(?![\p{L}\p{N}])",
+        RegexOptions.None, 1000)]
+    private static partial Regex RegexDocumentoResidual();
 
     /// <summary>El texto ya preparado, encerrado entre las marcas.</summary>
     public static string Delimitar(string textoPreparado) =>

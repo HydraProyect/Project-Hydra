@@ -112,7 +112,10 @@ public class AnthropicDeteccionGestionCorreoService(
                 "DeteccionGestionCorreo.NoConfigurado", "La detección automática de gestiones no está disponible ahora mismo."));
         }
 
-        var cuerpoRecortado = cuerpoMensaje.Length > LongitudMaximaCuerpo ? cuerpoMensaje[..LongitudMaximaCuerpo] : cuerpoMensaje;
+        // Recorte por punto de código: partir un emoji deja medio par sustituto, y
+        // String.Normalize lanza con él.
+        var corte = LongitudMaximaCuerpo - (cuerpoMensaje.Length > LongitudMaximaCuerpo && char.IsHighSurrogate(cuerpoMensaje[LongitudMaximaCuerpo - 1]) ? 1 : 0);
+        var cuerpoRecortado = cuerpoMensaje.Length > LongitudMaximaCuerpo ? cuerpoMensaje[..corte] : cuerpoMensaje;
 
         // El DNI de los candidatos no sale de TALVEG (Z4-2): el correo se
         // enmascara y cada candidato viaja con el marcador de su documento solo
