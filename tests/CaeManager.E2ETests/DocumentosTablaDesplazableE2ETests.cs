@@ -50,6 +50,7 @@ public class DocumentosTablaDesplazableE2ETests(WebAppFixtureListados fixture, I
             return {
                 filas: tabla.querySelectorAll('tbody tr').length,
                 columnas: cabeceras.length,
+                columnaDestinos: tabla.querySelector('thead th.documentos-celda-expandir') ? 1 : 0,
                 antepasadosDesbordados,
                 porDesplazar: envoltorio.scrollWidth - envoltorio.clientWidth,
                 ultimaFuera,
@@ -99,8 +100,9 @@ public class DocumentosTablaDesplazableE2ETests(WebAppFixtureListados fixture, I
             // Sin filas no habría nada que desbordar y el test pasaría en vacío.
             Assert.True(medicion.GetProperty("filas").GetInt32() > 0, $"{donde} el listado sembrado no tiene filas: no hay nada que medir.");
 
-            // No se arregla el desborde quitando columnas.
-            Assert.Equal(seleccionMultiple ? 8 : 7, medicion.GetProperty("columnas").GetInt32());
+            // Cinco columnas del listado, más selección múltiple y destinos cuando existen.
+            Assert.Equal(5 + (seleccionMultiple ? 1 : 0) + medicion.GetProperty("columnaDestinos").GetInt32(),
+                medicion.GetProperty("columnas").GetInt32());
 
             var desbordados = medicion.GetProperty("antepasadosDesbordados").EnumerateArray().Select(d => d.GetString()).ToList();
             Assert.True(desbordados.Count == 0,
