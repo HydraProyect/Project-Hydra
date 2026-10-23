@@ -166,7 +166,7 @@ public class OrdenacionListadosTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task Un_orden_desconocido_cae_al_orden_por_defecto_sin_fallar()
+    public async Task Un_orden_desconocido_cae_a_la_prioridad_de_vigencia_sin_fallar()
     {
         // Lo que protege: la lista blanca. Si el nombre de columna acabara
         // interpolado en SQL o se lanzara una excepción, la pantalla se caería
@@ -175,7 +175,12 @@ public class OrdenacionListadosTests : IAsyncLifetime
         var porDefecto = await ObtenerDtosAsync(null, descendente: false);
 
         conBasura.Select(d => d.Id).Should().Equal(porDefecto.Select(d => d.Id));
-        porDefecto.Select(d => d.FechaEmision).Should().BeInDescendingOrder();
+        porDefecto.Select(d => d.Estado).Should().Equal(
+            EstadoDocumento.Vencido,
+            EstadoDocumento.Urgente,
+            EstadoDocumento.Proximo,
+            EstadoDocumento.Vigente,
+            EstadoDocumento.SinCaducidad);
     }
 
     private async Task<List<DocumentoListaDto>> ObtenerDtosAsync(

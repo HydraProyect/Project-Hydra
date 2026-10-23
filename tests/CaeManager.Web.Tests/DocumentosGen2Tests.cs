@@ -276,6 +276,39 @@ public class DocumentosGen2Tests : BunitContext
     }
 
     /// <summary>
+    /// La lista deja de ser un volcado cronológico: los accesos de prioridad
+    /// aplican el filtro de Estado real y no son una decoración o un contador
+    /// sin desglose.
+    /// </summary>
+    [Fact]
+    public async Task El_control_de_prioridad_filtra_por_el_estado_documental_elegido()
+    {
+        var (cut, mediador) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        cut.Find(".control-documental h2").TextContent.Trim().Should().Be("Prioridad documental");
+        var vencidos = BotonPorTexto(cut, ".control-documental-estado button", "Vencidos");
+        vencidos.GetAttribute("aria-pressed").Should().Be("false");
+
+        await vencidos.ClickAsync(new MouseEventArgs());
+
+        mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().Estado.Should().Be(EstadoDocumento.Vencido);
+        BotonPorTexto(cut, ".control-documental-estado button", "Vencidos")
+            .GetAttribute("aria-pressed").Should().Be("true");
+    }
+
+    [Fact]
+    public void La_tabla_reune_el_contexto_del_titular_y_la_vigencia_en_lugar_de_fragmentarlos()
+    {
+        var (cut, _) = Renderizar(ConDocumentos(Documento("Reconocimiento médico")));
+
+        var tabla = cut.Find(".tabla-documentos");
+        tabla.QuerySelectorAll("th").Select(th => th.TextContent.Trim()).Should()
+            .ContainInOrder("Titular documental", "Documento", "Vigencia", "Plataformas CAE", "Archivo y acciones");
+        tabla.TextContent.Should().Contain("Salas Moreno, Javier").And.Contain("Trabajador")
+            .And.Contain("Emitido el 15/01/2026").And.Contain("Vence el 15/01/2027");
+    }
+
+    /// <summary>
     /// Las acciones del mockup siguen en la cabecera, y con ellas «Exportar a
     /// Excel», que el mockup no dibuja: un mockup omite comportamiento, no lo
     /// deroga. La barrera va delante para que la aserción no sea verde vacío.

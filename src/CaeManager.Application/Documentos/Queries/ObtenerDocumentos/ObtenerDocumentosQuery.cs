@@ -250,7 +250,16 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 : x.FechaVencimiento <= limiteRojo ? 1
                 : x.FechaVencimiento <= limiteAmbar ? 2
                 : 3),
-            _ => consulta.OrderByDescending(x => x.FechaEmision)
+            // La vista general es un puesto de control, no un historial de
+            // carga: si nadie elige otra ordenación, se presenta primero lo
+            // vencido, urgente y próximo. El usuario puede seguir ordenar por
+            // cualquier columna desde la rejilla.
+            _ => consulta.OrderBy(x =>
+                x.FechaVencimiento == null ? 4
+                : x.FechaVencimiento < hoy ? 0
+                : x.FechaVencimiento <= limiteRojo ? 1
+                : x.FechaVencimiento <= limiteAmbar ? 2
+                : 3)
         };
         // Desempate estable: sin un criterio total, PostgreSQL puede devolver
         // las filas empatadas en distinto orden entre una página y otra, y al

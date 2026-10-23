@@ -1,0 +1,121 @@
+/* La lista documental es un puesto de control: prioridad arriba, contexto en
+   la fila y detalle solo cuando hace falta. No convierte documentos
+   comparables en tarjetas. */
+.control-documental {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-4);
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.control-documental-contexto {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.control-documental h2,
+.cabecera-lista-documentos h2 {
+    font: var(--font-heading-sm);
+}
+
+.control-documental p,
+.cabecera-lista-documentos p {
+    margin-top: var(--space-1);
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+}
+
+.control-documental-estado {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
+
+.filtro-estado {
+    min-height: 2rem;
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    cursor: pointer;
+}
+
+.filtro-estado:hover { border-color: var(--color-border-control); color: var(--color-text); }
+.filtro-estado-activo { border-color: var(--color-primary-500); background: var(--color-primary-50); color: var(--color-primary-700); }
+.filtro-estado-vencido.filtro-estado-activo { border-color: var(--color-danger-500); background: var(--color-danger-50); color: var(--color-danger-700); }
+.filtro-estado-urgente.filtro-estado-activo,
+.filtro-estado-proximo.filtro-estado-activo { border-color: var(--color-warning-500); background: var(--color-warning-50); color: var(--color-warning-700); }
+.filtro-estado-vigente.filtro-estado-activo { border-color: var(--color-success-500); background: var(--color-success-50); color: var(--color-success-700); }
+
+.barra-filtros-documentos {
+    max-width: none;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--space-3);
+    margin: 0;
+    padding-top: var(--space-3);
+    border-top: var(--border-default);
+}
+
+.barra-filtros-documentos ::deep .campo { flex: 1 1 11rem; min-width: 11rem; }
+.barra-filtros-documentos ::deep .campo:first-child { flex: 2 1 18rem; }
+
+.marco-lista-documentos {
+    overflow: hidden;
+    border: var(--border-default);
+    border-radius: var(--radius-lg);
+    background: var(--color-surface);
+}
+
+.marco-lista-documentos[aria-busy="true"] { opacity: .6; }
+
+.cabecera-lista-documentos {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4);
+    border-bottom: var(--border-default);
+    background: var(--color-surface-subtle);
+}
+
+.resultado-documental {
+    flex: none;
+    color: var(--color-text-muted);
+    font: var(--font-label-md);
+    white-space: nowrap;
+}
+
+.tabla-documentos-desplazable { overflow-x: auto; }
+
+.tabla-documentos {
+    min-width: 65rem;
+    border: 0;
+    border-radius: 0;
+}
+
+.tabla-documentos ::deep th { padding: var(--space-3) var(--space-4); }
+.tabla-documentos ::deep td { padding: var(--space-3) var(--space-4); vertical-align: top; }
+.tabla-documentos ::deep th:last-child,
+.tabla-documentos ::deep td:last-child { min-width: 10rem; }
+
+.documento-titular,
+.documento-tipo,
+.documento-contexto { display: block; }
+.documento-titular,
+.documento-tipo { color: var(--color-text); font-weight: 600; }
+.documento-contexto { margin-top: var(--space-1); color: var(--color-text-muted); font: var(--font-caption); }
+
+@media (max-width: 50rem) {
+    .control-documental-contexto,
+    .cabecera-lista-documentos { align-items: flex-start; flex-direction: column; }
+    .control-documental-estado { justify-content: flex-start; }
+}
