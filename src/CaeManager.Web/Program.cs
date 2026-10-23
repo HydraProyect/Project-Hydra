@@ -938,6 +938,17 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 // descarte el X-Forwarded-For entrante y de que sea el único camino hasta el
 // 8080. Ese es un supuesto de seguridad, y está escrito, medido y vigilado por
 // trinquete en esa clase (REC-019) en vez de quedar aquí como un comentario.
+// Antes de UseForwardedHeaders, que reescribe el par y consume la cabecera: el
+// registro de inicios de sesión necesita los originales para creer
+// X-Forwarded-For solo cuando el par es un proxy de confianza configurado
+// (Seguridad:InicioSesion:ProxiesDeConfianza, ver IpClienteDeConfianza).
+app.Use((contexto, siguiente) =>
+{
+    var xff = contexto.Request.Headers["X-Forwarded-For"].ToString();
+    contexto.Features.Set(new CaeManager.Infrastructure.Seguridad.OrigenConexionCapturado(
+        contexto.Connection.RemoteIpAddress, string.IsNullOrWhiteSpace(xff) ? null : xff));
+    return siguiente(contexto);
+});
 app.UseForwardedHeaders(CabecerasDeProxyDeBorde.Opciones());
 
 using (var scope = app.Services.CreateScope())

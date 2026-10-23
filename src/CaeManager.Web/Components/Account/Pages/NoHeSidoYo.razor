@@ -1,0 +1,64 @@
+@page "/cuenta/no-he-sido-yo"
+@layout CaeManager.Web.Components.Layout.AccesoLayout
+@attribute [AllowAnonymous]
+@using Microsoft.AspNetCore.Authorization
+@using CaeManager.Infrastructure.Seguridad
+@inject IVigilanciaInicioSesion Vigilancia
+
+@* Destino del enlace «no he sido yo» del aviso de inicio de sesión inusual.
+   El GET no cambia nada: los antivirus y las vistas previas del correo abren
+   los enlaces por su cuenta, y si abrirlo bastara, cualquier escáner cerraría
+   las sesiones de la persona. Lo que actúa es el POST del botón (con
+   antiforgery), y el token lo comprueba VigilanciaInicioSesionService. *@
+
+<PageTitle>No he sido yo — @Marca.Nombre</PageTitle>
+
+<div class="acceso-tarjeta">
+    @if (_enlaceInvalido)
+    {
+        <CabeceraAcceso Titulo="Enlace no válido"
+                        Explicacion="Este enlace no es válido, ya se usó o caducó. Si crees que alguien ha entrado en tu cuenta, cambia tu contraseña." />
+        <a class="acceso-entrar" href="/cuenta/olvide-contrasena">Cambiar mi contraseña</a>
+    }
+    else if (_completado)
+    {
+        <CabeceraAcceso />
+        <span class="acceso-exito" aria-hidden="true"><Icono Nombre="check" Tamano="TamanoIcono.Grande" /></span>
+        <h2 class="acceso-titulo">Cuenta protegida</h2>
+        <p class="acceso-explica">Hemos cerrado todas tus sesiones y tu contraseña anterior ya no sirve. Te hemos enviado un correo para crear una nueva.</p>
+    }
+    else
+    {
+        <CabeceraAcceso Titulo="¿No has sido tú?"
+                        Explicacion="Si lo confirmas, cerraremos todas las sesiones abiertas de tu cuenta, tu contraseña actual dejará de servir y te enviaremos un correo para crear una nueva." />
+        <form method="post" @formname="no-he-sido-yo" @onsubmit="ConfirmarAsync">
+            <AntiforgeryToken />
+            <button type="submit" class="acceso-entrar">Proteger mi cuenta</button>
+        </form>
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "userId")]
+    private string? UserId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "code")]
+    private string? Code { get; set; }
+
+    private bool _enlaceInvalido;
+    private bool _completado;
+
+    protected override void OnInitialized()
+        => _enlaceInvalido = string.IsNullOrWhiteSpace(UserId) || string.IsNullOrWhiteSpace(Code);
+
+    private async Task ConfirmarAsync()
+    {
+        if (_enlaceInvalido)
+            return;
+
+        if (await Vigilancia.ConfirmarNoHeSidoYoAsync(UserId!, Code!))
+            _completado = true;
+        else
+            _enlaceInvalido = true;
+    }
+}

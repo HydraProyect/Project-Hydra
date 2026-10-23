@@ -85,6 +85,8 @@ public class SuperficiesAnonimasClasificadasPorActorTests
         ["CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor"] = (1, Categoria.PersonaSinSesion),
         ["CaeManager.Web/Components/Account/Pages/OlvideContrasena.razor"] = (1, Categoria.PersonaSinSesion),
         ["CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor"] = (1, Categoria.PersonaSinSesion),
+        // Enlace «no he sido yo» del aviso de inicio de sesión inusual: la persona, con el token del correo.
+        ["CaeManager.Web/Components/Account/Pages/NoHeSidoYo.razor"] = (1, Categoria.PersonaSinSesion),
 
         ["CaeManager.Web/Components/Legal/PoliticaPrivacidad.razor"] = (1, Categoria.NoEscribe),
         ["CaeManager.Web/Components/Legal/TerminosCondiciones.razor"] = (1, Categoria.NoEscribe),
