@@ -432,7 +432,7 @@ public class ObtenerTrabajadoresQueryHandler(
     /// <summary>
     /// Añade a las filas YA paginadas sus faltantes (siempre) y su desglose documental (si se pide), en una sola
     /// consulta de documentos para toda la página. De <see cref="TrabajadorListaDto.EstadoDocumental"/> solo cambia
-    /// lo que los faltantes agravan (<see cref="SeveridadEstadoDocumento.ConFaltantes"/>); lo demás sale de los
+    /// lo que los requisitos obligatorios de Centro agravan (<see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>); lo demás sale de los
     /// mismos documentos y la misma calculadora que el desglose, así que coinciden (lo ata
     /// <c>DesgloseDocumentalDeTrabajadoresBajoRlsTests</c>).
     /// </summary>
