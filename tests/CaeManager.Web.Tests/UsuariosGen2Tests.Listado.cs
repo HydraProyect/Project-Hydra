@@ -215,4 +215,5 @@ public partial class UsuariosGen2Tests
         cut.FindAll(".tarjeta-listado-pie-separado").Should().BeEmpty();
         cut.FindComponents<PaginadorSimple>().Should().BeEmpty();
         await cut.InvokeAsync(() => carga.SetResult([]));
-    }}
+    }
+}
