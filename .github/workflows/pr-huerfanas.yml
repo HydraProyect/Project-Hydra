@@ -17,8 +17,12 @@ name: PR huérfanas
 # un hilo, y los eventos de la cola (entrar o salir de la cola, activar o desactivar
 # el auto-merge) más los force-push y el paso de borrador a lista. NO cuentan las
 # etiquetas (las pone esta misma guarda) ni los commits «Merge branch 'main' into …»
-# de la actualización automática de la rama: si contaran, una PR abandonada que el
-# propio GitHub mantiene al día no se vería nunca.
+# que hace GitHub al actualizar la rama (committer noreply@github.com): si contaran,
+# una PR abandonada que el propio GitHub mantiene al día no se vería nunca. Una PR
+# metida en la cola o con auto-merge armado sin movimiento también se marca: una cola
+# parada es justo lo que esta guarda debe poner delante; la tabla dice que está en ella.
+# Límite conocido: la consulta mira los últimos 10 commits, 20 hilos de revisión y 10
+# eventos de cola por PR.
 #
 # Se excluyen las PR con la etiqueta `desechable` (o `Status: desechable`) o con el
 # título que empieza por `[desechable]`.
@@ -94,8 +98,8 @@ jobs:
                       createdAt
                       isInMergeQueue
                       autoMergeRequest { enabledAt }
-                      labels(first: 50) { nodes { name } }
-                      commits(last: 10) { nodes { commit { committedDate messageHeadline } } }
+                      labels(first: 100) { nodes { name } }
+                      commits(last: 10) { nodes { commit { committedDate messageHeadline committer { email } } } }
                       cabeza: commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
                       comments(last: 1) { nodes { createdAt } }
                       reviews(last: 1) { nodes { createdAt submittedAt } }
@@ -133,14 +137,18 @@ jobs:
               /^\s*\[desechable\]/i.test(n.title) ||
               n.labels.nodes.some((l) => /^(status:\s*)?desechable$/i.test(l.name));
 
-            // La actualización automática de la rama mete «Merge branch 'main' into …»: no es trabajo de nadie.
-            const esActualizacionDeRama = (headline) =>
-              /^Merge (remote-tracking )?branch '(origin\/)?(main|master)'/i.test(headline);
+            // La actualización de la rama que hace GitHub («Update branch», auto-actualización) mete
+            // «Merge branch 'main' into …» con GitHub como committer: no es trabajo de nadie. Un merge
+            // local con conflictos resueltos lleva el mismo título pero otro committer, y sí cuenta.
+            const esActualizacionDeRama = (commit) =>
+              /^Merge (remote-tracking )?branch '(origin\/)?(main|master)'/i.test(commit.messageHeadline) &&
+              Boolean(commit.committer) &&
+              /@users\.noreply\.github\.com$|^noreply@github\.com$/i.test(commit.committer.email || '');
 
             const ultimaActividad = (n) => {
               const hitos = [[n.createdAt, 'creación']];
               for (const { commit } of n.commits.nodes) {
-                if (!esActualizacionDeRama(commit.messageHeadline)) hitos.push([commit.committedDate, 'commit']);
+                if (!esActualizacionDeRama(commit)) hitos.push([commit.committedDate, 'commit']);
               }
               for (const c of n.comments.nodes) hitos.push([c.createdAt, 'comentario']);
               for (const rv of n.reviews.nodes) hitos.push([rv.submittedAt || rv.createdAt, 'revisión']);
@@ -175,7 +183,8 @@ jobs:
             const escapar = (s) =>
               String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\|/g, '&#124;');
 
-            const excluidas = prs.filter(esDesechable).length;
+            const excluidasPr = prs.filter(esDesechable);
+            const excluidas = excluidasPr.length;
             const filas = prs
               .filter((n) => !esDesechable(n))
               .map((n) => {
@@ -192,32 +201,57 @@ jobs:
               .sort((a, b) => b.horas - a.horas);
 
             const aPoner = filas.filter((f) => f.huerfana && !f.tiene);
-            const aQuitar = filas.filter((f) => !f.huerfana && f.tiene);
+            // Se quita también a una PR que pasó a «desechable» con la etiqueta puesta.
+            const aQuitar = [
+              ...filas.filter((f) => !f.huerfana && f.tiene).map((f) => f.n),
+              ...excluidasPr.filter((n) => n.labels.nodes.some((l) => l.name === ETIQUETA)),
+            ];
 
-            if (!simular && aPoner.length > 0) {
+            // Un fallo en una PR (límite secundario, 422…) no impide etiquetar las demás ni publicar la tabla.
+            const errores = [];
+            const intentar = async (descripcion, accion) => {
               try {
-                await github.rest.issues.getLabel({ owner, repo, name: ETIQUETA });
+                await accion();
+                return true;
               } catch (e) {
-                if (e.status !== 404) throw e;
-                await github.rest.issues.createLabel({
-                  owner,
-                  repo,
-                  name: ETIQUETA,
-                  color: 'c5def5',
-                  description: 'PR abierta sin actividad reciente (la pone y la quita pr-huerfanas.yml)',
+                errores.push(`${descripcion}: ${e.status || 'sin estado'} ${e.message}`);
+                return false;
+              }
+            };
+
+            if (!simular) {
+              let etiquetaLista = true;
+              if (aPoner.length > 0) {
+                etiquetaLista = await intentar('crear la etiqueta', async () => {
+                  try {
+                    await github.rest.issues.getLabel({ owner, repo, name: ETIQUETA });
+                  } catch (e) {
+                    if (e.status !== 404) throw e;
+                    await github.rest.issues.createLabel({
+                      owner,
+                      repo,
+                      name: ETIQUETA,
+                      color: 'c5def5',
+                      description: 'PR abierta sin actividad reciente (la pone y la quita pr-huerfanas.yml)',
+                    });
+                  }
                 });
               }
-            }
-            if (!simular) {
-              for (const f of aPoner) {
-                await github.rest.issues.addLabels({ owner, repo, issue_number: f.n.number, labels: [ETIQUETA] });
-              }
-              for (const f of aQuitar) {
-                try {
-                  await github.rest.issues.removeLabel({ owner, repo, issue_number: f.n.number, name: ETIQUETA });
-                } catch (e) {
-                  if (e.status !== 404) throw e;
+              if (etiquetaLista) {
+                for (const f of aPoner) {
+                  await intentar(`etiquetar #${f.n.number}`, () =>
+                    github.rest.issues.addLabels({ owner, repo, issue_number: f.n.number, labels: [ETIQUETA] }),
+                  );
                 }
+              }
+              for (const n of aQuitar) {
+                await intentar(`quitar la etiqueta de #${n.number}`, async () => {
+                  try {
+                    await github.rest.issues.removeLabel({ owner, repo, issue_number: n.number, name: ETIQUETA });
+                  } catch (e) {
+                    if (e.status !== 404) throw e;
+                  }
+                });
               }
             }
 
@@ -247,4 +281,6 @@ jobs:
 
             core.info(`PR abiertas: ${prs.length}; excluidas: ${excluidas}; huérfanas: ${filas.filter((f) => f.huerfana).length}`);
             core.info(`Etiqueta puesta a: ${aPoner.map((f) => '#' + f.n.number).join(', ') || 'ninguna'}`);
-            core.info(`Etiqueta quitada a: ${aQuitar.map((f) => '#' + f.n.number).join(', ') || 'ninguna'}`);
+            core.info(`Etiqueta quitada a: ${aQuitar.map((n) => '#' + n.number).join(', ') || 'ninguna'}`);
+            for (const mensaje of errores) core.error(mensaje);
+            if (errores.length > 0) core.setFailed(`${errores.length} operación(es) de etiquetado fallaron; la tabla del resumen sí se ha publicado.`);

@@ -18,7 +18,7 @@
     de cuatro proyectos; cualquier otra ruta (y en particular Integration o E2E) lanza una excepcion.
     (La compilacion de la solucion SI compila esos proyectos, como el CI; compilar no es ejecutar.)
 
-    Gobernanza del cuerpo (-CuerpoPr <fichero.md>): reimplementa en PowerShell, sin llamar a bash, las reglas
+    Gobernanza del cuerpo (-CuerpoPr <fichero>): reimplementa en PowerShell, sin llamar a bash, las reglas
     de scripts/verificar-gobernanza-pr.sh, que sigue siendo la AUTORIDAD (lo ejecuta el CI):
       - existe una seccion "## Revision Codex" (o una de las tres variantes que acepta el .sh) con contenido real;
       - esa seccion no lleva marcadores provisionales: "resultado(s) abajo", la palabra "pendiente" (tambien el
@@ -50,7 +50,7 @@
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File scripts\preflight-pr.ps1
     powershell -ExecutionPolicy Bypass -File scripts\preflight-pr.ps1 -Corregir
-    powershell -ExecutionPolicy Bypass -File scripts\preflight-pr.ps1 -CuerpoPr $env:TEMP\cuerpo-pr.md
+    powershell -ExecutionPolicy Bypass -File scripts\preflight-pr.ps1 -CuerpoPr $env:TEMP\cuerpo-pr.txt
 #>
 [CmdletBinding()]
 param(
@@ -166,7 +166,7 @@ function Invoke-GobernanzaCuerpoPr {
             $lineas.Add("PROBLEMA  Falta la seccion '## Revision Codex' en el cuerpo (o esta vacia): al menos una linea de hallazgos aceptados o rechazados, o 'sin hallazgos'.")
             $problemas++
         }
-        elseif (Test-LineaCoincide $seccion 'resultados?[\s\-]+abajo' $false) {
+        elseif (Test-LineaCoincide $seccion 'resultados?[ \t\r\f\v\-]+abajo' $false) {
             $lineas.Add("PROBLEMA  La seccion 'Revision Codex' tiene el marcador provisional 'resultado abajo'.")
             $problemas++
         }
@@ -197,6 +197,19 @@ function Assert-ProyectoDeTestPermitido([string]$Ruta) {
     }
     if ($r -notmatch '^tests/CaeManager\.(Domain|Application|Architecture|Web)\.Tests$') {
         throw "preflight-pr: '$Ruta' no esta en la lista de proyectos de test permitidos (Domain, Application, Architecture, Web)."
+    }
+}
+
+function Assert-ComandoPermitido([string]$Comando) {
+    # Guarda sobre el COMANDO que de verdad se va a ejecutar (todo pasa por Invoke-Paso), no sobre un argumento
+    # del llamador: nada que mencione Integration o E2E, y todo `dotnet test` apunta a uno de los cuatro proyectos.
+    if ($Comando -match '(?i)integration|e2e') {
+        throw "preflight-pr: el comando '$Comando' menciona un proyecto de integracion o E2E; esos tests solo corren en CI."
+    }
+    if ($Comando -match '(?i)\bdotnet\s+(test|vstest|run|exec)\b') {
+        $m = [regex]::Match($Comando, '(?i)^\s*dotnet\s+test\s+("?)([^"\s]+)\1(\s|$)')
+        if (-not $m.Success) { throw "preflight-pr: el comando '$Comando' no es un 'dotnet test <proyecto>' de la lista permitida." }
+        Assert-ProyectoDeTestPermitido $m.Groups[2].Value
     }
 }
 
@@ -244,10 +257,12 @@ function Stop-Con([string]$Causa) {
     exit 1
 }
 
-function Invoke-Paso([string]$Nombre, [string]$Comando, [string]$Pista = '') {
-    # El veredicto es el codigo de salida de ESTE proceso (cmd.exe /s /c con su redireccion al log propio),
-    # nunca lo que diga el log. cmd.exe y WaitForExit en vez de Start-Process -Wait: este ultimo espera tambien a
+function Invoke-Paso([string]$Nombre, [string]$Comando, [string]$Pista = '', [switch]$EsTest) {
+    # El veredicto es el codigo de salida de ESTE proceso (cmd.exe /s /c con su redireccion al log propio);
+    # el log solo se lee para mostrar errores y, en los pasos de tests, para exigir que corrieran pruebas.
+    # cmd.exe y WaitForExit en vez de Start-Process -Wait: este ultimo espera tambien a
     # los procesos hijos que dejan los servidores de MSBuild y se quedaria colgado.
+    Assert-ComandoPermitido $Comando
     $log = Join-Path $logs (($Nombre -replace '[^\w]+', '-') + '.log')
     $sw = [Diagnostics.Stopwatch]::StartNew()
     Write-Host ">>> $Nombre" -ForegroundColor Cyan
@@ -261,6 +276,16 @@ function Invoke-Paso([string]$Nombre, [string]$Comando, [string]$Pista = '') {
     $codigo = $proc.ExitCode
     $proc.Dispose()
     $seg = [int]$sw.Elapsed.TotalSeconds
+    if ($codigo -eq 0 -and $EsTest) {
+        # Un `dotnet test` sin pruebas descubiertas sale con 0: sin esto seria un verde falso (mismo control que gate.sh).
+        $total = 0; $vistos = 0
+        foreach ($m in (Select-String -LiteralPath $log -Pattern 'Total( de pruebas)?:\s*(\d+)')) {
+            $total += [int]$m.Matches[0].Groups[2].Value; $vistos++
+        }
+        if ($vistos -eq 0) { $codigo = 1; Write-Host "    el resultado no trae el resumen de pruebas: no se sabe cuantas corrieron" -ForegroundColor Red }
+        elseif ($total -eq 0) { $codigo = 1; Write-Host "    0 pruebas ejecutadas (descubrimiento roto): un verde sin pruebas no cuenta" -ForegroundColor Red }
+        else { $Nombre = "$Nombre [$total pruebas]" }
+    }
     if ($codigo -eq 0) {
         [void]$resultados.Add([pscustomobject]@{ Paso = $Nombre; Estado = 'PASA'; Segundos = $seg })
         Write-Host "OK  $Nombre ($seg s)" -ForegroundColor Green
@@ -317,8 +342,7 @@ foreach ($par in @(
         @('Tests de Application', 'tests/CaeManager.Application.Tests'),
         @('Tests de Architecture (ratchets)', 'tests/CaeManager.Architecture.Tests'),
         @('Tests de Web (bUnit)', 'tests/CaeManager.Web.Tests'))) {
-    Assert-ProyectoDeTestPermitido $par[1]
-    Invoke-Paso $par[0] ("dotnet test {0} --no-restore -nodeReuse:false" -f $par[1])
+    Invoke-Paso $par[0] ("dotnet test {0} --no-restore -nodeReuse:false" -f $par[1]) -EsTest
 }
 
 # 5. Gobernanza del cuerpo de la PR.
@@ -347,6 +371,11 @@ if ($CuerpoPr -ne '') {
 else {
     Add-Omitido 'Gobernanza del cuerpo de la PR'
     Write-Host 'Sin -CuerpoPr: la gobernanza del cuerpo no se ha comprobado.' -ForegroundColor Yellow
+}
+
+$sucio = @(git status --porcelain 2>$null)
+if ($sucio.Count -gt 0) {
+    [void]$avisos.Add("hay $($sucio.Count) fichero/s sin commitear: el preflight ha validado el arbol de trabajo, pero la PR solo lleva lo commiteado.")
 }
 
 Write-Resumen 0 ''

@@ -9,7 +9,8 @@
       - Con -ContraSh: ademas ejecuta scripts/verificar-gobernanza-pr.sh (la AUTORIDAD) con el mismo caso y exige
         el mismo codigo de salida, la misma secuencia de etiquetas OK/PROBLEMA y el mismo contador de problemas.
         Si el .sh cambia una regla y el espejo no, este test se pone en rojo. Corre en CI
-        (.github/workflows/gobernanza-pr-tests.yml, donde hay bash y pwsh); en un Windows sin bash se omite.
+        (.github/workflows/gobernanza-pr-tests.yml, donde hay bash y pwsh). Sin bash en el PATH, -ContraSh sale
+        con codigo 2 en vez de dar una paridad falsa; sin -ContraSh solo comprueba el espejo.
       - La guarda Assert-ProyectoDeTestPermitido rechaza Integration y E2E y solo admite los cuatro proyectos unitarios.
 
 .EXAMPLE
@@ -20,6 +21,10 @@
 param([switch]$ContraSh)
 
 $ErrorActionPreference = 'Stop'
+if ($ContraSh -and -not (Get-Command bash -ErrorAction SilentlyContinue)) {
+    Write-Host 'USO: -ContraSh necesita bash en el PATH (es el verificador autoritativo); sin bash, ejecuta el script sin -ContraSh.' -ForegroundColor Red
+    exit 2
+}
 . (Join-Path $PSScriptRoot 'preflight-pr.ps1')
 
 $raizRepo = Split-Path -Parent $PSScriptRoot
@@ -62,7 +67,7 @@ function Invoke-Caso {
     }
     if ($ContraSh) {
         $id = [Guid]::NewGuid().ToString('N')
-        $fCuerpo = Join-Path $tmp "cuerpo-$id.md"
+        $fCuerpo = Join-Path $tmp "cuerpo-$id.txt"
         $fFich = Join-Path $tmp "ficheros-$id.txt"
         [IO.File]::WriteAllText($fCuerpo, $textoCuerpo, $utf8)
         [IO.File]::WriteAllText($fFich, ((($Ficheros -join "`n") + "`n")), $utf8)
@@ -166,6 +171,30 @@ Test-Guarda 'Domain se admite' 'tests/CaeManager.Domain.Tests' $false
 Test-Guarda 'Application se admite' 'tests/CaeManager.Application.Tests' $false
 Test-Guarda 'Architecture se admite' 'tests/CaeManager.Architecture.Tests' $false
 Test-Guarda 'Web (bUnit) se admite' 'tests/CaeManager.Web.Tests' $false
+
+Write-Host '=== Guarda sobre el comando que se ejecuta ==='
+function Test-GuardaComando([string]$Comando, [bool]$DebeLanzar) {
+    $script:pruebas++
+    $lanzo = $false
+    try { Assert-ComandoPermitido $Comando } catch { $lanzo = $true }
+    if ($lanzo -ne $DebeLanzar) {
+        Write-Host "FALLO: comando '$Comando' (lanzo=$lanzo, esperado=$DebeLanzar)" -ForegroundColor Red
+        $script:fallos++
+    }
+    else { Write-Host "OK: comando '$Comando' $(if ($DebeLanzar) { 'se rechaza' } else { 'se admite' })" }
+}
+Test-GuardaComando 'dotnet test tests/CaeManager.IntegrationTests --no-build' $true
+Test-GuardaComando 'dotnet  test  "tests\CaeManager.E2ETests"' $true
+Test-GuardaComando 'dotnet test --no-build tests/CaeManager.Domain.Tests' $true
+Test-GuardaComando 'dotnet test' $true
+Test-GuardaComando 'dotnet vstest algo.dll' $true
+Test-GuardaComando 'dotnet build tests/CaeManager.IntegrationTests' $true
+Test-GuardaComando 'dotnet test tests/CaeManager.Otro.Tests --no-restore' $true
+Test-GuardaComando 'dotnet test tests/CaeManager.Domain.Tests --no-restore -nodeReuse:false' $false
+Test-GuardaComando 'dotnet test tests/CaeManager.Web.Tests --no-restore -nodeReuse:false' $false
+Test-GuardaComando 'dotnet restore CaeManager.slnx' $false
+Test-GuardaComando 'dotnet build CaeManager.slnx --no-restore -warnaserror -nodeReuse:false' $false
+Test-GuardaComando 'dotnet format CaeManager.slnx --no-restore --verify-no-changes' $false
 
 # Los proyectos que el script ejecuta existen de verdad, y son solo esos cuatro.
 $pruebas++
