@@ -29,6 +29,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadorPorId;
 using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -363,7 +364,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
     {
         var miTrabajo = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera,
             sp => ContarAsync(sp, async s => await s.Send(new ObtenerMiTrabajoAgregadoQuery())));
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = DiaDeNegocio.Hoy();
         var cuadro = await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, fixture.CorreoDireccion,
             sp => ContarAsync(sp, async s => await s.Send(new ObtenerCuadroDireccionQuery(hoy.Year, hoy.Month))));
 
@@ -402,7 +403,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
     [Fact]
     public async Task Mi_trabajo_y_el_Cuadro_de_direccion_no_cruzan_organizaciones()
     {
-        var hoy = DateOnly.FromDateTime(DateTime.Today);
+        var hoy = DiaDeNegocio.Hoy();
         foreach (var (operador, correo, correoDireccion, ajenos, propios) in new[]
                  {
                      (CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera, fixture.CorreoDireccion, fixture.IdsOtra, fixture.IdsPiloto),
