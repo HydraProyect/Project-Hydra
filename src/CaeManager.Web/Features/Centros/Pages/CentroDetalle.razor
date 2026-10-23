@@ -426,51 +426,7 @@
                                         </Etiqueta>
                                         <ChildContent>
                                             <span>@canal.EtiquetaProposito</span>
-                                            @if (!string.IsNullOrWhiteSpace(canal.UrlAcceso))
-                                            {
-                                                @*
-                                                    La dirección del portal se ABRE, no se copia: el
-                                                    Gestor CAE la abre en pestaña nueva y pega allí las
-                                                    credenciales. Solo http(s): la URL es texto libre y
-                                                    un javascript: en un href ejecutaría script. Si no
-                                                    es navegable se enseña como texto, sin enlace.
-                                                *@
-                                                <span>
-                                                    @if (UrlPortalCae.Normalizar(canal.UrlAcceso) is { } destino)
-                                                    {
-                                                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
-                                                               Href="@destino" target="_blank" rel="noopener noreferrer"
-                                                               title="@canal.UrlAcceso"
-                                                               aria-label="@Textos["AbrirPortalCentroAccesible360", canal.UrlAcceso]">
-                                                            @Textos["AbrirPortalCentro360"]
-                                                        </Boton>
-                                                    }
-                                                    else
-                                                    {
-                                                        @canal.UrlAcceso
-                                                    }
-                                                </span>
-                                            }
-                                            @*
-                                                Copiar lo que el canal sirve para pegar en otra
-                                                parte. Usuario y contraseña no vienen en este
-                                                DTO: se piden al servidor solo al pulsar
-                                                (DEC-53/DEC-62) y no se pintan; cada lectura
-                                                efectiva queda en la auditoría del Tenant
-                                                propietario (ObtenerCredencialCanalGestionQuery).
-                                                Y solo para roles con escritura (decisión
-                                                2026-09-23): a Consulta el servidor le devuelve
-                                                null, así que ni se le ofrece.
-                                            *@
-                                            @if (canal.Tipo == TipoCanalGestion.Plataforma && canal.TieneCredenciales)
-                                            {
-                                                <SoloConEscritura>
-                                                    <span>
-                                                        <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, false)" Etiqueta="el usuario" Texto="Copiar usuario" />
-                                                        <BotonCopiar ValorAsync="CopiarCredencial(canal.Id, true)" Etiqueta="la contraseña" Texto="Copiar contraseña" />
-                                                    </span>
-                                                </SoloConEscritura>
-                                            }
+                                            <CanalPlataformaAcceso CentroId="CentroId" Canal="canal" />
                                             @if (!string.IsNullOrWhiteSpace(canal.EmailsDestinatarios))
                                             {
                                                 <span class="canal-aviso-visita">

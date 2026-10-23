@@ -1,0 +1,56 @@
+@using CaeManager.Domain.Centros
+@using CaeManager.Web.Features.Centros.Components
+@using CaeManager.Web.Features.Gestiones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosGestiones> Textos
+
+@*
+    Bloque «Plataforma CAE» de la vista rápida de una Gestión: en qué Plataforma CAE hay que hacerla. La Gestión no
+    guarda ninguna plataforma (solo Trabajador, Centro y Tipo de documento), así que se lee de los canales de gestión
+    de su Centro —los de Centro 360, «Canales de gestión»— y solo los de tipo Plataforma. Un Centro puede tener varios.
+
+    «Abrir portal», «Copiar usuario» y «Copiar contraseña» son el mismo componente que usa Centro 360
+    (CanalPlataformaAcceso): la misma consulta de credenciales, con su alcance de gestión, su rol con escritura, su
+    segundo factor y su rastro en Auditoría. Aquí no hay otra vía a un secreto, ni un DTO que lo lleve.
+*@
+<div class="plataforma-vista-rapida-gestion" data-plataforma-cae="">
+    <span class="plataforma-etiqueta-vista-rapida-gestion">@Textos["EtiquetaPlataformaCae"]</span>
+    @if (_cargando)
+    {
+        <span class="plataforma-estado-vista-rapida-gestion">@Textos["PlataformaCargando"]</span>
+    }
+    else if (_error)
+    {
+        <strong class="plataforma-estado-vista-rapida-gestion">@Textos["PlataformaErrorCarga"]</strong>
+    }
+    else if (_plataformas.Count == 0)
+    {
+        <strong class="plataforma-estado-vista-rapida-gestion">@Textos["SinPlataformaCae"]</strong>
+    }
+    else
+    {
+        @foreach (var canal in _plataformas)
+        {
+            <div class="plataforma-canal-vista-rapida-gestion" @key="canal.Id" data-plataforma-canal="">
+                <strong class="plataforma-nombre-vista-rapida-gestion">
+                    @(canal.ProveedorPlataformaCaeNombre ?? canal.EtiquetaProposito)
+                    @if (canal.EsPrincipal)
+                    {
+                        <Badge Tono="TonoBadge.Exito" Tamano="TamanoBadge.Pequeno">@Textos["PlataformaPrincipal"]</Badge>
+                    }
+                </strong>
+                @if (canal.ProveedorPlataformaCaeNombre is not null && !string.IsNullOrWhiteSpace(canal.EtiquetaProposito))
+                {
+                    <span class="plataforma-proposito-vista-rapida-gestion">@canal.EtiquetaProposito</span>
+                }
+                <span class="plataforma-acceso-vista-rapida-gestion">
+                    <CanalPlataformaAcceso CentroId="CentroId" Canal="canal" />
+                </span>
+            </div>
+        }
+    }
+    @if (!string.IsNullOrWhiteSpace(CentroNombre))
+    {
+        <small class="plataforma-centro-vista-rapida-gestion">@Textos["PlataformaDelCentro", CentroNombre]</small>
+    }
+</div>

@@ -8,7 +8,7 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 /// <summary>
 /// El usuario y la contraseña con los que se entra al portal de la Plataforma
 /// CAE de un canal de gestión de un Centro. Existe para que el Gestor CAE los
-/// copie al portapapeles desde Centro 360 y los pegue en el portal, que abre en
+/// copie al portapapeles desde Centro 360 o desde la vista rápida de una Gestión y los pegue en el portal, que abre en
 /// otra pestaña.
 ///
 /// <para>

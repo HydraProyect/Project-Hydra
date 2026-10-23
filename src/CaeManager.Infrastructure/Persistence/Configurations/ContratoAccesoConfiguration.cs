@@ -60,9 +60,8 @@ public class ContratoAccesoConfiguration : IEntityTypeConfiguration<ContratoAcce
             .HasPrincipalKey(c => new { c.TenantId, c.Id, c.ClienteId })
             .OnDelete(DeleteBehavior.Restrict);
 
-        // Prerequisito de las FK compuestas que las filas hijas del contrato (Inbound M1, PR siguientes) declararán
-        // hacia él, igual que ProyectoTecnico hacia Proyecto.
-        builder.HasIndex(c => new { c.TenantId, c.Id }).IsUnique();
+        // Las FK compuestas de las filas hijas del contrato (EvidenciasInbound) apuntan a (TenantId, Id): la clave alternativa
+        // que EF crea por su HasPrincipalKey basta, sin un índice único que la repita.
 
         // Filtro global (soft delete + tenant) centralizado en CaeManagerDbContext.OnModelCreating.
     }

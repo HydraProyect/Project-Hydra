@@ -38,3 +38,7 @@ Empresa gestionada
 #
 # 2026-10-22 (Centro 360, cambiar el estado en la plataforma): «nota» y «opcional» se escriben igual en catalán.
 Nota (opcional)
+#
+# 2026-10-23 (Gestiones, bloque «Plataforma CAE» de la vista rápida): «Plataforma CAE» se escribe igual en catalán
+# (plataforma CAE); CAE es la sigla del producto y «Plataforma CAE» el nombre de la caja de Cliente 360.
+Plataforma CAE

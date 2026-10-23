@@ -1,0 +1,37 @@
+/* Maqueta: .resumen. Una sola fila sobre superficie propia: el rótulo («Para cerrarla falta») en versalitas
+   de primary-700 y, a su lado, lo que falta. En móvil (container ws max-width 520) se apilan. */
+.resumen-cierre {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 22px;
+    background: var(--color-surface);
+    border-bottom: var(--border-default);
+    font: var(--font-body-md);
+    overflow-wrap: anywhere;
+}
+
+.resumen-cierre strong {
+    flex: none;
+    font: var(--font-caption);
+    color: var(--color-primary-700);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.resumen-cierre span,
+.resumen-cierre ul {
+    min-width: 0;
+    text-wrap: pretty;
+}
+
+.resumen-cierre ul { margin: 0; padding-inline-start: 1.25rem; }
+
+@media (max-width: 520px) {
+    .resumen-cierre {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 2px;
+        padding: 8px 14px;
+    }
+}

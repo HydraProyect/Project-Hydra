@@ -790,28 +790,40 @@ a.bandeja-documento-citado-nombre:hover {
     align-items: flex-end;
 }
 
-.bandeja-editor-tabs {
-    display: flex;
-    gap: 2px;
-    padding: 12px 20px 0;
+/* Editor (maqueta: .editor): la franja del conmutador abre el editor con su borde superior y su
+   superficie; el conmutador es un segmentado (.seg) y no dos botones sueltos. */
+.hilo-editor-cabecera {
+    flex-shrink: 0;
+    padding: 12px 22px 0;
     border-top: var(--border-default);
+    background-color: var(--color-surface);
+}
+
+.bandeja-editor-tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: var(--border-default);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface-subtle);
 }
 
 .bandeja-editor-tabs button {
-    min-height: 32px;
-    padding: 0 12px;
-    border: var(--border-default);
-    border-radius: var(--radius-md);
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
     color: var(--color-text-muted);
-    background: var(--color-surface);
+    background: none;
     font: var(--font-label);
+    white-space: nowrap;
     cursor: pointer;
 }
 
 .bandeja-editor-tabs button[aria-pressed=true] {
-    background: var(--color-primary-50);
-    color: var(--color-primary-700);
-    border-color: var(--color-primary-500);
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-border-strong);
 }
 
 .bandeja-editor-tabs button:focus-visible {
@@ -824,6 +836,20 @@ a.bandeja-documento-citado-nombre:hover {
     flex-shrink: 0;
 }
 
+/* Pie del editor: «Siguiente conversación» a la derecha, bajo la fila de Enviar. */
+.hilo-editor-pie {
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
+    padding: 8px 22px 14px;
+    background-color: var(--color-surface);
+}
+
+.hilo-editor-pie ::deep .boton {
+    padding: 0 18px;
+    font: var(--font-label);
+}
+
 /* El hilo manda sobre el alto: cabecera y editor conservan el suyo y la cronología se queda con el resto, con un
    suelo para que nunca quede aplastada. Los tres selectores de la cabecera comparten una sola fila en vez de
    apilarse (en la columna central de ~450 px cada uno ocupaba su propia línea y se comían ~280 px). */
@@ -832,24 +858,142 @@ a.bandeja-documento-citado-nombre:hover {
     flex-shrink: 0;
 }
 
+/* Cabecera del hilo (maqueta: .cc-cab / .cc-l1 / .cc-asunto / .cc-ctrl): superficie propia con borde inferior,
+   título de 19/26 y los tres controles en una fila de 32 px con la etiqueta en línea. */
+.bandeja-modo-hilo .bandeja-centro {
+    background-color: var(--color-bg);
+}
+
+.bandeja-modo-hilo .bandeja-centro-cabecera {
+    padding: 14px 22px 12px;
+    gap: 8px;
+    background-color: var(--color-surface);
+}
+
+.bandeja-modo-hilo .bandeja-centro-titulo {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+    flex: 1 1 100%;
+}
+
+.bandeja-modo-hilo .bandeja-centro-titulo-fila {
+    gap: 10px;
+}
+
+.bandeja-modo-hilo .bandeja-centro-titulo h2 {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    font: 600 19px/26px var(--font-family);
+    text-wrap: pretty;
+}
+
+.bandeja-modo-hilo .bandeja-centro-copiar-enlace {
+    margin-bottom: 0;
+}
+
+.bandeja-modo-hilo .bandeja-centro-acciones {
+    gap: 8px;
+    align-items: center;
+}
+
+.bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+}
+
+.bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo label {
+    font: var(--font-caption);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo-select {
+    min-height: 32px;
+    height: 32px;
+    max-width: 100%;
+    padding: 0 8px;
+    font: var(--font-label);
+}
+
 .bandeja-modo-hilo .bandeja-centro ::deep .timeline-mensajes {
     flex: 1 1 0;
     min-height: 160px;
 }
 
-.bandeja-modo-hilo .bandeja-centro-cabecera {
-    padding: var(--space-3) var(--space-5);
-}
-
+/* Editor del hilo: textarea de 76 px con el relleno de la maqueta (.ed-txt). */
 .bandeja-modo-hilo .bandeja-editor-publico ::deep textarea {
-    height: 64px;
-    min-height: 64px;
+    height: 76px;
+    min-height: 76px;
+    padding: 10px 12px;
     resize: vertical;
 }
 
-.bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo {
-    flex: 1 1 0;
-    min-width: 0;
+/* Alturas bajas (maqueta: max-height 700): el editor se compacta y la columna entera se desplaza en vez de
+   recortar el pie («Siguiente conversación» y Enviar quedaban fuera de la ventana). */
+@media (max-height: 700px) {
+    .bandeja-modo-hilo .bandeja-editor-publico ::deep textarea {
+        height: 44px;
+        min-height: 44px;
+    }
+
+    .bandeja-modo-hilo .bandeja-centro {
+        overflow-y: auto;
+    }
+
+    .bandeja-modo-hilo .bandeja-centro ::deep .timeline-mensajes {
+        flex: 1 0 auto;
+        overflow: visible;
+    }
+}
+
+/* Apilado (<= 1023 px, la columna ya no tiene alto fijo): el hilo crece con su contenido y la página se desplaza;
+   con max-height 70vh y overflow oculto el pie del editor quedaba recortado. */
+@media (max-width: 1023px) {
+    .bandeja-modo-hilo .bandeja-centro {
+        max-height: none;
+    }
+
+    .bandeja-modo-hilo .bandeja-centro ::deep .timeline-mensajes {
+        flex: 1 0 auto;
+        overflow: visible;
+    }
+}
+
+/* Móvil (maqueta: @container ws max-width 520): márgenes de 14 px, título de 17/23 y controles táctiles de 44 px;
+   la columna crece con su contenido en vez de recortarse a 70vh. */
+@media (max-width: 520px) {
+    .bandeja-modo-hilo .bandeja-centro-cabecera {
+        padding: 12px 14px;
+    }
+
+    .bandeja-modo-hilo .bandeja-centro-titulo h2 {
+        font-size: 17px;
+        line-height: 23px;
+    }
+
+    .bandeja-modo-hilo .bandeja-centro-acciones ::deep .campo-select {
+        min-height: 44px;
+        height: 44px;
+    }
+
+    .hilo-editor-cabecera {
+        padding: 10px 14px 0;
+    }
+
+    .hilo-editor-pie {
+        padding: 8px 14px 12px;
+    }
+
+    .hilo-editor-pie ::deep .boton {
+        flex: 1 1 100%;
+        min-height: 44px;
+    }
 }
 
 @media (max-width: 1180px) {
