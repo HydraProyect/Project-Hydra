@@ -60,9 +60,16 @@ public class GatesDeConfiguracionAMediasTests
         [new Caso("Integraciones:WhatsApp", ["AppSecret", "VerifyToken"], false,
             (_, k) => new WhatsAppCloudApiOptions { AppSecret = Valor(k[0]), VerifyToken = Valor(k[1]) },
             (_, k) => k[0] && k[1])],
-        [new Caso("AzureAd", ["TenantId", "ClientId", "ClientSecret"], false,
-            (_, k) => new AzureAdOptions { TenantId = Valor(k[0]), ClientId = Valor(k[1]), ClientSecret = Valor(k[2]) },
-            (_, k) => k[0] && k[1] && k[2])],
+        // TenantHydraId entra en el gate el 2026-10-25: sin él el callback rechaza a
+        // todo el mundo, así que registrar el esquema sin él solo activaba la
+        // restricción del login local. Veredicto nuevo, no el anterior.
+        [new Caso("AzureAd", ["TenantId", "ClientId", "ClientSecret", "TenantHydraId"], false,
+            (_, k) => new AzureAdOptions
+            {
+                TenantId = Valor(k[0]), ClientId = Valor(k[1]), ClientSecret = Valor(k[2]),
+                TenantHydraId = k[3] ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
+            },
+            (_, k) => k[0] && k[1] && k[2] && k[3])],
     ];
 
     private static IEnumerable<bool[]> Combinaciones(int n) =>

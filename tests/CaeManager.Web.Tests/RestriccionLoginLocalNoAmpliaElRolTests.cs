@@ -211,6 +211,7 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
             TenantId = entraConfigurado ? "tenant" : null,
             ClientId = entraConfigurado ? "client" : null,
             ClientSecret = entraConfigurado ? "secreto" : null,
+            TenantHydraId = entraConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
         }));
 
     private static ClaimsPrincipal Principal(bool esSso, string rol)

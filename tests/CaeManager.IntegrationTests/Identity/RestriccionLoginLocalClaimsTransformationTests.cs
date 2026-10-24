@@ -36,6 +36,7 @@ public class RestriccionLoginLocalClaimsTransformationTests
             TenantId = ssoConfigurado ? "tenant" : null,
             ClientId = ssoConfigurado ? "client" : null,
             ClientSecret = ssoConfigurado ? "secreto" : null,
+            TenantHydraId = ssoConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
         }));
 
     [Fact]

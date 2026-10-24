@@ -319,7 +319,7 @@ authenticationBuilder.AddScheme<ExtensionAuthenticationSchemeOptions, ExtensionA
     ExtensionAuthenticationSchemeOptions.NombreEsquema, options => { });
 
 // Login corporativo vía Microsoft Entra ID (SSO), opcional — ver
-// AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las tres
+// AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las cuatro
 // variables configuradas, este proveedor externo ni se registra: el login
 // local sigue siendo el único camino y se comporta exactamente igual que
 // hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
@@ -329,20 +329,8 @@ builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracio
 
 if (azureAd.EstaConfigurado)
 {
-    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)", options =>
-    {
-        options.Authority = $"{azureAd.Instance}{azureAd.TenantId}/v2.0";
-        options.ClientId = azureAd.ClientId;
-        options.ClientSecret = azureAd.ClientSecret;
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.CallbackPath = "/signin-microsoft";
-        options.SignInScheme = IdentityConstants.ExternalScheme;
-        options.SaveTokens = false;
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-    });
+    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)",
+        options => InicioSesionMicrosoft.Configurar(options, azureAd));
 }
 
 // Intervalo con el que la cookie y el circuito de Blazor vuelven a preguntar

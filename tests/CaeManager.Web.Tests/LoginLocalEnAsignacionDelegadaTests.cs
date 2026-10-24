@@ -193,6 +193,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
                 TenantId = entraConfigurado ? "tenant-ficticio" : null,
                 ClientId = entraConfigurado ? "aplicacion-ficticia" : null,
                 ClientSecret = entraConfigurado ? "valor-ficticio" : null,
+                TenantHydraId = entraConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
             })).TransformAsync(new ClaimsPrincipal(identidad));
             var token = ClienteActivoSeleccionado.Proteger(escenario.Protector, escenario.Usuario, escenario.TenantVisitado,
                 asignacionOperacionId: porOperacion ? escenario.operacion.Id : null,
