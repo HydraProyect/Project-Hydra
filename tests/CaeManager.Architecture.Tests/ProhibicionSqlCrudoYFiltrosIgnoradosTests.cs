@@ -409,6 +409,22 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
         // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
         [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 4,
+        // Recálculo en línea del estado materializado (PR 4a, diseño § 4.3-4.5). IgnoreQueryFilters: las raíces de un
+        // documento, canal o evento borrado lógicamente (el borrado es la acción) salen de la fila borrada; cada consulta
+        // lleva el predicado de TenantId explícito (el de app.tenant_id de la conexión) además de la RLS forzada, así que
+        // solo salta el filtro de borrado lógico, nunca el de Tenant. SQL crudo (interpolado, parámetros de Npgsql):
+        // cerrojos consultivos pg_advisory_xact_lock(_shared) del Tenant y de la clausura, lectura de app.tenant_id, si
+        // existe la fila de VersionesEstadoTenant del Tenant y el encolado en RecalculosPendientes con el TenantId de la
+        // conexión; la RLS (FORCE, WITH CHECK) rige en todas.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var titulares = await dbContext.Set<Documento>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "afectados.UnionWith(await dbContext.Set<CanalGestionDocumental>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var centroDeProyecto = await dbContext.Set<Proyecto>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "trabajadores.UnionWith(await dbContext.Set<ProyectoTecnico>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "? dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", ": dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 2,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
     };
 
     /// <summary>

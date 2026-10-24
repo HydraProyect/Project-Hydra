@@ -205,6 +205,9 @@ public static class RetiradaTenantDemoService
         var filasBorradas = 0;
         var usuariosBorrados = 0;
 
+        // Sin recálculo del estado materializado ni nada encolado: el Tenant y sus tablas de estado desaparecen enteros.
+        using (CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+            CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.MotivoRetiradaTenantDemo, encolarAlGuardar: false))
         using (AmbitoTenantExplicito.Establecer(tenantId))
         {
             // PlantillaDocumento.VersionActualId apunta a una versión que a su vez apunta a la plantilla

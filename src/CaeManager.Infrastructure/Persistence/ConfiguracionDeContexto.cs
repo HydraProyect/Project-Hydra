@@ -56,6 +56,8 @@ internal static class ConfiguracionDeContexto
             servicios.GetRequiredService<AuditoriaInterceptor>(),
             servicios.GetRequiredService<TenantSelladoInterceptor>(),
             servicios.GetRequiredService<TenantRlsConnectionInterceptor>(),
-            servicios.GetRequiredService<ConcurrenciaOptimistaInterceptor>());
+            servicios.GetRequiredService<ConcurrenciaOptimistaInterceptor>(),
+            // El último: recoge las raíces del estado materializado después del sellado de Tenant (diseño § 4.3).
+            servicios.GetRequiredService<EstadoMaterializado.DetectorCambiosEstadoInterceptor>());
     }
 }

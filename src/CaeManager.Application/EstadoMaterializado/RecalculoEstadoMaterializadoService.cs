@@ -46,9 +46,7 @@ public sealed class RecalculoEstadoMaterializadoService(
         if (raices.EstaVacia)
             return Vacio(DiaDeNegocio.Hoy());
 
-        var (centros, trabajadores, empresas) = await ClausuraAsync(raices, cancellationToken);
-        // Solo los Centros raíz se rehacen enteros; en los demás, los pares de los titulares de la clausura.
-        return await CalcularConjuntoAsync(centros, trabajadores, empresas, raices.CentroIds, cancellationToken);
+        return await CalcularDeClausuraAsync(await CalcularClausuraAsync(raices, cancellationToken), cancellationToken);
     }
 
     public async Task<ResultadoRecalculoEstado> RecalcularAsync(RaicesDeRecalculo raices, CancellationToken cancellationToken)
@@ -61,6 +59,29 @@ public sealed class RecalculoEstadoMaterializadoService(
 
         return await EscribirAsync(calculo, crearVersionSiFalta: false, cancellationToken);
     }
+
+    public async Task<ClausuraDeRecalculo> CalcularClausuraAsync(RaicesDeRecalculo raices, CancellationToken cancellationToken)
+    {
+        if (raices.EstaVacia)
+            return ClausuraDeRecalculo.Vacia;
+
+        var (centros, trabajadores, empresas) = await ClausuraAsync(raices, cancellationToken);
+        // Solo los Centros raíz se rehacen enteros; en los demás, los pares de los titulares de la clausura.
+        return new ClausuraDeRecalculo(centros, trabajadores, empresas, raices.CentroIds.Distinct().ToList());
+    }
+
+    public async Task<ResultadoRecalculoEstado> RecalcularClausuraAsync(ClausuraDeRecalculo clausura, CancellationToken cancellationToken)
+    {
+        var calculo = await CalcularDeClausuraAsync(clausura, cancellationToken);
+        // Mismo criterio que RecalcularAsync. La clausura no se rehace: es la que el detector tiene bajo cerrojo.
+        if (calculo.Dia != DiaDeNegocio.Hoy())
+            calculo = await CalcularDeClausuraAsync(clausura, cancellationToken);
+
+        return await EscribirAsync(calculo, crearVersionSiFalta: false, cancellationToken);
+    }
+
+    private Task<CalculoEstadoMaterializado> CalcularDeClausuraAsync(ClausuraDeRecalculo clausura, CancellationToken cancellationToken) =>
+        CalcularConjuntoAsync(clausura.Centros, clausura.Trabajadores, clausura.Empresas, clausura.CentrosCompletos, cancellationToken);
 
     public async Task<ResultadoRecalculoEstado> RellenarTenantAsync(CancellationToken cancellationToken)
     {
