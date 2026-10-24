@@ -1,4 +1,5 @@
 using System.Net;
+using System.Text;
 using System.Text.RegularExpressions;
 using CaeManager.Application.AsistenteIa.Preparacion;
 
@@ -41,16 +42,18 @@ internal static partial class PromptCorreoEntrante
     /// <summary>
     /// Nombres de campo de la respuesta de la detección de visita que se retiran del
     /// correo, con el mismo criterio que <see cref="CamposDeLaRespuesta"/>: «resumen» y
-    /// «confianza» son palabras corrientes y no se tocan.
+    /// «confianza» son palabras corrientes y no se tocan, y tampoco «fechaInicio» ni
+    /// «fechaFin» —«Fecha inicio: 26/10» es justo lo que escribe un correo de visita, y
+    /// retirarlo cegaría al modelo—.
     /// </summary>
     internal static readonly string[] CamposDeLaRespuestaVisita =
     [
-        "esSolicitudVisita", "centroId", "fechaInicio", "fechaFin", "confianzaCentro", "confianzaFechas",
+        "esSolicitudVisita", "centroId", "confianzaCentro", "confianzaFechas",
     ];
 
     /// <summary>
     /// Recorta el cuerpo al máximo sin partir un par sustituto: un emoji cortado por la
-    /// mitad deja un carácter suelto, y <c>string.Normalize</c> lanza con él.
+    /// mitad dejaría un carácter suelto (U+FFFD) en el texto que sale.
     /// </summary>
     internal static string Recortar(string cuerpo, int longitudMaxima)
     {
@@ -125,19 +128,65 @@ internal static partial class PromptCorreoEntrante
 
     /// <summary>
     /// Igual que <see cref="Preparar(string)"/> para una detección con otra respuesta: los
-    /// nombres de campo que se retiran del correo son los de esa respuesta.
+    /// nombres de campo que se retiran del correo son los de esa respuesta. Con
+    /// <paramref name="longitudMaxima"/>, el recorte se hace sobre el texto plano —no sobre
+    /// el HTML, donde la plantilla y el CSS gastarían el tope—, sin partir un par sustituto.
     /// </summary>
-    public static TextoEnmascarado Preparar(string textoDelCorreo, IEnumerable<string> camposDeLaRespuesta)
+    public static TextoEnmascarado Preparar(string textoDelCorreo, IEnumerable<string> camposDeLaRespuesta, int? longitudMaxima = null)
     {
+        var plano = ATextoPlano(textoDelCorreo);
+        if (longitudMaxima is { } maximo)
+            plano = Recortar(plano, maximo);
+
+        // NFKC antes de neutralizar y de buscar documentos: los dígitos y los signos de
+        // ancho completo («１２３４５６７８Ｚ», «＜＜＜») se leen igual que los normales para el
+        // modelo, y sin esto pasarían por delante de todos los patrones. Los pares
+        // sustitutos sueltos se reparan antes, porque Normalize lanza con ellos.
+        var compatible = NeutralizadorTextoExterno.RepararSustitutos(plano).Normalize(NormalizationForm.FormKC);
+
         var enmascarado = EnmascaradorIdentificadores.Enmascarar(
-            PromptDocumental.RetirarMarcas(NeutralizadorTextoExterno.Neutralizar(ATextoPlano(textoDelCorreo), camposDeLaRespuesta)));
+            PromptDocumental.RetirarMarcas(NeutralizadorTextoExterno.Neutralizar(compatible, camposDeLaRespuesta)));
 
         // Segunda pasada, más laxa que la del enmascarador compartido, para las formas
         // que un correo HTML o escrito a mano produce y aquel no reconoce: «12 345 678 Z»,
         // «12-345-678-Z», «12345678.Z», «DNI12345678». Lo que casa aquí se oculta sin
         // marcador restaurable: el modelo no lo necesita y no debe salir de TALVEG.
-        return enmascarado with { Texto = RegexDocumentoResidual().Replace(enmascarado.Texto, DocumentoOculto) };
+        return enmascarado with { Texto = RegexDocumentoResidual().Replace(enmascarado.Texto, OcultarSiEsDocumento) };
     }
+
+    private static string OcultarSiEsDocumento(Match coincidencia)
+    {
+        // Con palabra clave (DNI, NIF, NIE) no hay duda de qué es.
+        if (coincidencia.Groups["clave"].Success)
+            return DocumentoOculto;
+
+        var valor = coincidencia.Value;
+        var inicio = valor.TrimStart();
+        var prefijo = inicio.Length > 0 && "XYZxyz".Contains(inicio[0]) ? char.ToUpperInvariant(inicio[0]) : (char?)null;
+        var digitos = new string(valor.Where(char.IsAsciiDigit).ToArray());
+        var letraFinal = valor.TrimEnd(' ', '.', '-', '\t', '\r', '\n')[^1];
+
+        // Una letra que es la de control de esas cifras identifica un documento aunque vaya
+        // en minúscula: «12 345 678 z».
+        var esNie = prefijo is not null && digitos.Length == 7;
+        if (digitos.Length == 8 || esNie)
+        {
+            // Un NIE cuenta su letra inicial como cifra (X=0, Y=1, Z=2); con ocho cifras la
+            // «x», «y» o «z» de delante es una palabra suelta («trabajador y 12 345 678 z»).
+            var cifra = esNie ? prefijo switch { 'Y' => 10_000_000L, 'Z' => 20_000_000L, _ => 0L } : 0L;
+            if (char.ToUpperInvariant(letraFinal) == LetrasDeControl[(int)((long.Parse(digitos) + cifra) % 23)])
+                return DocumentoOculto;
+        }
+
+        // Sin letra de control válida solo se oculta lo que va con letra mayúscula, y no una
+        // fecha («26.10.2026. A partir…»): perderla le quitaría al modelo lo que tiene que leer.
+        return char.IsAsciiLetterUpper(letraFinal) && !RegexFecha().IsMatch(valor) ? DocumentoOculto : valor;
+    }
+
+    private const string LetrasDeControl = "TRWAGMYFPDXBNJZSQVHLCKE";
+
+    [GeneratedRegex(@"^\s*\d{1,2}[./\-]\d{1,2}[./\-](?:19|20)\d{2}(?!\d)", RegexOptions.None, 1000)]
+    private static partial Regex RegexFecha();
 
     /// <summary>Lo que queda en el sitio de un documento de identidad que solo reconoce la segunda pasada.</summary>
     internal const string DocumentoOculto = "[DOC_OCULTO]";
@@ -151,10 +200,16 @@ internal static partial class PromptCorreoEntrante
     {
         if (string.IsNullOrEmpty(texto))
             return texto ?? string.Empty;
-        var sinBloques = RegexEtiquetaDeBloque().Replace(texto, " ");
+        // El contenido de <style>, <script> y <head> no es texto del mensaje: gastaría el
+        // tope de longitud y le enseñaría CSS al modelo.
+        var sinInvisibles = RegexBloqueNoVisible().Replace(texto, " ");
+        var sinBloques = RegexEtiquetaDeBloque().Replace(sinInvisibles, " ");
         var sinEtiquetas = RegexEtiqueta().Replace(sinBloques, string.Empty);
         return WebUtility.HtmlDecode(sinEtiquetas).Replace(' ', ' ');
     }
+
+    [GeneratedRegex(@"<\s*(style|script|head)\b[^>]*>.*?<\s*/\s*\1\s*>", RegexOptions.IgnoreCase | RegexOptions.Singleline, 1000)]
+    private static partial Regex RegexBloqueNoVisible();
 
     [GeneratedRegex(@"</?\s*(?:td|th|tr|p|div|br|li|ul|ol|table|tbody|thead|h[1-6]|blockquote)\b[^>]*>", RegexOptions.IgnoreCase, 1000)]
     private static partial Regex RegexEtiquetaDeBloque();
@@ -162,13 +217,14 @@ internal static partial class PromptCorreoEntrante
     [GeneratedRegex(@"</?\s*[a-zA-Z][^>]*>", RegexOptions.None, 1000)]
     private static partial Regex RegexEtiqueta();
 
-    // Con palabra clave (dni, nif, nie) la letra final es opcional; sin ella se exige
-    // una letra mayúscula, para no ocultar fechas ni importes. Los dígitos admiten
-    // espacio, punto o guion entre ellos.
+    // Con palabra clave (dni, nif, nie) la letra final es opcional; sin ella hace falta una
+    // letra, y OcultarSiEsDocumento decide si es un documento (letra de control válida, o
+    // mayúscula que no sea el final de una fecha), para no ocultar fechas ni importes. Los
+    // dígitos admiten espacio, punto o guion entre ellos.
     [GeneratedRegex(
         @"(?<![\p{L}\p{N}])(?:"
-        + @"(?i:dni|nif|nie)[\s.:º\-]{0,3}(?i:[xyz])?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}(?:[\s.\-]{0,3}(?i:[a-z]))?"
-        + @"|[XYZ]?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}[\s.\-]{0,3}[A-Z]"
+        + @"(?<clave>(?i:dni|nif|nie))[\s.:º\-]{0,3}(?i:[xyz])?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}(?:[\s.\-]{0,3}(?i:[a-z]))?"
+        + @"|(?i:[xyz])?[\s.\-]{0,2}[0-9](?:[\s.\-]{0,2}[0-9]){6,7}[\s.\-]{0,3}(?i:[a-z])"
         + @")(?![\p{L}\p{N}])",
         RegexOptions.None, 1000)]
     private static partial Regex RegexDocumentoResidual();

@@ -112,15 +112,11 @@ public class AnthropicDeteccionGestionCorreoService(
                 "DeteccionGestionCorreo.NoConfigurado", "La detección automática de gestiones no está disponible ahora mismo."));
         }
 
-        // Recorte por punto de código: partir un emoji deja medio par sustituto, y
-        // String.Normalize lanza con él.
-        var cuerpoRecortado = PromptCorreoEntrante.Recortar(cuerpoMensaje, LongitudMaximaCuerpo);
-
         // El DNI de los candidatos no sale de TALVEG (Z4-2): el correo se
         // enmascara y cada candidato viaja con el marcador de su documento solo
         // si ese documento aparece en el correo — la única situación en que el
         // DNI ayuda a identificarlo. Los demás viajan sin documento.
-        var correo = PromptCorreoEntrante.Preparar(cuerpoRecortado);
+        var correo = PromptCorreoEntrante.Preparar(cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuesta, LongitudMaximaCuerpo);
         var trabajadoresJson = JsonSerializer.Serialize(
             trabajadoresDisponibles.Select(t => new
             {

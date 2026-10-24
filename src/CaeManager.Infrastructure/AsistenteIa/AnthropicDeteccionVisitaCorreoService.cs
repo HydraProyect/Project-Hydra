@@ -91,10 +91,10 @@ public class AnthropicDeteccionVisitaCorreoService(
                 "DeteccionVisitaCorreo.NoConfigurado", "La detección automática de visitas no está disponible ahora mismo."));
         }
 
-        // Recorte por punto de código y correo preparado: neutralizado, sin marcas
+        // Correo preparado: texto plano, recortado sin partir un emoji, neutralizado, sin marcas
         // propias y con los identificadores enmascarados (ver PromptCorreoEntrante).
         var correo = PromptCorreoEntrante.Preparar(
-            PromptCorreoEntrante.Recortar(cuerpoMensaje, LongitudMaximaCuerpo), PromptCorreoEntrante.CamposDeLaRespuestaVisita);
+            cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuestaVisita, LongitudMaximaCuerpo);
         var centrosJson = JsonSerializer.Serialize(centrosDisponibles.Select(c => new { id = c.Id, nombre = c.Nombre }));
 
         var textoUsuario =
