@@ -242,7 +242,7 @@ internal sealed class EscenarioDeFotoDeSuperficies
 
         // 4. Contexto Centro: estado y % (servicio, lista y acordeón).
         var porCentro = await calculoCentro.CalcularCumplimientoAsync(centroIds, CancellationToken.None);
-        var lista = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro).Handle(new ObtenerCentrosQuery(null, null), CancellationToken.None);
+        var lista = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(c)).Handle(new ObtenerCentrosQuery(null, null), CancellationToken.None);
         Seccion("Centro: estado y %").AddRange(lista.Elementos.Select(e =>
             $"{e.Nombre} | estado={e.Estado} | % lista={e.CumplimientoPorcentaje?.ToString() ?? "-"} | servicio={Fr(porCentro[e.Id])}"));
         var acordeon = new ObtenerAsignacionesDocumentacionPorCentroQueryHandler(c, c, c, c, c, c, alcance, new CaeManager.Application.Documentos.SituacionEnCentro.SituacionDocumentosEnCentrosService(c, c, c, c, c, alcance, new CurrentUserServiceMutable { Rol = "Administrador" }));

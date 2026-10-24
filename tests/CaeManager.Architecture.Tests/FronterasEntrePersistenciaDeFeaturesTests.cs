@@ -183,8 +183,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerCentrosParaSelectorQueryHandler", "IClientesQueryContext"),
         ("Centros.ObtenerCentrosParaSelectorQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerCentrosQueryHandler", "IClientesQueryContext"),
-        ("Centros.ObtenerCentrosQueryHandler", "IEmpresasQueryContext"),
-        // Opciones del filtro «Empresa» de /centros: las Empresas de los Centros visibles
+        ("Centros.ObtenerCentrosQueryHandler", "IEmpresasQueryContext"),        // Opciones del filtro «Empresa» de /centros: las Empresas de los Centros visibles
         // (rediseño de listados, fase 1). Mismo par de contextos que ObtenerCentrosQueryHandler.
         ("Centros.ObtenerEmpresasDeCentrosVisiblesQueryHandler", "IEmpresasQueryContext"),
         ("Centros.ObtenerDocumentacionBloqueantePendienteQueryHandler", "IAsignacionesQueryContext"),

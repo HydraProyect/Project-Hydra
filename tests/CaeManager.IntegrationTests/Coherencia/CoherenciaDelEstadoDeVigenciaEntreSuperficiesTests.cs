@@ -425,7 +425,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
         if (cumplimiento.AlDia != alDiaEsperado || cumplimiento.Requeridos != _casos.Count)
             fallos.Add($"Centro · cumplimiento: esperado {alDiaEsperado}/{_casos.Count}, observado {cumplimiento.AlDia}/{cumplimiento.Requeridos}");
 
-        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro)
+        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(c))
             .Handle(new ObtenerCentrosQuery(null, null, CentroId: _centroId), CancellationToken.None);
         var centroEnLista = listaCentros.Elementos.Single();
         if (centroEnLista.Estado != estadosCentro[_centroId].Estado)
@@ -571,7 +571,7 @@ public class CoherenciaDelEstadoDeVigenciaEntreSuperficiesTests : IAsyncLifetime
 
         // Lista de Centros: el escenario tiene un solo Centro, así que la franja lo cuenta en su estado y en
         // ningún otro; marcar su estado junto a otro lo trae, y marcar dos que no son el suyo no trae nada.
-        var centros = new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro);
+        var centros = new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(c));
         async Task<ResultadoPaginado<CentroListaDto>> ListarCentrosAsync(params EstadoCentro[] estados) =>
             await centros.Handle(
                 new ObtenerCentrosQuery(null, null, Estados: estados.Length == 0 ? null : estados, ConRecuentosPorEstado: true),

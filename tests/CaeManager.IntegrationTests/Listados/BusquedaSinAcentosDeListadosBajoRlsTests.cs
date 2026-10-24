@@ -341,7 +341,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var handler = new ObtenerCentrosQueryHandler(
-            contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(contexto));
         var resultado = await handler.Handle(new ObtenerCentrosQuery(termino, ClienteId: null), CancellationToken.None);
         return resultado.Elementos.Select(c => c.Id).ToList();
     }

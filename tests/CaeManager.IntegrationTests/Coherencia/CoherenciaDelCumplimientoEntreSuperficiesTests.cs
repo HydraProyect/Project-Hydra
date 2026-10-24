@@ -242,7 +242,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         Comprobar("Centro B · servicio", porCentro[_centroB], 2, 2);
         Comprobar("Centro C · servicio", porCentro[_centroC], 2, 5);
 
-        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro)
+        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(c))
             .Handle(new ObtenerCentrosQuery(null, null), CancellationToken.None);
         var enLista = listaCentros.Elementos.ToDictionary(x => x.Id, x => x.CumplimientoPorcentaje);
         ComprobarPorcentaje("Lista de Centros · Centro A", enLista.GetValueOrDefault(_centroA), 60);

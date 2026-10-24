@@ -129,7 +129,7 @@ public class PendienteEnPlataformaBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task El_desglose_lleva_los_pendientes_en_su_propio_grupo()
     {
-        var handler = new ObtenerCentrosQueryHandler(_runtime, _runtime, new AlcanceDatosServiceFalso(), Calculo());
+        var handler = new ObtenerCentrosQueryHandler(_runtime, _runtime, new AlcanceDatosServiceFalso(), Calculo(), new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(_runtime));
 
         var resultado = await handler.Handle(new ObtenerCentrosQuery(null, null, CentroId: _sesion.CentroConPlataforma), CancellationToken.None);
 
