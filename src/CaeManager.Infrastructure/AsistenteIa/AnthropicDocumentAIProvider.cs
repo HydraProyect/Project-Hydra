@@ -125,7 +125,7 @@ public class AnthropicDocumentAIProvider(
             config.Para(RutasAnthropic.Ocr).Modelo,
             config.MaxTokensRespuesta,
             ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.Ocr).Esfuerzo),
-            SystemPromptOcr,
+            SystemPromptOcr + PromptDocumental.ReglasDeAislamientoTranscripcion,
             [
                 new MensajeAnthropic("user",
                 [
