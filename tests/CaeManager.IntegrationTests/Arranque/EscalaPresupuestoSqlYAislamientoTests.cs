@@ -587,10 +587,10 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Conversaciones", 18, true }, // medido: 16
         { "Conversación", 22, true }, // medido: 20
         { "Gestiones", 5, false }, // medido: 3; el Tenant medido no tiene Gestiones
-        { "Alertas", 11, false }, // medido: 9; sin alertas en el Tenant medido
-        { "Inicio: KPIs", 26, true }, // medido: 23
+        { "Alertas", 11, false }, // medido: 10 (9 + la sentencia de sondeo del lector); sin alertas en el Tenant medido
+        { "Inicio: KPIs", 26, true }, // medido: 24 (23 + sondeo)
         { "Inicio: próximas visitas", 10, true }, // medido: 8
-        { "Inicio: bandeja agrupada", 33, true }, // medido: 30
+        { "Inicio: bandeja agrupada", 33, true }, // medido: 31 (30 + sondeo)
         { "Buscador global", 8, true }, // medido: 6 en CI, donde «ser» sí encuentra resultados en el Tenant medido
         { "Centro 360", 7, true }, // medido: 5
         { "Centro 360: documentación de Empresas", 20, true }, // medido: 18
@@ -634,9 +634,9 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         salida.WriteLine($"Mi trabajo: {miTrabajo}; Cuadro de dirección: {cuadro}");
         LecturasDePantalla.Guids(LecturasDePantalla.Json(resultadoMiTrabajo)).Should().IntersectWith(fixture.Piloto.Ids, "Mi trabajo se mide con la cartera llena");
         LecturasDePantalla.Guids(LecturasDePantalla.Json(resultadoCuadro)).Should().IntersectWith(fixture.Piloto.Ids, "el Cuadro de dirección se mide con sus Empresas gestionadas");
-        // Medido: 270 y 533. Las dos crecen con la cartera (una lectura por Empresa gestionada): el techo congela el N+1
+        // Medido: 275 (270 + una sentencia de sondeo por Tenant beneficiario) y 533. Las dos crecen con la cartera (una lectura por Empresa gestionada): el techo congela el N+1
         // actual para que no empeore; bajarlo es el trabajo pendiente que recoge el informe de escala.
-        miTrabajo.Should().BeLessThanOrEqualTo(297, "presupuesto de Mi trabajo");
+        miTrabajo.Should().BeLessThanOrEqualTo(277, "presupuesto de Mi trabajo (medido 275, margen de 2 como el resto de la tabla)");
         cuadro.Should().BeLessThanOrEqualTo(587, "presupuesto del Cuadro de dirección");
     }
 
@@ -685,19 +685,23 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         foreach (var (pantalla, sin) in sinRellenar)
             salida.WriteLine($"{pantalla}: {sin} sentencias sin rellenar, {rellenos[pantalla]} con los Tenants completos");
 
-        // MEDICION TEMPORAL: falla a proposito para que la CI imprima las cifras; el siguiente commit fija los techos.
-        Assert.Fail("MEDIDAS " + string.Join("; ", sinRellenar.Select(p => $"{p.Key}: sin={p.Value} completo={rellenos[p.Key]}")));
-
-        foreach (var (pantalla, maximo) in new Dictionary<string, int>
+        // Medido en CI (sin rellenar -> con los Tenants completos): Alertas 10 -> 6, Inicio: KPIs 24 -> 11, Inicio: bandeja
+        // agrupada 31 -> 27, Mi trabajo 275 -> 243. Cada techo es lo medido con completos + 1: el margen cubre una sentencia
+        // de sondeo de un Tenant más del piloto, no una consulta nueva por pantalla.
+        // «Empresas» (PR 7) es la excepción conocida: sin rellenar 22 y con el Tenant completo 25, porque el lector de Empresas
+        // paga más sentencias que el cálculo en el piloto. No se exige que baje; se congela para que no empeore.
+        foreach (var (pantalla, maximo, debeBajar) in new (string, int, bool)[]
         {
-            ["Alertas"] = 1000,
-            ["Inicio: KPIs"] = 1000,
-            ["Inicio: bandeja agrupada"] = 1000,
-            ["Mi trabajo"] = 1000,
+            ("Alertas", 7, true),
+            ("Inicio: KPIs", 12, true),
+            ("Inicio: bandeja agrupada", 28, true),
+            ("Mi trabajo", 244, true),
+            ("Empresas", 26, false),
         })
         {
-            rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
-                $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
+            if (debeBajar)
+                rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
+                    $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
             rellenos[pantalla].Should().BeLessThanOrEqualTo(maximo, $"presupuesto de «{pantalla}» con los Tenants completos");
         }
     }
