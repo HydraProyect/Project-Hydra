@@ -1100,7 +1100,8 @@ public partial class UsuariosGen2Tests : BunitContext
     public async Task Si_el_correo_falla_con_el_modal_ya_cerrado_el_aviso_no_remite_a_un_enlace_que_no_esta()
     {
         var cut = await AltaConCorreoQueNoContestaAsync();
-        await cut.Find(".modal-pie .boton-primario").ClickAsync(new());
+        // Flujos 14: el pie es «Cerrar» (secundario) y «Copiar enlace» (primario).
+        await cut.Find(".modal-pie .boton-secundario").ClickAsync(new());
         cut.FindAll(".enlace-activacion").Should().BeEmpty();
 
         _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
