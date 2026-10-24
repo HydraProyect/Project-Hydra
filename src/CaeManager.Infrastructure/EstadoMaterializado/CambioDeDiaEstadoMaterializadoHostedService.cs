@@ -43,9 +43,17 @@ public class CambioDeDiaEstadoMaterializadoHostedService(
     IServiceScopeFactory ambitoFactory,
     IEleccionLiderService eleccionLider,
     TimeProvider reloj,
+    IAlertaOperativa alerta,
     ILogger<CambioDeDiaEstadoMaterializadoHostedService> logger)
     : BackgroundService
 {
+    /// <summary>Espera máxima tras fallos seguidos del cambio de día de un Tenant.</summary>
+    public static readonly TimeSpan EsperaMaximaTrasFallo = TimeSpan.FromHours(1);
+
+    // Estado en memoria de esta ranura (si cambia el líder, la otra empieza de cero, que solo adelanta un reintento o un aviso).
+    private readonly Dictionary<Guid, (int Fallos, DateTimeOffset NoAntesDe)> _fallos = [];
+    private readonly Dictionary<Guid, DateOnly> _avisadoElDia = [];
+
     /// <summary>Clave de la elección de líder.</summary>
     public const string ClaveDeLider = "estado-materializado-cambio-de-dia";
 
@@ -125,13 +133,21 @@ public class CambioDeDiaEstadoMaterializadoHostedService(
         {
             stoppingToken.ThrowIfCancellationRequested();
 
-            // Aislado por Tenant: un fallo no deja sin cambio de día al resto, y el ciclo siguiente lo reintenta.
+            // Tras un fallo, el Tenant espera 5, 10, 20… minutos (como mucho una hora) antes del reintento: un fallo que se
+            // repite no recalcula el Tenant entero en cada ciclo.
+            if (_fallos.TryGetValue(tenantId, out var fallo) && reloj.GetUtcNow() < fallo.NoAntesDe)
+                continue;
+
+            // Aislado por Tenant: un fallo no deja sin cambio de día al resto, y un ciclo siguiente lo reintenta.
             try
             {
                 using var _ = AmbitoTenantExplicito.Establecer(tenantId);
                 using var ambito = ambitoFactory.CreateScope();
-                resultados[tenantId] = await ambito.ServiceProvider.GetRequiredService<CambioDeDiaEstadoMaterializado>()
+                var resultado = await ambito.ServiceProvider.GetRequiredService<CambioDeDiaEstadoMaterializado>()
                     .ProcesarTenantAsync(hoy, stoppingToken);
+                resultados[tenantId] = resultado;
+                _fallos.Remove(tenantId);
+                AvisarSiSigueAtascado(tenantId, hoy, resultado);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -139,11 +155,37 @@ public class CambioDeDiaEstadoMaterializadoHostedService(
             }
             catch (Exception ex)
             {
+                var fallos = (_fallos.TryGetValue(tenantId, out var previo) ? previo.Fallos : 0) + 1;
+                _fallos[tenantId] = (fallos, reloj.GetUtcNow() + EsperaTrasFallos(fallos));
                 logger.LogError(ex,
-                    "Falló el cambio de día del estado materializado del Tenant propietario {TenantId}; se continúa con el resto.", tenantId);
+                    "Falló el cambio de día del estado materializado del Tenant propietario {TenantId} ({Fallos} seguidos); se continúa con el resto.",
+                    tenantId, fallos);
             }
         }
 
         return resultados;
+    }
+
+    /// <summary>5 minutos tras el primer fallo, el doble tras cada uno más, como mucho <see cref="EsperaMaximaTrasFallo"/>.</summary>
+    public static TimeSpan EsperaTrasFallos(int fallos)
+    {
+        var minutos = IntervaloMaximo.TotalMinutes * Math.Pow(2, Math.Clamp(fallos - 1, 0, 10));
+        return TimeSpan.FromMinutes(Math.Min(minutos, EsperaMaximaTrasFallo.TotalMinutes));
+    }
+
+    /// <summary>
+    /// Un Tenant cuyo cambio de día lleva días aplazado (la cola no se vacía) avisa por el canal de alertas, que llega a
+    /// Sentry (un LogWarning no llega): una vez al día por Tenant.
+    /// </summary>
+    private void AvisarSiSigueAtascado(Guid tenantId, DateOnly hoy, ResultadoCambioDeDia resultado)
+    {
+        if (!resultado.RetrasoConAviso || (_avisadoElDia.TryGetValue(tenantId, out var avisado) && avisado == hoy))
+            return;
+
+        _avisadoElDia[tenantId] = hoy;
+        alerta.Emitir(
+            $"El cambio de día del estado materializado del Tenant propietario {tenantId} lleva {resultado.DiasSinCompletar} días " +
+            "sin completarse: la cola del Tenant no se vacía, así que no se coteja ni se marca el día.",
+            NivelAlertaOperativa.Aviso);
     }
 }

@@ -70,6 +70,16 @@ public class CambioDeDiaEstadoMaterializadoHostedServiceTests
             CambioDeDiaEstadoMaterializadoHostedService.IntervaloMaximo,
             CambioDeDiaEstadoMaterializadoHostedService.EsperaHastaLaSiguienteComprobacion(Utc(anio, mes, dia, hora, minuto)));
 
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(2, 10)]
+    [InlineData(3, 20)]
+    [InlineData(4, 40)]
+    [InlineData(5, 60)]
+    [InlineData(50, 60)]
+    public void Tras_fallos_seguidos_la_espera_se_dobla_hasta_una_hora(int fallos, int minutos) =>
+        Assert.Equal(TimeSpan.FromMinutes(minutos), CambioDeDiaEstadoMaterializadoHostedService.EsperaTrasFallos(fallos));
+
     [Fact]
     public void A_medio_segundo_de_medianoche_la_espera_no_baja_del_margen_y_cae_en_el_dia_nuevo()
     {

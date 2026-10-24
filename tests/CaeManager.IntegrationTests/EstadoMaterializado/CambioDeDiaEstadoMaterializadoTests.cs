@@ -46,6 +46,10 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
         salida.WriteLine($"Pasada: {resultado.RaicesDeLaPasada} raíces (-1 = Tenant entero); cotejo: {resultado.Cotejo}");
         resultado.Estado.Should().Be(EstadoCambioDeDia.Hecho);
         resultado.RaicesDeLaPasada.Should().NotBe(0, "había filas cuyo estado cambia ese día");
+        // La pasada sola deja el día al día: si el cotejo encontrara algo, la pasada se habría dejado filas (o el cotejo
+        // daría falsos positivos con un reloj que no es el del relleno) y avisaría cada noche.
+        resultado.Cotejo!.Total.Should().Be(0, "la pasada de las filas con ProximoCambioEl <= ese día basta");
+        alerta.Mensajes.Should().BeEmpty();
 
         var (vencidas, marca, cola, version) = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) => (
             await FilasConCambioHastaAsync(db, dia), await MarcaAsync(db), await db.Set<RecalculoPendiente>().CountAsync(), await VersionAsync(db)));
@@ -75,10 +79,13 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
         var dia = (await ProximoDiaDeCambioAsync(tenant)).AddDays(3);
 
         using var _ = DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojEn(DiaDeNegocio.InicioEnUtc(dia).AddHours(9)));
-        var resultados = await CicloAsync();
+        var alerta = new AlertaFalsa();
+        var resultados = await CicloAsync(alerta);
 
         resultados.Keys.Should().BeEquivalentTo(fixture.Tenants, "el ciclo recorre todos los Tenants y ninguno falla");
         resultados.Values.Should().OnlyContain(r => r.Estado == EstadoCambioDeDia.Hecho);
+        resultados.Values.Should().OnlyContain(r => r.Cotejo!.Total == 0, "la pasada sola repone los días que el servidor estuvo parado");
+        alerta.Mensajes.Should().BeEmpty();
         foreach (var t in fixture.Tenants)
         {
             var (vencidas, marca) = await fixture.Arnes.EnTenantAsync(t, async (db, _) => (await FilasConCambioHastaAsync(db, dia), await MarcaAsync(db)));
@@ -86,7 +93,7 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
             marca.Should().Be(dia, $"la marca del Tenant {t} queda en hoy");
         }
 
-        var segundo = await CicloAsync();
+        var segundo = await CicloAsync(alerta);
         segundo.Values.Should().OnlyContain(r => r.Estado == EstadoCambioDeDia.YaProcesado, "con la marca al día el ciclo no hace nada");
     }
 
@@ -150,6 +157,45 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
         var segundo = await CambioDeDiaAsync(tenant, hoy, alerta);
         segundo.Cotejo!.Total.Should().Be(0);
         alerta.Mensajes.Should().HaveCount(1, "sin diferencias no hay aviso");
+    }
+
+    [Fact]
+    public async Task Un_documento_cambiado_sin_pasar_por_el_detector_lo_corrige_el_cotejo_por_sus_raices()
+    {
+        var tenant = await TenantConMasCambiosProgramadosAsync();
+        await ReiniciarAsync(tenant);
+        var hoy = DiaDeNegocio.Hoy();
+
+        // El documento efectivo de un par de Trabajador, que vence más adelante: pasa a vencido sin que el detector lo vea
+        // (como un cambio guardado con el contexto de otro Tenant, con uno creado a mano o tras una caída).
+        var (trabajador, documento) = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            var par = await (from r in db.Set<EstadoRequisito>()
+                             join d in db.Documentos.Operativos() on r.DocumentoEfectivoId equals d.Id
+                             where r.AmbitoTitular == AmbitoAplicacion.Trabajador && d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha
+                                   && d.FechaVencimiento > hoy
+                             orderby d.Id
+                             select new { r.TitularId, d.Id }).FirstAsync();
+            await db.Documentos.Where(d => d.Id == par.Id)
+                .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
+            return (par.TitularId, par.Id);
+        });
+        salida.WriteLine($"Documento {documento} del Trabajador {trabajador}");
+
+        var alerta = new AlertaFalsa();
+        var resultado = await CambioDeDiaAsync(tenant, hoy, alerta);
+
+        salida.WriteLine($"Cotejo: {resultado.Cotejo}");
+        resultado.Estado.Should().Be(EstadoCambioDeDia.Hecho);
+        resultado.Cotejo!.Huerfanas.Should().Be(0);
+        resultado.Cotejo.Pares.Distintas.Should().BeGreaterThanOrEqualTo(1, "el par cuyo documento efectivo venció");
+        resultado.Cotejo.Raices.TrabajadorIds.Should().Contain(trabajador);
+        alerta.Mensajes.Should().ContainSingle().Which.Mensaje.Should().Contain("raíces").And.NotContain("Tenant entero",
+            "sin huérfanas y con pocas raíces se corrige por raíces, no rellenando el Tenant entero");
+
+        var (trasCambio, relleno) = await FotoYRellenoAsync(tenant);
+        relleno.Except(trasCambio).Should().BeEmpty("la corrección por raíces dejó el par y sus entidades como el relleno");
+        trasCambio.Except(relleno).Should().BeEmpty();
     }
 
     [Fact]
@@ -218,12 +264,12 @@ public class CambioDeDiaEstadoMaterializadoTests(EstadoMaterializadoPilotoFixtur
             ActivatorUtilities.CreateInstance<CambioDeDiaEstadoMaterializado>(sp, alerta).ProcesarTenantAsync(hoy, CancellationToken.None));
 
     /// <summary>Un ciclo del servicio de fondo sobre todos los Tenants, sin la elección de líder ni la espera.</summary>
-    private Task<IReadOnlyDictionary<Guid, ResultadoCambioDeDia>> CicloAsync()
+    private Task<IReadOnlyDictionary<Guid, ResultadoCambioDeDia>> CicloAsync(IAlertaOperativa alerta)
     {
         var servicios = fixture.Arnes.Servicios;
         var servicio = new CambioDeDiaEstadoMaterializadoHostedService(
             servicios.GetRequiredService<IServiceScopeFactory>(), servicios.GetRequiredService<IEleccionLiderService>(),
-            TimeProvider.System, servicios.GetRequiredService<ILogger<CambioDeDiaEstadoMaterializadoHostedService>>());
+            TimeProvider.System, alerta, servicios.GetRequiredService<ILogger<CambioDeDiaEstadoMaterializadoHostedService>>());
         return servicio.ProcesarAsync(CancellationToken.None);
     }
 

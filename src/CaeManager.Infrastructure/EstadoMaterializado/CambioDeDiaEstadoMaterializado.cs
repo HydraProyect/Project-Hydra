@@ -77,6 +77,11 @@ public sealed class CambioDeDiaEstadoMaterializado(
             return ResultadoCambioDeDia.De(EstadoCambioDeDia.YaProcesado);
 
         // ---- Pasada de medianoche ----
+        // Primero lo que ya estaba en la cola: si no se vacía (una entrada espera su reintento tras un fallo), la pasada no
+        // encola nada más. Volver a encolar en cada ciclo una raíz que ya espera duplicaría su entrada y saltaría su espera.
+        if (!await DrenarColaAsync(tenant, cancellationToken))
+            return Aplazado(tenant, hoy, version.UltimoDiaProcesado, 0);
+
         var (raices, tenantEntero) = await RaicesQueCambianAsync(hoy, cancellationToken);
         if (tenantEntero)
             await ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenant, "Cambio de día: muchas filas cambian hoy");
@@ -197,8 +202,10 @@ public sealed class CambioDeDiaEstadoMaterializado(
     private Task<DiferenciasCotejo?> CotejarAsync(Guid tenant, DateOnly hoy, CancellationToken ct) =>
         dbContext.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            // Solo lectura: se deshace siempre al soltarla.
+            // Solo lectura, y la base lo hace cumplir: una escritura dentro del cotejo falla en vez de deshacerse en silencio.
+            // Se deshace siempre al soltarla.
             await using var transaccion = await dbContext.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+            await dbContext.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY", ct);
 
             // La primera lectura fija la foto: lo que la cola tuviera pendiente en ella no está aún en lo guardado.
             if ((await ColaEstadoMaterializado.HayEntradasAsync(dbContext, tenant)).Alguna)
@@ -314,16 +321,21 @@ public sealed class CambioDeDiaEstadoMaterializado(
             WHERE "TenantId" = {tenant} AND ("UltimoDiaProcesado" IS NULL OR "UltimoDiaProcesado" < {hoy})
             """, CancellationToken.None);
 
+    /// <summary>
+    /// Sin cotejo ni marca. Con la marca <see cref="DiasDeRetrasoConAviso"/> o más días atrás lo dice el resultado, y el
+    /// servicio de fondo avisa por el canal de alertas una vez al día por Tenant.
+    /// </summary>
     private ResultadoCambioDeDia Aplazado(Guid tenant, DateOnly hoy, DateOnly? ultimoDiaProcesado, int raicesDeLaPasada)
     {
-        if (ultimoDiaProcesado is { } ultimo && hoy.DayNumber - ultimo.DayNumber >= DiasDeRetrasoConAviso)
+        int? retraso = ultimoDiaProcesado is { } ultimo ? hoy.DayNumber - ultimo.DayNumber : null;
+        if (retraso >= DiasDeRetrasoConAviso)
         {
             logger.LogWarning(
                 "El cambio de día del estado materializado del Tenant propietario {TenantId} lleva {Dias} días sin completarse (último día procesado: {Ultimo}): la cola del Tenant no se vacía.",
-                tenant, hoy.DayNumber - ultimo.DayNumber, ultimo);
+                tenant, retraso, ultimoDiaProcesado);
         }
 
-        return new ResultadoCambioDeDia(EstadoCambioDeDia.Aplazado, raicesDeLaPasada, null);
+        return new ResultadoCambioDeDia(EstadoCambioDeDia.Aplazado, raicesDeLaPasada, null) { DiasSinCompletar = retraso };
     }
 }
 
@@ -352,5 +364,12 @@ public enum EstadoCambioDeDia
 /// </summary>
 public sealed record ResultadoCambioDeDia(EstadoCambioDeDia Estado, int RaicesDeLaPasada, DiferenciasCotejo? Cotejo)
 {
+    /// <summary>Si se aplazó: cuántos días lleva la marca sin llegar a hoy (null si el Tenant nunca se marcó).</summary>
+    public int? DiasSinCompletar { get; init; }
+
+    /// <summary>Si el aplazamiento ya merece un aviso en el canal de alertas.</summary>
+    public bool RetrasoConAviso =>
+        Estado == EstadoCambioDeDia.Aplazado && DiasSinCompletar >= CambioDeDiaEstadoMaterializado.DiasDeRetrasoConAviso;
+
     public static ResultadoCambioDeDia De(EstadoCambioDeDia estado) => new(estado, 0, null);
 }
