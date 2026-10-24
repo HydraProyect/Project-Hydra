@@ -2,6 +2,7 @@ using CaeManager.Infrastructure.Identity;
 using Bunit;
 using CaeManager.Application.Clientes.Queries.ObtenerClientesParaSelector;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresasParaSelector;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Commands.CrearSubcontrata;
@@ -17,6 +18,7 @@ using CaeManager.Domain.Subcontratas;
 using CaeManager.Domain.Tenants;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
+using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Features.Subcontratas.Pages;
 using AngleSharp.Dom;
 using FluentAssertions;
@@ -102,14 +104,19 @@ public partial class SubcontratasListaGen2Tests : BunitContext
                 .Where(s => q.Busqueda is null || TextoDeBusqueda.Contiene(s.RazonSocial, q.Busqueda))
                 .Where(s => q.NivelServicio is null || s.NivelServicio == q.NivelServicio)
                 .ToList();
-            // Como el handler: los recuentos de la franja se cuentan ANTES de filtrar por estado.
+            // Como el handler: los recuentos de la franja se cuentan ANTES de filtrar por estado, con Pendiente y el
+            // vencido que solo avisa (la clave del listado de Empresas, decisión D-1).
+            static int Clave(SubcontrataListaDto s) => s.VencidoSinBloqueo
+                ? CaeManager.Application.Documentos.EstadoDocumentalFiltro.ClaveVencidoSinBloqueo
+                : CaeManager.Application.Documentos.EstadoDocumentalFiltro.ClaveOrdenConFaltantes(s.EstadoDocumental);
             var recuentos = q.ConRecuentosPorEstado
                 ? CaeManager.Application.Documentos.EstadoDocumentalFiltro.RecuentosPorEstado(coincidentes
-                    .GroupBy(s => CaeManager.Application.Documentos.EstadoDocumentalFiltro.ClaveOrden(s.EstadoDocumental))
-                    .ToDictionary(g => g.Key, g => g.Count()))
+                    .GroupBy(Clave)
+                    .ToDictionary(g => g.Key, g => g.Count()), incluirFaltantes: true)
                 : null;
+            var claves = CaeManager.Application.Documentos.EstadoDocumentalFiltro.ClavesDeOrden(q.EstadoDocumental, incluirFaltantes: true);
             coincidentes = coincidentes
-                .Where(s => CaeManager.Application.Documentos.EstadoDocumentalFiltro.Coincide(s.EstadoDocumental, q.EstadoDocumental))
+                .Where(s => claves is null || claves.Contains(Clave(s)))
                 .ToList();
             var pagina = coincidentes.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList();
             return new ResultadoPaginado<SubcontrataListaDto>(pagina, coincidentes.Count, q.Pagina, q.TamanoPagina)
@@ -153,9 +160,23 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         IReadOnlyList<IncidenciaSubcontrataDto>? vencidas = null,
         IReadOnlyList<IncidenciaSubcontrataDto>? proximas = null,
         NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Gestionada,
-        IReadOnlyList<IncidenciaSubcontrataDto>? sinConfirmar = null) => new(
+        IReadOnlyList<IncidenciaSubcontrataDto>? sinConfirmar = null,
+        EstadoDocumento estado = EstadoDocumento.Vigente, bool vencidoSinBloqueo = false,
+        IReadOnlyList<IncidenciaDocumentalDto>? incidenciasDeEmpresa = null, IReadOnlyList<string>? faltantes = null,
+        int trabajadoresBloqueados = 0) => new(
         id ?? Guid.NewGuid(), razonSocial, "B-20.774.115", new DateTime(2021, 4, 10, 0, 0, 0, DateTimeKind.Utc),
-        nivel, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []) { SinConfirmar = sinConfirmar ?? [] });
+        nivel, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []) { SinConfirmar = sinConfirmar ?? [] })
+    {
+        // Decisión D-1: el estado de la fila es el de la documentación de Empresa de la Subcontrata, no el de sus Trabajadores.
+        EstadoDocumental = estado,
+        VencidoSinBloqueo = vencidoSinBloqueo,
+        Incidencias = incidenciasDeEmpresa ?? [],
+        DocumentosFaltantes = faltantes ?? [],
+        TrabajadoresBloqueados = trabajadoresBloqueados
+    };
+
+    private static IncidenciaDocumentalDto DeEmpresa(string tipo, EstadoDocumento estado, DateOnly? vence = null) =>
+        new(Guid.NewGuid(), Guid.NewGuid(), tipo, estado, vence);
 
     private SeleccionEmpresaGestionadaDePrueba Seleccion { get; set; } = new();
 
@@ -270,20 +291,26 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Filas con problema, con el criterio de la maqueta y de Trabajadores: lo vencido → peligro; lo urgente o próximo
-    /// (por vencer) → aviso; sin confirmar o al corriente → sin tinte.
+    /// Filas con problema (decisión D-1): el tinte es el del estado de la Subcontrata, que es el de su documentación de
+    /// Empresa, con el criterio del listado de Empresas: lo que bloquea el acceso (Vencido obligatorio o Pendiente) →
+    /// peligro; por vencer o vencido que ningún Centro marca obligatorio → aviso; sin confirmar o al corriente → sin tinte.
+    /// Los Trabajadores bloqueados de la Subcontrata no tiñen su fila.
     /// </summary>
     [Fact]
-    public void Las_filas_con_vencidos_o_urgentes_van_tintadas()
+    public void Las_filas_se_tintan_por_el_estado_de_Empresa_de_la_Subcontrata_y_no_por_sus_Trabajadores()
     {
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas =
             [
-                Subcontrata("A Vencida S.L.", vencidas: [Incidencia("Aptitud médica", EstadoDocumento.Vencido)], proximas: [Incidencia("Aptitud médica", EstadoDocumento.Urgente)]),
-                Subcontrata("B Urgente S.L.", proximas: [Incidencia("Aptitud médica", EstadoDocumento.Urgente)]),
-                Subcontrata("C Proxima S.L.", proximas: [Incidencia("Aptitud médica", EstadoDocumento.Proximo)]),
-                Subcontrata("D Al corriente S.L."),
+                Subcontrata("A Vencida S.L.", estado: EstadoDocumento.Vencido),
+                Subcontrata("A2 Pendiente S.L.", estado: EstadoDocumento.Faltante, faltantes: ["Seguro RC"]),
+                Subcontrata("A3 Vencida sin bloqueo S.L.", estado: EstadoDocumento.Vencido, vencidoSinBloqueo: true),
+                Subcontrata("B Urgente S.L.", estado: EstadoDocumento.Urgente),
+                Subcontrata("C Proxima S.L.", estado: EstadoDocumento.Proximo),
+                Subcontrata("D Trabajadores bloqueados S.L.", vencidas: [Incidencia("Aptitud médica", EstadoDocumento.Vencido)],
+                    trabajadoresBloqueados: 3),
+                Subcontrata("E Al corriente S.L."),
             ]
         });
 
@@ -294,9 +321,12 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         }
 
         Tinte("A Vencida").Should().Be("peligro");
+        Tinte("A2 Pendiente").Should().Be("peligro");
+        Tinte("A3 Vencida sin bloqueo").Should().Be("aviso", "un vencido que ningún Centro marca obligatorio solo avisa");
         Tinte("B Urgente").Should().Be("aviso");
         Tinte("C Proxima").Should().Be("aviso", "«Por vencer» tiñe de ámbar en la maqueta, urgente o no");
-        Tinte("D Al corriente").Should().Be("ninguno");
+        Tinte("D Trabajadores bloqueados").Should().Be("ninguno", "sus Trabajadores bloqueados son un recuento aparte (D-1)");
+        Tinte("E Al corriente").Should().Be("ninguno");
     }
 
     /// <summary>Todo arranca contraído; «Expandir todo» vive en la fila de los filtros y solo abre las filas con documentos pendientes.</summary>
@@ -366,29 +396,29 @@ public partial class SubcontratasListaGen2Tests : BunitContext
 
     /// <summary>
     /// La pastilla de estado se pinta SIEMPRE, también con vencidos (en Centros llegó a faltar justo ahí,
-    /// auditoría del 2026-10-09 § 12.2), y las cifras que antes eran las columnas «Vencidos» y «Por vencer»
-    /// son el motivo que va debajo, con su número y su concordancia.
+    /// auditoría del 2026-10-09 § 12.2), y debajo va el motivo (decisión D-1): primero lo que explica el estado de la
+    /// Subcontrata (sus documentos de Empresa y los Tipos obligatorios que le faltan, el mismo texto que el listado de
+    /// Empresas) y después, aparte, cuántos de sus Trabajadores están bloqueados en algún Centro.
     /// </summary>
     [Fact]
-    public void Cada_fila_dice_su_estado_con_una_pastilla_y_las_cifras_van_debajo_como_motivo()
+    public void Cada_fila_dice_su_estado_de_Empresa_y_debajo_el_motivo_con_los_Trabajadores_bloqueados_aparte()
     {
+        var hoy = CaeManager.Domain.Common.DiaDeNegocio.Hoy();
+        var vencidoDeEmpresa = DeEmpresa("Seguro RC", EstadoDocumento.Vencido, hoy.AddDays(-3));
         var cut = Renderizar(new MediatorFalso
         {
             Subcontratas =
             [
-                Subcontrata("Andamios Bidasoa S.L.",
-                    vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido), Incidencia("Seguro RC — Iñaki Otaegi", EstadoDocumento.Faltante)],
-                    proximas: [Incidencia("Reconocimiento médico — Miguel Sanz", EstadoDocumento.Proximo)]),
+                Subcontrata("Andamios Bidasoa S.L.", estado: EstadoDocumento.Vencido, incidenciasDeEmpresa: [vencidoDeEmpresa],
+                    vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)], trabajadoresBloqueados: 2),
                 Subcontrata("Transportes Argia S.A."),
-                Subcontrata("Electricidad Zubia S.L.", vencidas: [Incidencia("Certificado TGSS — Luis Arana", EstadoDocumento.Vencido)]),
-                Subcontrata("Grúas Urola S.L.", proximas: [Incidencia("EPIs — Ane Etxeberria", EstadoDocumento.Urgente)]),
-                Subcontrata("Pinturas Lauburu S.A.",
-                    sinConfirmar: [Incidencia("Aptitud médica — Jon Arrieta", EstadoDocumento.SinConfirmar), Incidencia("Formación PRL — Jon Arrieta", EstadoDocumento.SinConfirmar)]),
+                Subcontrata("Electricidad Zubia S.L.", estado: EstadoDocumento.Faltante, faltantes: ["Certificado TGSS"]),
+                Subcontrata("Grúas Urola S.L.", vencidas: [Incidencia("EPIs — Ane Etxeberria", EstadoDocumento.Vencido)], trabajadoresBloqueados: 1),
             ]
         });
 
         var celdas = cut.FindAll(".tarjeta-fila-acordeon-cabecera .celda-estado-subcontrata");
-        celdas.Should().HaveCount(5);
+        celdas.Should().HaveCount(4);
         celdas.Should().OnlyContain(c => c.QuerySelectorAll(".estado-fila").Length == 1, "una celda de estado por fila, y un solo estado en ella");
 
         string Estado(int fila) =>
@@ -396,17 +426,14 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         string? Motivo(int fila) => celdas[fila].QuerySelector(".estado-fila-motivo")?.TextContent.Trim();
 
         Estado(0).Should().Be("Vencido");
-        Motivo(0).Should().Be("2 vencidos · 1 por vencer");
+        Motivo(0).Should().Be(MotivoIncidenciasUi.Texto([vencidoDeEmpresa], hoy) + " · 2 Trabajadores bloqueados en algún Centro");
         Estado(1).Should().Be("Sin incidencias");
         celdas[1].QuerySelector(".estado-fila > .badge").Should().BeNull("lo correcto no lleva pastilla de color");
         celdas[1].QuerySelector(".estado-fila-motivo").Should().BeNull("sin nada pendiente no hay motivo que dar");
-        Estado(2).Should().Be("Vencido");
-        Motivo(2).Should().Be("1 vencido");
-        Estado(3).Should().Be("Por vencer");
-        Motivo(3).Should().Be("1 por vencer");
-        Estado(4).Should().Be("Sin confirmar");
-        Motivo(4).Should().Be("2 sin confirmar");
-
+        Estado(2).Should().Be("Pendiente");
+        Motivo(2).Should().Be(MotivoIncidenciasUi.Texto([], ["Certificado TGSS"], hoy));
+        Estado(3).Should().Be("Sin incidencias", "un Trabajador bloqueado no cambia el estado de la Subcontrata (D-1)");
+        Motivo(3).Should().Be("1 Trabajador bloqueado en algún Centro");
         cut.FindAll(".celda-sin-recuento").Should().BeEmpty("ya no hay columnas de recuento que reservar con un guion");
     }
 

@@ -208,7 +208,8 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     }
 
     /// <summary>Fila en rojo: su peor documento es faltante o vencido (el tinte de peligro de la fila).</summary>
-    private static bool EsFilaRoja(SubcontrataListaDto fila) => ClaseTinte(fila.Recuentos).Contains("peligro", StringComparison.Ordinal);
+    private static bool EsFilaRoja(SubcontrataListaDto fila) =>
+        ClaseTinte(fila.EstadoDocumental, fila.VencidoSinBloqueo).Contains("peligro", StringComparison.Ordinal);
 
     private IEnumerable<GrupoContratante> GruposDePagina => _agruparPor is null
         ? [new(string.Empty, string.Empty, _elementosPagina)]
@@ -399,15 +400,17 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayFilasDesplegables => _elementosPagina.Any(s => Incidencias(s.Recuentos).Count > 0);
 
     /// <summary>
-    /// El motivo que va bajo la pastilla de estado: cuántos documentos hay de cada clase, de la más grave a la menos
-    /// («2 vencidos · 1 por vencer · 1 sin confirmar»). Vacío si no hay ninguna incidencia.
+    /// El motivo que va bajo la pastilla de estado (decisión D-1): primero lo que explica el estado de la Subcontrata, sus
+    /// documentos de Empresa con incidencia y los Tipos obligatorios que le faltan (el mismo texto que el listado de Empresas);
+    /// después, aparte y sin teñir la fila, cuántos de sus Trabajadores están bloqueados en algún Centro. Vacío si no hay nada.
     /// </summary>
-    private string? MotivoDeFila(RecuentosSubcontrataDto recuentos)
+    private string? MotivoDeFila(SubcontrataListaDto subcontrata)
     {
-        var partes = new List<string>(3);
-        if (recuentos.TotalVencidas > 0) partes.Add(MotivoVencidos(recuentos.TotalVencidas));
-        if (recuentos.TotalProximas > 0) partes.Add(MotivoProximos(recuentos.TotalProximas));
-        if (recuentos.TotalSinConfirmar > 0) partes.Add(MotivoSinConfirmar(recuentos.TotalSinConfirmar));
+        var partes = new List<string>(2);
+        var deLaEmpresa = MotivoIncidenciasUi.Texto(
+            subcontrata.Incidencias, subcontrata.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy());
+        if (!string.IsNullOrEmpty(deLaEmpresa)) partes.Add(deLaEmpresa);
+        if (subcontrata.TrabajadoresBloqueados > 0) partes.Add(MotivoTrabajadoresBloqueados(subcontrata.TrabajadoresBloqueados));
         return partes.Count == 0 ? null : string.Join(MotivoIncidenciasUi.Separador, partes);
     }
 
@@ -663,14 +666,16 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
         "tarjeta-fila-acordeon"
         + (subcontrata.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
         + (subcontrata.Id == SubcontrataEnVistaPrevia ? " fila-en-vista-previa" : string.Empty)
-        + ClaseTinte(subcontrata.Recuentos);
+        + ClaseTinte(subcontrata.EstadoDocumental, subcontrata.VencidoSinBloqueo);
 
     /// <summary>
-    /// La fila se tinta por su estado documental (el peor de sus incidencias), con el mismo criterio que Empresas, Trabajadores y
-    /// la maqueta: rojo para lo vencido, ámbar para lo que está por vencer o en tolerancia; «Sin confirmar» no tiñe.
+    /// La fila se tinta por el estado de la Subcontrata, que es el de su documentación de Empresa (decisión D-1), con el mismo
+    /// criterio que Empresas: rojo para lo que bloquea el acceso, ámbar para lo que está por vencer, en tolerancia o vencido sin
+    /// que ningún Centro lo marque obligatorio; «Sin confirmar» no tiñe. Sus Trabajadores bloqueados no tiñen la fila.
     /// </summary>
-    private static string ClaseTinte(RecuentosSubcontrataDto recuentos) => recuentos.PeorEstado switch
+    private static string ClaseTinte(EstadoDocumento estado, bool vencidoSinBloqueo) => estado switch
     {
+        EstadoDocumento.Vencido when vencidoSinBloqueo => " fila-tintada-aviso",
         EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
         EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
         _ => string.Empty
@@ -965,18 +970,14 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
     /// <paramref name="claveVarios"/> (con el número en {0}) para el resto. Sirve
     /// al nombre accesible y al título de la ventana de contexto —mismo criterio
     /// que Centros.razor.cs.DescribirRecuento— y al texto visible del motivo
-    /// («1 vencido», «3 por vencer»).
+    /// («1 Trabajador bloqueado en algún Centro»).
     /// </summary>
     private string DescribirRecuento(int total, string claveUno, string claveVarios) =>
         total == 1 ? Textos[claveUno] : Textos[claveVarios, total];
 
-    // Las cifras del motivo, bajo la pastilla de estado: lo que antes decían las columnas «Vencidos» y
-    // «Por vencer», más lo que está sin confirmar.
-    private string MotivoVencidos(int total) => DescribirRecuento(total, "BadgeVencidosUno", "BadgeVencidosVarios");
-
-    private string MotivoProximos(int total) => DescribirRecuento(total, "BadgeProximosUno", "BadgeProximosVarios");
-
-    private string MotivoSinConfirmar(int total) => DescribirRecuento(total, "MotivoSinConfirmarUno", "MotivoSinConfirmarVarios");
+    // La cifra aparte del motivo (decisión D-1): sus Trabajadores bloqueados no cambian el estado de la Subcontrata.
+    private string MotivoTrabajadoresBloqueados(int total) =>
+        DescribirRecuento(total, "MotivoTrabajadoresBloqueadosUno", "MotivoTrabajadoresBloqueadosVarios");
 
     /// <summary>
     /// Nombre accesible de la barra de cumplimiento. Antes se interpolaba el porcentaje sin

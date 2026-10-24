@@ -906,6 +906,12 @@
   <data name="MotivoSinConfirmarVarios" xml:space="preserve">
     <value>{0} sense confirmar</value>
   </data>
+  <data name="MotivoTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 Treballador bloquejat en algun Centre</value>
+  </data>
+  <data name="MotivoTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} Treballadors bloquejats en algun Centre</value>
+  </data>
   <data name="RecuentoDocumentosSinConfirmarUno" xml:space="preserve">
     <value>1 document amb la vigència sense confirmar</value>
   </data>

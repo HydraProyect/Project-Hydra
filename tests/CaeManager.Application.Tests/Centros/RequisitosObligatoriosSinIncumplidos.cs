@@ -12,4 +12,8 @@ public sealed class RequisitosObligatoriosSinIncumplidos : IRequisitosObligatori
     public Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
         IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) =>
         Task.FromResult(RequisitosObligatoriosIncumplidos.Ninguno.PorTrabajador);
+
+    public Task<RequisitosObligatoriosIncumplidos> DeEmpresasYTrabajadoresAsync(
+        IQueryable<Guid> empresaIds, IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) =>
+        Task.FromResult(RequisitosObligatoriosIncumplidos.Ninguno);
 }
