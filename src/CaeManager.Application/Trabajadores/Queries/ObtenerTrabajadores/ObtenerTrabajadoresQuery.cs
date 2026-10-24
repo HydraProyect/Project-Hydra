@@ -302,10 +302,11 @@ public class ObtenerTrabajadoresQueryHandler(
 
             // Solo se materializan las parejas activas (Id, Centro, contratación), nunca el listado completo.
             // La exigencia se resuelve en el servicio compartido, igual que el detalle de cada fila.
-            var materializado = permitirEstadoMaterializado
-                && await lector.DisponibleAsync(cancellationToken)
-                && !await lector.HayFilasQueNoDecideAsync(
-                    AmbitoEstadoEntidad.Trabajador, consulta.Select(x => x.trabajador.Id), cancellationToken);
+            var leidoCompleto = permitirEstadoMaterializado
+                ? await lector.LeerEstadoCompletoAsync(
+                    AmbitoEstadoEntidad.Trabajador, consulta.Select(x => x.trabajador.Id), cancellationToken)
+                : null;
+            var materializado = leidoCompleto is not null;
             var faltantes = materializado
                 ? RequisitosObligatoriosIncumplidos.Ninguno.PorTrabajador
                 : await FaltantesPorTrabajadorAsync(consulta.Select(x => x.trabajador), cancellationToken);
@@ -367,57 +368,40 @@ public class ObtenerTrabajadoresQueryHandler(
                     : claveSinCaducidad
             });
 
-            // Estado materializado: la misma clave, de la fila de EstadosEntidad en vez de la fecha del peor documento y los
-            // requisitos incumplidos calculados. Un Trabajador sin fila (alta que el recálculo aún no ha escrito) es uno sin
-            // documentos ni requisitos incumplidos. Vencido en ámbar solo si todos sus documentos vencidos son de Tipos que
-            // ningún Centro marca obligatorios (el lector ya descartó las filas que eso no decide).
-            if (materializado)
+            // Estado materializado: la misma clave, de la fila de EstadosEntidad (leída de la caché del circuito, diseño § 13.11)
+            // en vez de la fecha del peor documento y los requisitos incumplidos calculados. Vencido en ámbar solo si todos sus
+            // documentos vencidos son de Tipos que ningún Centro marca obligatorios (el lector ya descartó las filas que eso no
+            // decide, y los Trabajadores sin fila). El reparto por clave llega como listas de Ids, que van a SQL como parámetros.
+            if (leidoCompleto is not null)
             {
-                var ordVencido = (short)EstadoDocumento.Vencido;
-                var ordFaltante = (short)EstadoDocumento.Faltante;
-                var ordUrgente = (short)EstadoDocumento.Urgente;
-                var ordProximo = (short)EstadoDocumento.Proximo;
-                var ordSinConfirmar = (short)EstadoDocumento.SinConfirmar;
-                var ordVigente = (short)EstadoDocumento.Vigente;
-                var unidos =
-                    from x in consulta
-                    join s in lector.Entidades(AmbitoEstadoEntidad.Trabajador) on x.trabajador.Id equals s.EntidadId into coincidentes
-                    from s in coincidentes.DefaultIfEmpty()
-                    select new
-                    {
-                        x.trabajador.Id,
-                        x.trabajador.Nombre,
-                        x.trabajador.Apellidos,
-                        x.trabajador.Dni,
-                        x.EmpleadorNombre,
-                        DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
-                        x.DelegacionEmpresaNombre,
-                        OficioEmpresaId = x.trabajador.OficioEmpresaId,
-                        x.OficioNombre,
-                        Estado = s == null ? EstadoEntidad.SinEstado : s.Estado,
-                        Vencidos = s == null ? 0 : s.Vencidos,
-                        VencidosSinBloqueo = s == null ? 0 : s.VencidosSinBloqueo
-                    };
-                conEstado = unidos.Select(x => new
+                var idsVencido = leidoCompleto.Vencido;
+                var idsVencidoSinBloqueo = leidoCompleto.VencidoSinBloqueo;
+                var idsFaltante = leidoCompleto.Faltante;
+                var idsUrgente = leidoCompleto.Urgente;
+                var idsProximo = leidoCompleto.Proximo;
+                var idsSinConfirmar = leidoCompleto.SinConfirmar;
+                var idsVigente = leidoCompleto.Vigente;
+                conEstado = consulta.Select(x => new
                 {
-                    x.Id,
-                    x.Nombre,
-                    x.Apellidos,
-                    x.Dni,
+                    x.trabajador.Id,
+                    x.trabajador.Nombre,
+                    x.trabajador.Apellidos,
+                    // El mismo tipo anónimo que conFecha, que lo infiere no anulable (EF no ve el «!»).
+                    Dni = x.trabajador.Dni!,
                     x.EmpleadorNombre,
-                    x.DelegacionEmpresaId,
+                    DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
                     x.DelegacionEmpresaNombre,
-                    x.OficioEmpresaId,
+                    OficioEmpresaId = x.trabajador.OficioEmpresaId,
                     x.OficioNombre,
                     PeorFecha = (DateOnly?)null,
                     HaySinConfirmar = false,
-                    ClaveEstado = x.Estado == ordVencido
-                            ? (x.Vencidos > 0 && x.Vencidos == x.VencidosSinBloqueo ? claveVencidoSinBloqueo : claveVencido)
-                        : x.Estado == ordFaltante ? claveFaltante
-                        : x.Estado == ordUrgente ? claveUrgente
-                        : x.Estado == ordProximo ? claveProximo
-                        : x.Estado == ordSinConfirmar ? claveSinConfirmar
-                        : x.Estado == ordVigente ? claveVigente
+                    ClaveEstado = idsVencido.Contains(x.trabajador.Id) ? claveVencido
+                        : idsVencidoSinBloqueo.Contains(x.trabajador.Id) ? claveVencidoSinBloqueo
+                        : idsFaltante.Contains(x.trabajador.Id) ? claveFaltante
+                        : idsUrgente.Contains(x.trabajador.Id) ? claveUrgente
+                        : idsProximo.Contains(x.trabajador.Id) ? claveProximo
+                        : idsSinConfirmar.Contains(x.trabajador.Id) ? claveSinConfirmar
+                        : idsVigente.Contains(x.trabajador.Id) ? claveVigente
                         : claveSinCaducidad
                 });
             }

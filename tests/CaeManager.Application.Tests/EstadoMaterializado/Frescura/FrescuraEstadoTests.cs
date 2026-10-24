@@ -96,6 +96,35 @@ public class FrescuraEstadoTests
     }
 
     [Fact]
+    public async Task Sin_version_leida_lee_solo_las_entidades_pedidas_y_no_guarda_nada()
+    {
+        var @base = BaseConTres(out var e);
+        var c = new Circuito();
+
+        var filas = await c.Cache.ObtenerAsync(@base.Consulta(), versionLeida: null, [e[0]], CancellationToken.None);
+
+        filas.Should().ContainSingle().Which.Entidad.Should().Be(e[0]);
+        @base.LecturasCompletas.Should().Be(0, "sin versión la caché no sirve: no se paga el Tenant entero");
+        @base.LecturasParciales.Should().ContainSingle().Which.Should().Equal([e[0]]);
+        c.Cache.RelecturasCompletas.Should().Be(0);
+        c.Notificador.SuscripcionesDe(TenantA).Should().Be(0, "sin versión leída no se suscribe");
+    }
+
+    [Fact]
+    public async Task Con_version_leida_la_lectura_entera_se_guarda_aunque_se_pidan_pocas()
+    {
+        var @base = BaseConTres(out var e);
+        var c = new Circuito();
+        var version = new VersionEstadoLeida(TenantA, 1);
+
+        (await c.Cache.ObtenerAsync(@base.Consulta(), version, [e[0]], CancellationToken.None)).Should().HaveCount(3);
+        (await c.Cache.ObtenerAsync(@base.Consulta(), version, [e[1]], CancellationToken.None)).Should().HaveCount(3);
+
+        @base.LecturasCompletas.Should().Be(1, "la segunda, con la misma versión, sale de la caché");
+        @base.LecturasParciales.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Con_la_misma_version_sirve_lo_guardado_sin_releer()
     {
         var @base = BaseConTres(out _);
