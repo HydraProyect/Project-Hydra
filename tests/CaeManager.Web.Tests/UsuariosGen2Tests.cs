@@ -2243,7 +2243,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
         Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nueva@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Persona Nueva");
 
