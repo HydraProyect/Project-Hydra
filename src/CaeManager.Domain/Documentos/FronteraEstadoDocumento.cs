@@ -30,9 +30,9 @@ public static class FronteraEstadoDocumento
             ? null
             : PrimeraPosterior(
                 hoy,
-                fechaVencimiento.AddDays(-umbralAmbarDias),
-                fechaVencimiento.AddDays(-umbralRojoDias),
-                fechaVencimiento.AddDays(1));
+                Desplazar(fechaVencimiento, -umbralAmbarDias),
+                Desplazar(fechaVencimiento, -umbralRojoDias),
+                DiaSiguiente(fechaVencimiento));
 
     /// <inheritdoc cref="ProximoCambio(VigenciaDocumento, DateOnly, int, int)"/>
     public static DateOnly? ProximoCambio(
@@ -52,6 +52,19 @@ public static class FronteraEstadoDocumento
         return primera;
     }
 
+    /// <summary>
+    /// El día siguiente a <paramref name="fecha"/>; <c>null</c> si no hay (es <see cref="DateOnly.MaxValue"/>, el vencimiento
+    /// centinela 9999-12-31 o una periodicidad saturada): ese cambio no llega nunca, así que no es frontera. Nunca lanza, para
+    /// que una sola fila rara no tumbe el relleno ni el recálculo de una acción.
+    /// </summary>
+    public static DateOnly? DiaSiguiente(DateOnly? fecha) => fecha is { } f ? Desplazar(f, 1) : null;
+
+    /// <summary><paramref name="fecha"/> más <paramref name="dias"/> (que pueden ser negativos); <c>null</c> fuera del rango de <see cref="DateOnly"/>.</summary>
+    private static DateOnly? Desplazar(DateOnly fecha, int dias)
+    {
+        var dia = (long)fecha.DayNumber + dias;
+        return dia < DateOnly.MinValue.DayNumber || dia > DateOnly.MaxValue.DayNumber ? null : DateOnly.FromDayNumber((int)dia);
+    }
     /// <summary>La más temprana de dos fronteras ya calculadas; <c>null</c> solo si las dos lo son.</summary>
     public static DateOnly? Minima(DateOnly? una, DateOnly? otra) =>
         una is null ? otra : otra is null ? una : (una < otra ? una : otra);

@@ -165,6 +165,11 @@ public sealed class RecalculoEstadoMaterializadoService(
                 trabajadores.Add(p.TrabajadorId);
         }
 
+        // Lo ya escrito de los titulares raíz: la acción puede haber roto la relación (sustituir el documento acreditado de un
+        // Trabajador que ya no está asignado al Centro) y la fila vieja tiene que rehacerse.
+        if (trabajadorRaiz.Count > 0 || empresaRaiz.Count > 0)
+            centros.UnionWith(await escritor.CentrosConFilasDeTitularesAsync(trabajadorRaiz.Concat(empresaRaiz).ToList(), cancellationToken));
+
         return (centros.ToList(), trabajadores.ToList(), empresas.ToList());
     }
 
@@ -247,7 +252,10 @@ public sealed class RecalculoEstadoMaterializadoService(
                 select new { asignacion.CentroId, asignacion.TrabajadorId, EmpresaId = trabajador.EmpresaId ?? trabajador.SubcontrataId })
                 .Distinct()
                 .ToListAsync(cancellationToken);
-        var participaciones = await ParticipacionesEnEventosAsync(centroIds, trabajadorIds, hoy, cancellationToken);
+        // También los eventos de otros Centros de los Trabajadores asignados aquí: el fin de cualquiera de ellos puede dejar sin
+        // contar a un voluntario (voluntario inactivo sin evento) y es frontera de sus pares y del Centro.
+        var participaciones = await ParticipacionesEnEventosAsync(
+            centroIds, trabajadorIds.Concat(asignaciones.Select(a => a.TrabajadorId)).Distinct().ToList(), hoy, cancellationToken);
         var trabajadoresDeCentro = asignaciones.Where(a => centroIds.Contains(a.CentroId))
             .Select(a => (a.CentroId, a.TrabajadorId))
             .Concat(participaciones.Where(p => centroIds.Contains(p.CentroId)).Select(p => (p.CentroId, p.TrabajadorId)))
@@ -296,7 +304,6 @@ public sealed class RecalculoEstadoMaterializadoService(
         var centrosConRequisitos = centroIds.Concat(centrosDeEvaluacion).Distinct().ToList();
         var requisitos = await evaluacionDeAcceso.CondicionesDeRequisitosAsync(centrosConRequisitos, cancellationToken);
         var requisitosPorClave = requisitos.ToDictionary(r => (r.CentroId, r.TipoDocumentoId));
-        var requisitosPorTipo = requisitos.ToLookup(r => r.TipoDocumentoId);
 
         // Frontera de un documento en un Centro: la de su estado en TALVEG y, si el Centro lo exige con condiciones, el día
         // en que deja de valer allí (periodicidad) y el día en que se acaba su tolerancia.
@@ -308,8 +315,8 @@ public sealed class RecalculoEstadoMaterializadoService(
             var acceso = new DocumentoParaAcceso(VigenciaDocumento.Rehidratar(d.EstadoVigencia, d.FechaVencimiento), d.FechaEmision);
             return FronteraEstadoDocumento.Minima(frontera, FronteraEstadoDocumento.PrimeraPosterior(
                 hoy,
-                ReglaBloqueoDeAcceso.VencimientoEfectivo(acceso, requisito.Condiciones.PeriodicidadEspecialMeses)?.AddDays(1),
-                ReglaBloqueoDeAcceso.ValidoParaAccederHasta(acceso, requisito.Condiciones)?.AddDays(1)));
+                FronteraEstadoDocumento.DiaSiguiente(ReglaBloqueoDeAcceso.VencimientoEfectivo(acceso, requisito.Condiciones.PeriodicidadEspecialMeses)),
+                FronteraEstadoDocumento.DiaSiguiente(ReglaBloqueoDeAcceso.ValidoParaAccederHasta(acceso, requisito.Condiciones))));
         }
 
         DateOnly? FronteraEnCentros(DocumentoLeido d, IEnumerable<Guid> centrosDelTitular)
@@ -332,11 +339,11 @@ public sealed class RecalculoEstadoMaterializadoService(
         var finDeEventoPorCentro = participaciones
             .Where(p => p.FechaFinPrevista is not null)
             .GroupBy(p => p.CentroId)
-            .ToDictionary(g => g.Key, g => (DateOnly?)g.Min(p => p.FechaFinPrevista!.Value).AddDays(1));
+            .ToDictionary(g => g.Key, g => FronteraEstadoDocumento.DiaSiguiente(g.Min(p => p.FechaFinPrevista!.Value)));
         var finDeEventoPorTrabajador = participaciones
             .Where(p => p.FechaFinPrevista is not null)
             .GroupBy(p => p.TrabajadorId)
-            .ToDictionary(g => g.Key, g => (DateOnly?)g.Min(p => p.FechaFinPrevista!.Value).AddDays(1));
+            .ToDictionary(g => g.Key, g => FronteraEstadoDocumento.DiaSiguiente(g.Min(p => p.FechaFinPrevista!.Value)));
 
         var entidades = new List<FilaEstadoEntidad>();
 
@@ -452,7 +459,7 @@ public sealed class RecalculoEstadoMaterializadoService(
         var finDeEventoPorPar = participaciones
             .Where(p => p.FechaFinPrevista is not null)
             .GroupBy(p => (p.CentroId, p.TrabajadorId))
-            .ToDictionary(g => g.Key, g => (DateOnly?)g.Min(p => p.FechaFinPrevista!.Value).AddDays(1));
+            .ToDictionary(g => g.Key, g => FronteraEstadoDocumento.DiaSiguiente(g.Min(p => p.FechaFinPrevista!.Value)));
 
         var efectivosDeTrabajador = DocumentoEfectivo.UnoPorClave(
             documentos.Where(d => d.TrabajadorId is not null).ToList(),
@@ -472,7 +479,11 @@ public sealed class RecalculoEstadoMaterializadoService(
             DocumentoLeido? efectivo, IEnumerable<DocumentoLeido> delPar, bool deEvento)
         {
             var requisito = requisitosPorClave.GetValueOrDefault((centroId, tipoDocumentoId));
+            // El fin de un evento del Trabajador cambia el par aunque no sea de evento: el voluntario deja de contar y su par
+            // desaparece (AsignacionesQueCuentan). Antes de tiempo solo cuesta un recálculo de más; tarde dejaría el par viejo.
             DateOnly? frontera = deEvento ? finDeEventoPorPar.GetValueOrDefault((centroId, titularId)) : null;
+            if (ambito == AmbitoAplicacion.Trabajador)
+                frontera = FronteraEstadoDocumento.Minima(frontera, finDeEventoPorTrabajador.GetValueOrDefault(titularId));
             foreach (var d in delPar)
                 frontera = FronteraEstadoDocumento.Minima(frontera, FronteraEnCentro(d, requisito));
             return new FilaEstadoRequisito(
@@ -544,7 +555,7 @@ public sealed class RecalculoEstadoMaterializadoService(
                 f.TipoDocumentoId, f.Estado, f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                 // «Vencido en la Plataforma CAE» empieza el día siguiente a su fecha (CalculoEstadoCentroService: fecha < hoy).
                 f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
-                    ? FronteraEstadoDocumento.PrimeraPosterior(hoy, f.FechaVencimientoEnPlataforma?.AddDays(1))
+                    ? FronteraEstadoDocumento.PrimeraPosterior(hoy, FronteraEstadoDocumento.DiaSiguiente(f.FechaVencimientoEnPlataforma))
                     : null))
             .GroupBy(f => (f.CentroId, f.CanalGestionDocumentalId, f.AmbitoTitular, f.TitularId, f.TipoDocumentoId))
             .Select(g => g.OrderBy(f => GravedadAcreditacion(f, hoy)).ThenBy(f => f.FechaVencimientoEnPlataforma).First())

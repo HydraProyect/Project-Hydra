@@ -83,6 +83,14 @@ public interface IEscritorEstadoMaterializado
     /// lectores que el Tenant ya está entero (diseño § 7.3). Un recálculo parcial solo sube la versión si ya existe.
     /// </param>
     Task EscribirAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Los Centros que ya tienen escrita una fila (par o acreditación en la Plataforma CAE) de alguno de esos titulares
+    /// (Trabajadores o Empresas). La clausura los añade porque la relación que los unía puede haberse roto en la propia
+    /// acción: una acreditación del documento sustituido de un Trabajador que ya no está asignado al Centro se quedaría sin
+    /// recalcular.
+    /// </summary>
+    Task<IReadOnlyList<Guid>> CentrosConFilasDeTitularesAsync(IReadOnlyCollection<Guid> titularIds, CancellationToken cancellationToken);
 }
 
 /// <summary>

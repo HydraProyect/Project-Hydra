@@ -52,9 +52,16 @@ public interface IEvaluacionDeAccesoPorCentroService
 
 /// <summary>
 /// La misma evaluación que <see cref="IEvaluacionDeAccesoPorCentroService"/>, sin el alcance del usuario: la usa solo el
-/// estado materializado, que es dato del Tenant propietario y no de quien lo mira (el alcance se aplica al leer, filtrando
-/// filas). RLS sigue acotando al Tenant de la conexión. Ninguna pantalla debe llamarla: una pantalla que la usara enseñaría
-/// lo que exigen Centros que el usuario no alcanza.
+/// estado materializado, que es dato del Tenant propietario y no de quien lo mira. RLS sigue acotando al Tenant de la
+/// conexión. Ninguna pantalla debe llamarla: una pantalla que la usara enseñaría lo que exigen Centros que el usuario no
+/// alcanza (lo congela <c>ReglasDeNegocioSinCopiasTests</c>).
+/// <para>
+/// Consecuencia para quien lea el estado materializado: el estado guardado de un Trabajador o de una Empresa es el de
+/// <b>todos</b> los Centros del Tenant, el que vería un usuario sin Asignación de Cartera. Filtrar filas no basta para un
+/// usuario con alcance restringido, porque es un agregado: su lector recompone el rojo desde los pares de
+/// <c>EstadosRequisito</c> de los Centros que ve (<c>BloqueaAcceso</c> y <c>EstadoTalveg</c>), como pide
+/// <see cref="RequisitosObligatoriosIncumplidos"/> (diseño del estado materializado, § 3.2 y § 3.4).
+/// </para>
 /// </summary>
 public interface IEvaluacionDeAccesoDelTenant
 {
@@ -149,8 +156,14 @@ public class EvaluacionDeAccesoPorCentroService(
             (centroIdsVisibles is null || centroIdsVisibles.Contains(centroId))
             && (centroIds is null || centroIds.Contains(centroId));
 
+        // Con Centros pedidos, el filtro va en la base: sin él se traían las filas bloqueantes de todo el Tenant para quedarse
+        // con las de un Centro (el recálculo del estado materializado lo llama en cada acción). EnAlcance sigue filtrando
+        // después por el alcance del usuario, igual que antes.
+        var requisitosDeCentros = centroIds is null
+            ? tiposDocumentoContext.TiposDocumentoCentros
+            : tiposDocumentoContext.TiposDocumentoCentros.Where(tc => centroIds.Contains(tc.CentroId));
         var filas = (await (
-            from tc in tiposDocumentoContext.TiposDocumentoCentros
+            from tc in requisitosDeCentros
             where tc.Incluido && tc.BloqueaAcceso
             join tipo in tiposDocumentoContext.TiposDocumento on tc.TipoDocumentoId equals tipo.Id
             // Un tipo archivado no bloquea a nadie: no admite altas nuevas (catálogo del 2026-10-17).

@@ -156,6 +156,21 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
             ct);
     }
 
+    public async Task<IReadOnlyList<Guid>> CentrosConFilasDeTitularesAsync(IReadOnlyCollection<Guid> titularIds, CancellationToken cancellationToken)
+    {
+        if (titularIds.Count == 0)
+            return [];
+
+        var ids = titularIds.Distinct().ToList();
+        return await dbContext.Set<EstadoRequisito>().AsNoTracking()
+            .Where(p => ids.Contains(p.TitularId))
+            .Select(p => p.CentroId)
+            .Union(dbContext.Set<EstadoEnPlataforma>().AsNoTracking()
+                .Where(p => ids.Contains(p.TitularId))
+                .Select(p => p.CentroId))
+            .ToListAsync(cancellationToken);
+    }
+
     private Task BorrarEntidadesAsync(AmbitoEstadoEntidad ambito, IReadOnlyList<Guid> ids, CancellationToken ct) =>
         ids.Count == 0
             ? Task.CompletedTask

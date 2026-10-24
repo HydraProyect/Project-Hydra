@@ -155,6 +155,144 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
         tardias.Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Sensible a la clausura: tras cada cambio de datos, recalcular solo las raíces que da la acción deja las tablas como el
+    /// relleno completo. Una clausura que se quedara en las raíces dejaría sin rehacer los Centros de la Empresa cuyo
+    /// documento vence, la Empresa del Trabajador dado de baja o los Trabajadores del Centro cuyo requisito cambia.
+    /// </summary>
+    [Fact]
+    public async Task Tras_cada_cambio_el_recalculo_de_sus_raices_deja_lo_mismo_que_el_relleno()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        var activasPorTenant = new Dictionary<Guid, int>();
+        foreach (var t in fixture.Tenants)
+            activasPorTenant[t] = await fixture.Arnes.EnTenantAsync(t, (db, _) => db.Asignaciones.CountAsync(a => a.FechaBaja == null));
+        var tenant = activasPorTenant.MaxBy(x => x.Value).Key;
+
+        var (cambios, fallos) = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
+        {
+            var recalculo = sp.GetRequiredService<IRecalculoEstadoMaterializado>();
+            var hechos = new List<string>();
+            var distintos = new List<string>();
+
+            async Task Comprobar(string cambio, RaicesDeRecalculo raices)
+            {
+                hechos.Add(cambio);
+                await recalculo.RecalcularAsync(raices, CancellationToken.None);
+                db.ChangeTracker.Clear();
+                var acotado = await FotoAsync(db);
+                await recalculo.RellenarTenantAsync(CancellationToken.None);
+                db.ChangeTracker.Clear();
+                var completo = await FotoAsync(db);
+                var faltan = completo.Except(acotado).ToList();
+                var sobran = acotado.Except(completo).ToList();
+                if (faltan.Count + sobran.Count > 0)
+                    distintos.Add($"{cambio}: {faltan.Count} filas del relleno que el recálculo acotado no dejó, p. ej. «{faltan.FirstOrDefault()}»; " +
+                                  $"{sobran.Count} que dejó de más, p. ej. «{sobran.FirstOrDefault()}»");
+            }
+
+            var centro = await db.Asignaciones.Where(a => a.FechaBaja == null)
+                .GroupBy(a => a.CentroId).OrderByDescending(g => g.Count()).Select(g => g.Key).FirstAsync();
+
+            // 1. Requisito del Centro: cambia «bloquea el acceso», que decide el rojo de sus Trabajadores y Empresas.
+            var tipoDelCentro = await db.TiposDocumentoCentros.Where(r => r.CentroId == centro && r.Incluido)
+                .OrderBy(r => r.TipoDocumentoId).Select(r => (Guid?)r.TipoDocumentoId).FirstOrDefaultAsync();
+            if (tipoDelCentro is { } tipo)
+            {
+                await db.TiposDocumentoCentros.Where(r => r.CentroId == centro && r.TipoDocumentoId == tipo)
+                    .ExecuteUpdateAsync(s => s.SetProperty(r => r.BloqueaAcceso, r => !r.BloqueaAcceso));
+                await Comprobar("requisito del Centro", RaicesDeRecalculo.DeCentros(centro));
+            }
+
+            // 2. Documento de la Empresa de un Centro: vence ayer; es causa de todos los Centros de esa Empresa.
+            var empresaDelCentro = await db.Centros.Where(c => c.Id == centro).Select(c => c.EmpresaId).SingleAsync();
+            var documentoDeEmpresa = await db.Documentos.Operativos()
+                .Where(d => d.EmpresaId == empresaDelCentro && d.TrabajadorId == null
+                            && d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1))
+                .OrderBy(d => d.Id).Select(d => (Guid?)d.Id).FirstOrDefaultAsync();
+            if (documentoDeEmpresa is { } idEmpresa)
+            {
+                await db.Documentos.Where(d => d.Id == idEmpresa)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
+                await Comprobar("documento de Empresa vencido", RaicesDeRecalculo.DeEmpresas(empresaDelCentro));
+            }
+
+            // 3. Documento de un Trabajador del Centro: pasa a urgente; cambia sus pares en todos sus Centros.
+            var trabajadorDelCentro = await db.Asignaciones.Where(a => a.CentroId == centro && a.FechaBaja == null)
+                .OrderBy(a => a.TrabajadorId).Select(a => a.TrabajadorId).FirstAsync();
+            var documentoDeTrabajador = await db.Documentos.Operativos()
+                .Where(d => d.TrabajadorId == trabajadorDelCentro && d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha
+                            && d.FechaEmision < hoy)
+                .OrderBy(d => d.Id).Select(d => (Guid?)d.Id).FirstOrDefaultAsync();
+            if (documentoDeTrabajador is { } idTrabajador)
+            {
+                await db.Documentos.Where(d => d.Id == idTrabajador)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(3)));
+                await Comprobar("documento de Trabajador urgente", RaicesDeRecalculo.DeTrabajadores(trabajadorDelCentro));
+            }
+
+            // 4. Baja de Asignación de un Trabajador con Empresa: la acción da el Centro y el Trabajador; su Empresa deja de
+            // operar allí y eso solo lo recoge la clausura.
+            var baja = await (
+                    from a in db.Asignaciones
+                    where a.CentroId == centro && a.FechaBaja == null
+                    join t in db.Trabajadores on a.TrabajadorId equals t.Id
+                    where t.EmpresaId != null || t.SubcontrataId != null
+                    orderby a.TrabajadorId
+                    select new { a.CentroId, a.TrabajadorId })
+                .FirstOrDefaultAsync();
+            if (baja is not null)
+            {
+                await db.Asignaciones.Where(a => a.CentroId == baja.CentroId && a.TrabajadorId == baja.TrabajadorId && a.FechaBaja == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.FechaBaja, (DateOnly?)hoy));
+                await Comprobar("baja de Asignación", new RaicesDeRecalculo([baja.CentroId], [baja.TrabajadorId], []));
+            }
+
+            return (hechos, distintos);
+        });
+
+        salida.WriteLine($"Tenant {tenant}: {string.Join(", ", cambios)}");
+        cambios.Should().HaveCountGreaterThanOrEqualTo(3, "sin cambios el test no prueba la clausura");
+        fallos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// El escritor solo toca el Tenant de la conexión: con el contexto de un Tenant, sustituir los Centros, Trabajadores y
+    /// Empresas de otro no borra ninguna fila de ese otro (RLS forzada), y la clausura con raíces ajenas no encuentra nada.
+    /// </summary>
+    [Fact]
+    public async Task El_escritor_y_la_clausura_no_tocan_otro_Tenant()
+    {
+        var conCentros = new List<Guid>();
+        foreach (var t in fixture.Tenants)
+            if (await fixture.Arnes.EnTenantAsync(t, (db, _) => db.Set<EstadoRequisito>().AnyAsync()))
+                conCentros.Add(t);
+        conCentros.Should().HaveCountGreaterThanOrEqualTo(2, "hacen falta dos Tenants con estado para probar el aislamiento");
+        var (a, b) = (conCentros[0], conCentros[1]);
+
+        var (centrosB, trabajadoresB, empresasB, antesB) = await fixture.Arnes.EnTenantAsync(b, async (db, _) => (
+            await db.Centros.Select(c => c.Id).ToListAsync(),
+            await db.Trabajadores.Select(t => t.Id).ToListAsync(),
+            await db.Empresas.Select(e => e.Id).ToListAsync(),
+            await FotoAsync(db)));
+
+        var calculoDesdeA = await fixture.Arnes.EnTenantAsync(a, async (_, sp) =>
+        {
+            var raicesDeB = new RaicesDeRecalculo(centrosB, trabajadoresB, empresasB);
+            var calculo = await sp.GetRequiredService<IRecalculoEstadoMaterializado>().CalcularAsync(raicesDeB, CancellationToken.None);
+            await sp.GetRequiredService<IEscritorEstadoMaterializado>().EscribirAsync(
+                new CalculoEstadoMaterializado(DiaDeNegocio.Hoy(), centrosB, trabajadoresB, empresasB, [], [], []),
+                crearVersionSiFalta: false, CancellationToken.None);
+            return calculo;
+        });
+
+        calculoDesdeA.Pares.Should().BeEmpty("con el contexto de A, los Centros de B no existen");
+        calculoDesdeA.Entidades.Should().BeEmpty();
+        calculoDesdeA.Plataforma.Should().BeEmpty();
+        (await fixture.Arnes.EnTenantAsync(b, (db, _) => FotoAsync(db)))
+            .Should().Equal(antesB, "sustituir desde A las entidades de B no borra nada de B");
+    }
+
     private static async Task<List<string>> CompararAsync(CaeManagerDbContext db, IServiceProvider sp)
     {
         var ct = CancellationToken.None;

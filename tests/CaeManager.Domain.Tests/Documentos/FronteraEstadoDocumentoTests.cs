@@ -81,4 +81,20 @@ public class FronteraEstadoDocumentoTests
         FronteraEstadoDocumento.PrimeraPosterior(hoy, hoy, hoy.AddDays(-1), null).Should().BeNull("hoy no es posterior a hoy");
         FronteraEstadoDocumento.PrimeraPosterior(hoy, hoy.AddDays(5), hoy.AddDays(2)).Should().Be(hoy.AddDays(2));
     }
+    [Fact]
+    public void Un_vencimiento_centinela_no_lanza_y_no_es_frontera()
+    {
+        var hoy = new DateOnly(2026, 10, 24);
+
+        FronteraEstadoDocumento.DiaSiguiente(DateOnly.MaxValue).Should().BeNull("el día siguiente a 9999-12-31 no existe");
+        FronteraEstadoDocumento.DiaSiguiente(null).Should().BeNull();
+        FronteraEstadoDocumento.DiaSiguiente(hoy).Should().Be(hoy.AddDays(1));
+
+        // 9999-12-31 entra en ámbar y en rojo, pero nunca vence: la frontera es la del umbral, sin lanzar al sumar un día.
+        FronteraEstadoDocumento.ProximoCambio(VigenciaDocumento.VenceEl(DateOnly.MaxValue), hoy, 30, 7)
+            .Should().Be(DateOnly.MaxValue.AddDays(-30));
+        // Umbrales desmesurados (fuera del rango de fechas) tampoco lanzan.
+        FronteraEstadoDocumento.ProximoCambio(VigenciaDocumento.VenceEl(DateOnly.MaxValue), hoy, int.MinValue + 1, int.MaxValue)
+            .Should().BeNull();
+    }
 }
