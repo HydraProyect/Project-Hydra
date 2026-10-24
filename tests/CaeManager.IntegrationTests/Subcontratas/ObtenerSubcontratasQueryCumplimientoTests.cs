@@ -1,3 +1,4 @@
+using CaeManager.Application.Documentos;
 using CaeManager.Domain.Common;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -408,7 +409,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         alcance ??= new AlcanceDatosServiceFalso();
         await using var contexto = CrearContexto();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance), contexto);
 
         return await handler.Handle(consulta, CancellationToken.None);
     }

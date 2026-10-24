@@ -4,11 +4,11 @@ using CaeManager.Domain.Documentos;
 namespace CaeManager.Domain.EstadoMaterializado;
 
 /// <summary>
-/// Estado materializado de <b>su</b> contexto para cada Centro, Trabajador, Empresa y Subcontrata del Tenant propietario:
-/// nunca el peor de otro nivel. Una fila por entidad, garantizada por el índice único <c>(TenantId, Ambito, EntidadId)</c>.
+/// Estado materializado de <b>su</b> contexto para cada Centro, Trabajador y Empresa del Tenant propietario (una Subcontrata
+/// es una Empresa y lleva su fila de Empresa, decisión D-1): nunca el peor de otro nivel. Una fila por entidad, garantizada por el índice único <c>(TenantId, Ambito, EntidadId)</c>.
 ///
 /// <para>
-/// Los recuentos de <b>otros</b> niveles (en una Empresa, cuántos de sus Trabajadores están bloqueados en algún Centro) no
+/// Los recuentos de <b>otros</b> niveles (en una Empresa o una Subcontrata, cuántos de sus Trabajadores están bloqueados en algún Centro) no
 /// se guardan: dependen de qué Centros ve cada Gestor CAE, así que se recomponen al leer desde las filas visibles. Ningún
 /// dato de esta tabla depende de un usuario.
 /// </para>

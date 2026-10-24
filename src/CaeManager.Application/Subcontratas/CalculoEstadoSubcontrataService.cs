@@ -41,9 +41,10 @@ public record RecuentosSubcontrataDto(
     public int TotalSinConfirmar => SinConfirmar.Count;
 
     /// <summary>
-    /// Estado documental de la Subcontrata: el peor de sus incidencias. «Faltante» viaja en
-    /// <see cref="Vencidas"/> y se lee como Vencido (mismo criterio que el desglose del listado). Sin nada
-    /// pendiente es <see cref="EstadoDocumento.Vigente"/>, también cuando ningún Centro exige nada.
+    /// El peor de las incidencias de sus Trabajadores. «Faltante» viaja en <see cref="Vencidas"/> y se lee como
+    /// Vencido (mismo criterio que el desglose del listado). Sin nada pendiente es <see cref="EstadoDocumento.Vigente"/>,
+    /// también cuando ningún Centro exige nada. <b>No es el estado de la Subcontrata</b>: ese es el de su documentación de
+    /// Empresa (decisión D-1, <c>SubcontrataListaDto.EstadoDocumental</c>); esto resume a sus Trabajadores.
     /// </summary>
     public EstadoDocumento PeorEstado =>
         TotalVencidas > 0 ? EstadoDocumento.Vencido
@@ -71,8 +72,11 @@ public record ResumenEstadoSubcontrata(
 /// al que esté asignado el Trabajador, tenga o no Asignación al Centro del
 /// evento (decisión 2026-10-16, mismo criterio que el Centro), y no cuenta a
 /// los voluntarios inactivos (sin evento vigente ni futuro).
-/// Sin Documentos de "Empresa" ni <c>BloqueaAcceso</c>: esos conceptos son de
-/// Centro y no tienen equivalente a nivel de Subcontrata.
+/// Sin Documentos de "Empresa" ni <c>BloqueaAcceso</c>: este servicio resume a
+/// los Trabajadores (porcentaje e incidencias del desplegable). El estado de la
+/// Subcontrata, que sí es el de su documentación de Empresa con los requisitos
+/// obligatorios de Centro (decisión D-1), no sale de aquí: lo pone
+/// <c>ObtenerSubcontratasQueryHandler</c>.
 /// </summary>
 public interface ICalculoEstadoSubcontrataService
 {

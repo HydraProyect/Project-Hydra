@@ -1,7 +1,9 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Tests.Centros;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Domain.Empresas;
@@ -31,7 +33,9 @@ public class ObtenerSubcontratasContratantesTests
             RelacionEmpresarial.Crear(subcontrata.Id, contraparte.Id, DateTime.UtcNow)]);
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
             subcontrataIdsVisibles: [subcontrata.Id], empresaIdsVisibles: visible ? [empresa.Id, cerrada.Id] : []);
-        var handler = new ObtenerSubcontratasQueryHandler(db, alcance, new SinDocumentos(), new TrabajadoresQueryContextFalso());
+        var handler = new ObtenerSubcontratasQueryHandler(
+            db, alcance, new SinDocumentos(), new TrabajadoresQueryContextFalso(), new CalculoDocumentalFalso(),
+            new RequisitosObligatoriosSinIncumplidos(), new ProyectosQueryContextFalso());
 
         var resultado = await handler.Handle(new(null, ConRecuentosPorEstado: true), default);
 
