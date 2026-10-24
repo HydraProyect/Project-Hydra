@@ -21,14 +21,13 @@ public partial class DocumentosGen2Tests
         var filtradoPorLaUrl = Documento("Certificado con filtro");
         var mediador = new MediadorControlado
         {
-            Documentos = q => q.Busqueda == "Salas" && q.Estados != null && q.Estados.SequenceEqual(new[] { EstadoDocumento.Vencido })
-                ? [filtradoPorLaUrl]
-                : [Documento("Certificado sin filtro")],
+            Documentos = q => CoincideConLaUrl(q) ? [filtradoPorLaUrl] : [Documento("Certificado sin filtro")],
         };
         var apoyoLiberado = new TaskCompletionSource<object?>();
         mediador.Interceptar = p => p is ObtenerFiltrosGuardadosQuery ? apoyoLiberado.Task : null;
 
-        var (cut, _) = Renderizar(mediador, url: "documentos?q=Salas&Estado=Vencido");
+        var (cut, _) = Renderizar(mediador,
+            url: $"documentos?q=Salas&Estado=Vencido&Ambito=Trabajador&Tipo={TipoSeguroId}&orden=vencimiento-desc");
         cut.InvokeAsync(() => apoyoLiberado.SetResult(Array.Empty<FiltroGuardadoDto>()));
 
         // Espera a que la lista pinte algo (con o sin filtro) para que el fallo sea del filtro y no de un tiempo agotado.
@@ -36,8 +35,12 @@ public partial class DocumentosGen2Tests
 
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().NotBeEmpty();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Should().OnlyContain(
-            q => q.Busqueda == "Salas" && q.Estados != null && q.Estados.SequenceEqual(new[] { EstadoDocumento.Vencido }),
-            "los filtros de la URL se leen antes de la primera carga");
+            q => CoincideConLaUrl(q), "los filtros y el orden de la URL se leen antes de la primera carga");
         cut.Markup.Should().NotContain("Certificado sin filtro");
     }
+
+    private bool CoincideConLaUrl(ObtenerDocumentosQuery q) =>
+        q.Busqueda == "Salas" && q.Estados != null && q.Estados.SequenceEqual(new[] { EstadoDocumento.Vencido })
+        && q.Ambito == AmbitoAplicacion.Trabajador && q.TipoDocumentoId == TipoSeguroId
+        && q.OrdenarPor == nameof(DocumentoListaDto.FechaVencimiento) && q.Descendente;
 }
