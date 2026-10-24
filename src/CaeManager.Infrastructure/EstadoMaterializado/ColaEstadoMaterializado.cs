@@ -20,15 +20,27 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 public static class ColaEstadoMaterializado
 {
     /// <summary>Una entrada «Tenant entero» si no hay ya una sin intentar y libre (la cola las junta igualmente).</summary>
-    public static Task EncolarTenantEnteroAsync(DbContext dbContext, Guid tenantId, string motivo)
+    public static Task EncolarTenantEnteroAsync(DbContext dbContext, Guid tenantId, string motivo) =>
+        InsertarTenantEnteroAsync(dbContext, tenantId, motivo, comoIntentoFallido: false);
+
+    /// <summary>
+    /// Un relleno que falló sin entradas reclamadas (el Tenant no tenía versión): deja una entrada «Tenant entero» ya
+    /// intentada una vez, si no hay ya alguna de Tenant entero, para que el relleno espere como cualquier entrada fallida
+    /// (2, 4, 8… minutos, como mucho una hora) en vez de repetirse en cada sondeo.
+    /// </summary>
+    public static Task AnotarFalloDeRellenoSinEntradasAsync(DbContext dbContext, Guid tenantId, string motivo) =>
+        InsertarTenantEnteroAsync(dbContext, tenantId, motivo, comoIntentoFallido: true);
+
+    private static Task InsertarTenantEnteroAsync(DbContext dbContext, Guid tenantId, string motivo, bool comoIntentoFallido)
     {
         var texto = Recortar(motivo);
         return dbContext.Database.ExecuteSqlAsync($"""
             INSERT INTO "RecalculosPendientes" ("Id", "Ambito", "EntidadId", "Motivo", "CreadoEnUtc", "IntentoEnUtc", "Intentos", "TenantId")
-            SELECT gen_random_uuid(), {(short)AmbitoEstadoEntidad.Centro}, NULL, {texto}, now(), NULL, 0, {tenantId}
+            SELECT gen_random_uuid(), {(short)AmbitoEstadoEntidad.Centro}, NULL, {texto}, now(),
+                   CASE WHEN {comoIntentoFallido} THEN now() END, CASE WHEN {comoIntentoFallido} THEN 1 ELSE 0 END, {tenantId}
             WHERE NOT EXISTS (
                 SELECT 1 FROM "RecalculosPendientes" p
-                WHERE p."TenantId" = {tenantId} AND p."EntidadId" IS NULL AND p."IntentoEnUtc" IS NULL
+                WHERE p."TenantId" = {tenantId} AND p."EntidadId" IS NULL AND ({comoIntentoFallido} OR p."IntentoEnUtc" IS NULL)
                 FOR KEY SHARE OF p SKIP LOCKED)
             """, CancellationToken.None);
     }
@@ -59,7 +71,7 @@ public static class ColaEstadoMaterializado
 
     /// <summary>
     /// Reclama hasta <paramref name="maximo"/> entradas del Tenant que toca intentar (sin intentar, o con la espera tras su
-    /// último fallo cumplida: 1, 2, 4… minutos, como mucho una hora), primero las de Tenant entero. <c>FOR UPDATE SKIP
+    /// último fallo cumplida: 2, 4, 8… minutos, como mucho una hora), primero las de Tenant entero. <c>FOR UPDATE SKIP
     /// LOCKED</c>: las que otra transacción tiene bloqueadas se saltan, nunca se espera por ellas.
     /// </summary>
     public static Task<List<EntradaColaEstado>> ReclamarAsync(DbContext dbContext, Guid tenantId, int maximo) =>

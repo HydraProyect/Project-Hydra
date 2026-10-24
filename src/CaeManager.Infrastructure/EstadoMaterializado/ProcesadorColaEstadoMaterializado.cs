@@ -24,8 +24,9 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// Tenant a exclusivo en la misma transacción (dos colas que lo intentaran se interbloquearían): deshace, encola el Tenant
 /// entero y la pasada siguiente lo toma.</item>
 /// </list>
-/// Si una pasada falla, se deshace y sus entradas reclamadas anotan el intento: esperan 1, 2, 4… minutos (como mucho una
-/// hora) antes de volver a reclamarse, y el Tenant no sigue en este ciclo.
+/// Si una pasada falla, se deshace y sus entradas reclamadas anotan el intento: esperan 2, 4, 8… minutos (como mucho una
+/// hora) antes de volver a reclamarse, y el Tenant no sigue en este ciclo. Un relleno de un Tenant sin versión que falla
+/// sin entradas reclamadas deja una de Tenant entero ya intentada, para esperar igual.
 /// </summary>
 public sealed class ProcesadorColaEstadoMaterializado(
     CaeManagerDbContext dbContext, IRecalculoEstadoMaterializado recalculo, ILogger<ProcesadorColaEstadoMaterializado> logger)
@@ -72,12 +73,14 @@ public sealed class ProcesadorColaEstadoMaterializado(
     {
         List<EntradaColaEstado> reclamadas = [];
         string? escalar = null;
+        var rellenando = false;
         var resultado = Resultado.SinTrabajo;
 
         var fallo = await EnTransaccionAsync(async () =>
         {
             reclamadas = [];
             escalar = null;
+            rellenando = false;
             resultado = Resultado.SinTrabajo;
 
             var tieneVersion = await CerrojosEstadoMaterializado.TieneVersionAsync(dbContext, tenant);
@@ -85,9 +88,16 @@ public sealed class ProcesadorColaEstadoMaterializado(
             if (tieneVersion && reclamadas.Count == 0)
                 return true;
 
+            // Sin versión y sin nada que reclamar, pero con una entrada de Tenant entero en espera tras un fallo (o que otra
+            // cola tiene reclamada): el relleno espera a esa entrada en vez de repetirse en cada sondeo.
+            if (!tieneVersion && reclamadas.Count == 0
+                && (await ColaEstadoMaterializado.HayEntradasAsync(dbContext, tenant)).TenantEntero)
+                return true;
+
             await CerrojosEstadoMaterializado.FijarTopeDeEsperaAsync(dbContext, TopeDeEsperaDeCerrojo);
             if (!tieneVersion || reclamadas.Any(e => e.EntidadId is null))
             {
+                rellenando = true;
                 await RellenarAsync(tenant, cancellationToken);
                 resultado = Resultado.Hecho;
                 return true;
@@ -107,11 +117,17 @@ public sealed class ProcesadorColaEstadoMaterializado(
             logger.LogError(fallo, "Estado materializado: falló una pasada de la cola del Tenant {Tenant}; sus {Entradas} entradas esperan al reintento.",
                 tenant, reclamadas.Count);
             var ids = reclamadas.Select(e => e.Id).ToList();
-            if (ids.Count > 0)
+            // Un relleno sin entrada de Tenant entero reclamada (el Tenant no tenía versión) deja una ya intentada: sin ella,
+            // el sondeo siguiente lo repetiría sin espera.
+            var anotarRelleno = rellenando && !reclamadas.Any(e => e.EntidadId is null);
+            if (ids.Count > 0 || anotarRelleno)
             {
                 var falloAnotar = await EnTransaccionAsync(async () =>
                 {
-                    await ColaEstadoMaterializado.AnotarFalloAsync(dbContext, tenant, ids);
+                    if (ids.Count > 0)
+                        await ColaEstadoMaterializado.AnotarFalloAsync(dbContext, tenant, ids);
+                    if (anotarRelleno)
+                        await ColaEstadoMaterializado.AnotarFalloDeRellenoSinEntradasAsync(dbContext, tenant, "Relleno fallido del Tenant sin versión");
                     return true;
                 });
                 if (falloAnotar is not null)
