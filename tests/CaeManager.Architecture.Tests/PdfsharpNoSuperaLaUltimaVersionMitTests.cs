@@ -47,7 +47,8 @@ public class PdfsharpNoSuperaLaUltimaVersionMitTests
     {
         var raiz = RaizDelRepositorio();
         var infractores = new List<string>();
-        var revisadas = 0;
+        var enProyectos = 0;
+        var enLocks = 0;
 
         foreach (var fichero in FicherosDeProyecto(raiz))
         {
@@ -59,7 +60,7 @@ public class PdfsharpNoSuperaLaUltimaVersionMitTests
                 var nombre = atributos.GetValueOrDefault("Include") ?? atributos.GetValueOrDefault("Update");
                 if (nombre is null || !PaqueteGravado.IsMatch(nombre)) continue;
 
-                revisadas++;
+                enProyectos++;
                 var version = atributos.GetValueOrDefault("Version");
                 if (EsAgplOIndeterminada(version))
                     infractores.Add($"{Relativa(raiz, fichero)}: {nombre} {version ?? "(sin versión)"}");
@@ -72,7 +73,7 @@ public class PdfsharpNoSuperaLaUltimaVersionMitTests
             var texto = File.ReadAllText(fichero);
             foreach (Match m in EntradaDeLock.Matches(texto))
             {
-                revisadas++;
+                enLocks++;
                 var version = m.Groups["version"].Value;
                 if (EsAgplOIndeterminada(version))
                     infractores.Add($"{Relativa(raiz, fichero)}: {m.Groups["paquete"].Value} resuelto {version}");
@@ -80,8 +81,12 @@ public class PdfsharpNoSuperaLaUltimaVersionMitTests
         }
 
         // Sin esto, un cambio de formato que dejara el recorrido ciego daria verde.
-        revisadas.Should().BeGreaterThan(0,
-            "el repositorio referencia PDFsharp; si no se encuentra, la expresion o la ruta dejaron de ver los ficheros");
+        // Contadores separados: los lock son la unica vigilancia de una subida
+        // transitiva, y no deben quedar ciegos amparados por los csproj.
+        enProyectos.Should().BeGreaterThan(0,
+            "el repositorio referencia PDFsharp en sus .csproj; si no se encuentra, la expresion o la ruta dejaron de ver los ficheros");
+        enLocks.Should().BeGreaterThan(0,
+            "los packages.lock.json resuelven PDFsharp; si no se encuentra, el formato del lock cambio y la vigilancia quedo ciega");
 
         infractores.Should().BeEmpty(
             "PDFsharp 6.5.0 y posteriores son AGPL-3.0-only (comercial de pago); la última MIT es la 6.2.4. " +
