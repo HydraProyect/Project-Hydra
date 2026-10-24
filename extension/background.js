@@ -232,6 +232,18 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
     pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
   if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
 
+  // Revalidar después de descargar y antes de entregar nada al formulario.
+  const pendientes = await listarPendientes();
+  if (!pendientes.ok) return pendientes;
+  const proveedores = Array.isArray(pendientes.proveedores) ? pendientes.proveedores : [];
+  const dueno = proveedores.find((proveedor) => (proveedor.clientes ?? []).some((cliente) =>
+    (cliente.documentos ?? []).some((documento) =>
+      documento.acreditacionId === acreditacionId && documento.documentoId === documentoId)));
+  if (dueno?.proveedorActivo === false)
+    return { ok: false, error: "Conector desactivado temporalmente. Contacta con soporte si lo necesitas." };
+  if (!dueno)
+    return { ok: false, error: "Esta acreditaci\u00f3n ya no se puede subir. Actualiza la lista en TALVEG; si fue rechazada, renueva el documento." };
+
   let respuestaContenido;
   try {
     respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
@@ -256,10 +268,8 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
   if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {
-    // Kill switch remoto (MVP2 § 14.5): un 409 aquí es
-    // "Acreditacion.ConectorInactivo" — segunda línea de defensa, poco
-    // probable de alcanzar porque popup.js ya deja de ofrecer "Subir" para
-    // un proveedor inactivo (mismo dato, leído antes). Se muestra el
+    // Un 409 puede indicar un conector inactivo o un rechazo posterior a la
+    // revalidación previa. El servidor conserva esta segunda defensa. Se muestra el
     // detalle real del problema en vez de un genérico "Hydra no aceptó".
     let detalle;
     try {
