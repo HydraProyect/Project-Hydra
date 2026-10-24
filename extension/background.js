@@ -155,6 +155,7 @@ async function peticionAutenticada(ruta, opciones = {}) {
   try {
     respuesta = await fetch(`${hydraUrl}${ruta}`, {
       ...opciones,
+      credentials: "omit",
       // "manual": estos endpoints están protegidos con una política que
       // combina el esquema de extensión con el de cookie de Identity
       // (Policies.SesionOExtension). Cuando ninguno de los dos autentica, el

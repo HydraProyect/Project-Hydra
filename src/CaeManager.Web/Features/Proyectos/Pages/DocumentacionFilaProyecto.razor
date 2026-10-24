@@ -24,7 +24,7 @@ else if (_documentos.Count == 0)
 }
 else
 {
-    @foreach (var documento in _documentos)
+    @foreach (var documento in VerRestantes.Recortar(_documentos, _completa))
     {
         <div class="documento-proyecto" @key="documento.Id">
             <button type="button" class="enlace-nombre-fila" @onclick="() => AbrirAsync(documento)">@documento.TipoDocumentoNombre</button>
@@ -33,6 +33,8 @@ else
             <SoloConEscritura><Boton Variante="VarianteBoton.Fantasma" Tamano="TamanoBoton.Pequeno" OnClick="() => AbrirAsync(documento)">@Textos["ListaGestionar"]</Boton></SoloConEscritura>
         </div>
     }
+    @* Como los demás listados: se enseñan los primeros y «Ver los N restantes» despliega el resto de la página. *@
+    <VerRestantes Total="_documentos.Count" Completa="_completa" OnVerRestantes="() => _completa = true" />
     <PaginadorSimple PaginaActual="_pagina" TotalPaginas="_totalPaginas" TotalElementos="_total" PaginaActualChanged="CambiarPaginaAsync" />
 }
 </div>
@@ -42,16 +44,21 @@ else
     private IReadOnlyList<DocumentoListaDto> _documentos = [];
     private bool _cargando = true;
     private bool _error;
+    private bool _completa;
     private int _pagina = 1;
     private int _totalPaginas;
     private int _total;
     private Guid _proyectoCargado;
+
+    /// <summary>Documentos que se piden por página: los primeros se ven y el resto, tras «Ver los N restantes».</summary>
+    private const int TamanoPagina = 50;
 
     protected override async Task OnParametersSetAsync()
     {
         if (_proyectoCargado == ProyectoId) return;
         _proyectoCargado = ProyectoId;
         _pagina = 1;
+        _completa = false;
         await CargarAsync();
     }
 
@@ -62,7 +69,7 @@ else
         try
         {
             var resultado = await Mediator.Send(new ObtenerDocumentosQuery(null, AmbitoAplicacion.Proyecto, null,
-                Pagina: _pagina, PropietarioId: ProyectoId, OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad));
+                Pagina: _pagina, TamanoPagina: TamanoPagina, PropietarioId: ProyectoId, OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad));
             _documentos = resultado.Elementos;
             _total = resultado.TotalElementos;
             _totalPaginas = resultado.TotalPaginas;
@@ -80,6 +87,7 @@ else
     private async Task CambiarPaginaAsync(int pagina)
     {
         _pagina = pagina;
+        _completa = false;
         await CargarAsync();
     }
 

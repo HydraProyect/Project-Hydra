@@ -116,7 +116,7 @@ public partial class DocumentosGen2Tests
 
     private static async Task IrALaPagina2DeDocumentosAsync(IRenderedComponent<PaginaDocumentos> cut)
     {
-        await cut.FindAll(".pie-lista-maqueta button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".paginador-inicio button").Single(b => b.GetAttribute("aria-label") == "Siguiente").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => TiposDeLasFilas(cut).Should().HaveCount(5).And.StartWith("Documento 21"));
     }
 

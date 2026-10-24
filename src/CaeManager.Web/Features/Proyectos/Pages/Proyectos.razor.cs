@@ -102,7 +102,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private int _tamanoPagina = TamanoPaginaMinimo;
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)_tamanoPagina));
+    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(_totalElementos / (double)TamanoPedido));
 
     /// <summary>La lista y sus acciones (alta, exportar) existen: hay empresa activa y el selector de Clientes empresariales cargó.</summary>
     private bool ListaDisponible => !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_cargando && !_errorCarga;
@@ -371,10 +371,11 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
         var clienteId = _clienteSeleccionadoId;
         var consulta = new ObtenerProyectosQuery(
             ClienteId: clienteId == Guid.Empty ? null : clienteId,
+            ConDesgloseDocumental: true,
             SoloAbiertos: FiltroProyectos.SoloAbiertos(_estadoFiltro),
             Busqueda: string.IsNullOrWhiteSpace(_busqueda) ? null : _busqueda,
             Pagina: _paginaActual,
-            TamanoPagina: _tamanoPagina,
+            TamanoPagina: TamanoPedido,
             ConRecuentosPorEstado: true,
             AgruparPorEmpresa: _agrupar == "empresa");
         _cargandoProyectos = true;
@@ -961,6 +962,9 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// </summary>
     private Guid? _idEnfocado;
 
+    private static int? PorcentajeDocumentacion(ProyectoListaDto proyecto) =>
+        proyecto.DocumentosRegistrados <= 0 ? null : proyecto.DocumentosVigentes * 100 / proyecto.DocumentosRegistrados;
+
     private string ClaseFila(ProyectoListaDto proyecto)
     {
         var seleccionada = _proyectoSeleccionadoId == proyecto.Id;
@@ -988,7 +992,7 @@ public partial class Proyectos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     private async Task ManejarAtajoAsync(string tecla)
     {
-        var visibles = _proyectos;
+        var visibles = FilasPintadas;
 
         // «e»: el lápiz del panel sobre la fila enfocada; sin fila enfocada, sobre el proyecto
         // cuyo panel está abierto.

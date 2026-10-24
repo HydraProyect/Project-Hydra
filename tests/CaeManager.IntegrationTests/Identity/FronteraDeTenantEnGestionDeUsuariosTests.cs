@@ -12,9 +12,11 @@ using CaeManager.Application.Usuarios.Queries.ObtenerCuentaUsuario;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
+using CaeManager.Infrastructure.Email;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -23,7 +25,9 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Xunit;
 using PaginaUsuarios = CaeManager.Web.Features.Usuarios.Pages.Usuarios;
 using UsuarioListaDto = CaeManager.Web.Features.Usuarios.Pages.UsuarioListaDto;
@@ -382,6 +386,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirPropiedadInyectada(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(actorId, esAdministrador));
         EscribirPropiedadInyectada(pagina, "EmailService", emailService ?? new EmailServiceEspia());
         EscribirPropiedadInyectada(pagina, "NavigationManager", new NavigationManagerFalsa());
+        // Con URL pública configurada: sin ella la página no emite ningún enlace y la
+        // frontera de tenant, que es lo que estos tests observan, ni se llegaría a ejercer.
+        EscribirPropiedadInyectada(pagina, "EnlacesPublicos", new EnlacesPublicos(
+            Options.Create(new SmtpEmailOptions { UrlBasePublica = "https://cuentas.example/" }),
+            new HostingEnvironment { EnvironmentName = "Production" },
+            NullLogger<EnlacesPublicos>.Instance));
         // Los Commands de cuentas con sus handlers reales. El actor opera en su
         // Tenant de origen, así que la regla de roles reservados no interviene y
         // la frontera de tenant es la única barrera que estos tests observan.

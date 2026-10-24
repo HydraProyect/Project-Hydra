@@ -285,6 +285,12 @@
   <data name="VacioAsignacionesDescripcion" xml:space="preserve">
     <value>Este trabajador no tiene ninguna asignación activa a un centro.</value>
   </data>
+  <data name="AsignarCentroAccion" xml:space="preserve">
+    <value>Asignar a un centro</value>
+  </data>
+  <data name="AsignarCentroError" xml:space="preserve">
+    <value>No se ha podido asignar al trabajador. Vuelve a intentarlo.</value>
+  </data>
   <data name="TextoCentroSinExigencia" xml:space="preserve">
     <value>Este centro no exige documentación específica a este trabajador.</value>
   </data>

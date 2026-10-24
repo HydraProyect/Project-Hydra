@@ -15,6 +15,7 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     private Modal? _modalContenedor;
     private enum ModalActivo { Ninguno, Operador, TenantPropietario }
 
+    [Inject] private CaeManager.Web.Services.EnlacesPublicos EnlacesPublicos { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<OperadoresCaeExternosPanel> Logger { get; set; } = default!;
@@ -66,10 +67,14 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     /// La misma forma de URL que el enlace de activación de /usuarios: el token de un solo uso de
     /// Identity, ya codificado por Application, sobre la página que sabe consumirlo.
     /// </summary>
-    private string EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
-        Navegacion
-            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuarioId}&code={tokenCodificado}")
-            .ToString();
+    private string? EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
+        EnlacesPublicos.Activacion(usuarioId, tokenCodificado, Navegacion.BaseUri);
+
+    /// <summary>
+    /// Se comprueba ANTES de crear nada: el token de activación solo existe en la respuesta
+    /// del alta, así que sin base pública no hay enlace que entregar y el alta no debe hacerse.
+    /// </summary>
+    private bool HayBasePublica => EnlacesPublicos.ObtenerBase(Navegacion.BaseUri) is not null;
 
     protected override Task OnInitializedAsync() => CargarAsync();
 
@@ -148,6 +153,14 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
         {
             if (_modal is ModalActivo.Operador)
             {
+                // La base pública se resuelve ANTES del alta: sin ella no hay enlace que
+                // entregar y no se crea nada (el token solo existe en la respuesta del alta).
+                if (!HayBasePublica)
+                {
+                    _errorFormulario = TextosAutorizar["AltaSinUrlPublica"];
+                    return;
+                }
+
                 var alta = await Mediator.Send(
                     new CrearOperadorCaeExternoCommand(_nombre, _emailAdministrador, _nombreAdministrador));
                 if (_desechado) return;
@@ -160,11 +173,17 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
 
                 // El enlace sale del token que devuelve la propia alta: no se pide después,
                 // porque no hay otro Command que lo genere para un Tenant sin Administrador.
+                var enlace = EnlaceActivacion(alta.Valor.PrimerAdministradorUsuarioId, alta.Valor.TokenActivacion);
+                if (enlace is null)
+                {
+                    _errorFormulario = TextosAutorizar["AltaSinUrlPublica"];
+                    return;
+                }
                 _activacion = new ActivacionPrimerAdministrador(
                     _nombre.Trim(),
                     _nombreAdministrador.Trim(),
                     _emailAdministrador.Trim(),
-                    EnlaceActivacion(alta.Valor.PrimerAdministradorUsuarioId, alta.Valor.TokenActivacion));
+                    enlace);
                 ToastService.Mostrar("Operador CAE externo creado.", TonoToast.Exito);
             }
             else

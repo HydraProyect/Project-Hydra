@@ -15,8 +15,8 @@ public partial class DocumentosGen2Tests
         var (cut, _) = Renderizar(ConDocumentos(Documento("Contrato con leyenda")));
 
         cut.WaitForAssertion(() => cut.TeclasDeLaLeyenda().Should().Equal("j", "k", "Enter", "x", "f", "Alt", "?"));
-        cut.FindAll(".pie-lista-maqueta").Should().ContainSingle("el pie permanece visible con una sola página");
-        cut.FindAll(".pie-lista-maqueta button").Should().OnlyContain(b => b.HasAttribute("disabled"));
+        cut.FindAll(".paginador-pie-listado").Should().ContainSingle("el pie permanece visible con una sola página");
+        cut.FindAll(".paginador-inicio button").Should().BeEmpty("una sola página no necesita flechas de navegación");
     }
 
     [Fact]

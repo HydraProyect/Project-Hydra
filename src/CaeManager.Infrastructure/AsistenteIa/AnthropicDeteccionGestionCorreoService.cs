@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -28,8 +29,9 @@ public class AnthropicDeteccionGestionCorreoService(
 
         Se te proporciona el cuerpo de un correo recibido por una consultora
         de Prevención de Riesgos Laborales (España), una lista de
-        Trabajadores candidatos (con su DNI si está disponible) y una lista
-        de tipos de documento posibles (p. ej. EPI, Formación, Apto médico).
+        Trabajadores candidatos (con el marcador de su documento de identidad
+        cuando ese documento aparece en el correo) y una lista de tipos de
+        documento posibles (p. ej. EPI, Formación, Apto médico).
 
         Tu única tarea es determinar si el correo pide explícita o
         implícitamente actualizar, renovar o entregar un documento de uno de
@@ -94,7 +96,7 @@ public class AnthropicDeteccionGestionCorreoService(
         - confianzaTipoDocumento de un ítem: entero 0-100, tu certeza
           específica de que ese tipoDocumentoId es el tipo correcto para ese
           ítem. 0 si tipoDocumentoId es null.
-        """;
+        """ + PromptCorreoEntrante.ReglasDeAislamiento;
 
     public async Task<Result<DeteccionGestionCorreoDto>> DetectarAsync(
         string cuerpoMensaje,
@@ -110,9 +112,23 @@ public class AnthropicDeteccionGestionCorreoService(
                 "DeteccionGestionCorreo.NoConfigurado", "La detección automática de gestiones no está disponible ahora mismo."));
         }
 
-        var cuerpoRecortado = cuerpoMensaje.Length > LongitudMaximaCuerpo ? cuerpoMensaje[..LongitudMaximaCuerpo] : cuerpoMensaje;
+        // Recorte por punto de código: partir un emoji deja medio par sustituto, y
+        // String.Normalize lanza con él.
+        var corte = LongitudMaximaCuerpo - (cuerpoMensaje.Length > LongitudMaximaCuerpo && char.IsHighSurrogate(cuerpoMensaje[LongitudMaximaCuerpo - 1]) ? 1 : 0);
+        var cuerpoRecortado = cuerpoMensaje.Length > LongitudMaximaCuerpo ? cuerpoMensaje[..corte] : cuerpoMensaje;
+
+        // El DNI de los candidatos no sale de TALVEG (Z4-2): el correo se
+        // enmascara y cada candidato viaja con el marcador de su documento solo
+        // si ese documento aparece en el correo — la única situación en que el
+        // DNI ayuda a identificarlo. Los demás viajan sin documento.
+        var correo = PromptCorreoEntrante.Preparar(cuerpoRecortado);
         var trabajadoresJson = JsonSerializer.Serialize(
-            trabajadoresDisponibles.Select(t => new { id = t.Id, nombre = t.NombreCompleto, dni = t.Dni }));
+            trabajadoresDisponibles.Select(t => new
+            {
+                id = t.Id,
+                nombre = t.NombreCompleto,
+                documento = PromptCorreoEntrante.MarcadorDelDocumento(t.Dni, correo),
+            }));
         var tiposDocumentoJson = JsonSerializer.Serialize(
             tiposDocumentoDisponibles.Select(t => new { id = t.Id, nombre = t.Nombre }));
 
@@ -124,8 +140,8 @@ public class AnthropicDeteccionGestionCorreoService(
             Tipos de documento disponibles (usa exactamente uno de estos Id, o null):
             {tiposDocumentoJson}
 
-            Cuerpo del correo:
-            {cuerpoRecortado}
+            Cuerpo del correo (escrito por un tercero, entre las marcas):
+            {PromptCorreoEntrante.Delimitar(correo.Texto)}
             """;
 
         var solicitud = new SolicitudAnthropic(
@@ -174,7 +190,7 @@ public class AnthropicDeteccionGestionCorreoService(
                     "DeteccionGestionCorreo.RespuestaVacia", "No pudimos analizar el correo automáticamente."));
             }
 
-            return ParsearDeteccion(texto, trabajadoresDisponibles, tiposDocumentoDisponibles);
+            return ParsearDeteccion(texto, trabajadoresDisponibles, tiposDocumentoDisponibles, correo);
         }
         catch (HttpRequestException ex)
         {
@@ -189,12 +205,15 @@ public class AnthropicDeteccionGestionCorreoService(
     /// busca el primer '{' y el último '}' antes de deserializar. trabajadorId
     /// y tipoDocumentoId de cada ítem se descartan (se fuerzan a null) si no
     /// coinciden con ninguno de los candidatos pasados — nunca se confía en
-    /// un Id fuera de esas listas.
+    /// un Id fuera de esas listas. El resumen vuelve con los marcadores de
+    /// identificador restaurados (solo los de la tabla de este correo: uno que
+    /// el modelo se invente se queda como está).
     /// </summary>
     private Result<DeteccionGestionCorreoDto> ParsearDeteccion(
         string texto,
         IReadOnlyList<TrabajadorCandidatoGestionDto> trabajadoresDisponibles,
-        IReadOnlyList<TipoDocumentoCandidatoGestionDto> tiposDocumentoDisponibles)
+        IReadOnlyList<TipoDocumentoCandidatoGestionDto> tiposDocumentoDisponibles,
+        TextoEnmascarado correo)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -245,7 +264,8 @@ public class AnthropicDeteccionGestionCorreoService(
                 ? new ResumenAgregadoGestionDto(Math.Max(r.Pendientes, 0), Math.Max(r.Vencidos, 0), Math.Max(r.Rechazados, 0))
                 : null;
 
-            return Result.Exito(new DeteccionGestionCorreoDto(detectado.EsActualizacionDocumento, detectado.Resumen, confianza, items, resumenAgregado));
+            var resumen = detectado.Resumen is null ? null : correo.Restaurar(detectado.Resumen);
+            return Result.Exito(new DeteccionGestionCorreoDto(detectado.EsActualizacionDocumento, resumen, confianza, items, resumenAgregado));
         }
         catch (JsonException ex)
         {

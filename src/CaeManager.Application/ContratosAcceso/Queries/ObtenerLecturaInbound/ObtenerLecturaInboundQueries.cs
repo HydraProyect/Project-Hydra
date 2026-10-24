@@ -1,6 +1,8 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.ContratosAcceso.Queries.ObtenerLecturaInbound;
 
@@ -18,10 +20,13 @@ public record ObtenerAutorizacionInboundQuery(Guid ContratoAccesoId) : IRequest<
 public record ObtenerDocumentosInboundQuery(Guid ContratoAccesoId) : IRequest<IReadOnlyList<DocumentoInboundDto>?>;
 
 /// <summary>
-/// La referencia del archivo de un Documento autorizado. Servir el binario con <c>IFileStorageService</c> queda fuera de
-/// este PR.
+/// El contenido de un Documento original autorizado, en solo lectura (Inbound M1, PR 4): el binario y su tipo MIME, nunca la
+/// referencia del almacenamiento del Tenant de la Empresa contratista. De un tipo de salud solo se abre el certificado de
+/// «solo conclusión de aptitud», porque la función de la base no deja pasar ningún otro.
 /// </summary>
-public record ObtenerArchivoInboundQuery(Guid ContratoAccesoId, Guid DocumentoId) : IRequest<ArchivoInboundDto?>;
+public record ObtenerArchivoInboundQuery(Guid ContratoAccesoId, Guid DocumentoId) : IRequest<ContenidoArchivoInboundDto?>;
+
+public record ContenidoArchivoInboundDto(byte[] Contenido, string TipoMime);
 
 public class ObtenerAutorizacionInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
@@ -53,11 +58,35 @@ public class ObtenerDocumentosInboundQueryHandler(
 
 public class ObtenerArchivoInboundQueryHandler(
     IContratosAccesoQueryContext contratosContext, IAlcanceDatosService alcanceDatos, ICurrentUserService currentUser,
-    ILectorDocumentosInbound lector)
-    : IRequestHandler<ObtenerArchivoInboundQuery, ArchivoInboundDto?>
+    ILectorDocumentosInbound lector, IAlmacenOriginalesInbound almacenOriginales)
+    : IRequestHandler<ObtenerArchivoInboundQuery, ContenidoArchivoInboundDto?>
 {
-    public async Task<ArchivoInboundDto?> Handle(ObtenerArchivoInboundQuery request, CancellationToken cancellationToken) =>
-        await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken)
-            ? await lector.ArchivoAutorizadoAsync(request.ContratoAccesoId, request.DocumentoId, cancellationToken)
-            : null;
+    public async Task<ContenidoArchivoInboundDto?> Handle(ObtenerArchivoInboundQuery request, CancellationToken cancellationToken)
+    {
+        if (!await LecturaInboundAutoridad.PuedeLeerAsync(request.ContratoAccesoId, contratosContext, alcanceDatos, currentUser, cancellationToken))
+            return null;
+
+        var tenantContratista = await contratosContext.ContratosAcceso
+            .Where(c => c.Id == request.ContratoAccesoId)
+            .Select(c => c.TenantContratistaId)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (tenantContratista is not { } tenantPropietario)
+            return null;
+
+        // La referencia sale de la función de la base, que ya comprobó la autorización y dejó la traza de la apertura; aun
+        // así tiene que ser de la carpeta del Tenant del contrato, y no sale de aquí: solo el contenido y su tipo MIME.
+        var archivo = await lector.ArchivoAutorizadoAsync(request.ContratoAccesoId, request.DocumentoId, cancellationToken);
+        if (archivo is null || !OriginalesInbound.EsDelTenantDelContrato(archivo, tenantPropietario))
+            return null;
+
+        try
+        {
+            var contenido = await OriginalesInbound.LeerAsync(almacenOriginales, archivo, cancellationToken);
+            return new ContenidoArchivoInboundDto(contenido, OriginalesInbound.TipoMime(archivo.ArchivoUrl!));
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+    }
 }

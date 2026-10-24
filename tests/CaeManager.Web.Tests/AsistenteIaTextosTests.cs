@@ -64,6 +64,19 @@ public class AsistenteIaTextosTests : BunitContext
         return panel;
     }
 
+    [Theory]
+    [InlineData(4000)]
+    [InlineData(73)]
+    public void La_consulta_usa_el_maximo_de_pregunta_configurado(int maximo)
+    {
+        Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.AsistenteIa.AsistenteConsultaOptions { MaxCaracteresPregunta = maximo }));
+
+        var panel = RenderAbierto();
+
+        panel.Find("textarea").GetAttribute("maxlength").Should().Be(maximo.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    }
+
     [Fact]
     public void Panel_abierto_muestra_los_textos_de_los_recursos()
     {

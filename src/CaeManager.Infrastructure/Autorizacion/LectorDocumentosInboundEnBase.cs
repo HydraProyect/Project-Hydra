@@ -31,7 +31,7 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         return filas
             .Select(d => new DocumentoInboundDto(
                 d.DocumentoId, d.TrabajadorId, d.TrabajadorNombre, d.TrabajadorApellidos, d.TrabajadorDni, d.TipoDocumentoNombre,
-                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia))
+                d.FechaEmision, d.FechaVencimiento, (EstadoVigenciaDocumento)d.EstadoVigencia, d.SoloConclusionAptitud))
             .ToList();
     }
 
@@ -40,7 +40,9 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         ExigirFueraDeTransaccion();
         var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);
 
-        return fila.SingleOrDefault() is { } a ? new ArchivoInboundDto(a.DocumentoId, a.ArchivoUrl) : null;
+        return fila.SingleOrDefault() is { } a
+            ? new ArchivoInboundDto(a.DocumentoId, a.TenantPropietarioId, a.ArchivoUrl, a.SoloConclusionAptitud)
+            : null;
     }
 
     // La traza de AccesosLecturaInbound la inserta la propia función en la sentencia que da la lectura. Dentro de una
@@ -77,11 +79,14 @@ public class LectorDocumentosInboundEnBase(CaeManagerDbContext dbContext) : ILec
         public DateOnly FechaEmision { get; init; }
         public DateOnly? FechaVencimiento { get; init; }
         public int EstadoVigencia { get; init; }
+        public bool SoloConclusionAptitud { get; init; }
     }
 
     private sealed class FilaArchivo
     {
         public Guid DocumentoId { get; init; }
+        public Guid TenantPropietarioId { get; init; }
         public string? ArchivoUrl { get; init; }
+        public bool SoloConclusionAptitud { get; init; }
     }
 }

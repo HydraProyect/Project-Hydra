@@ -450,4 +450,13 @@
   <data name="EnlaceNoCopiado" xml:space="preserve">
     <value>No s'ha pogut copiar l'enllaç. Selecciona'l i copia'l a mà.</value>
   </data>
+  <data name="ActivacionUrlPublicaNoConfigurada" xml:space="preserve">
+    <value>No s’ha pogut generar l’enllaç d’activació.</value>
+  </data>
+  <data name="AltaSinUrlPublica" xml:space="preserve">
+    <value>No s’ha creat l’usuari: falta l’URL pública de l’aplicació per generar el seu enllaç d’activació.</value>
+  </data>
+  <data name="EnlaceSinUrlPublica" xml:space="preserve">
+    <value>No s’ha generat cap enllaç ni s’ha canviat res: falta l’URL pública de l’aplicació.</value>
+  </data>
 </root>

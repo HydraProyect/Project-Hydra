@@ -37,6 +37,7 @@ public class AccesoCuentaEscenaTests : BunitContext
 
     public AccesoCuentaEscenaTests()
     {
+        Services.AddSeguridadCuentaDePrueba();
         _usuarios = CrearUsuarios(_almacen, PoliticaDeLaApp());
 
         Services.AddSingleton(_usuarios);
@@ -243,27 +244,30 @@ public class AccesoCuentaEscenaTests : BunitContext
             .Should().NotBeNull("el segundo envío tiene que llevar el correo del primero");
     }
 
-    /// <summary>
-    /// Cuenta real, pero <see cref="IEmailService.EnviarAsync"/> falla (Graph
-    /// caído, sin configurar, sin red...). Antes esto se registraba en el log y
-    /// la pantalla mentía «revisa tu correo» de todos modos; ahora tiene que
-    /// avisar del fallo sin decir «no encontramos esa cuenta» — el mensaje no
-    /// puede depender de si la cuenta existe.
-    /// </summary>
     [Fact]
-    public async Task Recuperar_contrasena_cuenta_existente_pero_envio_fallido_avisa_sin_decir_enviado()
+    public async Task Recuperar_contrasena_envio_fallido_muestra_la_misma_respuesta_generica()
     {
         _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es" };
-        Services.AddSingleton<IEmailService>(new EmailServiceConfigurable(
-            Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo."))));
+        var correo = new EmailServiceConfigurable(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
+        Services.AddSingleton<IEmailService>(correo);
 
         var cut = Render<OlvideContrasena>();
         await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "marta.ruiz@consultora.es" });
         await cut.Find("form").SubmitAsync();
 
-        cut.Find("h2.acceso-titulo").TextContent.Should().Be("¿Olvidaste tu contraseña?",
-            "el envío falló de verdad: no puede decir 'Revisa tu correo' como si hubiera salido");
-        cut.Find(".acceso-alerta").TextContent.Should().Be("No pudimos procesar tu solicitud. Inténtalo de nuevo en unos minutos.");
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Revisa tu correo");
+        var recuperacion = Services.GetRequiredService<CaeManager.Web.Services.RecuperacionContrasena>();
+        await recuperacion.StartAsync(CancellationToken.None);
+        try
+        {
+            await correo.Intento.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            cut.Find("h2.acceso-titulo").TextContent.Should().Be("Revisa tu correo");
+            cut.FindAll(".acceso-alerta").Should().BeEmpty();
+        }
+        finally
+        {
+            await recuperacion.StopAsync(CancellationToken.None);
+        }
     }
 
     /// <summary>
@@ -271,8 +275,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// correcto acaba en la MISMA pantalla que
     /// <see cref="Recuperar_contrasena_reenvia_con_un_formulario_y_no_con_un_clic_sin_circuito"/>
     /// usa para una cuenta inexistente («Revisa tu correo» en ambas). El fallo
-    /// de envío (test de arriba) es la única desviación permitida, y su mensaje
-    /// no menciona la existencia de la cuenta.
+    /// de envío conserva también esa misma respuesta genérica.
     /// </summary>
     [Fact]
     public async Task Recuperar_contrasena_cuenta_existente_y_envio_correcto_dice_revisa_tu_correo_igual_que_sin_cuenta()
@@ -487,6 +490,149 @@ public class AccesoCuentaEscenaTests : BunitContext
         return opciones;
     }
 
+    [Fact]
+    public async Task Recuperacion_responde_sin_buscar_la_cuenta_ni_esperar_el_correo()
+    {
+        var correo = new CorreoRegistrado();
+        Services.AddSingleton<IEmailService>(correo);
+        var conCuenta = Render<OlvideContrasena>();
+        _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "ana@example.test" };
+        await conCuenta.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "ana@example.test" });
+        await conCuenta.Find("form").SubmitAsync();
+
+        var sinCuenta = Render<OlvideContrasena>();
+        await sinCuenta.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "nadie@example.test" });
+        await sinCuenta.Find("form").SubmitAsync();
+
+        sinCuenta.Find("h2.acceso-titulo").TextContent.Should().Be(conCuenta.Find("h2.acceso-titulo").TextContent);
+        sinCuenta.Find(".acceso-explica").TextContent.Should().Be(conCuenta.Find(".acceso-explica").TextContent);
+        _almacen.BusquedasCorreo.Should().Be(0);
+        correo.Cuerpos.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Recuperacion_rechaza_un_correo_mas_largo_que_una_direccion_sin_normalizarlo_ni_encolarlo()
+    {
+        var correo = new CorreoRegistrado();
+        Services.AddSingleton<IEmailService>(correo);
+        var cut = Render<OlvideContrasena>();
+        var largo = new string('a', 300) + "@example.test";
+        await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = largo });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Markup.Should().Contain("Introduce un correo válido.");
+        cut.FindAll("h2.acceso-titulo").Should().NotContain(h => h.TextContent == "Revisa tu correo");
+
+        var recuperacion = Services.GetRequiredService<CaeManager.Web.Services.RecuperacionContrasena>();
+        recuperacion.Solicitar("BARRERA@EXAMPLE.TEST", new Uri("https://cuentas.example/"));
+        await recuperacion.StartAsync(CancellationToken.None);
+        try
+        {
+            await _almacen.Barrera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            _almacen.BusquedasCorreo.Should().Be(1, "solo la solicitud de control llegó a la cola");
+            correo.Cuerpos.Should().BeEmpty();
+        }
+        finally
+        {
+            await recuperacion.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Recuperacion_limita_tres_por_hora_y_correo_normalizado_con_respuesta_identica()
+    {
+        Services.AddSingleton<NavigationManager>(new NavegacionRecuperacionManipulada());
+        var reloj = new RelojRecuperacion();
+        var correo = new CorreoRegistrado();
+        Services.AddSingleton<TimeProvider>(reloj);
+        Services.AddSingleton<IEmailService>(correo);
+        _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "ana@example.test" };
+        string? respuesta = null;
+        foreach (var email in new[] { "ana@example.test", "ANA@example.test", "ana@EXAMPLE.test", "ana@example.test" })
+        {
+            var ultimo = Render<OlvideContrasena>();
+            await ultimo.Find("#email").ChangeAsync(new ChangeEventArgs { Value = email });
+            await ultimo.Find("form").SubmitAsync();
+            var visible = ultimo.Find("h2.acceso-titulo").TextContent + ultimo.Find(".acceso-explica").TextContent;
+            respuesta ??= visible;
+            visible.Should().Be(respuesta);
+        }
+
+        var recuperacion = Services.GetRequiredService<CaeManager.Web.Services.RecuperacionContrasena>();
+        recuperacion.Solicitar("BARRERA@EXAMPLE.TEST", new Uri("https://cuentas.example/"));
+        await recuperacion.StartAsync(CancellationToken.None);
+        try
+        {
+            await _almacen.Barrera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            _almacen.BusquedasCorreo.Should().Be(4);
+            await correo.EsperarAsync(3);
+            correo.Cuerpos.Should().HaveCount(3).And.OnlyContain(c => c.Contains("https://cuentas.example/cuenta/restablecer-contrasena?"));
+            reloj.Ahora += TimeSpan.FromHours(1);
+            recuperacion.Solicitar("ANA@EXAMPLE.TEST", new Uri("https://cuentas.example/"));
+            await correo.EsperarAsync(1);
+            correo.Cuerpos.Should().HaveCount(4);
+        }
+        finally
+        {
+            await recuperacion.StopAsync(CancellationToken.None);
+        }
+    }
+
+    [Fact]
+    public async Task Recuperacion_sin_url_publica_fuera_de_development_no_busca_ni_envia()
+    {
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var correo = new CorreoRegistrado();
+        Services.AddSingleton<IEmailService>(correo);
+        _almacen.Usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "ana@example.test" };
+        var cut = Render<OlvideContrasena>();
+        await cut.Find("#email").ChangeAsync(new ChangeEventArgs { Value = "ana@example.test" });
+        await cut.Find("form").SubmitAsync();
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Revisa tu correo");
+        var recuperacion = Services.GetRequiredService<CaeManager.Web.Services.RecuperacionContrasena>();
+        recuperacion.Solicitar("BARRERA@EXAMPLE.TEST", new Uri("https://cuentas.example/"));
+        await recuperacion.StartAsync(CancellationToken.None);
+        try
+        {
+            await _almacen.Barrera.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            _almacen.BusquedasCorreo.Should().Be(1);
+            correo.Cuerpos.Should().BeEmpty();
+        }
+        finally
+        {
+            await recuperacion.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private sealed class NavegacionRecuperacionManipulada : NavigationManager
+    {
+        public NavegacionRecuperacionManipulada() => Initialize("https://host-manipulado.example/", "https://host-manipulado.example/");
+        protected override void NavigateToCore(string uri, bool forceLoad) => throw new NotSupportedException();
+    }
+    private sealed class RelojRecuperacion : TimeProvider
+    {
+        public DateTimeOffset Ahora { get; set; } = new(2026, 10, 23, 10, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Ahora;
+    }
+
+    private sealed class CorreoRegistrado : IEmailService
+    {
+        public System.Collections.Concurrent.ConcurrentQueue<string> Cuerpos { get; } = new();
+        private readonly System.Threading.Channels.Channel<bool> _envios = System.Threading.Channels.Channel.CreateUnbounded<bool>();
+        public async Task EsperarAsync(int cantidad)
+        {
+            for (var i = 0; i < cantidad; i++)
+                await _envios.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        }
+        public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
+            string? responderA = null, CancellationToken cancellationToken = default)
+        {
+            Cuerpos.Enqueue(cuerpoHtml);
+            _envios.Writer.TryWrite(true);
+            return Task.FromResult(Result.Exito());
+        }
+    }
+
     /// <summary>
     /// Registra un <see cref="DataProtectorTokenProvider{TUser}"/> real (con un
     /// <see cref="EphemeralDataProtectionProvider"/> en memoria, sin persistencia)
@@ -640,8 +786,14 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// <summary>Devuelve siempre el mismo <see cref="Result"/>, para simular un envío que sí se intenta.</summary>
     private sealed class EmailServiceConfigurable(Result resultado) : IEmailService
     {
+        public TaskCompletionSource Intento { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo, string? responderA = null, CancellationToken cancellationToken = default) =>
-            Task.FromResult(resultado);
+            RegistrarIntento();
+        private Task<Result> RegistrarIntento()
+        {
+            Intento.TrySetResult();
+            return Task.FromResult(resultado);
+        }
     }
 
     /// <summary>
@@ -669,9 +821,16 @@ public class AccesoCuentaEscenaTests : BunitContext
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
             Task.FromResult(Usuario is not null && Usuario.Id.ToString() == userId ? Usuario : null);
 
-        public Task<ApplicationUser?> FindByEmailAsync(string normalizedEmail, CancellationToken ct) =>
-            Task.FromResult(Usuario is not null && string.Equals(Usuario.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase)
+        private int _busquedasCorreo;
+        public int BusquedasCorreo => Volatile.Read(ref _busquedasCorreo);
+        public TaskCompletionSource Barrera { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<ApplicationUser?> FindByEmailAsync(string normalizedEmail, CancellationToken ct)
+        {
+            Interlocked.Increment(ref _busquedasCorreo);
+            if (normalizedEmail == "BARRERA@EXAMPLE.TEST") Barrera.TrySetResult();
+            return Task.FromResult(Usuario is not null && string.Equals(Usuario.Email, normalizedEmail, StringComparison.OrdinalIgnoreCase)
                 ? Usuario : null);
+        }
 
         public void Dispose() { }
         public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Id.ToString());

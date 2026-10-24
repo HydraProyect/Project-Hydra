@@ -1,4 +1,5 @@
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Infrastructure.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Persistence.Repositories;
@@ -43,4 +44,23 @@ public class ClaveApiRepository(CaeManagerDbContext dbContext) : IClaveApiReposi
         dbContext.ClavesApi.FirstOrDefaultAsync(c => c.HashClave == hashClave, cancellationToken);
 
     public void Agregar(ClaveApi clave) => dbContext.ClavesApi.Add(clave);
+
+    public async Task<bool> ExisteSoporteDelOrigenEmisorAsync(Guid tenantPropietarioId, Guid creadaPorUsuarioId, CancellationToken cancellationToken = default)
+    {
+        // Solo existencia de la delegación de Soporte (CriterioSoporteClaveApi.PuedeAutenticar):
+        // ni Activa ni ExpiraEnUtc, porque la ventana de soporte dura horas y la clave vive hasta
+        // su caducidad. Si la cuenta emisora se ha eliminado, app_tenant_de_cuenta devuelve null
+        // y esto es false.
+        //
+        // Corre bajo el ámbito del Tenant propietario de la clave, y ninguna de las dos lecturas
+        // depende de ese ámbito, así que una clave legítima no puede dar un falso negativo por RLS:
+        // - la cuenta emisora es de otra organización y "AspNetUsers" bajo RLS no la vería; su
+        //   Tenant se resuelve con app_tenant_de_cuenta (SECURITY DEFINER, EXECUTE para
+        //   cae_app_runtime, devuelve solo el TenantId de esa cuenta), sin ampliar la política;
+        // - "DelegacionesTenant" es un catálogo global de autorización: sin RLS y sin filtro global
+        //   de EF (ver DelegacionTenant), con SELECT para cae_app_runtime.
+        var origen = await AlmacenUsuarios.TenantDeCuentaAsync(dbContext, creadaPorUsuarioId, cancellationToken);
+        return origen is { } tenantOrigenId && await dbContext.DelegacionesTenant
+            .AnyAsync(CriterioSoporteClaveApi.PuedeAutenticar(tenantOrigenId, tenantPropietarioId), cancellationToken);
+    }
 }

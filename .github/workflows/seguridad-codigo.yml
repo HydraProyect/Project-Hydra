@@ -169,6 +169,10 @@ jobs:
           ASPNETCORE_URLS: http://127.0.0.1:5080
           ConnectionStrings__CaeManagerDb: Host=localhost;Database=cae_zap;Username=postgres;Password=postgres
           ConnectionStrings__CaeManagerDbRuntime: Host=localhost;Database=cae_zap;Username=cae_app_runtime;Password=zap-ci-efimera
+          # Obligatoria fuera de Development (ValidadorUrlBasePublica): sin ella la aplicación
+          # no arranca. Dominio .invalid reservado: los enlaces no apuntan a ningún sitio real
+          # y, sin SMTP configurado, ningún correo sale de este job.
+          Smtp__UrlBasePublica: https://escaneo-zap.invalid
         run: |
           cd src/CaeManager.Web/bin/Release/net10.0
           nohup dotnet CaeManager.Web.dll > "$RUNNER_TEMP/app.log" 2>&1 &

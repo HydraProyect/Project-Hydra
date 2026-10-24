@@ -132,7 +132,8 @@ public record CentroListaDto(
 ///   hace falta conocer el estado de todos los centros que pasan los filtros
 ///   antes de poder paginar o resumir, así que se materializa esa proyección
 ///   — corta, siete columnas — y se filtra, ordena, resume y pagina en
-///   memoria. El listado de Centros va siempre por aquí. Está acotado por el
+///   memoria. El cumplimiento se calcula para todos solo si se ordena por él;
+///   si no, solo para la página. El listado de Centros va siempre por aquí. Está acotado por el
 ///   alcance del usuario y por la búsqueda; si algún día un tenant tiene
 ///   tantos centros que esto pese, la salida es una vista materializada, no
 ///   persistir el estado en una columna.
@@ -198,7 +199,14 @@ public class ObtenerCentrosQueryHandler(
 
             var idsTodas = todas.Select(c => c.Id).ToList();
             var estadosTodas = await calculoEstadoCentro.CalcularAsync(idsTodas, cancellationToken);
-            var cumplimientoTodas = await calculoEstadoCentro.CalcularCumplimientoAsync(idsTodas, cancellationToken);
+            // El cumplimiento de todos solo hace falta para ordenar por él: la franja y los grupos leen el estado.
+            // Si no, se calcula después, solo para la página (es un cálculo por Centro: no depende de qué
+            // otros Centros vayan en la misma llamada).
+            var ordenaPorCumplimiento =
+                string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
+            var cumplimientoTodas = ordenaPorCumplimiento
+                ? await calculoEstadoCentro.CalcularCumplimientoAsync(idsTodas, cancellationToken)
+                : new Dictionary<Guid, FraccionCumplimiento>();
             IEnumerable<CentroListaDto> conEstado = todas.Select(c => AplicarEstado(c, estadosTodas, cumplimientoTodas)).ToList();
 
             // Antes de filtrar por estado: cada cifra de la franja dice cuántos Centros quedarían al marcar ese
@@ -233,8 +241,21 @@ public class ObtenerCentrosQueryHandler(
                 .ThenBy(c => c.Id)
                 .ToList();
 
+            var paginaConEstado = ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
+            if (!ordenaPorCumplimiento)
+            {
+                var cumplimientoPagina = await calculoEstadoCentro.CalcularCumplimientoAsync(
+                    paginaConEstado.Select(c => c.Id).ToList(), cancellationToken);
+                paginaConEstado = paginaConEstado
+                    .Select(c => c with
+                    {
+                        CumplimientoPorcentaje = cumplimientoPagina.TryGetValue(c.Id, out var fraccion) ? fraccion.Porcentaje : null
+                    })
+                    .ToList();
+            }
+
             return new ResultadoPaginado<CentroListaDto>(
-                ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                paginaConEstado,
                 ordenados.Count,
                 request.Pagina,
                 request.TamanoPagina)

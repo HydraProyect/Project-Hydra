@@ -349,6 +349,9 @@ else
         else
             echo "DataProtection__PermitirClavesSinCifrar=true"
         fi
+        # La imagen arranca en Production, donde Smtp:UrlBasePublica es obligatoria
+        # (https): un valor desechable de esta copia, nunca el dominio real.
+        echo "Smtp__UrlBasePublica=https://ensayo.invalid"
         echo "Migraciones__AlArrancar=false"
         echo "Siembra__AlArrancar=false"
         echo "DatosPrueba__Activo=false"
