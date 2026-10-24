@@ -224,6 +224,7 @@ public static class ApplicationServiceCollectionExtensions
                 : Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<CaeManager.Application.EstadoMaterializado.LectorCumplimientoDeDireccion>(sp));
         services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoMaterializado, CaeManager.Application.EstadoMaterializado.LectorEstadoMaterializado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoRequisitos, CaeManager.Application.EstadoMaterializado.LectorEstadoRequisitos>();
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();

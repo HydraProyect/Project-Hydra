@@ -160,6 +160,7 @@ src/CaeManager.Application/Empresas/Queries/ObtenerEmpresaPorId/ObtenerEmpresaPo
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresas/ObtenerEmpresasQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
 src/CaeManager.Application/Empresas/Queries/ObtenerEmpresasParaSelector/ObtenerEmpresasParaSelectorQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Empresas/Queries/ObtenerVigenciaEmpresa/ObtenerVigenciaEmpresaQuery.cs :: ClienteId = 1
+src/CaeManager.Application/EstadoMaterializado/LectorEstadoRequisitos.cs :: ClienteId = 1
 src/CaeManager.Application/Facturacion/Commands/CrearTarifaCliente/CrearTarifaClienteCommand.cs :: ClienteId = 5
 src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs :: ClienteId = 14
 src/CaeManager.Application/Facturacion/Queries/ObtenerResumenFacturacion/ObtenerResumenFacturacionQuery.cs :: clienteId = 8

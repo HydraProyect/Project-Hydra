@@ -5,6 +5,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -160,9 +161,30 @@ public record KpisDashboardDto(
 /// Centros (<c>KpisCentrosBloqueadosBajoRlsTests</c>).
 /// </para>
 /// </summary>
-public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IProyectosQueryContext proyectosContext)
+public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContext, IConfiguracionQueryContext configuracionContext, IDocumentosQueryContext documentosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, IEvaluacionDeAccesoPorCentroService evaluacionDeAcceso, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, IProyectosQueryContext proyectosContext, ILectorEstadoCentros? lectorEstadoCentros = null)
     : IRequestHandler<ObtenerKpisDashboardQuery, KpisDashboardDto>
 {
+    /// <summary>
+    /// El estado de cada Centro del alcance: el guardado en <c>EstadosEntidad</c> cuando el Tenant está completo y la fila es
+    /// fiable (<see cref="ILectorEstadoCentros"/>, la misma lectura y las mismas guardas que el listado de Centros), y el cálculo
+    /// de siempre para los demás. Los KPI solo cuentan estados, así que el detalle de las causas no hace falta.
+    /// </summary>
+    private async Task<IReadOnlyList<EstadoCentro>> EstadosDeCentrosAsync(List<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0)
+            return [];
+
+        var leidos = lectorEstadoCentros is null
+            ? new Dictionary<Guid, EstadoCentroLeido>()
+            : await lectorEstadoCentros.LeerAsync(centroIds, cancellationToken);
+        var estados = leidos.Values.Select(l => l.Estado).ToList();
+
+        var sinFilaFiable = centroIds.Where(id => !leidos.ContainsKey(id)).ToList();
+        if (sinFilaFiable.Count > 0)
+            estados.AddRange((await calculoEstadoCentro.CalcularAsync(sinFilaFiable, cancellationToken)).Values.Select(r => r.Estado));
+        return estados;
+    }
+
     public async Task<KpisDashboardDto> Handle(ObtenerKpisDashboardQuery request, CancellationToken cancellationToken)
     {
         // Un rol restringido (GestorCae/CoordinadorCae/Cliente) sin ningún
@@ -196,8 +218,8 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
         // D-7: una acreditación Rechazada aplicable (y cualquier otra causa
         // bloqueante) pone el Centro en Bloqueado. Mismo servicio, sin copiar
         // la lista de causas, y solo sobre los Centros del alcance ya filtrado.
-        var estadosCentro = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
-        var centrosBloqueados = estadosCentro.Values.Count(r => r.Estado == EstadoCentro.Bloqueado);
+        var estadosCentro = await EstadosDeCentrosAsync(centroIds, cancellationToken);
+        var centrosBloqueados = estadosCentro.Count(e => e == EstadoCentro.Bloqueado);
 
         // Trabajadores bloqueados: la regla única por Centro, sobre los Centros del alcance. Un Trabajador bloqueado en dos
         // Centros cuenta una vez.
@@ -296,7 +318,7 @@ public class ObtenerKpisDashboardQueryHandler(ICentrosQueryContext centrosContex
             TrabajadoresBloqueados: trabajadoresBloqueados,
             ParesExigidosSinDocumento: paresExigidosSinDocumento,
             TienePendientesDocumentales: empresasConAlertas
-                || estadosCentro.Values.Any(r => r.Estado is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)),
+                || estadosCentro.Any(e => e is not (EstadoCentro.Vigente or EstadoCentro.SinGestionCae)),
             DocumentosEmpresaVencidos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Vencido),
             DocumentosEmpresaUrgentes: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Urgente),
             DocumentosEmpresaProximos: empresaPorEstado.GetValueOrDefault(EstadoDocumento.Proximo),
