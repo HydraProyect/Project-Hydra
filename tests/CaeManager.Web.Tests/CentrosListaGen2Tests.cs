@@ -62,8 +62,24 @@ public partial class CentrosListaGen2Tests : BunitContext
         /// <summary>Visitas programadas por Centro; vacío salvo que el test las siembre.</summary>
         public Dictionary<Guid, IReadOnlyList<VisitaResumenDto>> Visitas { get; init; } = [];
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(Registrar(request) switch
+        public Func<object, Task<object>?>? Retener { get; set; }
+        public Task? RetenerAutorizados { get; set; }
+        public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [new(Guid.NewGuid(), "Propia", EsOrigen: true)];
+
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Registrar(request);
+            if (request is ObtenerClientesAutorizadosQuery && RetenerAutorizados is { } espera)
+                await espera;
+            if (Retener?.Invoke(request) is { } retenida)
+            {
+                return (TResponse)await retenida;
+            }
+            return Responder(request);
+        }
+
+        private TResponse Responder<TResponse>(IRequest<TResponse> request) =>
+            (TResponse)(object)(request switch
             {
                 ObtenerClientesParaSelectorQuery => (object)Array.Empty<ClienteSelectorDto>(),
                 EliminarCentrosCommand lote => Result.Exito(new ResultadoEliminacionLoteDto(
@@ -74,11 +90,11 @@ public partial class CentrosListaGen2Tests : BunitContext
                 // Sin documento que devolver: basta para observar qué se pidió abrir.
                 ObtenerDocumentoPorIdQuery => null!,
                 ObtenerProximaVisitaPorCentroQuery => (IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>>)Visitas,
-                ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new ClienteAutorizadoDto(Guid.NewGuid(), "Propia", EsOrigen: true)],
+                ObtenerClientesAutorizadosQuery => Autorizados,
                 ObtenerCentrosQuery q => new ResultadoPaginado<CentroListaDto>(
                     Centros.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), Centros.Count, q.Pagina, q.TamanoPagina),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
-            }));
+            });
 
         private object Registrar(object peticion)
         {
