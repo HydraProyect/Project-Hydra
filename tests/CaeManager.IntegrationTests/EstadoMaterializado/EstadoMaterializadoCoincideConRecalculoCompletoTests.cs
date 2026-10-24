@@ -269,28 +269,29 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
                 await Comprobar("baja de Asignación con solo el Trabajador", RaicesDeRecalculo.DeTrabajadores(trabajadorSinCentro));
             }
 
-            // 6. Documento de la Empresa cuyos Trabajadores están en más Centros: el recálculo por par rehace sus pares en
-            // todos esos Centros (y la fila de cada Centro), sin rehacer los pares de los demás titulares.
-            var empresaConMasCentros = await (
-                    from a in db.Asignaciones
-                    where a.FechaBaja == null
-                    join t in db.Trabajadores on a.TrabajadorId equals t.Id
-                    where t.EmpresaId != null
-                    group a.CentroId by t.EmpresaId into g
-                    orderby g.Distinct().Count() descending, g.Key
-                    select g.Key)
-                .FirstOrDefaultAsync();
-            var documentoDeEmpresaConCentros = empresaConMasCentros is null
-                ? null
-                : await db.Documentos.Operativos()
-                    .Where(d => d.EmpresaId == empresaConMasCentros && d.TrabajadorId == null
-                                && d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1))
-                    .OrderBy(d => d.Id).Select(d => (Guid?)d.Id).FirstOrDefaultAsync();
-            if (documentoDeEmpresaConCentros is { } idEmpresaConCentros)
+            // 6. Documento de la Empresa con pares en más Centros: el recálculo por par rehace sus pares en todos esos Centros
+            // (y la fila de cada Centro), sin rehacer los pares de los demás titulares. Se elige por lo materializado, un par
+            // de Empresa cuyo documento efectivo vence lejos, para que el cambio mueva el estado seguro: el documento del paso 2
+            // puede ser de la misma Empresa y ya estar vencido.
+            var centrosPorEmpresa = (await db.Set<EstadoRequisito>().AsNoTracking()
+                    .Where(p => p.AmbitoTitular == AmbitoAplicacion.Empresa)
+                    .Select(p => new { p.TitularId, p.CentroId }).Distinct().ToListAsync())
+                .GroupBy(p => p.TitularId).ToDictionary(g => g.Key, g => g.Count());
+            var candidatosDeEmpresa = await (
+                    from p in db.Set<EstadoRequisito>().AsNoTracking()
+                    where p.AmbitoTitular == AmbitoAplicacion.Empresa && p.VencimientoEfectivo > hoy.AddDays(30)
+                    join d in db.Documentos.Operativos() on p.DocumentoEfectivoId equals (Guid?)d.Id
+                    where d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1)
+                    select new { p.TitularId, DocumentoId = d.Id })
+                .Distinct().ToListAsync();
+            var documentoDeEmpresaConCentros = candidatosDeEmpresa
+                .OrderByDescending(p => centrosPorEmpresa.GetValueOrDefault(p.TitularId)).ThenBy(p => p.TitularId).ThenBy(p => p.DocumentoId)
+                .FirstOrDefault();
+            if (documentoDeEmpresaConCentros is not null)
             {
-                await db.Documentos.Where(d => d.Id == idEmpresaConCentros)
+                await db.Documentos.Where(d => d.Id == documentoDeEmpresaConCentros.DocumentoId)
                     .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
-                await Comprobar("documento de Empresa con muchos Centros", RaicesDeRecalculo.DeEmpresas(empresaConMasCentros!.Value));
+                await Comprobar("documento de Empresa con muchos Centros", RaicesDeRecalculo.DeEmpresas(documentoDeEmpresaConCentros.TitularId));
             }
 
             // 7. Alta de Asignación por par: se reactiva la Asignación del paso 4 y se dan el Centro y el Trabajador como par.
