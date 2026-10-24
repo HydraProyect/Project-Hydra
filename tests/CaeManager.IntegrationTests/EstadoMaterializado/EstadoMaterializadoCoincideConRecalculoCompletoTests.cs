@@ -81,22 +81,27 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
             await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
             {
                 var recalculo = sp.GetRequiredService<IRecalculoEstadoMaterializado>();
-                var antes = await FotoAsync(db);
+                var antes = await FotoAsync(db, conIdentidad: true);
                 var version = await VersionAsync(db);
 
                 var centro = await db.Centros.OrderBy(c => c.Id).Select(c => c.Id).FirstOrDefaultAsync();
                 var trabajadores = await db.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).Take(3).ToArrayAsync();
                 var empresas = await db.Empresas.OrderBy(e => e.Id).Select(e => e.Id).Take(3).ToArrayAsync();
+                var asignacion = await db.Asignaciones.Where(a => a.FechaBaja == null).OrderBy(a => a.Id)
+                    .Select(a => new { a.CentroId, a.TrabajadorId }).FirstOrDefaultAsync();
                 await recalculo.RecalcularAsync(RaicesDeRecalculo.DeCentros(centro), CancellationToken.None);
                 await recalculo.RecalcularAsync(RaicesDeRecalculo.DeTrabajadores(trabajadores), CancellationToken.None);
                 await recalculo.RecalcularAsync(RaicesDeRecalculo.DeEmpresas(empresas), CancellationToken.None);
+                if (asignacion is not null)
+                    await recalculo.RecalcularAsync(RaicesDeRecalculo.DeAsignacion(asignacion.CentroId, asignacion.TrabajadorId), CancellationToken.None);
                 db.ChangeTracker.Clear();
-                (await FotoAsync(db)).Should().Equal(antes, $"un recálculo acotado sin cambios no cambia nada en el Tenant {tenant}");
-                (await VersionAsync(db)).Should().Be(version + 3, "cada recálculo sube la versión del Tenant");
+                // Con el Id y la hora de cálculo: una fila sin cambios no se borra y se inserta ni se reescribe (diseño § 13.5).
+                (await FotoAsync(db, conIdentidad: true)).Should().Equal(antes, $"un recálculo acotado sin cambios no reescribe ninguna fila en el Tenant {tenant}");
+                (await VersionAsync(db)).Should().Be(version + (asignacion is null ? 3 : 4), "cada recálculo sube la versión del Tenant");
 
                 await recalculo.RellenarTenantAsync(CancellationToken.None);
                 db.ChangeTracker.Clear();
-                (await FotoAsync(db)).Should().Equal(antes, "el relleno es idempotente");
+                (await FotoAsync(db, conIdentidad: true)).Should().Equal(antes, "el relleno es idempotente y tampoco reescribe filas iguales");
                 return 0;
             });
         }
@@ -264,12 +269,57 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
                 await Comprobar("baja de Asignación con solo el Trabajador", RaicesDeRecalculo.DeTrabajadores(trabajadorSinCentro));
             }
 
+            // 6. Documento de la Empresa con pares en más Centros: el recálculo por par rehace sus pares en todos esos Centros
+            // (y la fila de cada Centro), sin rehacer los pares de los demás titulares. Se elige por lo materializado, un par
+            // de Empresa cuyo documento efectivo vence lejos, para que el cambio mueva el estado seguro: el documento del paso 2
+            // puede ser de la misma Empresa y ya estar vencido.
+            var centrosPorEmpresa = (await db.Set<EstadoRequisito>().AsNoTracking()
+                    .Where(p => p.AmbitoTitular == AmbitoAplicacion.Empresa)
+                    .Select(p => new { p.TitularId, p.CentroId }).Distinct().ToListAsync())
+                .GroupBy(p => p.TitularId).ToDictionary(g => g.Key, g => g.Count());
+            var candidatosDeEmpresa = await (
+                    from p in db.Set<EstadoRequisito>().AsNoTracking()
+                    where p.AmbitoTitular == AmbitoAplicacion.Empresa && p.VencimientoEfectivo > hoy.AddDays(30)
+                    join d in db.Documentos.Operativos() on p.DocumentoEfectivoId equals (Guid?)d.Id
+                    where d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1)
+                    select new { p.TitularId, DocumentoId = d.Id })
+                .Distinct().ToListAsync();
+            var documentoDeEmpresaConCentros = candidatosDeEmpresa
+                .OrderByDescending(p => centrosPorEmpresa.GetValueOrDefault(p.TitularId)).ThenBy(p => p.TitularId).ThenBy(p => p.DocumentoId)
+                .FirstOrDefault();
+            if (documentoDeEmpresaConCentros is not null)
+            {
+                await db.Documentos.Where(d => d.Id == documentoDeEmpresaConCentros.DocumentoId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
+                await Comprobar("documento de Empresa con muchos Centros", RaicesDeRecalculo.DeEmpresas(documentoDeEmpresaConCentros.TitularId));
+            }
+
+            // 7. Alta de Asignación por par: se reactiva la Asignación del paso 4 y se dan el Centro y el Trabajador como par.
+            // El Centro no se rehace entero: solo su fila y los pares del Trabajador y de su Empresa.
+            if (baja is not null)
+            {
+                await db.Asignaciones.Where(a => a.CentroId == baja.CentroId && a.TrabajadorId == baja.TrabajadorId && a.FechaBaja == hoy)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.FechaBaja, (DateOnly?)null));
+                await Comprobar("alta de Asignación por par", RaicesDeRecalculo.DeAsignacion(baja.CentroId, baja.TrabajadorId));
+            }
+
+            // 8. Baja de Asignación por par, de otro Trabajador del Centro.
+            var bajaPorPar = await db.Asignaciones.Where(a => a.CentroId == centro && a.FechaBaja == null)
+                .OrderBy(a => a.TrabajadorId).Skip(1).Select(a => (Guid?)a.TrabajadorId).FirstOrDefaultAsync();
+            if (bajaPorPar is { } trabajadorDeBajaPorPar)
+            {
+                await db.Asignaciones.Where(a => a.CentroId == centro && a.TrabajadorId == trabajadorDeBajaPorPar && a.FechaBaja == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.FechaBaja, (DateOnly?)hoy));
+                await Comprobar("baja de Asignación por par", RaicesDeRecalculo.DeAsignacion(centro, trabajadorDeBajaPorPar));
+            }
+
             return (hechos, distintos);
         });
 
         salida.WriteLine($"Tenant {tenant}: {string.Join(", ", cambios)}");
         cambios.Should().HaveCountGreaterThanOrEqualTo(3, "solo cuentan los cambios que movieron el estado; sin ellos el test no prueba la clausura");
         cambios.Should().Contain("baja de Asignación con solo el Trabajador", "es el caso que solo cubren las filas ya escritas");
+        cambios.Should().Contain("documento de Empresa con muchos Centros", "el recálculo por par de una Empresa tiene que probarse con un cambio real");
         fallos.Should().BeEmpty();
     }
 
@@ -298,7 +348,7 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
             var raicesDeB = new RaicesDeRecalculo(centrosB, trabajadoresB, empresasB);
             var calculo = await sp.GetRequiredService<IRecalculoEstadoMaterializado>().CalcularAsync(raicesDeB, CancellationToken.None);
             await sp.GetRequiredService<IEscritorEstadoMaterializado>().EscribirAsync(
-                new CalculoEstadoMaterializado(DiaDeNegocio.Hoy(), centrosB, trabajadoresB, empresasB, [], [], []),
+                new CalculoEstadoMaterializado(DiaDeNegocio.Hoy(), centrosB, trabajadoresB, empresasB, centrosB, [], [], []),
                 crearVersionSiFalta: false, CancellationToken.None);
             return calculo;
         });
@@ -309,6 +359,133 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
         (await fixture.Arnes.EnTenantAsync(b, (db, _) => FotoAsync(db)))
             .Should().Equal(antesB, "sustituir desde A las entidades de B no borra nada de B");
     }
+
+    /// <summary>
+    /// Alcance estrecho del recálculo por par: un cambio en un documento de un Trabajador rehace sus pares, y los pares de los
+    /// demás titulares de sus Centros (Trabajadores y Empresas, TALVEG y plataforma) quedan intactos, con el mismo <c>Id</c> y
+    /// el mismo <c>CalculadoEnUtc</c>. Un escritor que sustituyera por Centro con solo los pares del Trabajador los borraría.
+    /// </summary>
+    [Fact]
+    public async Task El_recalculo_de_un_titular_no_toca_los_pares_de_los_demas_titulares()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        string? probado = null;
+        foreach (var tenant in fixture.Tenants)
+        {
+            probado = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
+            {
+                // Un par de Trabajador, en un Centro con pares de otros titulares, cuyo documento efectivo vence lejos: hacer que
+                // venza ayer cambia ese par seguro.
+                var par = await (
+                        from p in db.Set<EstadoRequisito>().AsNoTracking()
+                        where p.AmbitoTitular == AmbitoAplicacion.Trabajador && p.VencimientoEfectivo > hoy.AddDays(30)
+                              && db.Set<EstadoRequisito>().Any(o => o.CentroId == p.CentroId && o.TitularId != p.TitularId)
+                        join d in db.Documentos.Operativos() on p.DocumentoEfectivoId equals (Guid?)d.Id
+                        where d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1)
+                        orderby p.Id
+                        select new { p.TitularId, DocumentoId = d.Id })
+                    .FirstOrDefaultAsync();
+                if (par is null)
+                    return (string?)null;
+
+                db.ChangeTracker.Clear();
+                var antes = await ParesConIdentidadAsync(db);
+                await db.Documentos.Where(d => d.Id == par.DocumentoId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
+                await sp.GetRequiredService<IRecalculoEstadoMaterializado>()
+                    .RecalcularAsync(RaicesDeRecalculo.DeTrabajadores(par.TitularId), CancellationToken.None);
+                db.ChangeTracker.Clear();
+                var despues = await ParesConIdentidadAsync(db);
+
+                bool EsDelTrabajador(ParConIdentidad f) => f.Ambito == AmbitoAplicacion.Trabajador && f.Titular == par.TitularId;
+                List<string> Filas(IEnumerable<ParConIdentidad> filas, bool conIdentidad = true) =>
+                    filas.Select(f => conIdentidad ? $"{f.Identidad} {f.Valores}" : f.Valores).Order(StringComparer.Ordinal).ToList();
+
+                var centrosDelTrabajador = antes.Where(EsDelTrabajador).Select(f => f.CentroId).ToHashSet();
+                antes.Any(f => !EsDelTrabajador(f) && centrosDelTrabajador.Contains(f.CentroId)).Should().BeTrue(
+                    "sin pares de otros titulares en los Centros del Trabajador el test no probaría el alcance");
+                var ajenosAntes = Filas(antes.Where(f => !EsDelTrabajador(f)));
+                Filas(despues.Where(f => !EsDelTrabajador(f))).Should().Equal(ajenosAntes,
+                    $"el recálculo del Trabajador {par.TitularId} no reescribe ni borra los pares de otros titulares en el Tenant {tenant}");
+                Filas(despues.Where(EsDelTrabajador), conIdentidad: false).Should().NotEqual(Filas(antes.Where(EsDelTrabajador), conIdentidad: false),
+                    "el documento vencido mueve los pares del Trabajador; si no, el test no probaría nada");
+                return $"Tenant {tenant}, Trabajador {par.TitularId}";
+            });
+            if (probado is not null)
+                break;
+        }
+
+        probado.Should().NotBeNull("hace falta un par de Trabajador con un documento efectivo que venza lejos");
+        salida.WriteLine(probado);
+    }
+
+    /// <summary>
+    /// Los métodos de pares por titular de <see cref="ICalculoEstadoCentroService"/> devuelven exactamente el subconjunto de
+    /// los métodos completos: ni un par de más, ni uno de menos, ni un estado distinto. Con todos los Centros del Tenant y con
+    /// la mitad, y con un titular que no existe en la lista.
+    /// </summary>
+    [Fact]
+    public async Task Los_pares_por_titular_son_exactamente_el_subconjunto_de_los_completos()
+    {
+        var comparados = (Trabajador: 0, Empresa: 0);
+        foreach (var tenant in fixture.Tenants)
+        {
+            var (deTrabajador, deEmpresa) = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
+            {
+                var ct = CancellationToken.None;
+                var calculo = sp.GetRequiredService<ICalculoEstadoCentroService>();
+                var centros = await db.Centros.OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(ct);
+                var trabajadores = (await db.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(ct))
+                    .Where((_, i) => i % 2 == 0).Append(Guid.NewGuid()).ToHashSet();
+                var empresas = (await db.Empresas.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync(ct))
+                    .Where((_, i) => i % 2 == 0).Append(Guid.NewGuid()).ToHashSet();
+                var (nTrabajador, nEmpresa) = (0, 0);
+
+                foreach (var deCentros in new[] { centros, centros.Take((centros.Count + 1) / 2).ToList() })
+                {
+                    var esperados = Ordenar((await calculo.ObtenerParesExigidosAsync(deCentros, ct))
+                        .Where(p => trabajadores.Contains(p.TrabajadorId)));
+                    Ordenar(await calculo.ObtenerParesExigidosDeTrabajadoresAsync(deCentros, trabajadores, ct))
+                        .Should().Equal(esperados, $"los pares por Trabajador son los completos filtrados ({deCentros.Count} Centros, Tenant {tenant})");
+
+                    var esperadosEmpresa = Ordenar((await calculo.ObtenerParesDeEmpresaExigidosAsync(deCentros, ct))
+                        .Where(p => empresas.Contains(p.EmpresaId)));
+                    Ordenar(await calculo.ObtenerParesDeEmpresaExigidosDeEmpresasAsync(deCentros, empresas, ct))
+                        .Should().Equal(esperadosEmpresa, $"los pares por Empresa son los completos filtrados ({deCentros.Count} Centros, Tenant {tenant})");
+
+                    nTrabajador += esperados.Count;
+                    nEmpresa += esperadosEmpresa.Count;
+                }
+
+                return (nTrabajador, nEmpresa);
+            });
+            comparados = (comparados.Trabajador + deTrabajador, comparados.Empresa + deEmpresa);
+        }
+
+        salida.WriteLine($"Pares comparados: {comparados.Trabajador} de Trabajador, {comparados.Empresa} de Empresa");
+        comparados.Trabajador.Should().BePositive("sin pares de Trabajador el subconjunto no probaría nada");
+        comparados.Empresa.Should().BePositive("sin pares de Empresa el subconjunto no probaría nada");
+    }
+
+    private static List<string> Ordenar<T>(IEnumerable<T> pares) =>
+        pares.Select(p => p!.ToString()!).Order(StringComparer.Ordinal).ToList();
+
+    /// <summary>Los pares TALVEG y de plataforma con su titular y su identidad (<c>Id</c> y <c>CalculadoEnUtc</c>).</summary>
+    private static async Task<List<ParConIdentidad>> ParesConIdentidadAsync(CaeManagerDbContext db)
+    {
+        var filas = (await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
+            .Select(p => new ParConIdentidad(p.AmbitoTitular, p.TitularId, p.CentroId, $"R {p.Id} {p.CalculadoEnUtc:O}",
+                $"R {p.CentroId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} {p.BloqueaAcceso} " +
+                $"{p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"))
+            .ToList();
+        filas.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
+            .Select(p => new ParConIdentidad(p.AmbitoTitular, p.TitularId, p.CentroId, $"P {p.Id} {p.CalculadoEnUtc:O}",
+                $"P {p.CentroId} {p.CanalGestionDocumentalId} {p.TipoDocumentoId} {p.Estado} " +
+                $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}")));
+        return filas;
+    }
+
+    private sealed record ParConIdentidad(AmbitoAplicacion Ambito, Guid Titular, Guid CentroId, string Identidad, string Valores);
 
     private static async Task<List<string>> CompararAsync(CaeManagerDbContext db, IServiceProvider sp)
     {
@@ -391,17 +568,22 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
         return diferencias;
     }
 
-    private static async Task<List<string>> FotoAsync(CaeManagerDbContext db)
+    /// <param name="conIdentidad">
+    /// Con el <c>Id</c> y <c>CalculadoEnUtc</c> de cada fila: así la foto distingue una fila intacta de una reescrita con los
+    /// mismos valores.
+    /// </param>
+    private static async Task<List<string>> FotoAsync(CaeManagerDbContext db, bool conIdentidad = false)
     {
         var foto = new List<string>();
+        string Identidad(Guid id, DateTime calculadoEnUtc) => conIdentidad ? $"{id} {calculadoEnUtc:O} " : "";
         foto.AddRange((await db.Set<EstadoEntidad>().AsNoTracking().ToListAsync())
-            .Select(e => $"E {e.Ambito} {e.EntidadId} {e.Estado} {e.EstadoPlataforma} {e.Vencidos} {e.VencidosSinBloqueo} {e.Urgentes} " +
+            .Select(e => $"E {Identidad(e.Id, e.CalculadoEnUtc)}{e.Ambito} {e.EntidadId} {e.Estado} {e.EstadoPlataforma} {e.Vencidos} {e.VencidosSinBloqueo} {e.Urgentes} " +
                          $"{e.Proximos} {e.Faltan} {e.SinConfirmar} {e.PendientesEnPlataforma} {e.Requeridos} {e.AlDia} {e.ProximoCambioEl} {e.DiaCalculo}"));
         foto.AddRange((await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
-            .Select(p => $"R {p.CentroId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} " +
+            .Select(p => $"R {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} " +
                          $"{p.BloqueaAcceso} {p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"));
         foto.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
-            .Select(p => $"P {p.CentroId} {p.CanalGestionDocumentalId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.Estado} " +
+            .Select(p => $"P {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.CanalGestionDocumentalId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.Estado} " +
                          $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}"));
         foto.Sort(StringComparer.Ordinal);
         return foto;

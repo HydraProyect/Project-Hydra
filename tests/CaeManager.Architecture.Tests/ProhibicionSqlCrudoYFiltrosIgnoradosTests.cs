@@ -403,12 +403,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
 
-        // Estado materializado (PR 3): el escritor borra e inserta por lotes con unnest. EF no puede: un Update() completo
-        // choca con el permiso de UPDATE por columnas (42501) y el rastreador pasaría filas derivadas por la auditoría. No
-        // salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de app.tenant_id de la conexión y cada DELETE o
-        // UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 6,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", ": dbContext.Database.ExecuteSqlRawAsync(")] = 1,
+        // Estado materializado (PR 3 y 3b): el escritor compara con lo guardado por lotes con unnest (borra lo que sobra,
+        // actualiza solo las columnas calculadas de lo que cambió e inserta lo nuevo), una sentencia por tabla más la de la
+        // versión. EF no puede: un Update() completo choca con el permiso de UPDATE por columnas (42501) y el rastreador
+        // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
+        // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 4,
     };
 
     /// <summary>

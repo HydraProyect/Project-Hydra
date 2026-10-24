@@ -47,7 +47,8 @@ public sealed class RecalculoEstadoMaterializadoService(
             return Vacio(DiaDeNegocio.Hoy());
 
         var (centros, trabajadores, empresas) = await ClausuraAsync(raices, cancellationToken);
-        return await CalcularConjuntoAsync(centros, trabajadores, empresas, cancellationToken);
+        // Solo los Centros raíz se rehacen enteros; en los demás, los pares de los titulares de la clausura.
+        return await CalcularConjuntoAsync(centros, trabajadores, empresas, raices.CentroIds, cancellationToken);
     }
 
     public async Task<ResultadoRecalculoEstado> RecalcularAsync(RaicesDeRecalculo raices, CancellationToken cancellationToken)
@@ -68,12 +69,12 @@ public sealed class RecalculoEstadoMaterializadoService(
         var centroIds = await centrosContext.Centros.OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(cancellationToken);
         foreach (var lote in centroIds.Chunk(LoteDeCentrosDelRelleno))
             resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync(lote, [], [], cancellationToken), crearVersionSiFalta: false, cancellationToken));
+                await CalcularConjuntoAsync(lote, [], [], lote, cancellationToken), crearVersionSiFalta: false, cancellationToken));
 
         var trabajadorIds = await trabajadoresContext.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(cancellationToken);
         foreach (var lote in trabajadorIds.Chunk(LoteDeTitularesDelRelleno))
             resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync([], lote, [], cancellationToken), crearVersionSiFalta: false, cancellationToken));
+                await CalcularConjuntoAsync([], lote, [], [], cancellationToken), crearVersionSiFalta: false, cancellationToken));
 
         var empresaIds = await empresasContext.Empresas.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync(cancellationToken);
         var lotesDeEmpresa = empresaIds.Chunk(LoteDeTitularesDelRelleno).ToList();
@@ -82,7 +83,7 @@ public sealed class RecalculoEstadoMaterializadoService(
             lotesDeEmpresa.Add([]);
         for (var i = 0; i < lotesDeEmpresa.Count; i++)
             resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync([], [], lotesDeEmpresa[i], cancellationToken),
+                await CalcularConjuntoAsync([], [], lotesDeEmpresa[i], [], cancellationToken),
                 crearVersionSiFalta: i == lotesDeEmpresa.Count - 1, cancellationToken));
 
         return resultado;
@@ -100,7 +101,7 @@ public sealed class RecalculoEstadoMaterializadoService(
             calculo.Plataforma.Count);
     }
 
-    private static CalculoEstadoMaterializado Vacio(DateOnly dia) => new(dia, [], [], [], [], [], []);
+    private static CalculoEstadoMaterializado Vacio(DateOnly dia) => new(dia, [], [], [], [], [], [], []);
 
     /// <summary>
     /// Todo lo que depende de las raíces, leído con el contexto del Tenant de la conexión (un identificador de otro Tenant no
@@ -111,7 +112,9 @@ public sealed class RecalculoEstadoMaterializadoService(
     /// terminar.</item>
     /// <item>Trabajadores: los raíz, y los de los Centros raíz (sus requisitos «bloquea el acceso» deciden su rojo).</item>
     /// <item>Empresas: las raíz, y las de los Trabajadores raíz o de los Centros raíz (dónde opera una Empresa decide qué
-    /// requisitos la ponen en rojo).</item>
+    /// requisitos la ponen en rojo). La de un Trabajador raíz se toma también de su ficha, no solo de sus Asignaciones
+    /// activas: tras la baja de la última, su Empresa puede dejar de operar en ese Centro.</item>
+    /// <item>Los Centros afectados (<see cref="RaicesDeRecalculo.CentrosAfectados"/>), sin añadir sus demás titulares.</item>
     /// </list>
     /// </summary>
     private async Task<(List<Guid> Centros, List<Guid> Trabajadores, List<Guid> Empresas)> ClausuraAsync(
@@ -122,9 +125,16 @@ public sealed class RecalculoEstadoMaterializadoService(
         var empresaRaiz = raices.EmpresaIds.Distinct().ToList();
         var hoy = DiaDeNegocio.Hoy();
 
-        var centros = centroRaiz.ToHashSet();
+        var centros = centroRaiz.Concat(raices.CentrosAfectados).ToHashSet();
         var trabajadores = trabajadorRaiz.ToHashSet();
         var empresas = empresaRaiz.ToHashSet();
+
+        if (trabajadorRaiz.Count > 0)
+            empresas.UnionWith((await trabajadoresContext.Trabajadores
+                    .Where(t => trabajadorRaiz.Contains(t.Id))
+                    .Select(t => t.EmpresaId ?? t.SubcontrataId)
+                    .ToListAsync(cancellationToken))
+                .OfType<Guid>());
 
         if (empresaRaiz.Count > 0)
             centros.UnionWith(await centrosContext.Centros
@@ -227,14 +237,19 @@ public sealed class RecalculoEstadoMaterializadoService(
         Guid Id, Guid? TrabajadorId, Guid? EmpresaId, Guid TipoDocumentoId, EstadoVigenciaDocumento EstadoVigencia,
         DateOnly? FechaVencimiento, DateOnly FechaEmision, DateTime CreadoEnUtc, bool EsRenuncia);
 
+    /// <param name="centrosConTodosLosPares">
+    /// Los Centros pedidos cuyos pares se rehacen todos. En los demás Centros pedidos solo se calculan los pares de los
+    /// Trabajadores y Empresas pedidos: un par depende de su titular, su Centro y su Tipo, no de los demás titulares.
+    /// </param>
     private async Task<CalculoEstadoMaterializado> CalcularConjuntoAsync(
         IReadOnlyCollection<Guid> centroIdsPedidos, IReadOnlyCollection<Guid> trabajadorIdsPedidos,
-        IReadOnlyCollection<Guid> empresaIdsPedidos, CancellationToken cancellationToken)
+        IReadOnlyCollection<Guid> empresaIdsPedidos, IReadOnlyCollection<Guid> centrosConTodosLosPares, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
         var centroIdsLista = centroIdsPedidos.Distinct().ToList();
         var trabajadorIdsLista = trabajadorIdsPedidos.Distinct().ToList();
         var empresaIdsLista = empresaIdsPedidos.Distinct().ToList();
+        var completosLista = centrosConTodosLosPares.Distinct().Where(centroIdsLista.Contains).ToList();
         if (centroIdsLista.Count == 0 && trabajadorIdsLista.Count == 0 && empresaIdsLista.Count == 0)
             return Vacio(hoy);
 
@@ -262,10 +277,20 @@ public sealed class RecalculoEstadoMaterializadoService(
         // ---- Lo que hoy calculan las lecturas, sin otra copia de la regla ----
         var estadoDeCentros = await calculoEstadoCentro.CalcularAsync(centroIds, cancellationToken);
         var cumplimientoDeCentros = await calculoEstadoCentro.CalcularCumplimientoAsync(centroIds, cancellationToken);
-        var paresDeTrabajador = (await calculoEstadoCentro.ObtenerParesExigidosAsync(centroIds, cancellationToken))
+        // ---- Pares: todos en los Centros completos; en los demás, solo los de los titulares pedidos ----
+        var completos = completosLista.ToHashSet();
+        var centrosCompletos = centroIds.Where(completos.Contains).ToList();
+        var centrosDeTitulares = centroIds.Where(id => !completos.Contains(id)).ToList();
+        var paresDeTrabajador = (centrosCompletos.Count == 0 ? [] : await calculoEstadoCentro.ObtenerParesExigidosAsync(centrosCompletos, cancellationToken))
+            .Concat(centrosDeTitulares.Count == 0 || trabajadorIds.Count == 0
+                ? []
+                : await calculoEstadoCentro.ObtenerParesExigidosDeTrabajadoresAsync(centrosDeTitulares, trabajadorIds, cancellationToken))
             .DistinctBy(p => (p.CentroId, p.TrabajadorId, p.TipoDocumentoId))
             .ToList();
-        var paresDeEmpresa = (await calculoEstadoCentro.ObtenerParesDeEmpresaExigidosAsync(centroIds, cancellationToken))
+        var paresDeEmpresa = (centrosCompletos.Count == 0 ? [] : await calculoEstadoCentro.ObtenerParesDeEmpresaExigidosAsync(centrosCompletos, cancellationToken))
+            .Concat(centrosDeTitulares.Count == 0 || empresaIds.Count == 0
+                ? []
+                : await calculoEstadoCentro.ObtenerParesDeEmpresaExigidosDeEmpresasAsync(centrosDeTitulares, empresaIds, cancellationToken))
             .DistinctBy(p => (p.CentroId, p.EmpresaId, p.TipoDocumentoId))
             .ToList();
 
@@ -532,9 +557,10 @@ public sealed class RecalculoEstadoMaterializadoService(
                 documentosPorParDeEmpresa[(par.EmpresaId, par.TipoDocumentoId)],
                 deEvento: false));
 
-        // Lo que se sustituye son las entidades pedidas, existan o no: así una borrada pierde su fila.
+        // Lo que se sustituye son las entidades pedidas, existan o no: así una borrada pierde su fila (y un Centro completo
+        // borrado, sus pares).
         return new CalculoEstadoMaterializado(
-            hoy, centroIdsLista, trabajadorIdsLista, empresaIdsLista, pares, entidades, plataforma);
+            hoy, centroIdsLista, trabajadorIdsLista, empresaIdsLista, completosLista, pares, entidades, plataforma);
     }
 
     /// <summary>
