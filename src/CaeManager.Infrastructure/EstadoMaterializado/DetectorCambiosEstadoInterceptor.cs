@@ -124,7 +124,9 @@ public sealed class DetectorCambiosEstadoInterceptor(IServiceProvider servicios)
             // Un defecto del inventario no puede tumbar el guardado: el Tenant de cada entrada del cálculo va entero a la cola.
             delGuardado = new CambiosEstadoDetectados();
             foreach (var entrada in contexto.ChangeTracker.Entries())
-                if (entrada.Entity is Domain.Common.EntidadConTenant e && InventarioDisparadoresEstado.Entradas.ContainsKey(entrada.Metadata.ClrType))
+                if (entrada.State is EntityState.Added or EntityState.Modified or EntityState.Deleted
+                    && entrada.Entity is Domain.Common.EntidadConTenant e
+                    && InventarioDisparadoresEstado.Entradas.ContainsKey(entrada.Metadata.ClrType))
                     delGuardado.De(e.TenantId).TenantEntero = "Fallo del detector: " + ex.GetType().Name;
         }
 
@@ -168,6 +170,8 @@ public sealed class DetectorCambiosEstadoInterceptor(IServiceProvider servicios)
         // creado a mano), su transacción no es la de ese servicio: no se recalcula aquí (lo repone el cotejo, diseño § 7.2).
         if (!ReferenceEquals(recalculo.Contexto, contexto))
         {
+            // Se descarta (no se arrastra a cada guardado siguiente de ese contexto): deuda hasta el cotejo de la PR 5.
+            estado.Acumulados.Descartar();
             recalculo.RegistrarContextoAjeno();
             return;
         }

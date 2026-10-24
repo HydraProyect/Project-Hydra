@@ -425,6 +425,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 2,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // Tope de espera de cerrojo del recálculo: lee y fija lock_timeout de la transacción (set_config local).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
     };
 
     /// <summary>

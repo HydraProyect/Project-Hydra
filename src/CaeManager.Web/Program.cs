@@ -1048,7 +1048,7 @@ using (var scope = app.Services.CreateScope())
 
         // Siembras de arranque: sin recálculo en línea del estado materializado; cada Tenant tocado va entero a la
         // cola (diseño del estado materializado, § 4.3 y § 7.3).
-        var sinRecalculoEstado = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        using var sinRecalculoEstado = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
             CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.MotivoSiembraDeArranque);
 
         // Sin sesión de usuario en el arranque no hay tenant que resolver por

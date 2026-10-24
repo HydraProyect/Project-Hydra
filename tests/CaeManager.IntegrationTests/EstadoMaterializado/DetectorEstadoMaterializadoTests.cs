@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using CaeManager.Application.Common;
 using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Domain.Common;
@@ -182,8 +183,8 @@ public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture f
         });
         await fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Database.ExecuteSqlRawAsync("""DELETE FROM "RecalculosPendientes" """));
 
-        // Otra conexión retiene el cerrojo del Trabajador; con lock_timeout corto, el recálculo de la acción falla dentro
-        // de su SAVEPOINT.
+        // Otra conexión retiene el cerrojo del Trabajador; al vencer el tope de espera del recálculo
+        // (RecalculoEstadoEnLinea.TopeDeEsperaDeCerrojo), el recálculo de la acción falla dentro de su SAVEPOINT.
         var cerrojoTomado = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var retenedor = fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
@@ -203,7 +204,6 @@ public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture f
         {
             resultado = await fixture.Arnes.EnTenantAsync(tenant, (db, sp) => sp.GetRequiredService<ITransaccionDeComando>().EjecutarAsync(async ct =>
             {
-                await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '300ms'", ct);
                 var d = await db.Documentos.SingleAsync(x => x.Id == documento, ct);
                 db.Entry(d).Property(x => x.FechaVencimiento).CurrentValue = hoy.AddDays(5);
                 await db.SaveChangesAsync(ct);
@@ -249,6 +249,117 @@ public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture f
         cola.Should().ContainSingle(r => r.EntidadId == null && r.Motivo == "Ámbito sin recálculo: prueba");
 
         await CompararConRellenoAsync(tenant, "tras el ámbito");
+    }
+
+    [Fact]
+    public async Task Un_guardado_suelto_con_el_cerrojo_retenido_vuelve_pronto_y_el_Tenant_va_a_la_cola()
+    {
+        var tenant = await TenantConMasAsignacionesAsync();
+        var hoy = DiaDeNegocio.Hoy();
+        var (trabajador, documento) = await DocumentoDeTrabajadorAsignadoAsync(tenant);
+        await fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Database.ExecuteSqlRawAsync("""DELETE FROM "RecalculosPendientes" """));
+
+        TimeSpan duracion;
+        var (retenedor, soltar) = await RetenerCerrojoDeTrabajadorAsync(tenant, trabajador);
+        try
+        {
+            duracion = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+            {
+                var d = await db.Documentos.SingleAsync(x => x.Id == documento);
+                db.Entry(d).Property(x => x.FechaVencimiento).CurrentValue = hoy.AddDays(6);
+                var reloj = Stopwatch.StartNew();
+                await db.SaveChangesAsync();
+                return reloj.Elapsed;
+            });
+        }
+        finally
+        {
+            soltar.TrySetResult();
+            await retenedor;
+        }
+
+        duracion.Should().BeLessThan(TimeSpan.FromSeconds(15),
+            "el recálculo espera el cerrojo como mucho el tope y no se reintenta: el guardado no se queda colgado");
+        var (vencimiento, cola) = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) => (
+            await db.Documentos.Where(x => x.Id == documento).Select(x => x.FechaVencimiento).SingleAsync(),
+            await db.Set<RecalculoPendiente>().AsNoTracking().Select(r => new { r.EntidadId, r.Motivo }).ToListAsync()));
+        vencimiento.Should().Be(hoy.AddDays(6), "el guardado del usuario ya estaba confirmado");
+        cola.Should().ContainSingle(r => r.EntidadId == null && r.Motivo.StartsWith("Fallo del recálculo en línea"));
+
+        await CompararConRellenoAsync(tenant, "tras el fallo del guardado suelto");
+    }
+
+    [Fact]
+    public async Task Por_encima_de_ocho_Centros_las_raices_van_a_la_cola_una_a_una()
+    {
+        var tenant = await TenantConMasAsignacionesAsync();
+        var hoy = DiaDeNegocio.Hoy();
+        var (trabajador, documento) = await DocumentoDeTrabajadorAsignadoAsync(tenant);
+
+        // El Trabajador pasa a operar en más de ocho Centros (montaje, sin recálculo).
+        var nuevas = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            using var _ambito = AmbitoSinRecalculoEstado.Abrir("montaje del test");
+            var actuales = await db.Asignaciones.Where(a => a.TrabajadorId == trabajador && a.FechaBaja == null).Select(a => a.CentroId).ToListAsync();
+            var faltan = RecalculoEstadoEnLinea.MaximoCentrosEnLinea + 1 - actuales.Count;
+            var centros = await db.Centros.Where(c => !actuales.Contains(c.Id)).OrderBy(c => c.Id).Select(c => c.Id).Take(Math.Max(faltan, 0)).ToListAsync();
+            centros.Should().HaveCount(Math.Max(faltan, 0), "el Tenant necesita más de ocho Centros");
+            var altas = centros.Select(c => new Domain.Asignaciones.Asignacion(trabajador, c, hoy)).ToList();
+            db.Asignaciones.AddRange(altas);
+            await db.SaveChangesAsync();
+            return altas.Select(a => a.Id).ToList();
+        });
+        await CompararConRellenoAsync(tenant, "montaje");
+
+        var cola = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            var d = await db.Documentos.SingleAsync(x => x.Id == documento);
+            db.Entry(d).Property(x => x.FechaVencimiento).CurrentValue = hoy.AddDays(4);
+            await db.SaveChangesAsync();
+            return await db.Set<RecalculoPendiente>().AsNoTracking().Select(r => new { r.EntidadId, r.Motivo }).ToListAsync();
+        });
+        var entrada = cola.Should().ContainSingle("una sola raíz (el Trabajador), encolada una a una, sin el Tenant entero").Subject;
+        entrada.EntidadId.Should().Be(trabajador);
+        entrada.Motivo.Should().StartWith($"Más de {RecalculoEstadoEnLinea.MaximoCentrosEnLinea} Centros");
+        await CompararConRellenoAsync(tenant, "documento con más de ocho Centros");
+
+        // Se deshace el montaje para no mover los demás tests de la clase.
+        await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            using var _ambito = AmbitoSinRecalculoEstado.Abrir("desmontaje del test");
+            db.Asignaciones.RemoveRange(await db.Asignaciones.Where(a => nuevas.Contains(a.Id)).ToListAsync());
+            return await db.SaveChangesAsync();
+        });
+        await CompararConRellenoAsync(tenant, "desmontaje");
+    }
+
+    private Task<(Guid Trabajador, Guid Documento)> DocumentoDeTrabajadorAsignadoAsync(Guid tenant) =>
+        fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            var d = await (from a in db.Asignaciones
+                           join doc in db.Documentos.Operativos() on a.TrabajadorId equals doc.TrabajadorId
+                           where a.FechaBaja == null && doc.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha
+                           orderby doc.Id
+                           select new { a.TrabajadorId, doc.Id }).FirstAsync();
+            return (d.TrabajadorId, d.Id);
+        });
+
+    private async Task<(Task Retenedor, TaskCompletionSource Soltar)> RetenerCerrojoDeTrabajadorAsync(Guid tenant, Guid trabajador)
+    {
+        var tomado = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var retenedor = fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync();
+            var clave = RecalculoEstadoEnLinea.ClaveDeEntidad(tenant, 'T', trabajador);
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock(hashtextextended({clave}, 0))");
+            tomado.TrySetResult();
+            await soltar.Task.WaitAsync(TimeSpan.FromSeconds(60));
+            await tx.RollbackAsync();
+            return 0;
+        });
+        await tomado.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        return (retenedor, soltar);
     }
 
     private async Task<Guid> TenantConMasAsignacionesAsync()

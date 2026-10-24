@@ -121,7 +121,7 @@ public class DetectorEstadoMaterializadoTests
             "TransaccionDocumentoBloqueado.cs",        // envoltura de los comandos de Documento: recalcula antes del COMMIT
             "EscritorEstadoMaterializado.cs",          // escribe el propio estado
             "RecalculoEstadoEnLinea.cs",               // transacción propia del recálculo tras un guardado suelto
-            "PilotoOutboundSeeder.cs",                 // siembra, en el ámbito «sin recálculo»
+            "PilotoOutboundSeeder.cs",                 // siembra (en el arranque, dentro del ámbito «sin recálculo»; el modo CLI no lo abre)
             "TrabajoAnalisisDocumentoRepository.cs",   // reclama un trabajo de IA; no toca entradas
             "EventoWebhookRepository.cs",              // registra un webhook; no toca entradas
             "TransicionLineaBaseCompactada.cs",        // migraciones, conexión propia
@@ -171,7 +171,7 @@ public class DetectorEstadoMaterializadoTests
     {
         var permitidas = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "PilotoOutboundSeeder.cs",       // siembra, en el ámbito «sin recálculo»
+            "PilotoOutboundSeeder.cs",       // siembra (en el arranque, dentro del ámbito «sin recálculo»; el modo CLI no lo abre)
             "RetiradaTenantDemoService.cs",  // tarifas, filtros y órdenes de cajas de otro Tenant; el Tenant se retira entero
             "AvatarDeCuentasIdentity.cs",    // avatar de la cuenta de Identity
         };

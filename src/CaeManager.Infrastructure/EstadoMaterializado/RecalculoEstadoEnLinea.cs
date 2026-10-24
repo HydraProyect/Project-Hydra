@@ -48,6 +48,12 @@ public sealed class RecalculoEstadoEnLinea(
     /// <summary>Raíces que se encolan una a una como mucho; por encima, una entrada del Tenant entero.</summary>
     public const int MaximoRaicesEnCola = 50;
 
+    /// <summary>
+    /// Espera máxima por un cerrojo del recálculo (<c>lock_timeout</c>). Al vencer, el recálculo falla, se deshace y el
+    /// Tenant va a la cola: la acción del usuario nunca espera más que esto por el estado materializado.
+    /// </summary>
+    public const string TopeDeEsperaDeCerrojo = "2s";
+
     private const string PuntoDeRecalculo = "estado_materializado";
     private const string PuntoDeCola = "estado_materializado_cola";
 
@@ -68,10 +74,25 @@ public sealed class RecalculoEstadoEnLinea(
         var transaccion = dbContext.Database.CurrentTransaction
                           ?? throw new InvalidOperationException("El recálculo en transacción necesita la transacción de la acción abierta.");
 
-        await transaccion.CreateSavepointAsync(PuntoDeRecalculo, CancellationToken.None);
         try
         {
+            await transaccion.CreateSavepointAsync(PuntoDeRecalculo, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            // La transacción de la acción ya estaba abortada (25P02) o la conexión rota: sin punto de guardado no se
+            // recalcula, y el COMMIT de la envoltura se comporta como sin el detector.
+            logger.LogError(ex, "Estado materializado: no se pudo abrir el punto de guardado del recálculo. {Disparadores}", Disparadores(cambios));
+            return;
+        }
+
+        try
+        {
+            // El tope de espera de cerrojo es de este recálculo, no de la acción: se restaura antes de liberar el punto
+            // de guardado (un ROLLBACK TO SAVEPOINT ya lo deshace solo).
+            var anterior = await FijarTopeDeEsperaAsync(TopeDeEsperaDeCerrojo);
             await RecalcularAsync(cambios);
+            await FijarTopeDeEsperaAsync(anterior);
             await transaccion.ReleaseSavepointAsync(PuntoDeRecalculo, CancellationToken.None);
         }
         catch (Exception ex)
@@ -88,35 +109,79 @@ public sealed class RecalculoEstadoEnLinea(
     /// <summary>Tras un guardado sin transacción (ya confirmado), en una transacción propia. Nunca lanza.</summary>
     internal async Task ProcesarFueraDeTransaccionAsync(CambiosEstadoDetectados cambios)
     {
+        Exception? fallo;
         try
         {
-            await EnTransaccionPropiaAsync(() => RecalcularAsync(cambios));
+            fallo = await EnTransaccionPropiaAsync(async () =>
+            {
+                await FijarTopeDeEsperaAsync(TopeDeEsperaDeCerrojo);
+                await RecalcularAsync(cambios);
+            });
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Estado materializado: falló el recálculo tras el guardado; el Tenant va a la cola. {Disparadores}",
-                Disparadores(cambios));
-            try
-            {
-                await EnTransaccionPropiaAsync(() => EncolarTenantesEnterosAsync(cambios, ex));
-            }
-            catch (Exception exCola)
-            {
-                // Lo repone el cotejo nocturno (diseño § 7.2); el guardado del usuario ya está confirmado.
-                logger.LogError(exCola, "Estado materializado: tampoco se pudo encolar el recálculo. {Disparadores}", Disparadores(cambios));
-            }
+            fallo = ex;
         }
+
+        if (fallo is null)
+            return;
+
+        logger.LogError(fallo, "Estado materializado: falló el recálculo tras el guardado; el Tenant va a la cola. {Disparadores}",
+            Disparadores(cambios));
+        Exception? falloCola;
+        try
+        {
+            falloCola = await EnTransaccionPropiaAsync(() => EncolarTenantesEnterosAsync(cambios, fallo));
+        }
+        catch (Exception ex)
+        {
+            falloCola = ex;
+        }
+
+        // Si tampoco se encola, lo repone el cotejo (diseño § 7.2); el guardado del usuario ya está confirmado.
+        if (falloCola is not null)
+            logger.LogError(falloCola, "Estado materializado: tampoco se pudo encolar el recálculo. {Disparadores}", Disparadores(cambios));
     }
 
-    private async Task EnTransaccionPropiaAsync(Func<Task> trabajo)
+    /// <summary>
+    /// Una transacción propia por la estrategia de ejecución (la que exige <c>EnableRetryOnFailure</c> para abrirla), con el
+    /// fallo del trabajo capturado dentro: la estrategia solo reintenta abrir la transacción, nunca el recálculo, que va a la
+    /// cola en vez de repetirse con el usuario esperando.
+    /// </summary>
+    private async Task<Exception?> EnTransaccionPropiaAsync(Func<Task> trabajo)
     {
+        Exception? fallo = null;
         var estrategia = dbContext.Database.CreateExecutionStrategy();
         await estrategia.ExecuteAsync(async () =>
         {
+            fallo = null;
             await using var transaccion = await dbContext.Database.BeginTransactionAsync(CancellationToken.None);
-            await trabajo();
-            await transaccion.CommitAsync(CancellationToken.None);
+            try
+            {
+                await trabajo();
+                await transaccion.CommitAsync(CancellationToken.None);
+            }
+            catch (Exception ex)
+            {
+                fallo = ex;
+            }
         });
+        return fallo;
+    }
+
+    /// <summary>
+    /// Fija <c>lock_timeout</c> en la transacción en curso (<c>set_config(…, true)</c>) y devuelve el que había. Sin tope,
+    /// un recálculo esperaría un cerrojo tanto como el tiempo de espera del comando (30 s), con la acción del usuario detenida.
+    /// </summary>
+    private async Task<string> FijarTopeDeEsperaAsync(string tope)
+    {
+        var anterior = (await dbContext.Database.SqlQuery<string>($"""
+            SELECT current_setting('lock_timeout') AS "Value"
+            """).ToListAsync(CancellationToken.None)).Single();
+        await dbContext.Database.ExecuteSqlAsync($"""
+            SELECT set_config('lock_timeout', {tope}, true)
+            """, CancellationToken.None);
+        return anterior;
     }
 
     private async Task EncolarTrasFalloEnTransaccionAsync(IDbContextTransaction transaccion, CambiosEstadoDetectados cambios, Exception fallo)
