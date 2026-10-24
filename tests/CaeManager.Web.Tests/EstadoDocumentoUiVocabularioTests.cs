@@ -41,6 +41,16 @@ public class EstadoDocumentoUiVocabularioTests
         EstadoDocumentoUi.Tono(EstadoDocumento.Faltante).Should().Be(TonoBadge.Peligro);
     }
 
+    [Fact]
+    public void Un_vencido_que_ningun_Centro_marca_obligatorio_lleva_el_tono_de_aviso_del_kit_y_el_obligatorio_el_rojo()
+    {
+        EstadoDocumentoUi.TonoDocumental(EstadoDocumento.Vencido, vencidoSinBloqueo: true).Should().Be(TonoBadge.Advertencia);
+        EstadoDocumentoUi.TonoDocumental(EstadoDocumento.Vencido, vencidoSinBloqueo: false).Should().Be(TonoBadge.Peligro);
+        EstadoDocumentoUi.TonoDocumental(EstadoDocumento.Faltante, vencidoSinBloqueo: true).Should().Be(TonoBadge.Peligro,
+            "la marca solo suaviza un Vencido");
+        EstadoDocumentoUi.TextoDocumental(EstadoDocumento.Vencido).Should().Be("Vencido");
+    }
+
     // -------------------------------------------------------------- Gravedad
 
     [Fact]

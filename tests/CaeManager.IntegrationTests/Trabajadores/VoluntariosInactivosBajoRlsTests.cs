@@ -353,7 +353,7 @@ public class VoluntariosInactivosBajoRlsTests : IAsyncLifetime
 
     private static async Task<IReadOnlyList<TrabajadorListaDto>> Listar(CaeManagerDbContext c, bool? inactivo)
     {
-        var handler = new ObtenerTrabajadoresQueryHandler(c, c, c, c, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(c, c, c), c, c, new DocumentosFaltantesService(c, c, c));
+        var handler = new ObtenerTrabajadoresQueryHandler(c, c, c, c, new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(c, c, c), c, c, RequisitosObligatoriosDePrueba.Servicio(c));
         // La consulta ya no filtra por actividad (Chris, 2026-10-18): el listado trae a todos y marca a los inactivos; se mira esa marca.
         var todos = (await handler.Handle(new ObtenerTrabajadoresQuery(null, TamanoPagina: 50), CancellationToken.None)).Elementos;
         return inactivo is { } soloEstado ? todos.Where(t => t.VoluntarioInactivo == soloEstado).ToList() : todos;

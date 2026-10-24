@@ -140,6 +140,7 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         nora.DocumentosRegistrados.Should().Be(4, "vencido, urgente, sin confirmar y vigente: ni el eliminado ni el sustituido ni los dos del gemelo ajeno");
         nora.DocumentosVigentes.Should().Be(2, "el urgente sigue valiendo hoy y el vigente; el vencido y el sin confirmar no");
         nora.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        nora.VencidoSinBloqueo.Should().BeFalse("su aptitud vencida es obligatoria en un Centro donde está asignada: va en rojo");
 
         var ana = resultado.Elementos.Single(t => t.Id == _ana);
         ana.Incidencias.Should().BeEmpty();
@@ -147,8 +148,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Lo exigido y sin documento sale en la fila con la regla única de faltantes: Iker, con Asignación activa en un
-    /// Centro que exige los cuatro Tipos y solo la aptitud registrada, tiene tres; Nora los tiene todos, y Ana, de
+    /// Lo obligatorio y sin documento sale en la fila con la regla única de requisitos obligatorios: Iker, con Asignación
+    /// activa en un Centro que marca los cuatro Tipos como obligatorios y solo la aptitud registrada, tiene tres; Nora los tiene todos, y Ana, de
     /// baja en su único Centro, no tiene exigencia alguna. Desde la revisión 1:1 del 2026-10-21 salen también sin
     /// desglose, y el estado de la fila ya llega combinado con ellos: es el mismo estado en el listado, Empresa 360 y
     /// Trabajador 360, pidan o no el desglose.
@@ -403,13 +404,14 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
     private ObtenerTrabajadoresQueryHandler HandlerSinCartera() => new(
         _runtime, _runtime, _runtime, _runtime, new AlcanceDatosServiceFalso(),
         new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime), _runtime, _runtime,
-        new DocumentosFaltantesService(_runtime, _runtime, _runtime));
+        RequisitosObligatoriosDePrueba.Servicio(_runtime));
 
     private ObtenerTrabajadoresQueryHandler HandlerDelGestor() => new(
         _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor,
         new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente()),
         new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor), _runtimeDelGestor, _runtimeDelGestor,
-        new DocumentosFaltantesService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor));
+        RequisitosObligatoriosDePrueba.Servicio(
+            _runtimeDelGestor, new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente())));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 
@@ -452,6 +454,13 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         var iker = Trabajador.DeSubcontrata(subcontrataFuera.Id, "Iker", "Fuera", "33445566R");
         _propietario.Centros.AddRange(centroDentro, centroFuera);
         _propietario.Trabajadores.AddRange(nora, ana, iker);
+        await _propietario.SaveChangesAsync();
+
+        // Sector 7G marca los cuatro como obligatorios (bloquean el acceso): solo lo obligatorio pinta en rojo y sale
+        // como «Falta» en la fila (regla del 2026-10-23).
+        _propietario.TiposDocumentoCentros.AddRange(
+            new[] { aptitud, formacion, epi, contrato }.Select(t =>
+                new TipoDocumentoCentro(t.Id, centroFuera.Id, incluido: true, bloqueaAcceso: true)));
         await _propietario.SaveChangesAsync();
 
         var bajaDeAna = new Asignacion(ana.Id, centroDentro.Id, hoy.AddDays(-30));
@@ -519,8 +528,10 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         new(nombre, null, aplicaVencimientoAutomatico: false, 1, AmbitoAplicacion.Trabajador, requerido: RequisitoDocumental.Si);
 
     /// <summary>
-    /// Cuenta las consultas del desglose: las únicas de estos handlers que unen <c>Documentos</c> con
-    /// <c>TiposDocumento</c>.
+    /// Cuenta las consultas del desglose por su etiqueta SQL (<see cref="CalculoEstadoDocumentalService.EtiquetaDesglose"/>).
+    /// Ya no basta con buscar <c>Documentos</c> y <c>TiposDocumento</c> en el texto: la evaluación de requisitos
+    /// obligatorios de Centro, que decide el estado de la fila, también los lee, y no es el desglose. Por eso se exige
+    /// además que la consulta toque esas dos tablas.
     /// </summary>
     private sealed class ContadorDeConsultasDeDesglose : DbCommandInterceptor
     {
@@ -533,7 +544,8 @@ public class DesgloseDocumentalDeTrabajadoresBajoRlsTests : IAsyncLifetime
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
+            if (command.CommandText.Contains("-- " + CalculoEstadoDocumentalService.EtiquetaDesglose, StringComparison.Ordinal)
+                && command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
                 && command.CommandText.Contains("\"TiposDocumento\"", StringComparison.Ordinal))
                 Interlocked.Increment(ref _consultas);
 

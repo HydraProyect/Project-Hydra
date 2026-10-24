@@ -716,9 +716,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
     }
 
-    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila). «Sin confirmar» no cuenta.</summary>
+    /// <summary>Fila en rojo: lo que bloquea el acceso, un obligatorio que falta o vence (el tinte de peligro de la fila). Un vencido que solo avisa y «Sin confirmar» no cuentan.</summary>
     private static bool EsFilaRoja(TrabajadorListaDto item) =>
-        EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+        item.EstadoDocumental is EstadoDocumento.Faltante || item.EstadoDocumental is EstadoDocumento.Vencido && !item.VencidoSinBloqueo;
 
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
     private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
@@ -1783,9 +1783,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string ClaseTarjeta(TrabajadorListaDto item)
     {
         // Mismo criterio que Empresas y la maqueta: rojo para lo que falta o vence, ámbar para lo que está por vencer o en
-        // tolerancia; «Sin confirmar» no tiñe.
+        // tolerancia; «Sin confirmar» no tiñe. Un vencido que ningún Centro marca obligatorio es aviso (decisión del 2026-10-23).
         var tinte = item.EstadoDocumental switch
         {
+            EstadoDocumento.Vencido when item.VencidoSinBloqueo => " fila-tintada-aviso",
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
             EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
             _ => string.Empty

@@ -122,6 +122,32 @@ public partial class TrabajadoresListaGen2Tests
     }
 
     [Fact]
+    public void Un_vencido_que_ningun_Centro_marca_obligatorio_se_rotula_Vencido_pero_en_el_tono_de_aviso()
+    {
+        // Decisión del 2026-10-23: lo que no bloquea el acceso no se pinta en rojo. La consulta marca VencidoSinBloqueo.
+        var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 3, 2,
+            IncidenciaDe("Contrato", EstadoDocumento.Vencido, -3));
+        javier = javier with { Dto = javier.Dto with { VencidoSinBloqueo = true } };
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        var badge = CeldaDeEstado(cut).QuerySelector(".badge")!;
+        badge.TextContent.Trim().Should().Be("Vencido");
+        badge.ClassList.Should().Contain("badge-advertencia").And.NotContain("badge-peligro");
+        FilasDeDatos(cut)[0].ClassList.Should().Contain("fila-tintada-aviso").And.NotContain("fila-tintada-peligro");
+    }
+
+    [Fact]
+    public void Un_vencido_obligatorio_sigue_en_rojo()
+    {
+        var javier = ConDesglose(Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vencido), 3, 2,
+            IncidenciaDe("Contrato", EstadoDocumento.Vencido, -3));
+        var cut = Renderizar(new MediatorFalso { Almacen = { javier } });
+
+        CeldaDeEstado(cut).QuerySelector(".badge")!.ClassList.Should().NotContain("badge-advertencia");
+        FilasDeDatos(cut)[0].ClassList.Should().Contain("fila-tintada-peligro");
+    }
+
+    [Fact]
     public void Con_muchos_tipos_exigidos_sin_documento_el_motivo_nombra_tres_y_resume_el_resto()
     {
         var javier = Trabajador("Javier", "Salas Moreno", estado: EstadoDocumento.Vigente);
