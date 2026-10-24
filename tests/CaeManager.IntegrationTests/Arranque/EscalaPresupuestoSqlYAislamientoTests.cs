@@ -649,7 +649,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
     [Fact]
     public async Task Con_los_Tenants_completos_las_colas_de_trabajo_caben_en_su_presupuesto_de_SQL()
     {
-        string[] pantallas = ["Alertas", "Inicio: KPIs", "Inicio: bandeja agrupada"];
+        string[] pantallas = ["Alertas", "Inicio: KPIs", "Inicio: bandeja agrupada", "Empresas"];
         var ficha = fixture.FichaDe(fixture.Piloto, TenantMedido);
 
         async Task<Dictionary<string, int>> MedirAsync()
@@ -684,6 +684,9 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
 
         foreach (var (pantalla, sin) in sinRellenar)
             salida.WriteLine($"{pantalla}: {sin} sentencias sin rellenar, {rellenos[pantalla]} con los Tenants completos");
+
+        // MEDICION TEMPORAL: falla a proposito para que la CI imprima las cifras; el siguiente commit fija los techos.
+        Assert.Fail("MEDIDAS " + string.Join("; ", sinRellenar.Select(p => $"{p.Key}: sin={p.Value} completo={rellenos[p.Key]}")));
 
         foreach (var (pantalla, maximo) in new Dictionary<string, int>
         {

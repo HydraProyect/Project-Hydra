@@ -55,6 +55,7 @@ public class ObtenerKpisDashboardQuerySinCarteraTests : IAsyncLifetime
         servicios.AddApplication();
         servicios.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Configuracion.IConfiguracionQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);
