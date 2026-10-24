@@ -61,6 +61,14 @@ public sealed class DeteccionVisitaCorreoInyeccionTests
     [InlineData("trabajador y 12 345 678 z")]
     [InlineData("１２３４５６７８Ｚ")]
     [InlineData("１２-３４５-６７８-ｚ")]
+    [InlineData("12 345 678 a")]
+    [InlineData("1 234 567 l")]
+    [InlineData("12345678–Z")]
+    [InlineData("12−345−678−Z")]
+    [InlineData("12<!-- -->345678Z")]
+    [InlineData("12&amp;nbsp;345678Z")]
+    [InlineData("DNI nº 12 345 678")]
+    [InlineData("DNI n.º 12.345.678")]
     public async Task Ninguna_forma_de_escribir_el_DNI_lo_deja_salir_en_claro(string forma)
     {
         var manejador = new ManejadorQueCaptura(RespuestaModelo(RespuestaNeutra));
@@ -77,9 +85,14 @@ public sealed class DeteccionVisitaCorreoInyeccionTests
     // Las fechas son lo que el modelo tiene que leer: ni la segunda pasada del enmascarado
     // ni la retirada de nombres de campo pueden llevárselas.
     [Theory]
-    [InlineData("el 26.10.2026. A partir de esa fecha entra")]
-    [InlineData("el 26-10-2026 A partir de esa fecha entra")]
-    [InlineData("el 26/10/2026 y el 30/10/2026")]
+    [InlineData("el 26.11.2027. A partir de esa fecha entra")]
+    [InlineData("el 26-11-2027 A partir de esa fecha entra")]
+    [InlineData("el 26/11/2027 y el 30/11/2027")]
+    [InlineData("visita - 26.11.2027. A partir del lunes")]
+    [InlineData("Fecha: 2027-11-24. A partir del lunes")]
+    [InlineData("entra el 20-10-2027 a las 09:00")]
+    [InlineData("del 2027-10-25 a 2027-10-30")]
+    [InlineData("del 2027-10-25 y 2027-10-30")]
     public async Task Las_fechas_del_correo_no_se_ocultan_como_si_fueran_un_documento(string frase)
     {
         var manejador = new ManejadorQueCaptura(RespuestaModelo(RespuestaNeutra));
@@ -87,7 +100,20 @@ public sealed class DeteccionVisitaCorreoInyeccionTests
         await Servicio(manejador).DetectarAsync(frase, [Norte], Hoy);
 
         var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
-        usuario.Should().Contain("26").And.Contain("2026").And.NotContain("[DOC_OCULTO]");
+        // 2027 solo puede venir del correo: la fecha de referencia del prompt es de 2026.
+        usuario.Should().Contain("2027").And.NotContain("[DOC_OCULTO]");
+    }
+
+    [Fact]
+    public async Task Un_correo_hecho_para_alargar_el_analisis_no_tumba_la_deteccion()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(RespuestaNeutra));
+        var hostil = string.Concat(Enumerable.Repeat("<a ", 90_000)) + "<head>" + string.Concat(Enumerable.Repeat("<b ", 50_000));
+
+        var detectar = () => Servicio(manejador).DetectarAsync(hostil, [Norte], Hoy);
+
+        await detectar.Should().NotThrowAsync();
+        manejador.CuerpoRecibido.Should().NotBeNull();
     }
 
     [Fact]
