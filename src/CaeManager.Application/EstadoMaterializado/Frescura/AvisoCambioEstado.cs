@@ -12,5 +12,8 @@ namespace CaeManager.Application.EstadoMaterializado.Frescura;
 /// </summary>
 /// <param name="TenantId">Tenant propietario de las filas escritas.</param>
 /// <param name="Version">La versión del Tenant tras esa transacción (la que devolvió su <c>UPDATE … RETURNING</c>).</param>
-/// <param name="Entidades">Identificadores de las entidades cuyas filas de estado escribió la transacción.</param>
+/// <param name="Entidades">
+/// Identificadores de las entidades cuyas filas de estado escribió la transacción. Vacío si no se sabe o si son más de
+/// <see cref="CacheEstadoCircuito.MaximoEntidadesEnRelecturaParcial"/>: quien lo recibe relee entero.
+/// </param>
 public sealed record AvisoCambioEstado(Guid TenantId, long Version, IReadOnlyCollection<Guid> Entidades);

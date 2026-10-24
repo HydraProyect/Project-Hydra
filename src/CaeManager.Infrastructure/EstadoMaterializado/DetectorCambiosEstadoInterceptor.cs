@@ -173,7 +173,7 @@ public sealed class DetectorCambiosEstadoInterceptor(IServiceProvider servicios)
         // creado a mano), su transacción no es la de ese servicio: no se recalcula aquí (lo repone el cotejo, diseño § 7.2).
         if (!ReferenceEquals(recalculo.Contexto, contexto))
         {
-            // Se descarta (no se arrastra a cada guardado siguiente de ese contexto): deuda hasta el cotejo de la PR 5.
+            // Se descarta (no se arrastra a cada guardado siguiente de ese contexto): lo repone el cotejo nocturno (CambioDeDiaEstadoMaterializado).
             estado.Acumulados.Descartar();
             recalculo.RegistrarContextoAjeno();
             return;

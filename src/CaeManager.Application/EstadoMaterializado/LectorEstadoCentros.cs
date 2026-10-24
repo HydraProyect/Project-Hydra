@@ -1,3 +1,4 @@
+using CaeManager.Application.EstadoMaterializado.Frescura;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
@@ -33,6 +34,14 @@ public interface ILectorEstadoCentros
     Task<bool> TenantCompletoAsync(CancellationToken cancellationToken);
 
     /// <summary>
+    /// <see cref="TenantCompletoAsync"/> y, en la misma sentencia, la versión del Tenant leída con el contexto RLS de la
+    /// conexión, para que <see cref="CacheEstadoCircuito"/> no pague otra. La versión es <c>null</c> si el Tenant no está
+    /// completo o la conexión ve más de una fila de versión (una identidad sin RLS): entonces no se cachea nada.
+    /// </summary>
+    async Task<ComprobacionTenantEstado> ComprobarTenantAsync(CancellationToken cancellationToken) =>
+        new(await TenantCompletoAsync(cancellationToken), null);
+
+    /// <summary>
     /// El estado guardado de esos Centros. Los que no tienen fila fiable no aparecen en el resultado, y si el Tenant no está
     /// completo (<see cref="TenantCompletoAsync"/>) no aparece ninguno: el llamador no puede olvidarse de comprobarlo y
     /// calcula lo que falte. No aplica el alcance del usuario: el llamador pasa los Centros que ya filtró con él.
@@ -40,47 +49,95 @@ public interface ILectorEstadoCentros
     Task<IReadOnlyDictionary<Guid, EstadoCentroLeido>> LeerAsync(IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken);
 }
 
+/// <summary>Si el Tenant de la conexión está completo y, si se puede cachear, la versión leída en la misma sentencia.</summary>
+public readonly record struct ComprobacionTenantEstado(bool Completo, VersionEstadoLeida? Version);
+
 /// <inheritdoc cref="ILectorEstadoCentros"/>
-public sealed class LectorEstadoCentros(IEstadoMaterializadoQueryContext contexto) : ILectorEstadoCentros
+/// <remarks>
+/// Las filas de los Centros se leen a través de <see cref="CacheEstadoCircuito"/> (diseño § 13.11): todas las del Tenant, sin
+/// alcance, y el alcance lo pone quien llama con los Centros que pasa. Las guardas de fila fiable (regla vigente, día de cambio
+/// aún por llegar) se aplican en cada lectura sobre lo guardado, con el día de hoy.
+/// </remarks>
+public sealed class LectorEstadoCentros(IEstadoMaterializadoQueryContext contexto, CacheEstadoCircuito? cache = null) : ILectorEstadoCentros
 {
     private const int LoteDeCentros = 2000;
 
-    // Una sola sentencia (fila de versión y cola vacía): los lectores de Empresa y Trabajador la comparten y la pagan en cada
-    // lectura que luego tiene que calcular.
+    /// <summary>Lo que se guarda de la fila de un Centro: sin filtrar por regla ni por día, que se miran al servir.</summary>
+    private sealed record FilaCentro(
+        Guid EntidadId, short Estado, EstadoPlataformaCentro? EstadoPlataforma, int Requeridos, int AlDia,
+        DateOnly? ProximoCambioEl, int VersionCalculo);
+
     public async Task<bool> TenantCompletoAsync(CancellationToken cancellationToken) =>
-        await contexto.VersionesEstadoTenant.AnyAsync(v => !contexto.RecalculosPendientes.Any(), cancellationToken);
+        (await ComprobarTenantAsync(cancellationToken)).Completo;
+
+    // Una sola sentencia (fila de versión y cola vacía): los lectores de Empresa y Trabajador la comparten y la pagan en cada
+    // lectura que luego tiene que calcular. Se leen dos filas como mucho para distinguir «una» de «varias» (como
+    // LectorVersionEstadoTenant): con varias, el Tenant cuenta como completo, como antes, pero no se cachea.
+    public async Task<ComprobacionTenantEstado> ComprobarTenantAsync(CancellationToken cancellationToken)
+    {
+        var filas = await contexto.VersionesEstadoTenant
+            .Where(v => !contexto.RecalculosPendientes.Any())
+            .Select(v => new { v.TenantId, v.Version })
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        return new ComprobacionTenantEstado(
+            filas.Count > 0, filas.Count == 1 ? new VersionEstadoLeida(filas[0].TenantId, filas[0].Version) : null);
+    }
 
     public async Task<IReadOnlyDictionary<Guid, EstadoCentroLeido>> LeerAsync(
         IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)
     {
         var leidos = new Dictionary<Guid, EstadoCentroLeido>();
-        if (centroIds.Count == 0 || !await TenantCompletoAsync(cancellationToken))
+        if (centroIds.Count == 0)
+            return leidos;
+        var tenant = await ComprobarTenantAsync(cancellationToken);
+        if (!tenant.Completo)
             return leidos;
 
+        var pedidos = centroIds.ToHashSet();
+        var filas = cache is null
+            ? await LeerFilasAsync(pedidos, cancellationToken)
+            : await cache.ObtenerAsync(Consulta(), tenant.Version, pedidos, cancellationToken);
+
         var hoy = DiaDeNegocio.Hoy();
-        const int versionDeLaRegla = CalculoEstadoMaterializado.VersionDeLaRegla;
-        foreach (var lote in centroIds.Distinct().Chunk(LoteDeCentros))
+        foreach (var fila in filas)
         {
-            var filas = await contexto.EstadosEntidad
-                .Where(e => e.Ambito == AmbitoEstadoEntidad.Centro
-                    && lote.Contains(e.EntidadId)
-                    && e.VersionCalculo == versionDeLaRegla
-                    && (e.ProximoCambioEl == null || e.ProximoCambioEl > hoy))
-                .Select(e => new { e.EntidadId, e.Estado, e.EstadoPlataforma, e.Requeridos, e.AlDia })
-                .ToListAsync(cancellationToken);
+            // El alcance: solo los Centros que pidió quien llama (ya filtrados con el del usuario).
+            if (!pedidos.Contains(fila.EntidadId))
+                continue;
+            // Fila fiable: de la regla vigente y con su día de cambio aún por llegar.
+            if (fila.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla
+                || (fila.ProximoCambioEl is { } cambio && cambio <= hoy))
+                continue;
+            // Un ordinal que el enum no conoce no se interpreta: el Centro se calcula como antes.
+            if (!Enum.IsDefined(typeof(EstadoCentro), (int)fila.Estado))
+                continue;
 
-            foreach (var fila in filas)
-            {
-                // Un ordinal que el enum no conoce no se interpreta: el Centro se calcula como antes.
-                if (!Enum.IsDefined(typeof(EstadoCentro), (int)fila.Estado))
-                    continue;
-
-                leidos[fila.EntidadId] = new EstadoCentroLeido(
-                    EstadoCentroCombinado.Derivar((EstadoCentro)fila.Estado, fila.EstadoPlataforma),
-                    new FraccionCumplimiento(fila.AlDia, fila.Requeridos));
-            }
+            leidos[fila.EntidadId] = new EstadoCentroLeido(
+                EstadoCentroCombinado.Derivar((EstadoCentro)fila.Estado, fila.EstadoPlataforma),
+                new FraccionCumplimiento(fila.AlDia, fila.Requeridos));
         }
 
         return leidos;
     }
+
+    private ConsultaEstadoEnCache<FilaCentro> Consulta() => new(
+        "estados-entidad-centro",
+        f => [f.EntidadId],
+        async ct => await Proyectar(contexto.EstadosEntidad.Where(e => e.Ambito == AmbitoEstadoEntidad.Centro)).ToListAsync(ct),
+        LeerFilasAsync);
+
+    private async Task<IReadOnlyList<FilaCentro>> LeerFilasAsync(IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        var filas = new List<FilaCentro>();
+        foreach (var lote in centroIds.Distinct().Chunk(LoteDeCentros))
+            filas.AddRange(await Proyectar(contexto.EstadosEntidad
+                    .Where(e => e.Ambito == AmbitoEstadoEntidad.Centro && lote.Contains(e.EntidadId)))
+                .ToListAsync(cancellationToken));
+        return filas;
+    }
+
+    private static IQueryable<FilaCentro> Proyectar(IQueryable<EstadoEntidad> filas) =>
+        filas.Select(e => new FilaCentro(
+            e.EntidadId, e.Estado, e.EstadoPlataforma, e.Requeridos, e.AlDia, e.ProximoCambioEl, e.VersionCalculo));
 }

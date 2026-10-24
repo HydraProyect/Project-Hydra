@@ -216,6 +216,12 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IEvaluacionDeAccesoDelTenant, EvaluacionDeAccesoPorCentroService>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.IRecalculoEstadoMaterializado, CaeManager.Application.EstadoMaterializado.RecalculoEstadoMaterializadoService>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoCentros, CaeManager.Application.EstadoMaterializado.LectorEstadoCentros>();
+        // Lo que el Cuadro de dirección y el Dashboard ejecutivo leen de las tablas del estado. Un contenedor que no registra
+        // las tablas (composición de prueba) recibe el lector que nunca lee: todo se calcula, que es la referencia.
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorCumplimientoDeDireccion>(sp =>
+            sp.GetService<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>() is null
+                ? CaeManager.Application.EstadoMaterializado.SinLectorDeCumplimientoDeDireccion.Instancia
+                : Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<CaeManager.Application.EstadoMaterializado.LectorCumplimientoDeDireccion>(sp));
         services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoMaterializado, CaeManager.Application.EstadoMaterializado.LectorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoRequisitos, CaeManager.Application.EstadoMaterializado.LectorEstadoRequisitos>();

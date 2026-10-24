@@ -212,4 +212,14 @@ public interface IRecalculoEstadoMaterializado
     /// su fila de versión. Idempotente: repetirlo deja las mismas filas.
     /// </summary>
     Task<ResultadoRecalculoEstado> RellenarTenantAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Calcula, sin escribir, el Tenant entero de la conexión con los mismos lotes que <see cref="RellenarTenantAsync"/>, y
+    /// entrega cada lote a <paramref name="porLote"/> (el cotejo nocturno lo compara con lo guardado). Devuelve las entidades
+    /// que recorrió: una fila guardada de otra entidad es de una entidad que ya no existe.
+    /// </summary>
+    Task<EntidadesDelTenant> CalcularTenantPorLotesAsync(Func<CalculoEstadoMaterializado, Task> porLote, CancellationToken cancellationToken);
 }
+
+/// <summary>Los Centros, Trabajadores y Empresas que existen en el Tenant, en el orden en que los recorren los lotes.</summary>
+public sealed record EntidadesDelTenant(IReadOnlyList<Guid> Centros, IReadOnlyList<Guid> Trabajadores, IReadOnlyList<Guid> Empresas);

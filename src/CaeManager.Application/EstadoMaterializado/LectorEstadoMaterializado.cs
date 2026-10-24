@@ -2,6 +2,7 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado.Frescura;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
@@ -68,6 +69,48 @@ public interface ILectorEstadoMaterializado
     /// </summary>
     Task<IReadOnlyDictionary<Guid, EstadoLeido>?> LeerAsync(
         AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// El estado de todas las entidades de la subconsulta del listado (antes de paginar), para la franja, el filtro y el orden
+    /// por estado, repartido por la clave de estado del listado. <c>null</c> si el lector no puede servirlas (no disponible,
+    /// alguna entidad sin fila o alguna fila que no decide): el listado entero se calcula como siempre. Las filas salen de
+    /// <see cref="Frescura.CacheEstadoCircuito"/>; el alcance lo pone la subconsulta, que ya lo lleva.
+    /// </summary>
+    Task<IdsPorEstadoLeido?> LeerEstadoCompletoAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken) =>
+        Task.FromResult<IdsPorEstadoLeido?>(null);
+}
+
+/// <summary>
+/// Las entidades de un listado repartidas por la clave de estado con que el listado cuenta, filtra y ordena
+/// (<c>EstadoDocumentalFiltro.ClaveOrdenConFaltantes</c>). Lo que no está en ninguna lista es Sin caducidad. Listas, no un
+/// diccionario, para que la consulta del listado las pase a SQL como parámetros.
+/// </summary>
+public sealed record IdsPorEstadoLeido(
+    List<Guid> Vencido, List<Guid> VencidoSinBloqueo, List<Guid> Faltante, List<Guid> Urgente, List<Guid> Proximo,
+    List<Guid> SinConfirmar, List<Guid> Vigente)
+{
+    /// <summary>La misma partición que hacía la unión con <c>EstadosEntidad</c> en SQL.</summary>
+    internal static IdsPorEstadoLeido De(IEnumerable<(Guid Id, short Estado, int Vencidos, int VencidosSinBloqueo)> filas)
+    {
+        var resultado = new IdsPorEstadoLeido([], [], [], [], [], [], []);
+        foreach (var (id, estado, vencidos, vencidosSinBloqueo) in filas)
+        {
+            var lista = (EstadoDocumento)estado switch
+            {
+                EstadoDocumento.Vencido when vencidos > 0 && vencidos == vencidosSinBloqueo => resultado.VencidoSinBloqueo,
+                EstadoDocumento.Vencido => resultado.Vencido,
+                EstadoDocumento.Faltante => resultado.Faltante,
+                EstadoDocumento.Urgente => resultado.Urgente,
+                EstadoDocumento.Proximo => resultado.Proximo,
+                EstadoDocumento.SinConfirmar => resultado.SinConfirmar,
+                EstadoDocumento.Vigente => resultado.Vigente,
+                _ => null,
+            };
+            lista?.Add(id);
+        }
+
+        return resultado;
+    }
 }
 
 /// <summary>El lector que nunca lee: todo se calcula en lectura. Para quien construye un manejador sin inyección.</summary>
@@ -99,24 +142,86 @@ public sealed class LectorEstadoMaterializado(
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
     IProyectosQueryContext proyectosContext,
-    IRequisitosObligatoriosIncumplidosService requisitosObligatorios)
+    IRequisitosObligatoriosIncumplidosService requisitosObligatorios,
+    CacheEstadoCircuito? cache = null)
     : ILectorEstadoMaterializado
 {
     private static readonly short Vencido = (short)EstadoDocumento.Vencido;
     private static readonly short Faltante = (short)EstadoDocumento.Faltante;
 
-    public async Task<bool> DisponibleAsync(CancellationToken cancellationToken)
+    public async Task<bool> DisponibleAsync(CancellationToken cancellationToken) =>
+        (await DisponibilidadAsync(cancellationToken)).Completo;
+
+    /// <summary>
+    /// <see cref="DisponibleAsync"/> con la versión del Tenant leída en la misma sentencia, para la caché del circuito.
+    /// </summary>
+    private async Task<ComprobacionTenantEstado> DisponibilidadAsync(CancellationToken cancellationToken)
     {
         // El alcance primero: lo resuelve y memoiza el servicio de alcance (la consulta lo necesita de todos modos), así que no
         // cuesta ninguna sentencia propia, y quien no alcanza el Tenant entero (acceso total o cartera universal) no paga las dos
         // de abajo. Un rol Cliente o una cartera por lista de Clientes calculan, aunque su lista cubra todos los Centros.
         if (!await alcanceDatos.AlcanzaElTenantEnteroAsync(cancellationToken))
-            return false;
+            return new ComprobacionTenantEstado(false, null);
 
         // Tenant completo: su fila de versión (sin ella tiene filas a medias o ninguna) y la cola de recálculos sin consumir
         // vacía (cambio de Tipo, tolerancia o umbrales, clausura grande, fallo del recálculo: lo guardado puede estar viejo).
         // La misma comprobación que los lectores de Centro, no una copia.
-        return await lectorCentros.TenantCompletoAsync(cancellationToken);
+        return await lectorCentros.ComprobarTenantAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Las filas del ámbito en el Tenant de la conexión, todas y sin alcance (diseño § 13.11), de la caché del circuito si
+    /// siguen al día con la versión leída. Quien llama se queda con las de sus entidades, que ya llevan el alcance.
+    /// </summary>
+    private async Task<IReadOnlyList<FilaLeida>> FilasAsync(
+        AmbitoEstadoEntidad ambito, VersionEstadoLeida? version, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        if (cache is null)
+            return await LeerFilasAsync(ambito, ids, cancellationToken);
+
+        return await cache.ObtenerAsync(
+            new ConsultaEstadoEnCache<FilaLeida>(
+                $"estados-entidad-{(int)ambito}",
+                f => [f.EntidadId],
+                async ct => await Proyectar(Entidades(ambito)).ToListAsync(ct),
+                (entidades, ct) => LeerFilasAsync(ambito, entidades, ct)),
+            version, ids, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<FilaLeida>> LeerFilasAsync(
+        AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
+    {
+        var lista = ids.Distinct().ToList();
+        return await Proyectar(Entidades(ambito).Where(e => lista.Contains(e.EntidadId))).ToListAsync(cancellationToken);
+    }
+
+    private static IQueryable<FilaLeida> Proyectar(IQueryable<EstadoEntidad> filas) =>
+        filas.Select(e => new FilaLeida(
+            e.EntidadId, e.Estado, e.Vencidos, e.VencidosSinBloqueo, e.Faltan, e.ProximoCambioEl, e.VersionCalculo));
+
+    public async Task<IdsPorEstadoLeido?> LeerEstadoCompletoAsync(
+        AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken)
+    {
+        var disponibilidad = await DisponibilidadAsync(cancellationToken);
+        if (!disponibilidad.Completo)
+            return null;
+
+        // Las entidades del listado (con su alcance y sus filtros), una sentencia; sus filas, de la caché.
+        var lista = await ids.Distinct().ToListAsync(cancellationToken);
+        var filas = (await FilasAsync(ambito, disponibilidad.Version, lista, cancellationToken)).ToDictionary(f => f.EntidadId);
+        var delListado = new List<FilaLeida>(lista.Count);
+        foreach (var id in lista)
+        {
+            // (d) Una entidad sin fila no es una «sin nada»: el listado entero se calcula.
+            if (!filas.TryGetValue(id, out var fila))
+                return null;
+            delListado.Add(fila);
+        }
+
+        if (await HayFilasQueNoDecideAsync(ambito, delListado, cancellationToken))
+            return null;
+
+        return IdsPorEstadoLeido.De(delListado.Select(f => (f.EntidadId, f.Estado, f.Vencidos, f.VencidosSinBloqueo)));
     }
 
     public IQueryable<EstadoEntidad> Entidades(AmbitoEstadoEntidad ambito) =>
@@ -219,19 +324,20 @@ public sealed class LectorEstadoMaterializado(
     public async Task<IReadOnlyDictionary<Guid, EstadoLeido>?> LeerAsync(
         AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
     {
-        if (!await DisponibleAsync(cancellationToken))
+        var disponibilidad = await DisponibilidadAsync(cancellationToken);
+        if (!disponibilidad.Completo)
             return null;
 
         var lista = ids.Distinct().ToList();
         if (lista.Count == 0)
             return new Dictionary<Guid, EstadoLeido>();
 
-        // Una sola lectura de las filas y las guardas en memoria: solo si alguna fila lo pide se hace otra consulta (voluntarios
-        // inactivos, pares del Centro). El camino común, sin ningún rojo, no gasta más sentencias que esta.
-        var filas = (await Entidades(ambito).Where(e => lista.Contains(e.EntidadId))
-                .Select(e => new FilaLeida(
-                    e.EntidadId, e.Estado, e.Vencidos, e.VencidosSinBloqueo, e.Faltan, e.ProximoCambioEl, e.VersionCalculo))
-                .ToListAsync(cancellationToken))
+        // Una sola lectura de las filas (de la caché del circuito si siguen al día) y las guardas en memoria: solo si alguna
+        // fila lo pide se hace otra consulta (voluntarios inactivos, pares del Centro). El camino común, sin ningún rojo, no
+        // gasta más sentencias que esta. El alcance: solo las entidades pedidas, que ya salen de la consulta con alcance.
+        var pedidas = lista.ToHashSet();
+        var filas = (await FilasAsync(ambito, disponibilidad.Version, lista, cancellationToken))
+            .Where(e => pedidas.Contains(e.EntidadId))
             .ToDictionary(e => e.EntidadId);
 
         // (d) también aquí: una entidad sin fila se calcula, no se da por «sin nada».

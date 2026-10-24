@@ -74,7 +74,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
-        // Relleno automático de los Tenants sin versión, apagado por defecto hasta el cotejo (PR 5 del plan).
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.CambioDeDiaEstadoMaterializado>();
+        // Relleno automático de los Tenants sin versión, apagado por defecto: con el cotejo nocturno en main ya se puede
+        // encender; encenderlo en producción lo decide Chris.
         services.Configure<CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado>(
             configuration.GetSection(CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado.Seccion));
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorMarcaRecalculandoEstado, CaeManager.Infrastructure.EstadoMaterializado.LectorMarcaRecalculandoEstado>();
@@ -681,6 +683,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Cola y relleno del estado materializado (PR 4b del plan): una sola ranura la procesa, por elección de líder.
         services.AddHostedService<CaeManager.Infrastructure.EstadoMaterializado.ColaEstadoMaterializadoHostedService>();
+        // Pasada de medianoche de Madrid, reposición al arrancar y cotejo nocturno (PR 5 del plan), también por líder.
+        services.AddHostedService<CaeManager.Infrastructure.EstadoMaterializado.CambioDeDiaEstadoMaterializadoHostedService>();
 
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.

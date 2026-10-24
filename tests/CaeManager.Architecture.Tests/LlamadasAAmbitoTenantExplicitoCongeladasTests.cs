@@ -371,6 +371,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant beneficiario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-18: cierre mensual del Cuadro de dirección)"),
         ["src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializadoHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-24: cola y relleno del estado materializado, PR 4b)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializadoHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón y misma identidad que ColaEstadoMaterializadoHostedService (2026-10-24: pasada de medianoche, reposición y cotejo nocturno del estado materializado, PR 5)"),
         ["src/CaeManager.Infrastructure/EstadoMaterializado/EncoladoTrasAmbitoSinRecalculo.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId de los Tenants que el detector anotó en el ámbito sin recálculo de una siembra, un CreateScope por Tenant propietario; solo encola su recálculo entero (2026-10-24, PR 4b)"),
         ["src/CaeManager.Application/Dashboard/ReabrirMesCuadroDireccionCommand.cs"] =

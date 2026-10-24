@@ -238,8 +238,48 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             return;
 
         _desechado = true;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    protected override void OnInitialized() =>
+        _repintado ??= EscucharCambiosDeEstado(RepintarEstadoDeCabeceraAsync);
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee solo el estado de la cabecera (la fila del listado, con el alcance del usuario
+    /// como cualquier lectura), sin el esqueleto de <see cref="CargarAsync"/>. Con una carga en vuelo se apunta y se relee al
+    /// terminarla. Si la carga cambió entretanto, la respuesta ya no es de lo que se ve y se descarta; si falla, la cabecera
+    /// se queda con lo que enseñaba.
+    /// </summary>
+    private async Task RepintarEstadoDeCabeceraAsync()
+    {
+        if (_desechado)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+        if (_detalle is not { } detalle)
+            return;
+
+        var carga = _cargaVigente;
+        var fila = await Mediator.Send(new ObtenerTrabajadoresQuery(
+            null, Pagina: 1, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: detalle.Id), _ciclo.Token);
+        if (!EsVigente(carga) || _detalle?.Id != detalle.Id)
+            return;
+
+        _estadoTrabajador = fila.Elementos.FirstOrDefault();
+        StateHasChanged();
     }
 
     /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>
@@ -562,6 +602,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                 if (_error)
                     _subidaDeLaUrlPendiente = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }

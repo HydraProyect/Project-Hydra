@@ -28,8 +28,9 @@ namespace CaeManager.IntegrationTests.EstadoMaterializado;
 /// <item>el circuito del otro Operador CAE externo no recibe nada y, forzándole el aviso, su relectura no devuelve ninguna
 /// fila del primero.</item>
 /// </list>
-/// El escritor aún no anota (lo engancha la PR 4b): el test hace de escritor con <see cref="IRegistroCambiosEstado"/> en una
-/// transacción, que es el contrato que el escritor cumplirá.
+/// El primer test hace de escritor con <see cref="IRegistroCambiosEstado"/> en una transacción, para fijar el contrato del
+/// aviso (deshecha, punto de guardado, COMMIT); el segundo lo hace con el escritor real, que anota al subir la versión, y un
+/// lector real de pantalla (diseño § 13.8–13.11).
 /// </summary>
 [Collection(ColeccionPilotoOutbound.Nombre)]
 public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamientoFixture fixture, ITestOutputHelper salida)
@@ -241,6 +242,120 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
         await fixture.Arnes.EnTenantAsync(tenantB, (db, _) => db.Database.ExecuteSqlRawAsync(
             """UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()"""));
         versionDeBSubida.SetResult(true);
+
+        await Task.WhenAll(circuitoA, circuitoB).WaitAsync(Tope);
+    }
+
+    /// <summary>
+    /// Con el escritor real: un recálculo que cambia una fila de Centro del Tenant beneficiario del primer Operador CAE externo
+    /// sube la versión, anota y, tras el COMMIT, el circuito que leyó ese Tenant con el lector de Centros recibe
+    /// <see cref="CacheEstadoCircuito.CambioRecibido"/> (lo que repinta la pantalla) y relee solo lo avisado. El circuito del
+    /// otro Operador CAE externo no recibe nada y sigue sirviendo lo suyo.
+    /// </summary>
+    [Fact]
+    public async Task Un_cambio_que_confirma_el_escritor_repinta_el_circuito_de_su_Tenant_y_no_el_del_otro_Operador_CAE_externo()
+    {
+        string? nombre = null;
+        foreach (var candidato in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
+            if (await fixture.Arnes.EnTenantAsync(fixture.Piloto.Tenants[candidato], (db, _) => db.Centros.AnyAsync()))
+            {
+                nombre = candidato;
+                break;
+            }
+        nombre.Should().NotBeNull("hace falta un Tenant beneficiario con Centros para tener filas de estado");
+
+        var tenantA = fixture.Piloto.Tenants[nombre!];
+        var tenantB = fixture.Otro.Tenants[nombre!];
+        foreach (var tenant in new[] { tenantA, tenantB })
+            await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+                sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
+
+        var listoA = Senal<(CacheEstadoCircuito Cache, Guid Centro, System.Collections.Concurrent.ConcurrentQueue<AvisoCambioEstado> Cambios)>();
+        var listoB = Senal<(CacheEstadoCircuito Cache, System.Collections.Concurrent.ConcurrentQueue<AvisoCambioEstado> Cambios)>();
+        var cambioConfirmado = Senal<bool>();
+
+        var circuitoA = Task.Run(() => fixture.ComoGestorEnAsync(fixture.Piloto, nombre!, async sp =>
+        {
+            try
+            {
+                var cache = sp.GetRequiredService<CacheEstadoCircuito>();
+                var cambios = new System.Collections.Concurrent.ConcurrentQueue<AvisoCambioEstado>();
+                cache.CambioRecibido += cambios.Enqueue;
+                var db = sp.GetRequiredService<CaeManagerDbContext>();
+                var visibles = await sp.GetRequiredService<IAlcanceDatosService>().ObtenerCentroIdsVisiblesAsync();
+                var centro = await db.Centros.AsNoTracking().Where(c => visibles == null || visibles.Contains(c.Id))
+                    .Select(c => c.Id).OrderBy(c => c).FirstAsync();
+                var lector = sp.GetRequiredService<ILectorEstadoCentros>();
+                (await lector.TenantCompletoAsync(CancellationToken.None)).Should().BeTrue("el relleno dejó el Tenant entero");
+                var primera = await lector.LeerAsync([centro], CancellationToken.None);
+                primera.Should().ContainKey(centro);
+                cache.RelecturasCompletas.Should().Be(1, "el lector de Centros lee a través de la caché del circuito");
+                listoA.SetResult((cache, centro, cambios));
+
+                await cambioConfirmado.Task.WaitAsync(Tope);
+                var segunda = await lector.LeerAsync([centro], CancellationToken.None);
+                segunda.Should().ContainKey(centro);
+                cache.RelecturasCompletas.Should().Be(1, "con el aviso de la versión nueva no se relee entero");
+                cache.RelecturasParciales.Should().Be(1, "se releen solo las entidades que el escritor nombró");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                listoA.TrySetException(ex);
+                throw;
+            }
+        }));
+
+        var circuitoB = Task.Run(() => fixture.ComoGestorEnAsync(fixture.Otro, nombre!, async sp =>
+        {
+            try
+            {
+                var cache = sp.GetRequiredService<CacheEstadoCircuito>();
+                var cambios = new System.Collections.Concurrent.ConcurrentQueue<AvisoCambioEstado>();
+                cache.CambioRecibido += cambios.Enqueue;
+                var db = sp.GetRequiredService<CaeManagerDbContext>();
+                var centros = await db.Centros.AsNoTracking().Select(c => c.Id).ToListAsync();
+                centros.Should().NotBeEmpty("su copia del Tenant beneficiario también tiene Centros");
+                var lector = sp.GetRequiredService<ILectorEstadoCentros>();
+                var primera = await lector.LeerAsync(centros, CancellationToken.None);
+                primera.Should().NotBeEmpty("el relleno escribió filas de estado de su Tenant: sin ellas, la igualdad de abajo no probaría nada");
+                primera.Keys.Should().NotIntersectWith(fixture.Piloto.Ids);
+                cache.RelecturasCompletas.Should().Be(1, "el lector de Centros lee a través de la caché del circuito");
+                listoB.SetResult((cache, cambios));
+
+                await cambioConfirmado.Task.WaitAsync(Tope);
+                (await lector.LeerAsync(centros, CancellationToken.None)).Should().BeEquivalentTo(primera);
+                cache.RelecturasCompletas.Should().Be(1, "su versión no cambió: no se relee entero");
+                cache.RelecturasParciales.Should().Be(0, "su versión no cambió: se sirve lo guardado");
+                return 0;
+            }
+            catch (Exception ex)
+            {
+                listoB.TrySetException(ex);
+                throw;
+            }
+        }));
+
+        var (cacheA, centroDeA, cambiosA) = await EsperarAsync(listoA, circuitoA, circuitoB);
+        var (cacheB, cambiosB) = await EsperarAsync(listoB, circuitoA, circuitoB);
+
+        // La fila guardada se desvía del cálculo (sin subir versión ni avisar), y el escritor real la recalcula: hay cambio, así
+        // que sube la versión y anota el Centro en la misma transacción; el aviso sale tras su COMMIT.
+        await fixture.Arnes.EnTenantAsync(tenantA, async (db, sp) =>
+        {
+            await db.Database.ExecuteSqlInterpolatedAsync(
+                $"""UPDATE "EstadosEntidad" SET "Vencidos" = "Vencidos" + 7 WHERE "EntidadId" = {centroDeA}""");
+            cacheA.AvisosRecibidos.Should().Be(0, "un cambio por SQL sin el escritor no avisa");
+            await sp.GetRequiredService<IRecalculoEstadoMaterializado>().RecalcularAsync(RaicesDeRecalculo.DeCentros(centroDeA), CancellationToken.None);
+            return 0;
+        });
+
+        cacheA.AvisosRecibidos.Should().Be(1, "el escritor avisa una vez, tras el COMMIT");
+        cambiosA.Should().ContainSingle().Which.Entidades.Should().Contain(centroDeA, "el aviso nombra las entidades escritas");
+        cambiosA.Single().TenantId.Should().Be(tenantA);
+        cacheB.AvisosRecibidos.Should().Be(0, "el circuito del otro Operador CAE externo no está suscrito a ese Tenant");
+        cambiosB.Should().BeEmpty("ni repinta");
+        cambioConfirmado.SetResult(true);
 
         await Task.WhenAll(circuitoA, circuitoB).WaitAsync(Tope);
     }

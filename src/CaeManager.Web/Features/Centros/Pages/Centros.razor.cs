@@ -273,8 +273,64 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _desechado = true;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>Cuenta las cargas de <see cref="CargarAsync"/>: un repintado que se cruza con una carga no pisa su respuesta.</summary>
+    private int _cargasIniciadas;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la misma página (con el alcance del usuario, como cualquier lectura) y se pinta
+    /// sin el esqueleto de carga, conservando la selección y las filas desplegadas que siguen en la página. Con una carga en
+    /// vuelo se apunta y se relee al terminarla. Si falla, la lista que ya se veía se queda (el fallo lo registra
+    /// <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>).
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        var carga = _cargasIniciadas;
+        var resultado = await Mediator.Send(ConsultaDePaginaActual(), _ciclo.Token);
+        if (_desechado || carga != _cargasIniciadas)
+            return;
+
+        var elementos = resultado.Elementos.ToList();
+        var enPagina = elementos.Select(c => c.Id).ToHashSet();
+        // Las próximas visitas van por página: solo se vuelven a pedir si la página ya no tiene los mismos Centros.
+        IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>> visitas = _visitasPorCentro;
+        if (!enPagina.SetEquals(_elementosPagina.Select(c => c.Id)))
+            visitas = elementos.Count == 0
+                ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
+                : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(elementos.Select(c => c.Id).ToList()), _ciclo.Token);
+        if (_desechado || carga != _cargasIniciadas)
+            return;
+
+        _totalElementos = resultado.TotalElementos;
+        _recuentosPorEstado = resultado.RecuentosPorEstado;
+        _resumenPorGrupo = resultado.ResumenPorGrupo;
+        _elementosPagina = elementos;
+        _visitasPorCentro = visitas;
+        _seleccionados.IntersectWith(enPagina);
+        _expandidos.IntersectWith(enPagina);
+        if (_idEnfocado is { } enfocado && !enPagina.Contains(enfocado))
+            _idEnfocado = null;
+        StateHasChanged();
     }
 
     // Reutilizan las mismas reglas que ya corren en el servidor al guardar
@@ -306,6 +362,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.
@@ -488,6 +545,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         if (resetPagina)
             _pagina = 1;
 
+        // Dos cargas solapadas (dos cambios de filtro seguidos): solo la última escribe y suelta el esqueleto, para que la
+        // anterior, más lenta, no pise su respuesta ni deje sin apuntar un aviso que llegue mientras la última sigue en vuelo.
+        var carga = ++_cargasIniciadas;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -495,6 +555,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         try
         {
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
+            if (carga != _cargasIniciadas)
+                return;
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
@@ -506,9 +568,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             // Batch por página (no por fila) — mismo criterio que el badge de
             // cumplimiento: evita N+1 aunque solo se pinte cuando hay visita.
-            _visitasPorCentro = _elementosPagina.Count == 0
+            var visitas = _elementosPagina.Count == 0
                 ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
                 : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(_elementosPagina.Select(c => c.Id).ToList()));
+            if (carga == _cargasIniciadas)
+                _visitasPorCentro = visitas;
+        }
+        catch (Exception) when (carga != _cargasIniciadas)
+        {
+            // Una carga superada que falla no tapa con el error la respuesta de la vigente.
         }
         catch (Exception)
         {
@@ -516,8 +584,21 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
+            if (carga == _cargasIniciadas)
+                FinDeCarga();
+        }
+    }
+
+    /// <summary>Acaba la carga vigente: fuera el esqueleto, y si llegó un aviso mientras tanto, se relee.</summary>
+    private void FinDeCarga()
+    {
+        _cargando = false;
+        StateHasChanged();
+        // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+        if (_releerTrasCarga && !_desechado)
+        {
+            _releerTrasCarga = false;
+            _repintado?.PedirRelectura();
         }
     }
 

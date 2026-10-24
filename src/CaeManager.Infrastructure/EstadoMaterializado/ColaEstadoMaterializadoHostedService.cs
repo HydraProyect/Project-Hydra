@@ -11,8 +11,8 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 
 /// <summary>
 /// Trabajo en segundo plano del estado materializado (diseño § 4.5, § 7.3 y § 13.8): consume la cola
-/// <c>RecalculosPendientes</c> y, con <c>EstadoMaterializado:RellenoAutomatico</c> encendido (apagado por defecto hasta el
-/// cotejo de la PR 5), rellena los Tenants que aún no tienen fila en <c>VersionesEstadoTenant</c>, con
+/// <c>RecalculosPendientes</c> y, con <c>EstadoMaterializado:RellenoAutomatico</c> encendido (apagado por defecto; con el
+/// cotejo nocturno en main se puede encender), rellena los Tenants que aún no tienen fila en <c>VersionesEstadoTenant</c>, con
 /// <see cref="ProcesadorColaEstadoMaterializado"/>.
 ///
 /// <para>
