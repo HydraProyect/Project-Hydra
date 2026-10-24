@@ -130,8 +130,9 @@ public record CentroListaDto(
 ///
 /// - <b>Tenant completo</b> (<see cref="ILectorEstadoCentros.TenantCompletoAsync"/>: tiene su fila en
 ///   <c>VersionesEstadoTenant</c> y ningún recálculo diferido sin consumir): se leen de <c>EstadosEntidad</c>, que el
-///   recálculo del estado materializado mantiene al día en la misma transacción de cada acción (diseño del estado
-///   materializado, <c>Project-Hydra-Negocio/tecnico/DISENO-ESTADO-MATERIALIZADO-2026-10-24.md</c>). El rótulo combinado
+///   recálculo del estado materializado rehace en la misma transacción de cada acción que cambia una entrada del
+///   cálculo (diseño del estado materializado, <c>Project-Hydra-Negocio/tecnico/DISENO-ESTADO-MATERIALIZADO-2026-10-24.md</c>;
+///   los huecos que ese recálculo aún no cubre, § 13.7, los cierra el cotejo nocturno). El rótulo combinado
 ///   se deriva de las dos columnas (<c>EstadoCentroCombinado.Derivar</c>: estado en TALVEG y estado en la Plataforma
 ///   CAE van separados en la tabla). Un Centro sin fila fiable (sin fila, calculada con una regla anterior o con su día
 ///   de cambio ya pasado) se calcula en línea, solo él.
@@ -192,7 +193,6 @@ public class ObtenerCentrosQueryHandler(
         // El cumplimiento viaja con el estado (misma fila de EstadosEntidad en un Tenant completo; un cálculo aparte
         // en uno sin completar). Para ordenar por él hay que conocerlo de todos los centros que pasan los
         // filtros ANTES de paginar, así que toma el mismo camino que el estado.
-        var tenantCompleto = await lectorEstado.TenantCompletoAsync(cancellationToken);
         var estadosPedidos = (request.Estados ?? []).ToHashSet();
         if (request.Estado is { } unEstado)
             estadosPedidos.Add(unEstado);
@@ -218,7 +218,7 @@ public class ObtenerCentrosQueryHandler(
             // otros Centros vayan en la misma llamada). En un Tenant completo viene con el estado, de la misma fila.
             var ordenaPorCumplimiento =
                 string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
-            var lecturas = await LeerEstadosAsync(idsTodas, tenantCompleto, ordenaPorCumplimiento, cancellationToken);
+            var lecturas = await LeerEstadosAsync(idsTodas, ordenaPorCumplimiento, cancellationToken);
             IEnumerable<CentroListaDto> conEstado = todas.Select(c => AplicarEstado(c, lecturas[c.Id])).ToList();
 
             // Antes de filtrar por estado: cada cifra de la franja dice cuántos Centros quedarían al marcar ese
@@ -305,7 +305,7 @@ public class ObtenerCentrosQueryHandler(
             .ToListAsync(cancellationToken);
 
         var lecturasPagina = await LeerEstadosAsync(
-            pagina.Select(c => c.Id).ToList(), tenantCompleto, conCumplimiento: false, cancellationToken);
+            pagina.Select(c => c.Id).ToList(), conCumplimiento: false, cancellationToken);
         var elementos = await CompletarPaginaAsync(
             pagina.Select(c => AplicarEstado(c, lecturasPagina[c.Id])).ToList(),
             lecturasPagina, request.ConIncidencias, cancellationToken);
@@ -318,14 +318,12 @@ public class ObtenerCentrosQueryHandler(
     /// de siempre para el resto (todos, si el Tenant no está completo).
     /// </summary>
     private async Task<Dictionary<Guid, LecturaDeCentro>> LeerEstadosAsync(
-        IReadOnlyCollection<Guid> ids, bool tenantCompleto, bool conCumplimiento, CancellationToken cancellationToken)
+        IReadOnlyCollection<Guid> ids, bool conCumplimiento, CancellationToken cancellationToken)
     {
         var lecturas = new Dictionary<Guid, LecturaDeCentro>(ids.Count);
-        if (tenantCompleto)
-        {
-            foreach (var (id, leido) in await lectorEstado.LeerAsync(ids, cancellationToken))
-                lecturas[id] = new LecturaDeCentro(leido.Estado, leido.Cumplimiento.Porcentaje, CumplimientoLeido: true, Calculada: false, null);
-        }
+        // El lector no devuelve nada de un Tenant sin completar: todo cae al cálculo de abajo.
+        foreach (var (id, leido) in await lectorEstado.LeerAsync(ids, cancellationToken))
+            lecturas[id] = new LecturaDeCentro(leido.Estado, leido.Cumplimiento.Porcentaje, CumplimientoLeido: true, Calculada: false, null);
 
         var sinLeer = ids.Where(id => !lecturas.ContainsKey(id)).ToList();
         if (sinLeer.Count == 0)
@@ -386,9 +384,9 @@ public class ObtenerCentrosQueryHandler(
             lectura.Detalle is null ? RecuentosCentroDto.Vacio : Desglosar(lectura.Detalle));
 
     /// <summary>
-    /// Las causas ya venían calculadas para decidir el estado del centro; aquí
-    /// solo se agrupan por estado. No hay consulta nueva: es el mismo dato que
-    /// ya viajaba, que hasta ahora la lista descartaba.
+    /// Las causas las da el cálculo del estado del centro (<see cref="ICalculoEstadoCentroService"/>), que se hace para los
+    /// Centros de la página aunque el estado salga de <c>EstadosEntidad</c>; aquí solo se agrupan por estado. No hay consulta
+    /// nueva: es el mismo dato que ya viajaba, que hasta ahora la lista descartaba.
     /// "Faltante" cuenta como vencido en el total — un requisito sin documento no
     /// está al día — y el motivo de Centros lo separa por causa (ver
     /// <see cref="RecuentosCentroDto.Pendientes"/>).

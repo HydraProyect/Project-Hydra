@@ -17,9 +17,10 @@ public sealed record EstadoCentroLeido(EstadoCentro Estado, FraccionCumplimiento
 /// calcularía <c>ICalculoEstadoCentroService</c>, ya guardado; y solo lo devuelve cuando es fiable:
 /// <list type="bullet">
 /// <item><b>Tenant completo</b> (<see cref="TenantCompletoAsync"/>): tiene su fila en <c>VersionesEstadoTenant</c>, que solo
-/// crea el relleno completo, y ningún recálculo diferido sin consumir. Sin ella, ningún Centro del Tenant se lee de las
-/// tablas: el llamador calcula como antes. Mientras la fila no exista no se recalcula el estado de ese Tenant (diseño § 13.7),
-/// así que sus filas, si las hay, pueden estar viejas.</item>
+/// crea el relleno completo, y ningún recálculo diferido sin consumir. Sin ella, <see cref="LeerAsync"/> no devuelve ningún
+/// Centro y el llamador calcula como antes. Mientras la fila no exista no se recalcula el estado de ese Tenant (diseño
+/// § 13.7), así que sus filas, si las hay, pueden estar viejas. Ni siquiera con la fila hay garantía total: los huecos
+/// conocidos del detector (diseño § 13.7) quedan para el cotejo nocturno.</item>
 /// <item><b>Fila fiable</b> (<see cref="LeerAsync"/>): calculada con la versión vigente de la regla y con su
 /// <c>ProximoCambioEl</c> aún por llegar. Una fila cuyo día de cambio ya pasó (la pasada de medianoche aún no la rehízo) o de
 /// una regla anterior no se devuelve, y el llamador calcula ese Centro como antes.</item>
@@ -32,9 +33,9 @@ public interface ILectorEstadoCentros
     Task<bool> TenantCompletoAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// El estado guardado de esos Centros. Los que no tienen fila fiable no aparecen en el resultado. No comprueba
-    /// <see cref="TenantCompletoAsync"/>: es cosa del llamador. No aplica el alcance del usuario: el llamador pasa los Centros
-    /// que ya filtró con él.
+    /// El estado guardado de esos Centros. Los que no tienen fila fiable no aparecen en el resultado, y si el Tenant no está
+    /// completo (<see cref="TenantCompletoAsync"/>) no aparece ninguno: el llamador no puede olvidarse de comprobarlo y
+    /// calcula lo que falte. No aplica el alcance del usuario: el llamador pasa los Centros que ya filtró con él.
     /// </summary>
     Task<IReadOnlyDictionary<Guid, EstadoCentroLeido>> LeerAsync(IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken);
 }
@@ -52,7 +53,7 @@ public sealed class LectorEstadoCentros(IEstadoMaterializadoQueryContext context
         IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)
     {
         var leidos = new Dictionary<Guid, EstadoCentroLeido>();
-        if (centroIds.Count == 0)
+        if (centroIds.Count == 0 || !await TenantCompletoAsync(cancellationToken))
             return leidos;
 
         var hoy = DiaDeNegocio.Hoy();

@@ -87,8 +87,9 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
 
     /// <summary>
     /// Condición crítica del PR: en producción aún no hay filas de versión, y un Tenant sin ella no está completo. Para
-    /// distinguir el camino que se toma de un resultado que coincide por casualidad, se altera el estado guardado: con la fila
-    /// de versión el listado devuelve lo guardado; sin ella, lo calculado, aunque las filas de <c>EstadosEntidad</c> sigan ahí.
+    /// distinguir el camino que se toma de un resultado que coincide por casualidad, se altera el estado y el cumplimiento
+    /// guardados: con la fila de versión el listado devuelve lo guardado; sin ella, lo calculado, aunque las filas de
+    /// <c>EstadosEntidad</c> sigan ahí.
     /// </summary>
     [Fact]
     public async Task Un_Tenant_sin_fila_de_version_se_calcula_como_siempre_aunque_sus_tablas_tengan_filas()
@@ -96,26 +97,27 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
         var tenant = await TenantConMasCentrosAsync();
         await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
         {
-            var ids = await db.Centros.Select(c => c.Id).ToListAsync();
             var consulta = new ObtenerCentrosQuery(null, null, TamanoPagina: 1000, ConRecuentosPorEstado: true, ConResumenPorGrupo: true);
-            var calculado = await EstadosAsync(db, sp, desdeTablas: false, consulta);
-            var guardado = await FilasDeCentroAsync(db);
-            var envenenado = guardado.ToDictionary(f => f.Key, f => Envenenar(f.Value));
+            var calculado = await ListadoAsync(db, sp, desdeTablas: false, consulta);
+            var guardado = await FilasDeCentroAsync(db, calculado.Keys);
+            var lector = sp.GetRequiredService<ILectorEstadoCentros>();
             try
             {
                 await EnvenenarTodasAsync(db);
 
-                var conVersion = await EstadosAsync(db, sp, desdeTablas: true, consulta);
-                conVersion.Should().BeEquivalentTo(
-                    ids.ToDictionary(id => id, id => guardado[id] == (short)EstadoCentro.SinGestionCae ? EstadoCentro.SinGestionCae : envenenado[id]),
-                    "con la fila de versión, el listado devuelve lo que dicen las tablas (aquí, un estado inventado)");
-                conVersion.Should().NotBeEquivalentTo(calculado, "el estado inventado tiene que distinguirse del calculado");
+                (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(
+                    calculado.ToDictionary(c => c.Key, c => EsperadoEnvenenado(guardado[c.Key], c.Value)),
+                    "con la fila de versión, el listado devuelve lo que dicen las tablas (aquí, un estado y un cumplimiento inventados)");
+                (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().NotBeEquivalentTo(calculado,
+                    "lo inventado tiene que distinguirse de lo calculado");
 
                 await db.Database.ExecuteSqlAsync($"""DELETE FROM "VersionesEstadoTenant" """);
-                (await sp.GetRequiredService<ILectorEstadoCentros>().TenantCompletoAsync(CancellationToken.None)).Should().BeFalse();
+                (await lector.TenantCompletoAsync(CancellationToken.None)).Should().BeFalse();
+                (await lector.LeerAsync(calculado.Keys.ToList(), CancellationToken.None)).Should().BeEmpty(
+                    "sin su fila de versión el lector no devuelve nada, tenga o no filas guardadas");
 
-                (await EstadosAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado,
-                    "sin su fila de versión el Tenant no está completo: el lector no se usa y se calcula, tenga o no filas guardadas");
+                (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado,
+                    "sin su fila de versión el Tenant no está completo: se calcula, tenga o no filas guardadas");
                 Firma(await Handler(db, sp, desdeTablas: true).Handle(consulta, CancellationToken.None), true)
                     .Should().Be(Firma(await Handler(db, sp, desdeTablas: false).Handle(consulta, CancellationToken.None), true),
                         "ni el recuento por estado, ni el resumen por grupo, ni los recuentos leen las tablas");
@@ -125,8 +127,10 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
                 await sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None);
             }
 
-            (await sp.GetRequiredService<ILectorEstadoCentros>().TenantCompletoAsync(CancellationToken.None)).Should().BeTrue("el relleno restaura la fila de versión");
-            (await EstadosAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado, "restaurado, las tablas vuelven a coincidir con el cálculo");
+            (await lector.TenantCompletoAsync(CancellationToken.None)).Should().BeTrue("el relleno restaura la fila de versión");
+            (await FilasDeCentroAsync(db, calculado.Keys)).Should().BeEquivalentTo(guardado, "el relleno restaura cada fila alterada");
+            (await lector.LeerAsync(calculado.Keys.ToList(), CancellationToken.None)).Should().HaveCount(calculado.Count);
+            (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado, "restaurado, las tablas vuelven a coincidir con el cálculo");
             return 0;
         });
     }
@@ -142,8 +146,8 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
         await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
         {
             var consulta = new ObtenerCentrosQuery(null, null, TamanoPagina: 1000);
-            var calculado = await EstadosAsync(db, sp, desdeTablas: false, consulta);
-            var guardado = await FilasDeCentroAsync(db);
+            var calculado = await ListadoAsync(db, sp, desdeTablas: false, consulta);
+            var guardado = await FilasDeCentroAsync(db, calculado.Keys);
             var elegibles = guardado.Where(f => f.Value != (short)EstadoCentro.SinGestionCae).Select(f => f.Key).OrderBy(id => id).ToList();
             elegibles.Should().HaveCountGreaterThanOrEqualTo(4, "tres filas no fiables y al menos una fiable de control");
             var (sinFila, diaPasado, reglaAnterior) = (elegibles[0], elegibles[1], elegibles[2]);
@@ -157,15 +161,14 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
                 await db.Database.ExecuteSqlAsync($"""UPDATE "EstadosEntidad" SET "VersionCalculo" = 0 WHERE "Ambito" = {EstadoDeCentro} AND "EntidadId" = {reglaAnterior}""");
 
                 var leidos = await lector.LeerAsync(guardado.Keys.ToList(), CancellationToken.None);
-                leidos.Keys.Should().NotContain(new[] { sinFila, diaPasado, reglaAnterior },"ninguna de las tres es fiable");
+                leidos.Keys.Should().NotContain(new[] { sinFila, diaPasado, reglaAnterior }, "ninguna de las tres es fiable");
                 leidos.Should().HaveCount(guardado.Count - 3);
 
-                var esperado = guardado.ToDictionary(
-                    f => f.Key,
-                    f => f.Key == sinFila || f.Key == diaPasado || f.Key == reglaAnterior || f.Value == (short)EstadoCentro.SinGestionCae
-                        ? calculado[f.Key]
-                        : Envenenar(f.Value));
-                (await EstadosAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(esperado,
+                var noFiables = new HashSet<Guid> { sinFila, diaPasado, reglaAnterior };
+                var esperado = calculado.ToDictionary(
+                    c => c.Key,
+                    c => noFiables.Contains(c.Key) ? c.Value : EsperadoEnvenenado(guardado[c.Key], c.Value));
+                (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(esperado,
                     "las tres filas no fiables se calculan; las demás, con la fila fiable, salen de las tablas");
 
                 await db.Database.ExecuteSqlAsync($"""
@@ -173,7 +176,7 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
                     SELECT gen_random_uuid(), {EstadoDeCentro}, NULL, {"Prueba del lector"}, now(), NULL, 0, {tenant}
                     """);
                 (await lector.TenantCompletoAsync(CancellationToken.None)).Should().BeFalse("hay un recálculo diferido sin consumir");
-                (await EstadosAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado,
+                (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado,
                     "con la cola sin vaciar, lo guardado puede estar viejo: se calcula todo");
             }
             finally
@@ -182,7 +185,9 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
                 await sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None);
             }
 
-            (await EstadosAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado, "restaurado, las tablas vuelven a coincidir con el cálculo");
+            (await FilasDeCentroAsync(db, calculado.Keys)).Should().BeEquivalentTo(guardado, "el relleno restaura cada fila alterada");
+            (await lector.LeerAsync(calculado.Keys.ToList(), CancellationToken.None)).Should().HaveCount(calculado.Count);
+            (await ListadoAsync(db, sp, desdeTablas: true, consulta)).Should().BeEquivalentTo(calculado, "restaurado, las tablas vuelven a coincidir con el cálculo");
             return 0;
         });
     }
@@ -207,8 +212,8 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
             deTablas.Elementos.Should().NotBeEmpty();
             deTablas.Elementos.Should().OnlyContain(c => c.Recuentos == RecuentosCentroDto.Vacio,
                 "sin incidencias pedidas, el detalle de las causas no se calcula");
-            sentenciasDeTablas.Should().BeLessThanOrEqualTo(10, "tenant completo, los Centros y las filas de EstadosEntidad");
-            sentenciasDeTablas.Should().BeLessThan(sentenciasDeCalculo, "el cálculo de cada Centro emite muchas más sentencias");
+            sentenciasDeTablas.Should().BeLessThan(sentenciasDeCalculo / 2,
+                "el cálculo de cada Centro emite muchas más sentencias que leer sus filas");
             return 0;
         });
     }
@@ -217,27 +222,43 @@ public class LectoresDeCentroLeenElEstadoMaterializadoTests(EstadoMaterializadoP
         new(db, db, new AlcanceDatosServiceFalso(), sp.GetRequiredService<ICalculoEstadoCentroService>(),
             desdeTablas ? sp.GetRequiredService<ILectorEstadoCentros>() : new LectorDeTenantSinCompletar());
 
-    private static async Task<Dictionary<Guid, EstadoCentro>> EstadosAsync(
+    /// <summary>El estado y el porcentaje de cumplimiento de cada Centro que devuelve el listado.</summary>
+    private static async Task<Dictionary<Guid, (EstadoCentro Estado, int? Cumplimiento)>> ListadoAsync(
         CaeManagerDbContext db, IServiceProvider sp, bool desdeTablas, ObtenerCentrosQuery consulta) =>
-        (await Handler(db, sp, desdeTablas).Handle(consulta, CancellationToken.None)).Elementos.ToDictionary(c => c.Id, c => c.Estado);
+        (await Handler(db, sp, desdeTablas).Handle(consulta, CancellationToken.None)).Elementos
+            .ToDictionary(c => c.Id, c => (c.Estado, c.CumplimientoPorcentaje));
 
-    private static async Task<Dictionary<Guid, short>> FilasDeCentroAsync(CaeManagerDbContext db) =>
-        await db.EstadosEntidad.AsNoTracking()
+    /// <summary>El <c>Estado</c> guardado de cada Centro (solo de los que devuelve el listado).</summary>
+    private static async Task<Dictionary<Guid, short>> FilasDeCentroAsync(CaeManagerDbContext db, IEnumerable<Guid> centroIds)
+    {
+        var filas = await db.EstadosEntidad.AsNoTracking()
             .Where(e => e.Ambito == AmbitoEstadoEntidad.Centro)
             .ToDictionaryAsync(e => e.EntidadId, e => e.Estado);
+        return centroIds.ToDictionary(id => id, id => filas[id]);
+    }
 
-    /// <summary>Un estado de TALVEG que nunca coincide con el guardado ni con el rótulo combinado que saldría de él.</summary>
-    private static EstadoCentro Envenenar(short estadoGuardado) =>
-        estadoGuardado == (short)EstadoCentro.Vencido ? EstadoCentro.Urgente : EstadoCentro.Vencido;
+    /// <summary>Porcentaje que dejan <c>Requeridos = 4</c> y <c>AlDia = 1</c>, que ningún Centro del piloto tiene por casualidad en todos.</summary>
+    private const int PorcentajeEnvenenado = 25;
+
+    /// <summary>
+    /// Lo que el listado debe devolver de una fila alterada por <see cref="EnvenenarTodasAsync"/>: un estado de TALVEG que nunca
+    /// coincide con el guardado ni con el rótulo combinado que saldría de él, y el cumplimiento inventado. Un Centro sin
+    /// gestión CAE no se altera.
+    /// </summary>
+    private static (EstadoCentro Estado, int? Cumplimiento) EsperadoEnvenenado(short estadoGuardado, (EstadoCentro Estado, int? Cumplimiento) calculado) =>
+        estadoGuardado == (short)EstadoCentro.SinGestionCae
+            ? calculado
+            : (estadoGuardado == (short)EstadoCentro.Vencido ? EstadoCentro.Urgente : EstadoCentro.Vencido, PorcentajeEnvenenado);
 
     private static Task<int> EnvenenarTodasAsync(CaeManagerDbContext db) =>
         db.Database.ExecuteSqlAsync($"""
             UPDATE "EstadosEntidad"
             SET "Estado" = CASE WHEN "Estado" = {(short)EstadoCentro.Vencido} THEN {(short)EstadoCentro.Urgente} ELSE {(short)EstadoCentro.Vencido} END,
-                "EstadoPlataforma" = NULL
+                "EstadoPlataforma" = NULL,
+                "Requeridos" = 4,
+                "AlDia" = 1
             WHERE "Ambito" = {EstadoDeCentro} AND "Estado" <> {(short)EstadoCentro.SinGestionCae}
             """);
-
     private async Task<Guid> TenantConMasCentrosAsync()
     {
         var cuentas = new List<(Guid Tenant, int Centros)>();
