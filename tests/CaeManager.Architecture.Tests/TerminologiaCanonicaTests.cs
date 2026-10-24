@@ -464,7 +464,15 @@ public class TerminologiaCanonicaTests
         // 354 → 355 (mismo día, decisión de autenticar con la ventana cerrada): el criterio se parte en
         // PuedeAutenticar (expresión) y PuedeEmitir, que recibe la DelegacionTenant ya cargada; el tipo
         // de su parámetro es el único uso nuevo.
-        ["Delegacion"] = 355,
+        // 351 → 344 (2026-10-23, listado nuevo de la pantalla ya existente): −7. La pantalla estrena lista sin añadir
+        // identificadores con el término. El DTO DelegacionDto se nombra una sola vez en Delegaciones.razor.cs, en un
+        // alias de uso (AsignacionLista), y todo el código de la página y de la lista nueva lo usa por ese alias (antes
+        // lo nombraba en cada declaración). Los recursos y las claves de pantalla nuevos usan el nombre canónico
+        // (TextosAsignacionesOperacion, PantallasConVistaRecordada.AsignacionesDeOperacion), que son artefactos nuevos y
+        // no renombran nada. Queda solo el texto visible del título de la pantalla en el recurso, que es la rotulación
+        // actual y no se cambia aquí.
+        // 355 → 348 (2026-10-23): la misma rebaja de −7 de arriba, medida sobre main con las claves de API ya integradas.
+        ["Delegacion"] = 348,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

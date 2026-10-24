@@ -37,8 +37,10 @@ namespace CaeManager.Web.Tests;
 
 public partial class DelegacionesGen2Tests : BunitContext
 {
+    private bool _abrirDetalles = true;
     private sealed class Mediador : IMediator
     {
+        public TaskCompletionSource? EsperaLista { get; set; }
         public List<(object Peticion, CancellationToken Token)> Enviadas { get; } = [];
         public IReadOnlyList<DelegacionDto> Delegaciones { get; set; } = [];
         public TaskCompletionSource? EsperaRevocacion { get; set; }
@@ -88,12 +90,18 @@ public partial class DelegacionesGen2Tests : BunitContext
         public async Task<T> Send<T>(IRequest<T> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add((request, cancellationToken));
+            if (request is ObtenerDelegacionesQuery && EsperaLista is not null)
+                await EsperaLista.Task.WaitAsync(TimeSpan.FromSeconds(10));
             if (request is DesactivarDelegacionTenantCommand && EsperaRevocacion is not null)
                 await EsperaRevocacion.Task.WaitAsync(TimeSpan.FromSeconds(10));
             if (request is CrearClienteDeleganteCommand && EsperaCreacion is not null)
                 await EsperaCreacion.Task.WaitAsync(TimeSpan.FromSeconds(10));
             object? respuesta = request switch
             {
+                CaeManager.Application.Configuracion.Queries.ObtenerFiltrosGuardadosQuery => Array.Empty<CaeManager.Application.Configuracion.Queries.FiltroGuardadoDto>(),
+                CaeManager.Application.Configuracion.Queries.ObtenerVistaRecordadaQuery => null,
+                CaeManager.Application.Configuracion.Commands.GuardarVistaRecordada.GuardarVistaRecordadaCommand => Result.Exito(),
+                CaeManager.Application.Configuracion.Commands.OlvidarVistaRecordada.OlvidarVistaRecordadaCommand => Result.Exito(),
                 EsAdministradorPlataformaQuery => EsAdministradorPlataforma,
                 EsTenantOrigenPlataformaQuery => EsTenantOrigenPlataforma,
                 ObtenerDelegacionesQuery => Delegaciones,
@@ -222,7 +230,12 @@ public partial class DelegacionesGen2Tests : BunitContext
             Services.GetRequiredService<NavigationManager>().NavigateTo(_urlInicial);
         }
 
-        return (Render<Delegaciones>(), mediador, toasts);
+        var cut = Render<Delegaciones>();
+        // Las pruebas de acciones abren explícitamente los detalles; la vista inicial se prueba aparte.
+        if (_abrirDetalles)
+            for (var i = 0; i < cut.FindAll(".delegaciones-abrir").Count; i++)
+                cut.FindAll(".delegaciones-abrir")[i].Click();
+        return (cut, mediador, toasts);
     }
 
     [Fact]
@@ -246,7 +259,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         try
         {
             await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Revocar acceso").ClickAsync(new MouseEventArgs());
-            var dialogo = cut.FindComponent<DialogoConfirmacion>();
+            var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(c => c.Instance.Visible);
             primera = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
             segunda = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
             mediador.Enviadas.Where(x => x.Peticion is DesactivarDelegacionTenantCommand).Should().ContainSingle("control positivo: la primera entrada llegó al panel");
@@ -283,7 +296,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         try
         {
             await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Revocar acceso").ClickAsync(new MouseEventArgs());
-            var dialogo = cut.FindComponent<DialogoConfirmacion>();
+            var dialogo = cut.FindComponents<DialogoConfirmacion>().Single(c => c.Instance.Visible);
             revocacion = cut.InvokeAsync(() => dialogo.Instance.OnConfirmar.InvokeAsync());
             mediador.Enviadas.Where(x => x.Peticion is DesactivarDelegacionTenantCommand).Should().ContainSingle("control positivo: A inició una revocación pendiente");
             await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Ver actividad registrada").ClickAsync(new MouseEventArgs());
@@ -534,11 +547,11 @@ public partial class DelegacionesGen2Tests : BunitContext
         var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear Tenant propietario").ClickAsync(new MouseEventArgs());
-        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).Should().Equal("Nombre del Tenant propietario");
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Select(c => c.Instance.Etiqueta).Should().Equal("Nombre del Tenant propietario");
 
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
-        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Etiqueta).Should().Equal(
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Select(c => c.Instance.Etiqueta).Should().Equal(
             ["Nombre del Operador CAE externo", "Correo del primer Administrador", "Nombre del primer Administrador"],
             "control positivo: con el otro modal sí aparecen");
     }
@@ -569,7 +582,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             .And.Contain("No le hemos enviado ningún correo");
         cut.FindComponents<BotonCopiar>().Should().Contain(b => b.Instance.Valor != null && b.Instance.Valor.EndsWith("code=TOKEN-123"),
             "el botón copia el mismo enlace que se lee");
-        cut.FindComponents<CampoTexto>().Should().BeEmpty("el formulario del alta ya se cerró");
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Should().BeEmpty("el formulario del alta ya se cerró");
 
         // La X no lo cierra sin preguntar: esta pantalla no vuelve a enseñar el enlace y no hay
         // otro camino para emitirlo (revisión puente).
@@ -600,7 +613,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         mediador.Enviadas.Should().Contain(x => x.Peticion is CrearOperadorCaeExternoCommand, "si no se envió, el test no mide nada");
         cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se ha creado el Operador CAE externo.");
         cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
-        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Select(c => c.Instance.Valor).Should().Equal(
             ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "el rechazo no tira lo escrito");
         toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
     }
@@ -623,7 +636,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             "sin base pública el alta no se envía: crear la cuenta dejaría un token que nadie puede entregar");
         cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se creó el Operador CAE externo");
         cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
-        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Select(c => c.Instance.Valor).Should().Equal(
             ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "lo escrito no se pierde");
         toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
     }
@@ -642,7 +655,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         var botones = cut.FindAll("button").Where(b => b.TextContent.Trim() == "Crear Tenant propietario").ToList();
         botones.Should().HaveCount(2, "control positivo: una acción por Operador");
         await botones[1].ClickAsync(new MouseEventArgs());
-        var campo = cut.Find("input");
+        var campo = cut.Find("[role=dialog] input");
         await campo.InputAsync(new ChangeEventArgs { Value = "Transportes Planet Express" });
         await campo.BlurAsync(new FocusEventArgs());
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
@@ -741,7 +754,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         var (cut, mediador, toasts) = Renderizar(esAdministradorPlataforma: false);
 
         await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
-        var campo = cut.Find("input");
+        var campo = cut.Find("[role=dialog] input");
         await campo.InputAsync(new ChangeEventArgs { Value = "arcospa" });
         await campo.BlurAsync(new FocusEventArgs());
 
@@ -766,7 +779,7 @@ public partial class DelegacionesGen2Tests : BunitContext
         var (cut, mediador, _) = Renderizar(esAdministradorPlataforma: false);
 
         await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
-        var campo = cut.Find("input");
+        var campo = cut.Find("[role=dialog] input");
         await campo.InputAsync(new ChangeEventArgs { Value = "Arco" });
         await campo.BlurAsync(new FocusEventArgs());
 
@@ -788,7 +801,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             "Tu organización ya tiene otro Operador CAE externo activo."));
 
         await BotonConTexto(cut, "Autorizar un Operador CAE externo").ClickAsync(new MouseEventArgs());
-        var campo = cut.Find("input");
+        var campo = cut.Find("[role=dialog] input");
         await campo.InputAsync(new ChangeEventArgs { Value = "ArcoSPA" });
         await campo.BlurAsync(new FocusEventArgs());
         await cut.Find("[role=option]").ClickAsync(new MouseEventArgs());

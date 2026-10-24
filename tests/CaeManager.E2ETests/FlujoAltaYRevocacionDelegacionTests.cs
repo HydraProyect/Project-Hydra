@@ -73,6 +73,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await modalNueva.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Crear", Exact = true }).ClickAsync();
         await modalNueva.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
+        await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
         var tarjeta = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjeta).ToContainTextAsync("Activa");
@@ -137,6 +138,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
 
         // --- Revocación ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
+        await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
         var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
         await tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
 

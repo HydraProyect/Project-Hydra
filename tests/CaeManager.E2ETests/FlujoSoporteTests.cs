@@ -75,6 +75,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
 
+        await Ayudas.AbrirDetalleDeDelegacionAsync(page, Ayudas.NombreClienteDelegadoDemo, soporte: true);
         var tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
@@ -149,6 +150,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         await Assertions.Expect(page).ToHaveURLAsync($"{fixture.BaseUrl}/delegaciones",
             new PageAssertionsToHaveURLOptions { Timeout = 30_000 });
 
+        await Ayudas.AbrirDetalleDeDelegacionAsync(page, Ayudas.NombreClienteDelegadoDemo, soporte: true);
         tarjeta = TarjetaSoporte(page, Ayudas.NombreClienteDelegadoDemo);
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
