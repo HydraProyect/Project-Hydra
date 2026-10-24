@@ -34,7 +34,9 @@ public readonly record struct RequisitoObligatorioIncumplido(
 ///
 /// <para>
 /// Alcance: solo los Centros visibles para el usuario (lo aplica <see cref="IEvaluacionDeAccesoPorCentroService"/>). Un usuario
-/// que no alcanza un Centro no aprende por el estado de una Empresa qué exige ese Centro. RLS no cambia.
+/// que no alcanza un Centro no aprende por el estado de una Empresa qué exige ese Centro. RLS no cambia. La única excepción
+/// es el estado materializado (<see cref="IEvaluacionDeAccesoDelTenant"/>), que guarda el estado del Tenant entero; quien lo
+/// lea para un usuario con alcance restringido recompone el rojo desde los pares de los Centros que ve.
 /// </para>
 /// </summary>
 public sealed record RequisitosObligatoriosIncumplidos(

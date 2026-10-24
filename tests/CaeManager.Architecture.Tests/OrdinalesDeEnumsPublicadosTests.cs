@@ -153,6 +153,29 @@ public class OrdinalesDeEnumsPublicadosTests
             }
         },
         {
+            // Estado materializado: smallint en EstadosRequisito.EstadoTalveg. Del 0 al 7, los mismos que EstadoDocumento.
+            nameof(EstadoTalvegRequisito), new Dictionary<string, int>
+            {
+                [nameof(EstadoTalvegRequisito.SinCaducidad)] = 0,
+                [nameof(EstadoTalvegRequisito.Vigente)] = 1,
+                [nameof(EstadoTalvegRequisito.Proximo)] = 2,
+                [nameof(EstadoTalvegRequisito.Urgente)] = 3,
+                [nameof(EstadoTalvegRequisito.Vencido)] = 4,
+                [nameof(EstadoTalvegRequisito.Faltante)] = 5,
+                [nameof(EstadoTalvegRequisito.SinConfirmar)] = 6,
+                [nameof(EstadoTalvegRequisito.EnTolerancia)] = 7,
+                [nameof(EstadoTalvegRequisito.NoAplica)] = 8,
+            }
+        },
+        {
+            // Estado materializado: smallint en EstadosEntidad.EstadoPlataforma (solo Centro).
+            nameof(EstadoPlataformaCentro), new Dictionary<string, int>
+            {
+                [nameof(EstadoPlataformaCentro.Pendiente)] = 0,
+                [nameof(EstadoPlataformaCentro.Bloqueado)] = 1,
+            }
+        },
+        {
             // Se guarda como entero en AcreditacionesDocumentoPlataforma y como smallint en EstadosPlataforma.
             nameof(EstadoVigenciaEnPlataforma), new Dictionary<string, int>
             {

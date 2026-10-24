@@ -23,14 +23,22 @@ public class EstadoEntidad : EntidadConTenant
     public Guid EntidadId { get; private set; }
 
     /// <summary>
-    /// Ordinal del enum de estado de su ámbito (hoy se calcula con <c>EstadoCentro</c> para un Centro y con
-    /// <see cref="EstadoDocumento"/> en los listados de Empresa y Trabajador). Se guarda como número porque el enum cambia
-    /// con <see cref="Ambito"/>; cuál usa cada ámbito lo fija el servicio de recálculo que escribe la fila.
+    /// Ordinal del enum de estado de su ámbito. Centro: <c>EstadoCentro</c> de su estado en TALVEG, sin las causas de la
+    /// Plataforma CAE (van en <see cref="EstadoPlataforma"/>; el rótulo combinado de hoy sale de
+    /// <see cref="EstadoCentroCombinado.Derivar"/>). Empresa y Trabajador: <see cref="EstadoDocumento"/> con la regla de
+    /// su contexto (rojo solo por lo que un Centro marca «bloquea el acceso»), o <see cref="SinEstado"/>. Se guarda como
+    /// número porque el enum cambia con <see cref="Ambito"/>.
     /// </summary>
     public short Estado { get; private set; }
 
-    /// <summary>Solo para un Centro: resumen del estado en la Plataforma CAE.</summary>
-    public EstadoAcreditacion? EstadoPlataforma { get; private set; }
+    /// <summary>
+    /// Empresa o Trabajador sin ningún documento y sin requisito obligatorio incumplido: el listado de hoy lo recibe como
+    /// estado nulo («sin documentos»), que no es ningún <see cref="EstadoDocumento"/>.
+    /// </summary>
+    public const short SinEstado = -1;
+
+    /// <summary>Solo para un Centro: resumen del estado en la Plataforma CAE; <c>null</c>, ninguna causa de la Plataforma CAE.</summary>
+    public EstadoPlataformaCentro? EstadoPlataforma { get; private set; }
 
     public int Vencidos { get; private set; }
 
