@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -30,6 +30,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     Requeridos = table.Column<int>(type: "integer", nullable: false),
                     AlDia = table.Column<int>(type: "integer", nullable: false),
                     ProximoCambioEl = table.Column<DateOnly>(type: "date", nullable: true),
+                    DiaCalculo = table.Column<DateOnly>(type: "date", nullable: false),
                     CalculadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     VersionCalculo = table.Column<int>(type: "integer", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
@@ -53,6 +54,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     EstadoVigencia = table.Column<short>(type: "smallint", nullable: false),
                     FechaVencimientoEnPlataforma = table.Column<DateOnly>(type: "date", nullable: true),
                     ProximoCambioEl = table.Column<DateOnly>(type: "date", nullable: true),
+                    DiaCalculo = table.Column<DateOnly>(type: "date", nullable: false),
                     CalculadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     VersionCalculo = table.Column<int>(type: "integer", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
@@ -78,6 +80,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     EstadoPlataforma = table.Column<short>(type: "smallint", nullable: true),
                     VencimientoEfectivo = table.Column<DateOnly>(type: "date", nullable: true),
                     ProximoCambioEl = table.Column<DateOnly>(type: "date", nullable: true),
+                    DiaCalculo = table.Column<DateOnly>(type: "date", nullable: false),
                     CalculadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     VersionCalculo = table.Column<int>(type: "integer", nullable: false),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
@@ -112,6 +115,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Version = table.Column<long>(type: "bigint", nullable: false),
                     ActualizadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UltimoDiaProcesado = table.Column<DateOnly>(type: "date", nullable: true),
                     TenantId = table.Column<Guid>(type: "uuid", nullable: false)
                 },
                 constraints: table =>
@@ -198,13 +202,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // REVOKE ALL explícito antes de cada GRANT, por si los privilegios por defecto del esquema concedieran algo.
             const string columnasEstadoRequisito =
                 "\"DocumentoEfectivoId\", \"EstadoTalveg\", \"BloqueaAcceso\", \"CuentaParaCumplimiento\", \"EstadoPlataforma\", " +
-                "\"VencimientoEfectivo\", \"ProximoCambioEl\", \"CalculadoEnUtc\", \"VersionCalculo\"";
+                "\"VencimientoEfectivo\", \"ProximoCambioEl\", \"DiaCalculo\", \"CalculadoEnUtc\", \"VersionCalculo\"";
             const string columnasEstadoPlataforma =
-                "\"Estado\", \"EstadoVigencia\", \"FechaVencimientoEnPlataforma\", \"ProximoCambioEl\", \"CalculadoEnUtc\", \"VersionCalculo\"";
+                "\"Estado\", \"EstadoVigencia\", \"FechaVencimientoEnPlataforma\", \"ProximoCambioEl\", \"DiaCalculo\", \"CalculadoEnUtc\", \"VersionCalculo\"";
             const string columnasEstadoEntidad =
                 "\"Estado\", \"EstadoPlataforma\", \"Vencidos\", \"VencidosSinBloqueo\", \"Urgentes\", \"Proximos\", \"Faltan\", " +
-                "\"SinConfirmar\", \"PendientesEnPlataforma\", \"Requeridos\", \"AlDia\", \"ProximoCambioEl\", \"CalculadoEnUtc\", \"VersionCalculo\"";
-            const string columnasVersionEstadoTenant = "\"Version\", \"ActualizadoEnUtc\"";
+                "\"SinConfirmar\", \"PendientesEnPlataforma\", \"Requeridos\", \"AlDia\", \"ProximoCambioEl\", \"DiaCalculo\", \"CalculadoEnUtc\", \"VersionCalculo\"";
+            const string columnasVersionEstadoTenant = "\"Version\", \"ActualizadoEnUtc\", \"UltimoDiaProcesado\"";
             const string columnasRecalculoPendiente = "\"IntentoEnUtc\", \"Intentos\"";
 
             foreach (var (tabla, columnas) in new[]

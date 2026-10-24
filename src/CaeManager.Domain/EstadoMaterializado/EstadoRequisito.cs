@@ -56,6 +56,9 @@ public class EstadoRequisito : EntidadConTenant
     /// <summary>Primer día en que el estado cambia solo por el paso del tiempo; null si no cambia.</summary>
     public DateOnly? ProximoCambioEl { get; private set; }
 
+    /// <summary>Día de negocio con el que se calculó: la pasada de medianoche repite lo calculado con un día anterior.</summary>
+    public DateOnly DiaCalculo { get; private set; }
+
     public DateTime CalculadoEnUtc { get; private set; }
 
     /// <summary>Versión de la regla de cálculo: sube cuando cambia la regla, para rehacer todo en un despliegue.</summary>

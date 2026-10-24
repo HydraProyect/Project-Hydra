@@ -1,6 +1,9 @@
 using CaeManager.Application.Common;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Empresas;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -32,18 +35,18 @@ public class EstadoMaterializadoBajoRuntimeTests : IAsyncLifetime
         ["EstadosRequisito"] =
         [
             "BloqueaAcceso", "CalculadoEnUtc", "CuentaParaCumplimiento", "DocumentoEfectivoId", "EstadoPlataforma",
-            "EstadoTalveg", "ProximoCambioEl", "VencimientoEfectivo", "VersionCalculo",
+            "DiaCalculo", "EstadoTalveg", "ProximoCambioEl", "VencimientoEfectivo", "VersionCalculo",
         ],
         ["EstadosPlataforma"] =
         [
-            "CalculadoEnUtc", "Estado", "EstadoVigencia", "FechaVencimientoEnPlataforma", "ProximoCambioEl", "VersionCalculo",
+            "CalculadoEnUtc", "DiaCalculo", "Estado", "EstadoVigencia", "FechaVencimientoEnPlataforma", "ProximoCambioEl", "VersionCalculo",
         ],
         ["EstadosEntidad"] =
         [
-            "AlDia", "CalculadoEnUtc", "Estado", "EstadoPlataforma", "Faltan", "PendientesEnPlataforma", "Proximos",
+            "AlDia", "CalculadoEnUtc", "DiaCalculo", "Estado", "EstadoPlataforma", "Faltan", "PendientesEnPlataforma", "Proximos",
             "ProximoCambioEl", "Requeridos", "SinConfirmar", "Urgentes", "Vencidos", "VencidosSinBloqueo", "VersionCalculo",
         ],
-        ["VersionesEstadoTenant"] = ["ActualizadoEnUtc", "Version"],
+        ["VersionesEstadoTenant"] = ["ActualizadoEnUtc", "UltimoDiaProcesado", "Version"],
         ["RecalculosPendientes"] = ["IntentoEnUtc", "Intentos"],
     };
 
@@ -196,29 +199,86 @@ public class EstadoMaterializadoBajoRuntimeTests : IAsyncLifetime
         {
             var cambiarDeTenant = () => contexto.Database.ExecuteSqlRawAsync(
                 "UPDATE \"VersionesEstadoTenant\" SET \"TenantId\" = {0}", _ajeno.Id);
-            (await cambiarDeTenant.Should().ThrowAsync<PostgresException>())
-                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "TenantId no es actualizable");
+            // 42501 también lo daría el WITH CHECK; el mensaje distingue que falta el permiso de columna.
+            var error = (await cambiarDeTenant.Should().ThrowAsync<PostgresException>()).Which;
+            error.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, "TenantId no es actualizable");
+            error.MessageText.Should().Contain("permission denied", "lo rechaza el permiso por columna, antes que la política");
             (await ContarVersionesAsync(contexto)).Should().Be(1, "la fila sigue en su Tenant");
         }
     }
 
-    [Fact]
-    public async Task El_indice_unico_deja_una_sola_fila_por_par_exigido()
+    // Una fila con Id nuevo y la misma clave natural: solo el índice único puede rechazarla.
+    public static TheoryData<string, string> InsercionesConLaMismaClave => new()
+    {
+        {
+            "un par Centro × titular × Tipo",
+            """
+            INSERT INTO "EstadosRequisito" ("Id", "TenantId", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId",
+                "EstadoTalveg", "BloqueaAcceso", "CuentaParaCumplimiento", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo")
+            VALUES (gen_random_uuid(), {0}, {1}, 0, {2}, {3}, 1, true, true, {4}, now(), 1)
+            """
+        },
+        {
+            "una acreditación Centro × canal × titular × Tipo",
+            """
+            INSERT INTO "EstadosPlataforma" ("Id", "TenantId", "CentroId", "CanalGestionDocumentalId", "AmbitoTitular",
+                "TitularId", "TipoDocumentoId", "Estado", "EstadoVigencia", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo")
+            VALUES (gen_random_uuid(), {0}, {1}, {1}, 0, {2}, {3}, 2, 1, {4}, now(), 1)
+            """
+        },
+        {
+            "una entidad",
+            """
+            INSERT INTO "EstadosEntidad" ("Id", "TenantId", "Ambito", "EntidadId", "Estado", "Vencidos", "VencidosSinBloqueo",
+                "Urgentes", "Proximos", "Faltan", "SinConfirmar", "PendientesEnPlataforma", "Requeridos", "AlDia",
+                "DiaCalculo", "CalculadoEnUtc", "VersionCalculo")
+            VALUES (gen_random_uuid(), {0}, 1, {2}, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, {4}, now(), 1)
+            """
+        },
+        {
+            "un Tenant",
+            """
+            INSERT INTO "VersionesEstadoTenant" ("Id", "TenantId", "Version", "ActualizadoEnUtc")
+            SELECT gen_random_uuid(), {0}, 1, now() WHERE {1}::uuid IS NOT NULL AND {2}::uuid IS NOT NULL AND {3}::uuid IS NOT NULL AND {4}::date IS NOT NULL
+            """
+        },
+    };
+
+    [Theory]
+    [MemberData(nameof(InsercionesConLaMismaClave))]
+    public async Task El_indice_unico_deja_una_sola_fila_por_clave_natural(string clave, string insercion)
     {
         await using var contexto = Contexto(_propietario.Id, _usuario);
         var (centro, titular, tipo) = (Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
 
-        Task<int> Insertar() => contexto.Database.ExecuteSqlRawAsync(
-            """
-            INSERT INTO "EstadosRequisito" ("Id", "TenantId", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId",
-                "EstadoTalveg", "BloqueaAcceso", "CuentaParaCumplimiento", "CalculadoEnUtc", "VersionCalculo")
-            VALUES (gen_random_uuid(), {0}, {1}, 0, {2}, {3}, 1, true, true, now(), 1)
-            """, _propietario.Id, centro, titular, tipo);
+        Task<int> Insertar() => contexto.Database.ExecuteSqlRawAsync(insercion, _propietario.Id, centro, titular, tipo, DiaDeNegocio.Hoy());
 
-        (await Insertar()).Should().Be(1, "control positivo: el runtime inserta el par");
+        (await Insertar()).Should().Be(1, $"control positivo: el runtime inserta {clave}");
         var duplicado = Insertar;
         (await duplicado.Should().ThrowAsync<PostgresException>())
-            .Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation, "un par Centro × titular × Tipo es una sola fila");
+            .Which.SqlState.Should().Be(PostgresErrorCodes.UniqueViolation, $"{clave} es una sola fila");
+    }
+
+    [Fact]
+    public async Task Las_filas_del_estado_no_se_auditan_y_la_accion_si()
+    {
+        await using (var contexto = ContextoAuditado())
+        {
+            var version = (CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant)Activator.CreateInstance(
+                typeof(CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant), nonPublic: true)!;
+            contexto.Add(version);
+            contexto.Entry(version).Property(v => v.Version).CurrentValue = 1;
+            contexto.Entry(version).Property(v => v.ActualizadoEnUtc).CurrentValue = DateTime.UtcNow;
+            contexto.Empresas.Add(new Empresa("Empresa de control", "B10380194"));
+            await contexto.SaveChangesAsync();
+        }
+
+        await using var lectura = Contexto(_propietario.Id);
+        var tipos = await lectura.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.Accion == "Creado").Select(r => r.EntidadTipo).ToListAsync();
+        tipos.Should().Contain(nameof(Empresa), "control positivo: el mismo guardado audita la acción");
+        tipos.Should().NotContain(nameof(CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant),
+            "el estado materializado es derivado: auditar cada fila recalculada inundaría la auditoría");
     }
 
     private static Task<int> InsertarVersionAsync(CaeManagerDbContext contexto, Guid tenantId) =>
@@ -260,6 +320,24 @@ public class EstadoMaterializadoBajoRuntimeTests : IAsyncLifetime
                 new CurrentUserServiceFalso(usuario.Value, Roles.Administrador, tenantOrigenId: tenantId), BaseDatosPostgresDePruebas.FirmanteContextoRls),
                 new ConcurrenciaOptimistaInterceptor());
         return new(opciones.Options, new EphemeralDataProtectionProvider(), tenant);
+    }
+
+    // Identidad propietaria con la auditoría delante del sellado, en el orden de producción.
+    private CaeManagerDbContext ContextoAuditado()
+    {
+        var tenant = new TenantActualAmbiental { TenantId = _propietario.Id };
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(_cadena, n => n.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new AuditoriaInterceptor(new ActorAuditoriaFalso(ActorAuditoria.Normal(_usuario))), new TenantSelladoInterceptor(tenant))
+            .Options;
+        return new(opciones, new EphemeralDataProtectionProvider(), tenant);
+    }
+
+    private sealed class ActorAuditoriaFalso(ActorAuditoria actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(actor);
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => actor;
     }
 
     private sealed class SinTenantSeleccionado : IClienteActivoSeleccionado

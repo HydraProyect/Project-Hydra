@@ -52,6 +52,9 @@ public class EstadoEntidad : EntidadConTenant
     /// <summary>Primer día en que el estado cambia solo por el paso del tiempo; null si no cambia.</summary>
     public DateOnly? ProximoCambioEl { get; private set; }
 
+    /// <summary>Día de negocio con el que se calculó: la pasada de medianoche repite lo calculado con un día anterior.</summary>
+    public DateOnly DiaCalculo { get; private set; }
+
     public DateTime CalculadoEnUtc { get; private set; }
     public int VersionCalculo { get; private set; }
 

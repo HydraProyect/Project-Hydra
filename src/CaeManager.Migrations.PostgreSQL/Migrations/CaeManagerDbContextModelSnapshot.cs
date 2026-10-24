@@ -6194,6 +6194,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("CentroId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
                     b.Property<short>("Estado")
                         .HasColumnType("smallint");
 
@@ -6247,6 +6250,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<DateTime>("CalculadoEnUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
 
                     b.Property<Guid>("EntidadId")
                         .HasColumnType("uuid");
@@ -6325,6 +6331,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<bool>("CuentaParaCumplimiento")
                         .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
 
                     b.Property<Guid?>("DocumentoEfectivoId")
                         .HasColumnType("uuid");
@@ -6419,6 +6428,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("UltimoDiaProcesado")
+                        .HasColumnType("date");
 
                     b.Property<long>("Version")
                         .HasColumnType("bigint");

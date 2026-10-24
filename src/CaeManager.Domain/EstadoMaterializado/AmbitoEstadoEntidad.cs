@@ -7,10 +7,11 @@ namespace CaeManager.Domain.EstadoMaterializado;
 ///
 /// <para>
 /// <b>Valores numéricos explícitos y congelados</b>: se persisten como <c>smallint</c> en las tablas del estado
-/// materializado, así que insertar un valor en medio cambiaría en silencio el significado de las filas guardadas.
+/// materializado, así que insertar un valor en medio cambiaría en silencio el significado de las filas guardadas
+/// (<c>OrdinalesDeEnumsPublicadosTests</c>).
 /// </para>
 /// </summary>
-public enum AmbitoEstadoEntidad : short
+public enum AmbitoEstadoEntidad
 {
     Centro = 0,
     Trabajador = 1,

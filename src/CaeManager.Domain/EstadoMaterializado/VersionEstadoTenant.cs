@@ -16,6 +16,9 @@ public class VersionEstadoTenant : EntidadConTenant
     public long Version { get; private set; }
     public DateTime ActualizadoEnUtc { get; private set; }
 
+    /// <summary>Último día de negocio que la pasada de medianoche completó en este Tenant; null si aún no ha pasado.</summary>
+    public DateOnly? UltimoDiaProcesado { get; private set; }
+
     private VersionEstadoTenant()
     {
         // Requerido por EF Core.
