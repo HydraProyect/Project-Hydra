@@ -143,7 +143,7 @@ public interface ICalculoEstadoCentroService
     /// <summary>
     /// Los pares de <see cref="ObtenerParesExigidosAsync"/> de esos Centros que son de esos Trabajadores, sin calcular los de
     /// los demás: un par depende solo de su Trabajador, su Centro y su Tipo (recálculo por par del estado materializado).
-    /// Por defecto filtra el resultado completo; el servicio real solo carga lo de esos Trabajadores.
+    /// Por defecto filtra el resultado completo; el servicio real lee las Asignaciones y los requisitos del Centro igual, pero solo carga los documentos y construye los pares de esos Trabajadores.
     /// </summary>
     async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosDeTrabajadoresAsync(
         IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
@@ -154,7 +154,7 @@ public interface ICalculoEstadoCentroService
 
     /// <summary>
     /// Los pares de <see cref="ObtenerParesDeEmpresaExigidosAsync"/> de esos Centros que son de esas Empresas, sin calcular
-    /// los de las demás. Por defecto filtra el resultado completo; el servicio real solo carga lo de esas Empresas.
+    /// los de las demás. Por defecto filtra el resultado completo; el servicio real lee las Asignaciones del Centro igual, pero solo carga los documentos y construye los pares de esas Empresas.
     /// </summary>
     async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
         IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> empresaIds, CancellationToken cancellationToken)

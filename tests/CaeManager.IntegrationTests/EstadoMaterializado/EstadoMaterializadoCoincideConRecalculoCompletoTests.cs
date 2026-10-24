@@ -452,10 +452,10 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
             .Select(e => $"E {Identidad(e.Id, e.CalculadoEnUtc)}{e.Ambito} {e.EntidadId} {e.Estado} {e.EstadoPlataforma} {e.Vencidos} {e.VencidosSinBloqueo} {e.Urgentes} " +
                          $"{e.Proximos} {e.Faltan} {e.SinConfirmar} {e.PendientesEnPlataforma} {e.Requeridos} {e.AlDia} {e.ProximoCambioEl} {e.DiaCalculo}"));
         foto.AddRange((await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
-            .Select(p => $"R {p.CentroId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} " +
+            .Select(p => $"R {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} " +
                          $"{p.BloqueaAcceso} {p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"));
         foto.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
-            .Select(p => $"P {p.CentroId} {p.CanalGestionDocumentalId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.Estado} " +
+            .Select(p => $"P {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.CanalGestionDocumentalId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.Estado} " +
                          $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}"));
         foto.Sort(StringComparer.Ordinal);
         return foto;

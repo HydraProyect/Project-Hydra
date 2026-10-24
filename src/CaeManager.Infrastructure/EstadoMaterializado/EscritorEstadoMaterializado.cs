@@ -84,8 +84,8 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
             ),
             borradas AS (
                 DELETE FROM "EstadosRequisito" r
-                WHERE (r."CentroId" = ANY(@completos) OR (r."CentroId" = ANY(@centros) AND r."TitularId" = ANY(@titulares)))
-                  AND NOT EXISTS (SELECT 1 FROM f WHERE f.c = r."CentroId" AND f.a = r."AmbitoTitular" AND f.t = r."TitularId"
+                WHERE r."TenantId" = {TenantDeLaConexion} AND (r."CentroId" = ANY(@completos) OR (r."CentroId" = ANY(@centros) AND r."TitularId" = ANY(@titulares)))
+                  AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.a = r."AmbitoTitular" AND f.t = r."TitularId"
                                                     AND f.tipo = r."TipoDocumentoId")
             ),
             cambiadas AS (
@@ -95,7 +95,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                     "ProximoCambioEl" = f.pc, "DiaCalculo" = @dia, "CalculadoEnUtc" = now(),
                     "VersionCalculo" = {CalculoEstadoMaterializado.VersionDeLaRegla}
                 FROM f
-                WHERE f.c = r."CentroId" AND f.a = r."AmbitoTitular" AND f.t = r."TitularId" AND f.tipo = r."TipoDocumentoId"
+                WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.a = r."AmbitoTitular" AND f.t = r."TitularId" AND f.tipo = r."TipoDocumentoId"
                   AND (r."DocumentoEfectivoId" IS DISTINCT FROM f.doc OR r."EstadoTalveg" <> f.est OR r."BloqueaAcceso" <> f.bloq
                        OR r."CuentaParaCumplimiento" <> f.cuenta OR r."EstadoPlataforma" IS DISTINCT FROM f.plat
                        OR r."VencimientoEfectivo" IS DISTINCT FROM f.ve OR r."ProximoCambioEl" IS DISTINCT FROM f.pc
@@ -108,7 +108,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                 @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
             FROM f
             WHERE NOT EXISTS (SELECT 1 FROM "EstadosRequisito" r
-                              WHERE r."CentroId" = f.c AND r."AmbitoTitular" = f.a AND r."TitularId" = f.t
+                              WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."AmbitoTitular" = f.a AND r."TitularId" = f.t
                                 AND r."TipoDocumentoId" = f.tipo)
             """,
             [
@@ -145,8 +145,8 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
             ),
             borradas AS (
                 DELETE FROM "EstadosPlataforma" r
-                WHERE r."CentroId" = ANY(@centros)
-                  AND NOT EXISTS (SELECT 1 FROM f WHERE f.c = r."CentroId" AND f.canal = r."CanalGestionDocumentalId"
+                WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = ANY(@centros)
+                  AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.canal = r."CanalGestionDocumentalId"
                                                     AND f.a = r."AmbitoTitular" AND f.t = r."TitularId" AND f.tipo = r."TipoDocumentoId")
             ),
             cambiadas AS (
@@ -154,7 +154,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                 SET "Estado" = f.est, "EstadoVigencia" = f.vig, "FechaVencimientoEnPlataforma" = f.fv, "ProximoCambioEl" = f.pc,
                     "DiaCalculo" = @dia, "CalculadoEnUtc" = now(), "VersionCalculo" = {CalculoEstadoMaterializado.VersionDeLaRegla}
                 FROM f
-                WHERE f.c = r."CentroId" AND f.canal = r."CanalGestionDocumentalId" AND f.a = r."AmbitoTitular"
+                WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.canal = r."CanalGestionDocumentalId" AND f.a = r."AmbitoTitular"
                   AND f.t = r."TitularId" AND f.tipo = r."TipoDocumentoId"
                   AND (r."Estado" <> f.est OR r."EstadoVigencia" <> f.vig
                        OR r."FechaVencimientoEnPlataforma" IS DISTINCT FROM f.fv OR r."ProximoCambioEl" IS DISTINCT FROM f.pc
@@ -167,7 +167,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                 @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
             FROM f
             WHERE NOT EXISTS (SELECT 1 FROM "EstadosPlataforma" r
-                              WHERE r."CentroId" = f.c AND r."CanalGestionDocumentalId" = f.canal AND r."AmbitoTitular" = f.a
+                              WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."CanalGestionDocumentalId" = f.canal AND r."AmbitoTitular" = f.a
                                 AND r."TitularId" = f.t AND r."TipoDocumentoId" = f.tipo)
             """,
             [
@@ -201,10 +201,10 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
             ),
             borradas AS (
                 DELETE FROM "EstadosEntidad" r
-                WHERE ((r."Ambito" = @ambCentro AND r."EntidadId" = ANY(@centros))
+                WHERE r."TenantId" = {TenantDeLaConexion} AND ((r."Ambito" = @ambCentro AND r."EntidadId" = ANY(@centros))
                        OR (r."Ambito" = @ambTrabajador AND r."EntidadId" = ANY(@trabajadores))
                        OR (r."Ambito" = @ambEmpresa AND r."EntidadId" = ANY(@empresas)))
-                  AND NOT EXISTS (SELECT 1 FROM f WHERE f.amb = r."Ambito" AND f.id = r."EntidadId")
+                  AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.amb = r."Ambito" AND f.id = r."EntidadId")
             ),
             cambiadas AS (
                 UPDATE "EstadosEntidad" r
@@ -213,7 +213,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                     "Requeridos" = f.req, "AlDia" = f.ald, "ProximoCambioEl" = f.pc, "DiaCalculo" = @dia, "CalculadoEnUtc" = now(),
                     "VersionCalculo" = {CalculoEstadoMaterializado.VersionDeLaRegla}
                 FROM f
-                WHERE f.amb = r."Ambito" AND f.id = r."EntidadId"
+                WHERE r."TenantId" = {TenantDeLaConexion} AND f.amb = r."Ambito" AND f.id = r."EntidadId"
                   AND (r."Estado" <> f.est OR r."EstadoPlataforma" IS DISTINCT FROM f.plat OR r."Vencidos" <> f.v
                        OR r."VencidosSinBloqueo" <> f.vsb OR r."Urgentes" <> f.u OR r."Proximos" <> f.p OR r."Faltan" <> f.fa
                        OR r."SinConfirmar" <> f.sc OR r."PendientesEnPlataforma" <> f.pp OR r."Requeridos" <> f.req
@@ -226,7 +226,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
             SELECT gen_random_uuid(), f.amb, f.id, f.est, f.plat, f.v, f.vsb, f.u, f.p, f.fa, f.sc, f.pp, f.req, f.ald, f.pc,
                 @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
             FROM f
-            WHERE NOT EXISTS (SELECT 1 FROM "EstadosEntidad" r WHERE r."Ambito" = f.amb AND r."EntidadId" = f.id)
+            WHERE NOT EXISTS (SELECT 1 FROM "EstadosEntidad" r WHERE r."TenantId" = {TenantDeLaConexion} AND r."Ambito" = f.amb AND r."EntidadId" = f.id)
             """,
             [
                 Parametro("dia", NpgsqlDbType.Date, calculo.Dia),

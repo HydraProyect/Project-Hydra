@@ -20,7 +20,7 @@ namespace CaeManager.Application.EstadoMaterializado;
 /// <para>
 /// Quien las da (el detector de la PR 4) nombra <b>todas</b> las raíces de la acción, también las que dejan de estar
 /// relacionadas: una baja de Asignación da el par Centro × Trabajador (<see cref="DeAsignacion"/>), porque después de la
-/// baja el Trabajador ya no lleva al Centro; un Trabajador que cambia de Empresa da también la Empresa anterior.
+/// baja el Trabajador ya no lleva al Centro; un Trabajador que cambia de Empresa da también la Empresa anterior, y un Trabajador borrado da también su Empresa (la clausura no ve la ficha borrada y los pares de esa Empresa en sus Centros se quedarían sin recalcular).
 /// </para>
 /// </summary>
 public sealed record RaicesDeRecalculo(
