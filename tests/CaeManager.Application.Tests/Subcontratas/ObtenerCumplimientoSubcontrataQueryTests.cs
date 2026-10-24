@@ -67,6 +67,9 @@ public class ObtenerCumplimientoSubcontrataQueryTests
             IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken) =>
             throw new NotSupportedException("El anillo no pide el resumen del listado.");
 
+        public IQueryable<Guid> SinVoluntariosInactivos(IReadOnlyList<Guid> trabajadorIds) =>
+            throw new NotSupportedException("El anillo no cuenta Trabajadores bloqueados.");
+
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(
             IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
         {

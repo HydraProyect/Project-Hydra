@@ -92,6 +92,13 @@ public interface ICalculoEstadoSubcontrataService
     /// </summary>
     Task<IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>> CalcularResumenAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Los de esos Trabajadores que no son voluntarios inactivos (sin evento vigente ni futuro), como subconsulta: un voluntario
+    /// inactivo no genera avisos por requisitos (mismo criterio que el listado de Trabajadores y que este resumen). Lo usa el
+    /// listado de Subcontratas para contar sus Trabajadores bloqueados (decisión D-1) sin leer Proyectos por su cuenta.
+    /// </summary>
+    IQueryable<Guid> SinVoluntariosInactivos(IReadOnlyList<Guid> trabajadorIds);
 }
 
 public class CalculoEstadoSubcontrataService(
@@ -106,6 +113,14 @@ public class CalculoEstadoSubcontrataService(
     IRequisitosEventoQueryContext requisitosEventoContext)
     : ICalculoEstadoSubcontrataService
 {
+    public IQueryable<Guid> SinVoluntariosInactivos(IReadOnlyList<Guid> trabajadorIds)
+    {
+        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
+        return trabajadoresContext.Trabajadores
+            .Where(t => trabajadorIds.Contains(t.Id) && !inactivos.Contains(t.Id))
+            .Select(t => t.Id);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<IncidenciaSubcontrataDto>>> CalcularAsync(
         IReadOnlyList<Guid> subcontrataIds, CancellationToken cancellationToken)
     {

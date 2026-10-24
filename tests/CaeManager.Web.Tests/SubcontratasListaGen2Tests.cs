@@ -166,14 +166,14 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         int trabajadoresBloqueados = 0) => new(
         id ?? Guid.NewGuid(), razonSocial, "B-20.774.115", new DateTime(2021, 4, 10, 0, 0, 0, DateTimeKind.Utc),
         nivel, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []) { SinConfirmar = sinConfirmar ?? [] })
-    {
-        // Decisión D-1: el estado de la fila es el de la documentación de Empresa de la Subcontrata, no el de sus Trabajadores.
-        EstadoDocumental = estado,
-        VencidoSinBloqueo = vencidoSinBloqueo,
-        Incidencias = incidenciasDeEmpresa ?? [],
-        DocumentosFaltantes = faltantes ?? [],
-        TrabajadoresBloqueados = trabajadoresBloqueados
-    };
+        {
+            // Decisión D-1: el estado de la fila es el de la documentación de Empresa de la Subcontrata, no el de sus Trabajadores.
+            EstadoDocumental = estado,
+            VencidoSinBloqueo = vencidoSinBloqueo,
+            Incidencias = incidenciasDeEmpresa ?? [],
+            DocumentosFaltantes = faltantes ?? [],
+            TrabajadoresBloqueados = trabajadoresBloqueados
+        };
 
     private static IncidenciaDocumentalDto DeEmpresa(string tipo, EstadoDocumento estado, DateOnly? vence = null) =>
         new(Guid.NewGuid(), Guid.NewGuid(), tipo, estado, vence);
@@ -448,9 +448,9 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         {
             Subcontratas =
             [
-                Subcontrata("Andamios Bidasoa S.L.", vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)]),
-                Subcontrata("Grúas Urola S.L.", proximas: [Incidencia("EPIs — Ane Etxeberria", EstadoDocumento.Urgente)]),
-                Subcontrata("Pinturas Lauburu S.A.", sinConfirmar: [Incidencia("Aptitud médica — Jon Arrieta", EstadoDocumento.SinConfirmar)]),
+                Subcontrata("Andamios Bidasoa S.L.", estado: EstadoDocumento.Vencido),
+                Subcontrata("Grúas Urola S.L.", estado: EstadoDocumento.Urgente),
+                Subcontrata("Pinturas Lauburu S.A.", estado: EstadoDocumento.SinConfirmar),
                 Subcontrata("Transportes Argia S.A."),
             ]
         };
@@ -462,7 +462,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
             .Select(b => System.Text.RegularExpressions.Regex.Replace(b.TextContent, @"\s+", " ").Trim()).ToList();
         IReadOnlyList<string> Filas() => cut.FindAll(".lista-filas-acordeon .enlace-nombre-fila").Select(b => b.TextContent.Trim()).ToList();
 
-        Botones().Should().Equal("Todos4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias");
+        Botones().Should().Equal("Todos4", "1Vencidos", "0Pendiente", "1Por vencer", "1Sin confirmar", "1Sin incidencias");
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().ConRecuentosPorEstado.Should().BeTrue();
 
         cut.Find(".franja-estado [data-estado='Vencido']").Click();
@@ -470,7 +470,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         mediador.Enviadas.OfType<ObtenerSubcontratasQuery>().Last().EstadoDocumental.Should().Be("Vencido");
         navegacion.Uri.Should().Contain("estado=Vencido");
         Filas().Should().Equal("Andamios Bidasoa S.L.");
-        Botones().Should().Equal(["Todos4", "1Vencidos", "1Por vencer", "1Sin confirmar", "1Sin incidencias"],
+        Botones().Should().Equal(["Todos4", "1Vencidos", "0Pendiente", "1Por vencer", "1Sin confirmar", "1Sin incidencias"],
             "los recuentos no cuentan el propio filtro de estado: si no, al filtrar los demás botones dirían cero");
 
         cut.Find(".franja-estado [data-estado='SinConfirmar']").Click();
@@ -945,7 +945,7 @@ public partial class SubcontratasListaGen2Tests : BunitContext
         {
             Subcontratas =
             [
-                Subcontrata("Andamios Bidasoa S.L.", vencidas: [Incidencia("Formación PRL — Iñaki Otaegi", EstadoDocumento.Vencido)]),
+                Subcontrata("Andamios Bidasoa S.L.", estado: EstadoDocumento.Vencido),
                 Subcontrata("Transportes Argia S.A."),
             ]
         };
@@ -1099,7 +1099,8 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     public async Task Corregir_la_ultima_fila_de_la_ultima_pagina_filtrada_retrocede_a_la_pagina_que_existe()
     {
         var almacen = Enumerable.Range(1, 21)
-            .Select(i => Subcontrata($"Subcontrata {i:00}", vencidas: [Incidencia("Formación PRL", EstadoDocumento.Vencido)]))
+            .Select(i => Subcontrata($"Subcontrata {i:00}", estado: EstadoDocumento.Vencido,
+                vencidas: [Incidencia("Formación PRL", EstadoDocumento.Vencido)]))
             .ToList();
         var mediador = new MediatorFalso { Subcontratas = almacen };
         var cut = Renderizar(mediador);

@@ -35,7 +35,7 @@ public class ObtenerSubcontratasContratantesTests
             subcontrataIdsVisibles: [subcontrata.Id], empresaIdsVisibles: visible ? [empresa.Id, cerrada.Id] : []);
         var handler = new ObtenerSubcontratasQueryHandler(
             db, alcance, new SinDocumentos(), new TrabajadoresQueryContextFalso(), new CalculoDocumentalFalso(),
-            new RequisitosObligatoriosSinIncumplidos(), new ProyectosQueryContextFalso());
+            new RequisitosObligatoriosSinIncumplidos());
 
         var resultado = await handler.Handle(new(null, ConRecuentosPorEstado: true), default);
 
@@ -51,5 +51,6 @@ public class ObtenerSubcontratasContratantesTests
             Task.FromResult<IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>>(new Dictionary<Guid, ResumenEstadoSubcontrata>());
         public Task<IReadOnlyDictionary<Guid, FraccionCumplimiento>> CalcularCumplimientoAsync(IReadOnlyList<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<IncidenciaSubcontrataDto>>> CalcularAsync(IReadOnlyList<Guid> ids, CancellationToken ct) => throw new NotSupportedException();
+        public IQueryable<Guid> SinVoluntariosInactivos(IReadOnlyList<Guid> trabajadorIds) => trabajadorIds.AsQueryable();
     }
 }

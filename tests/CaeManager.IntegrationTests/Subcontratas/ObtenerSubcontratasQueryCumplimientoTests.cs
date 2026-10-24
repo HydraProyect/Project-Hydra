@@ -19,10 +19,11 @@ using Xunit;
 namespace CaeManager.IntegrationTests.Subcontratas;
 
 /// <summary>
-/// Primer nivel de "Subcontrata 360": % de cumplimiento y recuentos de la
+/// Primer nivel de "Subcontrata 360": % de cumplimiento y recuentos de sus Trabajadores en la
 /// fila de <c>/subcontratas</c>, calculados por <see cref="CalculoEstadoSubcontrataService"/>
-/// — mismo alcance que el badge de Centro 360, sin ambito Empresa (Documento
-/// no tiene propietario Subcontrata).
+/// — mismo alcance que el badge de Centro 360 —, y el estado de la fila, que es el de la
+/// documentación de Empresa de la Subcontrata con los requisitos obligatorios de Centro y sus
+/// Trabajadores bloqueados como recuento aparte (decisión D-1).
 /// </summary>
 public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 {
@@ -260,11 +261,12 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Sin confirmar no es incidencia de color (no entra en Vencidas ni en Próximas, como antes), pero
-    /// viaja aparte y decide el estado documental de la fila cuando no hay nada peor.
+    /// Sin confirmar no es incidencia de color (no entra en Vencidas ni en Próximas, como antes) y viaja aparte. El de un
+    /// Trabajador va en sus recuentos y no decide el estado de la Subcontrata; el de un documento de Empresa de la Subcontrata sí
+    /// lo decide cuando no hay nada peor (decisión D-1).
     /// </summary>
     [Fact]
-    public async Task Un_documento_sin_confirmar_no_es_vencido_ni_proximo_pero_decide_el_estado_de_la_fila()
+    public async Task Un_documento_sin_confirmar_de_un_Trabajador_no_decide_el_estado_y_el_de_la_Subcontrata_si()
     {
         Guid trabajadorId;
         await using (var contexto = CrearContexto())
@@ -280,8 +282,23 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         sinConfirmar.Estado.Should().Be(EstadoDocumento.SinConfirmar);
         sinConfirmar.TrabajadorId.Should().Be(trabajadorId);
         sinConfirmar.DocumentoId.Should().NotBeNull("es el documento cuya vigencia hay que confirmar");
-        fila.EstadoDocumental.Should().Be(EstadoDocumento.SinConfirmar);
+        fila.EstadoDocumental.Should().Be(EstadoDocumento.SinCaducidad,
+            "la Subcontrata no tiene documentos de Empresa: lo de sus Trabajadores no la pinta (decisión D-1)");
+        fila.TrabajadoresBloqueados.Should().Be(0, "ningún Centro marca obligatorio ese Tipo");
         fila.CumplimientoPorcentaje.Should().Be(0, "sin confirmar no es conforme (decisión del 2026-10-03)");
+
+        await using (var contexto = CrearContexto())
+        {
+            var tipoEmpresa = new TipoDocumento("Seguro de responsabilidad civil", null, false, 1, AmbitoAplicacion.Empresa);
+            contexto.TiposDocumento.Add(tipoEmpresa);
+            await contexto.SaveChangesAsync();
+            contexto.Documentos.Add(Documento.DeEmpresa(_subcontrataId, tipoEmpresa.Id, DiaDeNegocio.Hoy().AddDays(-5), VigenciaDocumento.SinConfirmar));
+            await contexto.SaveChangesAsync();
+        }
+
+        var conDocumentoDeEmpresa = (await EjecutarAsync()).Elementos.Should().ContainSingle().Subject;
+        conDocumentoDeEmpresa.EstadoDocumental.Should().Be(EstadoDocumento.SinConfirmar, "su documento de Empresa decide su estado");
+        conDocumentoDeEmpresa.Incidencias.Should().ContainSingle().Which.Estado.Should().Be(EstadoDocumento.SinConfirmar);
 
         // Quien lee solo las causas (Subcontrata 360, supervisión) sigue sin recibirlo como incidencia.
         await using var lectura = CrearContexto();
@@ -292,42 +309,68 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Franja de estado: cuatro Subcontratas, una por estado. El filtro acepta varios estados, los recuentos
-    /// no cuentan el propio filtro de estado y la paginación se aplica DESPUÉS de filtrar (el estado no está
-    /// persistido: paginar antes dejaría páginas a medias y un total falso).
+    /// Franja de estado (decisión D-1): seis Subcontratas, una por estado de su documentación de Empresa. El rojo es solo el
+    /// documento de Empresa que el Centro donde trabajan sus Trabajadores marca obligatorio; los Trabajadores bloqueados de la
+    /// sexta no la ponen en rojo y van como recuento aparte. El filtro acepta varios estados, los recuentos no cuentan el
+    /// propio filtro de estado y la paginación se aplica DESPUÉS de filtrar (paginar antes dejaría páginas a medias y un total
+    /// falso).
     /// </summary>
     [Fact]
-    public async Task El_filtro_de_estado_filtra_cuenta_y_pagina_sobre_el_estado_calculado()
+    public async Task El_filtro_de_estado_filtra_cuenta_y_pagina_sobre_el_estado_de_la_documentacion_de_Empresa()
     {
         var hoy = DiaDeNegocio.Hoy();
+        Guid conBloqueadosId;
         await using (var contexto = CrearContexto())
         {
-            // «Subcontrata Cumplimiento S.L.» (la de la siembra): un requisito sin documento → Vencido.
-            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vera", "Faltante", "10000001S", vigencia: null);
+            var tipoEmpresaId = await MarcarObligatoriosAsync(contexto);
 
+            // «Subcontrata Cumplimiento S.L.» (la de la siembra): opera en el Centro y su documento obligatorio venció → Vencido.
+            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vera", "Aldia", "10000001S", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            await AnadirDocumentoDeEmpresaAsync(contexto, _subcontrataId, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddDays(-90)));
+
+            var falta = Empresa.CrearComoSubcontrata("Subcontrata A Falta S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
             var urgente = Empresa.CrearComoSubcontrata("Subcontrata B Urgente S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
             var sinConfirmar = Empresa.CrearComoSubcontrata("Subcontrata C Sin Confirmar S.L.", null, NivelServicioSubcontrata.Supervisada.ToString());
             var alCorriente = Empresa.CrearComoSubcontrata("Subcontrata D Al Corriente S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
-            contexto.Empresas.AddRange(urgente, sinConfirmar, alCorriente);
+            var conBloqueados = Empresa.CrearComoSubcontrata("Subcontrata E Con Bloqueados S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
+            contexto.Empresas.AddRange(falta, urgente, sinConfirmar, alCorriente, conBloqueados);
             await contexto.SaveChangesAsync();
+            conBloqueadosId = conBloqueados.Id;
 
-            await AnadirTrabajadorAsync(contexto, urgente.Id, "Ugo", "Urgente", "10000002Q", VigenciaDocumento.VenceEl(hoy.AddDays(10)));
-            await AnadirTrabajadorAsync(contexto, sinConfirmar.Id, "Sira", "Sinconfirmar", "10000003V", VigenciaDocumento.SinConfirmar);
-            await AnadirTrabajadorAsync(contexto, alCorriente.Id, "Alba", "Aldia", "10000004H", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            // Opera en el Centro sin el documento obligatorio → Faltante (se rotula Pendiente).
+            await AnadirTrabajadorAsync(contexto, falta.Id, "Fede", "Aldia", "10000006Y", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+
+            // Sin Trabajadores en el Centro: el obligatorio no les aplica y manda el peor de sus documentos de Empresa.
+            await AnadirDocumentoDeEmpresaAsync(contexto, urgente.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddDays(10)));
+            await AnadirDocumentoDeEmpresaAsync(contexto, sinConfirmar.Id, tipoEmpresaId, VigenciaDocumento.SinConfirmar);
+            await AnadirDocumentoDeEmpresaAsync(contexto, alCorriente.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+
+            // Su documentación de Empresa está al día y dos de sus Trabajadores no tienen el EPI obligatorio del Centro.
+            await AnadirDocumentoDeEmpresaAsync(contexto, conBloqueados.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Blas", "Bloqueado", "10000007F", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Bea", "Bloqueada", "10000008P", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Dani", "Aldia", "10000009D", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         }
 
         var todas = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, ConRecuentosPorEstado: true));
 
-        todas.TotalElementos.Should().Be(4);
+        todas.TotalElementos.Should().Be(6);
         todas.RecuentosPorEstado.Should().BeEquivalentTo(new Dictionary<string, int>
         {
             ["Vencido"] = 1,
+            ["Faltante"] = 1,
             ["Urgente"] = 1,
             ["Proximo"] = 0,
             ["SinConfirmar"] = 1,
-            ["Vigente"] = 1,
+            ["Vigente"] = 2,
             ["SinCaducidad"] = 0
         });
+        var filas = todas.Elementos.ToDictionary(s => s.RazonSocial);
+        filas["Subcontrata A Falta S.L."].DocumentosFaltantes.Should().Equal("Seguro de responsabilidad civil");
+        filas["Subcontrata E Con Bloqueados S.L."].EstadoDocumental.Should().Be(EstadoDocumento.Vigente,
+            "sus Trabajadores bloqueados no ponen en rojo a la Subcontrata (decisión D-1)");
+        filas["Subcontrata E Con Bloqueados S.L."].TrabajadoresBloqueados.Should().Be(2);
+        filas.Values.Where(s => s.Id != conBloqueadosId).Should().OnlyContain(s => s.TrabajadoresBloqueados == 0);
 
         var porVencer = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Urgente,Proximo", ConRecuentosPorEstado: true));
 
@@ -342,6 +385,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         pagina2.Elementos.Select(s => s.RazonSocial).Should().Equal("Subcontrata Cumplimiento S.L.");
         pagina2.RecuentosPorEstado.Should().BeNull("no se pidieron");
 
+        (await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Faltante"))).Elementos
+            .Select(s => s.RazonSocial).Should().Equal("Subcontrata A Falta S.L.");
+
         // Con los demás filtros: el nivel de servicio se aplica antes de contar.
         var supervisadas = await EjecutarAsync(new ObtenerSubcontratasQuery(
             Busqueda: null, NivelServicio: NivelServicioSubcontrata.Supervisada, ConRecuentosPorEstado: true));
@@ -349,7 +395,32 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         supervisadas.RecuentosPorEstado!.Where(par => par.Value > 0).Select(par => (par.Key, par.Value)).Should().Equal(("SinConfirmar", 1));
 
         // Un valor que no es un estado no filtra: la coordenada de la URL no inventa una lista vacía.
-        (await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Inventado"))).TotalElementos.Should().Be(4);
+        (await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, EstadoDocumental: "Inventado"))).TotalElementos.Should().Be(6);
+    }
+
+    /// <summary>
+    /// El recuento de Trabajadores bloqueados (decisión D-1) es el de los Trabajadores dados de alta con la Subcontrata
+    /// (<c>SubcontrataId</c>) que el usuario ve: uno fuera de su cartera no se cuenta, igual que no sale en la fila.
+    /// </summary>
+    [Fact]
+    public async Task Los_Trabajadores_bloqueados_son_solo_los_de_la_Subcontrata_que_el_usuario_ve()
+    {
+        Guid visibleId;
+        await using (var contexto = CrearContexto())
+        {
+            await MarcarObligatoriosAsync(contexto);
+            visibleId = await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vito", "Visible", "10000010X", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Otto", "Oculto", "10000011B", vigencia: null);
+        }
+
+        var conTodos = (await EjecutarAsync()).Elementos.Should().ContainSingle().Subject;
+        conTodos.TrabajadoresBloqueados.Should().Be(2);
+
+        var conCartera = (await EjecutarAsync(new AlcanceDatosServiceFalso(trabajadorIds: [visibleId]))).Elementos.Should().ContainSingle().Subject;
+        conCartera.TrabajadoresBloqueados.Should().Be(1, "el Trabajador fuera de la cartera no se cuenta");
+        conCartera.Trabajadores.Select(t => t.Id).Should().Equal(visibleId);
+        conCartera.EstadoDocumental.Should().Be(EstadoDocumento.Faltante,
+            "la Subcontrata opera en el Centro sin el documento de Empresa obligatorio, vea o no a todos sus Trabajadores");
     }
 
     /// <summary>
@@ -360,15 +431,20 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
     public async Task El_camino_con_estado_no_devuelve_ni_cuenta_subcontratas_fuera_del_alcance()
     {
         Guid fueraDeAlcanceId;
+        var hoy = DiaDeNegocio.Hoy();
         await using (var contexto = CrearContexto())
         {
+            // Las dos operan en el Centro con su documento de Empresa obligatorio vencido: las dos son Vencido.
+            var tipoEmpresaId = await MarcarObligatoriosAsync(contexto);
             await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vera", "Faltante", "10000001S", vigencia: null);
+            await AnadirDocumentoDeEmpresaAsync(contexto, _subcontrataId, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddDays(-90)));
 
             var fuera = Empresa.CrearComoSubcontrata("Subcontrata Fuera De Alcance S.L.", null, NivelServicioSubcontrata.Gestionada.ToString());
             contexto.Empresas.Add(fuera);
             await contexto.SaveChangesAsync();
             fueraDeAlcanceId = fuera.Id;
             await AnadirTrabajadorAsync(contexto, fuera.Id, "Fidel", "Fuera", "10000005L", vigencia: null);
+            await AnadirDocumentoDeEmpresaAsync(contexto, fuera.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddDays(-90)));
         }
 
         var resultado = await EjecutarAsync(
@@ -379,6 +455,30 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         resultado.Elementos.Should().NotContain(s => s.Id == fueraDeAlcanceId);
         resultado.TotalElementos.Should().Be(1);
         resultado.RecuentosPorEstado!["Vencido"].Should().Be(1, "la que está fuera del alcance tampoco se cuenta en la franja");
+        resultado.Elementos.Single().TrabajadoresBloqueados.Should().Be(1, "solo su Trabajador, no el de la Subcontrata fuera del alcance");
+    }
+
+    /// <summary>
+    /// El Centro marca obligatorios el EPI de los Trabajadores (<see cref="_tipoObligatorioId"/>) y un documento de Empresa nuevo,
+    /// «Seguro de responsabilidad civil», cuyo Id devuelve: lo que pone en rojo a una Subcontrata y a sus Trabajadores.
+    /// </summary>
+    private async Task<Guid> MarcarObligatoriosAsync(CaeManagerDbContext contexto)
+    {
+        var tipoEmpresa = new TipoDocumento("Seguro de responsabilidad civil", null, false, 2, AmbitoAplicacion.Empresa);
+        contexto.TiposDocumento.Add(tipoEmpresa);
+        await contexto.SaveChangesAsync();
+        contexto.TiposDocumentoCentros.AddRange(
+            new TipoDocumentoCentro(_tipoObligatorioId, _centroId, incluido: true, bloqueaAcceso: true),
+            new TipoDocumentoCentro(tipoEmpresa.Id, _centroId, incluido: true, bloqueaAcceso: true));
+        await contexto.SaveChangesAsync();
+        return tipoEmpresa.Id;
+    }
+
+    private static async Task AnadirDocumentoDeEmpresaAsync(
+        CaeManagerDbContext contexto, Guid empresaId, Guid tipoDocumentoId, VigenciaDocumento vigencia)
+    {
+        contexto.Documentos.Add(Documento.DeEmpresa(empresaId, tipoDocumentoId, DiaDeNegocio.Hoy().AddDays(-200), vigencia));
+        await contexto.SaveChangesAsync();
     }
 
     /// <summary>Trabajador de la Subcontrata asignado al Centro; con <paramref name="vigencia"/> se le da el documento exigido.</summary>
@@ -409,7 +509,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         alcance ??= new AlcanceDatosServiceFalso();
         await using var contexto = CrearContexto();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance), contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
 
         return await handler.Handle(consulta, CancellationToken.None);
     }

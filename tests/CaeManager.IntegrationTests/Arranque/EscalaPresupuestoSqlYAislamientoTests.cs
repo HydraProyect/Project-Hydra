@@ -707,6 +707,48 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
     }
 
     /// <summary>
+    /// PR 8 del estado materializado (decisión D-1): el listado de Subcontratas con el Tenant completo lee el estado de la
+    /// fila de Empresa de cada Subcontrata y el de sus Trabajadores de las tablas, y no puede costar más sentencias que el
+    /// cálculo en lectura del mismo listado con el Tenant sin rellenar. El Tenant queda sin fila de versión al terminar.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_Tenant_completo_el_listado_de_Subcontratas_lee_por_lo_mismo_o_menos_que_calcula()
+    {
+        const string pantalla = "Subcontratas";
+        var ficha = fixture.FichaDe(fixture.Piloto, TenantMedido);
+
+        async Task<(int Sentencias, object? Resultado)> MedirAsync() =>
+            await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido,
+                sp => ContarAsync(sp, s => LecturasDePantalla.DeTenant[pantalla](s, ficha)));
+
+        var sinRellenar = await MedirAsync();
+        (int Sentencias, object? Resultado) relleno;
+        try
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+                    sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
+            relleno = await MedirAsync();
+        }
+        finally
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+                {
+                    await db.Set<VersionEstadoTenant>().ExecuteDeleteAsync();
+                    return 0;
+                });
+        }
+
+        salida.WriteLine($"{pantalla}: {sinRellenar.Sentencias} sentencias sin rellenar, {relleno.Sentencias} con el Tenant completo");
+        LecturasDePantalla.TraeFilas(pantalla, relleno.Resultado).Should().BeTrue("se mide con la pantalla llena");
+        relleno.Sentencias.Should().BeLessThanOrEqualTo(sinRellenar.Sentencias,
+            $"con el Tenant completo el listado de Subcontratas lee de las tablas: {relleno.Sentencias} sentencias frente a {sinRellenar.Sentencias} sin rellenar");
+        relleno.Sentencias.Should().BeLessThanOrEqualTo(0,
+            $"MEDICIÓN: sin rellenar {sinRellenar.Sentencias}, con el Tenant completo {relleno.Sentencias}");
+    }
+
+    /// <summary>
     /// La búsqueda de Documentos resuelve el texto dentro de cada rama, por los titulares y los Tipos que casan, y no
     /// sobre la unión de las cinco ramas (medición de escala: 9,3 s con 500.000 Documentos). El oráculo es la forma
     /// anterior: el universo sin buscar, con el mismo orden, filtrado por «PropietarioNombre o TipoDocumentoNombre

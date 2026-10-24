@@ -3,9 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.EstadoMaterializado;
-using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
-using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Domain.Subcontratas;
@@ -110,7 +108,7 @@ public record EmpresaContratanteSubcontrataDto(Guid Id, string RazonSocial);
 public class ObtenerSubcontratasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado,
     ITrabajadoresQueryContext trabajadoresContext, ICalculoEstadoDocumentalService calculoEstadoDocumental,
-    IRequisitosObligatoriosIncumplidosService requisitosObligatorios, IProyectosQueryContext proyectosContext,
+    IRequisitosObligatoriosIncumplidosService requisitosObligatorios,
     ILectorEstadoMaterializado? lectorEstado = null)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
@@ -295,13 +293,13 @@ public class ObtenerSubcontratasQueryHandler(
                     cancellationToken);
             bloqueados = leidoDeTrabajadores is not null
                 ? [.. leidoDeTrabajadores.Vencido, .. leidoDeTrabajadores.Faltante]
-                : EnRojo(await requisitosObligatorios.DeTrabajadoresAsync(TrabajadoresActivos(trabajadorIds), cancellationToken));
+                : EnRojo(await requisitosObligatorios.DeTrabajadoresAsync(calculoEstado.SinVoluntariosInactivos(trabajadorIds), cancellationToken));
         }
         else
         {
             var peores = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, ids, cancellationToken);
             var incumplidos = await requisitosObligatorios.DeEmpresasYTrabajadoresAsync(
-                dbContext.Empresas.Where(e => ids.Contains(e.Id)).Select(e => e.Id), TrabajadoresActivos(trabajadorIds), cancellationToken);
+                dbContext.Empresas.Where(e => ids.Contains(e.Id)).Select(e => e.Id), calculoEstado.SinVoluntariosInactivos(trabajadorIds), cancellationToken);
             estados = ids.Distinct().ToDictionary(id => id, id => Combinar(peores.GetValueOrDefault(id), incumplidos.PorEmpresa.GetValueOrDefault(id) ?? []));
             bloqueados = EnRojo(incumplidos.PorTrabajador);
         }
@@ -311,15 +309,6 @@ public class ObtenerSubcontratasQueryHandler(
             .GroupBy(t => t.SubcontrataId)
             .ToDictionary(g => g.Key, g => g.Count());
         return new EstadoDeLasFilas(estados, trabajadores, bloqueadosPorSubcontrata);
-    }
-
-    /// <summary>Un voluntario inactivo no genera avisos por requisitos (mismo criterio que el listado de Trabajadores).</summary>
-    private IQueryable<Guid> TrabajadoresActivos(IReadOnlyList<Guid> trabajadorIds)
-    {
-        var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, DiaDeNegocio.Hoy());
-        return trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIds.Contains(t.Id) && !inactivos.Contains(t.Id))
-            .Select(t => t.Id);
     }
 
     private static HashSet<Guid> EnRojo(IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> porTrabajador) =>

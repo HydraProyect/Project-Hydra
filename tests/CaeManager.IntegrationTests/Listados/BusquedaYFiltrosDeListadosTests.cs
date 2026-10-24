@@ -280,7 +280,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso(empresaIds: [_empresaSurId]);
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance), contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
 
         var delNorte = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaNorteId), CancellationToken.None);
         var delSur = await handler.Handle(new ObtenerSubcontratasQuery(null, ContratadaPorEmpresaId: _empresaSurId), CancellationToken.None);
@@ -314,7 +314,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var alcance = new AlcanceDatosServiceFalso();
         var servicio = new CalculoEstadoSubcontrataService(contexto, contexto, contexto, contexto, contexto, contexto, alcance, contexto, contexto);
-        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance), contexto);
+        var handler = new ObtenerSubcontratasQueryHandler(contexto, alcance, servicio, contexto, new CalculoEstadoDocumentalService(contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
 
         var resultado = await handler.Handle(consulta, CancellationToken.None);
         return resultado.Elementos.Select(s => s.RazonSocial).ToList();
