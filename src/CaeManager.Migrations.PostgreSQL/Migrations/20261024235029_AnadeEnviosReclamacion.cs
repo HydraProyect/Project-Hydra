@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore.Migrations;
 
@@ -17,6 +17,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false),
                     Huella = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     UsuarioId = table.Column<Guid>(type: "uuid", nullable: false),
                     IniciadoEnUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),

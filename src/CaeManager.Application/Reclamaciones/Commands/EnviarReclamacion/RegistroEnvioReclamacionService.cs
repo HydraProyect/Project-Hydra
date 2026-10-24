@@ -198,9 +198,25 @@ public class RegistroEnvioReclamacionService(
                 ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia)
                 : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia);
 
-            var envioResultado = await mediator.Send(mensaje, sinCorte);
+            // Si el comando del buzón falla después de que Graph aceptara el correo (hilo de otro titular, o su propio
+            // guardado), deja el hilo rastreado sin guardar: se descarta para que no viaje en el guardado de otra
+            // operación del mismo circuito. Ese caso residual sí reenvía en el reintento, porque no hay hilo apuntado.
+            Result<Guid> envioResultado;
+            try
+            {
+                envioResultado = await mediator.Send(mensaje, sinCorte);
+            }
+            catch
+            {
+                descarteCambios.DescartarCambiosPendientes();
+                throw;
+            }
+
             if (envioResultado.EsFallido)
+            {
+                descarteCambios.DescartarCambiosPendientes();
                 return Result.Fallo(envioResultado.Error);
+            }
 
             conversacionId = envioResultado.Valor;
 

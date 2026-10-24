@@ -8874,6 +8874,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.Property<Guid>("UsuarioId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.PrimitiveCollection<List<string>>("_entregados")
                         .IsRequired()
                         .HasColumnType("text[]")

@@ -271,6 +271,22 @@ public class EnvioIdempotenteDeLaReclamacionTests
     }
 
     [Fact]
+    public async Task Un_envio_pendiente_fuera_de_la_ventana_de_reintento_no_se_reanuda()
+    {
+        var entorno = Construir();
+        entorno.Base.FallarEnGuardado.Add(3); // 1 previo, 2 entrega, 3 reclamación
+        await Enviar(entorno, [Contacto]);
+        entorno.Base.Envejecer(RegistroEnvioReclamacionService.VentanaDeReintento + TimeSpan.FromHours(1));
+
+        var tardio = await Enviar(entorno, [Contacto]);
+
+        tardio.EsExitoso.Should().BeTrue();
+        entorno.Correo.Entregados.Should().Equal([Contacto, Contacto],
+            "pasada la ventana, el envío pendiente ya no cuenta como el mismo intento: sale otro correo");
+        entorno.Base.EnviosGuardados.Should().HaveCount(2);
+    }
+
+    [Fact]
     public void La_huella_no_depende_del_orden_ni_de_las_mayusculas_y_si_de_lo_que_se_reclama()
     {
         var otroDocumento = Guid.NewGuid();
@@ -369,6 +385,14 @@ public class EnvioIdempotenteDeLaReclamacionTests
         }
 
         public void Agregar(EnvioReclamacion envio) => _enviosRastreados.Add(envio);
+
+        /// <summary>Retrasa el inicio de lo ya guardado, como si el intento anterior hubiera sido hace <paramref name="antiguedad"/>.</summary>
+        public void Envejecer(TimeSpan antiguedad)
+        {
+            foreach (var envio in _enviosGuardados.Values)
+                Fijar(envio, nameof(EnvioReclamacion.IniciadoEnUtc), envio.IniciadoEnUtc - antiguedad);
+            _enviosRastreados.Clear();
+        }
 
         public void Agregar(ReclamacionDocumental reclamacion) => _reclamacionesPorGuardar.Add(reclamacion);
 

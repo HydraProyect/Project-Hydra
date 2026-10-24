@@ -13,7 +13,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CaeManager.Migrations.PostgreSQL.Migrations
 {
     [DbContext(typeof(CaeManagerDbContext))]
-    [Migration("20261024233142_AnadeEnviosReclamacion")]
+    [Migration("20261024235029_AnadeEnviosReclamacion")]
     partial class AnadeEnviosReclamacion
     {
         /// <inheritdoc />
@@ -8875,6 +8875,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.PrimitiveCollection<List<string>>("_entregados")

@@ -729,7 +729,8 @@
 
             if (resultado.EsFallido)
             {
-                // Un fallo es un fallo: el correo no salió (o no salió a todos) y la pantalla lo dice, nunca «enviada».
+                // Un fallo es un fallo: el correo no salió, no salió a todos o salió y no se pudo registrar, y la pantalla lo
+                // dice, nunca «enviada». En este último caso el reintento lo registra sin volver a mandar el correo.
                 // El diálogo se cierra para que el aviso se vea y el lote sigue ahí para reintentar.
                 _envioPendiente = null;
                 ToastService.MostrarError(resultado.Error);

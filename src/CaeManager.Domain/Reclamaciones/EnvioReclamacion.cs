@@ -25,10 +25,19 @@ namespace CaeManager.Domain.Reclamaciones;
 /// </para>
 ///
 /// Vive en el Tenant propietario de la reclamación, con la misma RLS que <c>ReclamacionesDocumentales</c>.
+///
+/// <para>
+/// <see cref="IVersionable"/>: dos circuitos que reanudan a la vez el mismo envío pendiente reescribirían la lista
+/// entera de entregas (gana el último) y el segundo cierre pisaría la reclamación del primero. Con el token, el segundo
+/// guardado falla y se informa como registro fallido, en vez de perder una entrega o dejar una reclamación huérfana.
+/// </para>
 /// </summary>
-public class EnvioReclamacion : EntidadConTenant
+public class EnvioReclamacion : EntidadConTenant, IVersionable
 {
     public const int LongitudHuella = 64;
+
+    /// <inheritdoc cref="IVersionable" />
+    public Guid Version { get; private set; } = Guid.NewGuid();
 
     private List<string> _entregados = [];
     private List<string> _entregadosEnCopia = [];
