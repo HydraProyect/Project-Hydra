@@ -202,7 +202,9 @@ public partial class DetectorEstadoMaterializadoTests
         // La cola reclama la entrada y la retiene en su transacción; mientras tanto, otra acción encola el Tenant entero.
         var reclamada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var soltar = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var cola = fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+        // Dentro de la estrategia de ejecución, como el procesador: con EnableRetryOnFailure, una consulta (el SqlQuery del
+        // reclamo) en una transacción abierta fuera de ella lanza InvalidOperationException.
+        var cola = fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             await using var tx = await db.Database.BeginTransactionAsync();
             var entradas = await ColaEstadoMaterializado.ReclamarAsync(db, tenant, ProcesadorColaEstadoMaterializado.EntradasPorPasada);
@@ -211,8 +213,10 @@ public partial class DetectorEstadoMaterializadoTests
             await ColaEstadoMaterializado.BorrarAsync(db, tenant, entradas.Select(e => e.Id).ToList());
             await tx.CommitAsync();
             return entradas.Count;
-        });
-        await reclamada.Task.WaitAsync(TimeSpan.FromSeconds(30));
+        }));
+        // Si la cola falla antes de reclamar, su excepción sale aquí en vez de un tiempo de espera.
+        if (await Task.WhenAny(reclamada.Task, cola).WaitAsync(TimeSpan.FromSeconds(30)) == cola)
+            await cola;
         try
         {
             await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
