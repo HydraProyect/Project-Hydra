@@ -233,7 +233,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerCentrosQueryHandler(
             contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(contexto));
 
         var resultado = await handler.Handle(consulta, CancellationToken.None);
         return resultado.Elementos.Select(c => c.Nombre).ToList();

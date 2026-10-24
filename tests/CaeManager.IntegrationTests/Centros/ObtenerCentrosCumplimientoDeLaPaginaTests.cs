@@ -148,7 +148,7 @@ public class ObtenerCentrosCumplimientoDeLaPaginaTests : IAsyncLifetime
         var calculo = new CalculoContado(
             new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto),
             centrosPorLlamadaDeCumplimiento ?? []);
-        var handler = new ObtenerCentrosQueryHandler(contexto, contexto, new AlcanceDatosServiceFalso(), calculo);
+        var handler = new ObtenerCentrosQueryHandler(contexto, contexto, new AlcanceDatosServiceFalso(), calculo, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(contexto));
         return (await handler.Handle(consulta, CancellationToken.None)).Elementos;
     }
 
