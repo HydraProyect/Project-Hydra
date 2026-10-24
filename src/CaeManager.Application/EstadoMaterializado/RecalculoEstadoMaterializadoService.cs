@@ -132,17 +132,7 @@ public sealed class RecalculoEstadoMaterializadoService(
                 .Select(c => c.Id)
                 .ToListAsync(cancellationToken));
 
-        var asignaciones = await (
-            from asignacion in asignacionesContext.Asignaciones
-            where asignacion.FechaBaja == null
-            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-            where centroRaiz.Contains(asignacion.CentroId)
-                  || trabajadorRaiz.Contains(trabajador.Id)
-                  || (trabajador.EmpresaId != null && empresaRaiz.Contains(trabajador.EmpresaId.Value))
-                  || (trabajador.SubcontrataId != null && empresaRaiz.Contains(trabajador.SubcontrataId.Value))
-            select new { asignacion.CentroId, asignacion.TrabajadorId, EmpresaId = trabajador.EmpresaId ?? trabajador.SubcontrataId })
-            .Distinct()
-            .ToListAsync(cancellationToken);
+        var asignaciones = await AsignacionesActivasAsync(centroRaiz, trabajadorRaiz, empresaRaiz, cancellationToken);
 
         foreach (var a in asignaciones)
         {
@@ -171,6 +161,47 @@ public sealed class RecalculoEstadoMaterializadoService(
             centros.UnionWith(await escritor.CentrosConFilasDeTitularesAsync(trabajadorRaiz.Concat(empresaRaiz).ToList(), cancellationToken));
 
         return (centros.ToList(), trabajadores.ToList(), empresas.ToList());
+    }
+
+    private sealed class AsignacionActiva
+    {
+        public Guid CentroId { get; init; }
+        public Guid TrabajadorId { get; init; }
+        /// <summary>La Empresa del Trabajador o, si no tiene, su Subcontrata.</summary>
+        public Guid? EmpresaId { get; init; }
+    }
+
+    /// <summary>
+    /// Asignaciones activas de esos Centros, de esos Trabajadores o de los Trabajadores de esas Empresas (o Subcontratas). Una
+    /// consulta por lista no vacía, unidas: con las tres condiciones en un solo <c>OR</c> la base no usa los índices de
+    /// <c>Asignaciones</c> y recorre todas las del Tenant (medido: 45-60 ms por llamada con 60.000 Asignaciones).
+    /// </summary>
+    private async Task<List<AsignacionActiva>> AsignacionesActivasAsync(
+        IReadOnlyCollection<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, IReadOnlyCollection<Guid> empresaIds,
+        CancellationToken cancellationToken)
+    {
+        var activas =
+            from asignacion in asignacionesContext.Asignaciones
+            where asignacion.FechaBaja == null
+            join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
+            select new { asignacion.CentroId, asignacion.TrabajadorId, trabajador.EmpresaId, trabajador.SubcontrataId };
+
+        var partes = new List<IQueryable<AsignacionActiva>>();
+        if (centroIds.Count > 0)
+            partes.Add(activas.Where(a => centroIds.Contains(a.CentroId))
+                .Select(a => new AsignacionActiva { CentroId = a.CentroId, TrabajadorId = a.TrabajadorId, EmpresaId = a.EmpresaId ?? a.SubcontrataId }));
+        if (trabajadorIds.Count > 0)
+            partes.Add(activas.Where(a => trabajadorIds.Contains(a.TrabajadorId))
+                .Select(a => new AsignacionActiva { CentroId = a.CentroId, TrabajadorId = a.TrabajadorId, EmpresaId = a.EmpresaId ?? a.SubcontrataId }));
+        if (empresaIds.Count > 0)
+            partes.Add(activas
+                .Where(a => (a.EmpresaId != null && empresaIds.Contains(a.EmpresaId.Value))
+                            || (a.SubcontrataId != null && empresaIds.Contains(a.SubcontrataId.Value)))
+                .Select(a => new AsignacionActiva { CentroId = a.CentroId, TrabajadorId = a.TrabajadorId, EmpresaId = a.EmpresaId ?? a.SubcontrataId }));
+
+        return partes.Count == 0
+            ? []
+            : await partes.Aggregate((una, otra) => una.Union(otra)).ToListAsync(cancellationToken);
     }
 
     private sealed record Participacion(Guid CentroId, Guid TrabajadorId, DateOnly? FechaFinPrevista);
@@ -239,19 +270,7 @@ public sealed class RecalculoEstadoMaterializadoService(
             .ToList();
 
         // ---- Actividad: Asignaciones activas y eventos sin terminar de los Centros y Trabajadores calculados ----
-        var asignaciones = centroIds.Count == 0 && trabajadorIds.Count == 0 && empresaIds.Count == 0
-            ? []
-            : await (
-                from asignacion in asignacionesContext.Asignaciones
-                where asignacion.FechaBaja == null
-                join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
-                where centroIds.Contains(asignacion.CentroId)
-                      || trabajadorIds.Contains(trabajador.Id)
-                      || (trabajador.EmpresaId != null && empresaIds.Contains(trabajador.EmpresaId.Value))
-                      || (trabajador.SubcontrataId != null && empresaIds.Contains(trabajador.SubcontrataId.Value))
-                select new { asignacion.CentroId, asignacion.TrabajadorId, EmpresaId = trabajador.EmpresaId ?? trabajador.SubcontrataId })
-                .Distinct()
-                .ToListAsync(cancellationToken);
+        var asignaciones = await AsignacionesActivasAsync(centroIds, trabajadorIds, empresaIds, cancellationToken);
         // También los eventos de otros Centros de los Trabajadores asignados aquí: el fin de cualquiera de ellos puede dejar sin
         // contar a un voluntario (voluntario inactivo sin evento) y es frontera de sus pares y del Centro.
         var participaciones = await ParticipacionesEnEventosAsync(

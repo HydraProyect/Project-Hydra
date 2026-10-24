@@ -156,14 +156,8 @@ public class EvaluacionDeAccesoPorCentroService(
             (centroIdsVisibles is null || centroIdsVisibles.Contains(centroId))
             && (centroIds is null || centroIds.Contains(centroId));
 
-        // Con Centros pedidos, el filtro va en la base: sin él se traían las filas bloqueantes de todo el Tenant para quedarse
-        // con las de un Centro (el recálculo del estado materializado lo llama en cada acción). EnAlcance sigue filtrando
-        // después por el alcance del usuario, igual que antes.
-        var requisitosDeCentros = centroIds is null
-            ? tiposDocumentoContext.TiposDocumentoCentros
-            : tiposDocumentoContext.TiposDocumentoCentros.Where(tc => centroIds.Contains(tc.CentroId));
         var filas = (await (
-            from tc in requisitosDeCentros
+            from tc in tiposDocumentoContext.TiposDocumentoCentros
             where tc.Incluido && tc.BloqueaAcceso
             join tipo in tiposDocumentoContext.TiposDocumento on tc.TipoDocumentoId equals tipo.Id
             // Un tipo archivado no bloquea a nadie: no admite altas nuevas (catálogo del 2026-10-17).
