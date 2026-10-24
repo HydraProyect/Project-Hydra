@@ -641,6 +641,20 @@ public class PaqueteDocumentalVisitaServiceTests
         });
     }
 
+    [Theory]
+    [InlineData("<script>alert(\"x\")</script> & 'Norte'", "&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt; &amp; &#39;Norte&#39;")]
+    // El nombre se guarda tal cual lo escribió el usuario: un literal «&amp;» se codifica una vez, sin decodificarlo antes.
+    [InlineData("R&amp;D", "R&amp;amp;D")]
+    public async Task Codifica_el_nombre_del_centro_en_el_correo_una_sola_vez(string nombre, string codificado)
+    {
+        _centro.Actualizar(nombre, null, null, null, null);
+        DocumentoDeTrabajador(_ana, _epi, Hoy, VigenciaDocumento.NoCaduca, "documento");
+
+        await GenerarAsync();
+
+        _conversacion.Mensajes.Should().ContainSingle().Which.CuerpoHtml
+            .Should().Contain($"<strong>{codificado}</strong>").And.NotContain("<script>");
+    }
     private async Task GenerarAsync()
     {
         var servicio = new PaqueteDocumentalVisitaService(

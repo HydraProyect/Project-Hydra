@@ -23,6 +23,30 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         return (new ActualizarVerificacionExternaSubcontrataCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(), archivos, uow), uow, archivos);
     }
 
+    [Theory]
+    [InlineData("evidencia.pdf", "MZejecutable")]
+    [InlineData("evidencia.docx", "PK\u0003\u0004resto")]
+    public async Task Rechaza_la_evidencia_invalida_sin_modificar_la_verificacion(string nombre, string contenido)
+    {
+        var verificacion = CrearVerificacion(Guid.NewGuid());
+        verificacion.AdjuntarEvidencia("ruta-original", "original.pdf");
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var (handler, uow, archivos) = Crear(repositorio);
+
+        var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
+            verificacion.Id, Antes.AddDays(1), ResultadoVerificacionExterna.NoValido, null, "Cambio",
+            System.Text.Encoding.Latin1.GetBytes(contenido), nombre), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("VerificacionExterna.EvidenciaFormatoNoValido");
+        archivos.ArchivosGuardados.Should().Be(0);
+        uow.VecesGuardado.Should().Be(0);
+        verificacion.FechaVerificacion.Should().Be(Antes);
+        verificacion.Resultado.Should().Be(ResultadoVerificacionExterna.Valido);
+        verificacion.Observaciones.Should().Be("Original");
+        verificacion.EvidenciaArchivoRuta.Should().Be("ruta-original");
+    }
     [Fact]
     public async Task Corrige_los_datos_y_conserva_el_centro_el_tipo_y_la_evidencia()
     {
@@ -59,7 +83,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         var (handler, _, archivos) = Crear(repositorio);
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
-            verificacion.Id, Antes, ResultadoVerificacionExterna.Valido, null, null, [1, 2, 3], "nueva.pdf"), CancellationToken.None);
+            verificacion.Id, Antes, ResultadoVerificacionExterna.Valido, null, null, "%PDF-1.7\n%%EOF"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         verificacion.EvidenciaNombreArchivo.Should().Be("nueva.pdf");

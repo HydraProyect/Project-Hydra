@@ -116,6 +116,13 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandler(
         if (usuarioId is null)
             return Result.Fallo(Error.Crear("VerificacionExterna.SinUsuario", "No pudimos identificar al usuario verificador."));
 
+        if (request.EvidenciaContenido is not null)
+        {
+            var validacion = ValidacionEvidenciaVerificacionExterna.Validar(request.EvidenciaContenido, request.EvidenciaNombreArchivo);
+            if (validacion.EsFallido)
+                return validacion;
+        }
+
         var verificacion = new VerificacionExternaSubcontrata(
             request.SubcontrataId,
             request.CentroId,

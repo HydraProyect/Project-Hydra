@@ -13,6 +13,7 @@ using CaeManager.Infrastructure.Persistence;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using System.Net;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Comunicaciones;
@@ -114,7 +115,9 @@ public class ObtenerBorradorPedirPrioridadQueryTests : IAsyncLifetime
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.TotalDocumentosPendientes.Should().Be(1);
-        resultado.Valor.CuerpoHtml.Should().Contain("Ana García").And.Contain("Apto médico");
+        // El HTML del correo codifica los datos del usuario (WebUtility.HtmlEncode): se compara con el texto ya codificado.
+        resultado.Valor.CuerpoHtml.Should().Contain(WebUtility.HtmlEncode("Ana García"))
+            .And.Contain(WebUtility.HtmlEncode("Apto médico"));
         resultado.Valor.Asunto.Should().Contain("Centro con pendientes");
         resultado.Valor.HayConexionDisponible.Should().BeFalse();
         resultado.Valor.UltimaSolicitudEnviadaEnUtc.Should().BeNull();

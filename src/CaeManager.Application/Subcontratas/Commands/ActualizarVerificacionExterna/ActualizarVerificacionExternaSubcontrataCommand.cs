@@ -66,6 +66,13 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandler(
             || !await alcanceDatos.CentroParaGestionVisibleAsync(verificacion.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
 
+        if (request.EvidenciaContenido is not null)
+        {
+            var validacion = ValidacionEvidenciaVerificacionExterna.Validar(request.EvidenciaContenido, request.EvidenciaNombreArchivo);
+            if (validacion.EsFallido)
+                return validacion;
+        }
+
         verificacion.Actualizar(request.FechaVerificacion, request.Resultado, request.ValidoHasta, request.Observaciones);
 
         if (request.EvidenciaContenido is not null)

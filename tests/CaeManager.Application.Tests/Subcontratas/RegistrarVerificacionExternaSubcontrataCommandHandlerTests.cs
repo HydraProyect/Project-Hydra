@@ -6,6 +6,7 @@ using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Centros;
+using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
@@ -38,7 +39,7 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
         PrepararEscenario(bool relacionVigente = true, AmbitoAplicacion ambito = AmbitoAplicacion.Trabajador)
     {
         var subcontrata = Empresa.CrearComoSubcontrata("Andamios del Sur S.L.", "B12345674", "Gestionada");
-        var cliente = Empresa.CrearComoCliente("Refrielectric S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
+        var cliente = Empresa.CrearComoCliente("Industria Boreal S.A.", "B12345674", esCritico: false, notas: null, ejecutivoUsuarioId: null);
         var centro = new Centro(cliente.Id, Guid.NewGuid(), "Planta Norte");
         var tipo = new TipoDocumento("TC2", vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1, ambitoAplicacion: ambito);
 
@@ -275,6 +276,71 @@ public class RegistrarVerificacionExternaSubcontrataCommandHandlerTests
         verificaciones.Verificaciones.Should().ContainSingle().Which.CentroId.Should().Be(centroAlAlcance.Id);
     }
 
+    [Theory]
+    [InlineData("evidencia.pdf", "MZejecutable", false)]
+    [InlineData("evidencia.pdf", "%PDF-1.7\n%%EOF", true)]
+    [InlineData("evidencia.exe", "%PDF-1.7\n%%EOF", false)]
+    [InlineData("evidencia.docx", "PK\u0003\u0004resto", false)]
+    [InlineData("evidencia.png", "%PDF-1.7\n%%EOF", false)]
+    public async Task Comprueba_la_extension_y_la_firma_antes_de_guardar_la_evidencia(string nombre, string contenido, bool valido)
+    {
+        var (subcontrata, _, centro, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new RegistrarVerificacionExternaSubcontrataCommandHandler(
+            subcontratas, verificaciones, centros, empresas, tipos, new AlcanceDatosServiceFalso(),
+            new CurrentUserServiceFalso(Guid.NewGuid()), almacenamiento, unitOfWork);
+
+        var bytes = System.Text.Encoding.Latin1.GetBytes(contenido);
+        if (valido)
+        {
+            using var pdf = new PdfSharp.Pdf.PdfDocument();
+            pdf.AddPage();
+            using var flujo = new MemoryStream();
+            pdf.Save(flujo);
+            bytes = flujo.ToArray();
+        }
+
+        var resultado = await handler.Handle(new RegistrarVerificacionExternaSubcontrataCommand(
+            subcontrata.Id, centro.Id, tipo.Id, DiaDeNegocio.Hoy(), ResultadoVerificacionExterna.Valido,
+            null, null, bytes, nombre), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(valido);
+        almacenamiento.ArchivosGuardados.Should().Be(valido ? 1 : 0);
+        verificaciones.Verificaciones.Should().HaveCount(valido ? 1 : 0);
+        unitOfWork.VecesGuardado.Should().Be(valido ? 1 : 0);
+        if (!valido)
+            resultado.Error.Codigo.Should().Be("VerificacionExterna.EvidenciaFormatoNoValido");
+    }
+    [Theory]
+    [InlineData("es-ES", "La evidencia debe ser un PDF, JPG o PNG válido")]
+    [InlineData("ca-ES", "L'evidència ha de ser un PDF, JPG o PNG vàlid")]
+    public async Task Localiza_el_error_de_la_evidencia_en_el_comando(string cultura, string mensaje)
+    {
+        var (subcontrata, _, centro, tipo, subcontratas, empresas, centros, tipos) = PrepararEscenario();
+        var verificaciones = new VerificacionExternaSubcontrataRepositorioFalso();
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = CrearHandler(subcontratas, verificaciones, centros, empresas, tipos, unitOfWork);
+        var culturaAnterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo(cultura);
+            var resultado = await handler.Handle(new RegistrarVerificacionExternaSubcontrataCommand(
+                subcontrata.Id, centro.Id, tipo.Id, DiaDeNegocio.Hoy(), ResultadoVerificacionExterna.Valido,
+                null, null, "MZejecutable"u8.ToArray(), "evidencia.pdf"), CancellationToken.None);
+
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("VerificacionExterna.EvidenciaFormatoNoValido");
+            resultado.Error.Mensaje.Should().StartWith(mensaje);
+            verificaciones.Verificaciones.Should().BeEmpty();
+            unitOfWork.VecesGuardado.Should().Be(0);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = culturaAnterior;
+        }
+    }
     private static Centro AgregarCentroDeOtroClienteEmpresarialConRelacionVigente(
         Empresa subcontrata, EmpresasQueryContextFalso empresas, CentrosQueryContextFalso centros)
     {
