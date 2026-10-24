@@ -729,6 +729,9 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
                 if (encontrados.Overlaps(otro.Ids))
                     fallos.Add($"{lado.Rotulo}→{otro.Rotulo}, {nombre}: «{termino}» devuelve Documentos del otro Operador CAE externo");
 
+                // El Tenant de cartera compartida lo llevan los dos Gestores CAE: no hay Gestor CAE sin él.
+                if (CatalogoPilotoOutbound.Tenants.Single(t => t.Nombre == nombre).Cartera == CarteraPilotoOutbound.Compartida)
+                    continue;
                 var (universoAjeno, _, encontradosAjeno) = await LeerConBusquedaAsync(lado, nombre, sinCartera, termino);
                 if (!encontradosAjeno.IsSubsetOf(universoAjeno))
                     fallos.Add($"{lado.Rotulo}, {nombre}: «{termino}» enseña al Gestor CAE sin el Tenant en su cartera Documentos que no ve sin buscar");
@@ -778,6 +781,10 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
             var espacio = titular.IndexOf(' ', StringComparison.Ordinal);
             if (espacio >= 2 && espacio + 3 <= titular.Length)
                 yield return ($"titular de {rama.Key} a los dos lados del espacio", titular[(espacio - 2)..(espacio + 3)].ToLowerInvariant());
+            // El Vehículo se pinta «Nombre (Matrícula)»: un texto que cruza « (» solo casa con la expresión unida.
+            var parentesis = titular.IndexOf(" (", StringComparison.Ordinal);
+            if (parentesis >= 2 && parentesis + 4 <= titular.Length)
+                yield return ($"titular de {rama.Key} a los dos lados de « (»", titular[(parentesis - 2)..(parentesis + 4)].ToLowerInvariant());
         }
         if (universo.Count > 0)
             yield return ("Tipo de documento", PalabraMasLarga(universo.OrderBy(d => d.Id).First().TipoDocumentoNombre));
