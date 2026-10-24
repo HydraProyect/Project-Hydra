@@ -110,11 +110,11 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
         select $"{listado.Key}: {defecto}";
 
     [Fact]
-    public void El_recorrido_ve_los_once_listados_con_barra_de_filtros()
+    public void El_recorrido_ve_los_doce_listados_con_barra_de_filtros()
     {
         // Control positivo: si el recorrido no viera las páginas, «ninguno sin la pieza» valdría por vacío.
         ListadosConBarra().Keys.Select(Path.GetFileNameWithoutExtension).Should().BeEquivalentTo(
-            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias"]);
+            ["Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias", "Usuarios"]);
     }
 
     /// <summary>
@@ -138,7 +138,7 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
     [Fact]
     public void Todo_listado_con_barra_de_filtros_monta_la_vista_recordada_con_sus_atributos()
     {
-        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los once.
+        // No vale por vacío: el control positivo de arriba fija que el recorrido ve los doce.
         Faltas(ListadosConBarra()).Should().BeEmpty(
             "un listado con <BarraFiltros> monta una vez <VistaRecordadaDeListado Conexion=\"_vistaRecordada\" Pantalla=\"@PantallasConVistaRecordada.…\" "
             + "ParametrosDeVista=\"ParametrosDeVista\" ParametroDeBusqueda=\"q\" OnAplicar=\"…\" AlCambiar=\"StateHasChanged\" /> "
@@ -156,7 +156,7 @@ public class ListadosConBarraFiltrosRecuerdanLaVistaTests
             l => l.Key,
             l => PantallaDeclarada(Atributo(MarcadoRazor.Aperturas(l.Value, Pieza).Single().Texto, "Pantalla")));
 
-        pantallas.Should().HaveCount(11, "control: una pantalla por cada uno de los once listados");
+        pantallas.Should().HaveCount(12, "control: una pantalla por cada uno de los doce listados");
         pantallas.Values.Should().OnlyContain(p => p != null && PantallasConVistaRecordada.Admitidas.Contains(p));
         pantallas.Values.Should().OnlyHaveUniqueItems();
         pantallas.Should().OnlyContain(p => Path.GetFileNameWithoutExtension(p.Key) == p.Value,

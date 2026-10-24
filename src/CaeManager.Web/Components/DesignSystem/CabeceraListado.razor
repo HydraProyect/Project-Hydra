@@ -42,7 +42,7 @@
 @inject IStringLocalizer<TextosComunes> Comunes
 @inject IStringLocalizer<CaeManager.Web.Features.AtajosGlobales.Recursos.TextosAtajosGlobales> TextosAtajos
 
-<CabeceraPagina Titulo="@Titulo" Kicker="@(Grupo is null ? null : Grupo switch { "Negocio" => Comunes["ListaGrupoNegocio"].Value, "Operacion" => Comunes["ListaGrupoOperacion"].Value, _ => Grupo })" JuntoAlTitulo="@((ControlesEnBarra || Contador is null) && DatoCabecera is null ? null : JuntoAlTituloFragment)">
+<CabeceraPagina Titulo="@Titulo" Integrada="Integrada" Kicker="@(Grupo is null ? null : Grupo switch { "Negocio" => Comunes["ListaGrupoNegocio"].Value, "Operacion" => Comunes["ListaGrupoOperacion"].Value, _ => Grupo })" JuntoAlTitulo="@((ControlesEnBarra || Contador is null) && DatoCabecera is null ? null : JuntoAlTituloFragment)">
     <Acciones>
         @if (!ControlesEnBarra && SeleccionMultipleChanged.HasDelegate)
         {
@@ -78,6 +78,9 @@
 @code {
     [Parameter] public string? Grupo { get; set; }
     [Parameter] public bool ControlesEnBarra { get; set; }
+
+    /// <summary>La pantalla va embebida en el hub de Configuración: el título pasa a h2 (ver CabeceraPagina.Integrada).</summary>
+    [Parameter] public bool Integrada { get; set; }
     /// <summary>Título de la pantalla (el <c>h1</c>).</summary>
     [Parameter, EditorRequired] public string Titulo { get; set; } = string.Empty;
 

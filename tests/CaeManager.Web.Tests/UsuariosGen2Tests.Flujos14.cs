@@ -21,7 +21,7 @@ public partial class UsuariosGen2Tests
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         var vacio = PrimarioDelPie(cut);
         vacio.TextContent.Trim().Should().Be("Crear y enviar enlace");
@@ -62,7 +62,7 @@ public partial class UsuariosGen2Tests
         clipboard.SetupVoid("copiarAlPortapapeles", _ => true).SetVoidResult();
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuria.sanz@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nuria Sanz");
         await GuardarAsync(cut);

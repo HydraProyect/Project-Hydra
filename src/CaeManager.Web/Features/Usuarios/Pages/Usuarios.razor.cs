@@ -81,6 +81,8 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    public static readonly IReadOnlyList<string> ParametrosDeVista = ["q", "rol", "estado", "agrupar"];
+
     [Inject] private CaeManager.Web.Services.EnlacesPublicos EnlacesPublicos { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
@@ -158,12 +160,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private const string ActivacionActivos = "activos";
     private const string ActivacionDesactivados = "desactivados";
 
-    private static readonly IReadOnlyList<OpcionEstado> OpcionesActivacion =
-    [
-        new(ActivacionActivos, "Activos"),
-        new(ActivacionDesactivados, "Desactivados")
-    ];
-
     /// <summary>
     /// El filtrado es en memoria a propósito: <see cref="CargarAsync"/> ya trae
     /// la lista entera de usuarios del tenant —son decenas, no miles— y la
@@ -193,13 +189,8 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
             if (!string.IsNullOrWhiteSpace(_rolFiltro))
                 filtrados = filtrados.Where(u => u.Rol == _rolFiltro);
 
-            filtrados = _activacionFiltro switch
-            {
-                ActivacionActivos => filtrados.Where(u => u.Activo),
-                ActivacionDesactivados => filtrados.Where(u => !u.Activo),
-                _ => filtrados
-            };
-
+            if (!string.IsNullOrEmpty(_activacionFiltro))
+                filtrados = filtrados.Where(u => _activacionFiltro.Split(',').Any(estado => PerteneceAlEstado(u, estado)));
             return filtrados.ToList();
         }
     }
@@ -249,8 +240,6 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         Guid idEditado, Guid? idActor, string rolNuevo, bool valorNuevo, bool valorActual) =>
         AutoridadSobreCuentas.EsAutogestionDelPermisoSensible(idEditado, idActor, rolNuevo, valorNuevo, valorActual);
 
-    private int TotalPaginas => Math.Max(1, (int)Math.Ceiling(UsuariosFiltrados.Count / (double)_tamanoPagina));
-    private IReadOnlyList<UsuarioListaDto> UsuariosDePagina => UsuariosFiltrados.Skip((_pagina - 1) * _tamanoPagina).Take(_tamanoPagina).ToList();
 
     // Todo cambio de filtro vuelve a la página 1: si no, filtrar estando en la
     // página 3 deja la lista en una página que ya no existe y se ve vacía.
@@ -259,7 +248,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _busqueda = valor;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task FiltrarPorRolAsync(string valor)
@@ -267,15 +256,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _rolFiltro = valor;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
-    }
-
-    private Task FiltrarPorActivacionAsync(string valor)
-    {
-        _activacionFiltro = valor;
-        _pagina = 1;
-        _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task LimpiarFiltrosAsync()
@@ -285,7 +266,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         _activacionFiltro = string.Empty;
         _pagina = 1;
         _idEnfocado = null;
-        return Task.CompletedTask;
+        return ActualizarVistaListaAsync();
     }
 
     private Task IrAPaginaAsync(int pagina)
@@ -317,13 +298,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
 
     /// <summary>
     /// "j"/"k" recorren la página visible y "Enter" abre la edición del usuario
-    /// enfocado — la misma acción que "Editar" en su menú. "x" no tiene efecto:
-    /// la pantalla no tiene selección múltiple, así que no hay nada que marcar,
-    /// y dársela sería una decisión de producto, no la reparación de este hueco.
+    /// enfocado — la misma acción que "Editar" en su menú. No hay acciones en bloque.
     /// </summary>
     private async Task ManejarAtajoAsync(string tecla)
     {
-        var visibles = UsuariosDePagina;
+        var visibles = UsuariosVisibles;
         if (visibles.Count == 0) return;
 
         var indice = -1;
