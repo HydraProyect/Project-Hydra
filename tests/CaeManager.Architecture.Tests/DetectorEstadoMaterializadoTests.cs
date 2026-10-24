@@ -122,6 +122,7 @@ public class DetectorEstadoMaterializadoTests
             "EscritorEstadoMaterializado.cs",          // escribe el propio estado
             "RecalculoEstadoEnLinea.cs",               // transacción propia del recálculo tras un guardado suelto
             "ProcesadorColaEstadoMaterializado.cs",    // una transacción por pasada de la cola; solo escribe el propio estado y la cola
+            "CambioDeDiaEstadoMaterializado.cs",       // cotejo nocturno: foto REPEATABLE READ de solo lectura, se deshace siempre
             "PilotoOutboundSeeder.cs",                 // siembra (en el arranque y en el modo CLI, dentro del ámbito «sin recálculo», que encola sus Tenants al cerrar)
             "TrabajoAnalisisDocumentoRepository.cs",   // reclama un trabajo de IA; no toca entradas
             "EventoWebhookRepository.cs",              // registra un webhook; no toca entradas

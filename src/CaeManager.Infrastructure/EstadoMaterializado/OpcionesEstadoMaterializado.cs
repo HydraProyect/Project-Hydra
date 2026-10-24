@@ -10,8 +10,9 @@ public sealed class OpcionesEstadoMaterializado
     /// <summary>
     /// Si la cola rellena los Tenants que aún no tienen fila en <c>VersionesEstadoTenant</c>. Apagado por defecto: en cuanto un
     /// Tenant tiene versión, los lectores de Centro leen lo guardado, y los huecos conocidos del detector (cambios de otro
-    /// Tenant, contextos creados a mano, fallos que no se pueden encolar) no se reponen hasta el cotejo de la PR 5 del plan.
-    /// Se enciende cuando el cotejo esté en main. La cola de los Tenants que ya tienen versión se procesa siempre.
+    /// Tenant, contextos creados a mano, fallos que no se pueden encolar) solo los repone el cotejo nocturno
+    /// (<see cref="CambioDeDiaEstadoMaterializado"/>), una vez al día. Con el cotejo en main ya se puede encender; encenderlo
+    /// en producción lo decide Chris. La cola de los Tenants que ya tienen versión se procesa siempre.
     /// </summary>
     public bool RellenoAutomatico { get; set; }
 }

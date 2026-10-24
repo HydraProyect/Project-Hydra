@@ -17,7 +17,8 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// <item>Reclama hasta <see cref="EntradasPorPasada"/> entradas con <c>FOR UPDATE SKIP LOCKED</c>, primero las de Tenant
 /// entero.</item>
 /// <item>Un Tenant sin versión solo se toca con <see cref="OpcionesEstadoMaterializado.RellenoAutomatico"/> encendido
-/// (apagado por defecto hasta el cotejo de la PR 5); si no, la pasada no reclama nada.</item>
+/// (apagado por defecto; con el cotejo nocturno en main se puede encender, y en producción lo decide Chris); si no, la
+/// pasada no reclama nada.</item>
 /// <item>Si hay una de Tenant entero (o el Tenant no tiene versión): cerrojo exclusivo del Tenant, borra todas las entradas
 /// del Tenant que nadie más tiene bloqueadas (se juntan en una sola pasada) y rellena el Tenant entero. Una acción que
 /// cambia algo mientras tanto no espera: deja su cambio en la cola para la pasada siguiente.</item>

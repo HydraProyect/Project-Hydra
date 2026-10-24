@@ -110,7 +110,7 @@ public partial class DetectorEstadoMaterializadoTests
         var marca = await LeerMarcaAsync(tenant);
         marca.TenantEntero.Should().BeTrue("un Tenant sin versión está recalculándose entero");
 
-        // Con el relleno automático apagado (por defecto, hasta el cotejo de la PR 5) la cola no crea la versión.
+        // Con el relleno automático apagado (por defecto) la cola no crea la versión.
         await ProcesarColaAsync();
         (await fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Set<VersionEstadoTenant>().CountAsync()))
             .Should().Be(0, "sin EstadoMaterializado:RellenoAutomatico la cola no rellena un Tenant sin versión");

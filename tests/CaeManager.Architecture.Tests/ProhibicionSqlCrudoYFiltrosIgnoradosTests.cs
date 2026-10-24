@@ -447,6 +447,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "var fila = (await dbContext.Database.SqlQuery<ResumenColaEstado>($\"\"\"")] = 1,
         // Marca «recalculando» (PR 4b): lee sin cerrojo las raíces encoladas del Tenant de la conexión, bajo la RLS forzada.
         [("src/CaeManager.Infrastructure/EstadoMaterializado/LectorMarcaRecalculandoEstado.cs", "var entradas = await dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
+        // Cambio de día (PR 5): la marca UltimoDiaProcesado del Tenant de la conexión, solo hacia delante, con el TenantId en
+        // predicado explícito y bajo la RLS forzada. Es la única columna de VersionesEstadoTenant que la migración concede a
+        // cae_app_runtime además de la versión; el ExecuteUpdate de EF lo prohíbe el trinquete del detector.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializado.cs", "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // El cotejo nocturno abre su foto REPEATABLE READ como solo lectura: texto fijo, sin parámetros.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(\"SET TRANSACTION READ ONLY\", ct);")] = 1,
         // Frescura del estado materializado (PR 11, diseño § 5.3): antes del COMMIT, en la propia transacción, el interceptor
         // de avisos lee app.tenant_id (texto fijo, sin parámetros ni datos de usuario) para descartar avisos de otro Tenant.
         // Es un interceptor de transacciones: no hay DbContext utilizable a mitad del COMMIT. Solo lee; no salta la RLS.

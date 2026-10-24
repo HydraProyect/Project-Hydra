@@ -574,19 +574,24 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
     /// Con el <c>Id</c> y <c>CalculadoEnUtc</c> de cada fila: así la foto distingue una fila intacta de una reescrita con los
     /// mismos valores.
     /// </param>
-    internal static async Task<List<string>> FotoAsync(CaeManagerDbContext db, bool conIdentidad = false)
+    /// <param name="conDiaCalculo">
+    /// Sin el <c>DiaCalculo</c>: una fila igual calculada otro día cuenta como igual (el cambio de día no reescribe lo que
+    /// no cambia).
+    /// </param>
+    internal static async Task<List<string>> FotoAsync(CaeManagerDbContext db, bool conIdentidad = false, bool conDiaCalculo = true)
     {
         var foto = new List<string>();
         string Identidad(Guid id, DateTime calculadoEnUtc) => conIdentidad ? $"{id} {calculadoEnUtc:O} " : "";
+        string Dia(DateOnly dia) => conDiaCalculo ? dia.ToString("O") : "";
         foto.AddRange((await db.Set<EstadoEntidad>().AsNoTracking().ToListAsync())
             .Select(e => $"E {Identidad(e.Id, e.CalculadoEnUtc)}{e.Ambito} {e.EntidadId} {e.Estado} {e.EstadoPlataforma} {e.Vencidos} {e.VencidosSinBloqueo} {e.Urgentes} " +
-                         $"{e.Proximos} {e.Faltan} {e.SinConfirmar} {e.PendientesEnPlataforma} {e.Requeridos} {e.AlDia} {e.ProximoCambioEl} {e.DiaCalculo}"));
+                         $"{e.Proximos} {e.Faltan} {e.SinConfirmar} {e.PendientesEnPlataforma} {e.Requeridos} {e.AlDia} {e.ProximoCambioEl} {Dia(e.DiaCalculo)}"));
         foto.AddRange((await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
             .Select(p => $"R {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} " +
-                         $"{p.BloqueaAcceso} {p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"));
+                         $"{p.BloqueaAcceso} {p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {Dia(p.DiaCalculo)}"));
         foto.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
             .Select(p => $"P {Identidad(p.Id, p.CalculadoEnUtc)}{p.CentroId} {p.CanalGestionDocumentalId} {p.AmbitoTitular} {p.TitularId} {p.TipoDocumentoId} {p.Estado} " +
-                         $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}"));
+                         $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {Dia(p.DiaCalculo)}"));
         foto.Sort(StringComparer.Ordinal);
         return foto;
     }
