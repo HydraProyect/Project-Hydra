@@ -71,7 +71,10 @@ public static class IdentityEndpointsExtensions
             ILogger<Program> logger,
             ILoggerFactory loggerFactory,
             Microsoft.Extensions.Options.IOptions<AzureAdOptions> opcionesAzureAd,
-            CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion vigilancia,
+            // [FromServices] explícito: sin él, un host que no registra la
+            // vigilancia (arneses de Web.Tests) infiere el parámetro como cuerpo
+            // y la construcción de TODOS los endpoints falla, no solo este.
+            [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion vigilancia,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
