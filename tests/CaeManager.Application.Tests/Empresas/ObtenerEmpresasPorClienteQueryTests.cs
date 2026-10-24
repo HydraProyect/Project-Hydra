@@ -87,6 +87,9 @@ public class ObtenerEmpresasPorClienteQueryTests
             throw new InvalidOperationException("No debe calcular los requisitos de Empresa.");
         public Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
             IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<RequisitosObligatoriosIncumplidos> DeEmpresasYTrabajadoresAsync(
+            IQueryable<Guid> empresaIds, IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No debe calcular los requisitos de Empresa.");
     }
 
     [Theory]
