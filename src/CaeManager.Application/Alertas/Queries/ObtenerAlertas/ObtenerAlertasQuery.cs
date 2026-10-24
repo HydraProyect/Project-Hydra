@@ -19,6 +19,10 @@ namespace CaeManager.Application.Alertas.Queries.ObtenerAlertas;
 /// Se calcula en vivo sobre Documentos en cada petición, en vez de leer de
 /// una tabla propia sincronizada por un job en segundo plano — una vista
 /// calculada nunca puede desincronizarse del estado real (ver Project-Hydra-Negocio/tecnico/ROADMAP.md).
+/// Excepción desde la PR 9 del estado materializado: los documentos «faltantes» (un Tipo exigido sin ningún Documento) se leen
+/// de los pares de <c>EstadosRequisito</c> cuando el Tenant está completo y las filas son fiables
+/// (<see cref="ILectorEstadoRequisitos"/>, con el alcance de quien mira aplicado al leer), y se calculan como siempre en cualquier
+/// otro caso, que sigue siendo la referencia; los vencimientos de documentos se calculan siempre en vivo.
 /// El agregado de dominio y la tabla Alertas que existieron para esto se
 /// retiraron (REC-069/DEC-23): nadie los producía ni los consumía, y la
 /// notificación real ya va por <c>NotificacionUsuario</c> y correo. <c>EnvioAlertasVencimientoHostedService</c>

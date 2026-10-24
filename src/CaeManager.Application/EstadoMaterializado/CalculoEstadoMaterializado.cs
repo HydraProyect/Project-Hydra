@@ -187,7 +187,7 @@ public interface IEscritorEstadoMaterializado
 ///
 /// <para>
 /// Lo llama el detector de cambios al final de la transacción de cada guardado que toca una entrada del cálculo
-/// (<c>RecalculoEstadoEnLinea</c>, en Infrastructure). Ninguna pantalla lee todavía sus tablas.
+/// (<c>RecalculoEstadoEnLinea</c>, en Infrastructure). Las leen los lectores de pantalla (Centros, Empresas, Trabajadores y las colas de trabajo) cuando el Tenant está completo.
 /// </para>
 /// </summary>
 public interface IRecalculoEstadoMaterializado

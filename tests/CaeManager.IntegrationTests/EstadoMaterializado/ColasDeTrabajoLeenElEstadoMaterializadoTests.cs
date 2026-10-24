@@ -139,18 +139,35 @@ public class ColasDeTrabajoLeenElEstadoMaterializadoTests(EstadoMaterializadoPil
                 .ExecuteUpdateAsync(s => s.SetProperty(p => p.ProximoCambioEl, (DateOnly?)DiaDeNegocio.Hoy().AddDays(-1))));
             (await SePintaAsync()).Should().BeFalse("un par con la frontera llegada se calcula");
 
-            // Una fila de otra versión de la regla no es la de hoy.
-            await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoRequisito>()
+            // La frontera es el propio día de hoy: ya llegó (<=), no se sirve. Mañana, sí.
+            Task<int> FronteraAsync(DateOnly? dia) => fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoRequisito>()
                 .Where(p => p.TitularId == clave.TrabajadorId && p.CentroId == clave.CentroId && p.TipoDocumentoId == clave.TipoDocumentoId)
-                .ExecuteUpdateAsync(s => s
-                    .SetProperty(p => p.ProximoCambioEl, (DateOnly?)null)
-                    .SetProperty(p => p.VersionCalculo, CalculoEstadoMaterializado.VersionDeLaRegla + 1)));
-            (await SePintaAsync()).Should().BeFalse("un par de otra versión de la regla se calcula");
+                .ExecuteUpdateAsync(s => s.SetProperty(p => p.ProximoCambioEl, dia)));
+            await FronteraAsync(DiaDeNegocio.Hoy());
+            (await SePintaAsync()).Should().BeFalse("un par cuyo día de cambio es hoy se calcula");
+            await FronteraAsync(DiaDeNegocio.Hoy().AddDays(1));
+            (await SePintaAsync()).Should().BeTrue("control: un par cuyo día de cambio es mañana se lee");
+            await FronteraAsync(null);
 
+            // Un par de otra versión de la regla, aunque no sea el que se pinta: una regla nueva puede haber añadido pares que las
+            // filas viejas no tienen, y «ninguno en Faltante» no sería un dato.
             await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoRequisito>()
-                .Where(p => p.TitularId == clave.TrabajadorId && p.CentroId == clave.CentroId && p.TipoDocumentoId == clave.TipoDocumentoId)
-                .ExecuteUpdateAsync(s => s.SetProperty(p => p.VersionCalculo, CalculoEstadoMaterializado.VersionDeLaRegla)));
-            (await SePintaAsync()).Should().BeTrue("control: con la fila fiable otra vez, se lee");
+                .Where(p => p.AmbitoTitular == AmbitoAplicacion.Trabajador
+                    && !(p.TitularId == clave.TrabajadorId && p.CentroId == clave.CentroId && p.TipoDocumentoId == clave.TipoDocumentoId))
+                .OrderBy(p => p.Id).Take(1).ExecuteUpdateAsync(s => s
+                    .SetProperty(p => p.VersionCalculo, CalculoEstadoMaterializado.VersionDeLaRegla + 1)));
+            (await SePintaAsync()).Should().BeFalse("un par de otra versión de la regla en el Tenant manda al cálculo");
+            await RestaurarAsync(tenantId);
+            clave = (await EnvenenarUnParAsync(tenantId, 1)).Single();
+            (await SePintaAsync()).Should().BeTrue("control: con todos los pares de la regla vigente otra vez, se lee");
+
+            // Un alcance vacío no ve nada, con el Tenant como esté: el lector lo dice sin mirar las tablas.
+            await BorrarVersionAsync(tenantId);
+            var vacio = await ComoAdministradorAsync(nombre, sp => sp.GetRequiredService<ILectorEstadoRequisitos>()
+                .FaltantesDeTrabajadoresAsync([], null, CancellationToken.None));
+            (vacio is { Count: 0 }).Should().BeTrue("un alcance vacío da vacío aunque el Tenant no esté completo");
+            await RestaurarAsync(tenantId);
+            clave = (await EnvenenarUnParAsync(tenantId, 1)).Single();
 
             // Una cola de recálculos con una entrada: lo guardado puede estar viejo.
             await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Database.ExecuteSqlAsync($"""
@@ -186,15 +203,22 @@ public class ColasDeTrabajoLeenElEstadoMaterializadoTests(EstadoMaterializadoPil
             var tenantId = await fixture.Arnes.TenantIdAsync(nombre);
             try
             {
-                var claves = await EnvenenarUnParAsync(tenantId, 40);
+                // Primero el alcance de la Gestora CAE; después, pares envenenados de dentro y de fuera de él.
+                var (trabajadores, centros) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(nombre, async sp =>
+                {
+                    var alcance = sp.GetRequiredService<IAlcanceDatosService>();
+                    return (await alcance.ObtenerTrabajadorIdsVisiblesAsync(), await alcance.ObtenerCentroIdsVisiblesAsync());
+                });
+                var claves = await EnvenenarUnParAsync(
+                    tenantId, 20, (t, c) => (trabajadores is null || trabajadores.Contains(t)) && (centros is null || centros.Contains(c)), cuantosFuera: 20);
                 if (claves.Count == 0)
                     continue;
 
                 var (delAlcance, encontradas) = await fixture.Arnes.ComoGestoraPrimeraEnAsync(nombre, async sp =>
                 {
                     var alcance = sp.GetRequiredService<IAlcanceDatosService>();
-                    var trabajadores = await alcance.ObtenerTrabajadorIdsVisiblesAsync();
-                    var centros = await alcance.ObtenerCentroIdsVisiblesAsync();
+                    trabajadores = await alcance.ObtenerTrabajadorIdsVisiblesAsync();
+                    centros = await alcance.ObtenerCentroIdsVisiblesAsync();
                     var alertas = await sp.GetRequiredService<ISender>().Send(new ObtenerAlertasQuery());
                     var esperadas = claves
                         .Where(c => (trabajadores is null || trabajadores.Contains(c.TrabajadorId)) && (centros is null || centros.Contains(c.CentroId)))
@@ -247,14 +271,19 @@ public class ColasDeTrabajoLeenElEstadoMaterializadoTests(EstadoMaterializadoPil
     /// Pone en Faltante hasta <paramref name="cuantos"/> pares de Trabajador que ningún documento deja así (con su frontera
     /// vaciada) y devuelve sus claves. Los hay en cualquier Tenant del piloto con Trabajadores asignados a Centros que exigen algo.
     /// </summary>
-    private async Task<IReadOnlyList<ClaveDeFaltante>> EnvenenarUnParAsync(Guid tenantId, int cuantos)
+    private async Task<IReadOnlyList<ClaveDeFaltante>> EnvenenarUnParAsync(
+        Guid tenantId, int cuantos, Func<Guid, Guid, bool>? dentro = null, int cuantosFuera = 0)
     {
-        var elegidos = await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoRequisito>()
+        var candidatos = await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoRequisito>()
             .Where(p => p.AmbitoTitular == AmbitoAplicacion.Trabajador && p.EstadoTalveg != EstadoTalvegRequisito.Faltante)
             .OrderBy(p => p.Id)
             .Select(p => new { p.Id, p.TitularId, p.CentroId, p.TipoDocumentoId })
-            .Take(cuantos)
             .ToListAsync());
+        // Con un criterio de «dentro», los primeros que lo cumplen y los primeros que no: el alcance se prueba por los dos lados.
+        var elegidos = dentro is null
+            ? candidatos.Take(cuantos).ToList()
+            : candidatos.Where(p => dentro(p.TitularId, p.CentroId)).Take(cuantos)
+                .Concat(candidatos.Where(p => !dentro(p.TitularId, p.CentroId)).Take(cuantosFuera)).ToList();
         if (elegidos.Count == 0)
             return [];
 

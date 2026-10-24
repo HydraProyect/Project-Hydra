@@ -38,8 +38,9 @@ public sealed record FaltanteLeido(
 ///
 /// <para>
 /// <b>Cuándo lee.</b> Solo en un Tenant completo (<see cref="ILectorEstadoCentros.TenantCompletoAsync"/>: fila de versión y cola
-/// de recálculos vacía; la misma guarda que los lectores de Centro, Empresa y Trabajador, no una copia) y si ningún par leído es
-/// de otra regla (<c>VersionCalculo</c>) ni tiene su <c>ProximoCambioEl</c> ya llegado (el estado cambia por el paso del tiempo y
+/// de recálculos vacía; la misma guarda que los lectores de Centro, Empresa y Trabajador, no una copia), si ningún par de Trabajador
+/// del Tenant es de otra regla (<c>VersionCalculo</c>: una regla nueva puede añadir pares que las filas viejas no tienen, así que
+/// «ninguno en Faltante» no sería un dato) y si ningún par leído tiene su <c>ProximoCambioEl</c> ya llegado (el estado cambia por el paso del tiempo y
 /// nadie lo ha recalculado todavía; hasta la pasada de medianoche es lo normal tras cada madrugada).
 /// </para>
 /// </summary>
@@ -80,7 +81,7 @@ public sealed class LectorEstadoRequisitos(
     private sealed record FilaLeida(
         Guid TrabajadorId, string TrabajadorNombre, Guid? EmpresaId, Guid CentroId, string CentroNombre,
         Guid TipoDocumentoId, string TipoDocumentoNombre, Guid? ClienteEmpresarialId, string? ClienteNombre,
-        int VersionCalculo, DateOnly? ProximoCambioEl);
+        DateOnly? ProximoCambioEl);
 
     public async Task<IReadOnlyList<FaltanteLeido>?> FaltantesDeTrabajadoresAsync(
         IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
@@ -91,6 +92,14 @@ public sealed class LectorEstadoRequisitos(
 
         // La misma guarda que los demás lectores: Tenant completo y sin recálculos pendientes.
         if (!await lectorCentros.TenantCompletoAsync(cancellationToken))
+            return null;
+
+        // Ni un solo par de otra versión de la regla en todo el Tenant (revisión puente): aunque el alcance no deje ver ninguno
+        // en Faltante, una regla nueva puede haber añadido pares que las filas viejas no tienen, y «ninguno» no sería un dato.
+        var hoy = DiaDeNegocio.Hoy();
+        if (await tablas.EstadosRequisito.AnyAsync(
+                p => p.AmbitoTitular == AmbitoAplicacion.Trabajador && p.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla,
+                cancellationToken))
             return null;
 
         var pares = tablas.EstadosRequisito
@@ -112,19 +121,19 @@ public sealed class LectorEstadoRequisitos(
             select new FilaLeida(
                 t.Id, t.Nombre + " " + t.Apellidos, t.EmpresaId, c.Id, c.Nombre, tipo.Id, tipo.Nombre,
                 cliente == null ? (Guid?)null : cliente.Id, cliente == null ? null : cliente.RazonSocial,
-                p.VersionCalculo, p.ProximoCambioEl))
+                p.ProximoCambioEl))
             .ToListAsync(cancellationToken);
 
-        // Fila fiable: de la regla vigente y con su día de cambio por llegar. Una sola que no lo sea manda al cálculo de siempre.
-        var hoy = DiaDeNegocio.Hoy();
-        if (filas.Any(f => f.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla
-                           || (f.ProximoCambioEl is { } cambio && cambio <= hoy)))
+        // Fila fiable: con su día de cambio por llegar (la versión de la regla ya se comprobó para todo el Tenant). Una sola
+        // que no lo sea manda al cálculo de siempre.
+        if (filas.Any(f => f.ProximoCambioEl is { } cambio && cambio <= hoy))
             return null;
 
+        // El cálculo de siempre no fijaba orden; este es el de los listados (por nombre, en la cultura de quien lo lee).
         return filas
-            .OrderBy(f => f.TrabajadorNombre, StringComparer.Ordinal)
-            .ThenBy(f => f.CentroNombre, StringComparer.Ordinal)
-            .ThenBy(f => f.TipoDocumentoNombre, StringComparer.Ordinal)
+            .OrderBy(f => f.TrabajadorNombre, StringComparer.CurrentCulture)
+            .ThenBy(f => f.CentroNombre, StringComparer.CurrentCulture)
+            .ThenBy(f => f.TipoDocumentoNombre, StringComparer.CurrentCulture)
             .Select(f => new FaltanteLeido(
                 f.TrabajadorId, f.TrabajadorNombre, f.EmpresaId, f.CentroId, f.CentroNombre,
                 f.TipoDocumentoId, f.TipoDocumentoNombre, f.ClienteEmpresarialId, f.ClienteNombre))
