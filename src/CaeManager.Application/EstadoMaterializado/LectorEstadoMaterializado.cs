@@ -93,6 +93,7 @@ public sealed class SinLectorDeEstadoMaterializado : ILectorEstadoMaterializado
 
 public sealed class LectorEstadoMaterializado(
     IEstadoMaterializadoQueryContext tablas,
+    ILectorEstadoCentros lectorCentros,
     IAlcanceDatosService alcanceDatos,
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
@@ -107,14 +108,10 @@ public sealed class LectorEstadoMaterializado(
 
     public async Task<bool> DisponibleAsync(CancellationToken cancellationToken)
     {
-        // Primero la fila de versión (consulta por índice y la que hoy dice que no en todos los Tenants): sin ella el Tenant no
-        // está completo.
-        if (!await tablas.VersionesEstadoTenant.AnyAsync(cancellationToken))
-            return false;
-
-        // Una cola de recálculos sin consumir (cambio de Tipo, tolerancia o umbrales, clausura grande, fallo del recálculo)
-        // significa que lo guardado puede estar viejo: mientras haya algo pendiente se calcula como siempre.
-        if (await tablas.RecalculosPendientes.AnyAsync(cancellationToken))
+        // Tenant completo: su fila de versión (sin ella tiene filas a medias o ninguna) y la cola de recálculos sin consumir
+        // vacía (cambio de Tipo, tolerancia o umbrales, clausura grande, fallo del recálculo: lo guardado puede estar viejo).
+        // La misma comprobación que los lectores de Centro, no una copia.
+        if (!await lectorCentros.TenantCompletoAsync(cancellationToken))
             return false;
 
         // null = sin restricción; una lista que cubre todos los Centros (una cartera universal) tampoco restringe nada.
