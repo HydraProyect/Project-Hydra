@@ -112,17 +112,17 @@ public static class IdentityEndpointsExtensions
 
                 case DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant:
                 case DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad:
-                {
-                    // Queda en la vigilancia del Tenant de la cuenta que se intentó
-                    // abrir: es a quien le interesa saber que alguien lo intentó.
-                    // Mismo mensaje genérico que el resto: no se confirma que exista.
-                    // Solo deja la fila Rechazado: la vigilancia no avisa por ella.
-                    logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, usuario?.Id);
-                    if (usuario is not null)
-                        await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
-                    await signInManager.SignOutAsync();
-                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-                }
+                    {
+                        // Queda en la vigilancia del Tenant de la cuenta que se intentó
+                        // abrir: es a quien le interesa saber que alguien lo intentó.
+                        // Mismo mensaje genérico que el resto: no se confirma que exista.
+                        // Solo deja la fila Rechazado: la vigilancia no avisa por ella.
+                        logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, usuario?.Id);
+                        if (usuario is not null)
+                            await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                        await signInManager.SignOutAsync();
+                        return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+                    }
             }
 
             var esUsuarioNuevo = decision == DecisionCuentaMicrosoft.CrearCuenta;
