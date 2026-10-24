@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using CaeManager.Application.Centros;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Domain.Proyectos;
 using CaeManager.Domain.Trabajadores;
 using FluentAssertions;
@@ -139,6 +140,25 @@ public class OrdinalesDeEnumsPublicadosTests
             {
                 [nameof(AmbitoCausa.Empresa)] = 0,
                 [nameof(AmbitoCausa.Trabajador)] = 1,
+            }
+        },
+        {
+            // Estado materializado: se guarda como smallint en EstadosEntidad y RecalculosPendientes.
+            nameof(AmbitoEstadoEntidad), new Dictionary<string, int>
+            {
+                [nameof(AmbitoEstadoEntidad.Centro)] = 0,
+                [nameof(AmbitoEstadoEntidad.Trabajador)] = 1,
+                [nameof(AmbitoEstadoEntidad.Empresa)] = 2,
+                [nameof(AmbitoEstadoEntidad.Subcontrata)] = 3,
+            }
+        },
+        {
+            // Se guarda como entero en AcreditacionesDocumentoPlataforma y como smallint en EstadosPlataforma.
+            nameof(EstadoVigenciaEnPlataforma), new Dictionary<string, int>
+            {
+                [nameof(EstadoVigenciaEnPlataforma.SinConfirmar)] = 0,
+                [nameof(EstadoVigenciaEnPlataforma.NoVenceAqui)] = 1,
+                [nameof(EstadoVigenciaEnPlataforma.VenceEnFecha)] = 2,
             }
         },
     };

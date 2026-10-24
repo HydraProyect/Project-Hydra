@@ -43,6 +43,11 @@ public class ReferenciasACentroInventariadasTests
         "SolicitudPrioridadDocumento",
         "DocumentoGenerado",
         "PlantillaDocumento",
+        // Estado materializado: datos derivados que el recálculo rehace enteros, sin FK a propósito (ver
+        // EstadoRequisitoConfiguration). Un Centro borrado deja filas huérfanas hasta el siguiente recálculo, no
+        // un estado falso de otro Centro, porque la clave lleva TenantId y la RLS lo fuerza.
+        "EstadoRequisito",
+        "EstadoEnPlataforma",
     ];
 
     /// <summary>

@@ -6176,6 +6176,274 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("PlataformasCaeClienteEmpresarial", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("AmbitoTitular")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CanalGestionDocumentalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<short>("Estado")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("EstadoVigencia")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateOnly?>("FechaVencimientoEnPlataforma")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TitularId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosPlataforma_ProximoCambio");
+
+                    b.HasIndex("TenantId", "AmbitoTitular", "TitularId")
+                        .HasDatabaseName("IX_EstadosPlataforma_Titular");
+
+                    b.HasIndex("TenantId", "CentroId", "CanalGestionDocumentalId", "AmbitoTitular", "TitularId", "TipoDocumentoId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosPlataforma_Acreditacion");
+
+                    b.ToTable("EstadosPlataforma", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoEntidad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AlDia")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("Ambito")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EntidadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("Estado")
+                        .HasColumnType("smallint");
+
+                    b.Property<short?>("EstadoPlataforma")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Faltan")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PendientesEnPlataforma")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Proximos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Requeridos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SinConfirmar")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Urgentes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Vencidos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VencidosSinBloqueo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosEntidad_ProximoCambio");
+
+                    b.HasIndex("TenantId", "Ambito", "EntidadId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosEntidad_Entidad");
+
+                    b.HasIndex("TenantId", "Ambito", "Estado")
+                        .HasDatabaseName("IX_EstadosEntidad_Estado");
+
+                    b.ToTable("EstadosEntidad", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoRequisito", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("AmbitoTitular")
+                        .HasColumnType("smallint");
+
+                    b.Property<bool>("BloqueaAcceso")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("CuentaParaCumplimiento")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("DocumentoEfectivoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short?>("EstadoPlataforma")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("EstadoTalveg")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TitularId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("VencimientoEfectivo")
+                        .HasColumnType("date");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "EstadoTalveg")
+                        .HasDatabaseName("IX_EstadosRequisito_EstadoTalveg");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosRequisito_ProximoCambio");
+
+                    b.HasIndex("TenantId", "AmbitoTitular", "TitularId")
+                        .HasDatabaseName("IX_EstadosRequisito_Titular");
+
+                    b.HasIndex("TenantId", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosRequisito_Par");
+
+                    b.ToTable("EstadosRequisito", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.RecalculoPendiente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("Ambito")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EntidadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("IntentoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreadoEnUtc")
+                        .HasDatabaseName("IX_RecalculosPendientes_Cola");
+
+                    b.ToTable("RecalculosPendientes", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("UltimoDiaProcesado")
+                        .HasColumnType("date");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_VersionesEstadoTenant_Tenant");
+
+                    b.ToTable("VersionesEstadoTenant", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.EvidenciasInbound.EvidenciaInbound", b =>
                 {
                     b.Property<Guid>("Id")

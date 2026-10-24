@@ -399,6 +399,11 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // intento, y rompería la minimización del RGPD.
             if (entrada.Entity is CaeManager.Domain.Seguridad.RegistroInicioSesion) continue;
 
+            // Estado materializado: dato derivado que el recálculo rehace en la misma transacción que la acción. La acción
+            // ya se audita; auditar además cada fila recalculada metería miles de «Creado» o «Modificado» por una sola
+            // acción (una Empresa con 800 Centros) en una tabla sin purga.
+            if (entrada.Entity.GetType().Namespace == typeof(CaeManager.Domain.EstadoMaterializado.EstadoRequisito).Namespace) continue;
+
             var esDominio = entrada.Entity.GetType().Namespace?.StartsWith("CaeManager.Domain", StringComparison.Ordinal) == true;
             var esIdentidadAuditada = TiposDeIdentidadAuditados.ContainsKey(entrada.Entity.GetType());
             if (!esDominio && !esIdentidadAuditada) continue;
