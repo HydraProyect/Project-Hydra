@@ -359,6 +359,128 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
             .Should().Equal(antesB, "sustituir desde A las entidades de B no borra nada de B");
     }
 
+    /// <summary>
+    /// Alcance estrecho del recálculo por par: un cambio en un documento de un Trabajador rehace sus pares, y los pares de los
+    /// demás titulares de sus Centros (Trabajadores y Empresas, TALVEG y plataforma) quedan intactos, con el mismo <c>Id</c> y
+    /// el mismo <c>CalculadoEnUtc</c>. Un escritor que sustituyera por Centro con solo los pares del Trabajador los borraría.
+    /// </summary>
+    [Fact]
+    public async Task El_recalculo_de_un_titular_no_toca_los_pares_de_los_demas_titulares()
+    {
+        var hoy = DiaDeNegocio.Hoy();
+        string? probado = null;
+        foreach (var tenant in fixture.Tenants)
+        {
+            probado = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
+            {
+                // Un par de Trabajador cuyo documento efectivo vence lejos: hacer que venza ayer cambia ese par seguro.
+                var par = await (
+                        from p in db.Set<EstadoRequisito>().AsNoTracking()
+                        where p.AmbitoTitular == AmbitoAplicacion.Trabajador && p.VencimientoEfectivo > hoy.AddDays(30)
+                        join d in db.Documentos.Operativos() on p.DocumentoEfectivoId equals (Guid?)d.Id
+                        where d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1)
+                        orderby p.Id
+                        select new { p.TitularId, DocumentoId = d.Id })
+                    .FirstOrDefaultAsync();
+                if (par is null)
+                    return (string?)null;
+
+                db.ChangeTracker.Clear();
+                var antes = await ParesConIdentidadAsync(db);
+                await db.Documentos.Where(d => d.Id == par.DocumentoId)
+                    .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
+                await sp.GetRequiredService<IRecalculoEstadoMaterializado>()
+                    .RecalcularAsync(RaicesDeRecalculo.DeTrabajadores(par.TitularId), CancellationToken.None);
+                db.ChangeTracker.Clear();
+                var despues = await ParesConIdentidadAsync(db);
+
+                bool EsDelTrabajador((AmbitoAplicacion Ambito, Guid Titular, string Fila) f) =>
+                    f.Ambito == AmbitoAplicacion.Trabajador && f.Titular == par.TitularId;
+                List<string> Filas(IEnumerable<(AmbitoAplicacion Ambito, Guid Titular, string Fila)> filas) =>
+                    filas.Select(f => f.Fila).Order(StringComparer.Ordinal).ToList();
+
+                var ajenosAntes = Filas(antes.Where(f => !EsDelTrabajador(f)));
+                ajenosAntes.Should().NotBeEmpty("sin pares de otros titulares el test no probaría el alcance");
+                Filas(despues.Where(f => !EsDelTrabajador(f))).Should().Equal(ajenosAntes,
+                    $"el recálculo del Trabajador {par.TitularId} no reescribe ni borra los pares de otros titulares en el Tenant {tenant}");
+                Filas(despues.Where(EsDelTrabajador)).Should().NotEqual(Filas(antes.Where(EsDelTrabajador)),
+                    "el documento vencido mueve los pares del Trabajador; si no, el test no probaría nada");
+                return $"Tenant {tenant}, Trabajador {par.TitularId}";
+            });
+            if (probado is not null)
+                break;
+        }
+
+        probado.Should().NotBeNull("hace falta un par de Trabajador con un documento efectivo que venza lejos");
+        salida.WriteLine(probado);
+    }
+
+    /// <summary>
+    /// Los métodos de pares por titular de <see cref="ICalculoEstadoCentroService"/> devuelven exactamente el subconjunto de
+    /// los métodos completos: ni un par de más, ni uno de menos, ni un estado distinto. Con todos los Centros del Tenant y con
+    /// la mitad, y con un titular que no existe en la lista.
+    /// </summary>
+    [Fact]
+    public async Task Los_pares_por_titular_son_exactamente_el_subconjunto_de_los_completos()
+    {
+        var comparados = (Trabajador: 0, Empresa: 0);
+        foreach (var tenant in fixture.Tenants)
+        {
+            var (deTrabajador, deEmpresa) = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
+            {
+                var ct = CancellationToken.None;
+                var calculo = sp.GetRequiredService<ICalculoEstadoCentroService>();
+                var centros = await db.Centros.OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(ct);
+                var trabajadores = (await db.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(ct))
+                    .Where((_, i) => i % 2 == 0).Append(Guid.NewGuid()).ToHashSet();
+                var empresas = (await db.Empresas.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync(ct))
+                    .Where((_, i) => i % 2 == 0).Append(Guid.NewGuid()).ToHashSet();
+                var (nTrabajador, nEmpresa) = (0, 0);
+
+                foreach (var deCentros in new[] { centros, centros.Take((centros.Count + 1) / 2).ToList() })
+                {
+                    var esperados = Ordenar((await calculo.ObtenerParesExigidosAsync(deCentros, ct))
+                        .Where(p => trabajadores.Contains(p.TrabajadorId)));
+                    Ordenar(await calculo.ObtenerParesExigidosDeTrabajadoresAsync(deCentros, trabajadores, ct))
+                        .Should().Equal(esperados, $"los pares por Trabajador son los completos filtrados ({deCentros.Count} Centros, Tenant {tenant})");
+
+                    var esperadosEmpresa = Ordenar((await calculo.ObtenerParesDeEmpresaExigidosAsync(deCentros, ct))
+                        .Where(p => empresas.Contains(p.EmpresaId)));
+                    Ordenar(await calculo.ObtenerParesDeEmpresaExigidosDeEmpresasAsync(deCentros, empresas, ct))
+                        .Should().Equal(esperadosEmpresa, $"los pares por Empresa son los completos filtrados ({deCentros.Count} Centros, Tenant {tenant})");
+
+                    nTrabajador += esperados.Count;
+                    nEmpresa += esperadosEmpresa.Count;
+                }
+
+                return (nTrabajador, nEmpresa);
+            });
+            comparados = (comparados.Trabajador + deTrabajador, comparados.Empresa + deEmpresa);
+        }
+
+        salida.WriteLine($"Pares comparados: {comparados.Trabajador} de Trabajador, {comparados.Empresa} de Empresa");
+        comparados.Trabajador.Should().BePositive("sin pares de Trabajador el subconjunto no probaría nada");
+        comparados.Empresa.Should().BePositive("sin pares de Empresa el subconjunto no probaría nada");
+    }
+
+    private static List<string> Ordenar<T>(IEnumerable<T> pares) =>
+        pares.Select(p => p!.ToString()!).Order(StringComparer.Ordinal).ToList();
+
+    /// <summary>Los pares TALVEG y de plataforma con su titular y su identidad (<c>Id</c> y <c>CalculadoEnUtc</c>).</summary>
+    private static async Task<List<(AmbitoAplicacion Ambito, Guid Titular, string Fila)>> ParesConIdentidadAsync(CaeManagerDbContext db)
+    {
+        var filas = (await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
+            .Select(p => (p.AmbitoTitular, p.TitularId,
+                $"R {p.Id} {p.CalculadoEnUtc:O} {p.CentroId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} {p.BloqueaAcceso} " +
+                $"{p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"))
+            .ToList();
+        filas.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
+            .Select(p => (p.AmbitoTitular, p.TitularId,
+                $"P {p.Id} {p.CalculadoEnUtc:O} {p.CentroId} {p.CanalGestionDocumentalId} {p.TipoDocumentoId} {p.Estado} " +
+                $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}")));
+        return filas;
+    }
+
     private static async Task<List<string>> CompararAsync(CaeManagerDbContext db, IServiceProvider sp)
     {
         var ct = CancellationToken.None;
