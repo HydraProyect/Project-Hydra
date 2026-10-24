@@ -1,6 +1,7 @@
 using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -25,9 +26,12 @@ public class ObtenerCumplimientoExigidoTenantQueryHandler(
     IEmpresasQueryContext empresasContext,
     IAsignacionesQueryContext asignacionesContext,
     ITrabajadoresQueryContext trabajadoresContext,
-    ICalculoEstadoCentroService calculoEstadoCentro)
+    ICalculoEstadoCentroService calculoEstadoCentro,
+    ILectorCumplimientoDeDireccion? lectorEstado = null)
     : IRequestHandler<ObtenerCumplimientoExigidoTenantQuery, FraccionCumplimiento>
 {
+    private readonly ILectorCumplimientoDeDireccion lector = lectorEstado ?? SinLectorDeCumplimientoDeDireccion.Instancia;
+
     public async Task<FraccionCumplimiento> Handle(ObtenerCumplimientoExigidoTenantQuery request, CancellationToken cancellationToken)
     {
         var empresasPropias = await empresasContext.Empresas.Where(e => e.EsPropia).Select(e => e.Id).ToListAsync(cancellationToken);
@@ -43,9 +47,16 @@ public class ObtenerCumplimientoExigidoTenantQueryHandler(
             .ToListAsync(cancellationToken);
         if (centrosPorEmpresa.Count == 0) return FraccionCumplimiento.SinRequisitos;
 
+        var empresaYCentro = centrosPorEmpresa.Select(c => (c.EmpresaId, c.CentroId)).ToHashSet();
+
+        // De las tablas del estado materializado si el Tenant está completo y sus pares son de hoy (PR 10 del plan); si no,
+        // el cálculo de siempre, que sigue siendo la referencia. La facturación del Operador CAE no pasa por aquí.
+        if (await lector.CumplimientoExigidoAsync(empresaYCentro, cancellationToken) is { } leida)
+            return leida;
+
         var pares = await calculoEstadoCentro.ObtenerParesExigidosAsync(
             centrosPorEmpresa.Select(c => c.CentroId).Distinct().ToList(), cancellationToken);
-        return DeEmpresasPropias(pares, centrosPorEmpresa.Select(c => (c.EmpresaId, c.CentroId)).ToHashSet());
+        return DeEmpresasPropias(pares, empresaYCentro);
     }
 
     /// <summary>
