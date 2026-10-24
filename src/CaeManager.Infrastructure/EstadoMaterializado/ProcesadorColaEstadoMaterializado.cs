@@ -112,6 +112,11 @@ public sealed class ProcesadorColaEstadoMaterializado(
             return true;
         });
 
+        // El servicio se detiene (relevo azul/verde): la pasada se deshizo y no cuenta como intento fallido; sus entradas
+        // siguen en la cola sin espera para la ranura que tome el relevo.
+        if (fallo is not null && cancellationToken.IsCancellationRequested)
+            throw new OperationCanceledException("La cola del estado materializado se detiene.", fallo, cancellationToken);
+
         if (fallo is not null)
         {
             logger.LogError(fallo, "Estado materializado: falló una pasada de la cola del Tenant {Tenant}; sus {Entradas} entradas esperan al reintento.",

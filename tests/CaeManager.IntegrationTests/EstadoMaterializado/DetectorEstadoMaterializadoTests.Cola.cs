@@ -58,8 +58,9 @@ public partial class DetectorEstadoMaterializadoTests
                 .ExecuteUpdateAsync(s => s.SetProperty(d => d.FechaVencimiento, (DateOnly?)hoy.AddDays(-1)));
             await ColaEstadoMaterializado.EncolarTenantEnteroAsync(db, tenant, "prueba de la cola");
             await db.Database.ExecuteSqlAsync($"""UPDATE "RecalculosPendientes" SET "IntentoEnUtc" = now() - interval '2 hours', "Intentos" = 1""");
-            await ColaEstadoMaterializado.EncolarTenantEnteroAsync(db, tenant, "prueba de la cola");
+            // La raíz antes que el segundo Tenant entero: una entrada de Tenant entero sin intentar ya la cubriría.
             await ColaEstadoMaterializado.EncolarRaicesAsync(db, tenant, RaicesDeRecalculo.DeTrabajadores(trabajador), "prueba de la cola");
+            await ColaEstadoMaterializado.EncolarTenantEnteroAsync(db, tenant, "prueba de la cola");
             return 0;
         });
         (await ContarColaAsync(tenant)).Should().Be(3);

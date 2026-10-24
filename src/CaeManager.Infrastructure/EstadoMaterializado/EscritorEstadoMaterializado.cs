@@ -114,7 +114,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                     VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
                     ON CONFLICT ("TenantId") DO NOTHING
                     """,
-                _ => """UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()""",
+                _ => $"""UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now() WHERE "TenantId" = {TenantDeLaConexion}""",
             },
             ct);
     }

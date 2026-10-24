@@ -20,18 +20,32 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// </summary>
 public static class EncoladoTrasAmbitoSinRecalculo
 {
-    /// <summary>Cierra el ámbito (si sigue abierto) y encola sus Tenants. Un fallo se registra y no tumba la siembra.</summary>
-    public static async Task CerrarYEncolarAsync(AmbitoSinRecalculoEstado.Abierto ambito, IServiceScopeFactory ambitoFactory, ILogger logger)
+    /// <summary>
+    /// Cierra el ámbito (si sigue abierto) y encola sus Tenants. Un fallo se registra y no tumba la siembra.
+    ///
+    /// <para>
+    /// No es <c>async</c> a propósito: el ámbito va por <see cref="AsyncLocal{T}"/>, y cerrarlo dentro de un método
+    /// <c>async</c> solo lo cerraría en el contexto de ese método; el del llamador (el arranque, del que heredan los servicios
+    /// de fondo) seguiría con el ámbito abierto. Se cierra aquí, de forma síncrona, y después se encola.
+    /// </para>
+    /// </summary>
+    public static Task CerrarYEncolarAsync(AmbitoSinRecalculoEstado.Abierto ambito, IServiceScopeFactory ambitoFactory, ILogger logger)
     {
         ambito.Dispose();
-        foreach (var tenantId in ambito.TenantsTocados)
+        return EncolarAsync(ambito.TenantsTocados, ambito.Motivo, ambitoFactory, logger);
+    }
+
+    private static async Task EncolarAsync(
+        IReadOnlyCollection<Guid> tenants, string motivo, IServiceScopeFactory ambitoFactory, ILogger logger)
+    {
+        foreach (var tenantId in tenants)
         {
             try
             {
                 using var _ = AmbitoTenantExplicito.Establecer(tenantId);
                 using var alcance = ambitoFactory.CreateScope();
                 var dbContext = alcance.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
-                await ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenantId, "Ámbito sin recálculo: " + ambito.Motivo);
+                await ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenantId, "Ámbito sin recálculo: " + motivo);
             }
             catch (Exception ex)
             {
