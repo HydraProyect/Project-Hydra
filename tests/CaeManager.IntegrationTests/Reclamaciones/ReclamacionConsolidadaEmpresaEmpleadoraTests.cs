@@ -631,7 +631,8 @@ public class ReclamacionConsolidadaEmpresaEmpleadoraTests : IAsyncLifetime
                 c, c, c, c, c, c, alcance, servicio,
                 new RegistroEnvioReclamacionService(
                     c, Correo, new ReclamacionDocumentalRepository(c), new CurrentUserServiceFalso(Guid.NewGuid()),
-                    new CorreoDelActorRealFalso(), Mediador, NullLogger<RegistroEnvioReclamacionService>.Instance, c),
+                    new CorreoDelActorRealFalso(), Mediador, NullLogger<RegistroEnvioReclamacionService>.Instance, c,
+                    new EnvioReclamacionRepository(c), c),
                 PendientesDeReclamacionFabrica.Crear(c, alcance));
         }
     }
