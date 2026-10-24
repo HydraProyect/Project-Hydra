@@ -132,6 +132,9 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
         servicios.AddScoped<TenantRlsConnectionInterceptor>();
         servicios.AddSingleton(BaseDatosPostgresDePruebas.FirmanteContextoRls);
         servicios.AddSingleton<ConcurrenciaOptimistaInterceptor>();
+        // El detector del estado materializado también es de la lista de producción; sin RecalculoEstadoEnLinea registrado
+        // recoge pero no recalcula (este arnés no monta el servicio de recálculo).
+        servicios.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
 
         servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>
         {

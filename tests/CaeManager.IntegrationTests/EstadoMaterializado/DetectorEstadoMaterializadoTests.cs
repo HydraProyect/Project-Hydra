@@ -303,7 +303,17 @@ public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture f
             var actuales = await db.Asignaciones.Where(a => a.TrabajadorId == trabajador && a.FechaBaja == null).Select(a => a.CentroId).ToListAsync();
             var faltan = RecalculoEstadoEnLinea.MaximoCentrosEnLinea + 1 - actuales.Count;
             var centros = await db.Centros.Where(c => !actuales.Contains(c.Id)).OrderBy(c => c.Id).Select(c => c.Id).Take(Math.Max(faltan, 0)).ToListAsync();
-            centros.Should().HaveCount(Math.Max(faltan, 0), "el Tenant necesita más de ocho Centros");
+            if (centros.Count < faltan)
+            {
+                // El piloto no tiene tantos Centros por Tenant: se crean los que falten junto a uno existente (se quedan,
+                // sin Asignaciones, tras el desmontaje; el relleno los cubre).
+                var modelo = await db.Centros.OrderBy(c => c.Id).Select(c => new { c.ClienteId, c.EmpresaId }).FirstAsync();
+                var creados = Enumerable.Range(1, faltan - centros.Count)
+                    .Select(i => new Domain.Centros.Centro(modelo.ClienteId, modelo.EmpresaId, $"Centro de prueba del umbral {i}")).ToList();
+                db.Centros.AddRange(creados);
+                await db.SaveChangesAsync();
+                centros.AddRange(creados.Select(c => c.Id));
+            }
             var altas = centros.Select(c => new Domain.Asignaciones.Asignacion(trabajador, c, hoy)).ToList();
             db.Asignaciones.AddRange(altas);
             await db.SaveChangesAsync();
