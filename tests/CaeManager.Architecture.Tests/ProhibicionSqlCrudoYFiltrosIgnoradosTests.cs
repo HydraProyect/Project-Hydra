@@ -428,6 +428,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Tope de espera de cerrojo del recálculo: lee y fija lock_timeout de la transacción (set_config local).
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Frescura del estado materializado (PR 11, diseño § 5.3): antes del COMMIT, en la propia transacción, el interceptor
+        // de avisos lee app.tenant_id (texto fijo, sin parámetros ni datos de usuario) para descartar avisos de otro Tenant.
+        // Es un interceptor de transacciones: no hay DbContext utilizable a mitad del COMMIT. Solo lee; no salta la RLS.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/AvisoEstadoTrasConfirmarInterceptor.cs", "var comando = (transaction.Connection ?? throw new InvalidOperationException(\"La transacción no tiene conexión.\")).CreateCommand();")] = 1,
     };
 
     /// <summary>
