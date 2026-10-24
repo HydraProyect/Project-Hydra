@@ -325,6 +325,7 @@ public class ExtranjerosDelMesMultiTenantTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(_dbContext);
+        servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant>(new CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant(_dbContext));
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(_dbContext);
         servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(_dbContext);

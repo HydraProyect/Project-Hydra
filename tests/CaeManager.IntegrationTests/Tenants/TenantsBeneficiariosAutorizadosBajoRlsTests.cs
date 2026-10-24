@@ -908,6 +908,7 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         servicios.AddSingleton<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.Centros.ICentrosQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(runtime);
+        servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant>(new CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant(runtime));
         servicios.AddSingleton<CaeManager.Application.Trabajadores.ITrabajadoresQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.TiposDocumento.ITiposDocumentoQueryContext>(runtime);
         servicios.AddSingleton<CaeManager.Application.Documentos.IDocumentosQueryContext>(runtime);
