@@ -605,10 +605,10 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Cliente 360: empresas", 3, true }, // medido: 1
     };
 
-    // Estimación para el Tenant completo: 25 medidos en CI menos 3 consultas (umbrales,
-    // COUNT ya cubierto por la franja y nombres de Tipo unidos a los requisitos) = 22; margen de una.
-    // La cifra real debe confirmarse en CI con LectoresDeEstadoMaterializadoTests.
-    internal const int PresupuestoEmpresasConEstadoMaterializado = 23;
+    // «Empresas» con el Tenant completo (Con_los_Tenants_completos_las_colas_de_trabajo_caben_en_su_presupuesto_de_SQL):
+    // 25 medidos en CI antes de quitar 3 consultas (umbrales, COUNT ya cubierto por la franja y nombres de Tipo unidos a
+    // los requisitos). Estimación: 22; margen de una.
+    private const int PresupuestoEmpresasConEstadoMaterializado = 23;
 
     [Theory]
     [MemberData(nameof(Presupuestos))]
@@ -673,6 +673,13 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
                 await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
                     sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
             rellenos = await MedirAsync();
+            // «Empresas» con los Tenants completos solo mide algo si el lector sirve de verdad el estado al Gestor CAE medido:
+            // sin esta guarda, una vuelta al cálculo (alcance parcial, cola, fila caducada...) costaría lo mismo que sin
+            // rellenar y pasaría el «no más caro» sin haber leído las tablas.
+            (await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido, async sp =>
+                await sp.GetRequiredService<ILectorEstadoMaterializado>().LeerEstadoCompletoAsync(AmbitoEstadoEntidad.Empresa,
+                    sp.GetRequiredService<CaeManagerDbContext>().Empresas.Where(e => e.EsPropia).Select(e => e.Id), CancellationToken.None)))
+                .Should().NotBeNull("el listado de Empresas se mide por el camino del estado materializado, sin vuelta al cálculo");
         }
         finally
         {
@@ -690,20 +697,24 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         // Medido en CI (sin rellenar -> con los Tenants completos): Alertas 10 -> 6, Inicio: KPIs 24 -> 11, Inicio: bandeja
         // agrupada 31 -> 27, Mi trabajo 275 -> 243. Cada techo es lo medido con completos + 1: el margen cubre una sentencia
         // de sondeo de un Tenant más del piloto, no una consulta nueva por pantalla.
-        // «Empresas» (PR 7) es la excepción conocida: sin rellenar 22 y con el Tenant completo 25, porque el lector de Empresas
-        // paga más sentencias que el cálculo en el piloto. No se exige que baje; se congela para que no empeore.
+        // «Empresas» (PR 7) costaba más leyendo que calculando (22 sin rellenar, 25 con el Tenant completo). Sin los umbrales,
+        // el COUNT que ya da la franja y la consulta aparte de nombres de Tipo, leer no puede costar más que calcular; no se
+        // exige que baje porque el lector conserva sus dos sondeos (lectura completa y página).
         foreach (var (pantalla, maximo, debeBajar) in new (string, int, bool)[]
         {
             ("Alertas", 7, true),
             ("Inicio: KPIs", 12, true),
             ("Inicio: bandeja agrupada", 28, true),
             ("Mi trabajo", 244, true),
-            ("Empresas", 26, false),
+            ("Empresas", PresupuestoEmpresasConEstadoMaterializado, false),
         })
         {
             if (debeBajar)
                 rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
                     $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
+            else
+                rellenos[pantalla].Should().BeLessThanOrEqualTo(sinRellenar[pantalla],
+                    $"«{pantalla}» con los Tenants completos no cuesta más que calculando: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
             rellenos[pantalla].Should().BeLessThanOrEqualTo(maximo, $"presupuesto de «{pantalla}» con los Tenants completos");
         }
     }
