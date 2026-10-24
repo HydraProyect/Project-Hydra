@@ -27,7 +27,7 @@ namespace CaeManager.IntegrationTests.EstadoMaterializado;
 /// </para>
 /// </summary>
 [Collection(ColeccionPilotoOutbound.Nombre)]
-public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture fixture, ITestOutputHelper salida)
+public partial class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture fixture, ITestOutputHelper salida)
     : IClassFixture<EstadoMaterializadoPilotoFixture>
 {
     private sealed record Paso(string Accion, int Encolados, List<string> Faltan, List<string> Sobran);
@@ -404,8 +404,8 @@ public class DetectorEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture f
     }
 
     /// <summary>
-    /// Foto de las tablas tras la acción frente a la del relleno completo; después vacía la cola (hace de trabajo de la cola,
-    /// que aún no existe) para que el paso siguiente parta de cero.
+    /// Foto de las tablas tras la acción frente a la del relleno completo; después vacía la cola (aquí hace de trabajo de la
+    /// cola, para que el paso siguiente parta de cero; la cola de verdad la prueban los tests de la cola).
     /// </summary>
     private Task<Paso> CompararConRellenoAsync(Guid tenant, string nombre) =>
         fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>

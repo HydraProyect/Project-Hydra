@@ -107,14 +107,22 @@ public sealed record FilaEstadoEnPlataforma(
     EstadoAcreditacion Estado, EstadoVigenciaEnPlataforma EstadoVigencia, DateOnly? FechaVencimientoEnPlataforma,
     DateOnly? ProximoCambioEl);
 
-/// <summary>Cuánto se escribió.</summary>
+/// <summary>
+/// Cuánto se calculó (las cinco cifras del cálculo) y cuántas filas cambiaron de verdad en la base
+/// (<see cref="FilasCambiadas"/>: borradas, actualizadas o añadidas; una fila igual no cuenta).
+/// </summary>
 public sealed record ResultadoRecalculoEstado(int Centros, int Trabajadores, int Empresas, int Pares, int AcreditacionesEnPlataforma)
 {
     public static ResultadoRecalculoEstado Ninguno { get; } = new(0, 0, 0, 0, 0);
 
+    public int FilasCambiadas { get; init; }
+
     public ResultadoRecalculoEstado Mas(ResultadoRecalculoEstado otro) => new(
         Centros + otro.Centros, Trabajadores + otro.Trabajadores, Empresas + otro.Empresas,
-        Pares + otro.Pares, AcreditacionesEnPlataforma + otro.AcreditacionesEnPlataforma);
+        Pares + otro.Pares, AcreditacionesEnPlataforma + otro.AcreditacionesEnPlataforma)
+    {
+        FilasCambiadas = FilasCambiadas + otro.FilasCambiadas,
+    };
 }
 
 /// <summary>
@@ -125,11 +133,39 @@ public sealed record ResultadoRecalculoEstado(int Centros, int Trabajadores, int
 /// </summary>
 public interface IEscritorEstadoMaterializado
 {
+    /// <summary>
+    /// Escribe el cálculo y, si alguna fila cambió, sube la versión del Tenant. Devuelve cuántas filas cambiaron.
+    /// </summary>
     /// <param name="crearVersionSiFalta">
     /// Solo el relleno completo del Tenant: crea su fila de <see cref="VersionEstadoTenant"/>, que es lo que dirá a los
-    /// lectores que el Tenant ya está entero (diseño § 7.3). Un recálculo parcial solo sube la versión si ya existe.
+    /// lectores que el Tenant ya está entero (diseño § 7.3), aunque no cambie ninguna fila. Un recálculo parcial solo sube la
+    /// versión si ya existe y si cambió alguna fila.
     /// </param>
-    Task EscribirAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken);
+    Task<int> EscribirAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken);
+
+    /// <summary>Escribe el cálculo sin tocar la versión del Tenant (un lote del relleno). Devuelve cuántas filas cambiaron.</summary>
+    Task<int> EscribirFilasAsync(CalculoEstadoMaterializado calculo, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// La versión del Tenant al final del relleno: la crea si falta (<paramref name="crearSiFalta"/>) y la sube solo si
+    /// <paramref name="huboCambios"/>.
+    /// </summary>
+    Task SubirVersionAsync(bool crearSiFalta, bool huboCambios, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Borra las filas del Tenant de la conexión que no son de esos Centros, Trabajadores y Empresas (los que el relleno
+    /// recorrió): las de una entidad que ya no existe. Devuelve cuántas borró.
+    /// </summary>
+    Task<int> PurgarHuerfanosAsync(
+        IReadOnlyCollection<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, IReadOnlyCollection<Guid> empresaIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Ejecuta el trabajo en una transacción (la abierta o una propia) con el cerrojo exclusivo del Tenant de la conexión:
+    /// ningún recálculo en línea ni de la cola escribe el estado del Tenant mientras dura, y los que lo intentan encolan su
+    /// cambio en vez de esperar (diseño § 13.8).
+    /// </summary>
+    Task<T> EnTransaccionConTenantExclusivoAsync<T>(Func<Task<T>> trabajo, CancellationToken cancellationToken);
 
     /// <summary>
     /// Los Centros que ya tienen escrita una fila (par o acreditación en la Plataforma CAE) de alguno de esos titulares

@@ -97,11 +97,13 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
                 db.ChangeTracker.Clear();
                 // Con el Id y la hora de cálculo: una fila sin cambios no se borra y se inserta ni se reescribe (diseño § 13.5).
                 (await FotoAsync(db, conIdentidad: true)).Should().Equal(antes, $"un recálculo acotado sin cambios no reescribe ninguna fila en el Tenant {tenant}");
-                (await VersionAsync(db)).Should().Be(version + (asignacion is null ? 3 : 4), "cada recálculo sube la versión del Tenant");
+                (await VersionAsync(db)).Should().Be(version, "un recálculo que no cambia ninguna fila no sube la versión del Tenant");
 
-                await recalculo.RellenarTenantAsync(CancellationToken.None);
+                var repetido = await recalculo.RellenarTenantAsync(CancellationToken.None);
                 db.ChangeTracker.Clear();
                 (await FotoAsync(db, conIdentidad: true)).Should().Equal(antes, "el relleno es idempotente y tampoco reescribe filas iguales");
+                repetido.FilasCambiadas.Should().Be(0);
+                (await VersionAsync(db)).Should().Be(version, "un relleno sin cambios tampoco sube la versión");
                 return 0;
             });
         }

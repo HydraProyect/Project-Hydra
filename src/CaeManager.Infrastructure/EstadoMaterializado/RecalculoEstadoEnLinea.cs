@@ -21,7 +21,8 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// <list type="number">
 /// <item>Solo los cambios del Tenant de la conexión (<c>app.tenant_id</c>): el servicio de recálculo lee y escribe con la
 /// RLS de ese Tenant. Un cambio de otro Tenant se registra y no se recalcula aquí (lo repone el cotejo, § 7.2).</item>
-/// <item>Cerrojo compartido del Tenant. El relleno y la cola del Tenant entero lo toman exclusivo.</item>
+/// <item>Cerrojo compartido del Tenant, sin esperar. El relleno y la cola del Tenant entero lo toman exclusivo; si lo tienen
+/// (o lo esperan), el cambio va a la cola y la acción sigue (diseño § 13.8).</item>
 /// <item>Sin fila en <c>VersionesEstadoTenant</c> el Tenant aún no está relleno: no se recalcula nada (el relleno lo hará
 /// entero, y ningún lector toma por completo un Tenant sin esa fila, § 7.3).</item>
 /// <item>Cambios de abanico de Tenant entero (Tipo de documento, tolerancia del Cliente empresarial, umbrales): a la
@@ -59,11 +60,11 @@ public sealed class RecalculoEstadoEnLinea(
 
     internal CaeManagerDbContext Contexto => dbContext;
 
-    /// <summary>Clave del cerrojo de asesoramiento del Tenant en el estado materializado.</summary>
-    public static string ClaveDeTenant(Guid tenantId) => $"estado_materializado:{tenantId}";
+    /// <inheritdoc cref="CerrojosEstadoMaterializado.ClaveDeTenant"/>
+    public static string ClaveDeTenant(Guid tenantId) => CerrojosEstadoMaterializado.ClaveDeTenant(tenantId);
 
-    /// <summary>Clave del cerrojo de una entidad raíz o de la clausura (C Centro, T Trabajador, E Empresa o Subcontrata).</summary>
-    public static string ClaveDeEntidad(Guid tenantId, char ambito, Guid id) => $"estado_materializado:{tenantId}:{ambito}:{id}";
+    /// <inheritdoc cref="CerrojosEstadoMaterializado.ClaveDeEntidad"/>
+    public static string ClaveDeEntidad(Guid tenantId, char ambito, Guid id) => CerrojosEstadoMaterializado.ClaveDeEntidad(tenantId, ambito, id);
 
     internal void RegistrarContextoAjeno() =>
         logger.LogWarning("Estado materializado: un guardado de un DbContext distinto del del ámbito no se recalcula en línea.");
@@ -173,16 +174,7 @@ public sealed class RecalculoEstadoEnLinea(
     /// Fija <c>lock_timeout</c> en la transacción en curso (<c>set_config(…, true)</c>) y devuelve el que había. Sin tope,
     /// un recálculo esperaría un cerrojo tanto como el tiempo de espera del comando (30 s), con la acción del usuario detenida.
     /// </summary>
-    private async Task<string> FijarTopeDeEsperaAsync(string tope)
-    {
-        var anterior = (await dbContext.Database.SqlQuery<string>($"""
-            SELECT current_setting('lock_timeout') AS "Value"
-            """).ToListAsync(CancellationToken.None)).Single();
-        await dbContext.Database.ExecuteSqlAsync($"""
-            SELECT set_config('lock_timeout', {tope}, true)
-            """, CancellationToken.None);
-        return anterior;
-    }
+    private Task<string> FijarTopeDeEsperaAsync(string tope) => CerrojosEstadoMaterializado.FijarTopeDeEsperaAsync(dbContext, tope);
 
     private async Task EncolarTrasFalloEnTransaccionAsync(IDbContextTransaction transaccion, CambiosEstadoDetectados cambios, Exception fallo)
     {
@@ -201,9 +193,9 @@ public sealed class RecalculoEstadoEnLinea(
 
     private async Task EncolarTenantesEnterosAsync(CambiosEstadoDetectados cambios, Exception fallo)
     {
+        // Tenga o no versión el Tenant: si el fallo fue por esperar al relleno, el cambio tiene que seguir en la cola cuando
+        // el relleno acabe (diseño § 13.8). Las entradas de un Tenant sin versión las borra el propio relleno.
         if (await TenantDeLaConexionAsync() is not { } tenant || !cambios.PorTenant.ContainsKey(tenant))
-            return;
-        if (!await TieneVersionAsync(tenant))
             return;
         await EncolarTenantEnteroAsync(tenant, "Fallo del recálculo en línea: " + fallo.GetType().Name);
     }
@@ -217,11 +209,20 @@ public sealed class RecalculoEstadoEnLinea(
         if (tenant is not { } tenantId || !cambios.PorTenant.TryGetValue(tenantId, out var delTenant))
             return;
 
-        await BloquearAsync([ClaveDeTenant(tenantId)], compartido: true);
+        var motivo = string.Join(", ", delTenant.Disparadores);
+        if (!await CerrojosEstadoMaterializado.IntentarTenantCompartidoAsync(dbContext, tenantId))
+        {
+            // El relleno o la cola del Tenant entero tienen (o esperan) el exclusivo: la acción no espera ni escribe sobre
+            // ellos; deja su cambio en la cola, que lo recoge cuando acaben (diseño § 13.8). Tenga o no versión el Tenant: un
+            // cambio durante el primer relleno tampoco se pierde.
+            await EncolarSinCerrojoAsync(tenantId, delTenant, motivo);
+            return;
+        }
+
+        // Sin versión, el relleno aún no ha empezado (si estuviera en marcha, tendría el exclusivo): lo leerá ya confirmado.
         if (!await TieneVersionAsync(tenantId))
             return;
 
-        var motivo = string.Join(", ", delTenant.Disparadores);
         if (delTenant.TenantEntero is { } motivoTenant)
         {
             await EncolarTenantEnteroAsync(tenantId, motivoTenant);
@@ -253,6 +254,23 @@ public sealed class RecalculoEstadoEnLinea(
         }
 
         await recalculo.RecalcularClausuraAsync(bajoCerrojo, CancellationToken.None);
+    }
+
+    private async Task EncolarSinCerrojoAsync(Guid tenantId, CambiosEstadoDeTenant delTenant, string motivo)
+    {
+        if (delTenant.TenantEntero is { } motivoTenant)
+        {
+            await EncolarTenantEnteroAsync(tenantId, motivoTenant);
+            return;
+        }
+
+        var raices = await ResolverAsync(tenantId, delTenant);
+        if (raices.EstaVacia)
+            return;
+        if (raices.Cuantas > MaximoRaicesEnCola)
+            await EncolarTenantEnteroAsync(tenantId, "Tenant en recálculo entero; muchas raíces: " + motivo);
+        else
+            await EncolarRaicesAsync(tenantId, raices, "Tenant en recálculo entero: " + motivo);
     }
 
     /// <summary>Las raíces de los cambios, resolviendo contra la base el Centro y el titular que la entidad no lleva.</summary>
@@ -313,71 +331,18 @@ public sealed class RecalculoEstadoEnLinea(
             .Concat(clausura.Empresas.Select(id => ClaveDeEntidad(tenantId, 'E', id)))
             .ToList();
 
-    /// <summary>
-    /// Cerrojos de asesoramiento de transacción, en una sentencia y en orden de su hash: todos los caminos que los toman (en
-    /// línea, cola, relleno) usan el mismo orden, así que dos recálculos no se interbloquean entre sí. Una colisión de hash solo
-    /// serializa de más.
-    /// </summary>
-    private Task BloquearAsync(IReadOnlyCollection<string> claves, bool compartido)
-    {
-        if (claves.Count == 0)
-            return Task.CompletedTask;
-        var array = claves.Distinct().ToArray();
-        return compartido
-            ? dbContext.Database.ExecuteSqlAsync($"""
-                SELECT pg_advisory_xact_lock_shared(h) FROM (SELECT DISTINCT hashtextextended(k, 0) AS h FROM unnest({array}) AS k ORDER BY 1 OFFSET 0) AS s
-                """, CancellationToken.None)
-            : dbContext.Database.ExecuteSqlAsync($"""
-                SELECT pg_advisory_xact_lock(h) FROM (SELECT DISTINCT hashtextextended(k, 0) AS h FROM unnest({array}) AS k ORDER BY 1 OFFSET 0) AS s
-                """, CancellationToken.None);
-    }
+    private Task BloquearAsync(IReadOnlyCollection<string> claves, bool compartido) =>
+        CerrojosEstadoMaterializado.BloquearAsync(dbContext, claves, compartido);
 
-    private async Task<Guid?> TenantDeLaConexionAsync() =>
-        (await dbContext.Database.SqlQuery<Guid?>($"""
-            SELECT NULLIF(current_setting('app.tenant_id', true), '')::uuid AS "Value"
-            """).ToListAsync(CancellationToken.None)).SingleOrDefault();
+    private Task<Guid?> TenantDeLaConexionAsync() => CerrojosEstadoMaterializado.TenantDeLaConexionAsync(dbContext);
 
-    private async Task<bool> TieneVersionAsync(Guid tenantId) =>
-        (await dbContext.Database.SqlQuery<bool>($"""
-            SELECT EXISTS (SELECT 1 FROM "VersionesEstadoTenant" WHERE "TenantId" = {tenantId}) AS "Value"
-            """).ToListAsync(CancellationToken.None)).Single();
+    private Task<bool> TieneVersionAsync(Guid tenantId) => CerrojosEstadoMaterializado.TieneVersionAsync(dbContext, tenantId);
 
-    /// <summary>Una entrada «Tenant entero» si no hay ya una sin intentar (la cola las junta igualmente).</summary>
-    private Task EncolarTenantEnteroAsync(Guid tenantId, string motivo)
-    {
-        var texto = Recortar(motivo);
-        return dbContext.Database.ExecuteSqlAsync($"""
-            INSERT INTO "RecalculosPendientes" ("Id", "Ambito", "EntidadId", "Motivo", "CreadoEnUtc", "IntentoEnUtc", "Intentos", "TenantId")
-            SELECT gen_random_uuid(), {(short)AmbitoEstadoEntidad.Centro}, NULL, {texto}, now(), NULL, 0, {tenantId}
-            WHERE NOT EXISTS (
-                SELECT 1 FROM "RecalculosPendientes" p
-                WHERE p."TenantId" = {tenantId} AND p."EntidadId" IS NULL AND p."IntentoEnUtc" IS NULL)
-            """, CancellationToken.None);
-    }
+    private Task EncolarTenantEnteroAsync(Guid tenantId, string motivo) =>
+        ColaEstadoMaterializado.EncolarTenantEnteroAsync(dbContext, tenantId, motivo);
 
-    /// <summary>Una entrada por raíz (los Centros afectados como Centro entero: por encima, nunca por debajo).</summary>
-    private Task EncolarRaicesAsync(Guid tenantId, RaicesDeRecalculo raices, string motivo)
-    {
-        var filas = raices.CentroIds.Concat(raices.CentrosAfectados).Distinct().Select(id => (Ambito: (short)AmbitoEstadoEntidad.Centro, Id: id))
-            .Concat(raices.TrabajadorIds.Distinct().Select(id => (Ambito: (short)AmbitoEstadoEntidad.Trabajador, Id: id)))
-            .Concat(raices.EmpresaIds.Distinct().Select(id => (Ambito: (short)AmbitoEstadoEntidad.Empresa, Id: id)))
-            .ToList();
-        var ambitos = filas.Select(f => f.Ambito).ToArray();
-        var ids = filas.Select(f => f.Id).ToArray();
-        var texto = Recortar(motivo);
-        return dbContext.Database.ExecuteSqlAsync($"""
-            INSERT INTO "RecalculosPendientes" ("Id", "Ambito", "EntidadId", "Motivo", "CreadoEnUtc", "IntentoEnUtc", "Intentos", "TenantId")
-            SELECT gen_random_uuid(), r.ambito, r.id, {texto}, now(), NULL, 0, {tenantId}
-            FROM unnest({ambitos}, {ids}) AS r(ambito, id)
-            WHERE NOT EXISTS (
-                SELECT 1 FROM "RecalculosPendientes" p
-                WHERE p."TenantId" = {tenantId} AND p."IntentoEnUtc" IS NULL
-                  AND (p."EntidadId" IS NULL OR (p."Ambito" = r.ambito AND p."EntidadId" = r.id)))
-            """, CancellationToken.None);
-    }
-
-    private static string Recortar(string motivo) =>
-        motivo.Length <= RecalculoPendiente.LongitudMaximaMotivo ? motivo : motivo[..RecalculoPendiente.LongitudMaximaMotivo];
+    private Task EncolarRaicesAsync(Guid tenantId, RaicesDeRecalculo raices, string motivo) =>
+        ColaEstadoMaterializado.EncolarRaicesAsync(dbContext, tenantId, raices, motivo);
 
     private static string Disparadores(CambiosEstadoDetectados cambios) =>
         string.Join("; ", cambios.PorTenant.Select(t => $"{t.Key}: {string.Join(", ", t.Value.Disparadores)}"));
