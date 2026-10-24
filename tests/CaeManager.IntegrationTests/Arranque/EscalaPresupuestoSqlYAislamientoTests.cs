@@ -693,6 +693,8 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
 
         foreach (var (pantalla, sin) in sinRellenar)
             salida.WriteLine($"{pantalla}: {sin} sentencias sin rellenar, {rellenos[pantalla]} con los Tenants completos");
+        // MEDICION TEMPORAL: falla a proposito para que CI imprima la cifra; se retira en el siguiente commit.
+        rellenos.Should().BeEmpty("MEDICION TEMPORAL " + string.Join("; ", sinRellenar.Select(p => $"{p.Key}: {p.Value} -> {rellenos[p.Key]}")));
 
         // Medido en CI (sin rellenar -> con los Tenants completos): Alertas 10 -> 6, Inicio: KPIs 24 -> 11, Inicio: bandeja
         // agrupada 31 -> 27, Mi trabajo 275 -> 243. Cada techo es lo medido con completos + 1: el margen cubre una sentencia
