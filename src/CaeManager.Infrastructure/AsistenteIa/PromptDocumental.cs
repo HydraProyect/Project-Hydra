@@ -1,3 +1,6 @@
+using System.Text.RegularExpressions;
+using CaeManager.Application.AsistenteIa.Preparacion;
+
 namespace CaeManager.Infrastructure.AsistenteIa;
 
 /// <summary>
@@ -26,7 +29,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// de lectura en lugar de dar de baja a la plantilla. Estas reglas son la capa
 /// barata que va delante de aquellas, nunca su sustituto.
 /// </summary>
-internal static class PromptDocumental
+internal static partial class PromptDocumental
 {
     private const string MarcaInicio = "<<<INICIO_DEL_DOCUMENTO>>>";
     private const string MarcaFin = "<<<FIN_DEL_DOCUMENTO>>>";
@@ -68,9 +71,7 @@ internal static class PromptDocumental
     /// </summary>
     public static string ConstruirMensajeUsuario(string tipoEsperado, string textoDelDocumento)
     {
-        var textoSeguro = textoDelDocumento
-            .Replace(MarcaInicio, "[marca retirada]", StringComparison.OrdinalIgnoreCase)
-            .Replace(MarcaFin, "[marca retirada]", StringComparison.OrdinalIgnoreCase);
+        var textoSeguro = RetirarMarcas(NeutralizadorTextoExterno.Neutralizar(textoDelDocumento, CamposDeLaRespuesta));
 
         return $"""
             Tipo de documento esperado: "{tipoEsperado}".
@@ -80,4 +81,28 @@ internal static class PromptDocumental
             {MarcaFin}
             """;
     }
+
+    /// <summary>Lo que queda en el sitio de una marca de delimitación retirada.</summary>
+    public const string SustitutoMarca = "[marca retirada]";
+
+    /// <summary>
+    /// Nombres de campo de la respuesta estructurada que se retiran del texto del
+    /// documento (ver <see cref="NeutralizadorTextoExterno"/>). Solo los que un
+    /// documento legítimo no escribe: «tiene firma» o «fecha de emisión» sí pueden
+    /// estar en un documento real, y retirarlos le quitaría al modelo justo lo que
+    /// tiene que leer.
+    /// </summary>
+    internal static readonly string[] CamposDeLaRespuesta = ["confianzaGeneral", "tipoDetectado", "notasValidacion"];
+
+    /// <summary>
+    /// Retira cualquier marca con forma de delimitador de datos —la de documento y
+    /// la de correo, con espacios, guiones o mayúsculas distintas—, no solo la
+    /// exacta: «&lt;&lt;&lt; fin del documento &gt;&gt;&gt;» se lee igual para el
+    /// modelo. Se aplica después de quitar los caracteres invisibles, que podrían
+    /// partir una marca sin que se vea.
+    /// </summary>
+    internal static string RetirarMarcas(string texto) => RegexMarca().Replace(texto, SustitutoMarca);
+
+    [GeneratedRegex(@"<{2,}\s*/?\s*(?:INICIO|FIN)[\s_\-]*(?:DEL?[\s_\-]*)?(?:DOCUMENTO|CORREO|TEXTO|DATOS)\s*>{2,}", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex RegexMarca();
 }

@@ -24,8 +24,7 @@
       solo en ClienteListaDto (EstadoDocumentalPeor/EstadoDocumentalCantidad),
       que lo produce ObtenerClientesQuery reenviando ObtenerAlertasQuery en
       proceso y agrupando por Cliente. ObtenerAlertasQuery no acepta ningún
-      filtro —calcula en vivo TODAS las alertas del tenant, y por eso la lista
-      topa los candidatos en 2000—, así que pedirla para pintar una píldora de
+      filtro —calcula en vivo TODAS las alertas del tenant—, así que pedirla para pintar una píldora de
       una ficha saldría carísimo. Además ese recuento es el del estado PEOR, y
       Faltante gana a Vencido: no es «12 vencidos». Tendría que crecer
       ResumenClienteDto.

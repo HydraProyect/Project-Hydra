@@ -143,7 +143,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddUserValidator<ValidadorUnicidadGlobalCuenta>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
+            .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -163,6 +165,19 @@ public static class InfrastructureServiceCollectionExtensions
         // Usuarios.MinutosCaducidadActivacion.
         services.Configure<DataProtectionTokenProviderOptions>(
             opciones => opciones.TokenLifespan = TimeSpan.FromMinutes(60));
+
+        // Inicios de sesión sospechosos: registro (con RLS del Tenant propietario
+        // de la cuenta), detección, aviso, bloqueo por país (desactivado por
+        // defecto) y retención de 12 meses. Ver VigilanciaInicioSesionService.
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>(
+            configuration.GetSection(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion));
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesTokenNoHeSidoYo>(opciones => opciones.TokenLifespan =
+            TimeSpan.FromDays(configuration.GetValue(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion + ":DiasVigenciaEnlaceNoHeSidoYo", 7)));
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.IGeolocalizadorIp, CaeManager.Infrastructure.Seguridad.GeolocalizadorIpDbIp>();
+        services.AddSingleton(sp => new CaeManager.Application.Seguridad.InicioSesion.RafagaFallosPorIp(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
+        services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
@@ -533,6 +548,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        services.AddScoped<CaeManager.Domain.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -575,7 +592,12 @@ public static class InfrastructureServiceCollectionExtensions
         //
         // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        services.AddScoped<DiskFileStorageService>();
+        services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
+        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
+        // (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la

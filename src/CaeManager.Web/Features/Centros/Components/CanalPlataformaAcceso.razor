@@ -1,0 +1,47 @@
+@using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro
+@using CaeManager.Domain.Centros
+@using CaeManager.Web.Features.Centros.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosCentros> Textos
+
+@*
+    El acceso a la Plataforma CAE de un canal de gestión de un Centro: «Abrir portal», «Copiar usuario» y «Copiar
+    contraseña». Lo comparten Centro 360 («Canales de gestión») y el bloque «Plataforma CAE» de la Gestión, para que
+    haya una sola lógica de apertura, de copia y de permisos.
+
+    La dirección del portal se ABRE, no se copia: el Gestor CAE la abre en pestaña nueva y pega allí las credenciales.
+    Solo http(s): la URL es texto libre y un javascript: en un href ejecutaría script. Si no es navegable se enseña
+    como texto, sin enlace.
+
+    Copiar lo que el canal sirve para pegar en otra parte. Usuario y contraseña no vienen en el DTO: se piden al
+    servidor solo al pulsar (DEC-53/DEC-62) y no se pintan; cada lectura efectiva queda en la auditoría del Tenant
+    propietario (ObtenerCredencialCanalGestionQuery). Y solo para roles con escritura (decisión 2026-09-23): a Consulta
+    el servidor le devuelve null, así que ni se le ofrece.
+*@
+@if (!string.IsNullOrWhiteSpace(Canal.UrlAcceso))
+{
+    <span>
+        @if (UrlPortalCae.Normalizar(Canal.UrlAcceso) is { } destino)
+        {
+            <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                   Href="@destino" target="_blank" rel="noopener noreferrer"
+                   title="@Canal.UrlAcceso"
+                   aria-label="@Textos["AbrirPortalCentroAccesible360", Canal.UrlAcceso]">
+                @Textos["AbrirPortalCentro360"]
+            </Boton>
+        }
+        else
+        {
+            @Canal.UrlAcceso
+        }
+    </span>
+}
+@if (Canal.Tipo == TipoCanalGestion.Plataforma && Canal.TieneCredenciales)
+{
+    <SoloConEscritura>
+        <span>
+            <BotonCopiar ValorAsync="CopiarCredencial(Canal.Id, false)" Etiqueta="el usuario" Texto="Copiar usuario" />
+            <BotonCopiar ValorAsync="CopiarCredencial(Canal.Id, true)" Etiqueta="la contraseña" Texto="Copiar contraseña" />
+        </span>
+    </SoloConEscritura>
+}

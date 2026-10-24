@@ -1,5 +1,8 @@
 using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Autenticacion;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Antiforgery;
 using MediatR;
 
 namespace CaeManager.Web.Features.Extension;
@@ -53,7 +56,26 @@ public static class MarcarAcreditacionSubidaEndpoints
         })
         // Misma política que el resto de /extension/*: sesión interactiva o
         // token de extensión, nunca clave de API de tenant.
-        .RequireAuthorization(Policies.SesionOExtension);
+        .RequireAuthorization(Policies.SesionOExtension)
+        .AddEndpointFilter(async (contexto, siguiente) =>
+        {
+            // Solo el esquema validado de extensión exime del token: una cabecera
+            // arbitraria junto a la cookie no acredita una petición de la extensión.
+            var extension = await contexto.HttpContext.AuthenticateAsync(ExtensionAuthenticationSchemeOptions.NombreEsquema);
+            if (!extension.Succeeded)
+            {
+                try
+                {
+                    await contexto.HttpContext.RequestServices.GetRequiredService<IAntiforgery>()
+                        .ValidateRequestAsync(contexto.HttpContext);
+                }
+                catch (AntiforgeryValidationException)
+                {
+                    return Results.BadRequest();
+                }
+            }
+            return await siguiente(contexto);
+        });
 
         return endpoints;
     }

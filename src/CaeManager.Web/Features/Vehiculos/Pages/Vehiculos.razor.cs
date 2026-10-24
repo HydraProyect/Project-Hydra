@@ -66,6 +66,9 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     private bool _puedeEscribir;
 
     private string _busqueda = string.Empty;
+
+    /// <summary>Ya corrió la primera sincronización de los filtros con la URL (OnParametersSet): antes no se carga la lista.</summary>
+    private bool _parametrosInicializados;
     private string _estadoFiltro = string.Empty;
     private string _filtroEmpresaId = string.Empty;
     private string _filtroSubcontrataId = string.Empty;
@@ -339,20 +342,41 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
             return;
 
+        // Todo filtro que la URL cambia exige recargar la lista, igual que el orden y el agrupado más abajo. Antes
+        // solo lo exigían estos dos: si un render llegaba mientras OnInitializedAsync seguía esperando sus
+        // consultas de selectores (con _resolviendoEmpresa ya en false pero esta primera sincronización con la URL
+        // aún sin ejecutar), OnAfterRender cargaba la lista SIN filtros y la sincronización posterior ponía la
+        // búsqueda sin pedir otra carga: la página quedaba mostrando el listado entero con ?q=… en la URL
+        // (VistaRecordadaE2ETests.Vehiculos_…, intermitente en la cola de fusión).
         var deLaUrl = TerminoBusquedaInicial ?? string.Empty;
         if (deLaUrl != _busqueda)
+        {
             _busqueda = deLaUrl;
+            _cargaPendiente = true;
+        }
 
         var estadoDeLaUrl = EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
         if (estadoDeLaUrl != _estadoFiltro)
+        {
             _estadoFiltro = estadoDeLaUrl;
+            _cargaPendiente = true;
+        }
 
         var subcontrataDeLaUrl = IdDesdeUrl(SubcontrataInicial);
         var empresaDeLaUrl = subcontrataDeLaUrl.Length > 0 ? string.Empty : IdDesdeUrl(EmpresaInicial);
         if (subcontrataDeLaUrl != _filtroSubcontrataId)
+        {
             _filtroSubcontrataId = subcontrataDeLaUrl;
+            _cargaPendiente = true;
+        }
+
         if (empresaDeLaUrl != _filtroEmpresaId)
+        {
             _filtroEmpresaId = empresaDeLaUrl;
+            _cargaPendiente = true;
+        }
+
+        _parametrosInicializados = true;
 
         if (LeerOrden(OrdenInicial)) _cargaPendiente = true;
 
@@ -626,7 +650,10 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (_cargaPendiente && !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_desechado)
+        // Sin la primera sincronización con la URL no se carga: el primer render, hecho mientras OnInitializedAsync
+        // sigue esperando sus selectores, ya ve _resolviendoEmpresa en false y pediría la lista SIN los filtros de la
+        // URL (misma guarda que Trabajadores).
+        if (_cargaPendiente && _parametrosInicializados && !_resolviendoEmpresa && !_sinEmpresaSeleccionada && !_desechado)
             await CargarListaAsync();
 
     }
@@ -754,7 +781,7 @@ public partial class Vehiculos : CaeManager.Web.Components.PaginaInteractiva, ID
     /// Un filtro guardado define la vista entera: lo que no trae se quita. Cada valor pasa por la misma
     /// validación que el de la URL en <see cref="OnParametersSet"/> (un Id que no es Guid o un estado que ya
     /// no existe se ignoran; con Empresa y subcontrata gana la subcontrata). La URL se escribe en una sola
-    /// navegación y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos, pero no recarga.
+    /// navegación y se recarga aquí: <see cref="OnParametersSet"/> sincroniza los campos y marca la carga como necesaria; la hace OnAfterRender.
     /// </summary>
     private async Task AplicarVistaGuardadaAsync(IReadOnlyDictionary<string, string?> vista)
     {

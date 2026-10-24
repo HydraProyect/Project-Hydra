@@ -316,6 +316,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
         [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
 
+        // Retención de 12 meses de RegistrosInicioSesion: llamada sin
+        // parámetros a app_purgar_inicios_sesion (SECURITY DEFINER, corte fijo
+        // dentro de la función, runtime solo tiene EXECUTE). No existe
+        // equivalente EF para invocar una función que devuelve un escalar.
+        [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
+
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.
         // Cerrojo consultivo, LOCK TABLE, lectura del historial y DELETE e

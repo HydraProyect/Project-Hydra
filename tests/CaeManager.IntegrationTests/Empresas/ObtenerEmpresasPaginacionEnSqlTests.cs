@@ -96,7 +96,7 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
         var resultado = await CrearHandler(contexto).Handle(
-            new ObtenerEmpresasQuery(null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),
+            new ObtenerEmpresasQuery(null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.EnTolerancia)),
             CancellationToken.None);
 
         resultado.TotalElementos.Should().Be(0);
@@ -107,7 +107,7 @@ public class ObtenerEmpresasPaginacionEnSqlTests : IAsyncLifetime
         new(contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto));
 
     private CaeManagerDbContext CrearContexto(Action<string>? capturarSql = null)
     {

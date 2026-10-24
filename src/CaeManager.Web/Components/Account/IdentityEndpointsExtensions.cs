@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -15,7 +16,7 @@ public static class IdentityEndpointsExtensions
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/cuenta/cerrar-sesion", async (
-            SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
+            IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
         {
             var usuarioId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
             loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
@@ -70,6 +71,10 @@ public static class IdentityEndpointsExtensions
             ILogger<Program> logger,
             ILoggerFactory loggerFactory,
             Microsoft.Extensions.Options.IOptions<AzureAdOptions> opcionesAzureAd,
+            // [FromServices] explícito: sin él, un host que no registra la
+            // vigilancia (arneses de Web.Tests) infiere el parámetro como cuerpo
+            // y la construcción de TODOS los endpoints falla, no solo este.
+            [Microsoft.AspNetCore.Mvc.FromServices] CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion vigilancia,
             string? returnUrl) =>
         {
             var infoExterna = await signInManager.GetExternalLoginInfoAsync();
@@ -150,6 +155,17 @@ public static class IdentityEndpointsExtensions
             if (usuario.EstaDesactivada(DateTimeOffset.UtcNow))
             {
                 logger.LogWarning("Login de Microsoft rechazado: la cuenta {UsuarioId} está desactivada.", usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
+            // Bloqueo por país del Tenant propietario de la cuenta (desactivado
+            // por defecto). Mismo mensaje genérico que el resto de rechazos.
+            if (!await vigilancia.PermiteOrigenAsync(usuario.Id, usuario.TenantId))
+            {
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft,
+                    ResultadoInicioSesion.Rechazado, SenalesInicioSesion.PaisNoPermitido);
                 await signInManager.SignOutAsync();
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
@@ -164,6 +180,7 @@ public static class IdentityEndpointsExtensions
 
             loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
                 .LogInformation("Login SSO correcto: {UsuarioId}", usuario.Id);
+            await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Correcto);
 
             // Mismo criterio que Login.razor/LoginCon2fa.razor: la cookie de
             // cultura se reconstruye desde ApplicationUser.Idioma en cada

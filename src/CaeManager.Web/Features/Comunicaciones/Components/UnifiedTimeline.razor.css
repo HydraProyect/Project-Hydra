@@ -1,27 +1,32 @@
 .timeline-mensajes {
     flex: 1;
     overflow-y: auto;
-    padding: var(--space-4);
-    background-color: var(--color-surface-subtle);
+    /* Maqueta: .cc-cuerpo — sin superficie propia (se ve el fondo de la columna), 16/22/20 y 14 px entre elementos. */
+    padding: 16px 22px 20px;
+    background-color: transparent;
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
+    gap: 14px;
 }
 
+/* Maqueta: .tl-fecha — rótulo de fecha con una línea a cada lado, no una píldora. */
 .timeline-separador-fecha {
     display: flex;
     align-items: center;
-    justify-content: center;
-    margin: var(--space-2) 0;
+    gap: 12px;
+}
+
+.timeline-separador-fecha::before,
+.timeline-separador-fecha::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: var(--color-border);
 }
 
 .timeline-separador-fecha span {
-    padding: var(--space-1) var(--space-3);
-    border-radius: var(--radius-full);
-    background-color: var(--color-surface);
-    border: var(--border-default);
     color: var(--color-text-muted);
-    font: var(--font-body-sm);
+    font: var(--font-caption);
 }
 
 /* Fila = avatar + burbuja, para poder invertir el orden en saliente sin
@@ -31,7 +36,7 @@
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
-    max-width: 78%;
+    max-width: min(620px, 88%);
 }
 
 .timeline-mensaje-fila-saliente {
@@ -62,8 +67,8 @@
 
 .timeline-mensaje {
     min-width: 0;
-    padding: var(--space-3) var(--space-4);
-    border-radius: var(--radius-card-sm);
+    padding: 12px 14px;
+    border-radius: var(--radius-lg);
     border: var(--border-default);
 }
 
@@ -80,12 +85,14 @@
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin-bottom: var(--space-2);
+    margin-bottom: 6px;
     flex-wrap: wrap;
 }
 
+/* Maqueta: .msg-cab strong — el remitente hereda el tamaño de la cabecera (caption) y pesa 600. */
 .timeline-mensaje-remitente {
-    font: var(--font-label-md);
+    font: var(--font-caption);
+    font-weight: 600;
     color: var(--color-text);
 }
 
@@ -271,10 +278,10 @@ a.timeline-adjunto-chip:hover {
     align-items: center;
     flex-wrap: wrap;
     gap: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-full);
-    background-color: var(--color-surface-subtle);
-    font: var(--font-body-sm);
+    padding: 0;
+    background-color: transparent;
+    text-align: center;
+    font: var(--font-caption);
     color: var(--color-text-muted);
 }
 
@@ -325,4 +332,18 @@ a.timeline-adjunto-chip:hover {
     color: var(--color-text);
     word-break: break-word;
     white-space: pre-wrap;
+}
+
+/* Móvil (maqueta: .msg { max-width: 100% } en @container ws max-width 520): la burbuja aprovecha todo el ancho; con el 88 %
+   y el avatar la cabecera (remitente, canal, estado, hora) se partía en cuatro líneas. */
+@media (max-width: 520px) {
+    .timeline-mensajes {
+        padding: 12px 14px;
+    }
+
+    .timeline-mensaje-fila,
+    .timeline-nota-interna-fila {
+        max-width: 100%;
+        width: 100%;
+    }
 }

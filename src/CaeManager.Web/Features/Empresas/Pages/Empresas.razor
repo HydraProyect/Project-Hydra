@@ -104,7 +104,7 @@
             }
         </Pastillas>
         <Estados>
-            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaConPendiente" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
@@ -333,9 +333,11 @@
                                (ConDesgloseDocumental) y son las de los documentos de ámbito Empresa, los mismos
                                que deciden el estado de la fila: no las de sus Trabajadores ni sus Vehículos. *@
                             <span class="celda-estado-empresa">
-                                @if (empresa.Incidencias.Count > 0)
+                                @* Con un Tipo obligatorio que falta, el motivo es el texto combinado (como en Trabajadores):
+                                   el motivo interactivo solo nombra documentos y escondería por qué la fila va en rojo. *@
+                                @if (empresa.Incidencias.Count > 0 && empresa.DocumentosFaltantes.Count == 0)
                                 {
-                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental, empresa.VencidoSinBloqueo)"
                                                 Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
                                                 Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
                                                 Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)">
@@ -347,10 +349,12 @@
                                 }
                                 else
                                 {
-                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental)"
+                                    @* El motivo combina los documentos con incidencia y los Tipos obligatorios de algún Centro que faltan. *@
+                                    <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(empresa.EstadoDocumental, empresa.VencidoSinBloqueo)"
                                                 Texto="@EstadoDocumentoUi.TextoDocumental(empresa.EstadoDocumental)"
                                                 Correcto="EstadoDocumentoUi.EsCorrecto(empresa.EstadoDocumental)"
-                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)" />
+                                                Titulo="@TituloEstadoDocumental(empresa.EstadoDocumental)"
+                                                Motivo="@MotivoIncidenciasUi.Texto(empresa.Incidencias, empresa.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" />
                                 }
                             </span>
                             @* Sin menú «⋯» (patrón de listados). Lo que hacía ese menú:

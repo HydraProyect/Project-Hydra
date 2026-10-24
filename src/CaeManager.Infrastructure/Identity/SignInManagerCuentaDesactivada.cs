@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using CaeManager.Domain.Seguridad;
+using CaeManager.Infrastructure.Seguridad;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -46,7 +48,8 @@ public class SignInManagerCuentaDesactivada(
     IOptions<IdentityOptions> optionsAccessor,
     ILogger<SignInManager<ApplicationUser>> logger,
     IAuthenticationSchemeProvider schemes,
-    IUserConfirmation<ApplicationUser> confirmation)
+    IUserConfirmation<ApplicationUser> confirmation,
+    IVigilanciaInicioSesion vigilancia)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
     /// <summary>
@@ -89,5 +92,81 @@ public class SignInManagerCuentaDesactivada(
         }
 
         return base.SignInWithClaimsAsync(user, authenticationProperties, additionalClaims);
+    }
+
+    // ── Registro de inicios de sesión y bloqueo por país ─────────────────────
+    //
+    // Los pasos con credencial de Identity (contraseña y segundo factor) pasan
+    // por aquí, aciertan o fallen: registrarlos en este tipo, y no en cada
+    // página, hace que una página de login nueva no se quede fuera por olvido.
+    // El callback de Microsoft no usa estos métodos y registra por su cuenta
+    // (IdentityEndpointsExtensions). Bloqueo por país: CanSignInAsync, que
+    // Identity consulta antes de comprobar la contraseña y otra vez en el
+    // segundo factor; un rechazo sale como IsNotAllowed, con el mismo mensaje
+    // genérico que cualquier otro fallo.
+
+    private bool _cuentaEncontrada;
+    private bool _paisNoPermitido;
+
+    public override async Task<bool> CanSignInAsync(ApplicationUser user)
+    {
+        if (!await base.CanSignInAsync(user))
+            return false;
+        if (await vigilancia.PermiteOrigenAsync(user.Id, user.TenantId))
+            return true;
+        _paisNoPermitido = true;
+        return false;
+    }
+
+    public override async Task<SignInResult> PasswordSignInAsync(string userName, string password, bool isPersistent, bool lockoutOnFailure)
+    {
+        _cuentaEncontrada = false;
+        var resultado = await base.PasswordSignInAsync(userName, password, isPersistent, lockoutOnFailure);
+        // Cuenta inexistente: la base devolvió Failed sin llegar a la
+        // sobrecarga con usuario. Solo cuenta para la ráfaga por IP.
+        if (!_cuentaEncontrada)
+            await vigilancia.RegistrarAsync(null, null, MetodoInicioSesion.Contrasena, ResultadoInicioSesion.Fallido);
+        return resultado;
+    }
+
+    public override async Task<SignInResult> PasswordSignInAsync(ApplicationUser user, string password, bool isPersistent, bool lockoutOnFailure)
+    {
+        _cuentaEncontrada = true;
+        _paisNoPermitido = false;
+        var resultado = await base.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure);
+        await RegistrarAsync(user, MetodoInicioSesion.Contrasena, resultado);
+        return resultado;
+    }
+
+    public override async Task<SignInResult> TwoFactorAuthenticatorSignInAsync(string code, bool isPersistent, bool rememberClient)
+    {
+        var usuario = await GetTwoFactorAuthenticationUserAsync();
+        _paisNoPermitido = false;
+        var resultado = await base.TwoFactorAuthenticatorSignInAsync(code, isPersistent, rememberClient);
+        if (usuario is not null)
+            await RegistrarAsync(usuario, MetodoInicioSesion.SegundoFactor, resultado);
+        return resultado;
+    }
+
+    public override async Task<SignInResult> TwoFactorRecoveryCodeSignInAsync(string recoveryCode)
+    {
+        var usuario = await GetTwoFactorAuthenticationUserAsync();
+        _paisNoPermitido = false;
+        var resultado = await base.TwoFactorRecoveryCodeSignInAsync(recoveryCode);
+        if (usuario is not null)
+            await RegistrarAsync(usuario, MetodoInicioSesion.CodigoRecuperacion, resultado);
+        return resultado;
+    }
+
+    private Task RegistrarAsync(ApplicationUser user, MetodoInicioSesion metodo, SignInResult resultado)
+    {
+        var registrado =
+            resultado.Succeeded ? ResultadoInicioSesion.Correcto
+            : resultado.RequiresTwoFactor ? ResultadoInicioSesion.SegundoFactorRequerido
+            : resultado.IsLockedOut ? ResultadoInicioSesion.Bloqueado
+            : resultado.IsNotAllowed ? ResultadoInicioSesion.Rechazado
+            : ResultadoInicioSesion.Fallido;
+        var senales = _paisNoPermitido && resultado.IsNotAllowed ? SenalesInicioSesion.PaisNoPermitido : SenalesInicioSesion.Ninguna;
+        return vigilancia.RegistrarAsync(user.Id, user.TenantId, metodo, registrado, senales);
     }
 }

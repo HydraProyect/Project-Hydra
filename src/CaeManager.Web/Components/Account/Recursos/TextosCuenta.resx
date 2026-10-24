@@ -125,4 +125,40 @@
     <value>Un usuario con rol Administrador de tu organización, desde Configuración → Roles → «Pendientes de asignar». Si no sabes quién es, pregunta a la persona que te dio de alta.</value>
     <comment>Quien asigna es un Administrador del Tenant propietario de la cuenta, nunca Soporte TALVEG ni el Operador CAE externo. Sin promesa de aviso por correo: solo sale en el primer acceso con Microsoft y es best-effort.</comment>
   </data>
+  <data name="NoHeSidoYoTituloPagina" xml:space="preserve">
+    <value>No he sido yo</value>
+  </data>
+  <data name="NoHeSidoYoEnlaceNoValidoTitulo" xml:space="preserve">
+    <value>Enlace no válido</value>
+  </data>
+  <data name="NoHeSidoYoEnlaceNoValidoExplicacion" xml:space="preserve">
+    <value>Este enlace no es válido, ya se usó o caducó. Si crees que alguien ha entrado en tu cuenta, cambia tu contraseña.</value>
+  </data>
+  <data name="NoHeSidoYoCambiarContrasena" xml:space="preserve">
+    <value>Cambiar mi contraseña</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaTitulo" xml:space="preserve">
+    <value>Cuenta protegida</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaExplicacion" xml:space="preserve">
+    <value>Hemos cerrado todas tus sesiones y tu contraseña anterior ya no sirve. Te hemos enviado un correo para crear una nueva.</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaSinCorreoExplicacion" xml:space="preserve">
+    <value>Hemos cerrado todas tus sesiones y tu contraseña anterior ya no sirve, pero no hemos podido enviarte el correo para crear una nueva. Pídelo desde aquí.</value>
+  </data>
+  <data name="NoHeSidoYoPedirEnlace" xml:space="preserve">
+    <value>Crear una contraseña nueva</value>
+  </data>
+  <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
+    <value>Hemos cerrado todas tus sesiones. Tu cuenta entra con Microsoft: cambia la contraseña de tu cuenta de Microsoft y avisa a tu Administrador.</value>
+  </data>
+  <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
+    <value>¿No has sido tú?</value>
+  </data>
+  <data name="NoHeSidoYoPreguntaExplicacion" xml:space="preserve">
+    <value>Si lo confirmas, cerraremos todas las sesiones abiertas de tu cuenta, tu contraseña actual dejará de servir y te enviaremos un correo para crear una nueva.</value>
+  </data>
+  <data name="NoHeSidoYoBoton" xml:space="preserve">
+    <value>Proteger mi cuenta</value>
+  </data>
 </root>

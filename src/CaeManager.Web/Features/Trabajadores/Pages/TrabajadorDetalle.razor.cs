@@ -374,13 +374,13 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
 
     /// <summary>
     /// El estado documental del Trabajador en la cabecera: el MISMO que su fila del listado de Trabajadores y de Empresa 360
-    /// (<see cref="ObtenerTrabajadoresQuery"/>, Vencido &gt; Pendiente &gt; Por vencer &gt; Sin incidencias), no el peor de los
-    /// Centros. El de un Centro mira solo lo que ese Centro exige y su tolerancia: con un vencido que ningún Centro exige
-    /// (o que un Centro tolera) la cabecera decía «Pendiente» mientras el listado decía «Vencido».
+    /// (<see cref="ObtenerTrabajadoresQuery"/>), no el peor de los Centros. Solo va en rojo por un Tipo que un Centro visible marca
+    /// «bloquea el acceso» y que falta o está vencido allí (Vencido &gt; Pendiente); un vencido sin esa marca, o dentro de la
+    /// tolerancia del Centro, sale como aviso en ámbar (<c>VencidoSinBloqueo</c>); después Por vencer &gt; Sin incidencias.
     /// </summary>
     private EstadoDocumento? PeorEstadoGlobal => _estadoTrabajador?.EstadoDocumental;
 
-    /// <summary>Los Tipos que algún Centro le exige y de los que no tiene documento, sin repetir: los del mismo cálculo que el estado.</summary>
+    /// <summary>Los Tipos que algún Centro visible le marca obligatorios («bloquea el acceso») y de los que no tiene documento, sin repetir: los del mismo cálculo que el estado.</summary>
     private IReadOnlyList<string> TiposFaltantes => _estadoTrabajador?.DocumentosFaltantes ?? [];
 
     /// <summary>El primer documento faltante/vencido del centro más urgente — lo que abre el botón primario "Subir documento" de la cabecera (mockup § cabecera: el botón y el badge de urgencia hablan del mismo problema).</summary>

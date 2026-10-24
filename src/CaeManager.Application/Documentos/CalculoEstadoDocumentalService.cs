@@ -71,6 +71,12 @@ public class CalculoEstadoDocumentalService(
     ITiposDocumentoQueryContext tiposDocumentoContext)
     : ICalculoEstadoDocumentalService
 {
+    /// <summary>
+    /// Etiqueta SQL (<c>TagWith</c>) de la consulta del desglose: la identifica en los tests que miden cuántas veces se
+    /// lanza, porque la evaluación de requisitos obligatorios de Centro también lee Documentos y Tipos de documento.
+    /// </summary>
+    public const string EtiquetaDesglose = "desglose-documental";
+
     public async Task<IReadOnlyDictionary<Guid, EstadoDocumento>> CalcularPeorEstadoAsync(
         AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken)
     {
@@ -191,7 +197,7 @@ public class CalculoEstadoDocumentalService(
                 TipoDocumentoNombre = tipo != null ? tipo.Nombre : null,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento
-            }).ToListAsync(cancellationToken);
+            }).TagWith(EtiquetaDesglose).ToListAsync(cancellationToken);
 
         if (filas.Count == 0)
             return new Dictionary<Guid, DesgloseDocumentalDto>();

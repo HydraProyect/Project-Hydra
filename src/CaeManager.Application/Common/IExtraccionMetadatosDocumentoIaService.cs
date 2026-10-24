@@ -1,3 +1,4 @@
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.Common;
@@ -27,6 +28,9 @@ public interface IExtraccionMetadatosDocumentoIaService
 /// <paramref name="ConfianzaGeneral"/> es 0-100. Las fechas y la firma
 /// pueden venir a null cuando la IA no puede determinarlas con certeza
 /// razonable — nunca se inventan (ver prompt maestro del Issue #19).
+/// <paramref name="Contraste"/> es lo que una regla determinista puede afirmar
+/// del texto del documento, sin el modelo (ver <see cref="ContrasteTextoDocumento"/>);
+/// null cuando no se pudo calcular, que para decidir cuenta como «no contrastado».
 /// </summary>
 public record MetadatosDocumentoExtraidosDto(
     string? TipoDetectado,
@@ -34,4 +38,5 @@ public record MetadatosDocumentoExtraidosDto(
     DateOnly? FechaVencimientoDetectada,
     bool? TieneFirma,
     int ConfianzaGeneral,
-    string? NotasValidacion);
+    string? NotasValidacion,
+    ContrasteTextoDocumentoDto? Contraste = null);

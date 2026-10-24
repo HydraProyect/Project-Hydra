@@ -176,7 +176,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
             _runtime, new AlcanceDatosServiceFalso(empresaIds: [_montajes, _clienteDentro, _elevaciones]),
             new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
             _runtime, _runtime, _runtime, _runtime,
-            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime), RequisitosObligatoriosDePrueba.Servicio(_runtime));
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(null, ConRecuentosPorEstado: true), CancellationToken.None);
 
         resultado.Elementos.Should().ContainSingle().Which.Id.Should().Be(_montajes);
@@ -208,6 +208,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         montajes.Incidencias[0].DocumentoId.Should().Be(_seguroVencido, "la incidencia lleva el Id del documento que se abre al pulsarla");
         montajes.Incidencias[1].FechaVencimiento.Should().Be(DiaDeNegocio.Hoy().AddDays(5));
         montajes.EstadoDocumental.Should().Be(EstadoDocumento.Vencido);
+        montajes.VencidoSinBloqueo.Should().BeTrue("ningún Centro marca obligatorio el documento vencido de Montajes: avisa, no va en rojo");
 
         resultado.Elementos.Single(e => e.Id == _reformas).Incidencias.Should().BeEmpty("sin documentos no hay incidencias");
         resultado.Elementos.Should().NotContain(e => e.Id == _elevaciones || e.Id == _aislamientos);
@@ -395,7 +396,7 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         _runtime, new AlcanceDatosServiceFalso(),
         new CalculoEstadoDocumentalService(_runtime, _runtime, _runtime),
         _runtime, _runtime, _runtime, _runtime,
-        new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+        new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime), RequisitosObligatoriosDePrueba.Servicio(_runtime));
 
     private ObtenerEmpresasQueryHandler HandlerDelGestor() => new(
         _runtimeDelGestor,
@@ -403,7 +404,9 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         new CalculoEstadoDocumentalService(_runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor),
         _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor,
         new CalculoEstadoCentroService(
-            _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor));
+            _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor, _runtimeDelGestor),
+        RequisitosObligatoriosDePrueba.Servicio(
+            _runtimeDelGestor, new AlcanceDatosService(_runtimeDelGestor, UsuarioGestor(), _tenantDeLaPeticion, new SesionPrivilegiadaAusente())));
 
     private CurrentUserServiceFalso UsuarioGestor() => new(_gestor, Roles.GestorCae, tenantOrigenId: _tenantSesion);
 
@@ -514,9 +517,9 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         new(nombre, null, aplicaVencimientoAutomatico: false, 1, ambito, requerido: RequisitoDocumental.Si);
 
     /// <summary>
-    /// Cuenta las consultas del desglose: las únicas de este handler que unen <c>Documentos</c> con
-    /// <c>TiposDocumento</c> en este escenario (ningún Trabajador tiene Asignación a un Centro, así que el
-    /// cálculo de cumplimiento de la página no llega a leer documentos).
+    /// Cuenta las consultas del desglose por su etiqueta SQL (<see cref="CalculoEstadoDocumentalService.EtiquetaDesglose"/>)
+    /// y porque unen <c>Documentos</c> con <c>TiposDocumento</c>. La etiqueta hace falta porque la evaluación de
+    /// requisitos obligatorios de Centro, que decide el estado de la fila, también lee esas tablas y no es el desglose.
     /// </summary>
     private sealed class ContadorDeConsultasDeDesglose : DbCommandInterceptor
     {
@@ -529,7 +532,8 @@ public class DesgloseDocumentalDeEmpresasBajoRlsTests : IAsyncLifetime
         public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
+            if (command.CommandText.Contains("-- " + CalculoEstadoDocumentalService.EtiquetaDesglose, StringComparison.Ordinal)
+                && command.CommandText.Contains("\"Documentos\"", StringComparison.Ordinal)
                 && command.CommandText.Contains("\"TiposDocumento\"", StringComparison.Ordinal))
                 Interlocked.Increment(ref _consultas);
 

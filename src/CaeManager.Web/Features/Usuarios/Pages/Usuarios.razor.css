@@ -20,20 +20,6 @@
 }
 
 /*
-  .barra-filtros (list-page.css, global) trae max-width:480px, pensado para
-  buscador + un único filtro. Aquí son tres controles —buscar, Rol y Estado—
-  y a 480px el select de rol recorta "Coordinador CAE", que es justamente lo
-  que hay que poder leer para elegirlo. Mismo remedio que Clientes.razor.css,
-  y por la misma vía: aislamiento de CSS de Blazor, la regla lleva el atributo
-  de ámbito y no toca list-page.css ni las páginas que sí caben en 480px.
-*/
-.barra-filtros {
-    max-width: 720px;
-    flex-wrap: wrap;
-    row-gap: var(--space-3);
-}
-
-/*
   DEFECTO corregido en este incremento, no estilo nuevo. Las tres clases
   .pista-documento* estaban escritas SOLO en Trabajadores.razor.css y esta
   página las usaba copiadas en el marcado. El CSS aislado de Blazor genera un
@@ -128,4 +114,62 @@
     color: var(--color-text-muted);
     font: var(--font-caption);
     font-weight: 700;
+}
+
+.lista-identificador {
+    display: block;
+    color: var(--color-text-muted);
+    font: var(--font-body-sm);
+    overflow-wrap: anywhere;
+}
+
+/*
+  Revisión píxel a píxel contra la maqueta "Usuarios TALVEG": cabecera de
+  columnas en versalitas de 12 px y celdas de 12 px de alto por 16 de ancho.
+  Va en la página y no en lista-design.css para no mover las demás pantallas
+  que comparten esa hoja.
+*/
+.lista-design .tabla-datos th {
+    padding: 14px var(--space-4) 10px;
+    font: var(--font-caption);
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    border-bottom: 1.5px solid var(--color-text);
+}
+
+.lista-design .tabla-datos tbody tr:not(.fila-grupo):not(.fila-restantes) > td {
+    padding: var(--space-3) var(--space-4);
+}
+
+.lista-design .tabla-datos .persona-identidad strong {
+    font-weight: 600;
+}
+
+/* Ficha de edición (Flujos 14): último acceso y 2FA arriba del cuerpo, y el aviso de la cuenta que aún no se ha activado. */
+.datos-ficha-usuario {
+    margin-bottom: var(--space-4);
+}
+
+.aviso-pendiente-activacion {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+    background: var(--color-warning-50);
+    border: 1px solid color-mix(in srgb, var(--color-warning-700) 35%, transparent);
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+}
+
+.aviso-pendiente-titulo {
+    margin: 0;
+    color: var(--color-warning-700);
+    font: var(--font-label-md);
+}
+
+.aviso-pendiente-activacion .texto-ayuda-campo {
+    margin: 0;
 }

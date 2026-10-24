@@ -72,6 +72,7 @@ public partial class UsuariosGen2Tests : BunitContext
     /// <summary><see cref="Modal"/> y <see cref="MenuAcciones"/> mueven el foco por JS al abrirse.</summary>
     public UsuariosGen2Tests()
     {
+        Services.AddSeguridadCuentaDePrueba();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
     }
@@ -696,7 +697,7 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     private IRenderedComponent<UsuariosControlados> Renderizar(
-        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false)
+        Guid? actorId = null, string rolActor = RolesIdentidad.Administrador, bool integrada = false, string? url = null)
     {
         Services.AddSingleton<ILogger<PaginaUsuarios>>(NullLogger<PaginaUsuarios>.Instance);
         Services.AddSingleton(_fuente);
@@ -744,6 +745,7 @@ public partial class UsuariosGen2Tests : BunitContext
             _ => throw new NotSupportedException(peticion.GetType().Name),
         };
 
+        if (url is not null) Services.GetRequiredService<NavigationManager>().NavigateTo(url);
         return Render<UsuariosControlados>(p => p.Add(c => c.IntegradaEnConfiguracion, integrada));
     }
 
@@ -821,7 +823,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var encabezados = cut.FindAll("table.tabla-datos thead th");
         encabezados.Select(th => th.TextContent.Trim())
-            .Should().Equal("Correo", "Nombre", "Rol", "Ámbito efectivo", "Estado", "Acciones");
+            .Should().Equal("Usuario", "Rol", "Ámbito efectivo", "Estado", "Acciones");
         encabezados.Should().OnlyContain(th => th.GetAttribute("scope") == "col");
         encabezados[^1].QuerySelector(".encabezado-solo-lectores").Should().NotBeNull(
             "el rótulo existe para el lector de pantalla, no para la vista");
@@ -855,17 +857,17 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar();
 
         var fila = Fila(cut, "soporte.ops@plataforma-cae.es");
-        Celdas(fila)[2].TextContent.Should().Contain("Consulta").And.NotContain("Administrador");
+        Celdas(fila)[1].TextContent.Should().Contain("Consulta").And.NotContain("Administrador");
         fila.QuerySelector(".badge")!.TextContent.Trim().Should().Be("Delegado");
     }
 
     [Fact]
-    public void Una_organizacion_sin_cuentas_no_ofrece_filtros_que_no_pueden_hacer_nada()
+    public void Una_organizacion_sin_cuentas_conserva_la_barra_y_su_vista()
     {
         var cut = Renderizar();
 
         cut.Find(".estado-vacio").TextContent.Should().Contain("Aún no hay usuarios");
-        cut.FindAll(".barra-filtros-lista").Should().BeEmpty();
+        cut.FindAll(".barra-filtros-pastillas").Should().ContainSingle();
         cut.Find(".estado-vacio").QuerySelector(".estado-vacio-accion").Should().BeNull(
             "el alta ya está en la cabecera");
     }
@@ -881,7 +883,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".barra-filtros-lista input").InputAsync(new() { Value = "no-existe-nadie-asi" });
+        await cut.Find(".barra-filtros-pastillas input").InputAsync(new() { Value = "no-existe-nadie-asi" });
 
         var vacio = cut.Find(".estado-vacio").TextContent;
         vacio.Should().Contain("Ningún usuario coincide");
@@ -996,7 +998,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         // El formulario no pide contraseña: la cuenta nace sin ninguna.
         cut.FindAll(".drawer-cuerpo input[type=password]").Should().BeEmpty();
@@ -1023,7 +1025,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Retenido = new TaskCompletionSource<Result>(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
         await GuardarAsync(cut);
@@ -1078,7 +1080,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _correo.Lanza = new InvalidOperationException("SMTP caído");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "nuevo@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Nueva Persona");
         await GuardarAsync(cut);
@@ -1099,7 +1101,8 @@ public partial class UsuariosGen2Tests : BunitContext
     public async Task Si_el_correo_falla_con_el_modal_ya_cerrado_el_aviso_no_remite_a_un_enlace_que_no_esta()
     {
         var cut = await AltaConCorreoQueNoContestaAsync();
-        await cut.Find(".modal-pie .boton-primario").ClickAsync(new());
+        // Flujos 14: el pie es «Cerrar» (secundario) y «Copiar enlace» (primario).
+        await cut.Find(".modal-pie .boton-secundario").ClickAsync(new());
         cut.FindAll(".enlace-activacion").Should().BeEmpty();
 
         _correo.Retenido!.SetResult(Result.Fallo(Error.Crear("Email.ErrorRed", "No pudimos enviar el correo.")));
@@ -1156,7 +1159,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Nombre completo", "Sin Correo");
         await GuardarAsync(cut);
 
@@ -1188,7 +1191,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.RolesNoAsignables = [RolesIdentidad.Administrador, RolesIdentidad.DireccionCae];
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         OpcionesDeRol(cut).Should().NotContain([RolesIdentidad.Administrador, RolesIdentidad.DireccionCae])
             .And.Contain([RolesIdentidad.CoordinadorCae, RolesIdentidad.GestorCae, RolesIdentidad.Consulta]);
@@ -1200,7 +1203,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
         OpcionesDeRol(cut).Should().BeEquivalentTo(RolesIdentidad.Todos);
     }
@@ -1373,7 +1376,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _identidad.TokenRetenido = token;
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "doble@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Doble Clic");
 
@@ -1413,7 +1416,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _identidad.ResultadoDeAsignarRol = IdentityResult.Failed(new IdentityError { Description = "la tabla de roles se cayó" });
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "sinrol@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Sin Rol");
         await GuardarAsync(cut);
@@ -1450,7 +1453,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _catalogo.Registrar(BeneficiarioSur, "Montajes del Sur");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         CasillasEmpresasCartera(cut).Should().BeEmpty("la cartera solo se ofrece al elegir Gestor CAE");
 
         await EscribirAsync(cut, "Correo", "gestora@talveg.es");
@@ -1477,7 +1480,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
 
         _mediador.Enviadas.OfType<ObtenerEmpresasAsignablesEnAltaQuery>().Should().ContainSingle();
@@ -1491,7 +1494,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _catalogo.Registrar(BeneficiarioNorte, "Talleres Norte");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "consulta@talveg.es");
         await EscribirAsync(cut, "Nombre completo", "Consulta Nueva");
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.GestorCae });
@@ -1804,9 +1807,9 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: CoordinadoraId, rolActor: RolesIdentidad.CoordinadorCae);
 
-        Filas(cut).Select(f => Celdas(f)[0].TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
+        Filas(cut).Select(f => f.QuerySelector(".lista-identificador")!.TextContent.Trim()).Should().Equal("a.beitia@talveg.es");
         cut.Markup.Should().NotContain("otro.gestor@talveg.es").And.NotContain("marta.r@talveg.es").And.NotContain("c.consulta@talveg.es");
-        cut.FindAll(".acciones-cabecera button").Should().BeEmpty("sin alta de usuarios");
+        cut.FindAll(".cabecera-listado-primaria button").Should().BeEmpty("sin alta de usuarios");
         _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().ContainSingle();
 
         await AbrirMenuAsync(cut, "a.beitia@talveg.es");
@@ -1829,7 +1832,7 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar(actorId: MartaId);
 
         Filas(cut).Should().HaveCount(5);
-        cut.FindAll(".acciones-cabecera button").Should().NotBeEmpty();
+        cut.FindAll(".cabecera-listado-primaria button").Should().NotBeEmpty();
         _mediador.Enviadas.OfType<ObtenerEquipoDeCoordinadorQuery>().Should().BeEmpty();
         await AbrirMenuAsync(cut, "a.beitia@talveg.es");
         Fila(cut, "a.beitia@talveg.es").QuerySelectorAll(".menu-acciones-item").Select(b => b.TextContent.Trim())
@@ -1844,7 +1847,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar(actorId: MartaId);
-        cut.Find(".menu-acciones-disparador").Click();
+        Fila(cut, "marta.r@talveg.es").QuerySelector(".menu-acciones-disparador")!.Click();
         cut.FindAll(".menu-acciones-item").Single(b => b.TextContent.Trim() == "Editar").Click();
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("Editar usuario"));
@@ -2039,7 +2042,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await EscribirAsync(cut, "Correo", "portal@refrielectric.es");
         await EscribirAsync(cut, "Nombre completo", "Carmen Ruiz");
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
@@ -2057,7 +2060,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.EmpresasPorCif["A48220917"] = new EmpresaPorCifDto(EmpresaId, "Refrielectric S.A.", "A48220917");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
         await EscribirAsync(cut, "Identificación fiscal de la empresa a vincular", "A48220917");
@@ -2092,7 +2095,7 @@ public partial class UsuariosGen2Tests : BunitContext
         _mediador.EmpresasPorCif["B50331406"] = new EmpresaPorCifDto(EmpresaId, "Montajes Ebro S.L.", "B50331406");
 
         var cut = Renderizar();
-        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Cliente });
 
         // El primero se queda retenido; no se espera su escritura (colgaría).
@@ -2211,6 +2214,63 @@ public partial class UsuariosGen2Tests : BunitContext
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
             "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
+    }
+
+    /// <summary>
+    /// Sin URL pública configurada (fuera de Development) emitir el enlace invalidaría el anterior
+    /// sin poder entregar el nuevo: no se emite nada, no se envía correo y el aviso no promete un
+    /// enlace «abajo» que no existe.
+    /// </summary>
+    [Fact]
+    public async Task Sin_url_publica_el_reenvio_no_emite_enlace_ni_promete_uno_abajo()
+    {
+        SembrarAdministradoraYPendiente();
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _mediador.Enviadas.OfType<GenerarActivacionUsuarioCommand>().Should().BeEmpty(
+            "emitir el enlace invalida el anterior, y sin base pública no hay nuevo que entregar");
+        _correo.Enviados.Should().BeEmpty();
+        var aviso = _toasts.Mensajes.Should().ContainSingle().Subject.Mensaje;
+        aviso.Should().Contain("falta la URL pública").And.NotContain("queda abajo");
+        cut.FindAll(".enlace-activacion").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_url_publica_el_alta_no_crea_la_cuenta_y_lo_dice_en_el_formulario()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar();
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "nueva@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Persona Nueva");
+
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<CrearUsuarioCommand>().Should().BeEmpty("sin enlace que entregar no se crea la cuenta");
+        _identidad.Creadas.Should().BeEmpty();
+        cut.Markup.Should().Contain("No se creó el usuario");
+        _correo.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_url_publica_corregir_el_correo_no_lo_cambia_y_lo_dice_en_el_dialogo()
+    {
+        SembrarAdministradoraYPendiente();
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Corregir correo");
+        await EscribirCorreoCorregidoAsync(cut, "ander.beitia@talveg.es");
+
+        await GuardarCorreoCorregidoAsync(cut);
+
+        _mediador.Enviadas.OfType<CorregirCorreoCuentaPendienteCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].Email.Should().Be("a.beitia@talveg.es");
+        cut.Markup.Should().Contain("falta la URL pública");
+        _correo.Enviados.Should().BeEmpty();
     }
 
     [Fact]
@@ -2357,8 +2417,8 @@ public partial class UsuariosGen2Tests : BunitContext
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
 
-        cut.FindComponent<DialogoConfirmacion>().Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
-        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+        cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.Mensaje.Should().Contain("a.beitia@talveg.es");
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
 
         _identidad.Eliminadas.Should().ContainSingle().Which.Should().Be(AnderId);
         _identidad.Cuentas.Should().NotContainKey(AnderId);
@@ -2438,7 +2498,7 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: MartaId);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Eliminar");
-        await cut.InvokeAsync(() => cut.FindComponent<DialogoConfirmacion>().Instance.OnConfirmar.InvokeAsync());
+        await cut.InvokeAsync(() => cut.FindComponents<DialogoConfirmacion>().Single(d => d.Instance.Visible).Instance.OnConfirmar.InvokeAsync());
 
         _identidad.Eliminadas.Should().BeEmpty();
         _identidad.Cuentas.Should().ContainKey(AnderId);
@@ -2640,7 +2700,7 @@ public partial class UsuariosGen2Tests : BunitContext
         await Atajo(cut, "j");
         CorreosEnfocados(cut).Should().ContainSingle().Which.Should().Contain("j.ibarra@talveg.es");
 
-        var buscador = cut.Find("input[placeholder='Buscar por nombre o correo…']");
+        var buscador = cut.Find("[data-filtro-pantalla]");
         await buscador.InputAsync(new ChangeEventArgs { Value = "iker" });
         CorreosEnfocados(cut).Should().BeEmpty();
 

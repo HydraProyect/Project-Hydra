@@ -117,7 +117,7 @@
             }
         </Pastillas>
         <Estados>
-            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDeTrabajadores" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaConPendiente" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
@@ -308,7 +308,7 @@
                                 // el mismo que pintan Empresa 360 y la cabecera de Trabajador 360.
                                 var estadoFila = context.EstadoDocumental;
                             }
-                            <span class="col-estado celda-estado-trabajador"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(estadoFila)" Texto="@EstadoDocumentoUi.TextoDocumental(estadoFila)" Correcto="EstadoDocumentoUi.EsCorrecto(estadoFila)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, context.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></span>
+                            <span class="col-estado celda-estado-trabajador"><EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(estadoFila, context.VencidoSinBloqueo)" Texto="@EstadoDocumentoUi.TextoDocumental(estadoFila)" Correcto="EstadoDocumentoUi.EsCorrecto(estadoFila)" Motivo="@MotivoIncidenciasUi.Texto(context.Incidencias, context.DocumentosFaltantes, CaeManager.Domain.Common.DiaDeNegocio.Hoy())" /></span>
                             <div class="tarjeta-fila-acordeon-acciones acciones-trabajador">
                                 <Boton360 Nombre="@NombreCompleto(context)" Href="@($"/trabajadores/{context.Id}")" />
                             </div>

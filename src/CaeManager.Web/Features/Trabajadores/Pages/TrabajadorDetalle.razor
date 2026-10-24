@@ -84,10 +84,10 @@
                <div class="trabajador360-indicadores">
                 @if (PeorEstadoGlobal is { } peorEstado)
                 {
-                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(peorEstado)">@EstadoDocumentoUi.TextoDocumental(peorEstado)</Badge>
+                    <Badge Tono="EstadoDocumentoUi.TonoDocumental(peorEstado, _estadoTrabajador?.VencidoSinBloqueo ?? false)">@EstadoDocumentoUi.TextoDocumental(peorEstado)</Badge>
                 }
-                @* El estado de arriba puede ser otro más grave (un vencido): lo exigido y sin documento se nombra aparte,
-                   para que nadie lea la ficha como al día mientras falte un Tipo que un Centro le exige. *@
+                @* El estado de arriba puede ser otro más grave (un vencido): lo obligatorio y sin documento se nombra aparte,
+                   para que nadie lea la ficha como al día mientras falte un Tipo que un Centro marca «bloquea el acceso». *@
                 @if (MotivoIncidenciasUi.FaltanTipos(TiposFaltantes) is { } faltan)
                 {
                     <Badge Tono="TonoBadge.Peligro" Tamano="TamanoBadge.Pequeno">@faltan</Badge>

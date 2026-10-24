@@ -24,6 +24,7 @@ public class GuardarFiltroCommandValidatorTests
     [InlineData(PantallasConFiltrosGuardados.Visitas)]
     [InlineData(PantallasConFiltrosGuardados.Gestiones)]
     [InlineData(PantallasConFiltrosGuardados.Incidencias)]
+    [InlineData(PantallasConFiltrosGuardados.Usuarios)]
     [InlineData(PantallasConFiltrosGuardados.AsignacionesDeOperacion)]
     public void Admite_los_listados_con_filtros_guardados(string pantalla)
     {

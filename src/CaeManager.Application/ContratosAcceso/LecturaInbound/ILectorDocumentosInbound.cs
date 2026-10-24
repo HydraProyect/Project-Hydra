@@ -25,7 +25,7 @@ namespace CaeManager.Application.ContratosAcceso.LecturaInbound;
 /// </para>
 ///
 /// <para>
-/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c>, que deciden antes la cartera
+/// Solo la consumen los handlers de <c>ObtenerLecturaInboundQueries</c> y <c>RegistrarEvidenciaInboundCommandHandler</c>, que deciden antes la cartera
 /// (<c>ConsumidoresDelLectorInboundAcotadosTests</c>).
 /// </para>
 /// </summary>
@@ -64,6 +64,10 @@ public record AutorizacionInboundDto(
     int Trabajadores);
 
 /// <summary>Un Documento original del Tenant de la Empresa contratista. Sin <c>ArchivoUrl</c> a propósito.</summary>
+/// <param name="SoloConclusionAptitud">
+/// El tipo del original, en el catálogo del Tenant de la Empresa contratista, es de «solo conclusión de aptitud» (el único
+/// tipo de salud que la lectura deja pasar): su evidencia no lleva archivo, solo la conclusión transcrita.
+/// </param>
 /// <param name="TrabajadorId">Null en un Documento de la Empresa propia del Tenant de la Empresa contratista.</param>
 public record DocumentoInboundDto(
     Guid DocumentoId,
@@ -74,6 +78,21 @@ public record DocumentoInboundDto(
     string TipoDocumentoNombre,
     DateOnly FechaEmision,
     DateOnly? FechaVencimiento,
-    EstadoVigenciaDocumento EstadoVigencia);
+    EstadoVigenciaDocumento EstadoVigencia,
+    bool SoloConclusionAptitud);
 
-public record ArchivoInboundDto(Guid DocumentoId, string? ArchivoUrl);
+/// <summary>
+/// La apertura de un Documento original autorizado, tal como la devuelve <c>app_inbound_archivo_autorizado</c>. Es la única
+/// entrada de <c>IAlmacenOriginalesInbound.AbrirOriginalAsync</c>: el Tenant y la referencia viajan juntos desde la base,
+/// nunca como un par libre que quien llama pudiera componer.
+/// </summary>
+/// <param name="TenantPropietarioId">
+/// El Tenant propietario del original, el de la Empresa contratista del contrato (<c>v_aut.tenant_contratista</c> de la
+/// función): la carpeta y la clave con las que se abre el binario.
+/// </param>
+/// <param name="SoloConclusionAptitud">
+/// El tipo del original es de «solo conclusión de aptitud» en el catálogo de su Tenant propietario, leído en la misma
+/// sentencia que da la apertura. El registro de evidencia lo compara con la marca del listado y nunca copia el binario de
+/// uno marcado.
+/// </param>
+public record ArchivoInboundDto(Guid DocumentoId, Guid TenantPropietarioId, string? ArchivoUrl, bool SoloConclusionAptitud);

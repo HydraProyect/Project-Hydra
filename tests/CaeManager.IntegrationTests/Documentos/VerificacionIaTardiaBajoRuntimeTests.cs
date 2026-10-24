@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos.Verificacion;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Empresas;
@@ -372,7 +373,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
             Llamadas++;
             if (durante is not null)
                 await durante();
-            return Result.Exito(new MetadatosDocumentoExtraidosDto("Apto médico", Emision, null, true, 99, null));
+            return Result.Exito(new MetadatosDocumentoExtraidosDto("Apto médico", Emision, null, true, 99, null, new ContrasteTextoDocumentoDto(false, false, [Emision])));
         }
     }
 

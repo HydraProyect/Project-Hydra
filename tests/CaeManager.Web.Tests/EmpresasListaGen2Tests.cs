@@ -475,7 +475,8 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
         cut.FindAll(".barra-filtros-pastillas .menu-acciones-disparador-pastilla").Select(p => p.GetAttribute("aria-label"))
             .Should().NotContain("Documentación", "el estado documental se filtra en la franja, no en una pastilla");
-        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Por vencer", "Sin confirmar", "Sin incidencias");
+        // «Pendiente»: un requisito obligatorio de Empresa incumplido en un Centro donde opera (regla del 2026-10-23).
+        cut.RotulosDeFranja().Should().Equal("Todos", "Vencidos", "Pendiente", "Por vencer", "Sin confirmar", "Sin incidencias");
         cut.MarcadosEnFranja().Should().Equal("Todos");
         UltimaConsulta(mediador).ConRecuentosPorEstado.Should().BeTrue("sin pedirlos, la franja no tendría cifras");
 

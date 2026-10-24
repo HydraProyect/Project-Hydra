@@ -14,46 +14,41 @@
     <PageTitle>Usuarios — @Marca.Nombre</PageTitle>
 }
 
-<div class="@ClaseContenedorPagina">
-    @* Gen 2: la cabecera es la primitiva, no un div a mano. Integrada resuelve
-       h1/h2 igual que TituloPaginaIntegrable, y las acciones entran por
-       .acciones-cabecera, que es lo que el mockup nombra. *@
-    <CabeceraPagina Titulo="Usuarios" Integrada="IntegradaEnConfiguracion">
-        <Acciones>
+@{ var vistaLista = CrearVistaLista(); }
+<div class="@(ClaseContenedorPagina + " lista-design")">
+    @* Cabecera de listado (maqueta «Usuarios»): título con su contador, ⌨ y la acción primaria. Integrada resuelve
+       h1/h2 igual que TituloPaginaIntegrable. La selección múltiple, la exportación y el menú ⋯ de la maqueta no
+       se pintan: no hay acciones masivas, exportación ni «Roles y permisos» en el menú todavía. *@
+    <CabeceraListado Titulo="@TextosUsuarios["ListaTitulo"]" Integrada="IntegradaEnConfiguracion"
+                     Contador="@(_cargando || _errorCarga ? null : (int?)vistaLista.Filtrados.Count)">
+        <Primaria>
             @if (!_modoEquipo)
             {
-                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">+ Nuevo usuario</Boton></SoloConEscritura>
+                <SoloConEscritura><Boton Variante="VarianteBoton.Primario" OnClick="AbrirCrear">@TextosUsuarios["ListaNuevo"]</Boton></SoloConEscritura>
             }
-        </Acciones>
-    </CabeceraPagina>
+        </Primaria>
+    </CabeceraListado>
 
-    @* Mismo sitio y misma composición que las demás listas (list-page.css
-       ".barra-filtros"): buscador a la izquierda, filtros a su derecha, nunca
-       escondidos tras un menú. Se filtra en memoria — ver UsuariosFiltrados.
-
-       El mockup Gen 2 no los pinta, y aun así se quedan: omitir un control en
-       un mockup no es pedir que se retire del producto, y sin ellos una
-       organización con cuarenta cuentas solo puede buscar a ojo. Ver también
-       el estado vacío por filtro, que existe justamente por esta barra.
-
-       Solo se pinta cuando hay algo que filtrar: sobre el error de carga
-       mentiría (no hay lista sobre la que actuar) y sobre una organización
-       recién creada serían tres controles que no pueden hacer nada. A
-       diferencia de Empresas, aquí filtrar no es una consulta al servidor
-       que pueda devolver cero de por sí. *@
-    @if (!_errorCarga && !_cargando && _usuarios.Count > 0)
-    {
-        <section class="barra-filtros-lista">
-        <div class="barra-filtros-lista-fila">
-                <CampoTexto Etiqueta="@ComunesListados["ListaBuscar"]" Placeholder="Buscar por nombre o correo…" Valor="@_busqueda" ValorChanged="BuscarAsync" />
-                <FiltroEstado Etiqueta="Rol" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync"
-                              Opciones="OpcionesRol" />
-                <FiltroEstado Etiqueta="Estado" Valor="@_activacionFiltro" ValorChanged="FiltrarPorActivacionAsync"
-                              Opciones="OpcionesActivacion" />
-            </div>
-    </section>
-    }
-
+    <BarraFiltros Busqueda="@_busqueda" BusquedaChanged="BuscarAsync" PlaceholderBuscador="@TextosUsuarios["ListaBuscar"]"
+                  HayFiltrosActivos="HayFiltrosActivos" OnLimpiarTodo="LimpiarFiltrosAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar" VistaRecordada="_vistaRecordada">
+        <Pastillas><PastillaFiltro Etiqueta="@TextosUsuarios["ListaRol"]" Valor="@_rolFiltro" ValorChanged="FiltrarPorRolAsync" Opciones="OpcionesRol" /></Pastillas>
+        <Estados><FranjaEstado Opciones="OpcionesEstadoLista" Valor="@_activacionFiltro" ValorChanged="CambiarEstadoListaAsync" Recuentos="RecuentosEstadoLista" TotalTodos="UsuariosSinFiltroEstado.Count()" TextoTodos="@TextosUsuarios["ListaTodos"]" /></Estados>
+        <Herramientas><DesplegableAgrupar Opciones="OpcionesAgrupar" Valor="@_agruparPor" ValorChanged="CambiarAgrupacionAsync" /></Herramientas>
+        <Chips>
+            @if (!string.IsNullOrWhiteSpace(_busqueda))
+            {
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@TextosUsuarios["ChipBusqueda", _busqueda]" OnQuitar="() => BuscarAsync(string.Empty)" />
+            }
+            @if (!string.IsNullOrWhiteSpace(_rolFiltro))
+            {
+                <ChipFiltro EtiquetaAccesible="@TextosUsuarios["ListaQuitarFiltro"]" Etiqueta="@TextosUsuarios["ChipRol", Roles.NombreVisible(_rolFiltro)]" OnQuitar="() => FiltrarPorRolAsync(string.Empty)" />
+            }
+        </Chips>
+    </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@PantallaDeFiltrosGuardados" ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.Usuarios" ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaGuardadaAsync" AlCambiar="StateHasChanged" />
     @if (_errorCarga)
     {
         <EstadoVacio Titulo="No pudimos cargar los usuarios" Descripcion="Intenta nuevamente en unos segundos.">
@@ -71,7 +66,7 @@
         @* Sin acción: el alta ya está en la cabecera, a dos centímetros. *@
         <EstadoVacio Titulo="Aún no hay usuarios" Descripcion="Crea el primero para dar acceso al sistema." />
     }
-    else if (UsuariosFiltrados.Count == 0)
+    else if (vistaLista.Filtrados.Count == 0)
     {
         @* Distinto de "aún no hay usuarios": los hay, pero ninguno casa con lo
            filtrado. Decirle "crea el primero" a quien tiene cuarenta y ha
@@ -87,40 +82,36 @@
     {
         <AtajosListaTeclado OnAtajo="ManejarAtajoAsync" />
 
+        @TarjetaListado.RenderizarMaqueta(@<text>
         <table class="tabla-datos">
             <thead>
                 <tr>
-                    <th scope="col">Correo</th>
-                    <th scope="col">Nombre</th>
-                    <th scope="col">Rol</th>
-                    <th scope="col">Ámbito efectivo</th>
-                    <th scope="col">Estado</th>
+                    <th scope="col">@TextosUsuarios["ListaUsuario"]</th>
+                    <th scope="col">@TextosUsuarios["ListaRol"]</th>
+                    <th scope="col">@TextosUsuarios["ListaAmbito"]</th>
+                    <th scope="col">@TextosUsuarios["ListaEstado"]</th>
                     @* La columna de acciones no lleva rótulo visible, pero sí
                        nombre: una cabecera vacía deja a quien navega con
                        lector de pantalla sin saber de qué columna es la celda
                        en la que está. *@
-                    <th scope="col"><span class="encabezado-solo-lectores">Acciones</span></th>
+                    <th scope="col"><span class="encabezado-solo-lectores">@TextosUsuarios["ListaAcciones"]</span></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var usuario in UsuariosDePagina)
+                @{ var claves = new ClavesDeHermanos(); }
+                @foreach (var fila in vistaLista.Filas)
                 {
-                    <tr class="@ClaseFila(usuario.Id)">
+                    var usuario = fila.Usuario;
+                    @if (fila.Cabecera is { } grupo)
+                    {
+                        <tr class="fila-grupo" @key="claves.De(grupo.Clave)"><td colspan="5"><CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Abierto="fila.Abierto" OnAlternar="() => AlternarGrupo(grupo.Clave)" /></td></tr>
+                    }
+                    @if (fila.Oculta) { continue; }
+                    <tr class="@ClaseFila(usuario.Id)" @key="claves.De(usuario.Id)">
                         <td>
-                            @usuario.Email
-                            @if (usuario.Id == _usuarioActualId)
-                            {
-                                @* Quién eres tú en esta lista. Es la fila en la
-                                   que ni puedes desactivarte ni tocar tu propio
-                                   permiso sobre documentos sensibles, así que
-                                   conviene que se distinga antes de intentarlo. *@
-                                <span class="marca-eres-tu">tú</span>
-                            }
-                        </td>
-                        <td>
-                            <span class="persona-identidad">
-                                <AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" />@usuario.NombreCompleto
-                            </span>
+                            <span class="persona-identidad"><AvatarUsuario Nombre="@usuario.NombreCompleto" Avatar="@usuario.Avatar" Tamano="TamanoAvatarUsuario.Pequeno" /><strong>@usuario.NombreCompleto</strong></span>
+                            <span class="lista-identificador">@usuario.Email</span>
+                            @if (usuario.Id == _usuarioActualId) { <span class="marca-eres-tu">@TextosUsuarios["ListaTu"]</span> }
                         </td>
                         <td>
                             @Roles.NombreVisible(usuario.Rol)
@@ -165,16 +156,16 @@
                                    ver PendienteActivacion. *@
                                 <Badge Tono="TonoBadge.Advertencia"
                                        title="Nunca se estableció una contraseña. Puede que el correo de activación no haya llegado.">
-                                    Pendiente de activar
+                                    @TextosUsuarios["EstadoPendiente"]
                                 </Badge>
                             }
                             else if (usuario.Activo)
                             {
-                                <Badge Tono="TonoBadge.Exito">Activo</Badge>
+                                <EstadoFila Texto="@TextosUsuarios["EstadoActivo"].Value" Correcto="true" />
                             }
                             else
                             {
-                                <Badge Tono="TonoBadge.Peligro">Desactivado</Badge>
+                                <Badge Tono="TonoBadge.Neutro">@TextosUsuarios["EstadoDesactivado"]</Badge>
                             }
                         </td>
                         <td class="columna-accion">
@@ -239,26 +230,54 @@
                             </MenuAcciones>
                         </td>
                     </tr>
+                    @if (fila.Restantes > 0)
+                    {
+                        <tr class="fila-restantes" @key="claves.De((usuario.Rol, true))"><td colspan="5"><Boton Variante="VarianteBoton.Fantasma" OnClick="() => VerRestantes(usuario.Rol)">@TextosUsuarios["ListaRestantes", fila.Restantes]</Boton></td></tr>
+                    }
                 }
             </tbody>
         </table>
-
-        <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="UsuariosDePagina.Count" PaginaActual="_pagina" TotalPaginas="TotalPaginas" TotalElementos="UsuariosFiltrados.Count"
-                          Etiqueta="usuario(s)" PaginaActualChanged="IrAPaginaAsync"
-                          TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync" />
+        </text>, PieDelListado(vistaLista))
     }
 </div>
-
 @* «Guardar» queda deshabilitado mientras viaja la comprobación del CIF: guardar en ese instante decidiría con un resultado que
    todavía no ha llegado. El kit ya impide el doble clic en el cliente; GuardarAsync lo impide además en el servidor, que es
    donde cuenta. *@
+@* Flujos 14: el alta termina en «Crear y enviar enlace», deshabilitado (con su motivo) mientras no haya nombre y correo; la
+   edición lleva en la cabecera el estado de la cuenta (BajoTitulo) y, arriba del cuerpo, el último acceso y la 2FA, con
+   «Generar enlace nuevo» si la cuenta sigue pendiente. *@
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync"
-                 Titulo="@(_editandoId is null ? "Nuevo usuario" : "Editar usuario")"
+                 Titulo="@(_editandoId is null ? TextosUsuarios["AltaTitulo"].Value : TextosUsuarios["EditarTitulo"].Value)"
+                 Subtitulo="@FilaEnEdicion?.NombreCompleto" BajoTitulo="@BajoTituloEdicion"
                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"
-                 MotivoGuardarDeshabilitado="@(_buscandoCliente ? TextosUsuarios["GuardarComprobandoCif"].Value : null)"
+                 MotivoGuardarDeshabilitado="@MotivoGuardarUsuarioDeshabilitado"
                  OnGuardar="GuardarAsync" AlDescartarPorNavegacion="CerrarFormulariosDescartandoAsync"
-                 TextoGuardar="Guardar" TextoCancelar="Cancelar">
+                 TextoGuardar="@TextoGuardarUsuario" TextoCancelar="@TextosUsuarios["FormularioCancelar"].Value">
     <ChildContent>
+        @if (FilaEnEdicion is { } ficha)
+        {
+            <div class="datos-ficha-usuario">
+                <RejillaDatos>
+                    <DatoRejilla Etiqueta="@TextosUsuarios["UltimoAcceso"].Value" Valor="@TextoUltimoAcceso(ficha)" />
+                    <DatoRejilla Etiqueta="@TextosUsuarios["DosFactores"].Value" Valor="@TextoDosFactores(ficha)" />
+                </RejillaDatos>
+            </div>
+
+            @if (ficha.PendienteActivacion)
+            {
+                @* Solo mientras la cuenta sigue pendiente: Application vuelve a comprobarlo y rechaza el enlace a una cuenta
+                   que ya tiene contraseña (GenerarActivacionUsuarioCommand). *@
+                <div class="aviso-pendiente-activacion" role="group" aria-label="@TextosUsuarios["PendienteAvisoTitulo"]">
+                    <p class="aviso-pendiente-titulo">@TextosUsuarios["PendienteAvisoTitulo"]</p>
+                    <p class="texto-ayuda-campo">@TextosUsuarios["PendienteAvisoTexto"]</p>
+                    <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
+                           Cargando="_generandoEnlaceNuevo" Deshabilitado="_guardando" OnClick="GenerarEnlaceNuevoAsync">
+                        @TextosUsuarios["GenerarEnlaceNuevo"]
+                    </Boton>
+                </div>
+            }
+        }
+
         <CampoTexto Etiqueta="Correo" Type="email" Placeholder="@("nombre@empresa.es")" Valor="@_email" ValorChanged="v => _email = v" Deshabilitado="@(_editandoId is not null)" />
         @if (_editandoId is not null)
         {
@@ -401,31 +420,43 @@
    quien elegía la contraseña inicial—. Lo que sí evita es que un correo
    perdido obligue a dar de alta a la persona otra vez. *@
 <Modal Visible="@(_enlaceActivacion is not null)"
-       VisibleChanged="@(v => { if (!v) _enlaceActivacion = null; })"
-       Titulo="@(_envioCorreoEnVuelo ? TextosUsuarios["EnvioCorreoEnCursoTitulo"].Value : _reenvioEnCurso ? (_reenvioFallido ? "No pudimos reenviar el correo" : _reenvioTrasCorregirCorreo ? TextosUsuarios["CorregirCorreoTituloHecho"].Value : "Correo reenviado") : _reenvioFallido ? TextosUsuarios["ReenvioCorreoFallido"].Value : "Enlace de activación")">
+       VisibleChanged="@(v => { if (!v) CerrarEnlaceActivacion(); })"
+       Titulo="@TituloEnlaceActivacion">
     <ChildContent>
-        @if (_envioCorreoEnVuelo)
+        @if (_enlaceNuevoGenerado)
+        {
+            @* Flujos 14, «Enlace nuevo»: lo importante es que el anterior ya no vale. No se ha enviado ningún correo. *@
+            <p><strong>@TextosUsuarios["EnlaceNuevoAvisoTitulo"]</strong> @TextosUsuarios["EnlaceNuevoAvisoTexto"]</p>
+            <p>@TextosUsuarios["EnlaceCaducidad", MinutosCaducidadActivacion]</p>
+        }
+        else if (_envioCorreoEnVuelo)
         {
             <p>@TextosUsuarios["EnvioCorreoEnCursoCuerpo"]</p>
         }
         else if (_reenvioFallido)
         {
-            <p>No pudimos enviarle el correo. Puedes hacerle llegar tú este enlace para que establezca su contraseña:</p>
+            <p>@TextosUsuarios["EnlaceCuerpoFallido"]</p>
         }
         else
         {
             <p>
-                Le hemos enviado por correo un enlace para que establezca su contraseña.
-                Caduca en @MinutosCaducidadActivacion minutos y solo puede usarse una vez.
+                @TextosUsuarios["EnlaceCuerpoEnviado"]
+                @TextosUsuarios["EnlaceCaducidad", MinutosCaducidadActivacion]
             </p>
-            <p>Si el correo no le llega, puedes hacerle llegar tú este enlace:</p>
+            <p>@TextosUsuarios["EnlaceCuerpoSiNoLlega"]</p>
         }
         <p class="enlace-activacion">@_enlaceActivacion</p>
-        <p class="nota-cuenta-sin-contrasena">Cuenta creada sin contraseña: nadie más que la persona llega a conocerla.</p>
+        @if (!_enlaceNuevoGenerado)
+        {
+            <p class="nota-cuenta-sin-contrasena">@TextosUsuarios["EnlaceNotaSinContrasena"]</p>
+        }
     </ChildContent>
     <Pie>
-        <BotonCopiar Valor="@(_enlaceActivacion ?? string.Empty)" Etiqueta="el enlace de activación" />
-        <Boton Variante="VarianteBoton.Primario" OnClick="() => _enlaceActivacion = null">Hecho</Boton>
+        @* Maqueta Flujos 14: «Cerrar» secundario a la izquierda y «Copiar enlace» primario, que confirma «✓ Copiado» 2 s. *@
+        <Boton Variante="VarianteBoton.Secundario" OnClick="CerrarEnlaceActivacion">@TextosUsuarios["EnlaceCerrar"]</Boton>
+        <Boton Variante="VarianteBoton.Primario" OnClick="CopiarEnlaceAsync">
+            @(_enlaceCopiado ? TextosUsuarios["EnlaceCopiado"].Value : TextosUsuarios["EnlaceCopiar"].Value)
+        </Boton>
     </Pie>
 </Modal>
 
@@ -540,3 +571,34 @@
                       TextoBotonConfirmar="@TextosUsuarios["RestablecerSegundoFactorConfirmar"]" EnProgreso="_restableciendoSegundoFactor"
                       OnConfirmar="RestablecerSegundoFactorAsync" />
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment? PieDelListado(VistaUsuarios vista) =>
+        _errorCarga || _cargando || vista.Filtrados.Count == 0 ? null : @<text>
+        @if (_agruparPor is not null)
+        {
+            <span>@TextosUsuarios["ListaTotal", vista.Filtrados.Count]</span>
+            <LeyendaAtajosLista Omitir="@(["x", "e"])" HayFilas="vista.Filas.Any(f => !f.Oculta)" />
+        }
+        else
+        {
+            <PaginadorSimple PresentacionMaqueta="true" ElementosEnPagina="vista.Pagina.Count" PaginaActual="_pagina"
+                             TotalPaginas="@Math.Max(1, (int)Math.Ceiling(vista.Filtrados.Count / (double)_tamanoPagina))" TotalElementos="vista.Filtrados.Count"
+                             Etiqueta="@TextosUsuarios["ListaUnidad"]" PaginaActualChanged="IrAPaginaAsync"
+                             TamanoPagina="_tamanoPagina" TamanoPaginaChanged="CambiarTamanoPaginaAsync">
+                <Centro><LeyendaAtajosLista Omitir="@(["x", "e"])" /></Centro>
+            </PaginadorSimple>
+        }
+    </text>;
+
+    /// <summary>Pastilla de estado de la cuenta (Activo, Desactivado, Pendiente de activar) bajo el título de la ficha; sin ficha en edición, nada.</summary>
+    private RenderFragment? BajoTituloEdicion
+    {
+        get
+        {
+            if (FilaEnEdicion is not { } ficha) return null;
+            var (tono, texto) = EstadoDeLaFicha(ficha);
+            return @<Badge Tono="tono" Tamano="TamanoBadge.Pequeno">@texto</Badge>;
+        }
+    }
+}

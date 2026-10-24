@@ -317,6 +317,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Documentos de otro Tenant sin EF, así que no puede usar DocumentoOperativo.Expresion. Repite la misma regla
         // (NOT "EstaEliminado" AND "SustituidoEnUtc" IS NULL) y la prueba LecturaInboundBajoRuntimeTests contra un sustituido.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023150000_AnadeLecturaInboundEntreTenants.cs"] = 1,
+        // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
+        // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
     };
 
     [Fact]
