@@ -6,9 +6,11 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.EstadoMaterializado;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,7 +36,8 @@ namespace CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadores;
 /// Pendiente &gt; Vencido que solo avisa (<see cref="TrabajadorListaDto.VencidoSinBloqueo"/>) &gt; Por vencer &gt;
 /// Sin confirmar &gt; Sin incidencias, el mismo orden de la clave con la que se filtra, cuenta y ordena antes de paginar.
 /// Es el ÚNICO estado de Trabajador: el listado, Empresa 360 y la cabecera de
-/// Trabajador 360 lo leen de aquí.
+/// Trabajador 360 lo leen de aquí. Se lee de <c>EstadosEntidad</c> (<see cref="ILectorEstadoMaterializado"/>) cuando el Tenant
+/// está completo y el usuario alcanza todos sus Centros; si no, se calcula en lectura, con el mismo resultado.
 ///
 /// <para>
 /// <paramref name="CentroId"/> deja solo a los Trabajadores con una Asignación activa en ese Centro. Solo
@@ -144,11 +147,24 @@ public class ObtenerTrabajadoresQueryHandler(
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAlcanceDatosService alcanceDatos, ICalculoEstadoDocumentalService calculoEstadoDocumental,
     IAsignacionesQueryContext asignacionesContext, IProyectosQueryContext proyectosContext,
-    IRequisitosObligatoriosIncumplidosService requisitosObligatorios)
+    IRequisitosObligatoriosIncumplidosService requisitosObligatorios, ILectorEstadoMaterializado? lectorEstado = null)
     : IRequestHandler<ObtenerTrabajadoresQuery, ResultadoPaginado<TrabajadorListaDto>>
 {
-    public async Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
-        ObtenerTrabajadoresQuery request, CancellationToken cancellationToken)
+    // Sin lector (quien construye el manejador a mano, como los tests del cálculo en lectura) todo se calcula.
+    private readonly ILectorEstadoMaterializado lector = lectorEstado ?? SinLectorDeEstadoMaterializado.Instancia;
+
+    public Task<ResultadoPaginado<TrabajadorListaDto>> Handle(
+        ObtenerTrabajadoresQuery request, CancellationToken cancellationToken) =>
+        ManejarAsync(request, permitirEstadoMaterializado: true, cancellationToken);
+
+    /// <param name="permitirEstadoMaterializado">
+    /// El estado sale de <c>EstadosEntidad</c> (<see cref="ILectorEstadoMaterializado"/>) cuando el lector puede servirlo: Tenant
+    /// completo, todos los Centros alcanzados y ninguna fila que la tabla no decida. En cualquier otro caso, o si es
+    /// <c>false</c>, se calcula en lectura como siempre; es el camino de referencia y el que cubre a un Tenant sin su fila de
+    /// versión (relleno inicial sin hacer).
+    /// </param>
+    private async Task<ResultadoPaginado<TrabajadorListaDto>> ManejarAsync(
+        ObtenerTrabajadoresQuery request, bool permitirEstadoMaterializado, CancellationToken cancellationToken)
     {
         var consulta =
             from trabajador in trabajadoresContext.Trabajadores
@@ -286,7 +302,13 @@ public class ObtenerTrabajadoresQueryHandler(
 
             // Solo se materializan las parejas activas (Id, Centro, contratación), nunca el listado completo.
             // La exigencia se resuelve en el servicio compartido, igual que el detalle de cada fila.
-            var faltantes = await FaltantesPorTrabajadorAsync(consulta.Select(x => x.trabajador), cancellationToken);
+            var materializado = permitirEstadoMaterializado
+                && await lector.DisponibleAsync(cancellationToken)
+                && !await lector.HayFilasQueNoDecideAsync(
+                    AmbitoEstadoEntidad.Trabajador, consulta.Select(x => x.trabajador.Id), cancellationToken);
+            var faltantes = materializado
+                ? RequisitosObligatoriosIncumplidos.Ninguno.PorTrabajador
+                : await FaltantesPorTrabajadorAsync(consulta.Select(x => x.trabajador), cancellationToken);
             var idsConObligatorioVencido = faltantes.Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value)).Select(p => p.Key).ToList();
             var idsConObligatorioAusente = faltantes.Where(p => RequisitosObligatoriosIncumplidos.HayAusente(p.Value)).Select(p => p.Key).ToList();
             var claveVencidoSinBloqueo = EstadoDocumentalFiltro.ClaveVencidoSinBloqueo;
@@ -345,6 +367,61 @@ public class ObtenerTrabajadoresQueryHandler(
                     : claveSinCaducidad
             });
 
+            // Estado materializado: la misma clave, de la fila de EstadosEntidad en vez de la fecha del peor documento y los
+            // requisitos incumplidos calculados. Un Trabajador sin fila (alta que el recálculo aún no ha escrito) es uno sin
+            // documentos ni requisitos incumplidos. Vencido en ámbar solo si todos sus documentos vencidos son de Tipos que
+            // ningún Centro marca obligatorios (el lector ya descartó las filas que eso no decide).
+            if (materializado)
+            {
+                var ordVencido = (short)EstadoDocumento.Vencido;
+                var ordFaltante = (short)EstadoDocumento.Faltante;
+                var ordUrgente = (short)EstadoDocumento.Urgente;
+                var ordProximo = (short)EstadoDocumento.Proximo;
+                var ordSinConfirmar = (short)EstadoDocumento.SinConfirmar;
+                var ordVigente = (short)EstadoDocumento.Vigente;
+                var unidos =
+                    from x in consulta
+                    join s in lector.Entidades(AmbitoEstadoEntidad.Trabajador) on x.trabajador.Id equals s.EntidadId into coincidentes
+                    from s in coincidentes.DefaultIfEmpty()
+                    select new
+                    {
+                        x.trabajador.Id,
+                        x.trabajador.Nombre,
+                        x.trabajador.Apellidos,
+                        x.trabajador.Dni,
+                        x.EmpleadorNombre,
+                        DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
+                        x.DelegacionEmpresaNombre,
+                        OficioEmpresaId = x.trabajador.OficioEmpresaId,
+                        x.OficioNombre,
+                        Estado = s == null ? EstadoEntidad.SinEstado : s.Estado,
+                        Vencidos = s == null ? 0 : s.Vencidos,
+                        VencidosSinBloqueo = s == null ? 0 : s.VencidosSinBloqueo
+                    };
+                conEstado = unidos.Select(x => new
+                {
+                    x.Id,
+                    x.Nombre,
+                    x.Apellidos,
+                    x.Dni,
+                    x.EmpleadorNombre,
+                    x.DelegacionEmpresaId,
+                    x.DelegacionEmpresaNombre,
+                    x.OficioEmpresaId,
+                    x.OficioNombre,
+                    PeorFecha = (DateOnly?)null,
+                    HaySinConfirmar = false,
+                    ClaveEstado = x.Estado == ordVencido
+                            ? (x.Vencidos > 0 && x.Vencidos == x.VencidosSinBloqueo ? claveVencidoSinBloqueo : claveVencido)
+                        : x.Estado == ordFaltante ? claveFaltante
+                        : x.Estado == ordUrgente ? claveUrgente
+                        : x.Estado == ordProximo ? claveProximo
+                        : x.Estado == ordSinConfirmar ? claveSinConfirmar
+                        : x.Estado == ordVigente ? claveVigente
+                        : claveSinCaducidad
+                });
+            }
+
             // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
             // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
@@ -390,11 +467,21 @@ public class ObtenerTrabajadoresQueryHandler(
                 .Take(request.TamanoPagina)
                 .ToListAsync(cancellationToken);
 
+            var leidoDeLaPagina = materializado
+                ? await lector.LeerAsync(
+                    AmbitoEstadoEntidad.Trabajador, paginaConEstado.Select(x => x.Id).ToList(), cancellationToken)
+                : null;
+            // El estado cambió entre decidir el camino y leer la página: se vuelve a empezar por el cálculo de siempre.
+            if (materializado && leidoDeLaPagina is null)
+                return await ManejarAsync(request, permitirEstadoMaterializado: false, cancellationToken);
+
             return new ResultadoPaginado<TrabajadorListaDto>(
                 await ConDesgloseAsync(
                     paginaConEstado.Select(x => new TrabajadorListaDto(
                         x.Id, x.Nombre, x.Apellidos, x.Dni, x.EmpleadorNombre,
-                        CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
+                        leidoDeLaPagina is not null
+                            ? null
+                            : CalculoEstadoDocumentalService.PeorEstado(x.PeorFecha, x.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias))
                     {
                         DelegacionEmpresaId = x.DelegacionEmpresaId,
                         DelegacionEmpresaNombre = x.DelegacionEmpresaNombre,
@@ -402,7 +489,7 @@ public class ObtenerTrabajadoresQueryHandler(
                         OficioNombre = x.OficioNombre
                     })
                         .ToList(),
-                    request, cancellationToken, faltantes),
+                    request, cancellationToken, faltantes, leidoDeLaPagina),
                 totalConEstado,
                 request.Pagina,
                 request.TamanoPagina)
@@ -418,14 +505,20 @@ public class ObtenerTrabajadoresQueryHandler(
             .Take(request.TamanoPagina)
             .ToListAsync(cancellationToken);
 
-        // Solo para los de la página: el badge de la tabla, no un filtro.
-        var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(
-            AmbitoAplicacion.Trabajador, elementos.Select(t => t.Id).ToList(), cancellationToken);
+        // Solo para los de la página: el badge de la tabla, no un filtro. De la tabla si el lector puede servir la página;
+        // si no, calculado en lectura.
+        var idsDeLaPagina = elementos.Select(t => t.Id).ToList();
+        var leido = permitirEstadoMaterializado
+            ? await lector.LeerAsync(AmbitoEstadoEntidad.Trabajador, idsDeLaPagina, cancellationToken)
+            : null;
+        var estados = leido is null
+            ? await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Trabajador, idsDeLaPagina, cancellationToken)
+            : null;
 
         return new ResultadoPaginado<TrabajadorListaDto>(
             await ConDesgloseAsync(
-                elementos.Select(t => t with { EstadoDocumental = estados.GetValueOrDefault(t.Id) }).ToList(),
-                request, cancellationToken),
+                elementos.Select(t => t with { EstadoDocumental = estados?.GetValueOrDefault(t.Id) }).ToList(),
+                request, cancellationToken, leido: leido),
             total, request.Pagina, request.TamanoPagina);
     }
 
@@ -438,34 +531,54 @@ public class ObtenerTrabajadoresQueryHandler(
     /// </summary>
     private async Task<IReadOnlyList<TrabajadorListaDto>> ConDesgloseAsync(
         IReadOnlyList<TrabajadorListaDto> pagina, ObtenerTrabajadoresQuery request, CancellationToken cancellationToken,
-        IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>? faltantesCalculados = null)
+        IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>? faltantesCalculados = null,
+        IReadOnlyDictionary<Guid, EstadoLeido>? leido = null)
     {
         pagina = await ConActividadAsync(pagina, cancellationToken);
 
         if (pagina.Count == 0)
             return pagina;
 
-        // Los faltantes entran SIEMPRE en el estado de la fila, pida o no el desglose quien llama: es el mismo estado
-        // que la clave de filtro, franja y orden del camino con estado completo (Vencido > Pendiente > Urgente > …).
-        // Sin esto, Empresa 360 leía «Sin incidencias» a quien el listado daba como Pendiente.
         var ids = pagina.Select(t => t.Id).ToList();
-        var faltantes = faltantesCalculados ?? await FaltantesPorTrabajadorAsync(
-            trabajadoresContext.Trabajadores.Where(t => ids.Contains(t.Id)), cancellationToken);
-
-        pagina = pagina
-            .Select(t =>
-            {
-                var incumplidos = faltantes.GetValueOrDefault(t.Id) ?? [];
-                var vencido = RequisitosObligatoriosIncumplidos.HayVencido(incumplidos);
-                var ausente = RequisitosObligatoriosIncumplidos.HayAusente(incumplidos);
-                return t with
+        if (leido is not null)
+        {
+            // Estado de la tabla (ILectorEstadoMaterializado): el mismo que deja el cálculo de abajo.
+            pagina = pagina
+                .Select(t =>
                 {
-                    EstadoDocumental = SeveridadEstadoDocumento.ConRequisitosObligatorios(t.EstadoDocumental, vencido, ausente),
-                    VencidoSinBloqueo = SeveridadEstadoDocumento.EsVencidoSinBloqueo(t.EstadoDocumental, vencido, ausente),
-                    DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(incumplidos)
-                };
-            })
-            .ToList();
+                    var estado = leido.GetValueOrDefault(t.Id, EstadoLeido.SinNada);
+                    return t with
+                    {
+                        EstadoDocumental = estado.Estado,
+                        VencidoSinBloqueo = estado.VencidoSinBloqueo,
+                        DocumentosFaltantes = estado.DocumentosFaltantes
+                    };
+                })
+                .ToList();
+        }
+        else
+        {
+            // Los faltantes entran SIEMPRE en el estado de la fila, pida o no el desglose quien llama: es el mismo estado
+            // que la clave de filtro, franja y orden del camino con estado completo (Vencido > Pendiente > Urgente > …).
+            // Sin esto, Empresa 360 leía «Sin incidencias» a quien el listado daba como Pendiente.
+            var faltantes = faltantesCalculados ?? await FaltantesPorTrabajadorAsync(
+                trabajadoresContext.Trabajadores.Where(t => ids.Contains(t.Id)), cancellationToken);
+
+            pagina = pagina
+                .Select(t =>
+                {
+                    var incumplidos = faltantes.GetValueOrDefault(t.Id) ?? [];
+                    var vencido = RequisitosObligatoriosIncumplidos.HayVencido(incumplidos);
+                    var ausente = RequisitosObligatoriosIncumplidos.HayAusente(incumplidos);
+                    return t with
+                    {
+                        EstadoDocumental = SeveridadEstadoDocumento.ConRequisitosObligatorios(t.EstadoDocumental, vencido, ausente),
+                        VencidoSinBloqueo = SeveridadEstadoDocumento.EsVencidoSinBloqueo(t.EstadoDocumental, vencido, ausente),
+                        DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(incumplidos)
+                    };
+                })
+                .ToList();
+        }
 
         if (!request.ConDesgloseDocumental)
             return pagina;

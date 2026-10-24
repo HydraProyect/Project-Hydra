@@ -4,10 +4,12 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Empresas.Queries.ObtenerClientesDeEmpresa;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.EstadoMaterializado;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 
@@ -25,6 +27,8 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 /// (<see cref="RequisitosObligatoriosIncumplidos"/> y <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>: Vencido obligatorio &gt;
 /// Pendiente &gt; Vencido que solo avisa &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias; decisión del 2026-10-23). Lo exigido sin la marca
 /// «bloquea el acceso» no tiñe, y lo que les falta a sus Trabajadores tampoco: cada nivel pinta su contexto.
+/// Ese estado se lee de <c>EstadosEntidad</c> (<see cref="ILectorEstadoMaterializado"/>) cuando el Tenant está completo y el
+/// usuario alcanza todos sus Centros; si no, se calcula en lectura, con el mismo resultado.
 ///
 /// <para>
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias de
@@ -106,10 +110,24 @@ public class ObtenerEmpresasQueryHandler(
     ICalculoEstadoDocumentalService calculoEstadoDocumental,
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAsignacionesQueryContext asignacionesContext, ITrabajadoresQueryContext trabajadoresContext,
-    ICalculoEstadoCentroService calculoEstadoCentro, IRequisitosObligatoriosIncumplidosService requisitosObligatorios)
+    ICalculoEstadoCentroService calculoEstadoCentro, IRequisitosObligatoriosIncumplidosService requisitosObligatorios,
+    ILectorEstadoMaterializado? lectorEstado = null)
     : IRequestHandler<ObtenerEmpresasQuery, ResultadoPaginado<EmpresaListaDto>>
 {
-    public async Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken)
+    // Sin lector (quien construye el manejador a mano, como los tests del cálculo en lectura) todo se calcula.
+    private readonly ILectorEstadoMaterializado lector = lectorEstado ?? SinLectorDeEstadoMaterializado.Instancia;
+
+    public Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken) =>
+        ManejarAsync(request, permitirEstadoMaterializado: true, cancellationToken);
+
+    /// <param name="permitirEstadoMaterializado">
+    /// El estado sale de <c>EstadosEntidad</c> (<see cref="ILectorEstadoMaterializado"/>) cuando el lector puede servirlo: Tenant
+    /// completo, todos los Centros alcanzados y ninguna fila que la tabla no decida. En cualquier otro caso, o si es
+    /// <c>false</c>, se calcula en lectura como siempre; es el camino de referencia y el que cubre a un Tenant sin su fila de
+    /// versión (relleno inicial sin hacer).
+    /// </param>
+    private async Task<ResultadoPaginado<EmpresaListaDto>> ManejarAsync(
+        ObtenerEmpresasQuery request, bool permitirEstadoMaterializado, CancellationToken cancellationToken)
     {
         var consulta = dbContext.Empresas.Where(e => e.EsPropia);
 
@@ -162,7 +180,12 @@ public class ObtenerEmpresasQueryHandler(
             // Los requisitos obligatorios incumplidos de todas las Empresas de la consulta, antes de paginar: entran en la
             // clave de estado igual que en ObtenerTrabajadoresQuery (decisión del 2026-10-23). Solo se materializan los Ids
             // con alguno, nunca el listado.
-            var incumplidos = await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
+            var materializado = permitirEstadoMaterializado
+                && await lector.DisponibleAsync(cancellationToken)
+                && !await lector.HayFilasQueNoDecideAsync(AmbitoEstadoEntidad.Empresa, consulta.Select(e => e.Id), cancellationToken);
+            var incumplidos = materializado
+                ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
+                : await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
             var idsConObligatorioVencido = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value)).Select(p => p.Key).ToList();
             var idsConObligatorioAusente = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayAusente(p.Value)).Select(p => p.Key).ToList();
             var claveVencidoSinBloqueo = EstadoDocumentalFiltro.ClaveVencidoSinBloqueo;
@@ -220,6 +243,55 @@ public class ObtenerEmpresasQueryHandler(
                     : claveSinCaducidad
             });
 
+            // Estado materializado: la misma clave, de la fila de EstadosEntidad en vez de la fecha del peor documento y los
+            // requisitos incumplidos calculados. Una Empresa sin fila (alta que el recálculo aún no ha escrito) es una sin
+            // documentos ni requisitos incumplidos. Vencido en ámbar solo si todos sus documentos vencidos son de Tipos que
+            // ningún Centro marca obligatorios (el lector ya descartó las filas que eso no decide).
+            if (materializado)
+            {
+                var ordVencido = (short)EstadoDocumento.Vencido;
+                var ordFaltante = (short)EstadoDocumento.Faltante;
+                var ordUrgente = (short)EstadoDocumento.Urgente;
+                var ordProximo = (short)EstadoDocumento.Proximo;
+                var ordSinConfirmar = (short)EstadoDocumento.SinConfirmar;
+                var ordVigente = (short)EstadoDocumento.Vigente;
+                var unidas =
+                    from e in consulta
+                    join s in lector.Entidades(AmbitoEstadoEntidad.Empresa) on e.Id equals s.EntidadId into coincidentes
+                    from s in coincidentes.DefaultIfEmpty()
+                    select new
+                    {
+                        e.Id,
+                        e.RazonSocial,
+                        e.Cif,
+                        e.CreadoEnUtc,
+                        ClientePrincipal = ordenaPorCliente
+                            ? clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial)
+                            : null,
+                        Estado = s == null ? EstadoEntidad.SinEstado : s.Estado,
+                        Vencidos = s == null ? 0 : s.Vencidos,
+                        VencidosSinBloqueo = s == null ? 0 : s.VencidosSinBloqueo
+                    };
+                conEstado = unidas.Select(e => new
+                {
+                    e.Id,
+                    e.RazonSocial,
+                    e.Cif,
+                    e.CreadoEnUtc,
+                    e.ClientePrincipal,
+                    PeorFecha = (DateOnly?)null,
+                    HaySinConfirmar = false,
+                    ClaveEstado = e.Estado == ordVencido
+                            ? (e.Vencidos > 0 && e.Vencidos == e.VencidosSinBloqueo ? claveVencidoSinBloqueo : claveVencido)
+                        : e.Estado == ordFaltante ? claveFaltante
+                        : e.Estado == ordUrgente ? claveUrgente
+                        : e.Estado == ordProximo ? claveProximo
+                        : e.Estado == ordSinConfirmar ? claveSinConfirmar
+                        : e.Estado == ordVigente ? claveVigente
+                        : claveSinCaducidad
+                });
+            }
+
             // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
             // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
@@ -273,16 +345,30 @@ public class ObtenerEmpresasQueryHandler(
             var cumplimientoConEstado = await CalcularCumplimientoPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
             var deteccionesConEstado = await ContarDeteccionesPendientesPorEmpresaAsync(idsPaginaConEstado, cancellationToken);
 
+            var leidoDeLaPagina = materializado
+                ? await lector.LeerAsync(AmbitoEstadoEntidad.Empresa, idsPaginaConEstado, cancellationToken)
+                : null;
+            // El estado cambió entre decidir el camino y leer la página: se vuelve a empezar por el cálculo de siempre.
+            if (materializado && leidoDeLaPagina is null)
+                return await ManejarAsync(request, permitirEstadoMaterializado: false, cancellationToken);
+
             return new ResultadoPaginado<EmpresaListaDto>(
                 await ConClientePrincipalAsync(
                     await ConDesgloseAsync(
-                        paginaConEstado.Select(e => ConIncumplidos(
-                            new EmpresaListaDto(
-                                e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                                CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                                cumplimientoConEstado.GetValueOrDefault(e.Id),
-                                deteccionesConEstado.GetValueOrDefault(e.Id)),
-                            incumplidos))
+                        paginaConEstado.Select(e => leidoDeLaPagina is not null
+                            ? ConEstadoLeido(
+                                new EmpresaListaDto(
+                                    e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc, null,
+                                    cumplimientoConEstado.GetValueOrDefault(e.Id),
+                                    deteccionesConEstado.GetValueOrDefault(e.Id)),
+                                leidoDeLaPagina[e.Id])
+                            : ConIncumplidos(
+                                new EmpresaListaDto(
+                                    e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                                    CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                                    cumplimientoConEstado.GetValueOrDefault(e.Id),
+                                    deteccionesConEstado.GetValueOrDefault(e.Id)),
+                                incumplidos))
                             .ToList(),
                         request, cancellationToken),
                     request, clientesAlcanzados, cancellationToken),
@@ -323,28 +409,59 @@ public class ObtenerEmpresasQueryHandler(
 
         // Solo para las de la página: los badges de la tabla, no un filtro.
         var idsPagina = elementos.Select(e => e.Id).ToList();
-        var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, idsPagina, cancellationToken);
         var cumplimiento = await CalcularCumplimientoPorEmpresaAsync(idsPagina, cancellationToken);
         var detecciones = await ContarDeteccionesPendientesPorEmpresaAsync(idsPagina, cancellationToken);
-        var incumplidosPagina = idsPagina.Count == 0
-            ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
-            : await requisitosObligatorios.DeEmpresasAsync(dbContext.Empresas.Where(e => idsPagina.Contains(e.Id)).Select(e => e.Id), cancellationToken);
+
+        // Estado de la página: de la tabla si el lector puede servirla; si no, calculado en lectura.
+        var leido = permitirEstadoMaterializado
+            ? await lector.LeerAsync(AmbitoEstadoEntidad.Empresa, idsPagina, cancellationToken)
+            : null;
+        IReadOnlyList<EmpresaListaDto> conEstadoDeLaPagina;
+        if (leido is not null)
+        {
+            conEstadoDeLaPagina = elementos.Select(e => ConEstadoLeido(
+                e with
+                {
+                    CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                    DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
+                },
+                leido[e.Id])).ToList();
+        }
+        else
+        {
+            var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, idsPagina, cancellationToken);
+            var incumplidosPagina = idsPagina.Count == 0
+                ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
+                : await requisitosObligatorios.DeEmpresasAsync(dbContext.Empresas.Where(e => idsPagina.Contains(e.Id)).Select(e => e.Id), cancellationToken);
+            conEstadoDeLaPagina = elementos.Select(e => ConIncumplidos(
+                e with
+                {
+                    EstadoDocumental = estados.GetValueOrDefault(e.Id),
+                    CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                    DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
+                },
+                incumplidosPagina)).ToList();
+        }
 
         return new ResultadoPaginado<EmpresaListaDto>(
             await ConClientePrincipalAsync(
-                await ConDesgloseAsync(
-                    elementos.Select(e => ConIncumplidos(
-                        e with
-                        {
-                            EstadoDocumental = estados.GetValueOrDefault(e.Id),
-                            CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
-                            DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
-                        },
-                        incumplidosPagina)).ToList(),
-                    request, cancellationToken),
+                await ConDesgloseAsync(conEstadoDeLaPagina, request, cancellationToken),
                 request, clientesAlcanzados, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
     }
+
+    /// <summary>
+    /// Pone en una fila el estado que lee el lector del estado materializado: lo mismo que <see cref="ConIncumplidos"/> deja en
+    /// ella con el cálculo en lectura (sin documentos ni requisitos incumplidos, Sin caducidad, el valor por defecto del
+    /// diccionario de estados).
+    /// </summary>
+    private static EmpresaListaDto ConEstadoLeido(EmpresaListaDto fila, EstadoLeido leido) =>
+        fila with
+        {
+            EstadoDocumental = leido.Estado,
+            VencidoSinBloqueo = leido.VencidoSinBloqueo,
+            DocumentosFaltantes = leido.DocumentosFaltantes
+        };
 
     /// <summary>
     /// Los Clientes empresariales que el usuario puede ver en la cartera de las Empresas que gestiona: la

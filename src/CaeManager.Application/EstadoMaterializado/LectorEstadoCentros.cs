@@ -45,9 +45,10 @@ public sealed class LectorEstadoCentros(IEstadoMaterializadoQueryContext context
 {
     private const int LoteDeCentros = 2000;
 
+    // Una sola sentencia (fila de versión y cola vacía): los lectores de Empresa y Trabajador la comparten y la pagan en cada
+    // lectura que luego tiene que calcular.
     public async Task<bool> TenantCompletoAsync(CancellationToken cancellationToken) =>
-        await contexto.VersionesEstadoTenant.AnyAsync(cancellationToken)
-        && !await contexto.RecalculosPendientes.AnyAsync(cancellationToken);
+        await contexto.VersionesEstadoTenant.AnyAsync(v => !contexto.RecalculosPendientes.Any(), cancellationToken);
 
     public async Task<IReadOnlyDictionary<Guid, EstadoCentroLeido>> LeerAsync(
         IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)

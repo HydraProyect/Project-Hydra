@@ -273,6 +273,7 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> VersionesEstadoTenant => Set<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant>();
     public DbSet<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> RecalculosPendientes => Set<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente>();
     IQueryable<CaeManager.Domain.EstadoMaterializado.EstadoEntidad> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.EstadosEntidad => EstadosEntidad;
+    IQueryable<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.EstadosRequisito => EstadosRequisito;
     IQueryable<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.VersionesEstadoTenant => VersionesEstadoTenant;
     IQueryable<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.RecalculosPendientes => RecalculosPendientes;
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
