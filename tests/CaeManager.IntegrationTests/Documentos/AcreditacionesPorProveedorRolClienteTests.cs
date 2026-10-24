@@ -18,12 +18,11 @@ namespace CaeManager.IntegrationTests.Documentos;
 
 /// <summary>
 /// Incremento 2 del piloto Outbound: <c>/extension/acreditaciones-pendientes</c>
-/// reexpone <see cref="ObtenerAcreditacionesPorProveedorQuery"/> con el NIF del
-/// Trabajador (<see cref="AcreditacionDrillDownDto.TrabajadorDni"/>), y la
+/// reexpone <see cref="ObtenerAcreditacionesPorProveedorQuery"/> con datos del Trabajador, y la
 /// política <c>SesionOExtension</c> admite cualquier sesión interactiva, también
-/// la del rol Cliente (usuario de portal de una empresa cliente externa). Su
-/// alcance de lectura le da los Centros de su propio Cliente, y con ellos el
-/// DNI de los Trabajadores de las contratistas — un artefacto interno de la
+/// la del rol Cliente (usuario de portal de un Cliente empresarial externo). Su
+/// ámbito de lectura le da los Centros de Trabajo de su propio Cliente empresarial,
+/// pero las acreditaciones de los Trabajadores son un artefacto interno de la
 /// gestión CAE, no contenido de portal. Mismo defecto, ya corregido, que el de
 /// las credenciales de un canal (REC-153, <c>ObtenerCentroIdsParaGestionAsync</c>).
 ///
@@ -50,16 +49,16 @@ public class AcreditacionesPorProveedorRolClienteTests : IAsyncLifetime
     {
         var usuarioPortal = await SembrarAsync();
 
-        // Control positivo: con acceso total la fila existe y lleva el DNI. Sin
+        // Control positivo: con acceso total la fila existe y corresponde a un Trabajador. Sin
         // esto, un resultado vacío para el rol Cliente no distinguiría «lo
         // filtré» de «no había nada que devolver».
         var conAccesoTotal = await ConsultarComoAsync(usuarioPortal, "Administrador");
-        conAccesoTotal.Should().ContainSingle(d => d.TrabajadorDni == Dni);
+        conAccesoTotal.Should().ContainSingle(d => d.TrabajadorId != null);
 
         var comoCliente = await ConsultarComoAsync(usuarioPortal, "Cliente");
 
         comoCliente.Should().BeEmpty(
-            "las acreditaciones por plataforma con el NIF del Trabajador son un artefacto de gestión, no de portal");
+            "las acreditaciones por plataforma de los Trabajadores son un artefacto de gestión, no de portal");
     }
 
     private async Task<Guid> SembrarAsync()

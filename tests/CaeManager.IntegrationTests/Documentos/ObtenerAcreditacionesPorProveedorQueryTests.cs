@@ -23,9 +23,8 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <see cref="ObtenerAcreditacionesPorProveedorQuery"/> no tenía ningún test
 /// antes de este incremento — se cubre aquí tanto su comportamiento ya
-/// existente (agrupación, alcance) como los dos campos nuevos que la
-/// extensión necesita (<see cref="AcreditacionDrillDownDto.CanalGestionDocumentalId"/>,
-/// <see cref="AcreditacionDrillDownDto.TrabajadorDni"/>).
+/// existente (agrupación, ámbito de gestión) como el canal que la extensión necesita
+/// (<see cref="AcreditacionDrillDownDto.CanalGestionDocumentalId"/>), sin DNI del Trabajador.
 /// </summary>
 public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
 {
@@ -107,7 +106,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
             .Documentos.Should().ContainSingle().Subject;
 
         acreditacion.CanalGestionDocumentalId.Should().Be(canalId);
-        acreditacion.TrabajadorDni.Should().Be("22334455Y");
+        typeof(AcreditacionDrillDownDto).GetProperty("TrabajadorDni").Should().BeNull();
         acreditacion.TrabajadorId.Should().Be(trabajadorId);
     }
 

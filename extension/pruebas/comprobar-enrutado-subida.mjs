@@ -56,12 +56,19 @@ globalThis.chrome = {
 };
 
 // Respuestas HTTP simuladas: descarga del PDF y marcado posterior.
-globalThis.fetch = async () => ({
-  ok: true,
+let subible = true;
+let proveedorActivo = true;
+let documentoDeLaLista = "11111111-1111-1111-1111-111111111111";
+let listaFalla = false;
+globalThis.fetch = async (url) => ({
+  ok: !(listaFalla && String(url).includes("acreditaciones-pendientes")),
   status: 200,
   type: "basic",
   arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
-  json: async () => ({}),
+  json: async () => subible ? [{ proveedorActivo, clientes: [{ documentos: [{
+    acreditacionId: "22222222-2222-2222-2222-222222222222",
+    documentoId: documentoDeLaLista,
+  }] }] }] : [],
   text: async () => "",
 });
 
@@ -156,6 +163,40 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
   entregas.length = 0;
   await chrome.tabs.sendMessage(1234, { accion: "prueba-del-arnes" });
   comprobar("control: el arnés registra a qué pestaña se entrega", entregas[0]?.idPestana === 1234);
+}
+
+// La lista que vio la persona puede haber quedado obsoleta durante la descarga.
+{
+  conectar(dentroDeOchoHoras);
+  entregas.length = 0;
+  subible = false;
+  const resultado = await pedirSubida({ tab: { id: 7 } });
+  comprobar("avisa si ya no es subible", resultado?.ok === false && resultado.error.includes("ya no se puede subir"));
+  comprobar("no coloca el fichero si ya no es subible", !entregas.some(e => e.accion === "inyectarArchivo"));
+  subible = true;
+
+  // Otro documento en la lista (renovado con archivo nuevo): el archivo descargado ya no vale.
+  entregas.length = 0;
+  documentoDeLaLista = "99999999-9999-9999-9999-999999999999";
+  const otroDocumento = await pedirSubida({ tab: { id: 7 } });
+  comprobar("avisa si el documento de la acreditacion cambio", otroDocumento?.ok === false && !entregas.some(e => e.accion === "inyectarArchivo"));
+  documentoDeLaLista = "11111111-1111-1111-1111-111111111111";
+
+  // Conector desactivado entre la lista y la subida: aviso propio, sin rechazo falso.
+  entregas.length = 0;
+  proveedorActivo = false;
+  const inactivo = await pedirSubida({ tab: { id: 7 } });
+  comprobar("avisa del conector desactivado sin hablar de rechazo",
+    inactivo?.ok === false && inactivo.error.includes("desactivado") && !inactivo.error.includes("rechazada")
+    && !entregas.some(e => e.accion === "inyectarArchivo"));
+  proveedorActivo = true;
+
+  // Si no se puede releer la lista, no se coloca nada.
+  entregas.length = 0;
+  listaFalla = true;
+  const sinLista = await pedirSubida({ tab: { id: 7 } });
+  comprobar("no coloca el fichero si no se puede releer la lista", sinLista?.ok === false && !entregas.some(e => e.accion === "inyectarArchivo"));
+  listaFalla = false;
 }
 
 console.log(`\n${fallos === 0 ? "todo en verde" : `${fallos} fallos`}.\n`);

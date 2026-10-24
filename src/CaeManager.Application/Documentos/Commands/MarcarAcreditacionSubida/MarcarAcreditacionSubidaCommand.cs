@@ -27,8 +27,8 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// Nótese que para cuando este Command corre, la extensión YA descargó el
 /// PDF e YA lo inyectó en el DOM de la plataforma (ver
 /// <c>extension/background.js</c>, <c>subirDocumento</c>) — el freno real
-/// que evita la inyección vive en el propio popup, con el dato que ya trae
-/// <c>ObtenerAcreditacionesPorProveedorQuery</c>. Esta comprobación es la
+/// que evita la inyección reconsulta la lista en el service worker antes de
+/// entregar el archivo al formulario. Esta comprobación es la
 /// segunda línea: que el registro de Hydra nunca diga "subida" para un
 /// conector que la plataforma declaró inactivo, ni siquiera si un cliente
 /// desactualizado o modificado se saltó el freno del popup.
@@ -37,9 +37,10 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// subida (P0-9b, FS-02): la plataforma ya evaluó y devolvió esa versión, y
 /// marcarla subida sin versión nueva registraría como enviada la misma copia
 /// rechazada y sacaría el rechazo de la cola. La salida es subir una versión
-/// corregida (<c>RenovarDocumentoCommand</c>), que devuelve todas las
-/// acreditaciones del Documento a <see cref="EstadoAcreditacion.PendienteDeSubir"/>;
-/// desde ahí sí se marca subida. Vale igual para la extensión.
+/// corregida (<c>RenovarDocumentoCommand</c>): con archivo nuevo sustituye el
+/// Documento y crea acreditaciones pendientes; al corregir el mismo registro
+/// reinicia sus acreditaciones a <see cref="EstadoAcreditacion.PendienteDeSubir"/>.
+/// Desde ahí sí se marca subida. La lista de la extensión reutiliza esta regla.
 /// </summary>
 public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId, bool ExigirProveedorActivo = false) : ICommand;
 
@@ -62,7 +63,7 @@ public class MarcarAcreditacionSubidaCommandHandler(
         if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
 
-        if (acreditacion.Estado == EstadoAcreditacion.Rechazada)
+        if (!ReglaSubidaAcreditacion.PermiteSubir(acreditacion))
             return Result.Fallo(Error.Crear(
                 CodigoRechazadaSinVersionNueva,
                 "La plataforma rechazó esta versión. Sube una versión corregida del documento: al guardarla volverá a quedar pendiente de subir."));
