@@ -133,6 +133,40 @@ public class VehiculosConcurrenciaTests : BunitContext
         cut.FindAll("input[type=checkbox]").Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Con ?q=… en la URL, la lista nunca se pide sin filtro. OnInitializedAsync deja <c>_resolviendoEmpresa</c> en
+    /// false antes de esperar sus selectores y ComponentBase no corre OnParametersSet (donde la búsqueda se lee
+    /// de la URL) hasta que termina: el primer render, hecho con los selectores en vuelo, cargaba el listado entero
+    /// y la sincronización posterior ponía la búsqueda sin recargar. En el navegador era una carrera
+    /// (VistaRecordadaE2ETests.Vehiculos_recuerda_el_orden…, intermitente en la cola de fusión); aquí se retiene
+    /// el selector para fijarla.
+    /// </summary>
+    [Fact]
+    public async Task Con_q_en_la_url_y_los_selectores_en_vuelo_la_lista_nunca_se_pide_sin_filtro()
+    {
+        var m = new MediadorFalso();
+        var enTransit = Vehiculo("Transit de obra");
+        m.ResultadosPorBusqueda[string.Empty] = ([Vehiculo("Furgoneta cualquiera")], 1);
+        m.ResultadosPorBusqueda["Transit"] = ([enTransit], 1);
+        var selectoresLiberados = new TaskCompletionSource();
+        m.Retener = peticion => peticion is ObtenerEmpresasParaSelectorQuery ? selectoresLiberados.Task : null;
+        Services.AddScoped<IMediator>(_ => m);
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<ITenantActual>(_ => new SeleccionEmpresaGestionadaDePrueba());
+        Services.AddScoped<ContextWorkspaceService>();
+        Services.AddScoped<IValidator<CrearVehiculoCommand>>(_ => new InlineValidator<CrearVehiculoCommand>());
+        Services.GetRequiredService<NavigationManager>().NavigateTo("vehiculos?q=Transit");
+
+        var cut = Render<Vehiculos>();
+        await cut.InvokeAsync(() => selectoresLiberados.SetResult());
+        cut.WaitForState(() => cut.FindAll("tbody a.boton-360-pagina").Count > 0);
+
+        m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().NotBeEmpty();
+        m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().OnlyContain(q => q.Busqueda == "Transit",
+            "la búsqueda de la URL se lee antes de la primera carga");
+        cut.Markup.Should().Contain("Transit de obra").And.NotContain("Furgoneta cualquiera");
+    }
+
     // --- Fila sin menú «⋯» (patrón de listados, 2026-10-08) --------------------------------------
 
     /// <summary>

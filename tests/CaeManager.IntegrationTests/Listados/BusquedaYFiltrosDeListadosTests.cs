@@ -210,7 +210,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
             contexto, alcance,
             new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
 
         return (await handler.Handle(consulta, CancellationToken.None)).Elementos.ToList();
     }
@@ -222,7 +222,7 @@ public class BusquedaYFiltrosDeListadosTests : IAsyncLifetime
             contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto));
 
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(busqueda, TamanoPagina: 50), CancellationToken.None);
         return resultado.Elementos.Select(e => e.RazonSocial).ToList();

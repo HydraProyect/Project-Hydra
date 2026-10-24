@@ -81,7 +81,8 @@ public class ObtenerEmpresasPorClienteQueryTests
 
         public ObtenerEmpresasQueryHandler Handler(AlcanceDatosServiceFalso alcance) => new(
             Contexto, alcance, new SinDocumentos(), new DocumentosQueryContextFalso(), new ConfiguracionQueryContextFalso(),
-            new AsignacionesQueryContextFalso(), new TrabajadoresQueryContextFalso(), new CentrosSinUso());
+            new AsignacionesQueryContextFalso(), new TrabajadoresQueryContextFalso(), new CentrosSinUso(),
+            new Centros.RequisitosObligatoriosSinIncumplidos());
     }
 
     private static AlcanceDatosServiceFalso Gestor(Escenario e, params Empresa[] empresas) =>

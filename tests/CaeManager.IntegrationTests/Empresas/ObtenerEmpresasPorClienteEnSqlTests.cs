@@ -95,7 +95,7 @@ public class ObtenerEmpresasPorClienteEnSqlTests : IAsyncLifetime
         new(contexto, new AlcanceDatosServiceFalso(),
             new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto));
 
     private CaeManagerDbContext CrearContexto()
     {

@@ -72,3 +72,12 @@ jobs:
 
       - name: scripts/verificar-gobernanza-pr.tests.sh
         run: bash scripts/verificar-gobernanza-pr.tests.sh
+
+      # scripts/preflight-pr.ps1 reimplementa en PowerShell las reglas de
+      # verificar-gobernanza-pr.sh para validar el cuerpo de la PR en local antes de
+      # abrirla. El .sh es la autoridad; este paso ejecuta los mismos casos contra los
+      # dos y exige el mismo veredicto (ver la cabecera de preflight-pr.tests.ps1).
+      # pwsh viene instalado en ubuntu-latest.
+      - name: scripts/preflight-pr.tests.ps1 (espejo PowerShell frente al .sh)
+        shell: pwsh
+        run: ./scripts/preflight-pr.tests.ps1 -ContraSh

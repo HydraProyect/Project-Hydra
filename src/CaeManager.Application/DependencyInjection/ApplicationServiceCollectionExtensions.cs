@@ -208,6 +208,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<IParserDocumentoOficialRegistry, ParserDocumentoOficialRegistry>();
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<IEvaluacionDeAccesoPorCentroService, EvaluacionDeAccesoPorCentroService>();
+        services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();

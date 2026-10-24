@@ -8867,6 +8867,105 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("SolicitudesPurga", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<string>>("_paisesPermitidos")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("PaisesPermitidos");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("PoliticasPaisesInicioSesion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Seguridad.RegistroInicioSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorRealUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ciudad")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DireccionIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Dispositivo")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("HuellaDispositivo")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<double?>("Latitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Metodo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("OcurridoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaisIso")
+                        .HasMaxLength(2)
+                        .HasColumnType("character(2)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("Senales")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OcurridoEnUtc");
+
+                    b.HasIndex("TenantId", "OcurridoEnUtc");
+
+                    b.HasIndex("TenantId", "UsuarioId", "OcurridoEnUtc");
+
+                    b.ToTable("RegistrosInicioSesion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Soporte.RegistroActividadSoporte", b =>
                 {
                     b.Property<Guid>("Id")

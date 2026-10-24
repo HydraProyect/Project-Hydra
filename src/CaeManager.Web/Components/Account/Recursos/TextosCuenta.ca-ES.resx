@@ -120,4 +120,40 @@
   <data name="PendienteRolQuienAsignaRespuesta" xml:space="preserve">
     <value>Un usuari amb rol Administrador de la teva organització, des de Configuració → Roles → «Pendientes de asignar». Si no saps qui és, pregunta-ho a la persona que et va donar d'alta.</value>
   </data>
+  <data name="NoHeSidoYoTituloPagina" xml:space="preserve">
+    <value>No he estat jo</value>
+  </data>
+  <data name="NoHeSidoYoEnlaceNoValidoTitulo" xml:space="preserve">
+    <value>Enllaç no vàlid</value>
+  </data>
+  <data name="NoHeSidoYoEnlaceNoValidoExplicacion" xml:space="preserve">
+    <value>Aquest enllaç no és vàlid, ja es va fer servir o ha caducat. Si creus que algú ha entrat al teu compte, canvia la contrasenya.</value>
+  </data>
+  <data name="NoHeSidoYoCambiarContrasena" xml:space="preserve">
+    <value>Canviar la meva contrasenya</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaTitulo" xml:space="preserve">
+    <value>Compte protegit</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaExplicacion" xml:space="preserve">
+    <value>Hem tancat totes les teves sessions i la contrasenya anterior ja no serveix. T&apos;hem enviat un correu per crear-ne una de nova.</value>
+  </data>
+  <data name="NoHeSidoYoProtegidaSinCorreoExplicacion" xml:space="preserve">
+    <value>Hem tancat totes les teves sessions i la contrasenya anterior ja no serveix, però no t&apos;hem pogut enviar el correu per crear-ne una de nova. Demana-ho des d&apos;aquí.</value>
+  </data>
+  <data name="NoHeSidoYoPedirEnlace" xml:space="preserve">
+    <value>Crear una contrasenya nova</value>
+  </data>
+  <data name="NoHeSidoYoMicrosoftExplicacion" xml:space="preserve">
+    <value>Hem tancat totes les teves sessions. El teu compte entra amb Microsoft: canvia la contrasenya del teu compte de Microsoft i avisa el teu Administrador.</value>
+  </data>
+  <data name="NoHeSidoYoPreguntaTitulo" xml:space="preserve">
+    <value>No has estat tu?</value>
+  </data>
+  <data name="NoHeSidoYoPreguntaExplicacion" xml:space="preserve">
+    <value>Si ho confirmes, tancarem totes les sessions obertes del teu compte, la contrasenya actual deixarà de servir i t&apos;enviarem un correu per crear-ne una de nova.</value>
+  </data>
+  <data name="NoHeSidoYoBoton" xml:space="preserve">
+    <value>Protegir el meu compte</value>
+  </data>
 </root>

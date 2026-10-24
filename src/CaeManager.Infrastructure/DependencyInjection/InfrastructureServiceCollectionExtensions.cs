@@ -143,7 +143,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddUserValidator<ValidadorUnicidadGlobalCuenta>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
+            .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -163,6 +165,19 @@ public static class InfrastructureServiceCollectionExtensions
         // Usuarios.MinutosCaducidadActivacion.
         services.Configure<DataProtectionTokenProviderOptions>(
             opciones => opciones.TokenLifespan = TimeSpan.FromMinutes(60));
+
+        // Inicios de sesión sospechosos: registro (con RLS del Tenant propietario
+        // de la cuenta), detección, aviso, bloqueo por país (desactivado por
+        // defecto) y retención de 12 meses. Ver VigilanciaInicioSesionService.
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>(
+            configuration.GetSection(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion));
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesTokenNoHeSidoYo>(opciones => opciones.TokenLifespan =
+            TimeSpan.FromDays(configuration.GetValue(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion + ":DiasVigenciaEnlaceNoHeSidoYo", 7)));
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.IGeolocalizadorIp, CaeManager.Infrastructure.Seguridad.GeolocalizadorIpDbIp>();
+        services.AddSingleton(sp => new CaeManager.Application.Seguridad.InicioSesion.RafagaFallosPorIp(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
+        services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
