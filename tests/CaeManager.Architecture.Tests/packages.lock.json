@@ -201,6 +201,11 @@
         "resolved": "1.4.0",
         "contentHash": "lLhaiI/mNDTNzgLqnmknhf4LjgTqOAyjx5+GNz0X3AxYMxUhmFppF2WVMdER+SDqwhE5wUF1pzs/cuLwFxs7xA=="
       },
+      "MaxMind.Db": {
+        "type": "Transitive",
+        "resolved": "5.2.0",
+        "contentHash": "UJ6zwjzV8YZ4YbELCUsK+9lEut5Ea6ks3p8CXEK9hQm8GxhJYrKsVxXcVvZsJ2Nzij1e89dXYrqUH7MCoWdhqg=="
+      },
       "MediatR": {
         "type": "Transitive",
         "resolved": "12.5.0",
@@ -1260,6 +1265,7 @@
           "ClosedXML": "[0.105.*, )",
           "HtmlSanitizer": "[9.2.1039, )",
           "MailKit": "[4.18.1, )",
+          "MaxMind.Db": "[5.2.0, )",
           "MessagePack": "[2.5.303, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
           "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",

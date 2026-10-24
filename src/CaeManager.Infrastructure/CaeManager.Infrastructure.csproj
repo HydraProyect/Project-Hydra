@@ -25,6 +25,7 @@
          global de ServicePointManager. Licencia MIT (verificada en el tag del
          paquete publicado). -->
     <PackageReference Include="MailKit" Version="4.18.1" />
+    <PackageReference Include="MaxMind.Db" Version="5.2.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">

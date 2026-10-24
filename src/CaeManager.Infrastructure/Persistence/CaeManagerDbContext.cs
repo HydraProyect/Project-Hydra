@@ -259,6 +259,8 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
     // Inbound M1, PR 3: registro de las lecturas entre Tenants. Solo lo inserta la base (app_inbound_*); EF solo lo lee.
     public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
+    public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
+    public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
