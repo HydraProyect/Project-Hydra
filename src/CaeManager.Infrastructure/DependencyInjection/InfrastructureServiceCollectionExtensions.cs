@@ -74,6 +74,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
+        // Relleno automático de los Tenants sin versión, apagado por defecto hasta el cotejo (PR 5 del plan).
+        services.Configure<CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado>(
+            configuration.GetSection(CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado.Seccion));
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorMarcaRecalculandoEstado, CaeManager.Infrastructure.EstadoMaterializado.LectorMarcaRecalculandoEstado>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(

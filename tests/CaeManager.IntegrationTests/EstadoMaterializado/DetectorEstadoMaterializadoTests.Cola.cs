@@ -9,6 +9,7 @@ using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.EstadoMaterializado;
@@ -109,7 +110,16 @@ public partial class DetectorEstadoMaterializadoTests
         var marca = await LeerMarcaAsync(tenant);
         marca.TenantEntero.Should().BeTrue("un Tenant sin versión está recalculándose entero");
 
+        // Con el relleno automático apagado (por defecto, hasta el cotejo de la PR 5) la cola no crea la versión.
         await ProcesarColaAsync();
+        (await fixture.Arnes.EnTenantAsync(tenant, (db, _) => db.Set<VersionEstadoTenant>().CountAsync()))
+            .Should().Be(0, "sin EstadoMaterializado:RellenoAutomatico la cola no rellena un Tenant sin versión");
+
+        var pasadas = await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+            ActivatorUtilities.CreateInstance<ProcesadorColaEstadoMaterializado>(
+                    sp, Options.Create(new OpcionesEstadoMaterializado { RellenoAutomatico = true }))
+                .ProcesarTenantAsync(CancellationToken.None));
+        pasadas.Should().Be(1, "con el relleno automático encendido la cola rellena el Tenant sin versión en una pasada");
 
         var (despues, versiones, huerfanas) = await fixture.Arnes.EnTenantAsync(tenant, async (db, _) => (
             await EstadoMaterializadoCoincideConRecalculoCompletoTests.FotoAsync(db),

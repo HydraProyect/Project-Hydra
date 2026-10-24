@@ -3,6 +3,7 @@ using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Infrastructure.EstadoMaterializado;
 
@@ -15,6 +16,8 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// <list type="number">
 /// <item>Reclama hasta <see cref="EntradasPorPasada"/> entradas con <c>FOR UPDATE SKIP LOCKED</c>, primero las de Tenant
 /// entero.</item>
+/// <item>Un Tenant sin versión solo se toca con <see cref="OpcionesEstadoMaterializado.RellenoAutomatico"/> encendido
+/// (apagado por defecto hasta el cotejo de la PR 5); si no, la pasada no reclama nada.</item>
 /// <item>Si hay una de Tenant entero (o el Tenant no tiene versión): cerrojo exclusivo del Tenant, borra todas las entradas
 /// del Tenant que nadie más tiene bloqueadas (se juntan en una sola pasada) y rellena el Tenant entero. Una acción que
 /// cambia algo mientras tanto no espera: deja su cambio en la cola para la pasada siguiente.</item>
@@ -29,7 +32,8 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// sin entradas reclamadas deja una de Tenant entero ya intentada, para esperar igual.
 /// </summary>
 public sealed class ProcesadorColaEstadoMaterializado(
-    CaeManagerDbContext dbContext, IRecalculoEstadoMaterializado recalculo, ILogger<ProcesadorColaEstadoMaterializado> logger)
+    CaeManagerDbContext dbContext, IRecalculoEstadoMaterializado recalculo, IOptions<OpcionesEstadoMaterializado> opciones,
+    ILogger<ProcesadorColaEstadoMaterializado> logger)
 {
     /// <summary>Entradas que reclama una pasada como mucho.</summary>
     public const int EntradasPorPasada = 200;
@@ -84,6 +88,12 @@ public sealed class ProcesadorColaEstadoMaterializado(
             resultado = Resultado.SinTrabajo;
 
             var tieneVersion = await CerrojosEstadoMaterializado.TieneVersionAsync(dbContext, tenant);
+
+            // Con el relleno automático apagado, un Tenant sin versión no se toca: sus entradas se quedan en la cola (sin
+            // reclamar) y sus pantallas siguen calculando en vivo hasta que la opción se encienda (OpcionesEstadoMaterializado).
+            if (!tieneVersion && !opciones.Value.RellenoAutomatico)
+                return true;
+
             reclamadas = await ColaEstadoMaterializado.ReclamarAsync(dbContext, tenant, EntradasPorPasada);
             if (tieneVersion && reclamadas.Count == 0)
                 return true;
