@@ -104,9 +104,16 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         _desechado = true;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
+
+    /// <summary>
+    /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
+    /// el refresco que conserva la selección y las filas desplegadas.
+    /// </summary>
+    private IDisposable? _repintado;
 
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
@@ -418,6 +425,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+        _repintado ??= EscucharCambiosDeEstado(RefrescarTrasCorreccionAsync);
 
         if (EstadoAutenticacion is not null)
         {

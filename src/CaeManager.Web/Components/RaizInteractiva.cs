@@ -137,6 +137,18 @@ public abstract class RaizInteractiva : ComponentBase, IHandleEvent, IHandleAfte
         }
     }
 
+    /// <summary>
+    /// Vuelve a pedir los datos y repinta cada vez que cambia el estado materializado de un Tenant que este circuito ha
+    /// leído (<see cref="RepintadoPorCambioDeEstado"/>, diseño § 13.11). Quien lo pide lo libera en su <c>Dispose</c>. Sin
+    /// caché en el ámbito no escucha nada (<c>null</c>).
+    /// </summary>
+    /// <param name="recargar">Relee y pinta (<c>StateHasChanged</c>); corre en el despachador del componente.</param>
+    protected IDisposable? EscucharCambiosDeEstado(Func<Task> recargar) =>
+        RepintadoPorCambioDeEstado.Escuchar(
+            Servicios.GetService(typeof(CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito))
+                as CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito,
+            InvokeAsync, recargar, excepcion => LimiteDeErrores.Registrar(Servicios, excepcion));
+
     private static bool DebeContenerse(Exception excepcion) =>
         excepcion is not NavigationException;
 

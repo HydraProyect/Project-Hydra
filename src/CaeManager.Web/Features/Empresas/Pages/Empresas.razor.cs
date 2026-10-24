@@ -210,8 +210,19 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
 
+    /// <summary>
+    /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
+    /// el refresco que conserva la selección, las filas desplegadas y la fila enfocada.
+    /// </summary>
+    private IDisposable? _repintado;
+
     protected override async Task OnInitializedAsync()
     {
+        _repintado ??= EscucharCambiosDeEstado(async () =>
+        {
+            await RefrescarTrasCorreccionAsync();
+            StateHasChanged();
+        });
         // La marca de fila sigue al panel del Context Workspace, que se abre y
         // se cierra fuera de esta página.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
@@ -421,6 +432,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _desechado = true;
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }

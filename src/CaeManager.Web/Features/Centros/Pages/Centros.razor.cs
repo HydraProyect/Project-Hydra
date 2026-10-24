@@ -273,8 +273,36 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
         _desechado = true;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private IDisposable? _repintado;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la misma página (con el alcance del usuario, como cualquier lectura) y se pinta
+    /// sin el esqueleto de carga, conservando la selección y las filas desplegadas que siguen en la página. Con una carga
+    /// en vuelo no hace nada: esa carga ya trae lo nuevo.
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _cargando)
+            return;
+
+        var resultado = await Mediator.Send(ConsultaDePaginaActual(), _ciclo.Token);
+        if (_desechado || _cargando)
+            return;
+
+        _totalElementos = resultado.TotalElementos;
+        _recuentosPorEstado = resultado.RecuentosPorEstado;
+        _resumenPorGrupo = resultado.ResumenPorGrupo;
+        _elementosPagina = resultado.Elementos.ToList();
+        var enPagina = _elementosPagina.Select(c => c.Id).ToHashSet();
+        _seleccionados.IntersectWith(enPagina);
+        _expandidos.IntersectWith(enPagina);
+        StateHasChanged();
     }
 
     // Reutilizan las mismas reglas que ya corren en el servidor al guardar
@@ -306,6 +334,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
 
         // Hasta resolver la empresa activa no se monta la lista ni sus acciones: con la consulta en
         // vuelo el render saldría con «hay empresa» y lanzaría la carga (y la exportación) del origen.

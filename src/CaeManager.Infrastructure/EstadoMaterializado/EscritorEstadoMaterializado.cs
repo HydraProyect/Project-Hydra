@@ -1,4 +1,5 @@
 using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Application.EstadoMaterializado.Frescura;
 using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -24,7 +25,7 @@ namespace CaeManager.Infrastructure.EstadoMaterializado;
 /// <c>CalculadoEnUtc</c> no cuenta como cambio: es la hora de la última escritura que cambió la fila.
 /// </para>
 /// </remarks>
-public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) : IEscritorEstadoMaterializado
+public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext, IRegistroCambiosEstado registroCambios) : IEscritorEstadoMaterializado
 {
     private const string TenantDeLaConexion = "NULLIF(current_setting('app.tenant_id', true), '')::uuid";
 
@@ -36,19 +37,36 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
         await EnTransaccionAsync(async () =>
         {
             var cambiadas = await EscribirFilasEnTransaccionAsync(calculo, cancellationToken);
-            await SubirVersionEnTransaccionAsync(crearVersionSiFalta, huboCambios: cambiadas > 0, cancellationToken);
+            await SubirVersionEnTransaccionAsync(crearVersionSiFalta, huboCambios: cambiadas > 0, EntidadesDelAlcance(calculo), cancellationToken);
             return cambiadas;
         }, cancellationToken);
 
     public Task<int> EscribirFilasAsync(CalculoEstadoMaterializado calculo, CancellationToken cancellationToken) =>
         EnTransaccionAsync(() => EscribirFilasEnTransaccionAsync(calculo, cancellationToken), cancellationToken);
 
+    // El final del relleno: los lotes y la purga de huérfanos tocaron un número de entidades sin cota, así que el aviso va sin
+    // entidades. La caché lo toma como «no dice qué cambió» y relee entero; el circuito repinta igual.
     public Task SubirVersionAsync(bool crearSiFalta, bool huboCambios, CancellationToken cancellationToken) =>
         EnTransaccionAsync(async () =>
         {
-            await SubirVersionEnTransaccionAsync(crearSiFalta, huboCambios, cancellationToken);
+            await SubirVersionEnTransaccionAsync(crearSiFalta, huboCambios, [], cancellationToken);
             return 0;
         }, cancellationToken);
+
+    /// <summary>
+    /// Todas las entidades cuyas filas puede haber escrito (borrado, cambiado o añadido) el cálculo: las de su alcance (diseño
+    /// § 13.11, contrato de <see cref="IRegistroCambiosEstado"/>). Los pares y las acreditaciones solo se escriben en Centros del
+    /// alcance y con titulares del cálculo o de un Centro entero del alcance; se añaden sus titulares para que una lectura que
+    /// dependa del titular también los vea. Más de las que cambiaron no es un error: la caché relee alguna fila de más.
+    /// </summary>
+    private static IReadOnlyCollection<Guid> EntidadesDelAlcance(CalculoEstadoMaterializado calculo) =>
+        calculo.CentroIds
+            .Concat(calculo.CentrosConTodosLosPares)
+            .Concat(calculo.TrabajadorIds)
+            .Concat(calculo.EmpresaIds)
+            .Concat(calculo.Pares.Select(p => p.TitularId))
+            .Concat(calculo.Plataforma.Select(p => p.TitularId))
+            .ToHashSet();
 
     public async Task<T> EnTransaccionConTenantExclusivoAsync<T>(Func<Task<T>> trabajo, CancellationToken cancellationToken) =>
         await EnTransaccionAsync(async () =>
@@ -95,12 +113,21 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
     /// sin cambios no toca la fila caliente, así que dos recálculos de clausuras disjuntas del mismo Tenant no se esperan en
     /// ella (diseño § 4.4, M1).
     /// </summary>
-    private async Task SubirVersionEnTransaccionAsync(bool crearSiFalta, bool huboCambios, CancellationToken ct)
+    /// <remarks>
+    /// Tras la subida, y dentro de la misma transacción, anota el aviso para los circuitos (diseño § 13.11) con la versión que
+    /// devolvió esta misma sentencia (<c>RETURNING</c>, nunca una lectura aparte, que podría ver la de otra transacción). Sin
+    /// fila devuelta (no se subió: un Tenant sin versión en un recálculo parcial, o la versión ya existía en el relleno sin
+    /// cambios) no se anota. El aviso sale tras el <c>COMMIT</c> y solo si el Tenant coincide con el de la conexión
+    /// (<c>AvisoEstadoTrasConfirmarInterceptor</c>).
+    /// </remarks>
+    private async Task SubirVersionEnTransaccionAsync(
+        bool crearSiFalta, bool huboCambios, IReadOnlyCollection<Guid> entidades, CancellationToken ct)
     {
         if (!crearSiFalta && !huboCambios)
             return;
 
-        await dbContext.Database.ExecuteSqlRawAsync(
+        const string devuelve = """RETURNING "TenantId", "Version" """;
+        var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(
             (crearSiFalta, huboCambios) switch
             {
                 (true, true) => $"""
@@ -108,15 +135,31 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                     VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
                     ON CONFLICT ("TenantId") DO UPDATE
                         SET "Version" = "VersionesEstadoTenant"."Version" + 1, "ActualizadoEnUtc" = now()
+                    {devuelve}
                     """,
                 (true, false) => $"""
                     INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
                     VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
                     ON CONFLICT ("TenantId") DO NOTHING
+                    {devuelve}
                     """,
-                _ => $"""UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now() WHERE "TenantId" = {TenantDeLaConexion}""",
-            },
-            ct);
+                _ => $"""
+                    UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()
+                    WHERE "TenantId" = {TenantDeLaConexion}
+                    {devuelve}
+                    """,
+            }).ToListAsync(ct);
+
+        foreach (var subida in subidas)
+            registroCambios.Anotar(new AvisoCambioEstado(subida.TenantId, subida.Version, entidades));
+    }
+
+    /// <summary>Fila que devuelve la subida de versión.</summary>
+    private sealed class VersionSubida
+    {
+        public Guid TenantId { get; set; }
+
+        public long Version { get; set; }
     }
 
     public Task<int> PurgarHuerfanosAsync(

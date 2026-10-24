@@ -238,8 +238,35 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
             return;
 
         _desechado = true;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private IDisposable? _repintado;
+
+    protected override void OnInitialized() =>
+        _repintado ??= EscucharCambiosDeEstado(RepintarEstadoDeCabeceraAsync);
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee solo el estado de la cabecera (la fila del listado, con el alcance del usuario
+    /// como cualquier lectura), sin el esqueleto de <see cref="CargarAsync"/>. Si la carga cambió entretanto, la respuesta ya
+    /// no es de lo que se ve y se descarta.
+    /// </summary>
+    private async Task RepintarEstadoDeCabeceraAsync()
+    {
+        if (_desechado || _cargando || _detalle is not { } detalle)
+            return;
+
+        var carga = _cargaVigente;
+        var fila = await Mediator.Send(new ObtenerTrabajadoresQuery(
+            null, Pagina: 1, TamanoPagina: 1, ConDesgloseDocumental: true, TrabajadorId: detalle.Id), _ciclo.Token);
+        if (!EsVigente(carga) || _detalle?.Id != detalle.Id)
+            return;
+
+        _estadoTrabajador = fila.Elementos.FirstOrDefault();
+        StateHasChanged();
     }
 
     /// <summary>La respuesta es de la pregunta vigente y la página sigue viva.</summary>

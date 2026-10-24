@@ -200,7 +200,22 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         [new BreadcrumbElemento(Textos["MigaEmpresas"]), new BreadcrumbElemento(_detalle?.RazonSocial ?? "…")];
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        // El estado de la pestaña Trabajadores sale de ObtenerTrabajadoresQuery, que lee el estado materializado: un aviso
+        // de cambio (diseño § 13.11) la relee dejando a la vista la lista ya pintada hasta que llega la nueva.
+        _repintado ??= EscucharCambiosDeEstado(async () =>
+        {
+            if (_detalle is null)
+                return;
+            await CargarTrabajadoresAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private IDisposable? _repintado;
 
     /// <summary>
     /// Solo recarga cuando cambia la Empresa. La pestaña y el chip también
@@ -950,6 +965,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     public void Dispose()
     {
         InvalidarCargas();
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }

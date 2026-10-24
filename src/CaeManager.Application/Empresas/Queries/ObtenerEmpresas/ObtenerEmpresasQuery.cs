@@ -180,9 +180,10 @@ public class ObtenerEmpresasQueryHandler(
             // Los requisitos obligatorios incumplidos de todas las Empresas de la consulta, antes de paginar: entran en la
             // clave de estado igual que en ObtenerTrabajadoresQuery (decisión del 2026-10-23). Solo se materializan los Ids
             // con alguno, nunca el listado.
-            var materializado = permitirEstadoMaterializado
-                && await lector.DisponibleAsync(cancellationToken)
-                && !await lector.HayFilasQueNoDecideAsync(AmbitoEstadoEntidad.Empresa, consulta.Select(e => e.Id), cancellationToken);
+            var leidoCompleto = permitirEstadoMaterializado
+                ? await lector.LeerEstadoCompletoAsync(AmbitoEstadoEntidad.Empresa, consulta.Select(e => e.Id), cancellationToken)
+                : null;
+            var materializado = leidoCompleto is not null;
             var incumplidos = materializado
                 ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
                 : await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
@@ -243,51 +244,37 @@ public class ObtenerEmpresasQueryHandler(
                     : claveSinCaducidad
             });
 
-            // Estado materializado: la misma clave, de la fila de EstadosEntidad en vez de la fecha del peor documento y los
-            // requisitos incumplidos calculados. Una Empresa sin fila (alta que el recálculo aún no ha escrito) es una sin
-            // documentos ni requisitos incumplidos. Vencido en ámbar solo si todos sus documentos vencidos son de Tipos que
-            // ningún Centro marca obligatorios (el lector ya descartó las filas que eso no decide).
-            if (materializado)
+            // Estado materializado: la misma clave, de la fila de EstadosEntidad (leída de la caché del circuito, diseño § 13.11)
+            // en vez de la fecha del peor documento y los requisitos incumplidos calculados. Vencido en ámbar solo si todos sus
+            // documentos vencidos son de Tipos que ningún Centro marca obligatorios (el lector ya descartó las filas que eso no
+            // decide, y las entidades sin fila). El reparto por clave llega como listas de Ids, que van a SQL como parámetros.
+            if (leidoCompleto is not null)
             {
-                var ordVencido = (short)EstadoDocumento.Vencido;
-                var ordFaltante = (short)EstadoDocumento.Faltante;
-                var ordUrgente = (short)EstadoDocumento.Urgente;
-                var ordProximo = (short)EstadoDocumento.Proximo;
-                var ordSinConfirmar = (short)EstadoDocumento.SinConfirmar;
-                var ordVigente = (short)EstadoDocumento.Vigente;
-                var unidas =
-                    from e in consulta
-                    join s in lector.Entidades(AmbitoEstadoEntidad.Empresa) on e.Id equals s.EntidadId into coincidentes
-                    from s in coincidentes.DefaultIfEmpty()
-                    select new
-                    {
-                        e.Id,
-                        e.RazonSocial,
-                        e.Cif,
-                        e.CreadoEnUtc,
-                        ClientePrincipal = ordenaPorCliente
-                            ? clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial)
-                            : null,
-                        Estado = s == null ? EstadoEntidad.SinEstado : s.Estado,
-                        Vencidos = s == null ? 0 : s.Vencidos,
-                        VencidosSinBloqueo = s == null ? 0 : s.VencidosSinBloqueo
-                    };
-                conEstado = unidas.Select(e => new
+                var idsVencido = leidoCompleto.Vencido;
+                var idsVencidoSinBloqueo = leidoCompleto.VencidoSinBloqueo;
+                var idsFaltante = leidoCompleto.Faltante;
+                var idsUrgente = leidoCompleto.Urgente;
+                var idsProximo = leidoCompleto.Proximo;
+                var idsSinConfirmar = leidoCompleto.SinConfirmar;
+                var idsVigente = leidoCompleto.Vigente;
+                conEstado = consulta.Select(e => new
                 {
                     e.Id,
                     e.RazonSocial,
                     e.Cif,
                     e.CreadoEnUtc,
-                    e.ClientePrincipal,
+                    ClientePrincipal = ordenaPorCliente
+                        ? clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial)
+                        : null,
                     PeorFecha = (DateOnly?)null,
                     HaySinConfirmar = false,
-                    ClaveEstado = e.Estado == ordVencido
-                            ? (e.Vencidos > 0 && e.Vencidos == e.VencidosSinBloqueo ? claveVencidoSinBloqueo : claveVencido)
-                        : e.Estado == ordFaltante ? claveFaltante
-                        : e.Estado == ordUrgente ? claveUrgente
-                        : e.Estado == ordProximo ? claveProximo
-                        : e.Estado == ordSinConfirmar ? claveSinConfirmar
-                        : e.Estado == ordVigente ? claveVigente
+                    ClaveEstado = idsVencido.Contains(e.Id) ? claveVencido
+                        : idsVencidoSinBloqueo.Contains(e.Id) ? claveVencidoSinBloqueo
+                        : idsFaltante.Contains(e.Id) ? claveFaltante
+                        : idsUrgente.Contains(e.Id) ? claveUrgente
+                        : idsProximo.Contains(e.Id) ? claveProximo
+                        : idsSinConfirmar.Contains(e.Id) ? claveSinConfirmar
+                        : idsVigente.Contains(e.Id) ? claveVigente
                         : claveSinCaducidad
                 });
             }

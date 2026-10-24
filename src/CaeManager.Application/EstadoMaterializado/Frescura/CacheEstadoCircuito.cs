@@ -103,12 +103,35 @@ public sealed class CacheEstadoCircuito(
         // versión con que se guardan, y la siguiente lectura las vuelve a pedir. Al revés, se guardarían filas viejas con
         // una versión nueva.
         var version = await lectorVersion.LeerAsync(cancellationToken);
+        return await ObtenerDeVersionAsync(consulta, contexto.Value, version, cancellationToken);
+    }
+
+    /// <summary>
+    /// Como <see cref="ObtenerAsync{TFila}(ConsultaEstadoEnCache{TFila}, CancellationToken)"/>, con la versión ya leída por
+    /// quien llama en este mismo ámbito (y con su mismo contexto RLS), <b>antes</b> de pedir las filas: los lectores que ya
+    /// comprueban que el Tenant está completo leen la versión en esa misma sentencia y no pagan otra. Con <c>null</c> (sin
+    /// fila de versión visible, o una identidad que ve varias) lee directamente y no guarda nada.
+    /// </summary>
+    public async Task<IReadOnlyList<TFila>> ObtenerAsync<TFila>(
+        ConsultaEstadoEnCache<TFila> consulta, VersionEstadoLeida? versionLeida, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(consulta);
+        var contexto = await ClaveContextoMemo.ResolverAsync(currentUser, tenantActual);
+        if (contexto is null)
+            return await consulta.LeerTodas(cancellationToken);
+
+        return await ObtenerDeVersionAsync(consulta, contexto.Value, versionLeida, cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<TFila>> ObtenerDeVersionAsync<TFila>(
+        ConsultaEstadoEnCache<TFila> consulta, ClaveContextoMemo contexto, VersionEstadoLeida? version, CancellationToken cancellationToken)
+    {
         if (version is null)
             return await consulta.LeerTodas(cancellationToken);
 
         Suscribir(version.TenantId);
         var dia = DiaDeNegocio.Hoy(_reloj);
-        var clave = new ClaveEntrada(contexto.Value, consulta.Nombre, version.TenantId);
+        var clave = new ClaveEntrada(contexto, consulta.Nombre, version.TenantId);
 
         IReadOnlyList<TFila>? anteriores = null;
         HashSet<Guid>? avisadas = null;
