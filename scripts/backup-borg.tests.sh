@@ -20,11 +20,39 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 MOCK_BIN="$TMP_ROOT/bin"
 mkdir -p "$MOCK_BIN"
 
+# Volumen /data de mentira, como el punto de montaje real del volumen
+# caemanager-data: un documento publicado y el temporal de una escritura a medias
+# (DiskFileStorageService escribe `<ruta>.tmp-<guid>` y luego hace rename).
+TENANT_PRUEBA="0123456789abcdef0123456789abcdef"
+PUNTO_MONTAJE="$TMP_ROOT/volumenes/caemanager-data/_data"
+mkdir -p "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA"
+echo pdf > "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf"
+TEMPORAL_PRUEBA="0123456789abcdef0123456789abcdef.pdf.tmp-fedcba9876543210fedcba9876543210"
+echo medio > "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/$TEMPORAL_PRUEBA"
+PUNTO_MONTAJE_SIN_DOCUMENTOS="$TMP_ROOT/volumenes/vacio/_data"
+mkdir -p "$PUNTO_MONTAJE_SIN_DOCUMENTOS"
+export PUNTO_MONTAJE
+
 cat > "$MOCK_BIN/docker" <<'EOF'
 #!/bin/bash
 # docker exec caemanager-db pg_dump ...  /  docker cp <ranura de la app>:RUTA DEST
+# docker inspect -f '<plantilla de /data>' <ranura>  /  docker volume inspect -f '{{ .Mountpoint }}' VOL
 # ESC_CONTENEDORES_APP: qué contenedores de la app existen (por defecto, las dos ranuras).
+# ESC_VOLUMEN: nombre del volumen montado en /data ("" = /data no es un volumen con nombre).
+# ESC_PUNTO_MONTAJE: lo que devuelve `docker volume inspect` (por defecto, el volumen de mentira).
+# ESC_TIPO_VOLUMEN: «driver número-de-opciones» del volumen (por defecto, `local 0`).
 echo "docker $*" >> "${LOG_DOCKER:-/dev/null}"
+if [ "$1" = "volume" ] && [ "$2" = "inspect" ]; then
+  case "$4" in
+    *Driver*) printf '%s\n' "${ESC_TIPO_VOLUMEN-local 0}" ;;
+    *) printf '%s\n' "${ESC_PUNTO_MONTAJE-$PUNTO_MONTAJE}" ;;
+  esac
+  exit 0
+fi
+if [ "$1" = "inspect" ] && [ "$2" = "-f" ]; then
+  printf '%s\n' "${ESC_VOLUMEN-caemanager-data}"
+  exit 0
+fi
 if [ "$1" = "inspect" ]; then
   case " ${ESC_CONTENEDORES_APP-caemanager-app-azul caemanager-app-verde} " in *" $2 "*) exit 0 ;; *) exit 1 ;; esac
 fi
@@ -47,9 +75,34 @@ if [ "$1" = "cp" ]; then
 fi
 exit 0
 EOF
+# `unshare` y `mount` falsos: el CI no corre como root. `unshare` registra sus
+# opciones y ejecuta el programa de detrás de `--`; el bind de `mount` se imita
+# copiando el origen en el destino (solo dentro del directorio de trabajo del
+# guion: el origen no se toca) y el remount de solo lectura puede fallar a voluntad.
+cat > "$MOCK_BIN/unshare" <<'EOF'
+#!/bin/bash
+echo "unshare $*" >> "$LOG_ORDEN"
+while [ $# -gt 0 ] && [ "$1" != "--" ]; do shift; done
+shift
+exec "$@"
+EOF
+cat > "$MOCK_BIN/mount" <<'EOF'
+#!/bin/bash
+echo "mount $*" >> "$LOG_ORDEN"
+if [ "$1" = "--bind" ]; then cp -a "$2"/. "$3"/; exit 0; fi
+if [ "$1" = "-o" ] && [ "$2" = "remount,bind,ro" ] && [ "${ESC_RO_FALLA:-0}" = "1" ]; then exit 32; fi
+exit 0
+EOF
 cat > "$MOCK_BIN/borg" <<'EOF'
 #!/bin/bash
 echo "borg $*" >> "$LOG_BORG"
+echo "borg $1" >> "$LOG_ORDEN"
+# ESC_PROBAR_RO=1 (escenario con root real): ¿documentos/ es de solo lectura y
+# está montado, visto desde el propio borg?
+if [ "$1" = "create" ] && [ "${ESC_PROBAR_RO:-0}" = "1" ]; then
+  if touch documentos/escritura-de-prueba 2>/dev/null; then echo "documentos-escribible" >> "$LOG_ORDEN"; else echo "documentos-solo-lectura" >> "$LOG_ORDEN"; fi
+  awk -v d="$PWD/documentos" '$5 == d { print "montado-visto-desde-borg" }' /proc/self/mountinfo >> "$LOG_ORDEN"
+fi
 # En `create` el directorio de trabajo es lo que entra en el archivo: se copia para
 # poder comprobar QUÉ entra (y con qué permisos), no solo que borg se llamó.
 if [ "$1" = "create" ]; then rm -rf "$LOG_BORG.archivo"; mkdir -p "$LOG_BORG.archivo"; for a in "${@:2}"; do case "$a" in -*|::*|zstd) ;; *) [ -e "$a" ] && cp -a "$a" "$LOG_BORG.archivo/" ;; esac; done; fi
@@ -80,8 +133,9 @@ printf 'POSTGRES_PASSWORD=%s\nSENTRY_DSN=https://%s@sentry.example.invalid/1\n' 
 # ejecutar NOMBRE [VAR=valor ...] -> deja $SALIDA, $CODIGO, $LOG_CURL, $LOG_BORG
 ejecutar() {
   local nombre="$1"; shift
-  export LOG_CURL="$TMP_ROOT/$nombre.curl" LOG_BORG="$TMP_ROOT/$nombre.borg" LOG_DOCKER="$TMP_ROOT/$nombre.docker"
-  : > "$LOG_CURL"; : > "$LOG_BORG"; : > "$LOG_DOCKER"
+  export LOG_CURL="$TMP_ROOT/$nombre.curl" LOG_BORG="$TMP_ROOT/$nombre.borg" LOG_DOCKER="$TMP_ROOT/$nombre.docker" \
+         LOG_ORDEN="$TMP_ROOT/$nombre.orden"
+  : > "$LOG_CURL"; : > "$LOG_BORG"; : > "$LOG_DOCKER"; : > "$LOG_ORDEN"
   SALIDA=$(env ENV_PRODUCCION="$ENV_FALSO" "$@" PATH="$MOCK_BIN:$PATH" BORG_REPO=repo-falso BORG_PASSPHRASE=x \
       bash "$SCRIPT" 2>&1)
   CODIGO=$?
@@ -118,14 +172,14 @@ comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
 comprobar "un único curl, el de /fail" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
 comprobar "no llegó a borg create" '! grep -q "^borg create" "$LOG_BORG"'
 
-echo "== ranuras de la app (P1-F2): copia de la que exista, aunque sea solo verde o la anterior"
+echo "== ranuras de la app (P1-F2): lee de la que exista, aunque sea solo verde o la anterior"
 ejecutar soloverde ESC_CONTENEDORES_APP="caemanager-app-verde"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
-comprobar "copia claves y documentos de caemanager-app-verde" \
-  '[ "$(grep -c "^docker cp caemanager-app-verde:/data/" "$LOG_DOCKER")" -eq 2 ]'
+comprobar "copia las claves de caemanager-app-verde y busca su volumen /data" \
+  '[ "$(grep -c "^docker cp caemanager-app-verde:/data/dataprotection-keys " "$LOG_DOCKER")" -eq 1 ] && grep -q "^docker inspect -f .* caemanager-app-verde\$" "$LOG_DOCKER"'
 ejecutar anterior ESC_CONTENEDORES_APP="caemanager-app"
 comprobar "con el contenedor único anterior a P1-F2 también" \
-  '[ "$CODIGO" -eq 0 ] && [ "$(grep -c "^docker cp caemanager-app:/data/" "$LOG_DOCKER")" -eq 2 ]'
+  '[ "$CODIGO" -eq 0 ] && [ "$(grep -c "^docker cp caemanager-app:/data/dataprotection-keys " "$LOG_DOCKER")" -eq 1 ] && grep -q "^docker inspect -f .* caemanager-app\$" "$LOG_DOCKER"'
 ejecutar sinapp BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CONTENEDORES_APP=""
 comprobar "sin ningún contenedor de la app: falla y avisa /fail" \
   '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
@@ -161,7 +215,7 @@ ejecutar envok BETTERSTACK_HEARTBEAT_URL="$URL"
 ARCH="$LOG_BORG.archivo"
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "el archivo Borg lleva env-produccion, byte a byte igual al .env" '[ -f "$ARCH/env-produccion" ] && cmp -s "$ARCH/env-produccion" "$ENV_FALSO"'
-comprobar "y sigue llevando dump, claves y documentos" '[ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ] && [ -f "$ARCH/documentos/a.pdf" ]'
+comprobar "y sigue llevando dump, claves y documentos" '[ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ] && [ -f "$ARCH/documentos/$TENANT_PRUEBA/a.pdf" ]'
 comprobar "permisos 0600" '[ "$(stat -c %a "$ARCH/env-produccion" 2>/dev/null || stat -f %Lp "$ARCH/env-produccion")" = "600" ]'
 comprobar "el contenido NO sale en la salida del guion" '! printf "%s" "$SALIDA" | grep -q "$SENTINELA"'
 comprobar "el contenido NO va en argv de borg" '! grep -q "$SENTINELA" "$LOG_BORG"'
@@ -180,7 +234,7 @@ ejecutar sinenv BETTERSTACK_HEARTBEAT_URL="$URL" ENV_PRODUCCION="$TMP_ROOT/no-ex
 comprobar "termina distinto de 0" '[ "$CODIGO" -ne 0 ]'
 comprobar "dice qué falta y cómo salir" 'printf "%s" "$SALIDA" | grep -q "no hay .env de producción" && printf "%s" "$SALIDA" | grep -q "BACKUP_SIN_ENV=1"'
 comprobar "se creó el archivo Borg" 'grep -q "^borg create" "$LOG_BORG"'
-comprobar "el archivo lleva la BD, las claves y los documentos" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ -f "$LOG_BORG.archivo/dataprotection-keys/key-x.xml" ] && [ -f "$LOG_BORG.archivo/documentos/a.pdf" ]'
+comprobar "el archivo lleva la BD, las claves y los documentos" '[ -s "$LOG_BORG.archivo/CaeManager.dump" ] && [ -f "$LOG_BORG.archivo/dataprotection-keys/key-x.xml" ] && [ -f "$LOG_BORG.archivo/documentos/$TENANT_PRUEBA/a.pdf" ]'
 comprobar "y no lleva env-produccion" '[ ! -e "$LOG_BORG.archivo/env-produccion" ]'
 comprobar "prune y compact también corrieron (la retención no se salta)" 'grep -q "^borg prune" "$LOG_BORG" && grep -q "^borg compact" "$LOG_BORG"'
 comprobar "avisó /fail y no mandó el ping de éxito (un único curl)" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
@@ -212,6 +266,94 @@ ejecutar sinenv-explicito ENV_PRODUCCION="$TMP_ROOT/no-existe" BACKUP_SIN_ENV=1
 comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
 comprobar "avisa de que el archivo NO lleva el .env" 'printf "%s" "$SALIDA" | grep -q "NO incluye el .env"'
 comprobar "el archivo Borg no lleva env-produccion" '[ ! -e "$LOG_BORG.archivo/env-produccion" ]'
+
+echo "== documentos/ se lee del punto de montaje del volumen, sin copia temporal en el host"
+ejecutar encaliente BETTERSTACK_HEARTBEAT_URL="$URL"
+ARCH="$LOG_BORG.archivo"
+comprobar "termina con 0 y manda el ping de éxito" '[ "$CODIGO" -eq 0 ] && [ "$(llamadas_curl)" -eq 1 ] && ! grep -q "/fail" "$LOG_CURL"'
+comprobar "ya NO hay docker cp de documentos/" '! grep -q "^docker cp .*:/data/documentos" "$LOG_DOCKER"'
+comprobar "pregunta el punto de montaje del volumen de /data" 'grep -q "^docker volume inspect -f {{ .Mountpoint }} caemanager-data\$" "$LOG_DOCKER"'
+comprobar "el montaje va en un espacio de nombres privado" 'grep -q "^unshare --mount --propagation private -- " "$LOG_ORDEN"'
+comprobar "bind del documentos/ del volumen sobre el documentos/ del directorio de trabajo" \
+  'grep -q "^mount --bind $PUNTO_MONTAJE/documentos .*/documentos\$" "$LOG_ORDEN"'
+comprobar "bind, luego solo lectura, luego borg create (en ese orden)" \
+  '[ "$(grep -E "^(mount|borg create)" "$LOG_ORDEN" | cut -d" " -f1-2 | tr "\n" "|")" = "mount --bind|mount -o|borg create|" ] && grep -q "^mount -o remount,bind,ro .*/documentos\$" "$LOG_ORDEN"'
+comprobar "las rutas del archivo son las de siempre: documentos/<tenantId>/<fichero> en la raíz" \
+  '[ -f "$ARCH/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -s "$ARCH/CaeManager.dump" ] && [ -f "$ARCH/dataprotection-keys/key-x.xml" ]'
+# El patrón se prueba por su efecto, no por su texto: se saca de los argumentos
+# reales de borg create y se aplica (re: de Borg = expresión regular de Python
+# con re.search; esta usa solo sintaxis común con ERE) a rutas como las del archivo.
+PATRON=$(grep "^borg create" "$LOG_BORG" | sed -n 's/.* --exclude re:\([^ ]*\) .*/\1/p')
+excluye() { printf '%s\n' "$1" | grep -Eq -- "$PATRON"; }
+G="0123456789abcdef0123456789abcdef"; H="fedcba9876543210fedcba9876543210"
+comprobar "borg create lleva un --exclude re:" '[ -n "$PATRON" ]'
+comprobar "excluye el temporal de una escritura, con y sin extensión" \
+  'excluye "documentos/$TENANT_PRUEBA/$G.pdf.tmp-$H" && excluye "documentos/$TENANT_PRUEBA/$G.tmp-$H"'
+comprobar "NO excluye documentos legítimos, aunque su extensión empiece por .tmp-" \
+  '! excluye "documentos/$TENANT_PRUEBA/$G.pdf" && ! excluye "documentos/$TENANT_PRUEBA/$G" && ! excluye "documentos/$TENANT_PRUEBA/$G.tmp-1" && ! excluye "documentos/$TENANT_PRUEBA/$G.tmp-$H.pdf"'
+comprobar "NO excluye nada fuera de documentos/<tenant>/" \
+  '! excluye "CaeManager.dump" && ! excluye "dataprotection-keys/key-$G.tmp-$H" && ! excluye "env-produccion" && ! excluye "documentos/$TENANT_PRUEBA" && ! excluye "documentos/$G.pdf.tmp-$H"'
+comprobar "borg create recibe rutas relativas (no la ruta del volumen)" \
+  'grep "^borg create" "$LOG_BORG" | grep -q " CaeManager.dump dataprotection-keys documentos" && ! grep "^borg create" "$LOG_BORG" | grep -q "$PUNTO_MONTAJE"'
+comprobar "pregunta el driver y las opciones del volumen" 'grep -q "^docker volume inspect -f {{ .Driver }} {{ len .Options }} caemanager-data\$" "$LOG_DOCKER"'
+
+echo "== volumen que no es local sin opciones (nfs, bind con driver_opts): falla antes de borg y avisa /fail"
+ejecutar volumenremoto BETTERSTACK_HEARTBEAT_URL="$URL" ESC_TIPO_VOLUMEN="local 3"
+comprobar "termina distinto de 0, avisa /fail y no llega a borg create" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
+
+echo "== el volumen aún no tiene documentos/: archivo con documentos/ vacío, sin montaje"
+ejecutar sindocumentos ESC_PUNTO_MONTAJE="$PUNTO_MONTAJE_SIN_DOCUMENTOS"
+comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+comprobar "no monta nada" '! grep -qE "^(unshare|mount)" "$LOG_ORDEN"'
+comprobar "el archivo lleva un documentos/ vacío" '[ -d "$LOG_BORG.archivo/documentos" ] && [ -z "$(ls -A "$LOG_BORG.archivo/documentos")" ]'
+
+echo "== /data no es un volumen con nombre: falla antes de borg y avisa /fail"
+ejecutar sinvolumen BETTERSTACK_HEARTBEAT_URL="$URL" ESC_VOLUMEN=""
+comprobar "termina distinto de 0, avisa /fail y no llega a borg create" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
+
+echo "== punto de montaje inaccesible (cron sin root): falla antes de borg y avisa /fail"
+ejecutar sinroot BETTERSTACK_HEARTBEAT_URL="$URL" ESC_PUNTO_MONTAJE="$TMP_ROOT/no-existe"
+comprobar "termina distinto de 0, avisa /fail y no llega a borg create" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG"'
+comprobar "lo explica" 'printf "%s" "$SALIDA" | grep -q "como root"'
+
+echo "== el remount de solo lectura falla: borg NO lee documentos/ con permiso de escritura"
+ejecutar sinro BETTERSTACK_HEARTBEAT_URL="$URL" ESC_RO_FALLA=1
+comprobar "termina distinto de 0, avisa /fail y no llega a borg create ni a prune" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG" && ! grep -q "^borg prune" "$LOG_BORG"'
+
+echo "== con root real (CI de Linux): bind de solo lectura en un espacio de nombres privado, sin montaje colgado"
+# Aquí `unshare` y `mount` son los de verdad (solo docker, borg y curl son falsos):
+# es la única forma de probar el aislamiento que protege los documentos del
+# `rm -rf` del directorio de trabajo. En CI (CI=true) no se puede omitir.
+if [ "$(uname -s)" = "Linux" ] && command -v unshare >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+  MOCK_BIN_ROOT="$TMP_ROOT/bin-root"
+  mkdir -p "$MOCK_BIN_ROOT"
+  cp "$MOCK_BIN/docker" "$MOCK_BIN/borg" "$MOCK_BIN/curl" "$MOCK_BIN_ROOT/"
+  export LOG_CURL="$TMP_ROOT/root.curl" LOG_BORG="$TMP_ROOT/root.borg" LOG_DOCKER="$TMP_ROOT/root.docker" LOG_ORDEN="$TMP_ROOT/root.orden"
+  : > "$LOG_CURL"; : > "$LOG_BORG"; : > "$LOG_DOCKER"; : > "$LOG_ORDEN"
+  SALIDA=$(sudo -n env PATH="$MOCK_BIN_ROOT:$PATH" ENV_PRODUCCION="$ENV_FALSO" BORG_REPO=repo-falso BORG_PASSPHRASE=x \
+      LOG_CURL="$LOG_CURL" LOG_BORG="$LOG_BORG" LOG_DOCKER="$LOG_DOCKER" LOG_ORDEN="$LOG_ORDEN" \
+      PUNTO_MONTAJE="$PUNTO_MONTAJE" ESC_PROBAR_RO=1 bash "$SCRIPT" 2>&1)
+  CODIGO=$?
+  sudo -n chown -R "$(id -u):$(id -g)" "$TMP_ROOT"
+  comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+  comprobar "borg ve documentos/ montado y de solo lectura" \
+    'grep -q "^montado-visto-desde-borg\$" "$LOG_ORDEN" && grep -q "^documentos-solo-lectura\$" "$LOG_ORDEN" && ! grep -q "^documentos-escribible" "$LOG_ORDEN"'
+  comprobar "el archivo lleva documentos/<tenantId>/a.pdf leído a través del bind" '[ -f "$LOG_BORG.archivo/documentos/$TENANT_PRUEBA/a.pdf" ]'
+  # Cualquier punto de montaje terminado en /documentos, sin suponer dónde cae el
+  # mktemp del guion (TMPDIR): en un runner de CI no hay otro.
+  montajes_colgados() { awk '$5 ~ /\/documentos$/ { print $5 }' /proc/self/mountinfo; }
+  comprobar "al terminar no queda ningún montaje sobre un documentos/ temporal" '[ -z "$(montajes_colgados)" ]'
+  comprobar "los documentos del volumen siguen intactos y sin escrituras" \
+    '[ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/a.pdf" ] && [ -f "$PUNTO_MONTAJE/documentos/$TENANT_PRUEBA/$TEMPORAL_PRUEBA" ] && [ ! -e "$PUNTO_MONTAJE/documentos/escritura-de-prueba" ]'
+elif [ "${CI:-}" = "true" ]; then
+  comprobar "en CI hace falta Linux con unshare y sudo sin contraseña para esta prueba" 'false'
+else
+  echo "  omitido: hace falta Linux con unshare y sudo sin contraseña (en CI no se omite)"
+fi
 echo ""
 echo "$PRUEBAS comprobaciones, $FALLOS fallo(s)"
 [ "$FALLOS" -eq 0 ]
