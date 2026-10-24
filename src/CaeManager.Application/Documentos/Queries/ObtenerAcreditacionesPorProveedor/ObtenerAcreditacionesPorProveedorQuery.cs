@@ -26,11 +26,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// Segundo consumidor (Incremento 2 del MVP1 de extensión de navegador, ver
 /// Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14 en el repositorio de negocio):
 /// <c>AcreditacionesPendientesEndpoints</c> expone esta misma query sin
-/// duplicar su alcance por cartera ni su agrupación por proveedor — solo
-/// necesitó dos campos más en <see cref="AcreditacionDrillDownDto"/> que la
-/// UI de drill-down no pedía (<see cref="AcreditacionDrillDownDto.CanalGestionDocumentalId"/>
-/// para el Incremento 3, y <see cref="AcreditacionDrillDownDto.TrabajadorDni"/>
-/// para el emparejamiento de identidad de la propia extensión).
+/// duplicar el filtro de cartera. Solo necesita el canal de gestión documental.
 ///
 /// <see cref="ProveedorAcreditacionesDto.ProveedorActivo"/> (MVP2, § 14.5): el
 /// *kill switch* remoto de la extensión. Deliberadamente NO se filtran aquí
@@ -72,6 +68,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// 2026-09-23). No trae el resto de aceptadas, que <paramref name="IncluirAceptadas"/>
 /// sí trae: la cola solo quiere las que ya no valen.
 /// </param>
+/// <param name="SoloSubiblesExtension">Excluye los rechazos vigentes para la extensión; renovar deja una acreditación pendiente.</param>
 /// <param name="SoloDocumentosDeEmpresaId">
 /// Solo los documentos de ESTA Empresa (los suyos, de Ámbito Empresa, no los de sus Trabajadores): la pestaña
 /// «Plataformas» de Empresa 360. Es el mismo alcance de gestión de siempre, más la comprobación de que la Empresa es visible;
@@ -79,7 +76,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// </param>
 public record ObtenerAcreditacionesPorProveedorQuery(
     bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false,
-    Guid? SoloDocumentosDeEmpresaId = null)
+    Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 public record ProveedorAcreditacionesDto(
@@ -106,7 +103,7 @@ public record AcreditacionDrillDownDto(
     Guid AcreditacionId, Guid DocumentoId, string PropietarioNombre, string TipoDocumentoNombre,
     EstadoAcreditacion Estado, string? UltimoMotivoRechazo,
     Guid? TrabajadorId = null, Guid? EmpresaId = null, Guid? CentroId = null, Guid? TipoDocumentoId = null,
-    Guid? CanalGestionDocumentalId = null, string? TrabajadorDni = null,
+    Guid? CanalGestionDocumentalId = null,
     EstadoVigenciaEnPlataforma EstadoVigencia = EstadoVigenciaEnPlataforma.SinConfirmar,
     DateOnly? FechaVencimientoEnPlataforma = null,
     bool VencidaEnPlataforma = false,
@@ -123,12 +120,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
     public async Task<IReadOnlyList<ProveedorAcreditacionesDto>> Handle(
         ObtenerAcreditacionesPorProveedorQuery request, CancellationToken cancellationToken)
     {
-        // Alcance de GESTIÓN, no de lectura: esta consulta lleva el NIF del
-        // Trabajador y es el artefacto interno con el que el Gestor CAE sube a
-        // la plataforma del cliente. El alcance de lectura le daría al rol
-        // Cliente (usuario de portal) los Centros de su propio Cliente y, con
-        // ellos, el DNI de los Trabajadores de las contratistas — ver
-        // ObtenerCentroIdsParaGestionAsync (REC-153).
+        // Conserva el ámbito de gestión: esta consulta alimenta acciones de acreditación.
         if (request.SoloDocumentosDeEmpresaId is { } empresaDelFiltro
             && !await alcanceDatos.EmpresaVisibleAsync(empresaDelFiltro, cancellationToken))
             return [];
@@ -145,8 +137,12 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         if (centroIdsVisibles is not null)
             canalesQuery = canalesQuery.Where(c => centroIdsVisibles.Contains(c.CentroId));
 
+        var acreditaciones = documentosContext.AcreditacionesDocumentoPlataforma;
+        if (request.SoloSubiblesExtension)
+            acreditaciones = acreditaciones.Where(ReglaSubidaAcreditacion.SinRechazoVigente);
+
         var filas = await (
-            from acreditacion in documentosContext.AcreditacionesDocumentoPlataforma
+            from acreditacion in acreditaciones
             where acreditacion.Estado == EstadoAcreditacion.PendienteDeSubir
                   || acreditacion.Estado == EstadoAcreditacion.Rechazada
                   || (incluirAceptadas && acreditacion.Estado == EstadoAcreditacion.Aceptada)
@@ -199,7 +195,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
         var trabajadorIds = filas.Where(f => f.TrabajadorId is not null).Select(f => f.TrabajadorId!.Value).Distinct().ToList();
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, t => (Nombre: t.Nombre + " " + t.Apellidos, t.Dni), cancellationToken);
+            .ToDictionaryAsync(t => t.Id, t => t.Nombre + " " + t.Apellidos, cancellationToken);
 
         var empresaIds = filas.Where(f => f.EmpresaId is not null).Select(f => f.EmpresaId!.Value).Distinct().ToList();
         var empresas = await empresasContext.Empresas
@@ -215,17 +211,9 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .ToDictionaryAsync(x => x.AcreditacionId, x => x.Motivo, cancellationToken);
 
         string PropietarioNombre(Guid? trabajadorId, Guid? empresaId) =>
-            trabajadorId is { } tId && trabajadores.TryGetValue(tId, out var trabajador) ? trabajador.Nombre
+            trabajadorId is { } tId && trabajadores.TryGetValue(tId, out var trabajador) ? trabajador
             : empresaId is { } eId && empresas.TryGetValue(eId, out var nombreEmpresa) ? nombreEmpresa
             : "—";
-
-        // Solo un Documento de Trabajador tiene NIF/NIE que emparejar — el de
-        // Empresa no lo necesita (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 14.5 del
-        // repositorio de negocio: la extensión empareja por NIF, nunca por
-        // nombre, para no subir el documento de un trabajador a la ficha de
-        // otro).
-        string? TrabajadorDni(Guid? trabajadorId) =>
-            trabajadorId is { } tId && trabajadores.TryGetValue(tId, out var trabajador) ? trabajador.Dni : null;
 
         return filas
             .Where(f => f.ProveedorId is not null)
@@ -242,7 +230,7 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                                 f.Id, f.DocumentoId, PropietarioNombre(f.TrabajadorId, f.EmpresaId), f.TipoDocumentoNombre,
                                 f.Estado, motivosPorAcreditacion.GetValueOrDefault(f.Id),
                                 f.TrabajadorId, f.EmpresaId, f.CentroId, f.TipoDocumentoId,
-                                f.CanalGestionDocumentalId, TrabajadorDni(f.TrabajadorId),
+                                f.CanalGestionDocumentalId,
                                 f.EstadoVigencia, f.FechaVencimientoEnPlataforma,
                                 VencidaEnPlataforma: f.EstadoVigencia == EstadoVigenciaEnPlataforma.VenceEnFecha
                                                      && f.FechaVencimientoEnPlataforma < hoy,
