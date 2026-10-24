@@ -264,6 +264,12 @@ public class CaeManagerDbContext(
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
+    // Estado materializado (PR 2): solo las tablas; nadie las lee ni las escribe todavía.
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> EstadosRequisito => Set<CaeManager.Domain.EstadoMaterializado.EstadoRequisito>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma> EstadosPlataforma => Set<CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoEntidad> EstadosEntidad => Set<CaeManager.Domain.EstadoMaterializado.EstadoEntidad>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> VersionesEstadoTenant => Set<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> RecalculosPendientes => Set<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente>();
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
     IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
     public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();
