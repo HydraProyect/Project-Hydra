@@ -145,7 +145,9 @@ public partial class LoginLocalEnAsignacionDelegadaTests
 
     /// <summary>
     /// Revisión de seguridad 2026-10-23, Z1-5: una conexión que no se puede leer no es visible
-    /// (antes, «sin fila» se confundía con «buzón general» y devolvía true). Los tres casos con fila
+    /// (antes, «sin fila» se confundía con «buzón general» y devolvía true). Este contexto no aplica
+    /// el filtro global de Tenant ni de borrado lógico: el caso de otro Tenant o eliminada llega al
+    /// servicio como «sin fila» por ese filtro, que aquí se representa con un Id inexistente. Los tres casos con fila
     /// fijan que el arreglo no rompe los buzones generales ni el personal propio.
     /// </summary>
     [Fact]
@@ -162,7 +164,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
 
         (await alcance.ConexionIntegracionVisibleAsync(Guid.NewGuid())).Should().BeFalse(
-            "una conexión inexistente, de otro Tenant o eliminada falla en cerrado");
+            "una conexión sin fila legible en el Tenant actual falla en cerrado");
         (await alcance.ConexionIntegracionVisibleAsync(general.Id)).Should().BeTrue();
         (await alcance.ConexionIntegracionVisibleAsync(personalPropio.Id)).Should().BeTrue();
         (await alcance.ConexionIntegracionVisibleAsync(personalAjeno.Id)).Should().BeFalse();
