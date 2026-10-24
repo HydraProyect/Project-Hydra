@@ -409,10 +409,11 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
         // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
         // PR 4b: las tres sentencias de filas cuentan lo que cambiaron (RETURNING + SqlQueryRaw<int>, sin componer) para
-        // subir la versión solo si cambió alguna fila; la de la versión y la purga de huérfanos (anti-join por TenantId de
-        // la conexión) siguen con ExecuteSqlRawAsync. Tope de espera y cerrojo exclusivo del Tenant van por
-        // CerrojosEstadoMaterializado.
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 1,
+        // subir la versión solo si cambió alguna fila. Tope de espera y cerrojo exclusivo del Tenant van por
+        // CerrojosEstadoMaterializado. PR 12: la subida de la versión (WHERE/VALUES con el TenantId de app.tenant_id, sin
+        // parámetros de usuario) devuelve TenantId y versión (CTE con RETURNING + SqlQueryRaw<VersionSubida>, sin componer)
+        // para anotar el aviso de frescura con la versión exacta.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(sql).ToListAsync(ct);")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "(await dbContext.Database.SqlQueryRaw<int>(sql, parametros).ToListAsync(ct)).Single();")] = 1,
         // Recálculo en línea del estado materializado (PR 4a, diseño § 4.3-4.5). IgnoreQueryFilters: las raíces de un
         // documento, canal o evento borrado lógicamente (el borrado es la acción) salen de la fila borrada; cada consulta

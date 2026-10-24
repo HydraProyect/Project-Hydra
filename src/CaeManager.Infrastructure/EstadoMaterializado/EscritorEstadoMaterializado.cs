@@ -126,32 +126,34 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext, I
         if (!crearSiFalta && !huboCambios)
             return;
 
-        const string devuelve = """RETURNING "TenantId", "Version" """;
-        var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(
-            (crearSiFalta, huboCambios) switch
-            {
-                (true, true) => $"""
-                    INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
-                    VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
-                    ON CONFLICT ("TenantId") DO UPDATE
-                        SET "Version" = "VersionesEstadoTenant"."Version" + 1, "ActualizadoEnUtc" = now()
-                    {devuelve}
-                    """,
-                (true, false) => $"""
-                    INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
-                    VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
-                    ON CONFLICT ("TenantId") DO NOTHING
-                    {devuelve}
-                    """,
-                _ => $"""
-                    UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()
-                    WHERE "TenantId" = {TenantDeLaConexion}
-                    {devuelve}
-                    """,
-            }).ToListAsync(ct);
+        // Como SumaDeCambios: la sentencia que escribe va en un CTE y la consulta de fuera es un SELECT, sin componer.
+        var subida = (crearSiFalta, huboCambios) switch
+        {
+            (true, true) => $"""
+                INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
+                VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
+                ON CONFLICT ("TenantId") DO UPDATE
+                    SET "Version" = "VersionesEstadoTenant"."Version" + 1, "ActualizadoEnUtc" = now()
+                """,
+            (true, false) => $"""
+                INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
+                VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
+                ON CONFLICT ("TenantId") DO NOTHING
+                """,
+            _ => $"""
+                UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()
+                WHERE "TenantId" = {TenantDeLaConexion}
+                """,
+        };
+        var sql = $"""
+            WITH s AS ({subida}
+                RETURNING "TenantId", "Version")
+            SELECT "TenantId", "Version" FROM s
+            """;
+        var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(sql).ToListAsync(ct);
 
-        foreach (var subida in subidas)
-            registroCambios.Anotar(new AvisoCambioEstado(subida.TenantId, subida.Version, entidades));
+        foreach (var fila in subidas)
+            registroCambios.Anotar(new AvisoCambioEstado(fila.TenantId, fila.Version, entidades));
     }
 
     /// <summary>Fila que devuelve la subida de versión.</summary>
