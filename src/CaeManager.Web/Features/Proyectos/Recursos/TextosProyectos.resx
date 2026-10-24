@@ -539,4 +539,7 @@
   <data name="ListaSinDocumentos" xml:space="preserve"><value>Sin documentos registrados para este proyecto.</value></data>
   <data name="ListaSinVencimiento" xml:space="preserve"><value>Sin fecha de vencimiento</value></data>
   <data name="ListaGestionar" xml:space="preserve"><value>Gestionar</value></data>
+  <data name="ColumnaCumplimiento" xml:space="preserve"><value>Cumplimiento</value></data>
+  <data name="ColumnaEstadoDocumental" xml:space="preserve"><value>Estado documental</value></data>
+  <data name="AyudaDocumentosPropios" xml:space="preserve"><value>Según los documentos propios del Proyecto</value></data>
 </root>

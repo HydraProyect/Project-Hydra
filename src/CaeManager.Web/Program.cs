@@ -233,6 +233,14 @@ builder.Services.AddHttpContextAccessor();
 // Cookie de antiforgery con Secure cuando la peticion es HTTPS (ver
 // AntiforgeryDeTalveg): sin esto rige CookieSecurePolicy.None.
 builder.Services.AddAntiforgery(AntiforgeryDeTalveg.Configurar);
+// Fuera de Development, Smtp:UrlBasePublica es obligatoria (https): sin ella no
+// hay enlaces de cuenta seguros y la aplicación no arranca (ValidadorUrlBasePublica).
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>, CaeManager.Infrastructure.Email.ValidadorUrlBasePublica>();
+builder.Services.AddOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>().ValidateOnStart();
+builder.Services.AddSingleton<EnlacesPublicos>();
+builder.Services.AddSingleton<RecuperacionContrasena>();
+// Misma instancia en los componentes y en el host (la cola es suya).
+builder.Services.AddSingleton<IHostedService, RecuperacionContrasena>(sp => sp.GetRequiredService<RecuperacionContrasena>());
 
 // Textos de interfaz en recursos .resx (IStringLocalizer<T>): sin esto no hay
 // IStringLocalizerFactory que resolver, aunque las culturas estén configuradas.
@@ -938,6 +946,17 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 // descarte el X-Forwarded-For entrante y de que sea el único camino hasta el
 // 8080. Ese es un supuesto de seguridad, y está escrito, medido y vigilado por
 // trinquete en esa clase (REC-019) en vez de quedar aquí como un comentario.
+// Antes de UseForwardedHeaders, que reescribe el par y consume la cabecera: el
+// registro de inicios de sesión necesita los originales para creer
+// X-Forwarded-For solo cuando el par es un proxy de confianza configurado
+// (Seguridad:InicioSesion:ProxiesDeConfianza, ver IpClienteDeConfianza).
+app.Use((contexto, siguiente) =>
+{
+    var xff = contexto.Request.Headers["X-Forwarded-For"].ToString();
+    contexto.Features.Set(new CaeManager.Infrastructure.Seguridad.OrigenConexionCapturado(
+        contexto.Connection.RemoteIpAddress, string.IsNullOrWhiteSpace(xff) ? null : xff));
+    return siguiente(contexto);
+});
 app.UseForwardedHeaders(CabecerasDeProxyDeBorde.Opciones());
 
 using (var scope = app.Services.CreateScope())
@@ -1027,6 +1046,11 @@ using (var scope = app.Services.CreateScope())
             .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
             .Crear();
 
+        // Siembras de arranque: sin recálculo en línea del estado materializado; cada Tenant tocado va entero a la
+        // cola (diseño del estado materializado, § 4.3 y § 7.3).
+        using var sinRecalculoEstado = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+            CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.MotivoSiembraDeArranque);
+
         // Sin sesión de usuario en el arranque no hay tenant que resolver por
         // claim — la siembra del Administrador inicial se ejecuta explícitamente
         // como tenant #1 (ver AmbitoTenantExplicito, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
@@ -1106,6 +1130,7 @@ using (var scope = app.Services.CreateScope())
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
         await PlantillasRespuestaSeeder.SeedAsync(dbContextBootstrap);
+        sinRecalculoEstado.Dispose();
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder

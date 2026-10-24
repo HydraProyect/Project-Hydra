@@ -86,10 +86,14 @@ public class CaeManagerDbContext(
         CaeManager.Application.Plantillas.IPlantillasQueryContext, IImportacionQueryContext, IReportesQueryContext,
         IOperacionesQueryContext, CaeManager.Application.Tenants.IEncargosAdministracionQueryContext,
         CaeManager.Application.Plataforma.IPlataformaQueryContext,
+        CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext,
+        CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext,
+        CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext,
         IBlindaje42QueryContext,
         IBusquedaGlobalQueryContext,
         CaeManager.Application.VigilanciaNormativa.IVigilanciaNormativaQueryContext,
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
+        CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IDesenganchadorDeEntidadesRastreadas,
         IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
@@ -248,6 +252,29 @@ public class CaeManagerDbContext(
     IQueryable<ProyectoTecnico> IProyectosQueryContext.ProyectosTecnicos => ProyectosTecnicos;
     public DbSet<ProyectoRequisito> ProyectosRequisitos => Set<ProyectoRequisito>();
     IQueryable<ProyectoRequisito> IRequisitosEventoQueryContext.ProyectosRequisitos => ProyectosRequisitos;
+    public DbSet<CaeManager.Domain.ContratosAcceso.ContratoAcceso> ContratosAcceso => Set<CaeManager.Domain.ContratosAcceso.ContratoAcceso>();
+    IQueryable<CaeManager.Domain.ContratosAcceso.ContratoAcceso> CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext.ContratosAcceso => ContratosAcceso;
+    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> AutorizacionesLecturaDocumental => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental>();
+    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaDocumental => AutorizacionesLecturaDocumental;
+    public DbSet<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> AutorizacionesLecturaTrabajadores => Set<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador>();
+    IQueryable<CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador> CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext.AutorizacionesLecturaTrabajadores => AutorizacionesLecturaTrabajadores;
+    // Inbound M1, PR 3: registro de las lecturas entre Tenants. Solo lo inserta la base (app_inbound_*); EF solo lo lee.
+    public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
+    public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
+    public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
+    // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
+    public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
+    IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;
+    // Estado materializado: las tablas (PR 2), que escribe el recálculo (PR 3 y 4) y leen los lectores de Centro (PR 6) por
+    // IEstadoMaterializadoQueryContext.
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> EstadosRequisito => Set<CaeManager.Domain.EstadoMaterializado.EstadoRequisito>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma> EstadosPlataforma => Set<CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.EstadoEntidad> EstadosEntidad => Set<CaeManager.Domain.EstadoMaterializado.EstadoEntidad>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> VersionesEstadoTenant => Set<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant>();
+    public DbSet<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> RecalculosPendientes => Set<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente>();
+    IQueryable<CaeManager.Domain.EstadoMaterializado.EstadoEntidad> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.EstadosEntidad => EstadosEntidad;
+    IQueryable<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.VersionesEstadoTenant => VersionesEstadoTenant;
+    IQueryable<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.RecalculosPendientes => RecalculosPendientes;
     public DbSet<PlantillaRequisitosEvento> PlantillasRequisitosEvento => Set<PlantillaRequisitosEvento>();
     IQueryable<PlantillaRequisitosEvento> IRequisitosEventoQueryContext.PlantillasRequisitosEvento => PlantillasRequisitosEvento;
     public DbSet<PlantillaRequisitosEventoTipo> PlantillasRequisitosEventoTipos => Set<PlantillaRequisitosEventoTipo>();

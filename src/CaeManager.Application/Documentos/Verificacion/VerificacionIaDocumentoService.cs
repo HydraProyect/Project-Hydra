@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento;
 using CaeManager.Application.Documentos;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.DocumentosIa;
@@ -292,10 +293,24 @@ public class VerificacionIaDocumentoService(
     /// <summary>
     /// La aprobación automática exige <b>evidencia positiva</b>, no la mera
     /// ausencia de discrepancias. La salida de un LLM es una propuesta, no una
-    /// prueba: el texto del documento entra en el prompt sin separación de
-    /// canal, así que un PDF preparado puede pedir "devuelve confianza 100" y
-    /// obtenerlo. Por eso ningún campo autorreportado puede, por sí solo,
-    /// cerrar un documento sin que lo mire nadie.
+    /// prueba: aunque el texto del documento viaja delimitado y con reglas de
+    /// aislamiento (<c>PromptDocumental</c>), un PDF preparado puede pedir
+    /// "devuelve confianza 100" y un modelo puede obedecer. Por eso ningún campo
+    /// autorreportado puede, por sí solo, cerrar un documento sin que lo mire
+    /// nadie.
+    ///
+    /// <b>Contraste determinista</b> (<see cref="ContrasteTextoDocumento"/>):
+    /// confianza, firma y tipo solo los afirma el modelo, y cualquiera de ellos
+    /// se puede pedir desde el propio documento. Desde que existe el contraste,
+    /// la aprobación automática exige además que una regla sin modelo, sobre el
+    /// mismo texto que leyó el modelo, no encuentre nada en contra: que el
+    /// texto no intente dirigirse al modelo, que no diga «no apto» ni hable de
+    /// una restricción (la aptitud no la extrae el modelo, así que sin esta
+    /// regla un «no apto» se cerraba como cualquier otro documento), y que la
+    /// fecha de emisión que el modelo dice haber leído esté de verdad escrita
+    /// en el texto. Sin contraste (una lectura servida de una caché anterior)
+    /// no hay aprobación automática. Todas estas reglas solo añaden motivos de
+    /// revisión: ninguna puede aprobar nada por sí misma.
     ///
     /// Antes esta comparación solo tenía tres reglas y todas exigían que el
     /// dato <em>existiera</em> para poder discrepar: una extracción con
@@ -321,9 +336,26 @@ public class VerificacionIaDocumentoService(
     /// reales. Es un incremento propio, con decisión de producto detrás; hasta
     /// entonces queda escrito aquí para que nadie lo dé por cubierto.
     /// </summary>
-    private static List<string> ComputarMotivos(Documento documento, MetadatosDocumentoExtraidosDto extraido)
+    internal static List<string> ComputarMotivos(Documento documento, MetadatosDocumentoExtraidosDto extraido)
     {
         var motivos = new List<string>();
+
+        var contraste = extraido.Contraste;
+        if (contraste is null)
+        {
+            motivos.Add("No se pudo contrastar la lectura automática con el texto del documento");
+        }
+        else
+        {
+            if (contraste.PareceDirigidoAlModelo)
+                motivos.Add("El documento contiene texto dirigido al sistema de lectura automática (posible manipulación)");
+
+            if (contraste.MencionaNoAptoORestriccion)
+                motivos.Add("El documento menciona «no apto» o una restricción: lo tiene que decidir una persona");
+
+            if (extraido.FechaEmisionDetectada is { } fechaLeida && !contraste.ContieneFecha(fechaLeida))
+                motivos.Add("La fecha de emisión que dice haber leído la IA no aparece escrita en el documento");
+        }
 
         if (extraido.ConfianzaGeneral < UmbralConfianzaBaja)
             motivos.Add($"Confianza baja ({extraido.ConfianzaGeneral}%)");

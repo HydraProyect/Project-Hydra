@@ -1,6 +1,7 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Documentos;
 using MediatR;
@@ -27,21 +28,28 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCentros;
 /// </param>
 /// <param name="ConRecuentosPorEstado">
 /// Rellena <c>ResultadoPaginado.RecuentosPorEstado</c>: Centros por estado con los demás filtros aplicados y sin el
-/// de estado. El estado de un Centro se calcula, así que pedirlo obliga a calcularlo para todos los Centros que
-/// pasan los filtros, no solo para la página: solo lo pide el listado, que es quien pinta la franja.
+/// de estado. Pedirlo obliga a conocer el estado de todos los Centros que pasan los filtros, no solo el de la página
+/// (una lectura de <c>EstadosEntidad</c> en un Tenant completo; un cálculo por Centro en uno sin completar): solo lo
+/// pide el listado, que es quien pinta la franja.
 /// </param>
 /// <param name="ConResumenPorGrupo">
 /// Rellena <c>ResultadoPaginado.ResumenPorGrupo</c>: por cada Cliente empresarial (el grupo del listado de Centros,
 /// con su Id como clave), cuántos Centros tiene y cuántos en cada estado, contando TODOS los que pasan los filtros
 /// —también el de estado— y el alcance del usuario, no solo los de la página. Como los recuentos por estado,
-/// obliga a calcular el estado de todos esos Centros: solo lo pide el listado, que es quien pinta los grupos.
+/// obliga a conocer el estado de todos esos Centros: solo lo pide el listado, que es quien pinta los grupos.
+/// </param>
+/// <param name="ConIncidencias">
+/// Rellena <see cref="CentroListaDto.Recuentos"/> con el detalle de las causas de cada Centro de la página. Ese detalle no
+/// está guardado, así que pedirlo calcula las causas de los Centros de la página; quien solo necesita el estado y el
+/// cumplimiento (la exportación a Excel) lo pone a <c>false</c> y, en un Tenant completo, no calcula nada. Con <c>false</c>
+/// <c>Recuentos</c> puede venir vacío: no es un Centro sin incidencias.
 /// </param>
 public record ObtenerCentrosQuery(
     string? Busqueda, Guid? ClienteId, EstadoCentro? Estado = null,
     string? OrdenarPor = null, bool Descendente = false, int Pagina = 1, int TamanoPagina = 20,
     Guid? CentroId = null, Guid? EmpresaId = null,
     IReadOnlyCollection<EstadoCentro>? Estados = null, bool ConRecuentosPorEstado = false,
-    bool ConResumenPorGrupo = false)
+    bool ConResumenPorGrupo = false, bool ConIncidencias = true)
     : IRequest<ResultadoPaginado<CentroListaDto>>;
 
 /// <param name="CumplimientoPorcentaje">
@@ -118,28 +126,36 @@ public record CentroListaDto(
     EstadoCentro Estado, int? CumplimientoPorcentaje, RecuentosCentroDto Recuentos);
 
 /// <summary>
-/// El <see cref="CentroListaDto.Estado"/> no está persistido — lo calcula
-/// <see cref="ICalculoEstadoCentroService"/> a partir de los Documentos de la
-/// Empresa, los de cada Trabajador con Asignación activa y los
-/// RequisitosDocumentales bloqueantes (ver <c>Project-Hydra-Negocio/tecnico/DATABASE.md</c>: guardarlo lo
-/// desincronizaría de los umbrales configurables). Eso parte el handler en
-/// dos caminos:
+/// El <see cref="CentroListaDto.Estado"/> y el cumplimiento salen de dos sitios, según el Tenant:
 ///
-/// - <b>Camino normal</b>: se ordena y pagina en SQL y el estado se calcula
-///   solo para los 20 centros de la página, como se venía haciendo.
-/// - <b>Camino con estado</b> (filtrar por Estado, ordenar por Estado o por
-///   cumplimiento, o pedir los recuentos por estado o el resumen por grupo):
-///   hace falta conocer el estado de todos los centros que pasan los filtros
-///   antes de poder paginar o resumir, así que se materializa esa proyección
-///   — corta, siete columnas — y se filtra, ordena, resume y pagina en
-///   memoria. El listado de Centros va siempre por aquí. Está acotado por el
-///   alcance del usuario y por la búsqueda; si algún día un tenant tiene
-///   tantos centros que esto pese, la salida es una vista materializada, no
-///   persistir el estado en una columna.
+/// - <b>Tenant completo</b> (<see cref="ILectorEstadoCentros.TenantCompletoAsync"/>: tiene su fila en
+///   <c>VersionesEstadoTenant</c> y ningún recálculo diferido sin consumir): se leen de <c>EstadosEntidad</c>, que el
+///   recálculo del estado materializado rehace en la misma transacción de cada acción que cambia una entrada del
+///   cálculo (diseño del estado materializado, <c>Project-Hydra-Negocio/tecnico/DISENO-ESTADO-MATERIALIZADO-2026-10-24.md</c>;
+///   los huecos que ese recálculo aún no cubre, § 13.7, los cierra el cotejo nocturno). El rótulo combinado
+///   se deriva de las dos columnas (<c>EstadoCentroCombinado.Derivar</c>: estado en TALVEG y estado en la Plataforma
+///   CAE van separados en la tabla). Un Centro sin fila fiable (sin fila, calculada con una regla anterior o con su día
+///   de cambio ya pasado) se calcula en línea, solo él.
+/// - <b>Tenant sin su fila de versión</b>: ningún Centro se lee de las tablas, porque sin esa fila no se recalcula su
+///   estado y lo guardado, si hay algo, puede estar viejo. Se calcula con <see cref="ICalculoEstadoCentroService"/> a
+///   partir de los Documentos de la Empresa, los de cada Trabajador con Asignación activa y los RequisitosDocumentales
+///   bloqueantes, como siempre.
+///
+/// Lo que no se guarda es el detalle de las causas (<see cref="CentroListaDto.Recuentos"/>: qué documento, de quién y
+/// por qué): se calcula siempre, y solo para los Centros de la página, salvo que la consulta pida prescindir de él
+/// (<c>ConIncidencias</c> falso, la exportación). Eso parte el handler en dos caminos:
+///
+/// - <b>Camino normal</b>: se ordena y pagina en SQL y el estado de los Centros de la página se lee (o se calcula).
+/// - <b>Camino con estado</b> (filtrar por Estado, ordenar por Estado o por cumplimiento, o pedir los recuentos por
+///   estado o el resumen por grupo): hace falta conocer el estado de todos los centros que pasan los filtros antes de
+///   poder paginar o resumir, así que se materializa esa proyección — corta, siete columnas — y se filtra, ordena,
+///   resume y pagina en memoria. En un Tenant completo, el estado y el cumplimiento de todos son una lectura de filas
+///   cortas; en uno sin completar, el cumplimiento se calcula para todos solo si se ordena por él, y si no solo para la
+///   página. El listado de Centros va siempre por aquí. Está acotado por el alcance del usuario y por la búsqueda.
 /// </summary>
 public class ObtenerCentrosQueryHandler(
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
-    IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro)
+    IAlcanceDatosService alcanceDatos, ICalculoEstadoCentroService calculoEstadoCentro, ILectorEstadoCentros lectorEstado)
     : IRequestHandler<ObtenerCentrosQuery, ResultadoPaginado<CentroListaDto>>
 {
     public async Task<ResultadoPaginado<CentroListaDto>> Handle(ObtenerCentrosQuery request, CancellationToken cancellationToken)
@@ -174,8 +190,8 @@ public class ObtenerCentrosQueryHandler(
         if (request.CentroId is not null)
             consulta = consulta.Where(x => x.centro.Id == request.CentroId);
 
-        // El cumplimiento, como el estado, no está persistido: se calcula. Para
-        // ordenar por él hay que conocerlo de todos los centros que pasan los
+        // El cumplimiento viaja con el estado (misma fila de EstadosEntidad en un Tenant completo; un cálculo aparte
+        // en uno sin completar). Para ordenar por él hay que conocerlo de todos los centros que pasan los
         // filtros ANTES de paginar, así que toma el mismo camino que el estado.
         var estadosPedidos = (request.Estados ?? []).ToHashSet();
         if (request.Estado is { } unEstado)
@@ -197,9 +213,13 @@ public class ObtenerCentrosQueryHandler(
                 .ToListAsync(cancellationToken);
 
             var idsTodas = todas.Select(c => c.Id).ToList();
-            var estadosTodas = await calculoEstadoCentro.CalcularAsync(idsTodas, cancellationToken);
-            var cumplimientoTodas = await calculoEstadoCentro.CalcularCumplimientoAsync(idsTodas, cancellationToken);
-            IEnumerable<CentroListaDto> conEstado = todas.Select(c => AplicarEstado(c, estadosTodas, cumplimientoTodas)).ToList();
+            // El cumplimiento de todos solo hace falta para ordenar por él: la franja y los grupos leen el estado.
+            // Si no, se completa después, solo para la página (es un cálculo por Centro: no depende de qué
+            // otros Centros vayan en la misma llamada). En un Tenant completo viene con el estado, de la misma fila.
+            var ordenaPorCumplimiento =
+                string.Equals(request.OrdenarPor, nameof(CentroListaDto.CumplimientoPorcentaje), StringComparison.Ordinal);
+            var lecturas = await LeerEstadosAsync(idsTodas, ordenaPorCumplimiento, cancellationToken);
+            IEnumerable<CentroListaDto> conEstado = todas.Select(c => AplicarEstado(c, lecturas[c.Id])).ToList();
 
             // Antes de filtrar por estado: cada cifra de la franja dice cuántos Centros quedarían al marcar ese
             // estado. Lleva todos los estados, también los que no tienen ninguno (0).
@@ -233,8 +253,12 @@ public class ObtenerCentrosQueryHandler(
                 .ThenBy(c => c.Id)
                 .ToList();
 
-            return new ResultadoPaginado<CentroListaDto>(
+            var paginaConEstado = await CompletarPaginaAsync(
                 ordenados.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList(),
+                lecturas, request.ConIncidencias, cancellationToken);
+
+            return new ResultadoPaginado<CentroListaDto>(
+                paginaConEstado,
                 ordenados.Count,
                 request.Pagina,
                 request.TamanoPagina)
@@ -280,27 +304,89 @@ public class ObtenerCentrosQueryHandler(
                 x.cliente.RazonSocial, x.centro.EmpresaId, x.empresa.RazonSocial))
             .ToListAsync(cancellationToken);
 
-        var idsPagina = pagina.Select(c => c.Id).ToList();
-        var estados = await calculoEstadoCentro.CalcularAsync(idsPagina, cancellationToken);
-        var cumplimiento = await calculoEstadoCentro.CalcularCumplimientoAsync(idsPagina, cancellationToken);
+        var lecturasPagina = await LeerEstadosAsync(
+            pagina.Select(c => c.Id).ToList(), conCumplimiento: false, cancellationToken);
+        var elementos = await CompletarPaginaAsync(
+            pagina.Select(c => AplicarEstado(c, lecturasPagina[c.Id])).ToList(),
+            lecturasPagina, request.ConIncidencias, cancellationToken);
 
-        return new ResultadoPaginado<CentroListaDto>(
-            pagina.Select(c => AplicarEstado(c, estados, cumplimiento)).ToList(), total, request.Pagina, request.TamanoPagina);
+        return new ResultadoPaginado<CentroListaDto>(elementos, total, request.Pagina, request.TamanoPagina);
     }
 
-    private static CentroListaDto AplicarEstado(
-        FilaCentro fila, IReadOnlyDictionary<Guid, ResultadoEstadoCentro> estados,
-        IReadOnlyDictionary<Guid, FraccionCumplimiento> cumplimiento) =>
-        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial,
-            fila.EmpresaId, fila.EmpresaRazonSocial,
-            estados.TryGetValue(fila.Id, out var resultado) ? resultado.Estado : EstadoCentro.Vigente,
-            cumplimiento.TryGetValue(fila.Id, out var fraccion) ? fraccion.Porcentaje : null,
-            resultado is null ? RecuentosCentroDto.Vacio : Desglosar(resultado));
+    /// <summary>
+    /// El estado de esos Centros: de <c>EstadosEntidad</c> los que tienen fila fiable en un Tenant completo, y el cálculo
+    /// de siempre para el resto (todos, si el Tenant no está completo).
+    /// </summary>
+    private async Task<Dictionary<Guid, LecturaDeCentro>> LeerEstadosAsync(
+        IReadOnlyCollection<Guid> ids, bool conCumplimiento, CancellationToken cancellationToken)
+    {
+        var lecturas = new Dictionary<Guid, LecturaDeCentro>(ids.Count);
+        // El lector no devuelve nada de un Tenant sin completar: todo cae al cálculo de abajo.
+        foreach (var (id, leido) in await lectorEstado.LeerAsync(ids, cancellationToken))
+            lecturas[id] = new LecturaDeCentro(leido.Estado, leido.Cumplimiento.Porcentaje, CumplimientoLeido: true, Calculada: false, null);
+
+        var sinLeer = ids.Where(id => !lecturas.ContainsKey(id)).ToList();
+        if (sinLeer.Count == 0)
+            return lecturas;
+
+        var calculados = await calculoEstadoCentro.CalcularAsync(sinLeer, cancellationToken);
+        var cumplimiento = conCumplimiento
+            ? await calculoEstadoCentro.CalcularCumplimientoAsync(sinLeer, cancellationToken)
+            : null;
+        foreach (var id in sinLeer)
+        {
+            calculados.TryGetValue(id, out var resultado);
+            lecturas[id] = new LecturaDeCentro(
+                resultado?.Estado ?? EstadoCentro.Vigente,
+                cumplimiento is not null && cumplimiento.TryGetValue(id, out var fraccion) ? fraccion.Porcentaje : null,
+                CumplimientoLeido: cumplimiento is not null, Calculada: true, resultado);
+        }
+
+        return lecturas;
+    }
 
     /// <summary>
-    /// Las causas ya venían calculadas para decidir el estado del centro; aquí
-    /// solo se agrupan por estado. No hay consulta nueva: es el mismo dato que
-    /// ya viajaba, que hasta ahora la lista descartaba.
+    /// Lo que la página necesita y no se guarda: el cumplimiento de los Centros cuyo estado se calculó sin él y, si se pide,
+    /// el detalle de las causas (<see cref="CentroListaDto.Recuentos"/>) de los que no lo trajeron del cálculo. Solo para los
+    /// Centros de la página: nunca para todos los que pasan los filtros.
+    /// </summary>
+    private async Task<List<CentroListaDto>> CompletarPaginaAsync(
+        List<CentroListaDto> pagina, IReadOnlyDictionary<Guid, LecturaDeCentro> lecturas, bool conIncidencias,
+        CancellationToken cancellationToken)
+    {
+        var sinCumplimiento = pagina.Where(c => !lecturas[c.Id].CumplimientoLeido).Select(c => c.Id).ToList();
+        var cumplimiento = sinCumplimiento.Count == 0
+            ? new Dictionary<Guid, FraccionCumplimiento>()
+            : await calculoEstadoCentro.CalcularCumplimientoAsync(sinCumplimiento, cancellationToken);
+
+        var sinDetalle = conIncidencias ? pagina.Where(c => !lecturas[c.Id].Calculada).Select(c => c.Id).ToList() : [];
+        var detalle = sinDetalle.Count == 0
+            ? new Dictionary<Guid, ResultadoEstadoCentro>()
+            : await calculoEstadoCentro.CalcularAsync(sinDetalle, cancellationToken);
+
+        return pagina
+            .Select(c =>
+            {
+                var completo = c;
+                if (!lecturas[c.Id].CumplimientoLeido)
+                    completo = completo with { CumplimientoPorcentaje = cumplimiento.TryGetValue(c.Id, out var fraccion) ? fraccion.Porcentaje : null };
+                if (detalle.TryGetValue(c.Id, out var causas))
+                    completo = completo with { Recuentos = Desglosar(causas) };
+                return completo;
+            })
+            .ToList();
+    }
+
+    private static CentroListaDto AplicarEstado(FilaCentro fila, LecturaDeCentro lectura) =>
+        new(fila.Id, fila.Nombre, fila.CodigoCentro, fila.ClienteId, fila.ClienteRazonSocial,
+            fila.EmpresaId, fila.EmpresaRazonSocial,
+            lectura.Estado, lectura.CumplimientoPorcentaje,
+            lectura.Detalle is null ? RecuentosCentroDto.Vacio : Desglosar(lectura.Detalle));
+
+    /// <summary>
+    /// Las causas las da el cálculo del estado del centro (<see cref="ICalculoEstadoCentroService"/>), que se hace para los
+    /// Centros de la página aunque el estado salga de <c>EstadosEntidad</c>; aquí solo se agrupan por estado. No hay consulta
+    /// nueva: es el mismo dato que ya viajaba, que hasta ahora la lista descartaba.
     /// "Faltante" cuenta como vencido en el total — un requisito sin documento no
     /// está al día — y el motivo de Centros lo separa por causa (ver
     /// <see cref="RecuentosCentroDto.Pendientes"/>).
@@ -406,6 +492,15 @@ public class ObtenerCentrosQueryHandler(
                     .ThenBy(x => x.Nombre),
             _ => elementos.OrderBy(x => x.ClienteRazonSocial).ThenBy(x => x.Nombre)
         };
+
+    /// <summary>
+    /// El estado de un Centro y de dónde salió. <c>CumplimientoLeido</c>: el porcentaje es el definitivo (viene de la fila
+    /// guardada o se calculó); si no, falta y la página lo completa. <c>Calculada</c>: pasó por
+    /// <see cref="ICalculoEstadoCentroService"/>, así que su detalle de causas (<c>Detalle</c>, que puede ser nulo si el
+    /// cálculo no devolvió nada de él) ya está resuelto y no hay que calcularlo otra vez.
+    /// </summary>
+    private sealed record LecturaDeCentro(
+        EstadoCentro Estado, int? CumplimientoPorcentaje, bool CumplimientoLeido, bool Calculada, ResultadoEstadoCentro? Detalle);
 
     private record FilaCentro(
         Guid Id, string Nombre, string? CodigoCentro, Guid ClienteId, string ClienteRazonSocial,

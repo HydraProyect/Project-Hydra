@@ -22,7 +22,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         var selector = page.GetByRole(AriaRole.Button,
             new PageGetByRoleOptions { NameRegex = new Regex(@"^Cliente(?:$|:)") });
         await Expect(selector).ToBeVisibleAsync();
-        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente");
         // Sin elegir nada, la lista ya trae filas: las de todos los Clientes empresariales del alcance.
         var filas = page.Locator("table.tabla-proyectos tbody tr");
         await Expect(filas).Not.ToHaveCountAsync(0);
@@ -57,7 +57,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await elegir.FocusAsync();
         await elegir.PressAsync("Space");
         await Expect(menu).ToBeHiddenAsync();
-        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente");
         await Expect(selector).ToBeFocusedAsync();
         await Expect(page).Not.ToHaveURLAsync(new Regex("cliente="));
         await Expect(filas).Not.ToHaveCountAsync(0);
@@ -304,7 +304,7 @@ public class ProyectosFase1SelectorTests(WebAppFixtureListados fixture)
         await Expect(cerrados).ToHaveAttributeAsync("aria-pressed", "true");
         await Expect(todos).ToHaveAttributeAsync("aria-pressed", "false");
         await Expect(buscador).ToHaveValueAsync(termino!);
-        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente: Todos");
+        await Expect(selector).ToHaveAttributeAsync("aria-label", "Cliente");
         await Expect(nombresDeLasFilas).ToHaveTextAsync(nombresDeDestino);
         // Descartar repite «atrás»: la URL es la de destino, tal cual estaba en el historial.
         await Expect(page).ToHaveURLAsync(urlDeDestino);

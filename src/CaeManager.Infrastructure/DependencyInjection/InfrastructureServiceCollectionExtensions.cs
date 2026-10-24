@@ -71,6 +71,14 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
+        // Frescura (diseño § 5): avisos tras el COMMIT, el registro con que el escritor los anota y la versión del Tenant.
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.IRegistroCambiosEstado,
+            CaeManager.Infrastructure.EstadoMaterializado.RegistroCambiosEstado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant,
+            CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),
@@ -143,7 +151,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddUserValidator<ValidadorUnicidadGlobalCuenta>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
+            .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -163,6 +173,19 @@ public static class InfrastructureServiceCollectionExtensions
         // Usuarios.MinutosCaducidadActivacion.
         services.Configure<DataProtectionTokenProviderOptions>(
             opciones => opciones.TokenLifespan = TimeSpan.FromMinutes(60));
+
+        // Inicios de sesión sospechosos: registro (con RLS del Tenant propietario
+        // de la cuenta), detección, aviso, bloqueo por país (desactivado por
+        // defecto) y retención de 12 meses. Ver VigilanciaInicioSesionService.
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>(
+            configuration.GetSection(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion));
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesTokenNoHeSidoYo>(opciones => opciones.TokenLifespan =
+            TimeSpan.FromDays(configuration.GetValue(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion + ":DiasVigenciaEnlaceNoHeSidoYo", 7)));
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.IGeolocalizadorIp, CaeManager.Infrastructure.Seguridad.GeolocalizadorIpDbIp>();
+        services.AddSingleton(sp => new CaeManager.Application.Seguridad.InicioSesion.RafagaFallosPorIp(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
+        services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
@@ -326,6 +349,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IProyectoRepository, ProyectoRepository>();
         services.AddScoped<IProyectoTecnicoRepository, ProyectoTecnicoRepository>();
         services.AddScoped<IProyectoRequisitoRepository, ProyectoRequisitoRepository>();
+        services.AddScoped<CaeManager.Domain.ContratosAcceso.IContratoAccesoRepository, ContratoAccesoRepository>();
+        services.AddScoped<CaeManager.Domain.AutorizacionesLectura.IAutorizacionLecturaRepository, AutorizacionLecturaRepository>();
         services.AddScoped<IPlantillaRequisitosEventoRepository, PlantillaRequisitosEventoRepository>();
         services.AddScoped<CaeManager.Domain.Tenants.ITenantRepository, TenantRepository>();
         services.AddScoped<IDelegacionTenantRepository, DelegacionTenantRepository>();
@@ -406,6 +431,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Blindaje42.IBlindaje42QueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -429,6 +455,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Incidencias.IIncidenciasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Comunicaciones.IComunicacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -528,6 +557,9 @@ public static class InfrastructureServiceCollectionExtensions
             AdministradorDelTenantPropietarioEnBase>();
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        services.AddScoped<CaeManager.Domain.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -570,7 +602,12 @@ public static class InfrastructureServiceCollectionExtensions
         //
         // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        services.AddScoped<DiskFileStorageService>();
+        services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
+        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
+        // (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la
@@ -684,6 +721,10 @@ public static class InfrastructureServiceCollectionExtensions
         // Transitorio: AddHttpMessageHandler<T> resuelve una instancia por cliente HTTP.
         services.AddTransient<ContadorLlamadasProveedorIaHandler>();
         services.Configure<AnthropicOptions>(configuration.GetSection(AnthropicOptions.SeccionConfiguracion));
+        services.AddOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>()
+            .Bind(configuration.GetSection(CaeManager.Application.AsistenteIa.AsistenteConsultaOptions.SeccionConfiguracion))
+            .Validate(o => o.EsValida(), "Los límites de Consulta deben ser positivos y el historial debe admitir la pregunta.")
+            .ValidateOnStart();
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));

@@ -93,10 +93,13 @@ namespace CaeManager.Application.Common;
 /// <see cref="ISesionPrivilegiadaActual.RevalidarAsync"/>, que ignora esa memo
 /// y vuelve a preguntar a la base en cada comando: la garantía crítica de
 /// mutación se impone en el punto de mutación, sin depender de que el
-/// circuito se cierre ni de que llegue la próxima petición HTTP. Esa
-/// limitación de <c>ObtenerAsync</c> sigue viva y sigue siendo aceptable —para
-/// <i>lectura</i>—, y quien la cierra de verdad es el enforcement en la capa
-/// de datos (rol de BD de solo lectura + RLS, ADR-011 § 4bis.7.4).
+/// circuito se cierre ni de que llegue la próxima petición HTTP. Para
+/// <i>lectura</i>, la memo de <c>ObtenerAsync</c> caduca sola con la ventana de
+/// la sesión, y la revocación o el cierre desde otra pestaña los corta la
+/// revalidación periódica del circuito (<c>RevalidacionCircuitoActivoHandler</c>,
+/// que también usa <c>RevalidarAsync</c>) en el tick siguiente: el rol de BD de
+/// solo lectura y RLS acotan el Tenant objetivo, no la vigencia de la sesión
+/// (Z2-1, revisión extensa 2026-10-23).
 ///
 /// Coste para el resto del mundo: cero consultas. La sesión privilegiada, la
 /// concesión que la ampara y su alcance se leen juntos en una sola consulta

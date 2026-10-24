@@ -1,3 +1,4 @@
+using System.Globalization;
 using Bunit;
 using CaeManager.Application.AsistenteIa.Candidatos;
 using CaeManager.Application.AsistenteIa.Ordenes;
@@ -23,6 +24,15 @@ namespace CaeManager.Web.Tests;
 internal sealed class TenantEfectivoDePrueba(Guid? tenantId) : ITenantActual
 {
     public Guid? TenantId { get; set; } = tenantId;
+}
+
+internal sealed class UsuarioDeVegaDePrueba(Guid? tenantOrigenId = null) : ICurrentUserService
+{
+    public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
+    public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>(null);
+    public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult<string?>(null);
+    public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId);
+    public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(false);
 }
 
 /// <summary>
@@ -84,6 +94,7 @@ public class AsistenteIaAgenteTests : BunitContext
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba(TenantA));
         Services.AddSingleton<ITenantActual>(_tenantEfectivo);
+        Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba(TenantB));
         AddAuthorization().SetAuthorized("laura.perez@consultora.es");
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
@@ -525,6 +536,99 @@ public class AsistenteIaAgenteTests : BunitContext
             .And.NotContain("solo usa los datos");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Una_pregunta_rechazada_en_Consulta_no_se_queda_en_el_historial_que_se_reenvia(bool porValidacion)
+    {
+        Configurar(anthropic: true, typeSafeActivo: false);
+        GuionDeEmpresa();
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => porValidacion
+            ? throw new FluentValidation.ValidationException(
+                [new FluentValidation.Results.ValidationFailure("Historial", "La pregunta no puede superar los 4000 caracteres.")])
+            : Result.Fallo<string>(Error.Crear("AsistenteIa.CuotaUsuario", "Has agotado tu cuota de preguntas al asistente."));
+        var panel = Abrir();
+
+        Enviar(panel, "Pregunta rechazada");
+        panel.Find(".asistente-mensaje-error").TextContent.Should().NotBeEmpty();
+        Services.GetRequiredService<AsistenteIaService>().Historial.Should().BeEmpty("la rechazada no es un turno de la conversación");
+
+        _mediador.Guion[typeof(PreguntarAlAsistenteQuery)] = _ => Result.Exito("Respuesta normativa.");
+        Enviar(panel, "Pregunta aceptada");
+
+        _mediador.De<PreguntarAlAsistenteQuery>().Last().Historial.Should().ContainSingle()
+            .Which.Should().Be(new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta aceptada"));
+        Services.GetRequiredService<AsistenteIaService>().Historial.Should().Equal(
+            new MensajeChatDto(RolMensajeChat.Usuario, "Pregunta aceptada"),
+            new MensajeChatDto(RolMensajeChat.Asistente, "Respuesta normativa."));
+    }
+
+    [Theory]
+    [InlineData("es-ES", true, "Tu organización en esta sesión: Industrias Norte.")]
+    [InlineData("es-ES", false, "Empresa gestionada de esta sesión: Hotel Mirador.")]
+    [InlineData("ca-ES", true, "La teva organització en aquesta sessió: Industrias Norte.")]
+    [InlineData("ca-ES", false, "Empresa gestionada d'aquesta sessió: Hotel Mirador.")]
+    public void Textos_del_contexto_distinguen_el_Tenant_de_origen_del_gestionado(string idioma, bool enOrigen, string inicioTooltip)
+    {
+        var anterior = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(idioma);
+            Configurar(anthropic: true, typeSafeActivo: false);
+            GuionDeEmpresa();
+            _tenantEfectivo.TenantId = enOrigen ? TenantB : TenantA;
+
+            var panel = Abrir();
+
+            panel.WaitForAssertion(() =>
+            {
+                var chip = panel.Find(".vega-chip");
+                chip.GetAttribute("data-tooltip").Should().StartWith(inicioTooltip);
+                chip.GetAttribute("aria-label").Should().Be(chip.GetAttribute("data-tooltip"));
+                if (enOrigen)
+                    chip.GetAttribute("data-tooltip").Should().NotContain("Empresa gestionada");
+            });
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    [Theory]
+    [InlineData("es-ES", true, "Ahora estás trabajando en tu organización")]
+    [InlineData("es-ES", false, "La Empresa gestionada ha cambiado")]
+    [InlineData("ca-ES", true, "Ara estàs treballant a la teva organització")]
+    [InlineData("ca-ES", false, "L'Empresa gestionada ha canviat")]
+    public void Aviso_al_cambiar_el_Tenant_efectivo_distingue_el_destino(string idioma, bool volverAlOrigen, string inicioAviso)
+    {
+        var anterior = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(idioma);
+            Configurar(anthropic: true, typeSafeActivo: false);
+            GuionDeEmpresa();
+            _tenantEfectivo.TenantId = volverAlOrigen ? TenantA : TenantB;
+            var panel = Abrir();
+            panel.Find("textarea.asistente-textarea").Input("¿Qué formación hace falta?");
+
+            _tenantEfectivo.TenantId = volverAlOrigen ? TenantB : TenantA;
+            panel.Find("button.asistente-boton-enviar").Click();
+
+            var aviso = panel.Find(".asistente-mensaje-error").TextContent;
+            aviso.Should().StartWith(inicioAviso);
+            if (volverAlOrigen)
+                aviso.Should().NotContain("Empresa gestionada");
+            _mediador.De<PreguntarAlAsistenteQuery>().Should().BeEmpty();
+            panel.WaitForAssertion(() => panel.Find(".vega-chip").TextContent.Should()
+                .Contain(volverAlOrigen ? "Industrias Norte" : "Hotel Mirador"));
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
     [Fact]
     public void Nueva_conversacion_vacia_el_hilo_y_la_conversacion_sobrevive_a_volver_a_montar_el_panel()
     {
@@ -566,7 +670,7 @@ public class AsistenteIaAgenteTests : BunitContext
         _mediador.De<PreguntarAlAsistenteQuery>().Should().ContainSingle("con el Tenant cambiado no sale ningún envío");
         panel.FindAll(".vega-u, .vega-a").Should().BeEmpty("el hilo del Tenant anterior ya no se enseña");
         panel.Markup.Should().NotContain("la primera?").And.NotContain("Respuesta con datos del primer Tenant.");
-        panel.Find(".asistente-mensaje-error").TextContent.Should().Contain("La Empresa gestionada ha cambiado");
+        panel.Find(".asistente-mensaje-error").TextContent.Should().Contain("Ahora estás trabajando en tu organización");
         panel.WaitForAssertion(() => panel.Find(".vega-chip").TextContent.Should().Contain("Industrias Norte"));
 
         // El texto sigue en la caja; al enviarlo de nuevo, al proveedor solo llega lo del Tenant nuevo.

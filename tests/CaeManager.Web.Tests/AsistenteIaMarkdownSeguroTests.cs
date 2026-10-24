@@ -67,6 +67,7 @@ public class AsistenteIaMarkdownSeguroTests : BunitContext
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
+        Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba());
         JSInterop.Mode = JSRuntimeMode.Loose;
 
         var panel = Render<AsistenteIa>();

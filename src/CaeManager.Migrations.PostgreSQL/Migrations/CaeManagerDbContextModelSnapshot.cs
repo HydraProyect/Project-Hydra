@@ -29,6 +29,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime>("CaducaEnUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now() + interval '30 days'");
+
                     b.Property<Guid>("CreadaPorUsuarioId")
                         .HasColumnType("uuid");
 
@@ -423,6 +428,136 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("RegistrosAuditoria", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("DocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("MomentoUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantOrigenLectorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Tipo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "MomentoUtc")
+                        .HasDatabaseName("IX_AccesosLecturaInbound_Autorizacion");
+
+                    b.ToTable("AccesosLecturaInbound", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AccesosLecturaInbound_DocumentoSegunTipo", "(\"Tipo\" = 'Listado' AND \"DocumentoId\" IS NULL) OR (\"Tipo\" = 'Apertura' AND \"DocumentoId\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ConcedidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ConcedidaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IncluyeDocumentosEmpresa")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RevocadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantDestinatarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("VigenciaDesde")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("VigenciaHasta")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TenantDestinatarioId", "ContratoAccesoId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLectura_UnaSinRevocarPorContrato")
+                        .HasFilter("\"RevocadaEnUtc\" IS NULL");
+
+                    b.ToTable("AutorizacionesLecturaDocumental", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_DestinatarioAjeno", "\"TenantDestinatarioId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_HastaNoAnteriorADesde", "\"VigenciaHasta\" IS NULL OR \"VigenciaHasta\" >= \"VigenciaDesde\"");
+
+                            t.HasCheckConstraint("CK_AutorizacionesLectura_RevocacionEntera", "(\"RevocadaEnUtc\" IS NULL) = (\"RevocadaPorUsuarioId\" IS NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TrabajadorId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "TrabajadorId")
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Trabajador");
+
+                    b.HasIndex("TenantId", "AutorizacionId", "TrabajadorId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_AutorizacionesLecturaTrabajadores_Unico");
+
+                    b.ToTable("AutorizacionesLecturaTrabajadores", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.Property<Guid>("Id")
@@ -784,6 +919,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("IncidenciaId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("MensajeId")
                         .HasColumnType("uuid");
 
@@ -812,7 +950,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasIndex("MensajeId");
 
                     b.HasIndex("TenantId", "ConversacionId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasDatabaseName("IX_AlertasCriticasConversacion_TenantId_ConversacionId_Pendiente")
+                        .HasFilter("\"Estado\" = 0");
 
                     b.ToTable("AlertasCriticasConversacion", (string)null);
                 });
@@ -1897,6 +2037,78 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("ContactosAgendaTiposDocumento", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ClienteEmpresarialId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("EmpresaContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly?>("FechaCierreReal")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaFin")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly>("FechaInicio")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notas")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<Guid?>("TenantContratistaId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CentroId");
+
+                    b.HasIndex("TenantId", "ClienteEmpresarialId");
+
+                    b.HasIndex("TenantId", "EmpresaContratistaId");
+
+                    b.HasIndex("TenantId", "CentroId", "ClienteEmpresarialId");
+
+                    b.ToTable("ContratosAcceso", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContratosAcceso_CierreNoAnteriorAlInicio", "\"FechaCierreReal\" IS NULL OR \"FechaCierreReal\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_ContratistaDistintaDelCliente", "\"ClienteEmpresarialId\" <> \"EmpresaContratistaId\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_FinNoAnteriorAlInicio", "\"FechaFin\" IS NULL OR \"FechaFin\" >= \"FechaInicio\"");
+
+                            t.HasCheckConstraint("CK_ContratosAcceso_TenantContratistaAjeno", "\"TenantContratistaId\" IS NULL OR \"TenantContratistaId\" <> \"TenantId\"");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Cumplimiento.AceptacionTerminos", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2707,6 +2919,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
+                    b.Property<bool>("SoloConclusionAptitud")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("SustitutoId")
                         .HasColumnType("uuid");
 
@@ -2732,7 +2947,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                     b.HasIndex("TenantId", "SustitutoId");
 
-                    b.ToTable("TiposDocumento", (string)null);
+                    b.ToTable("TiposDocumento", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_TiposDocumento_SoloConclusionAptitudEsDeSalud", "NOT \"SoloConclusionAptitud\" OR \"Sensibilidad\" = 'CategoriaEspecialSalud'");
+                        });
 
                     b.HasData(
                         new
@@ -2752,6 +2970,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "CategoriaEspecialSalud",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -2774,6 +2993,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -2796,6 +3016,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -2818,6 +3039,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -2840,6 +3062,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2861,6 +3084,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2882,6 +3106,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2903,6 +3128,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2924,6 +3150,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2945,6 +3172,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2966,6 +3194,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -2987,6 +3216,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3008,6 +3238,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3029,6 +3260,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3050,6 +3282,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3071,6 +3304,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3092,6 +3326,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3113,6 +3348,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3134,6 +3370,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             SustitutoId = new Guid("10000000-0000-0000-0000-000000000002"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
@@ -3156,6 +3393,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3177,6 +3415,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3199,6 +3438,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3220,6 +3460,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3241,6 +3482,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3263,6 +3505,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3284,6 +3527,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3305,6 +3549,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3326,6 +3571,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3347,6 +3593,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3368,6 +3615,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3389,6 +3637,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3410,6 +3659,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3431,6 +3681,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3452,6 +3703,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3473,6 +3725,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3494,6 +3747,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3515,6 +3769,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3536,6 +3791,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "CorrienteTgss",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3558,6 +3814,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "CorrienteAeat",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3579,6 +3836,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ita",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3601,6 +3859,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Rlc",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3623,6 +3882,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
@@ -3646,6 +3906,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Rlc",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             SustitutoId = new Guid("20000000-0000-0000-0000-000000000004"),
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
@@ -3669,6 +3930,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Rnt",
                             Requerido = "Si",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -3691,6 +3953,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3712,6 +3975,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3733,6 +3997,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3754,6 +4019,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3775,6 +4041,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3796,6 +4063,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3817,6 +4085,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3838,6 +4107,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Condicional",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3859,6 +4129,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3880,6 +4151,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3901,6 +4173,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3922,6 +4195,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3943,6 +4217,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3964,6 +4239,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -3985,6 +4261,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4006,6 +4283,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4027,6 +4305,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4048,6 +4327,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4069,6 +4349,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4090,6 +4371,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4111,6 +4393,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4132,6 +4415,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4153,6 +4437,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4173,6 +4458,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4194,6 +4480,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4215,6 +4502,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4236,6 +4524,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Si",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4258,6 +4547,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4279,6 +4569,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4300,6 +4591,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4321,6 +4613,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "CategoriaEspecialSalud",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4342,6 +4635,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4363,6 +4657,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4384,6 +4679,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4405,6 +4701,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4426,6 +4723,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4447,6 +4745,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4468,6 +4767,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Condicional",
                             Sensibilidad = "SinDatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4489,6 +4789,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "Condicional",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4510,6 +4811,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false,
@@ -4532,6 +4834,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4553,6 +4856,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "DatosPersonales",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -4574,6 +4878,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                             PerfilDocumentoOficial = "Ninguno",
                             Requerido = "No",
                             Sensibilidad = "CategoriaEspecialSalud",
+                            SoloConclusionAptitud = false,
                             TenantId = new Guid("00000000-0000-0000-0000-000000000001"),
                             TiposContratacionDeSerie = 7,
                             VerificacionIaActiva = false
@@ -5869,6 +6174,395 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("PlataformasCaeClienteEmpresarial", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoEnPlataforma", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("AmbitoTitular")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CanalGestionDocumentalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<short>("Estado")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("EstadoVigencia")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateOnly?>("FechaVencimientoEnPlataforma")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TitularId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosPlataforma_ProximoCambio");
+
+                    b.HasIndex("TenantId", "AmbitoTitular", "TitularId")
+                        .HasDatabaseName("IX_EstadosPlataforma_Titular");
+
+                    b.HasIndex("TenantId", "CentroId", "CanalGestionDocumentalId", "AmbitoTitular", "TitularId", "TipoDocumentoId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosPlataforma_Acreditacion");
+
+                    b.ToTable("EstadosPlataforma", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoEntidad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AlDia")
+                        .HasColumnType("integer");
+
+                    b.Property<short>("Ambito")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("EntidadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("Estado")
+                        .HasColumnType("smallint");
+
+                    b.Property<short?>("EstadoPlataforma")
+                        .HasColumnType("smallint");
+
+                    b.Property<int>("Faltan")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PendientesEnPlataforma")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Proximos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Requeridos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SinConfirmar")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Urgentes")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Vencidos")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VencidosSinBloqueo")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosEntidad_ProximoCambio");
+
+                    b.HasIndex("TenantId", "Ambito", "EntidadId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosEntidad_Entidad");
+
+                    b.HasIndex("TenantId", "Ambito", "Estado")
+                        .HasDatabaseName("IX_EstadosEntidad_Estado");
+
+                    b.ToTable("EstadosEntidad", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.EstadoRequisito", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("AmbitoTitular")
+                        .HasColumnType("smallint");
+
+                    b.Property<bool>("BloqueaAcceso")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CalculadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CentroId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("CuentaParaCumplimiento")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateOnly>("DiaCalculo")
+                        .HasColumnType("date");
+
+                    b.Property<Guid?>("DocumentoEfectivoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<short?>("EstadoPlataforma")
+                        .HasColumnType("smallint");
+
+                    b.Property<short>("EstadoTalveg")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateOnly?>("ProximoCambioEl")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TitularId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("VencimientoEfectivo")
+                        .HasColumnType("date");
+
+                    b.Property<int>("VersionCalculo")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "EstadoTalveg")
+                        .HasDatabaseName("IX_EstadosRequisito_EstadoTalveg");
+
+                    b.HasIndex("TenantId", "ProximoCambioEl")
+                        .HasDatabaseName("IX_EstadosRequisito_ProximoCambio");
+
+                    b.HasIndex("TenantId", "AmbitoTitular", "TitularId")
+                        .HasDatabaseName("IX_EstadosRequisito_Titular");
+
+                    b.HasIndex("TenantId", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_EstadosRequisito_Par");
+
+                    b.ToTable("EstadosRequisito", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.RecalculoPendiente", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<short>("Ambito")
+                        .HasColumnType("smallint");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EntidadId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("IntentoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Intentos")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Motivo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "CreadoEnUtc")
+                        .HasDatabaseName("IX_RecalculosPendientes_Cola");
+
+                    b.ToTable("RecalculosPendientes", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ActualizadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("UltimoDiaProcesado")
+                        .HasColumnType("date");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_VersionesEstadoTenant_Tenant");
+
+                    b.ToTable("VersionesEstadoTenant", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EvidenciasInbound.EvidenciaInbound", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ArchivoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<Guid>("AutorizacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CausaRechazo")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("ConclusionAptitud")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("ContratoAccesoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DocumentoOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("EliminadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("EliminadoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EstaEliminado")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateOnly>("FechaEmision")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("FechaVencimiento")
+                        .HasColumnType("date");
+
+                    b.Property<string>("HuellaSha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("character(64)")
+                        .IsFixedLength();
+
+                    b.Property<string>("MotivoRechazo")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("RechazadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("RechazadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("SoloConclusionAptitud")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("SujetoDocumentoIdentidad")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("SujetoNombre")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TipoDocumentoId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TrabajadorOrigenId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ValidadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("ValidadaPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "DocumentoOrigenId");
+
+                    b.HasIndex("TenantId", "TipoDocumentoId");
+
+                    b.HasIndex("TenantId", "ContratoAccesoId", "DocumentoOrigenId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_EvidenciasInbound_TenantId_Contrato_DocumentoOrigen");
+
+                    b.ToTable("EvidenciasInbound", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_EvidenciasInbound_ArchivoSegunConclusion", "(\"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NULL AND \"HuellaSha256\" IS NULL AND \"ConclusionAptitud\" IS NOT NULL) OR (NOT \"SoloConclusionAptitud\" AND \"ArchivoUrl\" IS NOT NULL AND \"HuellaSha256\" IS NOT NULL AND \"ConclusionAptitud\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_EvidenciasInbound_OrigenEnOtroTenant", "\"TenantOrigenId\" <> \"TenantId\"");
+
+                            t.HasCheckConstraint("CK_EvidenciasInbound_SujetoYConclusionDeLaMedica", "NOT \"SoloConclusionAptitud\" OR (\"TrabajadorOrigenId\" IS NOT NULL AND \"SujetoDocumentoIdentidad\" IS NOT NULL AND \"ConclusionAptitud\" IN ('Apto', 'AptoConRestricciones', 'NoApto'))");
+
+                            t.HasCheckConstraint("CK_EvidenciasInbound_VencimientoNoAnteriorAEmision", "\"FechaVencimiento\" IS NULL OR \"FechaVencimiento\" >= \"FechaEmision\"");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Facturacion.TarifaCliente", b =>
@@ -8441,6 +9135,105 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("SolicitudesPurga", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Activa")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("ActualizadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<string>>("_paisesPermitidos")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("PaisesPermitidos");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId")
+                        .IsUnique();
+
+                    b.ToTable("PoliticasPaisesInicioSesion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Seguridad.RegistroInicioSesion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorRealUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Ciudad")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("DireccionIp")
+                        .HasMaxLength(45)
+                        .HasColumnType("character varying(45)");
+
+                    b.Property<string>("Dispositivo")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("HuellaDispositivo")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<double?>("Latitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitud")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Metodo")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime>("OcurridoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PaisIso")
+                        .HasMaxLength(2)
+                        .HasColumnType("character(2)")
+                        .IsFixedLength();
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("Senales")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OcurridoEnUtc");
+
+                    b.HasIndex("TenantId", "OcurridoEnUtc");
+
+                    b.HasIndex("TenantId", "UsuarioId", "OcurridoEnUtc");
+
+                    b.ToTable("RegistrosInicioSesion", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Soporte.RegistroActividadSoporte", b =>
                 {
                     b.Property<Guid>("Id")
@@ -9728,6 +10521,33 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaTrabajador", b =>
+                {
+                    b.HasOne("CaeManager.Domain.AutorizacionesLectura.AutorizacionLecturaDocumental", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "AutorizacionId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Trabajadores.Trabajador", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TrabajadorId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Blindaje42.SolicitudCertificacionTgss", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -9905,6 +10725,30 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .WithMany()
                         .HasForeignKey("TipoDocumentoId")
                         .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.ContratosAcceso.ContratoAcceso", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "EmpresaContratistaId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Centros.Centro", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "CentroId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id", "ClienteId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });
 
@@ -10119,6 +10963,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
                         .WithMany()
                         .HasForeignKey("TenantId", "ClienteEmpresarialId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.EvidenciasInbound.EvidenciaInbound", b =>
+                {
+                    b.HasOne("CaeManager.Domain.ContratosAcceso.ContratoAcceso", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "ContratoAccesoId")
+                        .HasPrincipalKey("TenantId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("CaeManager.Domain.Documentos.TipoDocumento", null)
+                        .WithMany()
+                        .HasForeignKey("TenantId", "TipoDocumentoId")
                         .HasPrincipalKey("TenantId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

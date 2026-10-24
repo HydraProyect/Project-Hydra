@@ -41,6 +41,11 @@
 #   vacío, exige la sección — el valor por defecto es EXIGIR, no eximir.
 #
 # Ver scripts/verificar-gobernanza-pr.tests.sh para la prueba sin red.
+#
+# Este guion es la AUTORIDAD. scripts/preflight-pr.ps1 (-CuerpoPr) lo reimplementa en
+# PowerShell para validar el cuerpo en local antes de abrir la PR, y
+# scripts/preflight-pr.tests.ps1 -ContraSh compara ambos (gobernanza-pr-tests.yml): si
+# cambias aquí una regla, replícala allí en el mismo PR o ese paso se pone en rojo.
 set -euo pipefail
 
 FICHERO_ROLES_CLUSTER="deploy/bootstrap/roles-de-cluster.sql"

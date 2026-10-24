@@ -328,6 +328,16 @@ public partial class CuadroDireccionTests : BunitContext
             .Contain("Parcial hasta el cierre del día 1 a las 00:00, hora de Madrid");
     }
 
+    [Theory]
+    [InlineData(1, "1 Empresa no sale en el cuadro ni en el total: no tienes acceso a toda su organización.")]
+    [InlineData(2, "2 Empresas no salen en el cuadro ni en el total: no tienes acceso a toda su organización.")]
+    public void El_aviso_de_Empresas_fuera_del_cuadro_concuerda_en_numero(int fuera, string esperado)
+    {
+        var cut = Pintar(Cuadro(EstadoCifraMensual.Parcial) with { TenantsSinAlcanceCompleto = fuera }, Roles.DireccionCae, out _);
+
+        cut.Find("p.cuadro-nota[role=status]").TextContent.Trim().Should().Be(esperado);
+    }
+
     [Fact]
     public void Una_Empresa_cuyo_estado_difiere_del_del_mes_lo_lleva_en_su_fila()
     {

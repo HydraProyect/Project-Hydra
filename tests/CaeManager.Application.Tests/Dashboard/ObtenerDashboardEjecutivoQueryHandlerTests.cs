@@ -19,12 +19,12 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         double? tiempoMedioResolucionDias = null, int totalIncidenciasResueltas = 0,
         double? confianzaMediaIa = null, decimal costeIaMes = 0m, double? tiempoMedioMsIa = null, int totalAuditoriasIaMes = 0,
         decimal facturacionEstimada = 0m, KpisBpoDto? bpo = null, decimal? presupuestoMensualIaUsd = null,
-        int empresaVencidos = 0, int empresaUrgentes = 0, int empresaProximos = 0) =>
+        int empresaVencidos = 0, int empresaUrgentes = 0, int empresaProximos = 0, int empresaVigentes = 0) =>
         new(
             Documental: new KpisDashboardDto(trabajadoresActivos, centros, vencidos, urgentes, proximos, vigentes, visitas, 0,
                 DocumentosSinConfirmar: sinConfirmar, DocumentosSinCaducidad: sinCaducidad,
                 DocumentosEmpresaVencidos: empresaVencidos, DocumentosEmpresaUrgentes: empresaUrgentes,
-                DocumentosEmpresaProximos: empresaProximos),
+                DocumentosEmpresaProximos: empresaProximos, DocumentosEmpresaVigentes: empresaVigentes),
             TotalDocumentosConVigencia: vigentes + proximos + urgentes + vencidos + sinConfirmar + sinCaducidad,
             PorcentajeCumplimientoDocumental: porcentajeCumplimientoDocumental,
             TotalRequeridosCumplimiento: totalRequeridosCumplimiento,
@@ -117,6 +117,24 @@ public class ObtenerDashboardEjecutivoQueryHandlerTests
         resultado.DocumentosVigentes.Should().Be(18);
         // Al día de Trabajador: 8 + 10 + 1 (el urgente) = 19 de 21; los de Empresa no entran ni en el numerador ni en el denominador.
         resultado.TasaCumplimiento.Should().Be((int)Math.Round(19 * 100m / 21m));
+    }
+
+    [Fact]
+    public void El_semaforo_suma_vigentes_de_Trabajador_y_Empresa_de_todos_los_Tenants_propietarios_sin_alterar_la_tasa()
+    {
+        var porTenant = new List<(ClienteAutorizadoDto, CatalogoKpisValoresDto)>
+        {
+            (Cliente("Talleres Aurora"), Valores(vigentes: 1, vencidos: 1, empresaVigentes: 2, empresaVencidos: 3)),
+            (Cliente("Montajes Brisa"), Valores(empresaVigentes: 3, empresaUrgentes: 1, empresaProximos: 2)),
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(porTenant);
+
+        resultado.DocumentosVigentes.Should().Be(6);
+        resultado.DocumentosVencidos.Should().Be(4);
+        resultado.DocumentosUrgentes.Should().Be(1);
+        resultado.DocumentosProximos.Should().Be(2);
+        resultado.TasaCumplimiento.Should().Be(50);
     }
 
     // La tasa fusionada usa la definición única de CumplimientoDocumental (decisiones del propietario, 2026-10-03):

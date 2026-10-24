@@ -265,7 +265,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
     {
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
-            contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
         var resultado = await handler.Handle(new ObtenerTrabajadoresQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(t => t.Id).ToList();
     }
@@ -276,7 +276,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         var handler = new ObtenerEmpresasQueryHandler(
             contexto, alcance, new CalculoEstadoDocumentalService(contexto, contexto, contexto),
             contexto, contexto, contexto, contexto,
-            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), RequisitosObligatoriosDePrueba.Servicio(contexto, alcance));
         var resultado = await handler.Handle(new ObtenerEmpresasQuery(termino), CancellationToken.None);
         return resultado.Elementos.Select(e => e.Id).ToList();
     }
@@ -341,7 +341,7 @@ public class BusquedaSinAcentosDeListadosBajoRlsTests(BusquedaSinAcentosDeListad
         CaeManagerDbContext contexto, IAlcanceDatosService alcance, string termino)
     {
         var handler = new ObtenerCentrosQueryHandler(
-            contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto));
+            contexto, contexto, alcance, new CalculoEstadoCentroService(contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto, contexto), new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(contexto));
         var resultado = await handler.Handle(new ObtenerCentrosQuery(termino, ClienteId: null), CancellationToken.None);
         return resultado.Elementos.Select(c => c.Id).ToList();
     }

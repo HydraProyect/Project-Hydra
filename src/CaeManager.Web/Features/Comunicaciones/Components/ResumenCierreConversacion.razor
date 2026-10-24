@@ -1,0 +1,47 @@
+@using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId
+@using CaeManager.Domain.Comunicaciones
+@using CaeManager.Web.Features.Comunicaciones.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosListaConversaciones> Textos
+
+<div class="resumen-cierre" role="status">
+    @* «Para cerrarla falta» solo cuando de verdad falta algo: con la conversación resuelta o cerrada
+       el rótulo es su estado y no se contradice con «No quedan acciones de cierre». *@
+    <strong>@Textos[Detalle.Estado switch
+    {
+        EstadoConversacion.Cerrada => "ResumenCerrada",
+        EstadoConversacion.Resuelta => "ResumenResuelta",
+        _ => "ParaCerrarlaFalta"
+    }]</strong>
+    @if (Detalle.Estado is EstadoConversacion.Cerrada or EstadoConversacion.Resuelta)
+    {
+        <span>@Textos["SinAccionesCierre"]</span>
+    }
+    else if (string.IsNullOrWhiteSpace(Detalle.ClienteRazonSocial))
+    {
+        <span>@Textos["IdentificarClienteCierre"]</span>
+    }
+    else if (Pendientes.Count > 0)
+    {
+        <ul>@foreach (var pendiente in Pendientes) { <li>@pendiente</li> }</ul>
+    }
+    else
+    {
+        <span>@Textos[Detalle.Estado switch
+        {
+            EstadoConversacion.EsperandoRespuestaExterna => "EsperarClienteCierre",
+            EstadoConversacion.EnEsperaDeTercero => "EsperarTerceroCierre",
+            _ => "RevisarCierre"
+        }]</span>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public ConversacionDetalleDto Detalle { get; set; } = default!;
+
+    // Solo hechos pendientes del hilo; los documentos citados no incluyen su estado de vigencia.
+    private IReadOnlyList<string> Pendientes => Detalle.Mensajes
+        .SelectMany(m => m.SugerenciasGestion.Select(s => s.Resumen)
+            .Concat(m.SugerenciaVisita is { } visita ? new[] { visita.Resumen } : Array.Empty<string>()))
+        .Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().ToList();
+}

@@ -32,6 +32,9 @@ public static class ApplicationServiceCollectionExtensions
 
         services.AddMediatR(cfg => cfg.RegisterServicesFromAssembly(ensamblado));
         services.AddValidatorsFromAssembly(ensamblado);
+        services.AddOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>();
+        services.TryAddSingleton(TimeProvider.System);
+        services.AddSingleton<CaeManager.Application.AsistenteIa.LimitadorConsultaIa>();
         // Scoped: una puerta por petición HTTP o circuito de Blazor — la
         // misma que usan los accesos a datos que no pasan por MediatR.
         services.AddScoped<PuertaAccesoDatos>();
@@ -89,6 +92,11 @@ public static class ApplicationServiceCollectionExtensions
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual.MemoPerfilVocabularioActual>(services);
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona.MemoRotulosPrimeraPersona>(services);
         AgregarMemoPorContexto<CaeManager.Application.Operaciones.IncorporacionCartera.Queries.MemoParticipaEnIncorporacionCartera>(services);
+        // Frescura del estado materializado (diseño § 5): el aviso es uno por proceso; la caché, una por circuito
+        // (Scoped, nunca singleton) y no caduca por tiempo sino por la versión del Tenant.
+        services.TryAddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.INotificadorEstadoTenant,
+            CaeManager.Application.EstadoMaterializado.Frescura.NotificadorEstadoTenant>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito>();
         // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
         // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
         // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
@@ -205,6 +213,10 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<IParserDocumentoOficialRegistry, ParserDocumentoOficialRegistry>();
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<IEvaluacionDeAccesoPorCentroService, EvaluacionDeAccesoPorCentroService>();
+        services.AddScoped<IEvaluacionDeAccesoDelTenant, EvaluacionDeAccesoPorCentroService>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IRecalculoEstadoMaterializado, CaeManager.Application.EstadoMaterializado.RecalculoEstadoMaterializadoService>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoCentros, CaeManager.Application.EstadoMaterializado.LectorEstadoCentros>();
+        services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();

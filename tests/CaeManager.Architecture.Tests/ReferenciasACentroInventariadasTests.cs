@@ -43,11 +43,16 @@ public class ReferenciasACentroInventariadasTests
         "SolicitudPrioridadDocumento",
         "DocumentoGenerado",
         "PlantillaDocumento",
+        // Estado materializado: datos derivados que el recálculo rehace enteros, sin FK a propósito (ver
+        // EstadoRequisitoConfiguration). Un Centro borrado deja filas huérfanas hasta el siguiente recálculo, no
+        // un estado falso de otro Centro, porque la clave lleva TenantId y la RLS lo fuerza.
+        "EstadoRequisito",
+        "EstadoEnPlataforma",
     ];
 
     /// <summary>
     /// Entidades de dominio con una propiedad <c>CentroId</c> <b>y</b> clave
-    /// foránea declarada. Once, todas con <c>DeleteBehavior.Restrict</c> salvo
+    /// foránea declarada. Doce, todas con <c>DeleteBehavior.Restrict</c> salvo
     /// <c>VerificacionExternaSubcontrata</c>, que es <c>Cascade</c> — matiz que
     /// F5 tendrá que resolver al decidir a cuál de las dos entidades nuevas se
     /// hereda ese comportamiento.
@@ -57,6 +62,7 @@ public class ReferenciasACentroInventariadasTests
         "Asignacion",
         "CanalGestionDocumental",
         "ContactoAgenda",
+        "ContratoAcceso",
         "TipoDocumentoCentro",
         "Gestion",
         "Incidencia",

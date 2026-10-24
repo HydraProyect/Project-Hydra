@@ -92,7 +92,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ITrabajadoresQueryContext"),
         ("ApiKeys.GenerarClaveApiCommandHandler", "IDelegacionTenantRepository"),
-        ("ApiKeys.GenerarClaveApiCommandHandler", "ITenantsQueryContext"),
         ("ApiKeys.ObtenerClavesApiQueryHandler", "ITenantsQueryContext"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "IDelegacionTenantRepository"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "ITenantsQueryContext"),
@@ -318,6 +317,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Comunicaciones.EnviarMensajeNuevoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IConexionIntegracionRepository"),
         ("Comunicaciones.MigrarConversacionACorreoCommandHandler", "IIntegracionesQueryContext"),
+        // Alerta crítica (Z5-1, 2026-10-23): «Registrar incidencia» ata la alerta a la Incidencia que acaba de crearse y el Deshacer
+        // la elimina, devuelve la alerta a Pendiente y retira los avisos «derivado» en una sola transacción; por eso los dos
+        // handlers leen la Incidencia (con su alcance de gestión) y el Deshacer marca como leídas las NotificacionUsuario.
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "IIncidenciaRepository"),
+        ("Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler", "INotificacionUsuarioRepository"),
+        ("Comunicaciones.ResolverAlertaCriticaCommandHandler", "IIncidenciaRepository"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IAsignacionesQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "ICentrosQueryContext"),
         ("Comunicaciones.ObtenerBorradorPedirPrioridadQueryHandler", "IEmpresasQueryContext"),
@@ -632,6 +637,25 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Plataforma.AbrirSesionPrivilegiadaCommandHandler", "ITenantsQueryContext"),
         ("Proyectos.AsignarTecnicoProyectoCommandHandler","ITrabajadoresQueryContext"),
         ("Proyectos.CrearProyectoCommandHandler", "ICentrosQueryContext"),
+        // Alta de un contrato de acceso (Inbound M1): como CrearProyecto, comprueba que el Centro es del Cliente y que la
+        // Empresa contratista existe en el Tenant, solo por su Id.
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "ICentrosQueryContext"),
+        ("ContratosAcceso.CrearContratoAccesoCommandHandler", "IEmpresasQueryContext"),
+        // Autorización de lectura documental (Inbound M1): comprueba que los Trabajadores asignados existen en el Tenant,
+        // solo por su Id, igual que AsignarTecnicoProyecto.
+        ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
+        ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
+        // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
+        // (Domain.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
+        // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
+        // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEmpresasQueryContext"),
+        ("ContratosAcceso.RechazarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),

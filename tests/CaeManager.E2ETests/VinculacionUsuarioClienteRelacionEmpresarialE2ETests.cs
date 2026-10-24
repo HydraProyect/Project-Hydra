@@ -113,7 +113,9 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         await campoCif.BlurAsync();
         await drawer.GetByText($"✓ {razonSocialCliente}").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // Este «Guardar» es el que falló 16 veces en 7 días de CI sin que se supiera por qué: si vuelve a
+        // pasar, el mensaje trae el estado del DOM (ver PulsarGuardarDelDrawerAsync).
+        await Ayudas.PulsarGuardarDelDrawerAsync(page, drawer.Locator(".drawer-pie").GetByText("Crear y enviar enlace"));
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Activación: el usuario establece SU contraseña desde el enlace ---

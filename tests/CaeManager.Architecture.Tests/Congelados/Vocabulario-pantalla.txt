@@ -25,7 +25,6 @@ src/CaeManager.Web/Features/Clientes/Pages/ConfiguracionIaCliente.razor :: [tena
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.ca-ES.resx :: PresupuestoDescripcion [operador-a-secas] = 1
 src/CaeManager.Web/Features/Configuracion/Recursos/TextosConfiguracion.resx :: PresupuestoDescripcion [operador-a-secas] = 1
 src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor :: [operador-a-secas] = 1
-src/CaeManager.Web/Features/Delegaciones/Pages/Delegaciones.razor :: [operador-a-secas] = 1
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.ca-ES.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Delegaciones/Recursos/TextosAutorizarOperadorCaeExterno.resx :: NotaPropiedad [operador-a-secas] = 1
 src/CaeManager.Web/Features/Empresas/Components/EmpresaWorkspacePanel.razor :: [alcance-a-secas] = 1

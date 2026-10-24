@@ -41,7 +41,7 @@ public static partial class NeutralizadorTextoExterno
 
         // Los caracteres invisibles no tienen uso legítimo en este texto y permitirían
         // partir el nombre de un campo sin que se vea: «orden​_del_gestor».
-        var texto = RegexInvisibles().Replace(textoExterno, string.Empty);
+        var texto = RegexInvisibles().Replace(RepararSustitutos(textoExterno), string.Empty);
 
         // Una tilde escrita como marca combinante («dél») se lee igual que la
         // precompuesta: se compone primero, y la marca que no tenga forma compuesta se
@@ -52,6 +52,35 @@ public static partial class NeutralizadorTextoExterno
             texto = PatronDe(nombre).Replace(texto, Sustituto);
 
         return texto;
+    }
+
+    /// <summary>
+    /// Sustituye por U+FFFD cada mitad suelta de un par sustituto. Sin esto,
+    /// <see cref="string.Normalize()"/> lanza: basta un emoji partido por un recorte
+    /// («cuerpo[..8000]») o un PDF mal extraído para tumbar el proceso que lo lea.
+    /// </summary>
+    public static string RepararSustitutos(string texto)
+    {
+        ArgumentNullException.ThrowIfNull(texto);
+        StringBuilder? reparado = null;
+        for (var i = 0; i < texto.Length; i++)
+        {
+            var c = texto[i];
+            var suelto = char.IsHighSurrogate(c)
+                ? i + 1 >= texto.Length || !char.IsLowSurrogate(texto[i + 1])
+                : char.IsLowSurrogate(c) && (i == 0 || !char.IsHighSurrogate(texto[i - 1]));
+            if (suelto)
+            {
+                reparado ??= new StringBuilder(texto, 0, i, texto.Length);
+                reparado.Append('�');
+            }
+            else
+            {
+                reparado?.Append(c);
+            }
+        }
+
+        return reparado?.ToString() ?? texto;
     }
 
     /// <summary>

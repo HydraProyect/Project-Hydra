@@ -127,6 +127,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Comunicaciones.MigrarConversacionACorreoCommandHandler",
         "Comunicaciones.PedirPrioridadValidacionCommandHandler",
         "Comunicaciones.ResolverAlertaCriticaCommandHandler",
+        "Comunicaciones.DeshacerDerivacionAlertaCriticaCommandHandler",
         "Comunicaciones.ResponderConversacionCommandHandler",
         "Comunicaciones.ResponderConversacionWhatsAppCommandHandler",
         "Comunicaciones.VincularConversacionCommandHandler",
@@ -195,6 +196,19 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Plantillas.GenerarDocumentoIndividualCommandHandler",
         "Plantillas.GuardarElementosPlantillaCommandHandler",
         "Plantillas.IniciarLoteGeneracionDocumentosCommandHandler",
+
+        // Contratos de acceso (Inbound M1): la autoridad es la de Proyecto, por el Cliente del contrato.
+        "ContratosAcceso.ActualizarContratoAccesoCommandHandler",
+        "ContratosAcceso.CerrarContratoAccesoCommandHandler",
+        "ContratosAcceso.CrearContratoAccesoCommandHandler",
+        "ContratosAcceso.EliminarContratoAccesoCommandHandler",
+        "ContratosAcceso.ReabrirContratoAccesoCommandHandler",
+        "ContratosAcceso.VincularTenantContratistaCommandHandler",
+        // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
+        // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.
+        "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",
+        "ContratosAcceso.RechazarEvidenciaInboundCommandHandler",
+        "ContratosAcceso.ValidarEvidenciaInboundCommandHandler",
 
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",
@@ -467,6 +481,12 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["ApiKeys"] =
             "claves de API de una delegación de soporte: plano de Plataforma, solo desde el Tenant de la consultora " +
             "delegada; no escribe filas de una cartera",
+        ["AutorizacionesLectura"] =
+            "autorización de lectura documental que el Tenant de la Empresa contratista concede al Tenant del Cliente " +
+            "empresarial (Inbound M1): plano de Propiedad, solo rol Administrador (AutorizacionLecturaAutoridad), cuyo " +
+            "alcance es null (sin restricción de cartera); ninguna fila con cartera. Vale SOLO mientras la autoridad sea " +
+            "únicamente Administrador: si DN-2 la amplía a un rol con cartera, la característica sale de esta lista. Lo " +
+            "ata EscriturasSobreEntidadesConCarteraTests.La_autoridad_de_las_autorizaciones_de_lectura_exentas_es_solo_Administrador",
         ["Comercial"] =
             "estado comercial y suscripción del Tenant: plano Comercial, autorizado por " +
             "IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync",

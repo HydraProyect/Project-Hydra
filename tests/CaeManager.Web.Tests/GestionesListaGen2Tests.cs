@@ -1,6 +1,8 @@
 using CaeManager.Infrastructure.Identity;
 using AngleSharp.Dom;
 using Bunit;
+using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
+using CaeManager.Application.Centros.Queries.ObtenerCredencialCanalGestion;
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Commands.CompletarGestion;
 using CaeManager.Application.Gestiones.Commands.EliminarGestion;
@@ -59,6 +61,14 @@ public partial class GestionesListaGen2Tests : BunitContext
         public Exception? FalloConsulta { get; set; }
         public Exception? FalloCompletar { get; set; }
 
+        /// <summary>Canales de gestión por Centro, como los de Centro 360 (bloque «Plataforma CAE» de la vista rápida).</summary>
+        public Dictionary<Guid, IReadOnlyList<CanalGestionResumenDto>> Canales { get; } = [];
+        public Dictionary<(Guid CentroId, Guid CanalId), CredencialCanalGestionDto> Credenciales { get; } = [];
+        public Exception? FalloCanales { get; set; }
+
+        /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
+        public bool SinDobleFactor { get; set; }
+
         /// <summary>
         /// Si devuelve una tarea para la petición, esa es la respuesta: permite
         /// retenerla con un <see cref="TaskCompletionSource{TResult}"/> y
@@ -69,6 +79,9 @@ public partial class GestionesListaGen2Tests : BunitContext
         public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+
+            if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
+                throw new SegundoFactorRequeridoParaCredencialesException();
 
             if (Retener?.Invoke(request) is { } retenida)
                 return (TResponse)await retenida;
@@ -107,6 +120,13 @@ public partial class GestionesListaGen2Tests : BunitContext
 
                 case RestaurarGestionCommand:
                     return Result.Exito();
+
+                case ObtenerCanalesGestionDeCentroQuery q:
+                    if (FalloCanales is not null) throw FalloCanales;
+                    return Canales.GetValueOrDefault(q.CentroId) ?? (IReadOnlyList<CanalGestionResumenDto>)[];
+
+                case ObtenerCredencialCanalGestionQuery q:
+                    return Credenciales.GetValueOrDefault((q.CentroId, q.CanalId))!;
 
                 // El estado vacío sin filtros pregunta cuántos Tenants hay para decidir adónde
                 // lleva «Ir a Mi trabajo»: uno solo, /bandeja (GestionesVacioEnlaceMiTrabajoTests

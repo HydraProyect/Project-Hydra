@@ -320,6 +320,7 @@ src/CaeManager.Application/Visitas/Queries/ObtenerDetalleVisita/ObtenerDetalleVi
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitaPorId/ObtenerVisitaPorIdQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitas/ObtenerVisitasQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitasParaCalendario/ObtenerVisitasParaCalendarioQuery.cs :: ClienteId = 1
+src/CaeManager.Domain/ApiKeys/CriterioSoporteClaveApi.cs :: TenantClienteId = 1
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: ClienteId = 2
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: clienteId = 4
 src/CaeManager.Domain/Centros/Centro.cs :: ClienteId = 2
@@ -569,3 +570,14 @@ src/CaeManager.Web/Services/TrazaSoporteService.cs :: TenantClienteId = 1
 src/CaeManager.Application/Comunicaciones/Commands/ConfirmarIntencionConversacion/ConfirmarIntencionConversacionCommand.cs :: ClienteId = 1
 src/CaeManager.Application/Comunicaciones/Queries/ObtenerIntencionConversacion/ObtenerIntencionConversacionQuery.cs :: ClienteId = 1
 src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs :: ClienteId = 1
+
+# Contrato de acceso (Inbound M1, 2026-10-23): la tabla nueva usa ClienteEmpresarialId; quedan el join con la
+# columna legacy Centro.ClienteId (alta y FK compuesta contra la clave alternativa de Centro) y el alcance de
+# Clientes visibles (ObtenerClienteIdsVisiblesAsync), el mismo criterio de autorización que Proyecto. En el alta, el
+# tercer uso comprueba si el actor ve al titular del Centro antes de decir que el Centro no pertenece al Cliente.
+src/CaeManager.Application/ContratosAcceso/Commands/CrearContratoAcceso/CrearContratoAccesoCommand.cs :: ClienteId = 3
+src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/ContratosAcceso/ContratoAccesoAutorizacion.cs :: clienteIdsVisibles = 3
+src/CaeManager.Application/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: ObtenerClienteIdsVisiblesAsync = 1
+src/CaeManager.Application/ContratosAcceso/Queries/ObtenerContratosAcceso/ObtenerContratosAccesoQuery.cs :: clienteIdsVisibles = 3
+src/CaeManager.Infrastructure/Persistence/Configurations/ContratoAccesoConfiguration.cs :: ClienteId = 1

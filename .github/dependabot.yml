@@ -88,6 +88,17 @@ updates:
       # el bloqueo sobrevive al motivo que lo justificaba.
       - dependency-name: "Microsoft.OpenApi"
         versions: [">=3.0.0"]
+      # PDFsharp 6.5.0 (2026-10-14) pasa de MIT a AGPL-3.0-only (licencia
+      # comercial de pago aparte): usarla obligaria a publicar el fuente del
+      # producto. 6.2.4 sigue siendo MIT y el cambio NO es retroactivo. El
+      # grupo `pdfsharp` de arriba solo cubre minor y patch, y 6.5 es una
+      # minor: sin esta regla Dependabot la propondria. La guarda
+      # PdfsharpNoSuperaLaUltimaVersionMitTests pone la CI en rojo si una
+      # PR manual la sube.
+      - dependency-name: "PDFsharp*"
+        versions: [">=6.5.0"]
+      - dependency-name: "MigraDoc*"
+        versions: [">=6.5.0"]
 
   - package-ecosystem: "docker"
     directory: "/"

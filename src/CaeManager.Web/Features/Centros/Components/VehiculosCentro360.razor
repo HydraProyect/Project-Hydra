@@ -81,7 +81,7 @@ else
 
     /// <summary>La pastilla «N con incidencias» de la Subcontrata cuenta lo que no está validado en la plataforma.</summary>
     private static bool ConIncidencia(VehiculoDocumentacionCentroDto vehiculo) =>
-        EstadoDe(vehiculo) is EstadoEnPlataforma.Bloquea or EstadoEnPlataforma.Pendiente;
+        AcordeonAsignacionesCentro.TieneIncidenciaEnPlataforma(vehiculo.Documentos);
 
     private static int Validados(VehiculoDocumentacionCentroDto vehiculo) =>
         vehiculo.Documentos.Count(d => d.AcreditacionesEnElCentro?.Any(a => a.Estado == EstadoAcreditacion.Aceptada) == true);

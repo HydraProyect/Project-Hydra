@@ -30,7 +30,7 @@ public partial class Centro360Gen2Tests
         Registrar(new MediatorFalso()).Asignaciones[id] = [Asignado("Ana Alba", EstadoDocumento.Vigente)];
         var cut = RenderizarAcordeon(id);
         cut.Find(".fila-trabajador-fraccion").TextContent.Should().Be("—");
-        cut.Find(".fila-trabajador-fraccion").TextContent.Should().NotContain("0 de 0");
+        cut.Find(".fila-trabajador-fraccion").TextContent.Should().NotContain("0/0");
     }
 
     [Theory]

@@ -22,7 +22,7 @@ public partial class UsuariosGen2Tests
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
     private static Task AbrirAltaAsync(IRenderedComponent<UsuariosControlados> cut) =>
-        cut.Find(".acciones-cabecera button").ClickAsync(new());
+        cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
 
     [Fact]
     public async Task Aviso_salir_con_el_alta_a_medias_pregunta()

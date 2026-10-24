@@ -208,7 +208,7 @@ public class ExportacionTrabajadoresTests : IAsyncLifetime
         await using var contexto = CrearContexto(tenant);
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto, new AlcanceDatosServiceFalso(),
-            new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto));
         // Rastro REAL, contra la misma base: lo que se mide es la fila que queda.
         var registro = new RegistroExportacionService(
             new ActorFijo(ActorAuditoria.Normal(_usuario)),

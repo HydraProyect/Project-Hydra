@@ -150,6 +150,17 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Autorizacion/TenantConAdministradorPropioEnBase.cs",
             """.SqlQuery<bool?>($"SELECT app_tenant_tiene_administrador_propio({tenantId}) AS \"Value\"")""")] = 1,
 
+        // Lectura entre Tenants de Inbound M1 (PR 3): las tres funciones SECURITY DEFINER app_inbound_* de la migración
+        // AnadeLecturaInboundEntreTenants. Los Documentos son del Tenant de la Empresa contratista y RLS los oculta, como
+        // debe, a la conexión del Tenant lector; la función comprueba el contrato y la autorización con el Tenant y el
+        // usuario del contexto firmado, y deja la traza. Solo los identificadores del contrato y del Documento, parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaAutorizacion>($"SELECT * FROM app_inbound_autorizacion_del_contrato({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var filas = await dbContext.Database.SqlQuery<FilaDocumento>($"SELECT * FROM app_inbound_documentos_autorizados({contratoAccesoId})").ToListAsync(cancellationToken);""")] = 1,
+        [("src/CaeManager.Infrastructure/Autorizacion/LectorDocumentosInboundEnBase.cs",
+            """var fila = await dbContext.Database.SqlQuery<FilaArchivo>($"SELECT * FROM app_inbound_archivo_autorizado({contratoAccesoId}, {documentoId})").ToListAsync(cancellationToken);""")] = 1,
+
         // Mismo patrón para las cuentas de Identity (P1-M1): con RLS en
         // AspNetUsers, el login, la 2FA, la recuperación de contraseña y la
         // revalidación de la cookie buscan una cuenta antes de que exista
@@ -172,6 +183,18 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
+            ".SqlQuery<string>(")] = 1,
+
+        // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
+        // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
+        // conexión lleva cae_app_soporte (solo SELECT sobre RegistrosAccesoDocumentoSensible),
+        // así que la única puerta es la función SECURITY DEFINER
+        // app_registrar_acceso_documento_sensible_por_soporte (migración
+        // RegistraAccesoDocumentoSensiblePorSoporte), ejecutable solo por ese rol, que vuelve
+        // a comprobar la sesión y la concesión contra el contexto RLS firmado y pone ella
+        // Tenant, actor y vía. No lee filas: devuelve un código. Los cinco valores van
+        // parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/RegistroAccesoDocumentoSensibleRepository.cs",
             ".SqlQuery<string>(")] = 1,
 
         // Anonimizar a un Trabajador enmascara sus datos personales en el historial de
@@ -293,6 +316,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
         [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
 
+        // Retención de 12 meses de RegistrosInicioSesion: llamada sin
+        // parámetros a app_purgar_inicios_sesion (SECURITY DEFINER, corte fijo
+        // dentro de la función, runtime solo tiene EXECUTE). No existe
+        // equivalente EF para invocar una función que devuelve un escalar.
+        [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
+
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.
         // Cerrojo consultivo, LOCK TABLE, lectura del historial y DELETE e
@@ -373,6 +402,36 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Estado materializado (PR 3 y 3b): el escritor compara con lo guardado por lotes con unnest (borra lo que sobra,
+        // actualiza solo las columnas calculadas de lo que cambió e inserta lo nuevo), una sentencia por tabla más la de la
+        // versión. EF no puede: un Update() completo choca con el permiso de UPDATE por columnas (42501) y el rastreador
+        // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
+        // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 4,
+        // Recálculo en línea del estado materializado (PR 4a, diseño § 4.3-4.5). IgnoreQueryFilters: las raíces de un
+        // documento, canal o evento borrado lógicamente (el borrado es la acción) salen de la fila borrada; cada consulta
+        // lleva el predicado de TenantId explícito (el de app.tenant_id de la conexión) además de la RLS forzada, así que
+        // solo salta el filtro de borrado lógico, nunca el de Tenant. SQL crudo (interpolado, parámetros de Npgsql):
+        // cerrojos consultivos pg_advisory_xact_lock(_shared) del Tenant y de la clausura, lectura de app.tenant_id, si
+        // existe la fila de VersionesEstadoTenant del Tenant y el encolado en RecalculosPendientes con el TenantId de la
+        // conexión; la RLS (FORCE, WITH CHECK) rige en todas.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var titulares = await dbContext.Set<Documento>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "afectados.UnionWith(await dbContext.Set<CanalGestionDocumental>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var centroDeProyecto = await dbContext.Set<Proyecto>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "trabajadores.UnionWith(await dbContext.Set<ProyectoTecnico>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "? dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", ": dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 2,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // Tope de espera de cerrojo del recálculo: lee y fija lock_timeout de la transacción (set_config local).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Frescura del estado materializado (PR 11, diseño § 5.3): antes del COMMIT, en la propia transacción, el interceptor
+        // de avisos lee app.tenant_id (texto fijo, sin parámetros ni datos de usuario) para descartar avisos de otro Tenant.
+        // Es un interceptor de transacciones: no hay DbContext utilizable a mitad del COMMIT. Solo lee; no salta la RLS.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/AvisoEstadoTrasConfirmarInterceptor.cs", "var comando = (transaction.Connection ?? throw new InvalidOperationException(\"La transacción no tiene conexión.\")).CreateCommand();")] = 1,
     };
 
     /// <summary>

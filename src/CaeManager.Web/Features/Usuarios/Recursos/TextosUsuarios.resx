@@ -48,6 +48,12 @@
   <data name="ReenvioCorreoFallidoEnlaceAbajo" xml:space="preserve">
     <value>El enlace queda abajo para entregarlo tú mismo.</value>
   </data>
+  <data name="EnvioCorreoEnCursoTitulo" xml:space="preserve">
+    <value>Enviando el correo…</value>
+  </data>
+  <data name="EnvioCorreoEnCursoCuerpo" xml:space="preserve">
+    <value>Estamos enviándole por correo un enlace para que establezca su contraseña. Caduca pronto y solo puede usarse una vez. Mientras tanto, puedes hacerle llegar tú este enlace:</value>
+  </data>
   <data name="CarteraAltaEtiqueta" xml:space="preserve">
     <value>Empresas de su cartera (opcional)</value>
   </data>
@@ -341,5 +347,135 @@
   </data>
   <data name="AlcanceEmpresaGestionadaParcial" xml:space="preserve">
     <value>{0} (solo un Cliente)</value>
+  </data>
+  <data name="ListaActivos" xml:space="preserve"><value>Activos</value></data>
+  <data name="ListaBuscar" xml:space="preserve"><value>Filtrar esta pantalla: nombre o correo</value></data>
+  <data name="ListaDesactivados" xml:space="preserve"><value>Desactivados</value></data>
+  <data name="ListaPendientes" xml:space="preserve"><value>Pendientes de activar</value></data>
+  <data name="ListaRestantes" xml:space="preserve"><value>Ver los {0} restantes</value></data>
+  <data name="ListaRol" xml:space="preserve"><value>Rol</value></data>
+  <data name="ListaTodos" xml:space="preserve"><value>Todos</value></data>
+  <data name="ListaTotal" xml:space="preserve"><value>{0} usuario(s)</value></data>
+  <data name="ListaTu" xml:space="preserve"><value>tú</value></data>
+  <data name="ListaUsuario" xml:space="preserve"><value>Usuario</value></data>
+  <data name="ListaAcciones" xml:space="preserve"><value>Acciones</value></data>
+  <data name="ListaAmbito" xml:space="preserve"><value>Ámbito efectivo</value></data>
+  <data name="ListaEstado" xml:space="preserve"><value>Estado</value></data>
+  <data name="ListaNuevo" xml:space="preserve"><value>+ Nuevo usuario</value></data>
+  <data name="ListaQuitarFiltro" xml:space="preserve"><value>Quitar filtro</value></data>
+  <data name="ListaTitulo" xml:space="preserve"><value>Usuarios</value></data>
+  <data name="ListaUnidad" xml:space="preserve"><value>usuario(s)</value></data>
+  <data name="ChipBusqueda" xml:space="preserve"><value>Búsqueda: {0}</value></data>
+  <data name="ChipRol" xml:space="preserve"><value>Rol: {0}</value></data>
+  <data name="AltaTitulo" xml:space="preserve">
+    <value>Nuevo usuario</value>
+  </data>
+  <data name="EditarTitulo" xml:space="preserve">
+    <value>Editar usuario</value>
+  </data>
+  <data name="FormularioGuardar" xml:space="preserve">
+    <value>Guardar</value>
+  </data>
+  <data name="FormularioCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="AltaGuardar" xml:space="preserve">
+    <value>Crear y enviar enlace</value>
+  </data>
+  <data name="AltaGuardarSinDatos" xml:space="preserve">
+    <value>Escribe el nombre y el correo para crear el usuario.</value>
+  </data>
+  <data name="EstadoActivo" xml:space="preserve">
+    <value>Activo</value>
+  </data>
+  <data name="EstadoDesactivado" xml:space="preserve">
+    <value>Desactivado</value>
+  </data>
+  <data name="EstadoPendiente" xml:space="preserve">
+    <value>Pendiente de activar</value>
+  </data>
+  <data name="UltimoAcceso" xml:space="preserve">
+    <value>Último acceso</value>
+  </data>
+  <data name="UltimoAccesoHoy" xml:space="preserve">
+    <value>Hoy {0}</value>
+  </data>
+  <data name="UltimoAccesoAyer" xml:space="preserve">
+    <value>Ayer {0}</value>
+  </data>
+  <data name="UltimoAccesoNunca" xml:space="preserve">
+    <value>Aún no ha entrado</value>
+  </data>
+  <data name="DosFactores" xml:space="preserve">
+    <value>2FA</value>
+  </data>
+  <data name="DosFactoresActivado" xml:space="preserve">
+    <value>Activado</value>
+  </data>
+  <data name="DosFactoresNoActivado" xml:space="preserve">
+    <value>No activado</value>
+  </data>
+  <data name="PendienteAvisoTitulo" xml:space="preserve">
+    <value>Todavía no ha activado la cuenta</value>
+  </data>
+  <data name="PendienteAvisoTexto" xml:space="preserve">
+    <value>Si el correo no le llegó, genera un enlace nuevo: el anterior dejará de valer.</value>
+  </data>
+  <data name="GenerarEnlaceNuevo" xml:space="preserve">
+    <value>Generar enlace nuevo</value>
+  </data>
+  <data name="EnlaceTitulo" xml:space="preserve">
+    <value>Enlace de activación</value>
+  </data>
+  <data name="EnlaceTituloReenviado" xml:space="preserve">
+    <value>Correo reenviado</value>
+  </data>
+  <data name="EnlaceTituloFallido" xml:space="preserve">
+    <value>No pudimos reenviar el correo</value>
+  </data>
+  <data name="EnlaceCuerpoFallido" xml:space="preserve">
+    <value>No pudimos enviarle el correo. Puedes hacerle llegar tú este enlace para que establezca su contraseña:</value>
+  </data>
+  <data name="EnlaceCuerpoEnviado" xml:space="preserve">
+    <value>Le hemos enviado por correo un enlace para que establezca su contraseña.</value>
+  </data>
+  <data name="EnlaceCaducidad" xml:space="preserve">
+    <value>Caduca en {0} minutos y solo puede usarse una vez.</value>
+  </data>
+  <data name="EnlaceCuerpoSiNoLlega" xml:space="preserve">
+    <value>Si el correo no le llega, puedes hacerle llegar tú este enlace:</value>
+  </data>
+  <data name="EnlaceNotaSinContrasena" xml:space="preserve">
+    <value>Cuenta creada sin contraseña: nadie más que la persona llega a conocerla.</value>
+  </data>
+  <data name="EnlaceNuevoAvisoTitulo" xml:space="preserve">
+    <value>El enlace anterior deja de valer.</value>
+  </data>
+  <data name="EnlaceNuevoAvisoTexto" xml:space="preserve">
+    <value>Solo funciona el último que generes.</value>
+  </data>
+  <data name="EnlaceCerrar" xml:space="preserve">
+    <value>Cerrar</value>
+  </data>
+  <data name="EnlaceCopiar" xml:space="preserve">
+    <value>Copiar enlace</value>
+  </data>
+  <data name="EnlaceCopiado" xml:space="preserve">
+    <value>✓ Copiado</value>
+  </data>
+  <data name="EnlaceCopiadoAviso" xml:space="preserve">
+    <value>Enlace copiado al portapapeles.</value>
+  </data>
+  <data name="EnlaceNoCopiado" xml:space="preserve">
+    <value>No se pudo copiar el enlace. Selecciónalo y cópialo a mano.</value>
+  </data>
+  <data name="ActivacionUrlPublicaNoConfigurada" xml:space="preserve">
+    <value>No se pudo generar el enlace de activación.</value>
+  </data>
+  <data name="AltaSinUrlPublica" xml:space="preserve">
+    <value>No se creó el usuario: falta la URL pública de la aplicación para generar su enlace de activación.</value>
+  </data>
+  <data name="EnlaceSinUrlPublica" xml:space="preserve">
+    <value>No se ha generado ningún enlace ni se ha cambiado nada: falta la URL pública de la aplicación.</value>
   </data>
 </root>

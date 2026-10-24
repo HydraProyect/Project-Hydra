@@ -20,7 +20,11 @@ namespace CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
 ///
 /// <paramref name="EstadoDocumental"/> es el filtro de estado de la pantalla:
 /// una Empresa no tiene estado propio, se deriva del peor estado de vigencia
-/// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>).
+/// de sus Documentos (ver <see cref="ICalculoEstadoDocumentalService"/>) con los requisitos OBLIGATORIOS de ámbito
+/// Empresa incumplidos de los Centros visibles donde opera aplicados encima
+/// (<see cref="RequisitosObligatoriosIncumplidos"/> y <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>: Vencido obligatorio &gt;
+/// Pendiente &gt; Vencido que solo avisa &gt; Por vencer &gt; Sin confirmar &gt; Sin incidencias; decisión del 2026-10-23). Lo exigido sin la marca
+/// «bloquea el acceso» no tiñe, y lo que les falta a sus Trabajadores tampoco: cada nivel pinta su contexto.
 ///
 /// <para>
 /// <paramref name="ConDesgloseDocumental"/> rellena, para las filas de la página, las incidencias de
@@ -72,6 +76,23 @@ public record EmpresaListaDto(
     public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
 
     /// <summary>
+    /// Nombres de los Tipos de documento de ámbito Empresa que algún Centro donde opera la Empresa marca como OBLIGATORIOS
+    /// («bloquea el acceso») y de los que no tiene ningún documento que valga (<see cref="RequisitosObligatoriosIncumplidos"/>,
+    /// decisión del 2026-10-23). Sin repetir y por nombre. Se rellenan siempre: con un requisito obligatorio incumplido
+    /// (ausente o vencido en ese Centro) <see cref="EstadoDocumental"/> ya llega como <see cref="EstadoDocumento.Faltante"/>
+    /// («Pendiente»), o como Vencido si lo incumplido es un obligatorio vencido. Lo exigido sin esa marca no está aquí ni tiñe. Solo Centros visibles para el usuario.
+    /// </summary>
+    public IReadOnlyList<string> DocumentosFaltantes { get; init; } = [];
+
+    /// <summary>
+    /// El <see cref="EstadoDocumental"/> es <see cref="EstadoDocumento.Vencido"/> solo por un documento de la Empresa que
+    /// ningún Centro visible donde opera marca obligatorio («bloquea el acceso»): es un aviso y se pinta en el tono de aviso,
+    /// no en rojo (<see cref="SeveridadEstadoDocumento.EsVencidoSinBloqueo"/>, decisión del 2026-10-23). Filtra y cuenta como
+    /// Vencido, y se ordena detrás de lo que va en rojo.
+    /// </summary>
+    public bool VencidoSinBloqueo { get; init; }
+
+    /// <summary>
     /// El Cliente empresarial bajo el que la agrupación «Por Cliente» coloca la fila: el primero por razón social
     /// de los Clientes a los que presta servicio la Empresa (el del filtro, si lo hay) y que el usuario alcanza.
     /// Una Empresa con varios Clientes sale una sola vez, no una por Cliente. Nulo si no tiene ninguno a su
@@ -85,7 +106,7 @@ public class ObtenerEmpresasQueryHandler(
     ICalculoEstadoDocumentalService calculoEstadoDocumental,
     IDocumentosQueryContext documentosContext, IConfiguracionQueryContext configuracionContext,
     IAsignacionesQueryContext asignacionesContext, ITrabajadoresQueryContext trabajadoresContext,
-    ICalculoEstadoCentroService calculoEstadoCentro)
+    ICalculoEstadoCentroService calculoEstadoCentro, IRequisitosObligatoriosIncumplidosService requisitosObligatorios)
     : IRequestHandler<ObtenerEmpresasQuery, ResultadoPaginado<EmpresaListaDto>>
 {
     public async Task<ResultadoPaginado<EmpresaListaDto>> Handle(ObtenerEmpresasQuery request, CancellationToken cancellationToken)
@@ -138,6 +159,21 @@ public class ObtenerEmpresasQueryHandler(
             var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
             var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
 
+            // Los requisitos obligatorios incumplidos de todas las Empresas de la consulta, antes de paginar: entran en la
+            // clave de estado igual que en ObtenerTrabajadoresQuery (decisión del 2026-10-23). Solo se materializan los Ids
+            // con alguno, nunca el listado.
+            var incumplidos = await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
+            var idsConObligatorioVencido = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value)).Select(p => p.Key).ToList();
+            var idsConObligatorioAusente = incumplidos.Where(p => RequisitosObligatoriosIncumplidos.HayAusente(p.Value)).Select(p => p.Key).ToList();
+            var claveVencidoSinBloqueo = EstadoDocumentalFiltro.ClaveVencidoSinBloqueo;
+            var claveVencido = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vencido);
+            var claveFaltante = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Faltante);
+            var claveUrgente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Urgente);
+            var claveProximo = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Proximo);
+            var claveSinConfirmar = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.SinConfirmar);
+            var claveVigente = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.Vigente);
+            var claveSinCaducidad = EstadoDocumentalFiltro.ClaveOrdenConFaltantes(EstadoDocumento.SinCaducidad);
+
             var conFecha =
                 from e in consulta
                 select new
@@ -159,63 +195,57 @@ public class ObtenerEmpresasQueryHandler(
                         .Any(d => d.EmpresaId == e.Id && d.EstadoVigencia == EstadoVigenciaDocumento.SinConfirmar)
                 };
 
-            // La clave de estado es la misma expresión con la que se ordena (EstadoDocumentalFiltro.ClaveOrden:
-            // 0 Vencido, 1 Urgente, 2 Próximo, 3 Sin confirmar, 4 Vigente, 5 Sin caducidad), escrita en línea
-            // porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de estado, el
-            // filtro y el orden parten las filas igual.
-            //
+            // La clave de estado es la misma con la que se ordena (EstadoDocumentalFiltro.ClaveOrdenConFaltantes:
+            // Vencido obligatorio, Pendiente por requisito obligatorio, Vencido que solo avisa, Urgente, Próximo, Sin confirmar, Vigente, Sin caducidad),
+            // escrita en línea porque tiene que traducirse a SQL. Contar y filtrar por ella garantiza que la franja de
+            // estado, el filtro y el orden parten las filas igual.
+            var conEstado = conFecha.Select(e => new
+            {
+                e.Id,
+                e.RazonSocial,
+                e.Cif,
+                e.CreadoEnUtc,
+                e.ClientePrincipal,
+                e.PeorFecha,
+                e.HaySinConfirmar,
+                // En rojo solo lo que bloquea el acceso (SeveridadEstadoDocumento.ConRequisitosObligatorios): un obligatorio
+                // vencido, luego uno que falta; un vencido que ningún Centro marca obligatorio es aviso y va detrás.
+                ClaveEstado = idsConObligatorioVencido.Contains(e.Id) ? claveVencido
+                    : idsConObligatorioAusente.Contains(e.Id) ? claveFaltante
+                    : e.PeorFecha != null && e.PeorFecha < hoy ? claveVencidoSinBloqueo
+                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? claveUrgente
+                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? claveProximo
+                    : e.HaySinConfirmar ? claveSinConfirmar
+                    : e.PeorFecha != null ? claveVigente
+                    : claveSinCaducidad
+            });
+
             // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
             // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
             if (request.ConRecuentosPorEstado)
             {
-                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conFecha
-                    .GroupBy(e =>
-                        e.PeorFecha != null && e.PeorFecha < hoy ? 0
-                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
-                    : e.HaySinConfirmar ? 3
-                    : e.PeorFecha != null ? 4
-                    : 5)
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conEstado
+                    .GroupBy(e => e.ClaveEstado)
                     .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
-                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken));
+                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken), incluirFaltantes: true);
             }
 
             // Varios estados a la vez (la franja deja marcar más de uno). null: el filtro no descarta nada
             // (vacío o sin ningún valor conocido). Lista vacía: ninguna fila — «sin documentos» (este listado
-            // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que un propietario
-            // nunca tiene (Faltante, En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
-            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is { } clavesPedidas)
-            {
-                conFecha = conFecha.Where(e => clavesPedidas.Contains(
-                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
-                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
-                    : e.HaySinConfirmar ? 3
-                    : e.PeorFecha != null ? 4
-                    : 5));
-            }
+            // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que una Empresa
+            // nunca tiene (En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
+            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental, incluirFaltantes: true) is { } clavesPedidas)
+                conEstado = conEstado.Where(e => clavesPedidas.Contains(e.ClaveEstado));
 
-            var totalConEstado = await conFecha.CountAsync(cancellationToken);
+            var totalConEstado = await conEstado.CountAsync(cancellationToken);
 
             // Este camino se toma también solo para contar por estado (la franja lo pide siempre), así que el
             // orden no puede darse por supuesto: por estado si es la columna pedida, y si no por la misma lista
             // blanca que el camino sin estado.
             var porEstado = request.Descendente
-                ? conFecha.OrderByDescending(e =>
-                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
-                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
-                    : e.HaySinConfirmar ? 3
-                    : e.PeorFecha != null ? 4
-                    : 5)
-                : conFecha.OrderBy(e =>
-                    e.PeorFecha != null && e.PeorFecha < hoy ? 0
-                    : e.PeorFecha != null && e.PeorFecha <= limiteRojo ? 1
-                    : e.PeorFecha != null && e.PeorFecha <= limiteAmbar ? 2
-                    : e.HaySinConfirmar ? 3
-                    : e.PeorFecha != null ? 4
-                    : 5);
+                ? conEstado.OrderByDescending(e => e.ClaveEstado)
+                : conEstado.OrderBy(e => e.ClaveEstado);
             var ordenaPorEstado = string.Equals(
                 request.OrdenarPor, nameof(EmpresaListaDto.EstadoDocumental), StringComparison.Ordinal);
             var ordenadaConEstado = ordenaPorEstado
@@ -223,14 +253,14 @@ public class ObtenerEmpresasQueryHandler(
                 : (request.OrdenarPor, request.Descendente) switch
                 {
                     // Agrupar por Cliente: los de un mismo Cliente seguidos, las sin Cliente al final.
-                    (nameof(EmpresaListaDto.ClientePrincipal), _) => conFecha
+                    (nameof(EmpresaListaDto.ClientePrincipal), _) => conEstado
                         .OrderBy(e => e.ClientePrincipal == null).ThenBy(e => e.ClientePrincipal).ThenBy(e => e.RazonSocial),
-                    (nameof(EmpresaListaDto.RazonSocial), true) => conFecha.OrderByDescending(e => e.RazonSocial),
-                    (nameof(EmpresaListaDto.Cif), false) => conFecha.OrderBy(e => e.Cif),
-                    (nameof(EmpresaListaDto.Cif), true) => conFecha.OrderByDescending(e => e.Cif),
-                    (nameof(EmpresaListaDto.CreadoEnUtc), false) => conFecha.OrderBy(e => e.CreadoEnUtc),
-                    (nameof(EmpresaListaDto.CreadoEnUtc), true) => conFecha.OrderByDescending(e => e.CreadoEnUtc),
-                    _ => conFecha.OrderBy(e => e.RazonSocial)
+                    (nameof(EmpresaListaDto.RazonSocial), true) => conEstado.OrderByDescending(e => e.RazonSocial),
+                    (nameof(EmpresaListaDto.Cif), false) => conEstado.OrderBy(e => e.Cif),
+                    (nameof(EmpresaListaDto.Cif), true) => conEstado.OrderByDescending(e => e.Cif),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), false) => conEstado.OrderBy(e => e.CreadoEnUtc),
+                    (nameof(EmpresaListaDto.CreadoEnUtc), true) => conEstado.OrderByDescending(e => e.CreadoEnUtc),
+                    _ => conEstado.OrderBy(e => e.RazonSocial)
                 };
             var ordenadaFinal = ordenadaConEstado.ThenBy(e => e.Id);
 
@@ -246,11 +276,13 @@ public class ObtenerEmpresasQueryHandler(
             return new ResultadoPaginado<EmpresaListaDto>(
                 await ConClientePrincipalAsync(
                     await ConDesgloseAsync(
-                        paginaConEstado.Select(e => new EmpresaListaDto(
-                            e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                            CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
-                            cumplimientoConEstado.GetValueOrDefault(e.Id),
-                            deteccionesConEstado.GetValueOrDefault(e.Id)))
+                        paginaConEstado.Select(e => ConIncumplidos(
+                            new EmpresaListaDto(
+                                e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
+                                CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                                cumplimientoConEstado.GetValueOrDefault(e.Id),
+                                deteccionesConEstado.GetValueOrDefault(e.Id)),
+                            incumplidos))
                             .ToList(),
                         request, cancellationToken),
                     request, clientesAlcanzados, cancellationToken),
@@ -294,16 +326,21 @@ public class ObtenerEmpresasQueryHandler(
         var estados = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, idsPagina, cancellationToken);
         var cumplimiento = await CalcularCumplimientoPorEmpresaAsync(idsPagina, cancellationToken);
         var detecciones = await ContarDeteccionesPendientesPorEmpresaAsync(idsPagina, cancellationToken);
+        var incumplidosPagina = idsPagina.Count == 0
+            ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
+            : await requisitosObligatorios.DeEmpresasAsync(dbContext.Empresas.Where(e => idsPagina.Contains(e.Id)).Select(e => e.Id), cancellationToken);
 
         return new ResultadoPaginado<EmpresaListaDto>(
             await ConClientePrincipalAsync(
                 await ConDesgloseAsync(
-                    elementos.Select(e => e with
-                    {
-                        EstadoDocumental = estados.GetValueOrDefault(e.Id),
-                        CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
-                        DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
-                    }).ToList(),
+                    elementos.Select(e => ConIncumplidos(
+                        e with
+                        {
+                            EstadoDocumental = estados.GetValueOrDefault(e.Id),
+                            CumplimientoPorcentaje = cumplimiento.GetValueOrDefault(e.Id),
+                            DeteccionesPendientes = detecciones.GetValueOrDefault(e.Id)
+                        },
+                        incumplidosPagina)).ToList(),
                     request, cancellationToken),
                 request, clientesAlcanzados, cancellationToken),
             total, request.Pagina, request.TamanoPagina);
@@ -407,6 +444,26 @@ public class ObtenerEmpresasQueryHandler(
         var porEmpresa = CumplimientoDocumental.PorContexto(ContextoCumplimiento.Empresa, pares);
 
         return empresaIds.Distinct().ToDictionary(id => id, id => porEmpresa.GetValueOrDefault(id)?.Porcentaje);
+    }
+
+    /// <summary>
+    /// Aplica a una fila los requisitos obligatorios incumplidos de la Empresa (<see cref="RequisitosObligatoriosIncumplidos"/>)
+    /// con <see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>, la misma combinación que el estado de Trabajador:
+    /// un obligatorio vencido es Vencido, uno que falta es Pendiente, y sin ninguno un vencido de sus documentos solo avisa
+    /// (<see cref="EmpresaListaDto.VencidoSinBloqueo"/>). Los Tipos que faltan dan el motivo de la fila.
+    /// </summary>
+    private static EmpresaListaDto ConIncumplidos(
+        EmpresaListaDto fila, IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> incumplidos)
+    {
+        var deLaEmpresa = incumplidos.GetValueOrDefault(fila.Id) ?? [];
+        var vencido = RequisitosObligatoriosIncumplidos.HayVencido(deLaEmpresa);
+        var ausente = RequisitosObligatoriosIncumplidos.HayAusente(deLaEmpresa);
+        return fila with
+        {
+            EstadoDocumental = SeveridadEstadoDocumento.ConRequisitosObligatorios(fila.EstadoDocumental, vencido, ausente),
+            VencidoSinBloqueo = SeveridadEstadoDocumento.EsVencidoSinBloqueo(fila.EstadoDocumental, vencido, ausente),
+            DocumentosFaltantes = RequisitosObligatoriosIncumplidos.NombresAusentes(deLaEmpresa)
+        };
     }
 
     /// <summary>

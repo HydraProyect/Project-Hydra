@@ -30,7 +30,8 @@
     <CabeceraPagina Titulo="Accesos a documentos sensibles" Integrada="@IntegradaEnConfiguracion">
         <Descripcion>
             Cada vez que alguien abre o descarga un documento sensible —y cada vez que consulta una de sus
-            versiones anteriores— queda registrado aquí, con una excepción conocida que se explica abajo.
+            versiones anteriores— queda registrado aquí, también si lo hace Soporte TALVEG desde una Sesión
+            Privilegiada. Si el acceso no puede registrarse, el documento no se entrega.
         </Descripcion>
     </CabeceraPagina>
 
@@ -45,20 +46,10 @@
             </span>
         </p>
 
-        @* No es alcance decidido sino un hueco real, y una pantalla de auditoría
-           no puede prometer exhaustividad que no tiene. RegistroAccesoDocumentoSensibleRepository
-           tolera el 42501 de la Sesión Privilegiada de soporte (rol cae_app_soporte,
-           sin escritura en ninguna tabla, ADR-011 § 4bis): el registro se descarta
-           y solo queda un aviso en el log del servidor. Decisión pendiente en HO-099-01. *@
-        <p class="accesos-sensibles-alcance accesos-sensibles-hueco" role="note">
-            <span class="accesos-sensibles-punto" aria-hidden="true"></span>
-            <span>
-                <strong>Hueco conocido, pendiente de decisión:</strong> un acceso de Soporte TALVEG desde una Sesión
-                Privilegiada de solo lectura todavía no puede registrarse aquí, porque esa sesión no puede escribir en
-                ninguna tabla. Queda solo en el registro técnico del servidor.
-            </span>
-        </p>
-
+        @* Sin aviso de hueco: el acceso de Soporte TALVEG desde una Sesión Privilegiada se
+           registra por la función app_registrar_acceso_documento_sensible_por_soporte, y un
+           acceso que no queda registrado no se sirve (RegistroAccesoDocumentoSensibleService,
+           revisión extensa 2026-10-23, Z2-2). *@
         <div class="accesos-sensibles-puerta">
             <span class="accesos-sensibles-puerta-titulo">La puerta más estrecha del producto</span>
             <p>

@@ -287,7 +287,7 @@ public class DocumentosVacioPorFiltroTests : BunitContext
     {
         var (cut, mediador) = RenderizarConMediador(documentos: Enumerable.Range(1, 21).Select(i => Documento("Contrato " + i)).ToArray());
         var consultasAntes = ConsultasDeLista(mediador);
-        cut.Find(".pie-lista-opciones select").Change("50");
+        cut.FindAll(".paginador-opciones-tamano button").Single(b => b.TextContent.Trim() == "50").Click();
         mediador.Enviadas.OfType<ObtenerDocumentosQuery>().Last().TamanoPagina.Should().Be(50);
         (ConsultasDeLista(mediador) - consultasAntes).Should().Be(1,
             "avisar a la paginación y refrescar la rejilla son dos formas de pedir lo mismo");

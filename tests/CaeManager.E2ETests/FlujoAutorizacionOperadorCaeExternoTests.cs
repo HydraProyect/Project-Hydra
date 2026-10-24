@@ -82,6 +82,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await modalAutorizar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Autorizar", Exact = true }).ClickAsync();
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
+        await Ayudas.AbrirDetalleDeDelegacionAsync(paginaB, nombreOperador);
         await tarjetaVinculo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjetaVinculo).ToContainTextAsync("Activa");
 

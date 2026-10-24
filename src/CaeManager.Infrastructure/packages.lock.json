@@ -58,6 +58,12 @@
           "MimeKit": "4.18.1"
         }
       },
+      "MaxMind.Db": {
+        "type": "Direct",
+        "requested": "[5.2.0, )",
+        "resolved": "5.2.0",
+        "contentHash": "UJ6zwjzV8YZ4YbELCUsK+9lEut5Ea6ks3p8CXEK9hQm8GxhJYrKsVxXcVvZsJ2Nzij1e89dXYrqUH7MCoWdhqg=="
+      },
       "MessagePack": {
         "type": "Direct",
         "requested": "[2.5.303, )",

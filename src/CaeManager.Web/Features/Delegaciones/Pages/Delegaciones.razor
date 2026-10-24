@@ -6,27 +6,22 @@
 <LimiteDeErrores Pagina="this">
 @if (!IntegradaEnConfiguracion)
 {
-    <PageTitle>Delegaciones — @Marca.Nombre</PageTitle>
+    <PageTitle>@TextosLista["Titulo"] — @Marca.Nombre</PageTitle>
 }
 
-<div class="@ClaseContenedorPagina delegaciones-pantalla">
-    <CabeceraPagina Titulo="Delegaciones" Integrada="@IntegradaEnConfiguracion">
-        <Descripcion>
-            Autoriza a una organización a prestar servicio CAE sobre otra sin transferir la propiedad de sus datos.
-            Revocar corta el acceso y conserva el historial para poder reactivarla cuando corresponda.
-        </Descripcion>
-        <Acciones>
-            @if (PuedeGestionar)
-            {
-                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
-            }
-            @if (PuedeAutorizarOperador)
-            {
-                <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAutorizarOperador">@TextosAutorizar["AccionAutorizar"]</Boton>
-            }
-        </Acciones>
-    </CabeceraPagina>
-
+<div class="@ClaseContenedorPagina delegaciones-pantalla lista-design">
+    @if (IntegradaEnConfiguracion)
+    {
+        <CabeceraPagina Titulo="@TextosLista["Titulo"]" Integrada="true">
+            <Acciones>@AccionesCabeceraLista</Acciones>
+        </CabeceraPagina>
+    }
+    else
+    {
+        <CabeceraListado Titulo="@TextosLista["Titulo"]" Contador="@(_cargando || _error ? null : (int?)_delegaciones.Count)">
+            <Primaria>@AccionesCabeceraLista</Primaria>
+        </CabeceraListado>
+    }
     @if (PuedeAutorizarOperador)
     {
         <div class="delegaciones-autorizas-tu" role="note">
@@ -51,6 +46,28 @@
         </div>
     }
 
+    <BarraFiltros Busqueda="@(BusquedaLista ?? string.Empty)" BusquedaChanged="BuscarListaAsync"
+                  PlaceholderBuscador="@TextosLista["Buscar"]" HayFiltrosActivos="HayFiltrosActivos"
+                  OnLimpiarTodo="LimpiarFiltrosListaAsync"
+                  FiltrosGuardados="_filtrosGuardados.Opciones" OnGuardarFiltro="_filtrosGuardados.AbrirGuardar"
+                  OnAplicarFiltroGuardado="_filtrosGuardados.AplicarAsync" OnBorrarFiltroGuardado="_filtrosGuardados.PedirBorrar"
+                  VistaRecordada="_vistaRecordada">
+        <Pastillas>
+            <PastillaFiltro Etiqueta="@TextosLista["Tipo"]" Valor="@TipoLista" Opciones="TiposLista" ValorChanged="CambiarTipoListaAsync" />
+        </Pastillas>
+        <Estados>
+            <FranjaEstado Opciones="EstadosLista" Valor="@EstadoLista" ValorChanged="CambiarEstadoListaAsync"
+                          Recuentos="RecuentosLista" TextoTodos="@TextosLista["Todas"]" />
+        </Estados>
+        <Herramientas>
+            <PastillaFiltro Etiqueta="@TextosLista["Agrupar"]" TextoTodos="@TextosLista["SinAgrupar"]" Valor="@AgrupacionLista"
+                            Keytip="A" Opciones="AgrupacionesLista" ValorChanged="CambiarAgrupacionListaAsync" />
+        </Herramientas>
+    </BarraFiltros>
+    <FiltrosGuardadosDeListado Conexion="_filtrosGuardados" Pantalla="@CaeManager.Application.Configuracion.Commands.GuardarFiltro.PantallasConFiltrosGuardados.AsignacionesDeOperacion"
+                              ParametrosDeVista="ParametrosDeVista" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
+    <VistaRecordadaDeListado Conexion="_vistaRecordada" Pantalla="@CaeManager.Application.Configuracion.PantallasConVistaRecordada.AsignacionesDeOperacion"
+                            ParametrosDeVista="ParametrosDeVista" ParametroDeBusqueda="q" OnAplicar="AplicarVistaListaAsync" AlCambiar="StateHasChanged" />
     @if (_error)
     {
         <EstadoVacio Titulo="No pudimos cargar las delegaciones"
@@ -60,36 +77,71 @@
             </Accion>
         </EstadoVacio>
     }
-    else if (_cargando)
-    {
-        <EstadoCargando Filas="3" />
-    }
-    else if (_delegaciones.Count == 0)
-    {
-        <EstadoVacio Titulo="No hay ninguna delegación"
-                     Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : "Esta organización no presta ni recibe servicio CAE delegado.")" />
-    }
     else
     {
-        <div class="delegaciones-lista" aria-label="Delegaciones">
-            @foreach (var delegacion in _delegaciones)
+        @TarjetaListado.RenderizarMaqueta(@<text>
+        @if (_cargando)
+        {
+            <EstadoCargando Filas="3" />
+        }
+        else if (FilasFiltradas.Count == 0)
+        {
+            @if (HayFiltrosActivos)
             {
-                <Tarjeta Class="delegaciones-tarjeta">
+                <EstadoVacio Titulo="@TextosLista["SinResultados"]" Descripcion="@TextosLista["SinResultadosDescripcion"]" />
+            }
+            else
+            {
+                <EstadoVacio Titulo="@TextosLista["SinAsignaciones"]"
+                             Descripcion="@(OperandoWorkspaceAjeno ? TextosAutorizar["VacioOtraOrganizacion"] : TextosLista["SinAsignacionesDescripcion"])" />
+            }
+        }
+        else
+        {
+        <table class="tabla-datos delegaciones-lista" aria-label="@TextosLista["Titulo"]">
+            <thead><tr>
+                <th scope="col">@TextosLista["Organizacion"]</th><th scope="col">@TextosLista["Tipo"]</th><th scope="col">@TextosLista["Permiso"]</th><th scope="col">@TextosLista["Estado"]</th>
+            </tr></thead>
+            <tbody>
+            @{ var claves = new ClavesDeHermanos(); }
+            @foreach (var bloque in BloquesLista)
+            {
+                var delegacion = bloque.Fila;
+                @if (bloque.Cabecera is { } grupo)
+                {
+                    <tr><td colspan="4">
+                        <CabeceraGrupoLista Nombre="@grupo.Nombre" Total="grupo.Total" Abierto="bloque.Abierto" OnAlternar="() => AlternarGrupoLista(grupo.Clave)" />
+                    </td></tr>
+                }
+                @if (bloque.Oculta) { continue; }
+                <tr @key="delegacion.Id" class="delegaciones-fila">
+                    <td><button type="button" class="delegaciones-abrir" aria-expanded="@(_detallesLista.Contains(delegacion.Id) ? "true" : "false")" @onclick="() => AlternarDetalleLista(delegacion.Id)">
+                        <Icono Nombre="@(_detallesLista.Contains(delegacion.Id) ? "chevron" : "siguiente")" Tamano="TamanoIcono.Pequeno" />
+                        <TextoResaltado Texto="@NombreLista(delegacion)" Termino="@BusquedaLista" />
+                    </button><div class="delegaciones-fecha">@TextosLista["Alta"] @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")</div></td>
+                    <td>@TextosLista[TipoDeLista(delegacion)]</td>
+                    <td>@(delegacion.EsSoporte ? PermisoSoporteLista(delegacion) : TextoPersonasLista(delegacion.Operadores.Count))</td>
+                    <td><span class="estado-fila"><Badge Tono="@TonoEstadoLista(delegacion)">@TextoEstadoLista(delegacion)</Badge></span></td>
+                </tr>
+                @if (_detallesLista.Contains(delegacion.Id))
+                {
+                <tr class="delegaciones-detalle" @key="claves.De((delegacion.Id, true))"><td colspan="4">
+                <div class="delegaciones-tarjeta">
                     <div class="delegaciones-tarjeta-cabecera">
                         <div>
                             <div class="delegaciones-etiquetas">
                                 <Badge Tono="@(delegacion.EsSoporte ? TonoBadge.Info : TonoBadge.Neutro)">
-                                    @(delegacion.EsSoporte ? "Soporte" : "Operador externo")
+                                    @TextosLista[TipoDeLista(delegacion)]
                                 </Badge>
-                                <Badge Tono="@TonoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)">
-                                    @TextoEstado(delegacion.EsSoporte, delegacion.AccesoVigente, delegacion.VentanaCaducada, delegacion.Activa)
+                                <Badge Tono="@TonoEstadoLista(delegacion)">
+                                    @TextoEstadoLista(delegacion)
                                 </Badge>
                             </div>
                             <h2 class="delegaciones-titulo">
                                 @TituloDe(delegacion.SomosLaConsultora, delegacion.ClienteNombre, delegacion.ConsultoraNombre)
                             </h2>
                             <p class="delegaciones-fecha">
-                                Desde @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
+                                @TextosLista["Alta"] @delegacion.CreadoEnUtc.EnHoraPeninsular().ToString("dd/MM/yyyy")
                             </p>
                         </div>
                         @if (delegacion.EsSoporte && delegacion.AccesoVigente)
@@ -174,7 +226,7 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var operador in delegacion.Operadores)
+                                    @foreach (var operador in delegacion.Operadores.Take(_personasCompletas.Contains(delegacion.Id) ? int.MaxValue : 3))
                                     {
                                         <tr>
                                             <td class="@(EsUsuarioNoResuelto(operador.UsuarioId) ? "delegaciones-persona-no-resuelta" : null)">
@@ -201,6 +253,10 @@
                         </div>
                     }
 
+                    @if (delegacion.Operadores.Count > 3 && !_personasCompletas.Contains(delegacion.Id))
+                    {
+                        <Boton Variante="VarianteBoton.Fantasma" OnClick="() => _personasCompletas.Add(delegacion.Id)">@TextosLista["VerRestantes", delegacion.Operadores.Count - 3]</Boton>
+                    }
                     <div class="delegaciones-pie">
                         @if (delegacion.EsSoporte)
                         {
@@ -256,11 +312,15 @@
                             </div>
                         }
                     </div>
-                </Tarjeta>
+                </div>
+                </td></tr>
+                }
             }
-        </div>
+            </tbody>
+        </table>
+        }
+        </text>, PieLista)
     }
-
     @if (!_cargando && !_error && _accesosSoporteTalveg is not null && !OperandoWorkspaceAjeno)
     {
         <section class="accesos-soporte-talveg" aria-labelledby="titulo-accesos-soporte-talveg">
@@ -437,3 +497,23 @@
     <p class="delegaciones-nota-modal">@TextosAutorizar["NotaPropiedad"]</p>
 </ModalFormulario>
 </LimiteDeErrores>
+
+@code {
+    private RenderFragment AccionesCabeceraLista => @<text>
+        @if (PuedeGestionar)
+        {
+            <Boton Variante="VarianteBoton.Primario" OnClick="AbrirFormularioNuevaDelegacion">Nueva delegación</Boton>
+        }
+        @if (PuedeAutorizarOperador)
+        {
+            <Boton Variante="VarianteBoton.Primario" OnClick="AbrirAutorizarOperador">@TextosAutorizar["AccionAutorizar"]</Boton>
+        }
+    </text>;
+
+    private RenderFragment? PieLista => _error || (_cargando && _delegaciones.Count == 0) ? null : @<text>
+        <PaginadorSimple PresentacionMaqueta="true" Etiqueta="@TextosLista["Titulo"]"
+                         TotalElementos="FilasFiltradas.Count" ElementosEnPagina="FilasVisiblesLista.Count" PaginaActual="_paginaLista"
+                         TotalPaginas="TotalPaginasLista" TamanoPagina="_tamanoLista"
+                         PaginaActualChanged="CambiarPaginaLista" TamanoPaginaChanged="CambiarTamanoLista" />
+    </text>;
+}

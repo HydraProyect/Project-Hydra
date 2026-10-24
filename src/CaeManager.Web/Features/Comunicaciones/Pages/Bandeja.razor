@@ -43,12 +43,11 @@
                robaría alto a las tres columnas.
 
                "Buzón completo" (explorador técnico de carpetas M365, /comunicaciones/buzon)
-               y "Macros" (CRUD de plantillas, /comunicaciones/macros) se retiran de esta
-               barra de trabajo diaria (H-5): el modelo aprobado es conversation-first, no
-               M365-folder-first. El Buzón sigue existiendo como diagnóstico técnico — su
+               se retira de esta barra de trabajo diaria: el modelo aprobado gira en torno
+               a conversaciones. El Buzón sigue existiendo como diagnóstico técnico — su
                punto de entrada pasa a Integraciones (propiedad de esa sesión, no de esta
-               página). El núcleo de esta pantalla no dibuja macros, SLA ni vistas avanzadas;
-               la administración de macros conserva su ruta propia. *@
+               página). Las macros vuelven al redactor por decisión de producto del
+               2026-10-23; su administración conserva la ruta /comunicaciones/macros. *@
             <div class="bandeja-lista-cabecera">
                 <h1 class="bandeja-lista-titulo">Comunicaciones</h1>
                 <SoloConEscritura><Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" OnClick="AbrirRedactarAsync">Redactar</Boton></SoloConEscritura>
@@ -385,6 +384,7 @@
                 </div>
 
                 <AlertaCriticaConversacionPanel @key="_detalle.Id" ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" />
+                <ResumenCierreConversacion Detalle="_detalle" />
                 <UnifiedTimeline Mensajes="_detalle.Mensajes" Participantes="_detalle.Participantes" Eventos="_detalle.Eventos"
                                   NotasInternas="_notasInternas" AutoresNotas="_autoresNotas" AvataresNotas="_avataresNotas"
                                   OnActualizarDocumentoDesdeAdjunto="AbrirActualizarDocumentoAsync" OnConfirmarRuido="ConfirmarRuidoAsync" />
@@ -394,12 +394,14 @@
                   <SoloConEscritura>
                     <RecordatorioPropuesto ConversacionId="_detalle.Id" Asunto="@_detalle.Asunto" Estado="_detalle.Estado"                                           FechaUltimoMensajeUtc="_detalle.FechaUltimoMensajeUtc" OnEnviado="CargarDetalleAsync" />
 
-                    <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
-                        <button type="button" aria-pressed="@(!_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = false">@TextosLista["RespuestaPublica"]</button>
-                        <button type="button" aria-pressed="@(_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = true">@TextosLista["NotaInterna"]</button>
+                    <div class="hilo-editor-cabecera">
+                        <div class="bandeja-editor-tabs" role="group" aria-label="@TextosLista["TipoMensaje"]">
+                            <button type="button" aria-pressed="@(!_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = false">@TextosLista["RespuestaPublica"]</button>
+                            <button type="button" aria-pressed="@(_notaInternaActiva ? "true" : "false")" @onclick="() => _notaInternaActiva = true">@TextosLista["NotaInterna"]</button>
+                        </div>
                     </div>
                     <div class="bandeja-editor-publico" hidden="@_notaInternaActiva">
-                    <ComposerBar MostrarMacros="false" Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
+                    <ComposerBar Canal="_detalle.Canal" VentanaAbierta="VentanaAbierta" CierreVentanaLocal="@CierreVentanaLocal"
                                  Texto="@_textoRespuesta" TextoChanged="v => _textoRespuesta = v" Enviando="_enviando" OnEnviar="EnviarAsync"
                                  Macros="_macrosDisponibles" MacroSeleccionadaId="@_macroSeleccionadaId" OnAplicarMacro="AplicarMacro"
                                  Centros="_centrosClienteActivo" CentroFormatosSeleccionado="@_centroFormatosSeleccionado" OnCompartirFormatos="CompartirFormatosCentroAsync"
@@ -412,7 +414,16 @@
                     <ComposerNotaInterna @key="_detalle.Id" @ref="_composerNota" ConversacionId="_detalle.Id" OnNotaCreada="RecargarNotasInternasAsync"
                                          OnTextoCambiado="AlCambiarNotaInterna" />
                     </div>
+                  </SoloConEscritura>
 
+                  @* Pie del editor, como en la maqueta: «Siguiente conversación» navega, no escribe, así que
+                     queda FUERA de SoloConEscritura y el rol Consulta también avanza. Solo recorre la lista
+                     ya cargada (mismos filtros y Asignación de Cartera). *@
+                    <div class="hilo-editor-pie">
+                        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_cargandoLista || _cambiandoEstado || !HaySiguienteConversacion)" OnClick="SiguienteConversacionAsync">@TextosLista["SiguienteConversacion"]</Boton>
+                    </div>
+
+                  <SoloConEscritura>
                     @*
                         "Pedir prioridad" del mockup (Parte XVI PROMPT 09), a nivel
                         conversación — el comando ya existía y funcionaba desde

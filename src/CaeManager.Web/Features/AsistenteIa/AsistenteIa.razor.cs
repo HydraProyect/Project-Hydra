@@ -63,8 +63,10 @@ public partial class AsistenteIa : IDisposable
     [Inject] private AsistenteIaService AsistenteIaService { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosAsistenteIa> Textos { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Options.IOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions> LimitesConsulta { get; set; } = default!;
     [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
+    [Inject] private ICurrentUserService UsuarioActual { get; set; } = default!;
     /// <summary>El Tenant efectivo del circuito (claim firmado más la Empresa gestionada elegida y vigente).</summary>
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
@@ -96,9 +98,12 @@ public partial class AsistenteIa : IDisposable
     private bool _verBorradores;
     private IReadOnlyList<ResumenTareaAsistenteDto>? _borradores;
 
-    /// <summary>La Empresa gestionada con la que trabaja la persona: la pastilla «Trabajando en».</summary>
+    /// <summary>La Empresa del Tenant efectivo: la pastilla «Trabajando en».</summary>
     private ClienteAutorizadoDto? _empresa;
     private bool _empresaCargada;
+    private Guid? _tenantOrigenId;
+
+    private bool EnTenantOrigen => TenantActual.TenantId is { } tenantId && tenantId == _tenantOrigenId;
 
     /// <summary>El Tenant efectivo con el que esta instancia leyó la pastilla y los borradores (null: aún no leyó nada).</summary>
     private TenantLeido? _tenantDeLoLeido;
@@ -154,7 +159,7 @@ public partial class AsistenteIa : IDisposable
             return false;
 
         OlvidarLoLeidoEnOtroTenant();
-        _mensajeError = Textos["EmpresaCambiada"];
+        _mensajeError = Textos[EnTenantOrigen ? "EmpresaCambiadaOrigen" : "EmpresaCambiadaGestionada"];
         return true;
     }
 
@@ -189,6 +194,7 @@ public partial class AsistenteIa : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _tenantOrigenId = await UsuarioActual.ObtenerTenantOrigenIdAsync();
         if (PantallaCompleta)
             await CargarEmpresaAsync();
     }
@@ -509,9 +515,20 @@ public partial class AsistenteIa : IDisposable
     private async Task EnviarPreguntaAsync(string texto, Guid? tenant)
     {
         var historial = AsistenteIaService.Historial;
-        historial.Add(new MensajeChatDto(RolMensajeChat.Usuario, texto));
+        var pregunta = new MensajeChatDto(RolMensajeChat.Usuario, texto);
+        historial.Add(pregunta);
 
-        var resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(historial.ToList()));
+        Result<string> resultado;
+        try
+        {
+            resultado = await Mediator.Send(new PreguntarAlAsistenteQuery(historial.ToList()));
+        }
+        catch
+        {
+            // Una pregunta rechazada (validación, error del servicio) no es un turno de la conversación.
+            QuitarPregunta(historial, pregunta);
+            throw;
+        }
 
         // La respuesta es del Tenant en el que se preguntó: si cambió mientras tanto, no se pinta.
         if (VolvioDeOtroTenant(tenant)) return;
@@ -526,8 +543,21 @@ public partial class AsistenteIa : IDisposable
             // No se agrega al historial que se manda a la API — un mensaje de
             // error no es un turno de conversación real y confundiría al
             // modelo si se le reenviara como si el asistente lo hubiera dicho.
+            // Por la misma razón, la pregunta rechazada (cuota, instrucción, proveedor) tampoco se
+            // conserva: si no, se reenviaría con la pregunta siguiente.
+            QuitarPregunta(historial, pregunta);
             _mensajeError = resultado.Error.Mensaje;
         }
+    }
+
+    /// <summary>
+    /// Quita la pregunta concreta (por referencia, no una igual escrita antes). Si el historial ya se
+    /// vació por un cambio de Tenant efectivo, no hay nada que quitar.
+    /// </summary>
+    private static void QuitarPregunta(List<MensajeChatDto> historial, MensajeChatDto pregunta)
+    {
+        var indice = historial.FindLastIndex(m => ReferenceEquals(m, pregunta));
+        if (indice >= 0) historial.RemoveAt(indice);
     }
 
     /// <summary>

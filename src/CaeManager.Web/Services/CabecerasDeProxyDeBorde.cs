@@ -64,11 +64,14 @@ namespace CaeManager.Web.Services;
 /// <c>caemanager-edge</c> y puede alcanzar <c>caemanager-app-azul:8080</c> o
 /// <c>caemanager-app-verde:8080</c> (las dos ranuras de producción, P1-F2)
 /// directamente, saltándose Caddy: desde ahí sí se puede imponer cualquier
-/// <c>X-Forwarded-For</c>. El alcance de ese hueco es el limitador de tasa del
-/// login (la única cosa del sistema que lee la IP del cliente — no hay ninguna
-/// columna de IP en auditoría, ni en los registros de acceso sensible, ni en
-/// los logs), y presupone comprometer staging antes. Registrado en REC-019; no
-/// se cierra aquí porque la solución toca la topología de red de producción.
+/// <c>X-Forwarded-For</c>. El alcance de ese hueco es lo que lee la IP del
+/// cliente: el limitador de tasa del login, y la IP y el país de
+/// <c>RegistrosInicioSesion</c>, que no usan este middleware sino su propia
+/// lista de proxies de confianza (<c>Seguridad:InicioSesion:ProxiesDeConfianza</c>,
+/// ver <c>IpClienteDeConfianza</c>) — pero esa lista incluye las redes privadas
+/// de Docker, y staging habla desde ellas. Presupone comprometer staging antes.
+/// Registrado en REC-019; no se cierra aquí porque la solución toca la
+/// topología de red de producción.
 /// </para>
 /// </summary>
 public static class CabecerasDeProxyDeBorde

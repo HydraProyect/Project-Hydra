@@ -109,7 +109,10 @@ public class EncargoAdministracionE2ETests(WebAppFixtureEncargoAdministracion fi
         await rol.SelectOptionAsync(new SelectOptionValue { Value = "Administrador" });
         await Expect(rol).ToHaveValueAsync("Administrador");
 
-        await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
+        // Este «Guardar» es el que falló 16 veces en 7 días de CI sin que se supiera por qué: si vuelve a
+        // pasar, el mensaje trae el estado del DOM (ver PulsarGuardarDelDrawerAsync).
+        await Ayudas.PulsarGuardarDelDrawerAsync(
+            page, drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Crear y enviar enlace", Exact = true }));
 
         // La cuenta existe en el Tenant beneficiario, no en el de origen del Operador CAE externo, y
         // con el rol Administrador.

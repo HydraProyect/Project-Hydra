@@ -53,6 +53,7 @@ public class AsistenteIaTextosTests : BunitContext
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
         Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(Guid.NewGuid()));
+        Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba());
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
 
@@ -61,6 +62,19 @@ public class AsistenteIaTextosTests : BunitContext
         var panel = Render<AsistenteIa>();
         panel.InvokeAsync(() => Services.GetRequiredService<AsistenteIaService>().Abrir());
         return panel;
+    }
+
+    [Theory]
+    [InlineData(4000)]
+    [InlineData(73)]
+    public void La_consulta_usa_el_maximo_de_pregunta_configurado(int maximo)
+    {
+        Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions>>(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.AsistenteIa.AsistenteConsultaOptions { MaxCaracteresPregunta = maximo }));
+
+        var panel = RenderAbierto();
+
+        panel.Find("textarea").GetAttribute("maxlength").Should().Be(maximo.ToString(System.Globalization.CultureInfo.InvariantCulture));
     }
 
     [Fact]
