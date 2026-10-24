@@ -73,6 +73,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<TenantRlsConnectionInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
+        // Frescura (diseño § 5): avisos tras el COMMIT, el registro con que el escritor los anota y la versión del Tenant.
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.IRegistroCambiosEstado,
+            CaeManager.Infrastructure.EstadoMaterializado.RegistroCambiosEstado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant,
+            CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),

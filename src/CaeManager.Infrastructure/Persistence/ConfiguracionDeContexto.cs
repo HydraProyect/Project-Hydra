@@ -57,6 +57,8 @@ internal static class ConfiguracionDeContexto
             servicios.GetRequiredService<TenantSelladoInterceptor>(),
             servicios.GetRequiredService<TenantRlsConnectionInterceptor>(),
             servicios.GetRequiredService<ConcurrenciaOptimistaInterceptor>(),
+            // De transacciones, no de guardado: saca los avisos del estado materializado tras el COMMIT (diseño § 5.3).
+            servicios.GetRequiredService<EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>(),
             // El último: recoge las raíces del estado materializado después del sellado de Tenant (diseño § 4.3).
             servicios.GetRequiredService<EstadoMaterializado.DetectorCambiosEstadoInterceptor>());
     }
