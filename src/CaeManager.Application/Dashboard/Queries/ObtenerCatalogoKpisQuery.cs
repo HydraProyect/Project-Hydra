@@ -133,7 +133,7 @@ public class ObtenerCatalogoKpisQueryHandler(
     /// denominador que <see cref="ObtenerDashboardEjecutivoQuery"/> necesita
     /// para ponderar el % al fusionar varios tenants.
     /// </summary>
-    private async Task<(double? Porcentaje, int TotalRequeridos, IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento)>
+    internal async Task<(double? Porcentaje, int TotalRequeridos, IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento)>
         CalcularCumplimientoAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var centrosQuery = centrosContext.Centros.AsQueryable();
@@ -162,6 +162,8 @@ public class ObtenerCatalogoKpisQueryHandler(
             .Select(c => new { c.Id, c.Nombre, Fraccion = cumplimientoPorCentro.GetValueOrDefault(c.Id) })
             .Where(c => c.Fraccion is { Requeridos: > 0 })
             .OrderBy(c => c.Fraccion!.Porcentaje)
+            .ThenBy(c => c.Nombre, StringComparer.Ordinal)
+            .ThenBy(c => c.Id)
             .Take(5)
             .Select(c => new CentroCumplimientoDto(c.Id, c.Nombre, c.Fraccion!.Porcentaje!.Value))
             .ToList();

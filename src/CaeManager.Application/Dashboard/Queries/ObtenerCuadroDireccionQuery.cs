@@ -307,6 +307,7 @@ public class ObtenerCuadroDireccionQueryHandler(
                 Cifras([p.Medicion], p.Medicion.EstadoPersistido ?? mes.EstadoA(ahoraUtc), ahoraUtc),
                 principales.GetValueOrDefault(p.Cliente.TenantId)))
             .OrderBy(t => t.TenantNombre, StringComparer.CurrentCulture)
+            .ThenBy(t => t.TenantId)
             .ToList();
 
         return new CuadroDireccionDto(
@@ -393,5 +394,7 @@ public class ObtenerCuadroDireccionQueryHandler(
             .Where(f => f.Centros > 0)
             .OrderByDescending(f => f.Centros)
             .ThenBy(f => f.ClienteNombre, StringComparer.CurrentCulture)
+            .ThenBy(f => f.TenantId)
+            .ThenBy(f => f.ClienteEmpresarialId)
             .ToList();
 }

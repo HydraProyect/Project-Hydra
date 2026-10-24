@@ -8,6 +8,23 @@ namespace CaeManager.Application.Tests.Dashboard;
 
 public class ObtenerDashboardEjecutivoQueryHandlerTests
 {
+    [Fact]
+    public void El_ranking_global_desempata_por_nombre_e_Id_antes_del_limite()
+    {
+        var centros = Enumerable.Range(1, 14)
+            .Select(i => new CentroCumplimientoDto(new Guid(i, 0, 0, new byte[8]), i < 12 ? "Igual" : "Antes", 50))
+            .ToArray();
+        var a = Cliente("A");
+        var b = Cliente("B");
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar([
+            (b, Valores(centrosConMenorCumplimiento: centros.Reverse().Where(c => c.CentroId.ToByteArray()[0] % 2 == 0).ToArray())),
+            (a, Valores(centrosConMenorCumplimiento: centros.Reverse().Where(c => c.CentroId.ToByteArray()[0] % 2 != 0).ToArray()))]);
+
+        resultado.CentrosConMenorCumplimiento.Select(c => c.CentroId).Should().Equal(
+            centros.OrderBy(c => c.CentroNombre, StringComparer.Ordinal).ThenBy(c => c.CentroId)
+                .Take(ObtenerDashboardEjecutivoQueryHandler.TopCentrosConMasRiesgo).Select(c => c.CentroId));
+    }
+
     private static ClienteAutorizadoDto Cliente(string nombre) => new(Guid.NewGuid(), nombre, EsOrigen: false);
 
     private static CatalogoKpisValoresDto Valores(
