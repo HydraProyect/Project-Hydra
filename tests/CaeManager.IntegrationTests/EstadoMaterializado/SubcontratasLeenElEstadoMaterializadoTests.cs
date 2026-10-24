@@ -1,9 +1,11 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Application.Proyectos;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.EstadoMaterializado;
+using CaeManager.Domain.Trabajadores;
 using CaeManager.Infrastructure.Persistence.Seed;
 using CaeManager.IntegrationTests.Arranque;
 using FluentAssertions;
@@ -39,6 +41,8 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
         var comparados = 0;
         var sirvieronDeLasTablas = 0;
         var subcontratasVistas = 0;
+        var conBloqueados = 0;
+        var noSinCaducidad = 0;
         foreach (var nombre in NombresDeTenants)
         {
             var tenantId = await fixture.Arnes.TenantIdAsync(nombre);
@@ -51,8 +55,15 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
             {
                 await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => EnvenenarAsync(db));
                 var envenenado = await ComoAdministradorAsync(nombre, FotoAsync);
-                if (!envenenado.SequenceEqual(leido))
+                var filasDeSubcontrata = leido.Where(l => l.StartsWith("S ", StringComparison.Ordinal)).ToList();
+                if (filasDeSubcontrata.Count > 0)
+                {
+                    // El veneno no tiene rojo ni frontera: ninguna guarda lo rechaza, así que con Subcontratas tiene que verse.
+                    envenenado.Should().NotEqual(leido, $"{nombre}: con la versión puesta y las filas envenenadas, el listado sirve de las tablas");
                     sirvieronDeLasTablas++;
+                    conBloqueados += filasDeSubcontrata.Count(l => !l.EndsWith(" bloqueados=0", StringComparison.Ordinal));
+                    noSinCaducidad += filasDeSubcontrata.Count(l => !l.Contains($" {EstadoDocumento.SinCaducidad} ", StringComparison.Ordinal));
+                }
 
                 await fixture.Arnes.EnTenantAsync(tenantId, async (db, _) =>
                 {
@@ -71,9 +82,12 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
             }
         }
 
-        salida.WriteLine($"Tenants comparados: {comparados}; filas de Subcontrata comparadas: {subcontratasVistas}");
+        salida.WriteLine($"Tenants comparados: {comparados}; filas de Subcontrata comparadas: {subcontratasVistas}; " +
+            $"con Trabajadores bloqueados: {conBloqueados}; en un estado distinto de SinCaducidad: {noSinCaducidad}");
         comparados.Should().BePositive("el Administrador del Operador CAE alcanza todos los Centros de al menos un Tenant del piloto");
         subcontratasVistas.Should().BePositive("una comparación sin Subcontratas no prueba nada");
+        conBloqueados.Should().BePositive("una comparación sin Trabajadores bloqueados no prueba el recuento");
+        noSinCaducidad.Should().BePositive("una comparación en la que todas las Subcontratas están en SinCaducidad no prueba el estado");
         sirvieronDeLasTablas.Should().BePositive(
             "con las filas envenenadas y la versión puesta el listado tiene que pintar el veneno: si no, no sirvió de las tablas");
     }
@@ -118,14 +132,17 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
     }
 
     /// <summary>
-    /// El recuento de Trabajadores bloqueados sale de las filas de los Trabajadores cuando el lector las sirve: con solo las
-    /// filas de Trabajador puestas en Faltante, cada Subcontrata cuenta como bloqueados a todos sus Trabajadores visibles que
-    /// no son voluntarios inactivos, y su estado (fila de Empresa, sin tocar) no cambia.
+    /// El recuento de Trabajadores bloqueados sale de las filas de los Trabajadores cuando el lector las sirve: con las filas de
+    /// Trabajador puestas en Faltante salvo las de los voluntarios inactivos (en verde), cada Subcontrata cuenta como bloqueados
+    /// exactamente a sus Trabajadores visibles que no son voluntarios inactivos, y su estado (fila de Empresa) no cambia. Si
+    /// además un voluntario inactivo queda en rojo, la guarda (b) no sirve las filas y el recuento vuelve a ser el del cálculo,
+    /// que tampoco lo cuenta.
     /// </summary>
     [Fact]
     public async Task Los_Trabajadores_bloqueados_se_cuentan_con_las_filas_de_los_Trabajadores_y_no_cambian_el_estado()
     {
         var comparados = 0;
+        var voluntariosInactivosVistos = 0;
         foreach (var nombre in NombresDeTenants)
         {
             var tenantId = await fixture.Arnes.TenantIdAsync(nombre);
@@ -147,12 +164,24 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
                 var antes = await ComoAdministradorAsync(nombre, PaginaAsync);
                 antes.Should().OnlyContain(s => s.EstadoDocumental == EstadoDocumento.Urgente, $"{nombre}: el estado de la Subcontrata es su fila de Empresa");
 
-                await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoEntidad>()
-                    .Where(e => e.Ambito == AmbitoEstadoEntidad.Trabajador)
-                    .ExecuteUpdateAsync(s => s
-                        .SetProperty(e => e.Estado, (short)EstadoDocumento.Faltante)
-                        .SetProperty(e => e.Vencidos, 0).SetProperty(e => e.VencidosSinBloqueo, 0).SetProperty(e => e.Faltan, 1)
-                        .SetProperty(e => e.ProximoCambioEl, (DateOnly?)null)));
+                var inactivos = await fixture.Arnes.EnTenantAsync(tenantId, async (db, _) =>
+                    (await ActividadVoluntarios.VoluntariosInactivosIds(db.Set<Trabajador>(), db, DiaDeNegocio.Hoy()).ToListAsync())
+                    .ToHashSet());
+                await fixture.Arnes.EnTenantAsync(tenantId, async (db, _) =>
+                {
+                    await db.Set<EstadoEntidad>()
+                        .Where(e => e.Ambito == AmbitoEstadoEntidad.Trabajador && !inactivos.Contains(e.EntidadId))
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(e => e.Estado, (short)EstadoDocumento.Faltante)
+                            .SetProperty(e => e.Vencidos, 0).SetProperty(e => e.VencidosSinBloqueo, 0).SetProperty(e => e.Faltan, 1)
+                            .SetProperty(e => e.ProximoCambioEl, (DateOnly?)null));
+                    return await db.Set<EstadoEntidad>()
+                        .Where(e => e.Ambito == AmbitoEstadoEntidad.Trabajador && inactivos.Contains(e.EntidadId))
+                        .ExecuteUpdateAsync(s => s
+                            .SetProperty(e => e.Estado, (short)EstadoDocumento.Vigente)
+                            .SetProperty(e => e.Vencidos, 0).SetProperty(e => e.VencidosSinBloqueo, 0).SetProperty(e => e.Faltan, 0)
+                            .SetProperty(e => e.ProximoCambioEl, (DateOnly?)null));
+                });
 
                 var despues = (await ComoAdministradorAsync(nombre, PaginaAsync)).ToDictionary(s => s.Id);
                 foreach (var subcontrata in antes)
@@ -160,11 +189,26 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
                     var leida = despues[subcontrata.Id];
                     leida.EstadoDocumental.Should().Be(subcontrata.EstadoDocumental,
                         $"{nombre}, {subcontrata.RazonSocial}: sus Trabajadores bloqueados no cambian el estado de la Subcontrata (D-1)");
-                    leida.TrabajadoresBloqueados.Should().BeLessThanOrEqualTo(leida.Trabajadores.Count);
+                    leida.TrabajadoresBloqueados.Should().Be(leida.Trabajadores.Count(t => !inactivos.Contains(t.Id)),
+                        $"{nombre}, {subcontrata.RazonSocial}: con sus filas en Faltante cuentan todos sus Trabajadores visibles salvo los voluntarios inactivos");
                 }
 
-                despues.Values.Sum(s => s.TrabajadoresBloqueados).Should().BeGreaterThan(antes.Sum(s => s.TrabajadoresBloqueados),
+                despues.Values.Sum(s => s.TrabajadoresBloqueados).Should().BePositive(
                     $"{nombre}: con las filas de Trabajador en Faltante, el recuento tiene que salir de ellas");
+
+                var inactivosDeSubcontratas = despues.Values.SelectMany(s => s.Trabajadores).Count(t => inactivos.Contains(t.Id));
+                if (inactivosDeSubcontratas > 0)
+                {
+                    voluntariosInactivosVistos += inactivosDeSubcontratas;
+                    await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Set<EstadoEntidad>()
+                        .Where(e => e.Ambito == AmbitoEstadoEntidad.Trabajador && inactivos.Contains(e.EntidadId))
+                        .ExecuteUpdateAsync(s => s.SetProperty(e => e.Estado, (short)EstadoDocumento.Faltante).SetProperty(e => e.Faltan, 1)));
+                    var conInactivoEnRojo = (await ComoAdministradorAsync(nombre, PaginaAsync)).ToDictionary(s => s.Id);
+                    foreach (var subcontrata in deReferencia)
+                        conInactivoEnRojo[subcontrata.Id].TrabajadoresBloqueados.Should().Be(subcontrata.TrabajadoresBloqueados,
+                            $"{nombre}, {subcontrata.RazonSocial}: con un voluntario inactivo en rojo las filas no se sirven y el recuento es el del cálculo");
+                }
+
                 comparados++;
             }
             finally
@@ -173,6 +217,7 @@ public class SubcontratasLeenElEstadoMaterializadoTests(EstadoMaterializadoPilot
             }
         }
 
+        salida.WriteLine($"Tenants comparados: {comparados}; voluntarios inactivos en Subcontratas: {voluntariosInactivosVistos}");
         comparados.Should().BePositive("algún Tenant del piloto completo tiene Subcontratas con Trabajadores");
     }
 

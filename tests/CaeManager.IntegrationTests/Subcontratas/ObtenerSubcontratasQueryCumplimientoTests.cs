@@ -338,7 +338,7 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
             conBloqueadosId = conBloqueados.Id;
 
             // Opera en el Centro sin el documento obligatorio → Faltante (se rotula Pendiente).
-            await AnadirTrabajadorAsync(contexto, falta.Id, "Fede", "Aldia", "10000006Y", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            await AnadirTrabajadorAsync(contexto, falta.Id, "Fede", "Aldia", "10000006C", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
 
             // Sin Trabajadores en el Centro: el obligatorio no les aplica y manda el peor de sus documentos de Empresa.
             await AnadirDocumentoDeEmpresaAsync(contexto, urgente.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddDays(10)));
@@ -347,9 +347,9 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 
             // Su documentación de Empresa está al día y dos de sus Trabajadores no tienen el EPI obligatorio del Centro.
             await AnadirDocumentoDeEmpresaAsync(contexto, conBloqueados.Id, tipoEmpresaId, VigenciaDocumento.VenceEl(hoy.AddYears(1)));
-            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Blas", "Bloqueado", "10000007F", vigencia: null);
-            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Bea", "Bloqueada", "10000008P", vigencia: null);
-            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Dani", "Aldia", "10000009D", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Blas", "Bloqueado", "10000007K", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Bea", "Bloqueada", "10000008E", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, conBloqueados.Id, "Dani", "Aldia", "10000009T", VigenciaDocumento.VenceEl(hoy.AddYears(1)));
         }
 
         var todas = await EjecutarAsync(new ObtenerSubcontratasQuery(Busqueda: null, ConRecuentosPorEstado: true));
@@ -400,7 +400,8 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
 
     /// <summary>
     /// El recuento de Trabajadores bloqueados (decisión D-1) es el de los Trabajadores dados de alta con la Subcontrata
-    /// (<c>SubcontrataId</c>) que el usuario ve: uno fuera de su cartera no se cuenta, igual que no sale en la fila.
+    /// (<c>SubcontrataId</c>) que el usuario ve: uno fuera de su cartera no se cuenta, igual que no sale en la fila. Un
+    /// voluntario inactivo sí sale en la fila, pero no cuenta como bloqueado.
     /// </summary>
     [Fact]
     public async Task Los_Trabajadores_bloqueados_son_solo_los_de_la_Subcontrata_que_el_usuario_ve()
@@ -409,12 +410,20 @@ public class ObtenerSubcontratasQueryCumplimientoTests : IAsyncLifetime
         await using (var contexto = CrearContexto())
         {
             await MarcarObligatoriosAsync(contexto);
-            visibleId = await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vito", "Visible", "10000010X", vigencia: null);
-            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Otto", "Oculto", "10000011B", vigencia: null);
+            visibleId = await AnadirTrabajadorAsync(contexto, _subcontrataId, "Vito", "Visible", "10000010R", vigencia: null);
+            await AnadirTrabajadorAsync(contexto, _subcontrataId, "Otto", "Oculto", "10000011W", vigencia: null);
+
+            // Voluntario sin ningún evento sin terminar: inactivo. Sin el documento obligatorio, pero el listado de hoy no le
+            // aplica los requisitos de Centro, así que no cuenta como bloqueado.
+            var voluntarioId = await AnadirTrabajadorAsync(contexto, _subcontrataId, "Valia", "Voluntaria", "10000012A", vigencia: null);
+            var voluntario = await contexto.Trabajadores.SingleAsync(t => t.Id == voluntarioId);
+            voluntario.CambiarTipoContratacion(TipoContratacion.Voluntario);
+            await contexto.SaveChangesAsync();
         }
 
         var conTodos = (await EjecutarAsync()).Elementos.Should().ContainSingle().Subject;
-        conTodos.TrabajadoresBloqueados.Should().Be(2);
+        conTodos.Trabajadores.Should().HaveCount(3, "el voluntario inactivo sale en la fila");
+        conTodos.TrabajadoresBloqueados.Should().Be(2, "el voluntario inactivo no cuenta como bloqueado");
 
         var conCartera = (await EjecutarAsync(new AlcanceDatosServiceFalso(trabajadorIds: [visibleId]))).Elementos.Should().ContainSingle().Subject;
         conCartera.TrabajadoresBloqueados.Should().Be(1, "el Trabajador fuera de la cartera no se cuenta");

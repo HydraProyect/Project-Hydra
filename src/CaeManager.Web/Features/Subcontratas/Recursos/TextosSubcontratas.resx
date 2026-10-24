@@ -144,18 +144,6 @@
   <data name="AriaAvisoVariosUrgentesEnProximos" xml:space="preserve">
     <value>{0} urgentes</value>
   </data>
-  <data name="BadgeVencidosUno" xml:space="preserve">
-    <value>1 vencido</value>
-  </data>
-  <data name="BadgeVencidosVarios" xml:space="preserve">
-    <value>{0} vencidos</value>
-  </data>
-  <data name="BadgeProximosUno" xml:space="preserve">
-    <value>1 por vencer</value>
-  </data>
-  <data name="BadgeProximosVarios" xml:space="preserve">
-    <value>{0} por vencer</value>
-  </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>
@@ -899,12 +887,6 @@
   </data>
   <data name="FiltroTodas" xml:space="preserve">
     <value>Todas</value>
-  </data>
-  <data name="MotivoSinConfirmarUno" xml:space="preserve">
-    <value>1 sin confirmar</value>
-  </data>
-  <data name="MotivoSinConfirmarVarios" xml:space="preserve">
-    <value>{0} sin confirmar</value>
   </data>
   <data name="MotivoTrabajadoresBloqueadosUno" xml:space="preserve">
     <value>1 Trabajador bloqueado en algún Centro</value>
