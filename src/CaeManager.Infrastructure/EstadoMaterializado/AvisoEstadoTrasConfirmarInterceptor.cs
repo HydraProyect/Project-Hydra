@@ -40,13 +40,78 @@ public sealed class AvisoEstadoTrasConfirmarInterceptor(
     /// </summary>
     internal void Anotar(DbContext contexto, AvisoCambioEstado aviso)
     {
-        if (contexto.Database.CurrentTransaction is null)
+        if (contexto.Database.CurrentTransaction is not null)
         {
-            Publicar([aviso]);
+            _porContexto.GetOrCreateValue(contexto).Anotar(aviso);
             return;
         }
 
-        _porContexto.GetOrCreateValue(contexto).Anotar(aviso);
+        if (System.Transactions.Transaction.Current is not null)
+        {
+            // Una transacción ambiental no pasa por este interceptor: no se sabe si se confirmará. Un aviso de menos es seguro.
+            logger?.LogWarning("Estado materializado: aviso de la versión {Version} del Tenant {Tenant} anotado bajo una transacción ambiental; no se avisa.",
+                aviso.Version, aviso.TenantId);
+            return;
+        }
+
+        Publicar([aviso]);
+    }
+
+    /// <summary>
+    /// Antes del <c>COMMIT</c>, con avisos pendientes: comprueba en la propia transacción que su Tenant es el de la conexión
+    /// (<c>app.tenant_id</c>, el único en que la RLS deja escribir la versión). Un aviso de otro Tenant se descarta: el
+    /// <c>TenantId</c> del aviso lo pone quien llama y no puede decidir a qué circuitos se entrega. Si la consulta falla (la
+    /// transacción ya está abortada y el <c>COMMIT</c> será un <c>ROLLBACK</c>), se descarta todo.
+    /// </summary>
+    public override InterceptionResult TransactionCommitting(DbTransaction transaction, TransactionEventData eventData, InterceptionResult result)
+    {
+        if (BuzonConPendientes(eventData.Context) is { } buzon)
+        {
+            try
+            {
+                using var comando = ComandoTenantDeLaConexion(transaction);
+                buzon.QuedarseConTenant(LeerTenant(comando.ExecuteScalar()));
+            }
+            catch (Exception ex)
+            {
+                DescartarTrasFallo(buzon, ex);
+            }
+        }
+
+        return result;
+    }
+
+    public override async ValueTask<InterceptionResult> TransactionCommittingAsync(
+        DbTransaction transaction, TransactionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+    {
+        if (BuzonConPendientes(eventData.Context) is { } buzon)
+        {
+            try
+            {
+                await using var comando = ComandoTenantDeLaConexion(transaction);
+                buzon.QuedarseConTenant(LeerTenant(await comando.ExecuteScalarAsync(CancellationToken.None)));
+            }
+            catch (Exception ex)
+            {
+                DescartarTrasFallo(buzon, ex);
+            }
+        }
+
+        return result;
+    }
+
+    // Una transacción externa adoptada (UseTransaction) tampoco hereda nada.
+    public override DbTransaction TransactionUsed(DbConnection connection, TransactionEventData eventData, DbTransaction result)
+    {
+        Descartar(eventData.Context);
+        return result;
+    }
+
+    public override ValueTask<DbTransaction> TransactionUsedAsync(
+        DbConnection connection, TransactionEventData eventData, DbTransaction result, CancellationToken cancellationToken = default)
+    {
+        Descartar(eventData.Context);
+        return ValueTask.FromResult(result);
     }
 
     // Una transacción nueva no hereda nada: lo de una anterior liberada sin COMMIT ni ROLLBACK explícitos no salió.
@@ -120,6 +185,25 @@ public sealed class AvisoEstadoTrasConfirmarInterceptor(
     // Los puntos de guardado se cuentan siempre, haya o no anotaciones todavía: una anotación posterior tiene que saber
     // dentro de cuántos puntos abiertos cayó.
     private BuzonAvisosEstado? Buzon(DbContext? contexto) => contexto is null ? null : _porContexto.GetOrCreateValue(contexto);
+
+    private BuzonAvisosEstado? BuzonConPendientes(DbContext? contexto) =>
+        contexto is not null && _porContexto.TryGetValue(contexto, out var buzon) && buzon.Pendientes > 0 ? buzon : null;
+
+    private static DbCommand ComandoTenantDeLaConexion(DbTransaction transaction)
+    {
+        var comando = (transaction.Connection ?? throw new InvalidOperationException("La transacción no tiene conexión.")).CreateCommand();
+        comando.Transaction = transaction;
+        comando.CommandText = "SELECT NULLIF(current_setting('app.tenant_id', true), '')";
+        return comando;
+    }
+
+    private static Guid? LeerTenant(object? valor) => valor is string texto && Guid.TryParse(texto, out var tenant) ? tenant : null;
+
+    private void DescartarTrasFallo(BuzonAvisosEstado buzon, Exception ex)
+    {
+        buzon.Descartar();
+        logger?.LogWarning(ex, "Estado materializado: no se pudo comprobar el Tenant de la transacción antes del COMMIT; no se avisa.");
+    }
 
     private void Descartar(DbContext? contexto)
     {

@@ -50,13 +50,13 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
         public ConsultaEstadoEnCache<FilaEstado> Consulta => new(
             "estados-entidad",
             f => [f.EntidadId],
-            async ct => await db.Set<EstadoEntidad>().AsNoTracking()
+            async ct => await db.Set<EstadoEntidad>().IgnoreQueryFilters().AsNoTracking()
                 .Select(e => new FilaEstado(e.EntidadId, e.Ambito, e.Vencidos)).ToListAsync(ct),
             async (entidades, ct) =>
             {
                 var ids = entidades.ToArray();
                 Parciales.Add(ids);
-                var filas = await db.Set<EstadoEntidad>().AsNoTracking().Where(e => ids.Contains(e.EntidadId))
+                var filas = await db.Set<EstadoEntidad>().IgnoreQueryFilters().AsNoTracking().Where(e => ids.Contains(e.EntidadId))
                     .Select(e => new FilaEstado(e.EntidadId, e.Ambito, e.Vencidos)).ToListAsync(ct);
                 FilasReleidas.Add(filas.Count);
                 return filas;
@@ -160,8 +160,12 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
 
                 // Capacidad y alcance: el Centro del primero no es de este circuito por ningún camino.
                 var visibles = await sp.GetRequiredService<IAlcanceDatosService>().ObtenerCentroIdsVisiblesAsync();
+                // La Asignación de Cartera acota por Tenant beneficiario, no por Centro: el alcance puede ser «todos» (null).
+                // Si lo acota, no incluye el Centro del primero; la barrera que tiene que aguantar sola es la RLS de abajo.
                 visibles?.Should().NotContain(centroA);
-                (await db.Centros.AnyAsync(c => c.Id == centroA)).Should().BeFalse("RLS no deja ver el Centro del otro Operador CAE externo");
+                // Sin el filtro global de EF: lo que decide es la RLS de PostgreSQL.
+                (await db.Centros.IgnoreQueryFilters().AnyAsync(c => c.Id == centroA)).Should().BeFalse("RLS no deja ver el Centro del otro Operador CAE externo");
+                (await db.Set<EstadoEntidad>().IgnoreQueryFilters().AnyAsync(e => e.EntidadId == centroA)).Should().BeFalse("ni su fila de estado");
 
                 // Forzar el aviso: con el Tenant del primero se ignora; con el propio, la relectura no trae nada del primero.
                 cache.RecibirAviso(new AvisoCambioEstado(tenantA, long.MaxValue, [centroA]));
@@ -196,7 +200,8 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
 
         // El «escritor»: cambia la fila del Centro, sube la versión y anota, en una transacción del Tenant beneficiario del
         // primero. Hasta el COMMIT no sale nada.
-        await fixture.Arnes.EnTenantAsync(tenantA, async (db, sp) =>
+        // Con EnableRetryOnFailure, una transacción abierta a mano tiene que ir dentro de la estrategia de ejecución.
+        await fixture.Arnes.EnTenantAsync(tenantA, (db, sp) => db.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
             var registro = sp.GetRequiredService<IRegistroCambiosEstado>();
 
@@ -226,7 +231,7 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
             await transaccion.CommitAsync();
             salida.WriteLine($"Versión {version} del Tenant beneficiario {tenantA}, Centro {centroDeA}.");
             return 0;
-        });
+        }));
 
         cacheA.AvisosRecibidos.Should().Be(1, "el aviso sale tras el COMMIT");
         cacheB.AvisosRecibidos.Should().Be(0);

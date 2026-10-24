@@ -164,6 +164,55 @@ public class FrescuraEstadoTests
     }
 
     [Fact]
+    public async Task Un_aviso_sin_entidades_cuenta_como_no_avisado_y_relee_entero()
+    {
+        var @base = BaseConTres(out var e);
+        var c = new Circuito();
+        await c.Cache.ObtenerAsync(@base.Consulta(), CancellationToken.None);
+
+        @base.Filas[e[1]] = 5;
+        c.Notificador.Publicar(new AvisoCambioEstado(TenantA, 2, []));
+        c.Version.Valor = 2;
+        var filas = await c.Cache.ObtenerAsync(@base.Consulta(), CancellationToken.None);
+
+        filas.Should().Contain(new Fila(e[1], 5));
+        @base.LecturasCompletas.Should().Be(2, "un aviso vacío no dice qué cambió");
+        @base.LecturasParciales.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_la_version_baja_se_relee_entero_y_lo_nuevo_reemplaza_lo_guardado()
+    {
+        var @base = BaseConTres(out var e);
+        var c = new Circuito();
+        c.Version.Valor = 9;
+        await c.Cache.ObtenerAsync(@base.Consulta(), CancellationToken.None);
+
+        // La fila de versión se recreó: vuelve a empezar desde 1.
+        @base.Filas[e[0]] = 4;
+        c.Version.Valor = 1;
+        (await c.Cache.ObtenerAsync(@base.Consulta(), CancellationToken.None)).Should().Contain(new Fila(e[0], 4));
+        await c.Cache.ObtenerAsync(@base.Consulta(), CancellationToken.None);
+
+        @base.LecturasCompletas.Should().Be(2, "la relectura con la versión nueva queda guardada y la siguiente se sirve de ella");
+    }
+
+    [Fact]
+    public void El_buzon_solo_confirma_los_avisos_del_Tenant_de_la_conexion()
+    {
+        var buzon = new BuzonAvisosEstado();
+        buzon.Anotar(new AvisoCambioEstado(TenantA, 2, [Guid.NewGuid()]));
+        buzon.Anotar(new AvisoCambioEstado(TenantB, 7, [Guid.NewGuid()]));
+
+        buzon.QuedarseConTenant(TenantA).Should().Be(1);
+        buzon.Tomar().Should().ContainSingle().Which.TenantId.Should().Be(TenantA);
+
+        buzon.Anotar(new AvisoCambioEstado(TenantA, 3, [Guid.NewGuid()]));
+        buzon.QuedarseConTenant(null).Should().Be(1, "sin Tenant en la conexión no sale ninguno");
+        buzon.Pendientes.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Sin_ningun_aviso_una_version_nueva_relee_entero()
     {
         var @base = BaseConTres(out var e);

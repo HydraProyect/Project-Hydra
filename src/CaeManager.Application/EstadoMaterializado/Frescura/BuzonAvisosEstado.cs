@@ -65,6 +65,22 @@ public sealed class BuzonAvisosEstado
         }
     }
 
+    /// <summary>
+    /// Deja solo los avisos de <paramref name="tenantConexion"/>, el Tenant de la conexión en que se va a confirmar; sin
+    /// Tenant en la conexión, ninguno. Devuelve cuántos descartó.
+    /// </summary>
+    public int QuedarseConTenant(Guid? tenantConexion)
+    {
+        lock (_cerrojo)
+        {
+            var antes = _pendientes.Count;
+            _pendientes.RemoveAll(a => a.TenantId != tenantConexion);
+            if (_pendientes.Count != antes)
+                _puntos.Clear(); // las marcas ya no apuntan a lo mismo; un VolverAPunto posterior descarta todo, que es seguro
+            return antes - _pendientes.Count;
+        }
+    }
+
     /// <summary>La transacción se confirmó: devuelve lo pendiente, en orden, y vacía el buzón.</summary>
     public IReadOnlyList<AvisoCambioEstado> Tomar()
     {

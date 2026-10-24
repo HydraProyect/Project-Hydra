@@ -128,6 +128,15 @@ public sealed class CacheEstadoCircuito(
                     avisadas = entidades;
                 }
             }
+
+            // La versión bajó (la fila de versión se recreó) o esta lectura llega con una versión anterior a la guardada
+            // (otra lectura concurrente guardó antes): lo guardado y los avisos de ese Tenant dejan de servir. La entrada que
+            // quede la etiqueta la versión leída antes que sus filas, así que nunca promete más frescura de la que tiene.
+            if (entrada is not null && entrada.Version > version.Version)
+            {
+                _entradas.Remove(clave);
+                _avisosPorTenant.Remove(version.TenantId);
+            }
         }
 
         IReadOnlyList<TFila> resultado;
@@ -161,9 +170,17 @@ public sealed class CacheEstadoCircuito(
 
             if (!_avisosPorTenant.TryGetValue(aviso.TenantId, out var porVersion))
                 _avisosPorTenant[aviso.TenantId] = porVersion = new SortedDictionary<long, HashSet<Guid>>();
-            if (!porVersion.TryGetValue(aviso.Version, out var entidades))
-                porVersion[aviso.Version] = entidades = [];
-            entidades.UnionWith(aviso.Entidades);
+            if (aviso.Entidades.Count == 0)
+            {
+                // Un aviso sin entidades no dice qué cambió: esa versión cuenta como no avisada y obliga a releer entero.
+                porVersion.Remove(aviso.Version);
+            }
+            else
+            {
+                if (!porVersion.TryGetValue(aviso.Version, out var entidades))
+                    porVersion[aviso.Version] = entidades = [];
+                entidades.UnionWith(aviso.Entidades);
+            }
             while (porVersion.Count > MaximoVersionesAvisadas)
                 porVersion.Remove(porVersion.Keys.First());
             AvisosRecibidos++;
@@ -237,7 +254,8 @@ public sealed class CacheEstadoCircuito(
             if (_liberada)
                 return;
 
-            // Dos lecturas a la vez de la misma clave: gana la de versión más alta.
+            // Dos lecturas a la vez de la misma clave: gana la de versión más alta (si la versión bajó de verdad, ObtenerAsync
+            // ya quitó la entrada antigua).
             if (_entradas.TryGetValue(clave, out var actual) && actual.Dia == dia && actual.Version > version)
                 return;
 
