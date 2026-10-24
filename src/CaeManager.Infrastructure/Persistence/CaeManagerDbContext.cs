@@ -234,6 +234,7 @@ public class CaeManagerDbContext(
     IQueryable<CaeManager.Domain.EstadoMaterializado.EstadoEntidad> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.EstadosEntidad => EstadosEntidad;
     IQueryable<CaeManager.Domain.EstadoMaterializado.EstadoRequisito> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.EstadosRequisito => EstadosRequisito;
     IQueryable<CaeManager.Domain.EstadoMaterializado.VersionEstadoTenant> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.VersionesEstadoTenant => VersionesEstadoTenant;
+    IQueryable<CaeManager.Domain.EstadoMaterializado.RecalculoPendiente> CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext.RecalculosPendientes => RecalculosPendientes;
     public DbSet<Visita> Visitas => Set<Visita>();
     IQueryable<Visita> IVisitasQueryContext.Visitas => Visitas;
     public DbSet<VisitaTrabajador> VisitasTrabajadores => Set<VisitaTrabajador>();

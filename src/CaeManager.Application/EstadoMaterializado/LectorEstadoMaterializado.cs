@@ -107,28 +107,46 @@ public sealed class LectorEstadoMaterializado(
 
     public async Task<bool> DisponibleAsync(CancellationToken cancellationToken)
     {
-        // Antes la barata y la que más veces dice que no. null = sin restricción; una lista que cubre todos los Centros (una
-        // cartera universal) tampoco restringe nada.
-        var visibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        if (visibles is not null && await centrosContext.Centros.AnyAsync(c => !visibles.Contains(c.Id), cancellationToken))
+        // Primero la fila de versión (consulta por índice y la que hoy dice que no en todos los Tenants): sin ella el Tenant no
+        // está completo.
+        if (!await tablas.VersionesEstadoTenant.AnyAsync(cancellationToken))
             return false;
 
-        return await tablas.VersionesEstadoTenant.AnyAsync(cancellationToken);
+        // Una cola de recálculos sin consumir (cambio de Tipo, tolerancia o umbrales, clausura grande, fallo del recálculo)
+        // significa que lo guardado puede estar viejo: mientras haya algo pendiente se calcula como siempre.
+        if (await tablas.RecalculosPendientes.AnyAsync(cancellationToken))
+            return false;
+
+        // null = sin restricción; una lista que cubre todos los Centros (una cartera universal) tampoco restringe nada.
+        var visibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
+        return visibles is null || !await centrosContext.Centros.AnyAsync(c => !visibles.Contains(c.Id), cancellationToken);
     }
 
     public IQueryable<EstadoEntidad> Entidades(AmbitoEstadoEntidad ambito) =>
         tablas.EstadosEntidad.Where(e => e.Ambito == ambito);
 
-    public Task<bool> HayFilasQueNoDecideAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken) =>
-        HayFilasQueNoDecideAsync(ambito, Entidades(ambito).Where(e => ids.Contains(e.EntidadId)), cancellationToken);
+    public async Task<bool> HayFilasQueNoDecideAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken)
+    {
+        var existentes = Entidades(ambito);
+
+        // (d) Una entidad sin fila no es una entidad «sin nada»: el cálculo de hoy puede darle Faltante (un alta sin documentación
+        // está bloqueada). Si falta alguna, se calcula.
+        if (await ids.AnyAsync(id => !existentes.Any(e => e.EntidadId == id), cancellationToken))
+            return true;
+
+        return await HayFilasQueNoDecideAsync(ambito, existentes.Where(e => ids.Contains(e.EntidadId)), cancellationToken);
+    }
 
     private async Task<bool> HayFilasQueNoDecideAsync(
         AmbitoEstadoEntidad ambito, IQueryable<EstadoEntidad> filas, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
 
-        // (a) La frontera de la fila ya llegó: el estado guardado es el de un día anterior.
-        if (await filas.AnyAsync(e => e.ProximoCambioEl != null && e.ProximoCambioEl <= hoy, cancellationToken))
+        // (a) La frontera de la fila ya llegó (el estado guardado es el de un día anterior) o la calculó una versión de la regla
+        // que no es la vigente.
+        if (await filas.AnyAsync(
+                e => (e.ProximoCambioEl != null && e.ProximoCambioEl <= hoy) || e.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla,
+                cancellationToken))
             return true;
 
         // (b) Un voluntario inactivo en rojo: el listado de hoy no le aplica los requisitos de Centro.
@@ -143,10 +161,16 @@ public sealed class LectorEstadoMaterializado(
         // «bloquea el acceso» y que su periodicidad propia ya dejó sin valer: puede ser el motivo del rojo. Una condición
         // necesaria, no suficiente: si no se cumple, el rojo solo puede venir de un documento vencido de un Tipo obligatorio, y
         // eso sí lo dicen los recuentos (Vencidos > VencidosSinBloqueo).
+        // Para una Empresa los pares no bastan: no existen los de un Centro donde solo tiene voluntarios inactivos, y el estado de
+        // hoy sí los cuenta. Mientras no haya una columna propia de «vencidos de Tipo obligatorio», toda Empresa con rojo
+        // ambiguo se calcula.
         var titular = ambito == AmbitoEstadoEntidad.Empresa ? AmbitoAplicacion.Empresa : AmbitoAplicacion.Trabajador;
+        var ambiguas = filas.Where(e => e.Estado == Vencido && e.Vencidos > 0 && e.Vencidos == e.VencidosSinBloqueo);
+        if (ambito == AmbitoEstadoEntidad.Empresa)
+            return await ambiguas.AnyAsync(cancellationToken);
+
         var pares = tablas.EstadosRequisito;
-        return await filas
-            .Where(e => e.Estado == Vencido && e.Vencidos > 0 && e.Vencidos == e.VencidosSinBloqueo)
+        return await ambiguas
             .AnyAsync(e => pares.Any(p => p.AmbitoTitular == titular && p.TitularId == e.EntidadId && p.BloqueaAcceso
                 && p.VencimientoEfectivo != null && p.VencimientoEfectivo < hoy
                 && p.EstadoTalveg != EstadoTalvegRequisito.Vencido && p.EstadoTalveg != EstadoTalvegRequisito.Faltante
@@ -171,6 +195,10 @@ public sealed class LectorEstadoMaterializado(
                 .Select(e => new { e.EntidadId, e.Estado, e.Vencidos, e.VencidosSinBloqueo, e.Faltan })
                 .ToListAsync(cancellationToken))
             .ToDictionary(e => e.EntidadId);
+
+        // (d) también aquí: una entidad sin fila se calcula, no se da por «sin nada».
+        if (filas.Count < lista.Count)
+            return null;
 
         var nombres = await NombresAusentesAsync(
             ambito, filas.Values.Where(f => f.Faltan > 0).ToDictionary(f => f.EntidadId, f => f.Faltan), cancellationToken);

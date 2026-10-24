@@ -12,4 +12,5 @@ public interface IEstadoMaterializadoQueryContext
     IQueryable<EstadoEntidad> EstadosEntidad { get; }
     IQueryable<EstadoRequisito> EstadosRequisito { get; }
     IQueryable<VersionEstadoTenant> VersionesEstadoTenant { get; }
+    IQueryable<RecalculoPendiente> RecalculosPendientes { get; }
 }
