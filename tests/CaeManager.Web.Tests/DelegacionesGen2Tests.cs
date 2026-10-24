@@ -636,7 +636,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             "sin base pública el alta no se envía: crear la cuenta dejaría un token que nadie puede entregar");
         cut.Find("[role=dialog] [role=alert]").TextContent.Should().Contain("No se creó el Operador CAE externo");
         cut.FindAll(".operadores-cae-enlace").Should().BeEmpty();
-        cut.FindComponents<CampoTexto>().Select(c => c.Instance.Valor).Should().Equal(
+        cut.FindComponents<CampoTexto>().Where(c => c.Instance.Etiqueta is not null).Select(c => c.Instance.Valor).Should().Equal(
             ["Operador Sur", "marta@operador-sur.test", "Marta Ruiz"], "lo escrito no se pierde");
         toasts.Mensajes.Should().NotContain(t => t.Mensaje.Contains("creado"));
     }
