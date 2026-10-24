@@ -144,18 +144,6 @@
   <data name="AriaAvisoVariosUrgentesEnProximos" xml:space="preserve">
     <value>{0} urgentes</value>
   </data>
-  <data name="BadgeVencidosUno" xml:space="preserve">
-    <value>1 vencido</value>
-  </data>
-  <data name="BadgeVencidosVarios" xml:space="preserve">
-    <value>{0} vencidos</value>
-  </data>
-  <data name="BadgeProximosUno" xml:space="preserve">
-    <value>1 per vèncer</value>
-  </data>
-  <data name="BadgeProximosVarios" xml:space="preserve">
-    <value>{0} per vèncer</value>
-  </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
   </data>
@@ -900,11 +888,11 @@
   <data name="FiltroTodas" xml:space="preserve">
     <value>Totes</value>
   </data>
-  <data name="MotivoSinConfirmarUno" xml:space="preserve">
-    <value>1 sense confirmar</value>
+  <data name="MotivoTrabajadoresBloqueadosUno" xml:space="preserve">
+    <value>1 Treballador bloquejat en algun Centre</value>
   </data>
-  <data name="MotivoSinConfirmarVarios" xml:space="preserve">
-    <value>{0} sense confirmar</value>
+  <data name="MotivoTrabajadoresBloqueadosVarios" xml:space="preserve">
+    <value>{0} Treballadors bloquejats en algun Centre</value>
   </data>
   <data name="RecuentoDocumentosSinConfirmarUno" xml:space="preserve">
     <value>1 document amb la vigència sense confirmar</value>

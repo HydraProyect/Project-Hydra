@@ -578,7 +578,10 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Empresas", 22, true },
         { "Centros", 33, true }, // medido: 30
         { "Centros bloqueados", 33, false }, // medido: 30; ningún Centro bloqueado en el Tenant medido
-        { "Subcontratas", 13, true }, // medido: 11
+        // Subcontratas (PR 8, D-1): medido 19 sin rellenar (antes 11). Pinta a cada Subcontrata por su documentación de Empresa
+        // (peor documento + requisitos obligatorios de Centro) y cuenta aparte sus Trabajadores bloqueados, más el sondeo del
+        // lector; con el Tenant completo baja a 16 (Fact de abajo).
+        { "Subcontratas", 20, true },
         { "Clientes", 31, true }, // medido: 28
         { "Visitas", 11, true }, // medido: 9
         { "Conversaciones", 18, true }, // medido: 16
@@ -708,6 +711,47 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
                 $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
             rellenos[pantalla].Should().BeLessThanOrEqualTo(maximo, $"presupuesto de «{pantalla}» con los Tenants completos");
         }
+    }
+
+    /// <summary>
+    /// PR 8 del estado materializado (decisión D-1): el listado de Subcontratas con el Tenant completo lee el estado de la
+    /// fila de Empresa de cada Subcontrata y el de sus Trabajadores de las tablas, y no puede costar más sentencias que el
+    /// cálculo en lectura del mismo listado con el Tenant sin rellenar. El Tenant queda sin fila de versión al terminar.
+    /// </summary>
+    [Fact]
+    public async Task Con_el_Tenant_completo_el_listado_de_Subcontratas_lee_por_lo_mismo_o_menos_que_calcula()
+    {
+        const string pantalla = "Subcontratas";
+        var ficha = fixture.FichaDe(fixture.Piloto, TenantMedido);
+
+        async Task<(int Sentencias, object? Resultado)> MedirAsync() =>
+            await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido,
+                sp => ContarAsync(sp, s => LecturasDePantalla.DeTenant[pantalla](s, ficha)));
+
+        var sinRellenar = await MedirAsync();
+        (int Sentencias, object? Resultado) relleno;
+        try
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+                    sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
+            relleno = await MedirAsync();
+        }
+        finally
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+                {
+                    await db.Set<VersionEstadoTenant>().ExecuteDeleteAsync();
+                    return 0;
+                });
+        }
+
+        salida.WriteLine($"{pantalla}: {sinRellenar.Sentencias} sentencias sin rellenar, {relleno.Sentencias} con el Tenant completo");
+        LecturasDePantalla.TraeFilas(pantalla, relleno.Resultado).Should().BeTrue("se mide con la pantalla llena");
+        relleno.Sentencias.Should().BeLessThanOrEqualTo(sinRellenar.Sentencias,
+            $"con el Tenant completo el listado de Subcontratas lee de las tablas: {relleno.Sentencias} sentencias frente a {sinRellenar.Sentencias} sin rellenar");
+        relleno.Sentencias.Should().BeLessThanOrEqualTo(17, "medido en CI: 16 con el Tenant completo (19 sin rellenar)");
     }
 
     /// <summary>

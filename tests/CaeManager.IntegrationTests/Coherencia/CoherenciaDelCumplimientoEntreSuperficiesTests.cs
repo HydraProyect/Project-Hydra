@@ -297,7 +297,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         // 6. Subcontrata: el % de la fila y la suma del acordeón. Cuenta cada Trabajador×Tipo UNA vez (s1 trabaja en B y
         //    en C: 1 par, no 2), a diferencia del Trabajador y el Centro. Divergencia declarada, decisión pendiente.
         Comprobar("Subcontrata S · servicio", (await calculoSubcontrata.CalcularCumplimientoAsync([_subcontrataS], CancellationToken.None))[_subcontrataS], 2, 4);
-        var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c)
+        var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c, new CalculoEstadoDocumentalService(c, c, c), RequisitosObligatoriosDePrueba.Servicio(c, alcance))
             .Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);
         ComprobarPorcentaje("Lista de Subcontratas · S", listaSubcontratas.Elementos.Single(s => s.Id == _subcontrataS).CumplimientoPorcentaje, 50);
         var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance, c, c)

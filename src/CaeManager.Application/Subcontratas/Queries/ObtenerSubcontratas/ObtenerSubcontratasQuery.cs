@@ -2,8 +2,10 @@ using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Domain.Subcontratas;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -13,8 +15,9 @@ namespace CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
 /// <param name="NivelServicio">Filtro exacto por nivel de servicio (Gestionada / Supervisada).</param>
 /// <param name="EstadoDocumental">
 /// Filtro de la franja de estado: nombres de <see cref="EstadoDocumento"/> separados por coma (el mismo valor
-/// que viaja en la URL), sobre <see cref="SubcontrataListaDto.EstadoDocumental"/>. Un valor que no es un
-/// estado se ignora; si ninguno lo es, no filtra (ver <see cref="EstadoDocumentalFiltro.Coincide"/>).
+/// que viaja en la URL), sobre <see cref="SubcontrataListaDto.EstadoDocumental"/>, con Pendiente (Faltante) y el vencido
+/// que solo avisa dentro de «Vencido», como el listado de Empresas (<see cref="EstadoDocumentalFiltro.ClavesDeOrden"/> con
+/// requisitos obligatorios). Un valor que no es un estado se ignora; si ninguno lo es, no filtra.
 /// </param>
 /// <param name="ContratadaPorEmpresaId">
 /// Filtro «Contratada por»: solo las Subcontratas con una Relación Empresarial vigente con esa Empresa propia
@@ -37,6 +40,10 @@ public record ObtenerSubcontratasQuery(
 /// de Centro 360) — <c>null</c> cuando ningún trabajador tiene un par
 /// Trabajador×TipoDocumento exigido por alguno de sus centros activos.
 /// </param>
+/// <param name="Recuentos">
+/// Las incidencias documentales de sus Trabajadores (el desplegable de la fila y la exportación). No deciden
+/// <see cref="EstadoDocumental"/>: el de la Subcontrata es el de su documentación de Empresa (decisión D-1).
+/// </param>
 public record SubcontrataListaDto(
     Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, NivelServicioSubcontrata NivelServicio,
     int? CumplimientoPorcentaje, RecuentosSubcontrataDto Recuentos)
@@ -48,10 +55,32 @@ public record SubcontrataListaDto(
     public IReadOnlyList<EmpresaContratanteSubcontrataDto> Contratantes { get; init; } = [];
 
     /// <summary>
-    /// Estado documental de la fila: el peor de sus incidencias (<see cref="RecuentosSubcontrataDto.PeorEstado"/>).
-    /// No está persistido; por eso filtrar por él obliga a calcularlo para todas las filas.
+    /// Estado documental de la Subcontrata (decisión D-1, 2026-10-24): solo su documentación de Empresa, con el mismo criterio
+    /// que una Empresa del listado de Empresas (<see cref="SeveridadEstadoDocumento.ConRequisitosObligatorios"/>: en rojo solo
+    /// un documento de ámbito Empresa que un Centro donde operan sus Trabajadores marca obligatorio y que falta o ya no vale).
+    /// Lo que les falta a sus Trabajadores no la pinta: va en <see cref="TrabajadoresBloqueados"/>. Sin documentos ni
+    /// requisitos incumplidos es <see cref="EstadoDocumento.SinCaducidad"/>.
     /// </summary>
-    public EstadoDocumento EstadoDocumental => Recuentos.PeorEstado;
+    public EstadoDocumento EstadoDocumental { get; init; } = EstadoDocumento.SinCaducidad;
+
+    /// <summary>
+    /// <see cref="EstadoDocumental"/> es Vencido solo por un documento de la Subcontrata que ningún Centro marca obligatorio:
+    /// se pinta en el tono de aviso, no en rojo (<see cref="SeveridadEstadoDocumento.EsVencidoSinBloqueo"/>).
+    /// </summary>
+    public bool VencidoSinBloqueo { get; init; }
+
+    /// <summary>Tipos de ámbito Empresa obligatorios en algún Centro que faltan sin ningún documento: el motivo «Falta: …».</summary>
+    public IReadOnlyList<string> DocumentosFaltantes { get; init; } = [];
+
+    /// <summary>Los documentos de ámbito Empresa de la Subcontrata que piden atención (vencidos, por vencer, sin confirmar).</summary>
+    public IReadOnlyList<IncidenciaDocumentalDto> Incidencias { get; init; } = [];
+
+    /// <summary>
+    /// Trabajadores dados de alta con la Subcontrata (<see cref="Domain.Trabajadores.Trabajador.SubcontrataId"/>) y visibles
+    /// para el usuario cuyo estado va en rojo: un requisito obligatorio de algún Centro donde están asignados falta o ya no
+    /// vale. Recuento aparte («N Trabajadores bloqueados en algún Centro»): no cambia <see cref="EstadoDocumental"/>.
+    /// </summary>
+    public int TrabajadoresBloqueados { get; init; }
 }
 
 public record TrabajadorIdentidadSubcontrataDto(Guid Id, string Nombre, string Apellidos);
@@ -67,14 +96,27 @@ public record EmpresaContratanteSubcontrataDto(Guid Id, string RazonSocial);
 /// freeze, porque <see cref="Domain.Trabajadores.Trabajador.SubcontrataId"/>
 /// ya solo puede apuntar a filas de Empresas. Ver
 /// Project-Hydra-Negocio/tecnico/f3b-subcontrata-inventario-fresco-2026-08-26.md.
+///
+/// <para>
+/// <b>Estado (decisión D-1, PR 8 del estado materializado).</b> Una Subcontrata es una fila de <c>Empresas</c>, y su estado es
+/// el de su fila de ámbito Empresa en <c>EstadosEntidad</c> (<see cref="ILectorEstadoMaterializado"/>, Tenant completo y
+/// usuario que alcanza todos sus Centros) o, si el lector no puede servirlo, el mismo cálculo en lectura que el listado de
+/// Empresas. El recuento de Trabajadores bloqueados se recompone al leer, de las filas de sus Trabajadores o de su cálculo:
+/// no se guarda en fila propia.
+/// </para>
 /// </summary>
 public class ObtenerSubcontratasQueryHandler(
     IEmpresasQueryContext dbContext, IAlcanceDatosService alcanceDatos, ICalculoEstadoSubcontrataService calculoEstado,
-    ITrabajadoresQueryContext trabajadoresContext)
+    ITrabajadoresQueryContext trabajadoresContext, ICalculoEstadoDocumentalService calculoEstadoDocumental,
+    IRequisitosObligatoriosIncumplidosService requisitosObligatorios,
+    ILectorEstadoMaterializado? lectorEstado = null)
     : IRequestHandler<ObtenerSubcontratasQuery, ResultadoPaginado<SubcontrataListaDto>>
 {
     /// <summary>Clave de <see cref="ObtenerSubcontratasQuery.OrdenarPor"/> de la columna «Contratada por».</summary>
     public const string ColumnaContratadaPor = "ContratadaPor";
+
+    // Sin lector (quien construye el manejador a mano, como los tests del cálculo en lectura) todo se calcula.
+    private readonly ILectorEstadoMaterializado lector = lectorEstado ?? SinLectorDeEstadoMaterializado.Instancia;
 
     public async Task<ResultadoPaginado<SubcontrataListaDto>> Handle(ObtenerSubcontratasQuery request, CancellationToken cancellationToken)
     {
@@ -137,47 +179,49 @@ public class ObtenerSubcontratasQueryHandler(
         // el orden que haya elegido el usuario.
         ordenada = ordenada.ThenBy(s => s.Id);
 
-        // Camino con estado (franja de estado): el estado documental no está persistido, así que para
-        // filtrar por él o contar por él hay que calcularlo para TODAS las filas que pasan los demás
-        // filtros, y paginar después en memoria — mismo planteamiento que ObtenerCentrosQuery. El
-        // alcance es el de arriba: no se calcula nada de una Subcontrata que el usuario no ve.
-        var filtraPorEstado = EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental) is not null;
+        // Camino con estado (franja de estado): el filtro, los recuentos y el orden por cumplimiento necesitan el estado de
+        // TODAS las filas que pasan los demás filtros, y se pagina después en memoria — mismo planteamiento que
+        // ObtenerCentrosQuery. El alcance es el de arriba: no se lee ni se calcula nada de una Subcontrata que el usuario no ve.
+        var clavesPedidas = EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental, incluirFaltantes: true);
         var ordenaPorCumplimiento = request.OrdenarPor == nameof(SubcontrataListaDto.CumplimientoPorcentaje);
-        if (filtraPorEstado || request.ConRecuentosPorEstado || ordenaPorCumplimiento)
+        if (clavesPedidas is not null || request.ConRecuentosPorEstado || ordenaPorCumplimiento)
         {
             var todas = await ordenada
                 .Select(s => new FilaSubcontrata(s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, s.NivelServicio!))
                 .ToListAsync(cancellationToken);
-            var conEstado = await ConEstadoAsync(todas, cancellationToken);
+            var estado = await EstadoAsync(todas.Select(s => s.Id).ToList(), cancellationToken);
 
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
             if (request.ConRecuentosPorEstado)
             {
-                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(conEstado
-                    .GroupBy(s => EstadoDocumentalFiltro.ClaveOrden(s.EstadoDocumental))
-                    .ToDictionary(grupo => grupo.Key, grupo => grupo.Count()));
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(todas
+                    .GroupBy(s => ClaveEstado(estado.Estados[s.Id]))
+                    .ToDictionary(grupo => grupo.Key, grupo => grupo.Count()), incluirFaltantes: true);
             }
 
-            var filtradas = filtraPorEstado
-                ? conEstado.Where(s => EstadoDocumentalFiltro.Coincide(s.EstadoDocumental, request.EstadoDocumental)).ToList()
-                : conEstado;
+            IReadOnlyList<FilaSubcontrata> filtradas = clavesPedidas is not null
+                ? todas.Where(s => clavesPedidas.Contains(ClaveEstado(estado.Estados[s.Id]))).ToList()
+                : todas;
 
             // Sin cumplimiento (ningún requisito exigido) va siempre al final; el desempate es el orden de razón social ya aplicado.
+            IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>? resumenes = null;
             if (ordenaPorCumplimiento)
             {
-                var conValor = filtradas.Where(s => s.CumplimientoPorcentaje is not null);
+                resumenes = await calculoEstado.CalcularResumenAsync(filtradas.Select(s => s.Id).ToList(), cancellationToken);
+                int? Porcentaje(FilaSubcontrata s) => resumenes.GetValueOrDefault(s.Id)?.Fraccion.Porcentaje;
+                var conValor = filtradas.Where(s => Porcentaje(s) is not null);
                 filtradas =
                 [
                     .. (request.Descendente
-                        ? conValor.OrderByDescending(s => s.CumplimientoPorcentaje)
-                        : conValor.OrderBy(s => s.CumplimientoPorcentaje)),
-                    .. filtradas.Where(s => s.CumplimientoPorcentaje is null)
+                        ? conValor.OrderByDescending(Porcentaje)
+                        : conValor.OrderBy(Porcentaje)),
+                    .. filtradas.Where(s => Porcentaje(s) is null)
                 ];
             }
 
             var paginaFiltrada = filtradas.Skip((request.Pagina - 1) * request.TamanoPagina).Take(request.TamanoPagina).ToList();
             return new ResultadoPaginado<SubcontrataListaDto>(
-                await ConTrabajadoresAsync(paginaFiltrada, cancellationToken),
+                await ConDetalleAsync(paginaFiltrada, estado, resumenes, cancellationToken),
                 filtradas.Count, request.Pagina, request.TamanoPagina)
             {
                 RecuentosPorEstado = recuentosPorEstado
@@ -193,22 +237,98 @@ public class ObtenerSubcontratasQueryHandler(
             .ToListAsync(cancellationToken);
 
         return new ResultadoPaginado<SubcontrataListaDto>(
-            await ConTrabajadoresAsync(await ConEstadoAsync(pagina, cancellationToken), cancellationToken), total, request.Pagina, request.TamanoPagina);
+            await ConDetalleAsync(pagina, await EstadoAsync(pagina.Select(s => s.Id).ToList(), cancellationToken), null, cancellationToken),
+            total, request.Pagina, request.TamanoPagina);
     }
 
-    private async Task<List<SubcontrataListaDto>> ConEstadoAsync(IReadOnlyList<FilaSubcontrata> filas, CancellationToken cancellationToken)
+    /// <summary>
+    /// La clave con la que la franja cuenta y filtra (<see cref="EstadoDocumentalFiltro.ClaveOrdenConFaltantes"/>), la misma
+    /// que el listado de Empresas: el vencido que solo avisa tiene la suya.
+    /// </summary>
+    private static int ClaveEstado(EstadoLeido estado) =>
+        estado.VencidoSinBloqueo ? EstadoDocumentalFiltro.ClaveVencidoSinBloqueo : EstadoDocumentalFiltro.ClaveOrdenConFaltantes(estado.Estado);
+
+    /// <summary>
+    /// El estado de esas Subcontratas y sus Trabajadores visibles, para las filas que se pintan y las que se cuentan.
+    /// <para>
+    /// <b>Estado de la Subcontrata</b> (decisión D-1): su fila de ámbito Empresa, leída de <c>EstadosEntidad</c> si el lector
+    /// puede servirla (el relleno y el recálculo la escriben con los Centros donde trabajan los Trabajadores de la Subcontrata,
+    /// <c>EmpresaId ?? SubcontrataId</c>, igual que <see cref="IRequisitosObligatoriosIncumplidosService.DeEmpresasAsync"/>); si
+    /// no, el cálculo en lectura de una Empresa. Las dos dan lo mismo, y lo ata el test de integración del listado.
+    /// </para>
+    /// <para>
+    /// <b>Trabajadores bloqueados</b>: los dados de alta con la Subcontrata (<c>SubcontrataId</c>) que el usuario ve, en rojo
+    /// según su listado (un requisito obligatorio de Trabajador falta o ya no vale en un Centro donde está asignado). Si el
+    /// estado de la Subcontrata se leyó de las tablas, se intenta leer también el de ellos; si no, se calcula con una sola
+    /// evaluación de Centros para los dos lados. Un voluntario inactivo no cuenta, como en el listado de Trabajadores.
+    /// </para>
+    /// </summary>
+    private async Task<EstadoDeLasFilas> EstadoAsync(IReadOnlyList<Guid> ids, CancellationToken cancellationToken)
     {
-        var resumenes = await calculoEstado.CalcularResumenAsync(filas.Select(s => s.Id).ToList(), cancellationToken);
-        return filas
-            .Select(s =>
-            {
-                var resumen = resumenes.GetValueOrDefault(s.Id);
-                return new SubcontrataListaDto(
-                    s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio),
-                    resumen?.Fraccion.Porcentaje,
-                    resumen is null ? RecuentosSubcontrataDto.Vacio : Desglosar(resumen));
-            })
-            .ToList();
+        if (ids.Count == 0)
+            return new EstadoDeLasFilas(new Dictionary<Guid, EstadoLeido>(), [], new Dictionary<Guid, int>());
+
+        // Los Trabajadores de la Subcontrata que el usuario ve: los mismos con los que se pinta la fila (Mi equipo).
+        var consultaTrabajadores = trabajadoresContext.Trabajadores
+            .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
+        var idsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
+        if (idsVisibles is not null)
+            consultaTrabajadores = consultaTrabajadores.Where(t => idsVisibles.Contains(t.Id));
+        var trabajadores = await consultaTrabajadores.OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id)
+            .Select(t => new TrabajadorDeSubcontrata(t.SubcontrataId!.Value, new TrabajadorIdentidadSubcontrataDto(t.Id, t.Nombre, t.Apellidos)))
+            .ToListAsync(cancellationToken);
+        var trabajadorIds = trabajadores.Select(t => t.Identidad.Id).ToList();
+
+        HashSet<Guid> bloqueados;
+        var leido = await lector.LeerAsync(AmbitoEstadoEntidad.Empresa, ids, cancellationToken);
+        IReadOnlyDictionary<Guid, EstadoLeido> estados;
+        if (leido is not null)
+        {
+            estados = leido;
+            var leidoDeTrabajadores = trabajadorIds.Count == 0
+                ? new IdsPorEstadoLeido([], [], [], [], [], [], [])
+                : await lector.LeerEstadoCompletoAsync(
+                    AmbitoEstadoEntidad.Trabajador,
+                    trabajadoresContext.Trabajadores.Where(t => trabajadorIds.Contains(t.Id)).Select(t => t.Id),
+                    cancellationToken);
+            bloqueados = leidoDeTrabajadores is not null
+                ? [.. leidoDeTrabajadores.Vencido, .. leidoDeTrabajadores.Faltante]
+                : EnRojo(await requisitosObligatorios.DeTrabajadoresAsync(calculoEstado.SinVoluntariosInactivos(trabajadorIds), cancellationToken));
+        }
+        else
+        {
+            var peores = await calculoEstadoDocumental.CalcularPeorEstadoAsync(AmbitoAplicacion.Empresa, ids, cancellationToken);
+            var incumplidos = await requisitosObligatorios.DeEmpresasYTrabajadoresAsync(
+                dbContext.Empresas.Where(e => ids.Contains(e.Id)).Select(e => e.Id), calculoEstado.SinVoluntariosInactivos(trabajadorIds), cancellationToken);
+            estados = ids.Distinct().ToDictionary(id => id, id => Combinar(peores.GetValueOrDefault(id), incumplidos.PorEmpresa.GetValueOrDefault(id) ?? []));
+            bloqueados = EnRojo(incumplidos.PorTrabajador);
+        }
+
+        var bloqueadosPorSubcontrata = trabajadores
+            .Where(t => bloqueados.Contains(t.Identidad.Id))
+            .GroupBy(t => t.SubcontrataId)
+            .ToDictionary(g => g.Key, g => g.Count());
+        return new EstadoDeLasFilas(estados, trabajadores, bloqueadosPorSubcontrata);
+    }
+
+    private static HashSet<Guid> EnRojo(IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> porTrabajador) =>
+        porTrabajador
+            .Where(p => RequisitosObligatoriosIncumplidos.HayVencido(p.Value) || RequisitosObligatoriosIncumplidos.HayAusente(p.Value))
+            .Select(p => p.Key)
+            .ToHashSet();
+
+    /// <summary>
+    /// La combinación del listado de Empresas (<c>ObtenerEmpresasQuery.ConIncumplidos</c>): un obligatorio vencido es Vencido,
+    /// uno que falta es Pendiente, y sin ninguno manda el peor de sus documentos de Empresa; sin documentos, Sin caducidad.
+    /// </summary>
+    private static EstadoLeido Combinar(EstadoDocumento peorVigencia, IReadOnlyList<RequisitoObligatorioIncumplido> incumplidos)
+    {
+        var vencido = RequisitosObligatoriosIncumplidos.HayVencido(incumplidos);
+        var ausente = RequisitosObligatoriosIncumplidos.HayAusente(incumplidos);
+        return new EstadoLeido(
+            SeveridadEstadoDocumento.ConRequisitosObligatorios(peorVigencia, vencido, ausente) ?? EstadoDocumento.SinCaducidad,
+            SeveridadEstadoDocumento.EsVencidoSinBloqueo(peorVigencia, vencido, ausente),
+            RequisitosObligatoriosIncumplidos.NombresAusentes(incumplidos));
     }
 
     /// <summary>Empresas propias contratantes (dentro del alcance de visibilidad) con una relación vigente con cada Subcontrata.</summary>
@@ -232,39 +352,54 @@ public class ObtenerSubcontratasQueryHandler(
     }
 
     /// <summary>
-    /// Solo para las filas que se devuelven, ya paginadas: la ventana de trabajadores no se carga para las
-    /// Subcontratas que el listado no enseña. El recuento y la ventana salen de estas mismas identidades.
+    /// Solo para las filas que se devuelven, ya paginadas: el cumplimiento y las incidencias de sus Trabajadores, los documentos
+    /// de Empresa que piden atención y las Empresas contratantes no se cargan para las Subcontratas que el listado no enseña.
+    /// El estado y los Trabajadores salen de <see cref="EstadoAsync"/>.
     /// </summary>
-    private async Task<List<SubcontrataListaDto>> ConTrabajadoresAsync(IReadOnlyList<SubcontrataListaDto> filas, CancellationToken cancellationToken)
+    private async Task<List<SubcontrataListaDto>> ConDetalleAsync(
+        IReadOnlyList<FilaSubcontrata> filas, EstadoDeLasFilas estado,
+        IReadOnlyDictionary<Guid, ResumenEstadoSubcontrata>? resumenes, CancellationToken cancellationToken)
     {
         if (filas.Count == 0)
             return [];
 
         var ids = filas.Select(s => s.Id).ToList();
+        resumenes ??= await calculoEstado.CalcularResumenAsync(ids, cancellationToken);
+        var desgloses = await calculoEstadoDocumental.CalcularDesgloseAsync(AmbitoAplicacion.Empresa, ids, cancellationToken);
         var empresasVisibles = await alcanceDatos.ObtenerEmpresaIdsVisiblesAsync(cancellationToken);
         var contratantes = await ContratantesVigentes(empresasVisibles)
             .Where(c => ids.Contains(c.ProveedoraId))
             .Distinct().OrderBy(e => e.RazonSocial).ThenBy(e => e.Id).ToListAsync(cancellationToken);
-        var consultaTrabajadores = trabajadoresContext.Trabajadores
-            .Where(t => t.SubcontrataId != null && ids.Contains(t.SubcontrataId.Value));
-        var idsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
-        if (idsVisibles is not null)
-            consultaTrabajadores = consultaTrabajadores.Where(t => idsVisibles.Contains(t.Id));
+        var trabajadoresPorSubcontrata = estado.Trabajadores.ToLookup(t => t.SubcontrataId, t => t.Identidad);
 
-        var trabajadores = await consultaTrabajadores.OrderBy(t => t.Apellidos).ThenBy(t => t.Nombre).ThenBy(t => t.Id)
-            .Select(t => new { t.SubcontrataId, Identidad = new TrabajadorIdentidadSubcontrataDto(t.Id, t.Nombre, t.Apellidos) })
-            .ToListAsync(cancellationToken);
-        var porSubcontrata = trabajadores.ToLookup(t => t.SubcontrataId!.Value, t => t.Identidad);
-
-        return filas.Select(s => s with
+        return filas.Select(s =>
         {
-            Trabajadores = porSubcontrata[s.Id].ToList(),
-            Contratantes = contratantes.Where(e => e.ProveedoraId == s.Id)
-                .Select(e => new EmpresaContratanteSubcontrataDto(e.Id, e.RazonSocial)).ToList()
+            var resumen = resumenes.GetValueOrDefault(s.Id);
+            var deLaSubcontrata = estado.Estados[s.Id];
+            return new SubcontrataListaDto(
+                s.Id, s.RazonSocial, s.Cif, s.CreadoEnUtc, Enum.Parse<NivelServicioSubcontrata>(s.NivelServicio),
+                resumen?.Fraccion.Porcentaje,
+                resumen is null ? RecuentosSubcontrataDto.Vacio : Desglosar(resumen))
+            {
+                EstadoDocumental = deLaSubcontrata.Estado,
+                VencidoSinBloqueo = deLaSubcontrata.VencidoSinBloqueo,
+                DocumentosFaltantes = deLaSubcontrata.DocumentosFaltantes,
+                Incidencias = desgloses.TryGetValue(s.Id, out var desglose) ? desglose.Incidencias : [],
+                TrabajadoresBloqueados = estado.BloqueadosPorSubcontrata.GetValueOrDefault(s.Id),
+                Trabajadores = trabajadoresPorSubcontrata[s.Id].ToList(),
+                Contratantes = contratantes.Where(e => e.ProveedoraId == s.Id)
+                    .Select(e => new EmpresaContratanteSubcontrataDto(e.Id, e.RazonSocial)).ToList()
+            };
         }).ToList();
     }
 
     private record FilaSubcontrata(Guid Id, string RazonSocial, string? Cif, DateTime CreadoEnUtc, string NivelServicio);
+
+    private record TrabajadorDeSubcontrata(Guid SubcontrataId, TrabajadorIdentidadSubcontrataDto Identidad);
+
+    private record EstadoDeLasFilas(
+        IReadOnlyDictionary<Guid, EstadoLeido> Estados, IReadOnlyList<TrabajadorDeSubcontrata> Trabajadores,
+        IReadOnlyDictionary<Guid, int> BloqueadosPorSubcontrata);
 
     /// <summary>
     /// "Faltante" cuenta como vencido, y Urgente va con "próximas" — mismo

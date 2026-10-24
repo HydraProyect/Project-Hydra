@@ -115,6 +115,14 @@ public interface IRequisitosObligatoriosIncumplidosService
     /// <summary>Los requisitos obligatorios de ámbito Trabajador incumplidos de esos Trabajadores, por Trabajador.</summary>
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
         IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// <see cref="DeEmpresasAsync"/> y <see cref="DeTrabajadoresAsync"/> a la vez, con una sola evaluación de los Centros donde
+    /// operan unos y otros: el listado de Subcontratas pide el estado de la Subcontrata y el de sus Trabajadores, que trabajan en
+    /// los mismos Centros. El resultado de cada lado es el mismo que el de su método por separado.
+    /// </summary>
+    Task<RequisitosObligatoriosIncumplidos> DeEmpresasYTrabajadoresAsync(
+        IQueryable<Guid> empresaIds, IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken);
 }
 
 public class RequisitosObligatoriosIncumplidosService(
@@ -127,10 +135,43 @@ public class RequisitosObligatoriosIncumplidosService(
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeEmpresasAsync(
         IQueryable<Guid> empresaIds, CancellationToken cancellationToken)
     {
-        // Dónde opera cada Empresa: los Centros donde trabajan sus Trabajadores (los propios y, en una Subcontrata, los
-        // suyos), el mismo universo que el porcentaje de la Empresa.
-        // Una Empresa sin Asignaciones activas no opera en ningún Centro y no puede incumplir nada.
-        var actividad = await (
+        var actividad = await ActividadDeEmpresasAsync(empresaIds, cancellationToken);
+        var incumplidos = await EvaluarAsync(actividad.Select(a => a.CentroId).Distinct().ToList(), cancellationToken);
+        return DeLasEmpresas(incumplidos, actividad);
+    }
+
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
+        IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        var asignaciones = await AsignacionesDeTrabajadoresAsync(trabajadorIds, cancellationToken);
+        if (asignaciones.Count == 0)
+            return RequisitosObligatoriosIncumplidos.Ninguno.PorTrabajador;
+
+        var incumplidos = await EvaluarAsync(asignaciones.Select(a => a.CentroId).Distinct().ToList(), cancellationToken);
+        return DeLosTrabajadores(incumplidos, asignaciones);
+    }
+
+    public async Task<RequisitosObligatoriosIncumplidos> DeEmpresasYTrabajadoresAsync(
+        IQueryable<Guid> empresaIds, IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        var actividad = await ActividadDeEmpresasAsync(empresaIds, cancellationToken);
+        var asignaciones = await AsignacionesDeTrabajadoresAsync(trabajadorIds, cancellationToken);
+
+        // Cada requisito se evalúa por Centro (ReglaBloqueoDeAcceso), así que evaluar la unión de Centros da a cada lado lo mismo
+        // que su propia evaluación: lo que incumple en un Centro no cambia nada en otro.
+        var incumplidos = await EvaluarAsync(
+            actividad.Select(a => a.CentroId).Concat(asignaciones.Select(a => a.CentroId)).Distinct().ToList(), cancellationToken);
+        return new RequisitosObligatoriosIncumplidos(DeLasEmpresas(incumplidos, actividad), DeLosTrabajadores(incumplidos, asignaciones));
+    }
+
+    /// <summary>
+    /// Dónde opera cada Empresa: los Centros donde trabajan sus Trabajadores (los propios y, en una Subcontrata, los suyos), el
+    /// mismo universo que el porcentaje de la Empresa. Una Empresa sin Asignaciones activas no opera en ningún Centro y no puede
+    /// incumplir nada.
+    /// </summary>
+    private async Task<List<(Guid CentroId, Guid? EmpresaId)>> ActividadDeEmpresasAsync(
+        IQueryable<Guid> empresaIds, CancellationToken cancellationToken) =>
+        (await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
@@ -138,25 +179,30 @@ public class RequisitosObligatoriosIncumplidosService(
                   || (trabajador.SubcontrataId != null && empresaIds.Contains(trabajador.SubcontrataId.Value))
             select new { asignacion.CentroId, EmpresaId = trabajador.EmpresaId ?? trabajador.SubcontrataId })
             .Distinct()
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+        .Select(a => (a.CentroId, a.EmpresaId))
+        .ToList();
 
-        var incumplidos = await EvaluarAsync(actividad.Select(a => a.CentroId).Distinct().ToList(), cancellationToken);
+    private async Task<List<(Guid TrabajadorId, Guid CentroId)>> AsignacionesDeTrabajadoresAsync(
+        IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) =>
+        (await asignacionesContext.Asignaciones
+            .Where(a => a.FechaBaja == null && trabajadorIds.Contains(a.TrabajadorId))
+            .Select(a => new { a.TrabajadorId, a.CentroId })
+            .Distinct()
+            .ToListAsync(cancellationToken))
+        .Select(a => (a.TrabajadorId, a.CentroId))
+        .ToList();
+
+    private static IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> DeLasEmpresas(
+        RequisitosObligatoriosIncumplidos incumplidos, List<(Guid CentroId, Guid? EmpresaId)> actividad)
+    {
         var pedidas = actividad.Select(a => a.EmpresaId).ToHashSet();
         return incumplidos.PorEmpresa.Where(p => pedidas.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
     }
 
-    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
-        IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken)
+    private static IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>> DeLosTrabajadores(
+        RequisitosObligatoriosIncumplidos incumplidos, List<(Guid TrabajadorId, Guid CentroId)> asignaciones)
     {
-        var asignaciones = await asignacionesContext.Asignaciones
-            .Where(a => a.FechaBaja == null && trabajadorIds.Contains(a.TrabajadorId))
-            .Select(a => new { a.TrabajadorId, a.CentroId })
-            .Distinct()
-            .ToListAsync(cancellationToken);
-        if (asignaciones.Count == 0)
-            return RequisitosObligatoriosIncumplidos.Ninguno.PorTrabajador;
-
-        var incumplidos = await EvaluarAsync(asignaciones.Select(a => a.CentroId).Distinct().ToList(), cancellationToken);
         var pedidos = asignaciones.Select(a => a.TrabajadorId).ToHashSet();
         return incumplidos.PorTrabajador.Where(p => pedidos.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value);
     }

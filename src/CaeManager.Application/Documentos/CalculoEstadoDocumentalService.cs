@@ -29,8 +29,10 @@ namespace CaeManager.Application.Documentos;
 /// <c>ObtenerAlertasQuery</c> y se incorporará aquí cuando ese cálculo se
 /// extraiga a su propio servicio.
 ///
-/// Subcontrata queda fuera a propósito: no es un
-/// <see cref="AmbitoAplicacion"/>, no tiene Documentos propios.
+/// Subcontrata no es un <see cref="AmbitoAplicacion"/> propio: es una fila de
+/// Empresas, y sus documentos de Empresa se piden con
+/// <see cref="AmbitoAplicacion.Empresa"/> y su Id (el estado de la Subcontrata
+/// en su listado, decisión D-1).
 /// </summary>
 public interface ICalculoEstadoDocumentalService
 {
