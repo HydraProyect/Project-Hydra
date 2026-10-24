@@ -13,7 +13,9 @@ namespace CaeManager.Application.Dashboard.Queries;
 /// El cumplimiento del Tenant del ámbito con el universo de <see cref="ContextoCumplimiento.Empresa"/>, y medido igual
 /// que el listado de Empresas (<c>ObtenerEmpresasQuery</c>): sus Empresas propias, los Centros donde sus Trabajadores
 /// tienen Asignación activa y los pares Trabajador×TipoDocumento que esos Centros les exigen hoy, con los que faltan en
-/// contra (<see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>). Los pares de Trabajadores de otras
+/// contra. Los pares salen de <see cref="ILectorCumplimientoDeDireccion"/> (tablas del estado materializado) cuando el Tenant
+/// está completo y la tabla es fiable, y si no de <see cref="ICalculoEstadoCentroService.ObtenerParesExigidosAsync"/>; da lo
+/// mismo por las dos vías. Los pares de Trabajadores de otras
 /// Empresas que comparten Centro no cuentan. El resultado es la suma de las filas de /empresas, nunca un promedio.
 /// Es la columna por Tenant beneficiario del Cuadro de dirección (decisión de Coordinación del 2026-10-21: cada
 /// porcentaje mide su contexto, y esa columna es contexto Empresa; el porcentaje de cartera de Inicio mide los

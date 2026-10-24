@@ -126,7 +126,8 @@ public class ObtenerCatalogoKpisQueryHandler(
     }
 
     /// <summary>
-    /// Reutiliza <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
+    /// Lee de las tablas del estado materializado (<see cref="ILectorCumplimientoDeDireccion"/>) los Centros que están al día
+    /// y calcula el resto con <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
     /// (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — sustituye al antiguo KPI de
     /// Evaluaciones (retirado). <c>TotalRequeridosCumplimiento</c> es el
     /// denominador que <see cref="ObtenerDashboardEjecutivoQuery"/> necesita

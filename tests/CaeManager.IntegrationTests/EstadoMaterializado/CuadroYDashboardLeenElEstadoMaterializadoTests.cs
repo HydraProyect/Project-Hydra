@@ -139,6 +139,8 @@ public class CuadroYDashboardLeenElEstadoMaterializadoTests(EstadoMaterializadoP
                 ("los Centros sin su fila: un hueco del detector", db => db.Set<EstadoEntidad>()
                     .Where(e => e.Ambito == AmbitoEstadoEntidad.Centro).ExecuteDeleteAsync()),
                 ("sin fila de versión: el Tenant no está completo", db => db.Set<VersionEstadoTenant>().ExecuteDeleteAsync()),
+                ("ningún par guardado para Centros con Asignaciones: no se sabe si no se exige nada o faltan filas", db => db.Set<EstadoRequisito>()
+                    .ExecuteDeleteAsync()),
             };
 
             foreach (var (nombre, pone) in causas)

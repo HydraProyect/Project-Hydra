@@ -174,10 +174,9 @@ public sealed class LectorCumplimientoDeDireccion(
 
             var enRenuncia = Math.Min(grupo.Cantidad, renunciasPorGrupo.GetValueOrDefault((grupo.EmpresaId, grupo.CentroId, grupo.Estado)));
             requeridos += grupo.Cantidad;
+            // Una renuncia nunca es conforme (EsConforme(estado, esRenuncia: true) es siempre falso): solo suman los demás.
             if (CumplimientoDocumental.EsConforme(estado, esRenuncia: false))
                 alDia += grupo.Cantidad - enRenuncia;
-            if (CumplimientoDocumental.EsConforme(estado, esRenuncia: true))
-                alDia += enRenuncia;
         }
 
         return new FraccionCumplimiento(alDia, requeridos);
