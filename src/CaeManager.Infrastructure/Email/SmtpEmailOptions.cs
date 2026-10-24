@@ -36,12 +36,13 @@ public class SmtpEmailOptions
     public string? NombreCertificadoTls { get; set; }
 
     /// <summary>
-    /// URL pública de la aplicación (ej. https://app.talveg.es), para servir
-    /// la franja de marca del sistema de correo como imagen (los clientes de
-    /// correo la descargan por HTTP, no la reciben incrustada). Sin
-    /// configurar, el correo se envía igual, con el nombre "TALVEG" como
-    /// texto en vez de imagen — mismo patrón de fail-soft que
-    /// AlertasPorCorreoOptions.UrlBase.
+    /// URL pública de la aplicación (ej. https://app.talveg.es). OBLIGATORIA fuera
+    /// de Development (URL absoluta https): los enlaces de activación y de
+    /// recuperación de contraseña se construyen con ella, nunca con el Host de la
+    /// petición, y sin ella la aplicación no arranca (ValidadorUrlBasePublica,
+    /// registrado con ValidateOnStart en Program.cs). En Development puede faltar y se usa el Host local. También
+    /// permite servir la franja de marca del sistema de correo como imagen (los
+    /// clientes de correo la descargan por HTTP, no la reciben incrustada).
     /// </summary>
     public string? UrlBasePublica { get; set; }
 

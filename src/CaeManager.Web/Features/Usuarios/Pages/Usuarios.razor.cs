@@ -75,6 +75,7 @@ public record CoordinadorDto(Guid Id, string NombreCompleto, string Email);
 
 public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfiguracionBase, IDisposable
 {
+    [Inject] private CaeManager.Web.Services.EnlacesPublicos EnlacesPublicos { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -1101,6 +1102,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private async Task CrearUsuarioAsync()
     {
+        // Antes de crear la cuenta: el token de activación solo existe en la respuesta del
+        // alta, así que sin base pública no hay enlace que entregar y no se crea nada.
+        if (!HayBasePublica)
+        {
+            _mensajeErrorFormulario = TextosUsuarios["AltaSinUrlPublica"];
+            return;
+        }
+
         var resultado = await Mediator.Send(new CrearUsuarioCommand(
             _email,
             _nombreCompleto,
@@ -1159,7 +1168,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// (<paramref name="textoExito"/>, si lo hay) o «no se pudo enviar; usa el enlace».
     /// </summary>
     private void IniciarEnvioCorreoActivacion(
-        Guid usuarioId, string email, string nombreCompleto, string enlace, string? textoExito)
+        Guid usuarioId, string email, string nombreCompleto, string? enlace, string? textoExito)
     {
         _envioCorreoEnVuelo = true;
         _reenvioFallido = false;
@@ -1167,7 +1176,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     }
 
     private async Task EnviarCorreoActivacionYAvisarAsync(
-        Guid usuarioId, string email, string nombreCompleto, string enlace, string? textoExito)
+        Guid usuarioId, string email, string nombreCompleto, string? enlace, string? textoExito)
     {
         Result resultado;
         try
@@ -1231,10 +1240,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// que usa "olvidé mi contraseña", ya codificado por Application— sobre la
     /// página que ya sabe consumirlo.
     /// </summary>
-    private string EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
-        NavigationManager
-            .ToAbsoluteUri($"/cuenta/restablecer-contrasena?userId={usuarioId}&code={tokenCodificado}")
-            .ToString();
+    private string? EnlaceActivacion(Guid usuarioId, string tokenCodificado) =>
+        EnlacesPublicos.Activacion(usuarioId, tokenCodificado, NavigationManager.BaseUri);
+
+    /// <summary>
+    /// Se comprueba antes de cualquier acción que emita un token (alta, reenvío, corrección de
+    /// correo): emitirlo invalida los enlaces anteriores y sin base pública no se puede entregar.
+    /// </summary>
+    private bool HayBasePublica => EnlacesPublicos.ObtenerBase(NavigationManager.BaseUri) is not null;
 
     /// <summary>
     /// El correo lleva un ENLACE de activación, nunca una contraseña.
@@ -1262,8 +1275,11 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </para>
     /// </summary>
     private async Task<Result> EnviarCorreoActivacionAsync(
-        Guid usuarioId, string email, string nombreCompleto, string enlaceActivacion, CancellationToken cancellationToken = default)
+        Guid usuarioId, string email, string nombreCompleto, string? enlaceActivacion, CancellationToken cancellationToken = default)
     {
+        if (enlaceActivacion is null)
+            return Result.Fallo(Error.Crear("Activacion.UrlPublicaNoConfigurada", TextosUsuarios["ActivacionUrlPublicaNoConfigurada"]));
+
         var cuerpo = $"""
             <p>Hola {System.Net.WebUtility.HtmlEncode(nombreCompleto)},</p>
             <p>Se ha creado tu acceso a {Marca.Nombre}. Para entrar, establece tu contraseña:</p>
@@ -1289,6 +1305,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private async Task ReenviarCredencialesAsync(UsuarioListaDto usuarioLista)
     {
         if (_reenviandoCredencialesDe.Contains(usuarioLista.Id)) return;
+        // Antes de emitir el enlace: emitirlo invalida el anterior, y sin base pública no hay
+        // enlace nuevo que entregar (ni "queda abajo" que decir).
+        if (!HayBasePublica)
+        {
+            ToastService.MostrarError(Error.Crear("Activacion.UrlPublicaNoConfigurada", TextosUsuarios["EnlaceSinUrlPublica"]));
+            return;
+        }
+
         _reenviandoCredencialesDe.Add(usuarioLista.Id);
 
         var token = _ciclo.Token;
@@ -1379,8 +1403,14 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     private async Task GuardarCorreoCorregidoAsync()
     {
         if (_usuarioACorregirCorreo is not { } usuario || _corrigiendoCorreo) return;
-        _corrigiendoCorreo = true;
         _errorCorregirCorreo = null;
+        if (!HayBasePublica)
+        {
+            _errorCorregirCorreo = TextosUsuarios["EnlaceSinUrlPublica"];
+            return;
+        }
+
+        _corrigiendoCorreo = true;
 
         var token = _ciclo.Token;
         try

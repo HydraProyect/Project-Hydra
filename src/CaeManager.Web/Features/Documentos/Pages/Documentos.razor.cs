@@ -855,6 +855,22 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
 
     /// <summary>Día de negocio con el que la columna de estado cuenta los días del motivo; se fija en cada carga.</summary>
     private DateOnly _hoy = DiaDeNegocio.Hoy();
+
+    private string SubtituloVencimiento(DocumentoListaDto documento)
+    {
+        if (_ordenVigenciaPorEmision)
+            return Textos["ListaEmisionFecha", documento.FechaEmision.ToString("dd/MM/yyyy")].Value;
+
+        var dias = documento.FechaVencimiento!.Value.DayNumber - _hoy.DayNumber;
+        return dias switch
+        {
+            0 => Textos["ListaVenceHoy"].Value,
+            -1 => Textos["ListaHaceUnDia"].Value,
+            1 => Textos["ListaEnUnDia"].Value,
+            < 0 => Textos["ListaHaceDias", -dias].Value,
+            _ => Textos["ListaEnDias", dias].Value
+        };
+    }
     private bool _cargando = true;
     private bool _errorCarga;
     private int _totalElementos;

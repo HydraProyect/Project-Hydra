@@ -233,6 +233,14 @@ builder.Services.AddHttpContextAccessor();
 // Cookie de antiforgery con Secure cuando la peticion es HTTPS (ver
 // AntiforgeryDeTalveg): sin esto rige CookieSecurePolicy.None.
 builder.Services.AddAntiforgery(AntiforgeryDeTalveg.Configurar);
+// Fuera de Development, Smtp:UrlBasePublica es obligatoria (https): sin ella no
+// hay enlaces de cuenta seguros y la aplicación no arranca (ValidadorUrlBasePublica).
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>, CaeManager.Infrastructure.Email.ValidadorUrlBasePublica>();
+builder.Services.AddOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>().ValidateOnStart();
+builder.Services.AddSingleton<EnlacesPublicos>();
+builder.Services.AddSingleton<RecuperacionContrasena>();
+// Misma instancia en los componentes y en el host (la cola es suya).
+builder.Services.AddSingleton<IHostedService, RecuperacionContrasena>(sp => sp.GetRequiredService<RecuperacionContrasena>());
 
 // Textos de interfaz en recursos .resx (IStringLocalizer<T>): sin esto no hay
 // IStringLocalizerFactory que resolver, aunque las culturas estén configuradas.

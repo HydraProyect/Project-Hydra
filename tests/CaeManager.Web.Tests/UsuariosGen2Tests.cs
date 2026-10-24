@@ -72,6 +72,7 @@ public partial class UsuariosGen2Tests : BunitContext
     /// <summary><see cref="Modal"/> y <see cref="MenuAcciones"/> mueven el foco por JS al abrirse.</summary>
     public UsuariosGen2Tests()
     {
+        Services.AddSeguridadCuentaDePrueba();
         JSInterop.Mode = JSRuntimeMode.Loose;
         this.ConRolDeEscritura();
     }
@@ -2211,6 +2212,63 @@ public partial class UsuariosGen2Tests : BunitContext
             cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos reenviar el correo"));
         cut.Find(".enlace-activacion").TextContent.Should().NotBeEmpty(
             "el enlace sigue siendo la vía de entrega alternativa aunque el correo fallara");
+    }
+
+    /// <summary>
+    /// Sin URL pública configurada (fuera de Development) emitir el enlace invalidaría el anterior
+    /// sin poder entregar el nuevo: no se emite nada, no se envía correo y el aviso no promete un
+    /// enlace «abajo» que no existe.
+    /// </summary>
+    [Fact]
+    public async Task Sin_url_publica_el_reenvio_no_emite_enlace_ni_promete_uno_abajo()
+    {
+        SembrarAdministradoraYPendiente();
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar(actorId: MartaId);
+
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Reenviar correo de activación");
+
+        _mediador.Enviadas.OfType<GenerarActivacionUsuarioCommand>().Should().BeEmpty(
+            "emitir el enlace invalida el anterior, y sin base pública no hay nuevo que entregar");
+        _correo.Enviados.Should().BeEmpty();
+        var aviso = _toasts.Mensajes.Should().ContainSingle().Subject.Mensaje;
+        aviso.Should().Contain("falta la URL pública").And.NotContain("queda abajo");
+        cut.FindAll(".enlace-activacion").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_url_publica_el_alta_no_crea_la_cuenta_y_lo_dice_en_el_formulario()
+    {
+        Sembrar((Cuenta(MartaId, "marta.r@talveg.es", "Marta Rodríguez"), RolesIdentidad.Administrador));
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar();
+        await cut.Find(".acciones-cabecera button").ClickAsync(new());
+        await EscribirAsync(cut, "Correo", "nueva@talveg.es");
+        await EscribirAsync(cut, "Nombre completo", "Persona Nueva");
+
+        await GuardarAsync(cut);
+
+        _mediador.Enviadas.OfType<CrearUsuarioCommand>().Should().BeEmpty("sin enlace que entregar no se crea la cuenta");
+        _identidad.Creadas.Should().BeEmpty();
+        cut.Markup.Should().Contain("No se creó el usuario");
+        _correo.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_url_publica_corregir_el_correo_no_lo_cambia_y_lo_dice_en_el_dialogo()
+    {
+        SembrarAdministradoraYPendiente();
+        Services.AddSingleton(SeguridadCuentaPruebas.Enlaces(null));
+        var cut = Renderizar(actorId: MartaId);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Corregir correo");
+        await EscribirCorreoCorregidoAsync(cut, "ander.beitia@talveg.es");
+
+        await GuardarCorreoCorregidoAsync(cut);
+
+        _mediador.Enviadas.OfType<CorregirCorreoCuentaPendienteCommand>().Should().BeEmpty();
+        _identidad.Cuentas[AnderId].Email.Should().Be("a.beitia@talveg.es");
+        cut.Markup.Should().Contain("falta la URL pública");
+        _correo.Enviados.Should().BeEmpty();
     }
 
     [Fact]
