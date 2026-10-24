@@ -486,6 +486,10 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+
+        // Antes del primer await: la rejilla puede montarse y pedir la lista en cualquier render intermedio.
+        SincronizarCamposConLaUrl();
+
         if (EstadoAutenticacion is not null)
         {
             var usuario = (await EstadoAutenticacion).User;
@@ -646,23 +650,7 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
     /// </summary>
     protected override void OnParametersSet()
     {
-        _estadoFiltro = EstadosValidos(Estado);
-        _busqueda = TerminoBusquedaInicial ?? string.Empty;
-        _ambitoFiltro = Ambito ?? string.Empty;
-        _tipoFiltro = IdValido(Tipo);
-        _plataformaFiltro = IdValido(Plataforma);
-        _propietarioFiltro = IdValido(Propietario);
-        LeerOrden(OrdenInicial);
-
-        // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
-        // desde el evento de reclamación enviada a su pestaña. Se ignora un
-        // valor que no exista en vez de dejar la página en blanco.
-        // Sin «?pestana=» la URL pide el listado, que es lo que «Todos los documentos» (barra de sección)
-        // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
-        if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
-            _pestanaActiva = pestanaDeUrl;
-        else if (string.IsNullOrWhiteSpace(Pestana))
-            _pestanaActiva = "listado";
+        SincronizarCamposConLaUrl();
 
         // Los filtros son la fuente de verdad de QUÉ hay en pantalla, y viajan
         // por la URL: cambiarlos desde el selector, desde otra pantalla o
@@ -695,6 +683,34 @@ public partial class Documentos : CaeManager.Web.Components.PaginaInteractiva, I
             _mensajeErrorFiltro = null;
             _mostrarGuardarFiltro = true;
         }
+    }
+
+    /// <summary>
+    /// Pasa de la URL a los campos los filtros, el orden y la pestaña. Se llama también al empezar
+    /// <see cref="OnInitializedAsync"/>: ComponentBase no corre OnParametersSet hasta que éste termina, y
+    /// <c>_resolviendoEmpresa</c> ya está en false mientras espera sus consultas (filtros guardados, opciones de
+    /// filtro). Con ese render intermedio la rejilla se monta y su proveedor pide la lista con los campos aún
+    /// vacíos: el listado entero con <c>?q=…</c> en la URL (misma carrera que Vehículos, #1621).
+    /// </summary>
+    private void SincronizarCamposConLaUrl()
+    {
+        _estadoFiltro = EstadosValidos(Estado);
+        _busqueda = TerminoBusquedaInicial ?? string.Empty;
+        _ambitoFiltro = Ambito ?? string.Empty;
+        _tipoFiltro = IdValido(Tipo);
+        _plataformaFiltro = IdValido(Plataforma);
+        _propietarioFiltro = IdValido(Propietario);
+        LeerOrden(OrdenInicial);
+
+        // Deep-link de pestaña: lo usa el timeline de Comunicaciones para llevar
+        // desde el evento de reclamación enviada a su pestaña. Se ignora un
+        // valor que no exista en vez de dejar la página en blanco.
+        // Sin «?pestana=» la URL pide el listado, que es lo que «Todos los documentos» (barra de sección)
+        // enlaza: desde cualquier otra pestaña de esta misma instancia, ese enlace solo quita el parámetro.
+        if (IdDePestanaDeUrl(Pestana) is { } pestanaDeUrl)
+            _pestanaActiva = pestanaDeUrl;
+        else if (string.IsNullOrWhiteSpace(Pestana))
+            _pestanaActiva = "listado";
     }
 
     private readonly PaginationState _paginacion = new() { ItemsPerPage = 20 };
