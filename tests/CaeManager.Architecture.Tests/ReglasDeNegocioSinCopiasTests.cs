@@ -257,7 +257,9 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // El único sitio que carga las filas bloqueantes de cada Centro (con su vigencia propia y su tolerancia) y aplica la
         // regla única por Centro (R1, R2): lo usan Mi trabajo y el detalle por Trabajador del Centro 360.
-        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 1,
+        // La segunda lectura es CondicionesDeRequisitosAsync, la misma condición para el estado materializado (PR 3), que
+        // copia el «bloquea el acceso» de cada par sin decidir un bloqueo nuevo.
+        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 2,
         // El semáforo del Centro ya no lee BloqueaAcceso: «Bloqueado» es un estado del Trabajador (2026-10-03) y el Centro solo
         // lo está por la plataforma del Cliente empresarial (D-7). Por eso no figura aquí.
     };

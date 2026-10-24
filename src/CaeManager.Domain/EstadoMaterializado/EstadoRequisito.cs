@@ -21,8 +21,9 @@ namespace CaeManager.Domain.EstadoMaterializado;
 /// </para>
 ///
 /// <para>
-/// Sin constructor público ni métodos: esta entidad solo define la tabla. El servicio de recálculo que la escribe llega
-/// después, con sus propias fábricas.
+/// Sin constructor público ni métodos: esta entidad solo define la tabla y la lectura. La escribe
+/// <c>EscritorEstadoMaterializado</c> (Infrastructure) con SQL por lotes, borrando e insertando los pares de los Centros
+/// recalculados, a partir de lo que calcula <c>RecalculoEstadoMaterializadoService</c> (Application).
 /// </para>
 /// </summary>
 public class EstadoRequisito : EntidadConTenant
@@ -38,8 +39,12 @@ public class EstadoRequisito : EntidadConTenant
     /// <summary>El Documento que resuelve <c>DocumentoEfectivo</c> para el par; null si no hay ninguno.</summary>
     public Guid? DocumentoEfectivoId { get; private set; }
 
-    /// <summary>Estado en TALVEG del documento efectivo en este Centro, con su contexto (tolerancia incluida).</summary>
-    public EstadoDocumento EstadoTalveg { get; private set; }
+    /// <summary>
+    /// Estado en TALVEG del documento efectivo del par, el mismo que el par exigido de hoy
+    /// (<c>ICalculoEstadoCentroService.ObtenerParesExigidosAsync</c>): por la fecha de vencimiento del documento, sin la
+    /// periodicidad ni la tolerancia del Centro, que hoy solo cuentan para el acceso (<see cref="VencimientoEfectivo"/>).
+    /// </summary>
+    public EstadoTalvegRequisito EstadoTalveg { get; private set; }
 
     /// <summary>Copia de <see cref="TipoDocumentoCentro.BloqueaAcceso"/>: con <see cref="EstadoTalveg"/> decide rojo o ámbar.</summary>
     public bool BloqueaAcceso { get; private set; }
