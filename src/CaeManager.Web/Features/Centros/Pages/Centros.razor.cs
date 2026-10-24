@@ -279,29 +279,57 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
     }
 
     /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
-    private IDisposable? _repintado;
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>Cuenta las cargas de <see cref="CargarAsync"/>: un repintado que se cruza con una carga no pisa su respuesta.</summary>
+    private int _cargasIniciadas;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
 
     /// <summary>
     /// Un aviso de cambio de estado: se relee la misma página (con el alcance del usuario, como cualquier lectura) y se pinta
-    /// sin el esqueleto de carga, conservando la selección y las filas desplegadas que siguen en la página. Con una carga
-    /// en vuelo no hace nada: esa carga ya trae lo nuevo.
+    /// sin el esqueleto de carga, conservando la selección y las filas desplegadas que siguen en la página. Con una carga en
+    /// vuelo se apunta y se relee al terminarla. Si falla, la lista que ya se veía se queda (el fallo lo registra
+    /// <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>).
     /// </summary>
     private async Task RepintarPorCambioDeEstadoAsync()
     {
-        if (_desechado || _cargando)
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        var carga = _cargasIniciadas;
+        var resultado = await Mediator.Send(ConsultaDePaginaActual(), _ciclo.Token);
+        if (_desechado || carga != _cargasIniciadas)
             return;
 
-        var resultado = await Mediator.Send(ConsultaDePaginaActual(), _ciclo.Token);
-        if (_desechado || _cargando)
+        var elementos = resultado.Elementos.ToList();
+        var enPagina = elementos.Select(c => c.Id).ToHashSet();
+        // Las próximas visitas van por página: solo se vuelven a pedir si la página ya no tiene los mismos Centros.
+        IReadOnlyDictionary<Guid, IReadOnlyList<VisitaResumenDto>> visitas = _visitasPorCentro;
+        if (!enPagina.SetEquals(_elementosPagina.Select(c => c.Id)))
+            visitas = elementos.Count == 0
+                ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
+                : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(elementos.Select(c => c.Id).ToList()), _ciclo.Token);
+        if (_desechado || carga != _cargasIniciadas)
             return;
 
         _totalElementos = resultado.TotalElementos;
         _recuentosPorEstado = resultado.RecuentosPorEstado;
         _resumenPorGrupo = resultado.ResumenPorGrupo;
-        _elementosPagina = resultado.Elementos.ToList();
-        var enPagina = _elementosPagina.Select(c => c.Id).ToHashSet();
+        _elementosPagina = elementos;
+        _visitasPorCentro = visitas;
         _seleccionados.IntersectWith(enPagina);
         _expandidos.IntersectWith(enPagina);
+        if (_idEnfocado is { } enfocado && !enPagina.Contains(enfocado))
+            _idEnfocado = null;
         StateHasChanged();
     }
 
@@ -517,6 +545,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         if (resetPagina)
             _pagina = 1;
 
+        _cargasIniciadas++;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -547,6 +576,12 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         {
             _cargando = false;
             StateHasChanged();
+            // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+            if (_releerTrasCarga && !_desechado)
+            {
+                _releerTrasCarga = false;
+                _repintado?.PedirRelectura();
+            }
         }
     }
 

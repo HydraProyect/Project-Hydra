@@ -143,7 +143,7 @@ public abstract class RaizInteractiva : ComponentBase, IHandleEvent, IHandleAfte
     /// caché en el ámbito no escucha nada (<c>null</c>).
     /// </summary>
     /// <param name="recargar">Relee y pinta (<c>StateHasChanged</c>); corre en el despachador del componente.</param>
-    protected IDisposable? EscucharCambiosDeEstado(Func<Task> recargar) =>
+    protected RepintadoPorCambioDeEstado? EscucharCambiosDeEstado(Func<Task> recargar) =>
         RepintadoPorCambioDeEstado.Escuchar(
             Servicios.GetService(typeof(CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito))
                 as CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito,

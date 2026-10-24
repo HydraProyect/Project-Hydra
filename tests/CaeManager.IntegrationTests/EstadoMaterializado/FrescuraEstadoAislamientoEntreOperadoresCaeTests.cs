@@ -315,13 +315,17 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
                 cache.CambioRecibido += cambios.Enqueue;
                 var db = sp.GetRequiredService<CaeManagerDbContext>();
                 var centros = await db.Centros.AsNoTracking().Select(c => c.Id).ToListAsync();
+                centros.Should().NotBeEmpty("su copia del Tenant beneficiario también tiene Centros");
                 var lector = sp.GetRequiredService<ILectorEstadoCentros>();
                 var primera = await lector.LeerAsync(centros, CancellationToken.None);
+                primera.Should().NotBeEmpty("el relleno escribió filas de estado de su Tenant: sin ellas, la igualdad de abajo no probaría nada");
                 primera.Keys.Should().NotIntersectWith(fixture.Piloto.Ids);
+                cache.RelecturasCompletas.Should().Be(1, "el lector de Centros lee a través de la caché del circuito");
                 listoB.SetResult((cache, cambios));
 
                 await cambioConfirmado.Task.WaitAsync(Tope);
                 (await lector.LeerAsync(centros, CancellationToken.None)).Should().BeEquivalentTo(primera);
+                cache.RelecturasCompletas.Should().Be(1, "su versión no cambió: no se relee entero");
                 cache.RelecturasParciales.Should().Be(0, "su versión no cambió: se sirve lo guardado");
                 return 0;
             }

@@ -113,7 +113,32 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
     /// el refresco que conserva la selección y las filas desplegadas.
     /// </summary>
-    private IDisposable? _repintado;
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la pregunta que hay en pantalla sin el esqueleto de carga, conservando la
+    /// selección y las filas desplegadas. Sin Empresa elegida (o aún resolviéndola) no hay lista que releer; con una carga en
+    /// vuelo se apunta y se relee al terminarla.
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada || _ultimaConsulta is null)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await CargarListaAsync(silenciosa: true);
+        StateHasChanged();
+    }
 
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
     /// sin «+ Nuevo» en cabecera, para no duplicar lo que quizá ya existe fuera de su cartera.</summary>
@@ -425,7 +450,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
-        _repintado ??= EscucharCambiosDeEstado(RefrescarTrasCorreccionAsync);
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
 
         if (EstadoAutenticacion is not null)
         {
@@ -572,7 +597,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private int _cargaVigente;
 
-    private async Task CargarListaAsync()
+    /// <param name="silenciosa">
+    /// El repintado por un cambio de estado: sin esqueleto de carga, y si falla la lista que ya se veía se queda (el fallo
+    /// sube a <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del estado de error.
+    /// </param>
+    private async Task CargarListaAsync(bool silenciosa = false)
     {
         if (_desechado || !_parametrosInicializados) return;
         _cargaPendiente = false;
@@ -604,9 +633,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
+        if (!silenciosa)
+        {
+            _cargando = true;
+            _errorCarga = false;
+            StateHasChanged();
+        }
         try
         {
             // Las opciones de las pastillas «Delegación» y «Oficio» son las del catálogo de la Empresa en juego.
@@ -614,6 +646,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (_desechado || carga != _cargaVigente) return;
             var resultado = await Mediator.Send(consulta, cancelacion.Token);
             if (_desechado || carga != _cargaVigente) return;
+            _errorCarga = false;
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             if (_totalElementos > 0) _alcanceCero = false;
@@ -640,6 +673,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             }
         }
         catch (Exception) when (_desechado || carga != _cargaVigente) { }
+        catch (Exception) when (silenciosa) { throw; }
         catch (Exception) { _errorCarga = true; }
         finally
         {
@@ -648,6 +682,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             {
                 _cargando = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }

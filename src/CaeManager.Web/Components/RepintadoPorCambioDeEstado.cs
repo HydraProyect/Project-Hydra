@@ -14,18 +14,28 @@ namespace CaeManager.Web.Components;
 /// </para>
 ///
 /// <para>
-/// Varios avisos seguidos no hacen varias relecturas a la vez: si llega uno mientras se relee, se relee una vez más al acabar.
+/// Una ráfaga de avisos hace una sola relectura: el primero espera <see cref="Amortiguacion"/> antes de saltar al despachador
+/// y los que llegan mientras tanto se suman a él. Varios avisos seguidos tampoco hacen varias relecturas a la vez: si llega
+/// uno mientras se relee, se relee una vez más al acabar. Una pantalla con su propia carga en vuelo, que puede haber leído
+/// antes del cambio, lo apunta y pide la relectura al terminar (<see cref="PedirRelectura"/>).
+/// </para>
+///
+/// <para>
 /// Un fallo de la relectura se registra y la pantalla se queda con lo que ya enseñaba; la siguiente lectura lo corrige.
 /// </para>
 /// </summary>
 public sealed class RepintadoPorCambioDeEstado : IDisposable
 {
+    /// <summary>Lo que espera el primer aviso de una ráfaga antes de releer: los que lleguen entretanto no releen aparte.</summary>
+    public static readonly TimeSpan Amortiguacion = TimeSpan.FromMilliseconds(250);
+
     private readonly CacheEstadoCircuito _cache;
     private readonly Func<Func<Task>, Task> _enDespachador;
     private readonly Func<Task> _recargar;
     private readonly Action<Exception> _registrarFallo;
     private bool _recargando;
     private bool _pendiente;
+    private int _programado;
     private volatile bool _liberado;
 
     private RepintadoPorCambioDeEstado(
@@ -53,6 +63,12 @@ public sealed class RepintadoPorCambioDeEstado : IDisposable
         return cache is null ? null : new RepintadoPorCambioDeEstado(cache, enDespachador, recargar, registrarFallo);
     }
 
+    /// <summary>
+    /// Relee como si hubiera llegado un aviso. La usa la pantalla que apuntó un aviso mientras tenía su propia carga en vuelo
+    /// y no lo atendió, al terminar esa carga.
+    /// </summary>
+    public void PedirRelectura() => Programar();
+
     public void Dispose()
     {
         if (_liberado)
@@ -61,11 +77,13 @@ public sealed class RepintadoPorCambioDeEstado : IDisposable
         _cache.CambioRecibido -= AlCambiar;
     }
 
-    // Corre en el hilo de quien publicó el aviso (tras el COMMIT de otra petición o de otro circuito): solo salta al
-    // despachador del componente, sin esperar, para no retener a quien publicó.
-    private void AlCambiar(AvisoCambioEstado aviso)
+    // Corre en el hilo de quien publicó el aviso (tras el COMMIT de otra petición o de otro circuito): solo programa la
+    // relectura, sin esperar, para no retener a quien publicó.
+    private void AlCambiar(AvisoCambioEstado aviso) => Programar();
+
+    private void Programar()
     {
-        if (_liberado)
+        if (_liberado || Interlocked.Exchange(ref _programado, 1) == 1)
             return;
         _ = SaltarAlDespachadorAsync();
     }
@@ -74,6 +92,11 @@ public sealed class RepintadoPorCambioDeEstado : IDisposable
     {
         try
         {
+            await Task.Delay(Amortiguacion);
+            // Desde aquí, un aviso nuevo programa otra relectura: esta puede haber empezado a leer antes de su cambio.
+            Volatile.Write(ref _programado, 0);
+            if (_liberado)
+                return;
             await _enDespachador(RecargarAsync);
         }
         catch (Exception excepcion) when (excepcion is ObjectDisposedException or OperationCanceledException)

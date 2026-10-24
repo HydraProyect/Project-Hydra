@@ -110,15 +110,18 @@ public sealed class CacheEstadoCircuito(
     /// Como <see cref="ObtenerAsync{TFila}(ConsultaEstadoEnCache{TFila}, CancellationToken)"/>, con la versión ya leída por
     /// quien llama en este mismo ámbito (y con su mismo contexto RLS), <b>antes</b> de pedir las filas: los lectores que ya
     /// comprueban que el Tenant está completo leen la versión en esa misma sentencia y no pagan otra. Con <c>null</c> (sin
-    /// fila de versión visible, o una identidad que ve varias) lee directamente y no guarda nada.
+    /// fila de versión visible, o una identidad que ve varias) o sin contexto que sirva de clave no guarda nada, y entonces no
+    /// lee el Tenant entero: solo las filas de <paramref name="entidadesPedidas"/>, las que quien llama va a usar.
     /// </summary>
-    public async Task<IReadOnlyList<TFila>> ObtenerAsync<TFila>(
-        ConsultaEstadoEnCache<TFila> consulta, VersionEstadoLeida? versionLeida, CancellationToken cancellationToken)
+    internal async Task<IReadOnlyList<TFila>> ObtenerAsync<TFila>(
+        ConsultaEstadoEnCache<TFila> consulta, VersionEstadoLeida? versionLeida, IReadOnlyCollection<Guid> entidadesPedidas,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(consulta);
+        ArgumentNullException.ThrowIfNull(entidadesPedidas);
         var contexto = await ClaveContextoMemo.ResolverAsync(currentUser, tenantActual);
-        if (contexto is null)
-            return await consulta.LeerTodas(cancellationToken);
+        if (contexto is null || versionLeida is null)
+            return await consulta.LeerDeEntidades(entidadesPedidas, cancellationToken);
 
         return await ObtenerDeVersionAsync(consulta, contexto.Value, versionLeida, cancellationToken);
     }

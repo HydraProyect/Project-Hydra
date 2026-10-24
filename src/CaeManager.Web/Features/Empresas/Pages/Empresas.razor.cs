@@ -214,15 +214,35 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
     /// el refresco que conserva la selección, las filas desplegadas y la fila enfocada.
     /// </summary>
-    private IDisposable? _repintado;
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la pregunta que hay en pantalla sin el esqueleto de carga, conservando la
+    /// selección, las filas desplegadas y la fila enfocada. Sin Empresa elegida (o aún resolviéndola) no hay lista que
+    /// releer; con una carga en vuelo se apunta y se relee al terminarla.
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada || _ultimaConsulta is null)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await CargarAsync(silenciosa: true);
+    }
 
     protected override async Task OnInitializedAsync()
     {
-        _repintado ??= EscucharCambiosDeEstado(async () =>
-        {
-            await RefrescarTrasCorreccionAsync();
-            StateHasChanged();
-        });
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
         // La marca de fila sigue al panel del Context Workspace, que se abre y
         // se cierra fuera de esta página.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
@@ -452,7 +472,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private ObtenerEmpresasQuery? _consultaQueConservaSeleccion;
 
-    private async Task CargarAsync(bool resetPagina = false)
+    /// <param name="silenciosa">
+    /// El repintado por un cambio de estado: sin esqueleto de carga, y si falla la lista que ya se veía se queda (el fallo
+    /// sube a <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del estado de error.
+    /// </param>
+    private async Task CargarAsync(bool resetPagina = false, bool silenciosa = false)
     {
         if (resetPagina)
             _pagina = 1;
@@ -481,9 +505,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
 
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
+        if (!silenciosa)
+        {
+            _cargando = true;
+            _errorCarga = false;
+            StateHasChanged();
+        }
 
         try
         {
@@ -491,6 +518,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             if (!EsVigente(carga))
                 return;
 
+            _errorCarga = false;
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
@@ -517,6 +545,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             // Una carga superada que falla no es un error de la vigente: no
             // puede tapar su resultado con el estado de error.
         }
+        catch (Exception) when (silenciosa)
+        {
+            throw;
+        }
         catch (Exception)
         {
             _errorCarga = true;
@@ -527,6 +559,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             {
                 _cargando = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }

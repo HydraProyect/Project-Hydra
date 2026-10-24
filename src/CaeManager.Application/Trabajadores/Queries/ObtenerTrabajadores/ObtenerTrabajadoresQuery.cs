@@ -386,7 +386,8 @@ public class ObtenerTrabajadoresQueryHandler(
                     x.trabajador.Id,
                     x.trabajador.Nombre,
                     x.trabajador.Apellidos,
-                    x.trabajador.Dni,
+                    // El mismo tipo anónimo que conFecha, que lo infiere no anulable (EF no ve el «!»).
+                    Dni = x.trabajador.Dni!,
                     x.EmpleadorNombre,
                     DelegacionEmpresaId = x.trabajador.DelegacionEmpresaId,
                     x.DelegacionEmpresaNombre,

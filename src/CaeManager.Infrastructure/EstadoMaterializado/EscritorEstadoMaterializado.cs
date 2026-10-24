@@ -152,8 +152,12 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext, I
             """;
         var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(sql).ToListAsync(ct);
 
+        // Con más entidades de las que la caché relee en parte (un relleno, una clausura grande), el aviso va sin entidades:
+        // la caché relee entero de todos modos y así el aviso no arrastra miles de ids a cada circuito suscrito.
+        IReadOnlyCollection<Guid> delAviso =
+            entidades.Count > CacheEstadoCircuito.MaximoEntidadesEnRelecturaParcial ? [] : entidades;
         foreach (var fila in subidas)
-            registroCambios.Anotar(new AvisoCambioEstado(fila.TenantId, fila.Version, entidades));
+            registroCambios.Anotar(new AvisoCambioEstado(fila.TenantId, fila.Version, delAviso));
     }
 
     /// <summary>Fila que devuelve la subida de versión.</summary>

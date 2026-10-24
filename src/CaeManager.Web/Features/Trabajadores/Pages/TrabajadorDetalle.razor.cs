@@ -244,19 +244,32 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
     }
 
     /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
-    private IDisposable? _repintado;
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
 
     protected override void OnInitialized() =>
         _repintado ??= EscucharCambiosDeEstado(RepintarEstadoDeCabeceraAsync);
 
     /// <summary>
     /// Un aviso de cambio de estado: se relee solo el estado de la cabecera (la fila del listado, con el alcance del usuario
-    /// como cualquier lectura), sin el esqueleto de <see cref="CargarAsync"/>. Si la carga cambió entretanto, la respuesta ya
-    /// no es de lo que se ve y se descarta.
+    /// como cualquier lectura), sin el esqueleto de <see cref="CargarAsync"/>. Con una carga en vuelo se apunta y se relee al
+    /// terminarla. Si la carga cambió entretanto, la respuesta ya no es de lo que se ve y se descarta; si falla, la cabecera
+    /// se queda con lo que enseñaba.
     /// </summary>
     private async Task RepintarEstadoDeCabeceraAsync()
     {
-        if (_desechado || _cargando || _detalle is not { } detalle)
+        if (_desechado)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+        if (_detalle is not { } detalle)
             return;
 
         var carga = _cargaVigente;
@@ -589,6 +602,12 @@ public partial class TrabajadorDetalle : CaeManager.Web.Components.PaginaInterac
                 if (_error)
                     _subidaDeLaUrlPendiente = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }

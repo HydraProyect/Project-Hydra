@@ -185,7 +185,7 @@ public sealed class LectorEstadoMaterializado(
                 f => [f.EntidadId],
                 async ct => await Proyectar(Entidades(ambito)).ToListAsync(ct),
                 (entidades, ct) => LeerFilasAsync(ambito, entidades, ct)),
-            version, cancellationToken);
+            version, ids, cancellationToken);
     }
 
     private async Task<IReadOnlyList<FilaLeida>> LeerFilasAsync(

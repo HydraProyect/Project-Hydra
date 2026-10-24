@@ -97,7 +97,7 @@ public sealed class LectorEstadoCentros(IEstadoMaterializadoQueryContext context
         var pedidos = centroIds.ToHashSet();
         var filas = cache is null
             ? await LeerFilasAsync(pedidos, cancellationToken)
-            : await cache.ObtenerAsync(Consulta(), tenant.Version, cancellationToken);
+            : await cache.ObtenerAsync(Consulta(), tenant.Version, pedidos, cancellationToken);
 
         var hoy = DiaDeNegocio.Hoy();
         foreach (var fila in filas)

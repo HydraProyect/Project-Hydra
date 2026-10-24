@@ -209,13 +209,13 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
         {
             if (_detalle is null)
                 return;
-            await CargarTrabajadoresAsync();
+            await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
             StateHasChanged();
         });
     }
 
     /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
-    private IDisposable? _repintado;
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
 
     /// <summary>
     /// Solo recarga cuando cambia la Empresa. La pestaña y el chip también
@@ -440,7 +440,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     private Task CargarTrabajadoresAsync() => CargarTrabajadoresAsync(soloLaLista: false);
 
-    private async Task CargarTrabajadoresAsync(bool soloLaLista)
+    /// <param name="conservarSiFalla">
+    /// El repintado por un cambio de estado: si falla, la lista que ya se veía se queda (el fallo sube a
+    /// <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del error de la pestaña.
+    /// </param>
+    private async Task CargarTrabajadoresAsync(bool soloLaLista, bool conservarSiFalla = false)
     {
         var carga = ++_cargaTrabajadores;
         // Una página pedida con el texto anterior ya no vale: que no escriba en la caché que se vacía aquí.
@@ -485,6 +489,10 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             _recuentos = todos;
             _recuentosLista = recuentoDeLaLista;
             await MostrarPaginaAsync();
+        }
+        catch (Exception) when (conservarSiFalla && carga == _cargaTrabajadores)
+        {
+            throw;
         }
         catch (Exception)
         {
