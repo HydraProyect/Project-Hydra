@@ -75,13 +75,15 @@ public partial class Empresa360PaginaTests : BunitContext
 
         /// <summary>Como AutorizacionSecretosDeTenantBehavior con un rol que lee secretos y sin 2FA (P1-I1).</summary>
         public bool SinDobleFactor { get; set; }
+        public Func<object, Task?>? Retener { get; set; }
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (Retener?.Invoke(request) is { } espera) await espera;
             if (SinDobleFactor && request is IConsultaDeSecretosDeTenant or IConsultaDeDatosDeCredencial)
-                return Task.FromException<TResponse>(new SegundoFactorRequeridoParaCredencialesException());
-            return Task.FromResult((TResponse)Responder(request)!);
+                throw new SegundoFactorRequeridoParaCredencialesException();
+            return (TResponse)Responder(request)!;
         }
 
         private object? Responder(object request) => request switch
