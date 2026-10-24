@@ -574,10 +574,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Documentos", 6, true }, // medido: 4
         { "Documentos vencidos por vencimiento", 5, false }, // medido: 3; el Tenant medido no tiene vencidos
         { "Trabajadores", 14, true }, // medido: 12
-        // medido: 19 en la primera medición; 22 en CI con la PR 7 (el techo era 21). Esta pantalla pide el estado completo y el Tenant medido no está relleno (no
-        // tiene fila de versión, como hoy todos los Tenants reales), así que el lector de Empresa y Trabajador paga UNA sentencia
-        // de sondeo (fila de versión y cola vacía, en una sola consulta) y vuelve al cálculo de siempre. En un Tenant completo
-        // la fila sustituye al cálculo del peor documento y de los requisitos incumplidos de todas las Empresas del listado.
+        // Sin relleno: 22 medidos en CI. Con el Tenant completo (20) se mide en Con_los_Tenants_completos_las_colas_de_trabajo_caben_en_su_presupuesto_de_SQL.
         { "Empresas", 22, true },
         { "Centros", 33, true }, // medido: 30
         { "Centros bloqueados", 33, false }, // medido: 30; ningún Centro bloqueado en el Tenant medido
@@ -671,6 +668,13 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
                 await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
                     sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
             rellenos = await MedirAsync();
+            // «Empresas» con los Tenants completos solo mide algo si el lector sirve de verdad el estado al Gestor CAE medido:
+            // sin esta guarda, una vuelta al cálculo (alcance parcial, cola, fila caducada...) costaría lo mismo que sin
+            // rellenar y pasaría el «no más caro» sin haber leído las tablas.
+            (await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido, async sp =>
+                await sp.GetRequiredService<ILectorEstadoMaterializado>().LeerEstadoCompletoAsync(AmbitoEstadoEntidad.Empresa,
+                    sp.GetRequiredService<CaeManagerDbContext>().Empresas.Where(e => e.EsPropia).Select(e => e.Id), CancellationToken.None)))
+                .Should().NotBeNull("el listado de Empresas se mide por el camino del estado materializado, sin vuelta al cálculo");
         }
         finally
         {
@@ -688,20 +692,20 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         // Medido en CI (sin rellenar -> con los Tenants completos): Alertas 10 -> 6, Inicio: KPIs 24 -> 11, Inicio: bandeja
         // agrupada 31 -> 27, Mi trabajo 275 -> 243. Cada techo es lo medido con completos + 1: el margen cubre una sentencia
         // de sondeo de un Tenant más del piloto, no una consulta nueva por pantalla.
-        // «Empresas» (PR 7) es la excepción conocida: sin rellenar 22 y con el Tenant completo 25, porque el lector de Empresas
-        // paga más sentencias que el cálculo en el piloto. No se exige que baje; se congela para que no empeore.
-        foreach (var (pantalla, maximo, debeBajar) in new (string, int, bool)[]
+        // «Empresas» costaba más leyendo que calculando (22 sin rellenar, 25 con el Tenant completo) hasta quitar del camino
+        // materializado los umbrales, el COUNT que ya da la franja y la consulta aparte de nombres de Tipo: medido en CI,
+        // 22 -> 20, así que ya se exige que baje como las demás.
+        foreach (var (pantalla, maximo) in new (string, int)[]
         {
-            ("Alertas", 7, true),
-            ("Inicio: KPIs", 12, true),
-            ("Inicio: bandeja agrupada", 28, true),
-            ("Mi trabajo", 244, true),
-            ("Empresas", 26, false),
+            ("Alertas", 7),
+            ("Inicio: KPIs", 12),
+            ("Inicio: bandeja agrupada", 28),
+            ("Mi trabajo", 244),
+            ("Empresas", 21),
         })
         {
-            if (debeBajar)
-                rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
-                    $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
+            rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
+                $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
             rellenos[pantalla].Should().BeLessThanOrEqualTo(maximo, $"presupuesto de «{pantalla}» con los Tenants completos");
         }
     }

@@ -172,18 +172,17 @@ public class ObtenerEmpresasQueryHandler(
 
         if (necesitaEstadoCompleto)
         {
-            var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
-            var hoy = DiaDeNegocio.Hoy();
-            var limiteRojo = hoy.AddDays(parametros.UmbralRojoDias);
-            var limiteAmbar = hoy.AddDays(parametros.UmbralAmbarDias);
-
-            // Los requisitos obligatorios incumplidos de todas las Empresas de la consulta, antes de paginar: entran en la
-            // clave de estado igual que en ObtenerTrabajadoresQuery (decisión del 2026-10-23). Solo se materializan los Ids
-            // con alguno, nunca el listado.
             var leidoCompleto = permitirEstadoMaterializado
                 ? await lector.LeerEstadoCompletoAsync(AmbitoEstadoEntidad.Empresa, consulta.Select(e => e.Id), cancellationToken)
                 : null;
             var materializado = leidoCompleto is not null;
+            // Los umbrales solo hacen falta cuando se calcula; el estado materializado ya los aplica.
+            var parametros = materializado ? null : await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
+            var hoy = DiaDeNegocio.Hoy();
+            var umbralRojo = parametros?.UmbralRojoDias ?? 0;
+            var umbralAmbar = parametros?.UmbralAmbarDias ?? 0;
+            var limiteRojo = hoy.AddDays(umbralRojo);
+            var limiteAmbar = hoy.AddDays(umbralAmbar);
             var incumplidos = materializado
                 ? RequisitosObligatoriosIncumplidos.Ninguno.PorEmpresa
                 : await requisitosObligatorios.DeEmpresasAsync(consulta.Select(e => e.Id), cancellationToken);
@@ -283,22 +282,29 @@ public class ObtenerEmpresasQueryHandler(
             // Los recuentos se toman ANTES de filtrar por estado y después de todos los demás filtros: cada
             // cifra de la franja dice cuántas filas quedarían al marcar solo ese estado.
             IReadOnlyDictionary<string, int>? recuentosPorEstado = null;
+            Dictionary<int, int>? cantidadesPorClave = null;
             if (request.ConRecuentosPorEstado)
             {
-                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(await conEstado
+                cantidadesPorClave = await conEstado
                     .GroupBy(e => e.ClaveEstado)
                     .Select(grupo => new { Clave = grupo.Key, Filas = grupo.Count() })
-                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken), incluirFaltantes: true);
+                    .ToDictionaryAsync(grupo => grupo.Clave, grupo => grupo.Filas, cancellationToken);
+                recuentosPorEstado = EstadoDocumentalFiltro.RecuentosPorEstado(cantidadesPorClave, incluirFaltantes: true);
             }
 
             // Varios estados a la vez (la franja deja marcar más de uno). null: el filtro no descarta nada
             // (vacío o sin ningún valor conocido). Lista vacía: ninguna fila — «sin documentos» (este listado
             // nunca produce un estado null: sin Documentos cae en Sin caducidad) o un estado que una Empresa
             // nunca tiene (En tolerancia). Un filtro válido pero no aplicable devuelve nada, no todo.
-            if (EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental, incluirFaltantes: true) is { } clavesPedidas)
+            var clavesPedidas = EstadoDocumentalFiltro.ClavesDeOrden(request.EstadoDocumental, incluirFaltantes: true);
+            if (clavesPedidas is not null)
                 conEstado = conEstado.Where(e => clavesPedidas.Contains(e.ClaveEstado));
 
-            var totalConEstado = await conEstado.CountAsync(cancellationToken);
+            // Con el estado leído, la franja ya contó todas las claves antes del filtro (las listas de Ids son las mismas
+            // que leerá la página): sumar las elegidas evita otro COUNT. Al calcular se conserva el COUNT de siempre.
+            var totalConEstado = materializado && cantidadesPorClave is not null
+                ? cantidadesPorClave.Where(p => clavesPedidas is null || clavesPedidas.Contains(p.Key)).Sum(p => p.Value)
+                : await conEstado.CountAsync(cancellationToken);
 
             // Este camino se toma también solo para contar por estado (la franja lo pide siempre), así que el
             // orden no puede darse por supuesto: por estado si es la columna pedida, y si no por la misma lista
@@ -353,7 +359,7 @@ public class ObtenerEmpresasQueryHandler(
                             : ConIncumplidos(
                                 new EmpresaListaDto(
                                     e.Id, e.RazonSocial, e.Cif, e.CreadoEnUtc,
-                                    CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros.UmbralAmbarDias, parametros.UmbralRojoDias),
+                                    CalculoEstadoDocumentalService.PeorEstado(e.PeorFecha, e.HaySinConfirmar, hoy, parametros!.UmbralAmbarDias, parametros.UmbralRojoDias),
                                     cumplimientoConEstado.GetValueOrDefault(e.Id),
                                     deteccionesConEstado.GetValueOrDefault(e.Id)),
                                 incumplidos))
