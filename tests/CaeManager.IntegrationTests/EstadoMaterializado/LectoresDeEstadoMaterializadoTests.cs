@@ -399,7 +399,9 @@ public class LectoresDeEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture
     {
         var nombre = CatalogoPilotoOutbound.NombreTenantC;
         var tenantId = await fixture.Arnes.TenantIdAsync(nombre);
-        var empresaId = await fixture.Arnes.EnTenantAsync(tenantId, (db, _) => db.Empresas.OrderBy(e => e.Id).Select(e => e.Id).FirstAsync());
+        // Una Empresa que el listado del Administrador del Operador CAE muestra (no toda fila de Empresas sale en él).
+        var empresaId = (await ComoAdministradorAsync(nombre, sp => sp.GetRequiredService<ISender>().Send(new ObtenerEmpresasQuery(null, TamanoPagina: 100))))
+            .Elementos.Select(e => e.Id).Order().First();
 
         try
         {

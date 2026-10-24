@@ -95,7 +95,6 @@ public sealed class LectorEstadoMaterializado(
     IEstadoMaterializadoQueryContext tablas,
     ILectorEstadoCentros lectorCentros,
     IAlcanceDatosService alcanceDatos,
-    ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     ITrabajadoresQueryContext trabajadoresContext,
     IEmpresasQueryContext empresasContext,
@@ -108,15 +107,16 @@ public sealed class LectorEstadoMaterializado(
 
     public async Task<bool> DisponibleAsync(CancellationToken cancellationToken)
     {
+        // El alcance primero: lo resuelve y memoiza el servicio de alcance (la consulta lo necesita de todos modos), así que no
+        // cuesta ninguna sentencia propia, y quien no alcanza el Tenant entero (acceso total o cartera universal) no paga las dos
+        // de abajo. Un rol Cliente o una cartera por lista de Clientes calculan, aunque su lista cubra todos los Centros.
+        if (!await alcanceDatos.AlcanzaElTenantEnteroAsync(cancellationToken))
+            return false;
+
         // Tenant completo: su fila de versión (sin ella tiene filas a medias o ninguna) y la cola de recálculos sin consumir
         // vacía (cambio de Tipo, tolerancia o umbrales, clausura grande, fallo del recálculo: lo guardado puede estar viejo).
         // La misma comprobación que los lectores de Centro, no una copia.
-        if (!await lectorCentros.TenantCompletoAsync(cancellationToken))
-            return false;
-
-        // null = sin restricción; una lista que cubre todos los Centros (una cartera universal) tampoco restringe nada.
-        var visibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
-        return visibles is null || !await centrosContext.Centros.AnyAsync(c => !visibles.Contains(c.Id), cancellationToken);
+        return await lectorCentros.TenantCompletoAsync(cancellationToken);
     }
 
     public IQueryable<EstadoEntidad> Entidades(AmbitoEstadoEntidad ambito) =>
@@ -174,6 +174,48 @@ public sealed class LectorEstadoMaterializado(
                 && p.EstadoTalveg != EstadoTalvegRequisito.NoAplica), cancellationToken);
     }
 
+    private sealed record FilaLeida(
+        Guid EntidadId, short Estado, int Vencidos, int VencidosSinBloqueo, int Faltan, DateOnly? ProximoCambioEl, int VersionCalculo);
+
+    /// <summary>
+    /// Las mismas guardas (a), (b) y (c) que la versión sobre consulta, sobre filas ya leídas: las dos primeras sin tocar la base,
+    /// y las que necesitan otra tabla (voluntarios inactivos, pares) solo si alguna fila las activa.
+    /// </summary>
+    private async Task<bool> HayFilasQueNoDecideAsync(
+        AmbitoEstadoEntidad ambito, IReadOnlyCollection<FilaLeida> filas, CancellationToken cancellationToken)
+    {
+        var hoy = DiaDeNegocio.Hoy();
+
+        if (filas.Any(e => (e.ProximoCambioEl != null && e.ProximoCambioEl <= hoy) || e.VersionCalculo != CalculoEstadoMaterializado.VersionDeLaRegla))
+            return true;
+
+        if (ambito == AmbitoEstadoEntidad.Trabajador)
+        {
+            var enRojo = filas.Where(e => e.Estado == Vencido || e.Estado == Faltante).Select(e => e.EntidadId).ToList();
+            if (enRojo.Count > 0)
+            {
+                var inactivos = ActividadVoluntarios.VoluntariosInactivosIds(trabajadoresContext.Trabajadores, proyectosContext, hoy);
+                if (await inactivos.AnyAsync(id => enRojo.Contains(id), cancellationToken))
+                    return true;
+            }
+        }
+
+        var ambiguas = filas.Where(e => e.Estado == Vencido && e.Vencidos > 0 && e.Vencidos == e.VencidosSinBloqueo)
+            .Select(e => e.EntidadId).ToList();
+        if (ambiguas.Count == 0)
+            return false;
+
+        // Para una Empresa los pares no bastan (ver la versión sobre consulta): todo rojo ambiguo se calcula.
+        if (ambito == AmbitoEstadoEntidad.Empresa)
+            return true;
+
+        return await tablas.EstadosRequisito.AnyAsync(
+            p => p.AmbitoTitular == AmbitoAplicacion.Trabajador && ambiguas.Contains(p.TitularId) && p.BloqueaAcceso
+                && p.VencimientoEfectivo != null && p.VencimientoEfectivo < hoy
+                && p.EstadoTalveg != EstadoTalvegRequisito.Vencido && p.EstadoTalveg != EstadoTalvegRequisito.Faltante
+                && p.EstadoTalveg != EstadoTalvegRequisito.NoAplica, cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, EstadoLeido>?> LeerAsync(
         AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken)
     {
@@ -184,12 +226,11 @@ public sealed class LectorEstadoMaterializado(
         if (lista.Count == 0)
             return new Dictionary<Guid, EstadoLeido>();
 
-        var seleccionadas = Entidades(ambito).Where(e => lista.Contains(e.EntidadId));
-        if (await HayFilasQueNoDecideAsync(ambito, seleccionadas, cancellationToken))
-            return null;
-
-        var filas = (await seleccionadas
-                .Select(e => new { e.EntidadId, e.Estado, e.Vencidos, e.VencidosSinBloqueo, e.Faltan })
+        // Una sola lectura de las filas y las guardas en memoria: solo si alguna fila lo pide se hace otra consulta (voluntarios
+        // inactivos, pares del Centro). El camino común, sin ningún rojo, no gasta más sentencias que esta.
+        var filas = (await Entidades(ambito).Where(e => lista.Contains(e.EntidadId))
+                .Select(e => new FilaLeida(
+                    e.EntidadId, e.Estado, e.Vencidos, e.VencidosSinBloqueo, e.Faltan, e.ProximoCambioEl, e.VersionCalculo))
                 .ToListAsync(cancellationToken))
             .ToDictionary(e => e.EntidadId);
 
@@ -197,6 +238,8 @@ public sealed class LectorEstadoMaterializado(
         if (filas.Count < lista.Count)
             return null;
 
+        if (await HayFilasQueNoDecideAsync(ambito, filas.Values, cancellationToken))
+            return null;
         var nombres = await NombresAusentesAsync(
             ambito, filas.Values.Where(f => f.Faltan > 0).ToDictionary(f => f.EntidadId, f => f.Faltan), cancellationToken);
 
