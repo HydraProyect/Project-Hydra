@@ -382,7 +382,7 @@ public sealed class LectorEstadoMaterializado(
                 p.TipoDocumentoId,
                 // Subconsulta en la misma sentencia: tablas y tiposDocumentoContext son el mismo CaeManagerDbContext en DI
                 // (EF no compone una consulta con DbSets de dos instancias), y el filtro global de TiposDocumento se aplica igual.
-                Nombre =tiposDocumentoContext.TiposDocumento.Where(t => t.Id == p.TipoDocumentoId).Select(t => t.Nombre).FirstOrDefault()
+                Nombre = tiposDocumentoContext.TiposDocumento.Where(t => t.Id == p.TipoDocumentoId).Select(t => t.Nombre).FirstOrDefault()
             })
             .Distinct()
             .ToListAsync(cancellationToken);
