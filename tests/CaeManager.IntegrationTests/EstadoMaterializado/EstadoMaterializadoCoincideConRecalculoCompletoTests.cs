@@ -373,10 +373,12 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
         {
             probado = await fixture.Arnes.EnTenantAsync(tenant, async (db, sp) =>
             {
-                // Un par de Trabajador cuyo documento efectivo vence lejos: hacer que venza ayer cambia ese par seguro.
+                // Un par de Trabajador, en un Centro con pares de otros titulares, cuyo documento efectivo vence lejos: hacer que
+                // venza ayer cambia ese par seguro.
                 var par = await (
                         from p in db.Set<EstadoRequisito>().AsNoTracking()
                         where p.AmbitoTitular == AmbitoAplicacion.Trabajador && p.VencimientoEfectivo > hoy.AddDays(30)
+                              && db.Set<EstadoRequisito>().Any(o => o.CentroId == p.CentroId && o.TitularId != p.TitularId)
                         join d in db.Documentos.Operativos() on p.DocumentoEfectivoId equals (Guid?)d.Id
                         where d.EstadoVigencia == EstadoVigenciaDocumento.VenceEnFecha && d.FechaEmision < hoy.AddDays(-1)
                         orderby p.Id
@@ -394,16 +396,17 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
                 db.ChangeTracker.Clear();
                 var despues = await ParesConIdentidadAsync(db);
 
-                bool EsDelTrabajador((AmbitoAplicacion Ambito, Guid Titular, string Fila) f) =>
-                    f.Ambito == AmbitoAplicacion.Trabajador && f.Titular == par.TitularId;
-                List<string> Filas(IEnumerable<(AmbitoAplicacion Ambito, Guid Titular, string Fila)> filas) =>
-                    filas.Select(f => f.Fila).Order(StringComparer.Ordinal).ToList();
+                bool EsDelTrabajador(ParConIdentidad f) => f.Ambito == AmbitoAplicacion.Trabajador && f.Titular == par.TitularId;
+                List<string> Filas(IEnumerable<ParConIdentidad> filas, bool conIdentidad = true) =>
+                    filas.Select(f => conIdentidad ? $"{f.Identidad} {f.Valores}" : f.Valores).Order(StringComparer.Ordinal).ToList();
 
+                var centrosDelTrabajador = antes.Where(EsDelTrabajador).Select(f => f.CentroId).ToHashSet();
+                antes.Any(f => !EsDelTrabajador(f) && centrosDelTrabajador.Contains(f.CentroId)).Should().BeTrue(
+                    "sin pares de otros titulares en los Centros del Trabajador el test no probaría el alcance");
                 var ajenosAntes = Filas(antes.Where(f => !EsDelTrabajador(f)));
-                ajenosAntes.Should().NotBeEmpty("sin pares de otros titulares el test no probaría el alcance");
                 Filas(despues.Where(f => !EsDelTrabajador(f))).Should().Equal(ajenosAntes,
                     $"el recálculo del Trabajador {par.TitularId} no reescribe ni borra los pares de otros titulares en el Tenant {tenant}");
-                Filas(despues.Where(EsDelTrabajador)).Should().NotEqual(Filas(antes.Where(EsDelTrabajador)),
+                Filas(despues.Where(EsDelTrabajador), conIdentidad: false).Should().NotEqual(Filas(antes.Where(EsDelTrabajador), conIdentidad: false),
                     "el documento vencido mueve los pares del Trabajador; si no, el test no probaría nada");
                 return $"Tenant {tenant}, Trabajador {par.TitularId}";
             });
@@ -467,19 +470,21 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
         pares.Select(p => p!.ToString()!).Order(StringComparer.Ordinal).ToList();
 
     /// <summary>Los pares TALVEG y de plataforma con su titular y su identidad (<c>Id</c> y <c>CalculadoEnUtc</c>).</summary>
-    private static async Task<List<(AmbitoAplicacion Ambito, Guid Titular, string Fila)>> ParesConIdentidadAsync(CaeManagerDbContext db)
+    private static async Task<List<ParConIdentidad>> ParesConIdentidadAsync(CaeManagerDbContext db)
     {
         var filas = (await db.Set<EstadoRequisito>().AsNoTracking().ToListAsync())
-            .Select(p => (p.AmbitoTitular, p.TitularId,
-                $"R {p.Id} {p.CalculadoEnUtc:O} {p.CentroId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} {p.BloqueaAcceso} " +
+            .Select(p => new ParConIdentidad(p.AmbitoTitular, p.TitularId, p.CentroId, $"R {p.Id} {p.CalculadoEnUtc:O}",
+                $"R {p.CentroId} {p.TipoDocumentoId} {p.DocumentoEfectivoId} {p.EstadoTalveg} {p.BloqueaAcceso} " +
                 $"{p.CuentaParaCumplimiento} {p.EstadoPlataforma} {p.VencimientoEfectivo} {p.ProximoCambioEl} {p.DiaCalculo}"))
             .ToList();
         filas.AddRange((await db.Set<EstadoEnPlataforma>().AsNoTracking().ToListAsync())
-            .Select(p => (p.AmbitoTitular, p.TitularId,
-                $"P {p.Id} {p.CalculadoEnUtc:O} {p.CentroId} {p.CanalGestionDocumentalId} {p.TipoDocumentoId} {p.Estado} " +
+            .Select(p => new ParConIdentidad(p.AmbitoTitular, p.TitularId, p.CentroId, $"P {p.Id} {p.CalculadoEnUtc:O}",
+                $"P {p.CentroId} {p.CanalGestionDocumentalId} {p.TipoDocumentoId} {p.Estado} " +
                 $"{p.EstadoVigencia} {p.FechaVencimientoEnPlataforma} {p.ProximoCambioEl} {p.DiaCalculo}")));
         return filas;
     }
+
+    private sealed record ParConIdentidad(AmbitoAplicacion Ambito, Guid Titular, Guid CentroId, string Identidad, string Valores);
 
     private static async Task<List<string>> CompararAsync(CaeManagerDbContext db, IServiceProvider sp)
     {
