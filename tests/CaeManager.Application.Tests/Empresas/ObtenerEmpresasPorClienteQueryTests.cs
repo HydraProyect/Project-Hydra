@@ -117,6 +117,51 @@ public class ObtenerEmpresasPorClienteQueryTests
             Enumerable.Repeat<EstadoDocumento?>(EstadoDocumento.Vigente, esperado));
     }
 
+    private sealed class EstadoLeidoPorClave(IdsPorEstadoLeido ids) : ILectorEstadoMaterializado
+    {
+        public Task<bool> DisponibleAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+        public IQueryable<EstadoEntidad> Entidades(AmbitoEstadoEntidad ambito) => throw new NotSupportedException();
+        public Task<bool> HayFilasQueNoDecideAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<IdsPorEstadoLeido?> LeerEstadoCompletoAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> consulta, CancellationToken cancellationToken) =>
+            Task.FromResult<IdsPorEstadoLeido?>(ids);
+        public Task<IReadOnlyDictionary<Guid, EstadoLeido>?> LeerAsync(
+            AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> pagina, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, EstadoLeido>?>(pagina.ToDictionary(x => x, x => new EstadoLeido(
+                ids.Vencido.Contains(x) ? EstadoDocumento.Vencido
+                    : ids.Proximo.Contains(x) ? EstadoDocumento.Proximo
+                    : EstadoDocumento.Vigente, false, [])));
+    }
+
+    [Theory]
+    [InlineData("Vigente,Proximo", 2)]
+    [InlineData("Vencido", 1)]
+    [InlineData("Vigente,Vencido,Proximo", 3)]
+    [InlineData("EnTolerancia", 0)]
+    [InlineData("desconocido", 3)]
+    public async Task Con_el_estado_leido_el_total_suma_solo_las_claves_pedidas_de_la_franja(string filtro, int esperado)
+    {
+        var contexto = new EmpresasQueryContextFalso();
+        var vigente = new Empresa("Vigente S.L.");
+        var vencida = new Empresa("Vencida S.L.");
+        var proxima = new Empresa("Proxima S.L.");
+        contexto.ListaEmpresas.AddRange([vigente, vencida, proxima]);
+        var calculo = new CalculoProhibido();
+        var handler = new ObtenerEmpresasQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true), calculo,
+            new DocumentosSinLecturaDeCalculo(), new ConfiguracionQueryContextFalso(),
+            new AsignacionesQueryContextFalso(), new TrabajadoresQueryContextFalso(), new CentrosSinUso(),
+            calculo, new EstadoLeidoPorClave(new([vencida.Id], [], [], [], [proxima.Id], [], [vigente.Id])));
+
+        var resultado = await handler.Handle(new ObtenerEmpresasQuery(null,
+            ConRecuentosPorEstado: true, EstadoDocumental: filtro), CancellationToken.None);
+
+        // El total ya no sale de un COUNT: tiene que coincidir con las filas que deja el filtro.
+        resultado.TotalElementos.Should().Be(esperado);
+        resultado.Elementos.Should().HaveCount(esperado);
+        resultado.RecuentosPorEstado!.Values.Sum().Should().Be(3, "la franja cuenta antes del filtro de estado");
+    }
+
     private sealed class Escenario
     {
         public Empresa Aragon { get; } = new("Aragon Montajes S.L.");
