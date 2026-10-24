@@ -219,6 +219,9 @@ public class OrdenMenuLateralIntegrationTests : IAsyncLifetime
             servicios.AddSingleton(BaseDatosPostgresDePruebas.FirmanteContextoRls);
             servicios.AddSingleton<ConcurrenciaOptimistaInterceptor>();
             servicios.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
+            servicios.AddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.INotificadorEstadoTenant,
+                CaeManager.Application.EstadoMaterializado.Frescura.NotificadorEstadoTenant>();
+            servicios.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>();
             servicios.AddDbContext<CaeManagerDbContext>((sp, opciones) =>
                 ConfiguracionDeContexto.Aplicar(
                     opciones, sp, BaseDatosPostgresDePruebas.CadenaComoRuntime(cadenaPropietario)));

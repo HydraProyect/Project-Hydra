@@ -78,6 +78,12 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado>(
             configuration.GetSection(CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado.Seccion));
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorMarcaRecalculandoEstado, CaeManager.Infrastructure.EstadoMaterializado.LectorMarcaRecalculandoEstado>();
+        // Frescura (diseño § 5): avisos tras el COMMIT, el registro con que el escritor los anota y la versión del Tenant.
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.IRegistroCambiosEstado,
+            CaeManager.Infrastructure.EstadoMaterializado.RegistroCambiosEstado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant,
+            CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),

@@ -447,6 +447,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "var fila = (await dbContext.Database.SqlQuery<ResumenColaEstado>($\"\"\"")] = 1,
         // Marca «recalculando» (PR 4b): lee sin cerrojo las raíces encoladas del Tenant de la conexión, bajo la RLS forzada.
         [("src/CaeManager.Infrastructure/EstadoMaterializado/LectorMarcaRecalculandoEstado.cs", "var entradas = await dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
+        // Frescura del estado materializado (PR 11, diseño § 5.3): antes del COMMIT, en la propia transacción, el interceptor
+        // de avisos lee app.tenant_id (texto fijo, sin parámetros ni datos de usuario) para descartar avisos de otro Tenant.
+        // Es un interceptor de transacciones: no hay DbContext utilizable a mitad del COMMIT. Solo lee; no salta la RLS.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/AvisoEstadoTrasConfirmarInterceptor.cs", "var comando = (transaction.Connection ?? throw new InvalidOperationException(\"La transacción no tiene conexión.\")).CreateCommand();")] = 1,
     };
 
     /// <summary>
