@@ -70,10 +70,17 @@ public interface IDocumentAIProvider
 /// hace reproducible una decisión auditada es qué versión concreta atendió
 /// ESTA llamada, y eso solo lo sabe la respuesta. Null si el proveedor no
 /// lo devuelve.
+///
+/// <paramref name="Contraste"/> no lo rellena ningún proveedor: lo calcula el
+/// router sobre el texto que envió (ver <see cref="ContrasteTextoDocumento"/>)
+/// y se guarda con la extracción en la caché documental. Null en una entrada
+/// de caché anterior a que existiera — quien decide con él lo trata como «no
+/// se pudo contrastar», nunca como «limpio».
 /// </summary>
 public record ExtraccionEstructuradaDto(
     string? TipoDetectado, IReadOnlyDictionary<string, string?> Campos, int ConfianzaGeneral, string? NotasValidacion,
-    decimal? CosteEstimado = null, string? ModeloExacto = null, string? RequestId = null);
+    decimal? CosteEstimado = null, string? ModeloExacto = null, string? RequestId = null,
+    ContrasteTextoDocumentoDto? Contraste = null);
 
 /// <summary>
 /// Resultado del paso de OCR/lectura nativa de <see cref="IDocumentAIProvider.ExtraerTextoAsync"/>:

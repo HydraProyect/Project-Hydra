@@ -120,4 +120,7 @@
   <data name="VacioOtraOrganizacion" xml:space="preserve">
     <value>La teva organització no té cap delegació amb aquesta organització.</value>
   </data>
+  <data name="AltaSinUrlPublica" xml:space="preserve">
+    <value>No s’ha creat l’Operador CAE extern: no es pot generar l’enllaç d’activació perquè falta l’URL pública de l’aplicació.</value>
+  </data>
 </root>

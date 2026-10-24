@@ -367,4 +367,13 @@
   <data name="ListaUnidad" xml:space="preserve"><value>usuari(s)</value></data>
   <data name="ChipBusqueda" xml:space="preserve"><value>Cerca: {0}</value></data>
   <data name="ChipRol" xml:space="preserve"><value>Rol: {0}</value></data>
+  <data name="ActivacionUrlPublicaNoConfigurada" xml:space="preserve">
+    <value>No s’ha pogut generar l’enllaç d’activació.</value>
+  </data>
+  <data name="AltaSinUrlPublica" xml:space="preserve">
+    <value>No s’ha creat l’usuari: falta l’URL pública de l’aplicació per generar el seu enllaç d’activació.</value>
+  </data>
+  <data name="EnlaceSinUrlPublica" xml:space="preserve">
+    <value>No s’ha generat cap enllaç ni s’ha canviat res: falta l’URL pública de l’aplicació.</value>
+  </data>
 </root>

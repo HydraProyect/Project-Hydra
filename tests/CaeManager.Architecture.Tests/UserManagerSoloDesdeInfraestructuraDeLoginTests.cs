@@ -53,11 +53,11 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
         "src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor",
         "src/CaeManager.Web/Components/Account/Pages/Login.razor",
         "src/CaeManager.Web/Components/Account/Pages/LoginCon2fa.razor",
-        "src/CaeManager.Web/Components/Account/Pages/OlvideContrasena.razor.cs",
         "src/CaeManager.Web/Components/Account/Pages/RestablecerContrasena.razor.cs",
         "src/CaeManager.Web/Program.cs",
         "src/CaeManager.Web/Services/CurrentUserService.cs",
         "src/CaeManager.Web/Services/ProveedorAutenticacionRevalidada.cs",
+        "src/CaeManager.Web/Services/RecuperacionContrasena.cs",
     ];
 
     /// <summary>
