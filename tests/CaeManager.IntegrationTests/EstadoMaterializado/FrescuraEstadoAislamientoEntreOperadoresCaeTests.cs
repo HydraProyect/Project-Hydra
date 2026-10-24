@@ -300,17 +300,25 @@ public class FrescuraEstadoAislamientoEntreOperadoresCaeTests(EscalaYAislamiento
 
     private static TaskCompletionSource<T> Senal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    /// <summary>Espera una señal, pero falla en el acto si uno de los circuitos ya falló.</summary>
+    /// <summary>
+    /// Espera una señal, pero falla en el acto si uno de los circuitos falló. Un circuito que termina bien antes de la señal
+    /// (el primero acaba en cuanto se confirma el cambio, mientras el otro aún va hacia la suya) no es un fallo: se sigue
+    /// esperando a la señal o al tope.
+    /// </summary>
     private static async Task<T> EsperarAsync<T>(TaskCompletionSource<T> senal, params Task[] circuitos)
     {
-        var primera = await Task.WhenAny([senal.Task, .. circuitos, Task.Delay(Tope)]);
-        if (primera != senal.Task)
+        var tope = Task.Delay(Tope);
+        var pendientes = circuitos.ToList();
+        while (true)
         {
-            foreach (var circuito in circuitos.Where(c => c.IsFaulted))
-                await circuito;
-            throw new TimeoutException("Un circuito no llegó a la señal.");
+            var primera = await Task.WhenAny([senal.Task, tope, .. pendientes]);
+            if (primera == senal.Task)
+                return await senal.Task;
+            if (primera == tope)
+                throw new TimeoutException("Un circuito no llegó a la señal.");
+            if (primera.IsFaulted || primera.IsCanceled)
+                await primera;
+            pendientes.Remove(primera);
         }
-
-        return await senal.Task;
     }
 }
