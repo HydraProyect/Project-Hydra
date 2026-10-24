@@ -121,27 +121,37 @@ public sealed class RecalculoEstadoMaterializadoService(
         var resultado = ResultadoRecalculoEstado.Ninguno;
         var dias = new HashSet<DateOnly>();
 
-        async Task EscribirLoteAsync(CalculoEstadoMaterializado calculo)
+        var recorridas = await CalcularTenantPorLotesAsync(async calculo =>
         {
             dias.Add(calculo.Dia);
             resultado = resultado.Mas(Resultado(calculo, await escritor.EscribirFilasAsync(calculo, cancellationToken)));
-        }
+        }, cancellationToken);
 
+        // Las filas de una entidad borrada (o de antes de que el Tenant se rellenara) que ningún lote recorrió.
+        var purgadas = await escritor.PurgarHuerfanosAsync(recorridas.Centros, recorridas.Trabajadores, recorridas.Empresas, cancellationToken);
+        return (resultado with { FilasCambiadas = resultado.FilasCambiadas + purgadas }, dias);
+    }
+
+    /// <remarks>
+    /// Los lotes del relleno: Centros de 200 en 200 con todos sus pares, y después Trabajadores y Empresas. El relleno los
+    /// escribe y el cotejo nocturno los compara con lo guardado, así que los dos recorren el Tenant exactamente igual.
+    /// </remarks>
+    public async Task<EntidadesDelTenant> CalcularTenantPorLotesAsync(
+        Func<CalculoEstadoMaterializado, Task> porLote, CancellationToken cancellationToken)
+    {
         var centroIds = await centrosContext.Centros.OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(cancellationToken);
         foreach (var lote in centroIds.Chunk(LoteDeCentrosDelRelleno))
-            await EscribirLoteAsync(await CalcularConjuntoAsync(lote, [], [], lote, cancellationToken));
+            await porLote(await CalcularConjuntoAsync(lote, [], [], lote, cancellationToken));
 
         var trabajadorIds = await trabajadoresContext.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(cancellationToken);
         foreach (var lote in trabajadorIds.Chunk(LoteDeTitularesDelRelleno))
-            await EscribirLoteAsync(await CalcularConjuntoAsync([], lote, [], [], cancellationToken));
+            await porLote(await CalcularConjuntoAsync([], lote, [], [], cancellationToken));
 
         var empresaIds = await empresasContext.Empresas.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync(cancellationToken);
         foreach (var lote in empresaIds.Chunk(LoteDeTitularesDelRelleno))
-            await EscribirLoteAsync(await CalcularConjuntoAsync([], [], lote, [], cancellationToken));
+            await porLote(await CalcularConjuntoAsync([], [], lote, [], cancellationToken));
 
-        // Las filas de una entidad borrada (o de antes de que el Tenant se rellenara) que ningún lote recorrió.
-        var purgadas = await escritor.PurgarHuerfanosAsync(centroIds, trabajadorIds, empresaIds, cancellationToken);
-        return (resultado with { FilasCambiadas = resultado.FilasCambiadas + purgadas }, dias);
+        return new EntidadesDelTenant(centroIds, trabajadorIds, empresaIds);
     }
 
     private async Task<ResultadoRecalculoEstado> EscribirAsync(
