@@ -576,7 +576,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 8,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
-        ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,

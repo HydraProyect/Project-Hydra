@@ -525,4 +525,5 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
             => Task.FromResult(ResultadoNoHeSidoYo.EnlaceNoValido);
-    }}
+    }
+}
