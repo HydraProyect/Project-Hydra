@@ -31,6 +31,31 @@ public class LectoresDeEstadoMaterializadoTests(EstadoMaterializadoPilotoFixture
 {
     private static IEnumerable<string> NombresDeTenants => CatalogoPilotoOutbound.Tenants.Select(t => t.Nombre);
 
+    [Fact]
+    public async Task El_listado_de_Empresas_con_Tenant_completo_cabe_en_el_presupuesto_SQL()
+    {
+        await ComoAdministradorAsync("Mantenimientos Integrales Corvesta, S.A.", async sp =>
+        {
+            var lector = sp.GetRequiredService<ILectorEstadoMaterializado>();
+            (await lector.DisponibleAsync(CancellationToken.None)).Should().BeTrue("se mide el Tenant ya rellenado");
+            var sender = sp.GetRequiredService<ISender>();
+            var consulta = new ObtenerEmpresasQuery(null, TamanoPagina: 20, ConRecuentosPorEstado: true,
+                ConDesgloseDocumental: true, ConClientePrincipal: true);
+            await sender.Send(consulta); // El mismo calentamiento que en el presupuesto de pantallas.
+            var db = sp.GetRequiredService<CaeManager.Infrastructure.Persistence.CaeManagerDbContext>();
+            (await lector.LeerEstadoCompletoAsync(AmbitoEstadoEntidad.Empresa,
+                db.Empresas.Where(e => e.EsPropia).Select(e => e.Id), CancellationToken.None))
+                .Should().NotBeNull("el presupuesto debe observar el camino materializado, sin vuelta al cálculo");
+            db.ChangeTracker.Clear();
+            var (resultado, sentencias) = await ArnesPilotoOutbound.Contador.ContarAsync(() => sender.Send(consulta));
+            salida.WriteLine($"Empresas con estado materializado: {sentencias} sentencias SQL");
+            resultado.Elementos.Should().NotBeEmpty();
+            sentencias.Should().BeLessThanOrEqualTo(
+                EscalaPresupuestoSqlYAislamientoTests.PresupuestoEmpresasConEstadoMaterializado);
+            return 0;
+        });
+    }
+
     /// <summary>
     /// Sensible al lector: con el Tenant completo, lo que leen las pantallas es lo que hay en las tablas; con la fila de versión
     /// borrada, las mismas tablas envenenadas no se miran y sale lo mismo que antes. Si el lector no leyera de las tablas, o

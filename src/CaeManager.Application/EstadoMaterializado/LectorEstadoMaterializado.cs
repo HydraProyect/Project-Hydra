@@ -375,7 +375,13 @@ public sealed class LectorEstadoMaterializado(
         var ausentes = await tablas.EstadosRequisito
             .Where(p => p.AmbitoTitular == titular && titulares.Contains(p.TitularId) && p.BloqueaAcceso
                 && p.EstadoTalveg == EstadoTalvegRequisito.Faltante)
-            .Select(p => new { p.TitularId, p.CentroId, p.TipoDocumentoId })
+            .Select(p => new
+            {
+                p.TitularId,
+                p.CentroId,
+                p.TipoDocumentoId,
+                Nombre = tiposDocumentoContext.TiposDocumento.Where(t => t.Id == p.TipoDocumentoId).Select(t => t.Nombre).FirstOrDefault()
+            })
             .Distinct()
             .ToListAsync(cancellationToken);
 
@@ -383,18 +389,10 @@ public sealed class LectorEstadoMaterializado(
         var coinciden = titulares.Where(id => porTitular.GetValueOrDefault(id)?.Count == faltanPorTitular[id]).ToList();
         var dudosos = titulares.Except(coinciden).ToList();
 
-        var tipoIds = ausentes.Where(p => coinciden.Contains(p.TitularId)).Select(p => p.TipoDocumentoId).Distinct().ToList();
-        var nombresDeTipo = tipoIds.Count == 0
-            ? new Dictionary<Guid, string>()
-            : await tiposDocumentoContext.TiposDocumento
-                .Where(t => tipoIds.Contains(t.Id))
-                .Select(t => new { t.Id, t.Nombre })
-                .ToDictionaryAsync(t => t.Id, t => t.Nombre, cancellationToken);
-
         var resultado = new Dictionary<Guid, IReadOnlyList<string>>();
         foreach (var id in coinciden)
             resultado[id] = porTitular[id]
-                .Select(p => nombresDeTipo.GetValueOrDefault(p.TipoDocumentoId) ?? string.Empty)
+                .Select(p => p.Nombre ?? string.Empty)
                 .Where(n => n.Length > 0)
                 .Distinct()
                 .Order(StringComparer.CurrentCulture)

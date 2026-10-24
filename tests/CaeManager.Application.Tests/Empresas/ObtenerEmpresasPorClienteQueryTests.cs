@@ -1,3 +1,5 @@
+using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos;
@@ -49,6 +51,70 @@ public class ObtenerEmpresasPorClienteQueryTests
 
         public Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
             IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    private sealed class DocumentosSinLecturaDeCalculo : DocumentosQueryContextFalso, IDocumentosQueryContext
+    {
+        IQueryable<Documento> IDocumentosQueryContext.Documentos =>
+            throw new InvalidOperationException("No debe ejecutarse la consulta de documentos del cálculo.");
+    }
+
+    private sealed class SoloEstadoLeido(Guid id) : ILectorEstadoMaterializado
+    {
+        public Task<bool> DisponibleAsync(CancellationToken cancellationToken) => Task.FromResult(true);
+        public IQueryable<EstadoEntidad> Entidades(AmbitoEstadoEntidad ambito) => throw new NotSupportedException();
+        public Task<bool> HayFilasQueNoDecideAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+        public Task<IdsPorEstadoLeido?> LeerEstadoCompletoAsync(AmbitoEstadoEntidad ambito, IQueryable<Guid> ids, CancellationToken cancellationToken) =>
+            Task.FromResult<IdsPorEstadoLeido?>(new([], [], [], [], [], [], [id]));
+        public Task<IReadOnlyDictionary<Guid, EstadoLeido>?> LeerAsync(
+            AmbitoEstadoEntidad ambito, IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyDictionary<Guid, EstadoLeido>?>(ids.ToDictionary(x => x, _ => new EstadoLeido(EstadoDocumento.Vigente, false, [])));
+    }
+
+    private sealed class CalculoProhibido : ICalculoEstadoDocumentalService, IRequisitosObligatoriosIncumplidosService
+    {
+        public Task<IReadOnlyList<EstadoDocumento>> CalcularEstadosDeDocumentosDeVehiculoAsync(Guid vehiculoId, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No debe calcular el estado.");
+        public Task<IReadOnlyDictionary<Guid, EstadoDocumento>> CalcularPeorEstadoAsync(
+            AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No debe leer documentos para calcular el estado.");
+        public Task<IReadOnlyDictionary<Guid, DesgloseDocumentalDto>> CalcularDesgloseAsync(
+            AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No se pidió desglose.");
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeEmpresasAsync(
+            IQueryable<Guid> empresaIds, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No debe calcular los requisitos de Empresa.");
+        public Task<IReadOnlyDictionary<Guid, IReadOnlyList<RequisitoObligatorioIncumplido>>> DeTrabajadoresAsync(
+            IQueryable<Guid> trabajadorIds, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
+
+    [Theory]
+    [InlineData(false, null)]
+    [InlineData(true, null)]
+    [InlineData(true, "Vigente")]
+    [InlineData(true, "Vencido")]
+    public async Task El_estado_leido_no_consulta_el_calculo_ni_los_umbrales(bool recuentos, string? filtro)
+    {
+        var contexto = new EmpresasQueryContextFalso();
+        var empresa = new Empresa("Empresa propia");
+        contexto.ListaEmpresas.Add(empresa);
+        var calculo = new CalculoProhibido();
+        var handler = new ObtenerEmpresasQueryHandler(
+            contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true), calculo,
+            new DocumentosSinLecturaDeCalculo(), new ConfiguracionQueryContextFalso(),
+            new AsignacionesQueryContextFalso(), new TrabajadoresQueryContextFalso(), new CentrosSinUso(),
+            calculo, new SoloEstadoLeido(empresa.Id));
+
+        // Sin parámetros sembrados: SingleAsync fallaría si se intentaran leer los umbrales del cálculo.
+        var resultado = await handler.Handle(new ObtenerEmpresasQuery(null,
+            ConRecuentosPorEstado: recuentos, EstadoDocumental: filtro), CancellationToken.None);
+
+        var esperado = filtro == "Vencido" ? 0 : 1;
+        resultado.TotalElementos.Should().Be(esperado);
+        resultado.Elementos.Should().HaveCount(esperado);
+        resultado.Elementos.Select(e => e.EstadoDocumental).Should().Equal(
+            Enumerable.Repeat<EstadoDocumento?>(EstadoDocumento.Vigente, esperado));
     }
 
     private sealed class Escenario

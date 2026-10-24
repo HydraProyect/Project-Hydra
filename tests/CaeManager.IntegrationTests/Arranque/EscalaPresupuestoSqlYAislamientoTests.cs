@@ -572,10 +572,7 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Documentos", 6, true }, // medido: 4
         { "Documentos vencidos por vencimiento", 5, false }, // medido: 3; el Tenant medido no tiene vencidos
         { "Trabajadores", 14, true }, // medido: 12
-        // medido: 19 en la primera medición; 22 en CI con la PR 7 (el techo era 21). Esta pantalla pide el estado completo y el Tenant medido no está relleno (no
-        // tiene fila de versión, como hoy todos los Tenants reales), así que el lector de Empresa y Trabajador paga UNA sentencia
-        // de sondeo (fila de versión y cola vacía, en una sola consulta) y vuelve al cálculo de siempre. En un Tenant completo
-        // la fila sustituye al cálculo del peor documento y de los requisitos incumplidos de todas las Empresas del listado.
+        // Sin relleno: 22 medidos en CI. El Tenant completo tiene su presupuesto separado abajo.
         { "Empresas", 22, true },
         { "Centros", 33, true }, // medido: 30
         { "Centros bloqueados", 33, false }, // medido: 30; ningún Centro bloqueado en el Tenant medido
@@ -605,6 +602,11 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         { "Cliente 360: centros", 35, true }, // medido: 31
         { "Cliente 360: empresas", 3, true }, // medido: 1
     };
+
+    // Estimación para el Tenant completo: 25 medidos en CI menos 3 consultas (umbrales,
+    // COUNT ya cubierto por la franja y nombres de Tipo unidos a los requisitos) = 22; margen de una.
+    // La cifra real debe confirmarse en CI con LectoresDeEstadoMaterializadoTests.
+    internal const int PresupuestoEmpresasConEstadoMaterializado = 23;
 
     [Theory]
     [MemberData(nameof(Presupuestos))]
