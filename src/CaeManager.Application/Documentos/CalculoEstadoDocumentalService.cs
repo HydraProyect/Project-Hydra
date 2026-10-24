@@ -11,9 +11,11 @@ namespace CaeManager.Application.Documentos;
 /// Empresa o Vehículo), calculado en bloque para una página entera de una
 /// tabla.
 ///
-/// Existe porque esas tres entidades <b>no tienen estado propio</b> en el
-/// modelo — a diferencia de Centro, que sí tiene
-/// <see cref="Domain.Centros.EstadoCentro"/>. La pregunta que el gestor hace
+/// Es el cálculo del peor estado de vigencia: el recálculo del estado materializado lo usa para escribir la fila de Empresa
+/// y de Trabajador (<c>EstadosEntidad</c>), y los listados lo usan cuando no pueden leerla (Tenant sin completar, alcance
+/// parcial; <c>ILectorEstadoMaterializado</c>). Las tres entidades <b>no tienen estado propio</b> en el modelo de dominio
+/// — a diferencia de Centro, que sí tiene
+/// <see cref="Domain.Centros.EstadoCentro"/> —; lo que se guarda es una proyección derivada. La pregunta que el gestor hace
 /// de verdad ("enséñame los trabajadores con algo vencido") se responde con
 /// el mismo semáforo que rige en el resto del sistema, no con un concepto
 /// nuevo: el estado se deriva con <see cref="CalculadoraEstadoDocumento"/>, la

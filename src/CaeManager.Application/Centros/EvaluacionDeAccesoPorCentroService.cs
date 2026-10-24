@@ -58,9 +58,11 @@ public interface IEvaluacionDeAccesoPorCentroService
 /// <para>
 /// Consecuencia para quien lea el estado materializado: el estado guardado de un Trabajador o de una Empresa es el de
 /// <b>todos</b> los Centros del Tenant, el que vería un usuario sin Asignación de Cartera. Filtrar filas no basta para un
-/// usuario con alcance restringido, porque es un agregado: su lector recompone el rojo desde los pares de
-/// <c>EstadosRequisito</c> de los Centros que ve (<c>BloqueaAcceso</c> y <c>EstadoTalveg</c>), como pide
-/// <see cref="RequisitosObligatoriosIncumplidos"/> (diseño del estado materializado, § 3.2 y § 3.4).
+/// usuario con alcance restringido, porque es un agregado, y recomponer el rojo desde los pares de <c>EstadosRequisito</c>
+/// tampoco: no guardan la tolerancia del Centro, que decide si un documento vencido bloquea. Por eso el lector
+/// (<c>ILectorEstadoMaterializado</c>) solo sirve el estado guardado a quien alcanza todos los Centros del Tenant, y a los
+/// demás les calcula el rojo con <see cref="IEvaluacionDeAccesoPorCentroService"/>, que sí aplica su alcance (diseño del
+/// estado materializado, § 3.2, § 3.4 y § 13.9).
 /// </para>
 /// </summary>
 public interface IEvaluacionDeAccesoDelTenant
