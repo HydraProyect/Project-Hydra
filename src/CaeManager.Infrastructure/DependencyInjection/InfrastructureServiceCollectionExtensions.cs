@@ -71,6 +71,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),

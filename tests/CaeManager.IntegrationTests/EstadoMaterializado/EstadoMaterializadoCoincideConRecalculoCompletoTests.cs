@@ -572,7 +572,7 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
     /// Con el <c>Id</c> y <c>CalculadoEnUtc</c> de cada fila: así la foto distingue una fila intacta de una reescrita con los
     /// mismos valores.
     /// </param>
-    private static async Task<List<string>> FotoAsync(CaeManagerDbContext db, bool conIdentidad = false)
+    internal static async Task<List<string>> FotoAsync(CaeManagerDbContext db, bool conIdentidad = false)
     {
         var foto = new List<string>();
         string Identidad(Guid id, DateTime calculadoEnUtc) => conIdentidad ? $"{id} {calculadoEnUtc:O} " : "";

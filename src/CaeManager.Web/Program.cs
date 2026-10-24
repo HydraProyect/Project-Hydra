@@ -1046,6 +1046,11 @@ using (var scope = app.Services.CreateScope())
             .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
             .Crear();
 
+        // Siembras de arranque: sin recálculo en línea del estado materializado; cada Tenant tocado va entero a la
+        // cola (diseño del estado materializado, § 4.3 y § 7.3).
+        using var sinRecalculoEstado = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+            CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.MotivoSiembraDeArranque);
+
         // Sin sesión de usuario en el arranque no hay tenant que resolver por
         // claim — la siembra del Administrador inicial se ejecuta explícitamente
         // como tenant #1 (ver AmbitoTenantExplicito, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8.4).
@@ -1125,6 +1130,7 @@ using (var scope = app.Services.CreateScope())
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
         await PlantillasRespuestaSeeder.SeedAsync(dbContextBootstrap);
+        sinRecalculoEstado.Dispose();
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder

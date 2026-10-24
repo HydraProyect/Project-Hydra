@@ -18,7 +18,7 @@ namespace CaeManager.Application.EstadoMaterializado;
 /// </list>
 ///
 /// <para>
-/// Quien las da (el detector de la PR 4) nombra <b>todas</b> las raíces de la acción, también las que dejan de estar
+/// Quien las da (el detector de cambios, <c>DetectorCambiosEstadoInterceptor</c> e <c>InventarioDisparadoresEstado</c>) nombra <b>todas</b> las raíces de la acción, también las que dejan de estar
 /// relacionadas: una baja de Asignación da el par Centro × Trabajador (<see cref="DeAsignacion"/>), porque después de la
 /// baja el Trabajador ya no lleva al Centro; un Trabajador que cambia de Empresa da también la Empresa anterior, y un Trabajador borrado da también su Empresa (la clausura no ve la ficha borrada y los pares de esa Empresa en sus Centros se quedarían sin recalcular).
 /// </para>
@@ -38,6 +38,30 @@ public sealed record RaicesDeRecalculo(
         new([], [trabajadorId], []) { CentrosAfectados = [centroId] };
 
     public bool EstaVacia => CentroIds.Count == 0 && TrabajadorIds.Count == 0 && EmpresaIds.Count == 0 && CentrosAfectados.Count == 0;
+
+    /// <summary>Cuántas raíces distintas nombra, para decidir si caben en la cola una a una.</summary>
+    public int Cuantas => CentroIds.Concat(CentrosAfectados).Distinct().Count() + TrabajadorIds.Distinct().Count() + EmpresaIds.Distinct().Count();
+}
+
+/// <summary>
+/// La clausura de unas raíces: los Centros, Trabajadores y Empresas cuyas filas rehace un recálculo, y los Centros que se
+/// rehacen con todos sus pares (los Centros raíz). El detector la calcula, toma los cerrojos de todas sus entidades y la
+/// vuelve a calcular bajo ellos (diseño § 4.4).
+/// </summary>
+public sealed record ClausuraDeRecalculo(
+    IReadOnlyList<Guid> Centros, IReadOnlyList<Guid> Trabajadores, IReadOnlyList<Guid> Empresas,
+    IReadOnlyCollection<Guid> CentrosCompletos)
+{
+    public static ClausuraDeRecalculo Vacia { get; } = new([], [], [], []);
+
+    public int Entidades => Centros.Count + Trabajadores.Count + Empresas.Count;
+
+    /// <summary>Si todo lo de <paramref name="otra"/> está también en esta.</summary>
+    public bool Contiene(ClausuraDeRecalculo otra) =>
+        !otra.Centros.Except(Centros).Any()
+        && !otra.Trabajadores.Except(Trabajadores).Any()
+        && !otra.Empresas.Except(Empresas).Any()
+        && !otra.CentrosCompletos.Except(CentrosCompletos).Any();
 }
 
 /// <summary>
@@ -126,7 +150,8 @@ public interface IEscritorEstadoMaterializado
 /// suma de pares: sale entera de la regla del Centro, que cuenta también documentos que ningún par recoge (diseño § 13.2).
 ///
 /// <para>
-/// Todavía nadie lo llama desde un comando (el detector es la PR 4) y ninguna pantalla lee sus tablas.
+/// Lo llama el detector de cambios al final de la transacción de cada guardado que toca una entrada del cálculo
+/// (<c>RecalculoEstadoEnLinea</c>, en Infrastructure). Ninguna pantalla lee todavía sus tablas.
 /// </para>
 /// </summary>
 public interface IRecalculoEstadoMaterializado
@@ -136,6 +161,15 @@ public interface IRecalculoEstadoMaterializado
 
     /// <summary>Calcula la clausura de las raíces y la escribe.</summary>
     Task<ResultadoRecalculoEstado> RecalcularAsync(RaicesDeRecalculo raices, CancellationToken cancellationToken);
+
+    /// <summary>La clausura de las raíces, sin calcular su estado: lo que <see cref="RecalcularAsync"/> rehace. Solo lee.</summary>
+    Task<ClausuraDeRecalculo> CalcularClausuraAsync(RaicesDeRecalculo raices, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Calcula y escribe una clausura ya calculada: la que el detector volvió a calcular bajo sus cerrojos. Si el día de
+    /// negocio cambia mientras calcula, calcula otra vez con el día nuevo sobre la misma clausura.
+    /// </summary>
+    Task<ResultadoRecalculoEstado> RecalcularClausuraAsync(ClausuraDeRecalculo clausura, CancellationToken cancellationToken);
 
     /// <summary>
     /// Relleno inicial del Tenant de la conexión: todos sus Centros (por lotes de 200), Trabajadores y Empresas, y al final

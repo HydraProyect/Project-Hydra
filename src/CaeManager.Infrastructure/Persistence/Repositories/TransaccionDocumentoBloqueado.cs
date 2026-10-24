@@ -51,7 +51,20 @@ public class TransaccionDocumentoBloqueado(CaeManagerDbContext dbContext, ITenan
                     """).ToListAsync(cancellationToken);
             }
 
-            var resultado = await operacion(versionActual, cancellationToken);
+            T resultado;
+            try
+            {
+                resultado = await operacion(versionActual, cancellationToken);
+            }
+            catch
+            {
+                CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor.De(dbContext)?.Descartar(dbContext);
+                throw;
+            }
+
+            // Envoltura del estado materializado (diseño § 4.3): recalcula antes del COMMIT, en un SAVEPOINT; un fallo va a la cola.
+            if (CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor.De(dbContext) is { } detector)
+                await detector.ProcesarAntesDeConfirmarAsync(dbContext);
             await transaccion.CommitAsync(cancellationToken);
             return resultado;
         });
