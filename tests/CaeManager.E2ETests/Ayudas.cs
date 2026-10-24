@@ -145,9 +145,7 @@ public static class Ayudas
         await AbrirSelectorTenantAsync(page);
         var opcion = page.Locator(".selector-tenant-panel [role=option]", new PageLocatorOptions { HasText = nombreCliente }).First;
 
-        var respuestaCambio = await page.RunAndWaitForResponseAsync(
-            () => opcion.ClickAsync(),
-            respuesta => respuesta.Url.Contains("/cuenta/cliente-activo"));
+        var respuestaCambio = await EnviarCambioDeTenantYEsperarRecargaAsync(page, () => opcion.ClickAsync());
 
         Assert.True(
             respuestaCambio.Status is >= 300 and < 400,
@@ -164,7 +162,56 @@ public static class Ayudas
             "no como 401/403, así que el status por sí solo no bastaba para confirmar que el servidor autorizó el " +
             "cambio.");
 
+        await page.WaitForLoadStateAsync(LoadState.Load);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+    }
+
+    /// <summary>
+    /// Envía el POST a <c>/cuenta/cliente-activo</c> y, si responde con la redirección, espera a que el documento de
+    /// destino sustituya al actual (recarga completa) antes de devolver la respuesta.
+    ///
+    /// <para><b>Por qué.</b> La respuesta 3xx llega antes de que el navegador confirme la navegación a su destino. Si
+    /// el helper esperaba solo <c>WaitForLoadStateAsync</c>, esa espera se hacía sobre el documento VIEJO, que ya
+    /// estaba cargado, y volvía en el acto; el <c>GotoAsync</c> siguiente del test chocaba entonces con la redirección
+    /// aún en vuelo: «Navigation to …/empresas/… is interrupted by another navigation to …/» (Fidelidad360FichasTests
+    /// en la cola de fusión). La señal de que el destino ya es el documento de la página es <c>FrameNavigated</c> del
+    /// marco principal, el mismo patrón que <c>CuentaAMedioActivarTests</c>, pero solo después de que el navegador haya
+    /// pedido el documento de destino (el GET de la redirección): <c>FrameNavigated</c> también salta con un
+    /// <c>replaceState</c> de la pantalla vieja, que no pide documento y no debe contar como recarga.</para>
+    /// </summary>
+    private static async Task<IResponse> EnviarCambioDeTenantYEsperarRecargaAsync(IPage page, Func<Task> enviar)
+    {
+        var recargada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var destinoPedido = false;
+        void AlPedir(object? _, IRequest peticion)
+        {
+            if (peticion.IsNavigationRequest && peticion.Method == "GET" && peticion.Frame == page.MainFrame)
+                destinoPedido = true;
+        }
+
+        void AlNavegar(object? _, IFrame marco)
+        {
+            if (destinoPedido && marco == page.MainFrame && !marco.Url.Contains("/cuenta/cliente-activo"))
+                recargada.TrySetResult();
+        }
+
+        page.Request += AlPedir;
+        page.FrameNavigated += AlNavegar;
+        try
+        {
+            var respuesta = await page.RunAndWaitForResponseAsync(
+                enviar,
+                r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
+            // Sin redirección no hay recarga que esperar: el assert del llamador dirá qué devolvió el servidor.
+            if (respuesta.Status is >= 300 and < 400)
+                await recargada.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            return respuesta;
+        }
+        finally
+        {
+            page.FrameNavigated -= AlNavegar;
+            page.Request -= AlPedir;
+        }
     }
 
     /// <summary>
@@ -272,7 +319,8 @@ public static class Ayudas
             """SELECT "Id"::text FROM "Tenants" WHERE "Nombre" = @n""", ("n", nombreTenant));
         var token = await TokenAntiforgeryAsync(page);
 
-        var respuesta = await page.RunAndWaitForResponseAsync(
+        var respuesta = await EnviarCambioDeTenantYEsperarRecargaAsync(
+            page,
             () => page.EvaluateAsync(
                 """
                 ([tenant, token]) => {
@@ -289,14 +337,14 @@ public static class Ayudas
                     document.body.appendChild(form);
                     form.submit();
                 }
-                """, new[] { tenantId, token! }),
-            r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
+                """, new[] { tenantId, token! }));
 
         Assert.True(respuesta.Status is >= 300 and < 400,
             $"POST a /cuenta/cliente-activo devolvió {respuesta.Status} al cambiar a «{nombreTenant}».");
         var destino = respuesta.Headers.GetValueOrDefault("location") ?? string.Empty;
         Assert.False(destino.Contains("acceso-denegado") || destino.Contains("iniciar-sesion"),
             $"El POST a /cuenta/cliente-activo redirigió a «{destino}»: el servidor no aplicó el cambio a «{nombreTenant}».");
+        await page.WaitForLoadStateAsync(LoadState.Load);
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
     }
 
@@ -1388,18 +1436,15 @@ public static class Ayudas
     }
 
     /// <summary>
-    /// Pulsa el «Guardar» de un formulario en Drawer. Si el botón no llega a existir, el fallo trae el
-    /// estado del DOM en ese instante en vez del escueto «waiting for locator».
+    /// Pulsa la primaria de un formulario en Drawer. Si el botón no llega a existir, el fallo trae el estado del DOM
+    /// en ese instante en vez del escueto «waiting for locator».
     ///
-    /// <para><b>Por qué existe.</b> <c>EncargoAdministracionE2ETests</c> (alta de Administrador) y
-    /// <c>VinculacionUsuarioClienteRelacionEmpresarialE2ETests</c> fallaron 16 veces cada uno en 7 días de CI,
-    /// siempre con el mismo mensaje: «Timeout 30000ms … waiting for» el «Guardar» del formulario «Nuevo usuario»,
-    /// con el drawer ya abierto y los campos ya rellenos en el paso anterior. La traza de Playwright no
-    /// distingue las hipótesis que quedan —el drawer se cerró solo, el circuito se reinició y el DOM es otro, el
-    /// botón cambió de rótulo, un diálogo lo tapa— y el log de Serilog del job (artefacto
-    /// <c>logs-caemanager-web-e2e-bloque-N</c>) muestra el circuito vivo y sin una sola línea durante los 30 s.
-    /// Sin estos datos, el siguiente fallo costaría otra vuelta de CI sin respuesta: el helper los deja en el
-    /// propio mensaje. No reintenta ni cambia lo que se mide: la causa se arregla cuando se vea.</para>
+    /// <para><b>Lo que destapó.</b> <c>EncargoAdministracionE2ETests</c> (alta de Administrador) y
+    /// <c>VinculacionUsuarioClienteRelacionEmpresarialE2ETests</c> fallaron decenas de veces en la cola de fusión
+    /// esperando 30 s el «Guardar» del drawer «Nuevo usuario». El volcado lo explicó: el pie decía «Cancelar Crear y
+    /// enviar enlace». No era intermitente: lo daba todo grupo de fusión que llevaba la #1579 (renombra la primaria
+    /// del alta, maqueta Flujos 14) mientras sus E2E seguían buscando «Guardar», y ningún grupo sin ella. Si un
+    /// fallo de aquí trae un pie con otro rótulo, la causa es esa y no el circuito.</para>
     /// </summary>
     public static async Task PulsarGuardarDelDrawerAsync(IPage page, ILocator guardar)
     {
@@ -1411,7 +1456,7 @@ public static class Ayudas
         {
             var estado = await DescribirEstadoDelDrawerAsync(page);
             throw new TimeoutException(
-                "No se pudo pulsar «Guardar» del drawer (no existe, está tapado o no se habilita). Estado del DOM en ese instante: " + estado,
+                "No se pudo pulsar la primaria del drawer (no existe, está tapada o no se habilita). Estado del DOM en ese instante: " + estado,
                 excepcion);
         }
     }
@@ -1428,7 +1473,9 @@ public static class Ayudas
                 pies: [...document.querySelectorAll('.drawer-pie')].map(p => p.innerText.replace(/\s+/g, ' ').trim()),
                 dialogosNativosAbiertos: document.querySelectorAll('dialog[open]').length,
                 avisoDeErrorDeBlazor: document.getElementById('blazor-error-ui') ? getComputedStyle(document.getElementById('blazor-error-ui')).display : 'ausente',
-                clasesDeReconexion: [...document.querySelectorAll('[class*=components-reconnect]')].map(e => e.className).slice(0, 3),
+                // Las clases components-reconnect-* de los hijos del modal están siempre en el marcado (ReconnectModal.razor):
+                // lo que dice si el circuito se está reconectando es el <dialog> abierto y la clase de su raíz.
+                reconexion: (() => { const m = document.getElementById('components-reconnect-modal'); return m ? { abierto: m.open, clase: m.className } : 'ausente'; })(),
                 aviso: (document.querySelector('.drawer-aviso')?.innerText || '').trim().slice(0, 200),
                 texto: document.body.innerText.replace(/\s+/g, ' ').trim().slice(0, 400)
             })").WaitAsync(TimeSpan.FromSeconds(5));
