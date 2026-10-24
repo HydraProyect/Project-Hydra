@@ -408,7 +408,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // versión. EF no puede: un Update() completo choca con el permiso de UPDATE por columnas (42501) y el rastreador
         // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
         // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 4,
+        // PR 4b: las tres sentencias de filas cuentan lo que cambiaron (RETURNING + SqlQueryRaw<int>, sin componer) para
+        // subir la versión solo si cambió alguna fila; la de la versión y la purga de huérfanos (anti-join por TenantId de
+        // la conexión) siguen con ExecuteSqlRawAsync. Tope de espera y cerrojo exclusivo del Tenant van por
+        // CerrojosEstadoMaterializado.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "(await dbContext.Database.SqlQueryRaw<int>(sql, parametros).ToListAsync(ct)).Single();")] = 1,
         // Recálculo en línea del estado materializado (PR 4a, diseño § 4.3-4.5). IgnoreQueryFilters: las raíces de un
         // documento, canal o evento borrado lógicamente (el borrado es la acción) salen de la fila borrada; cada consulta
         // lleva el predicado de TenantId explícito (el de app.tenant_id de la conexión) además de la RLS forzada, así que
@@ -420,14 +425,26 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "afectados.UnionWith(await dbContext.Set<CanalGestionDocumental>().IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var centroDeProyecto = await dbContext.Set<Proyecto>().IgnoreQueryFilters()")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "trabajadores.UnionWith(await dbContext.Set<ProyectoTecnico>().IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "? dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", ": dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 2,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // PR 4b: los cerrojos, la lectura de app.tenant_id, la existencia de la versión y el tope de espera salen de
+        // RecalculoEstadoEnLinea a CerrojosEstadoMaterializado (los comparten el recálculo en línea, el escritor y la cola),
+        // con el mismo SQL interpolado.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "? dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", ": dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // Intento sin espera del cerrojo compartido del Tenant (pg_try_advisory_xact_lock_shared).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "return (await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
         // Tope de espera de cerrojo del recálculo: lee y fija lock_timeout de la transacción (set_config local).
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
-        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Cola RecalculosPendientes (PR 4b): encolado con deduplicación (NOT EXISTS … FOR KEY SHARE SKIP LOCKED, para que
+        // una entrada ya reclamada no tape la nueva), reclamo con FOR UPDATE OF p SKIP LOCKED (SqlQuery sin componer: EF no
+        // expresa el cerrojo de fila), borrado de lo procesado, anotación del fallo y resumen para la marca «recalculando».
+        // Todo con el TenantId de app.tenant_id de la conexión, en predicado explícito y bajo la RLS forzada (WITH CHECK).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 4,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "var fila = (await dbContext.Database.SqlQuery<ResumenColaEstado>($\"\"\"")] = 1,
     };
 
     /// <summary>

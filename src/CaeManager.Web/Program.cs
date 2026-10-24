@@ -797,6 +797,9 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoSembrar))
 {
     using var scopeSiembra = app.Services.CreateScope();
     var loggerSiembra = scopeSiembra.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoSiembra = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        SiembraDemoDireccionAdministrativa.ArgumentoSembrar);
 
     try
     {
@@ -817,6 +820,11 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoSembrar))
     {
         Console.Error.WriteLine($"Siembra rechazada: {ex.Message}");
         Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoSiembra, app.Services.GetRequiredService<IServiceScopeFactory>(), loggerSiembra);
     }
 
     return;
@@ -869,6 +877,9 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
 {
     using var scopeSiembraPiloto = app.Services.CreateScope();
     var serviciosSiembraPiloto = scopeSiembraPiloto.ServiceProvider;
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoPiloto = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        PilotoOutboundAdministrativa.ArgumentoSembrar);
 
     try
     {
@@ -894,6 +905,12 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
     {
         Console.Error.WriteLine(PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex));
         Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoPiloto, app.Services.GetRequiredService<IServiceScopeFactory>(),
+            serviciosSiembraPiloto.GetRequiredService<ILogger<Program>>());
     }
 
     return;
@@ -1130,7 +1147,8 @@ using (var scope = app.Services.CreateScope())
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
         await PlantillasRespuestaSeeder.SeedAsync(dbContextBootstrap);
-        sinRecalculoEstado.Dispose();
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoEstado, app.Services.GetRequiredService<IServiceScopeFactory>(), logger);
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder

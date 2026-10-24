@@ -83,44 +83,80 @@ public sealed class RecalculoEstadoMaterializadoService(
     private Task<CalculoEstadoMaterializado> CalcularDeClausuraAsync(ClausuraDeRecalculo clausura, CancellationToken cancellationToken) =>
         CalcularConjuntoAsync(clausura.Centros, clausura.Trabajadores, clausura.Empresas, clausura.CentrosCompletos, cancellationToken);
 
-    public async Task<ResultadoRecalculoEstado> RellenarTenantAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Veces que el relleno se repite entero si los lotes no salieron del mismo día de negocio (cruzó la medianoche de
+    /// Madrid). Cruzarla tres veces seguidas no ocurre; si ocurriera, se queda la última pasada y la de medianoche la iguala.
+    /// </summary>
+    public const int MaximoPasadasDelRelleno = 3;
+
+    /// <remarks>
+    /// Todo en una transacción con el cerrojo exclusivo del Tenant (diseño § 13.8): una acción que cambia el estado mientras
+    /// tanto no espera ni escribe sobre el relleno a medias; encola su cambio y la cola lo recoge al acabar. Por eso el relleno
+    /// no pierde un cambio hecho durante él. Escribe los lotes sin tocar la versión, borra las filas de entidades que ya no
+    /// existen y solo al final crea la versión (o la sube si alguna fila cambió).
+    /// </remarks>
+    public Task<ResultadoRecalculoEstado> RellenarTenantAsync(CancellationToken cancellationToken) =>
+        escritor.EnTransaccionConTenantExclusivoAsync(async () =>
+        {
+            var total = ResultadoRecalculoEstado.Ninguno;
+            for (var pasada = 1; ; pasada++)
+            {
+                var hoy = DiaDeNegocio.Hoy();
+                var (resultado, dias) = await RellenarUnaPasadaAsync(cancellationToken);
+                // Las cifras son las de la última pasada; las filas cambiadas, las de todas (siguen en la transacción).
+                total = resultado with { FilasCambiadas = total.FilasCambiadas + resultado.FilasCambiadas };
+
+                // Un relleno no mezcla días: si algún lote se calculó con otro día, se repite entero con el día nuevo.
+                var mismoDia = dias.All(d => d == hoy) && DiaDeNegocio.Hoy() == hoy;
+                if (mismoDia || pasada == MaximoPasadasDelRelleno)
+                {
+                    await escritor.SubirVersionAsync(crearSiFalta: true, huboCambios: total.FilasCambiadas > 0, cancellationToken);
+                    return total;
+                }
+            }
+        }, cancellationToken);
+
+    private async Task<(ResultadoRecalculoEstado Resultado, HashSet<DateOnly> Dias)> RellenarUnaPasadaAsync(CancellationToken cancellationToken)
     {
         var resultado = ResultadoRecalculoEstado.Ninguno;
+        var dias = new HashSet<DateOnly>();
+
+        async Task EscribirLoteAsync(CalculoEstadoMaterializado calculo)
+        {
+            dias.Add(calculo.Dia);
+            resultado = resultado.Mas(Resultado(calculo, await escritor.EscribirFilasAsync(calculo, cancellationToken)));
+        }
 
         var centroIds = await centrosContext.Centros.OrderBy(c => c.Id).Select(c => c.Id).ToListAsync(cancellationToken);
         foreach (var lote in centroIds.Chunk(LoteDeCentrosDelRelleno))
-            resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync(lote, [], [], lote, cancellationToken), crearVersionSiFalta: false, cancellationToken));
+            await EscribirLoteAsync(await CalcularConjuntoAsync(lote, [], [], lote, cancellationToken));
 
         var trabajadorIds = await trabajadoresContext.Trabajadores.OrderBy(t => t.Id).Select(t => t.Id).ToListAsync(cancellationToken);
         foreach (var lote in trabajadorIds.Chunk(LoteDeTitularesDelRelleno))
-            resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync([], lote, [], [], cancellationToken), crearVersionSiFalta: false, cancellationToken));
+            await EscribirLoteAsync(await CalcularConjuntoAsync([], lote, [], [], cancellationToken));
 
         var empresaIds = await empresasContext.Empresas.OrderBy(e => e.Id).Select(e => e.Id).ToListAsync(cancellationToken);
-        var lotesDeEmpresa = empresaIds.Chunk(LoteDeTitularesDelRelleno).ToList();
-        // Siempre al menos una escritura final, aunque el Tenant no tenga Empresas: es la que crea la fila de versión.
-        if (lotesDeEmpresa.Count == 0)
-            lotesDeEmpresa.Add([]);
-        for (var i = 0; i < lotesDeEmpresa.Count; i++)
-            resultado = resultado.Mas(await EscribirAsync(
-                await CalcularConjuntoAsync([], [], lotesDeEmpresa[i], [], cancellationToken),
-                crearVersionSiFalta: i == lotesDeEmpresa.Count - 1, cancellationToken));
+        foreach (var lote in empresaIds.Chunk(LoteDeTitularesDelRelleno))
+            await EscribirLoteAsync(await CalcularConjuntoAsync([], [], lote, [], cancellationToken));
 
-        return resultado;
+        // Las filas de una entidad borrada (o de antes de que el Tenant se rellenara) que ningún lote recorrió.
+        var purgadas = await escritor.PurgarHuerfanosAsync(centroIds, trabajadorIds, empresaIds, cancellationToken);
+        return (resultado with { FilasCambiadas = resultado.FilasCambiadas + purgadas }, dias);
     }
 
     private async Task<ResultadoRecalculoEstado> EscribirAsync(
-        CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken)
+        CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken) =>
+        Resultado(calculo, await escritor.EscribirAsync(calculo, crearVersionSiFalta, cancellationToken));
+
+    private static ResultadoRecalculoEstado Resultado(CalculoEstadoMaterializado calculo, int filasCambiadas) => new(
+        calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Centro),
+        calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Trabajador),
+        calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Empresa),
+        calculo.Pares.Count,
+        calculo.Plataforma.Count)
     {
-        await escritor.EscribirAsync(calculo, crearVersionSiFalta, cancellationToken);
-        return new ResultadoRecalculoEstado(
-            calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Centro),
-            calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Trabajador),
-            calculo.Entidades.Count(e => e.Ambito == AmbitoEstadoEntidad.Empresa),
-            calculo.Pares.Count,
-            calculo.Plataforma.Count);
-    }
+        FilasCambiadas = filasCambiadas,
+    };
 
     private static CalculoEstadoMaterializado Vacio(DateOnly dia) => new(dia, [], [], [], [], [], [], []);
 

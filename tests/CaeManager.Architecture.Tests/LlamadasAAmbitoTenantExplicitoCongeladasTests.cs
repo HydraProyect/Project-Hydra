@@ -369,6 +369,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que ExpiracionAsignacionesHostedService (2026-10-16: cierre automático de eventos terminados)"),
         ["src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant beneficiario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-18: cierre mensual del Cuadro de dirección)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializadoHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-24: cola y relleno del estado materializado, PR 4b)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/EncoladoTrasAmbitoSinRecalculo.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId de los Tenants que el detector anotó en el ámbito sin recálculo de una siembra, un CreateScope por Tenant propietario; solo encola su recálculo entero (2026-10-24, PR 4b)"),
         ["src/CaeManager.Application/Dashboard/ReabrirMesCuadroDireccionCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "request.TenantBeneficiarioId, solo tras comprobar que está en ObtenerClientesAutorizadosQuery; después exige AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Infrastructure/Comunicaciones/CierreConversacionesResueltasHostedService.cs"] =

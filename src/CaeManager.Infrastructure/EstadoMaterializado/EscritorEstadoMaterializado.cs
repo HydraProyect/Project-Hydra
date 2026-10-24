@@ -28,55 +28,151 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
 {
     private const string TenantDeLaConexion = "NULLIF(current_setting('app.tenant_id', true), '')::uuid";
 
-    public async Task EscribirAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken)
+    /// <summary>Cierre de cada sentencia de escritura: cuántas filas borró, cambió o añadió.</summary>
+    private const string SumaDeCambios =
+        """SELECT ((SELECT count(*) FROM borradas) + (SELECT count(*) FROM cambiadas) + (SELECT count(*) FROM insertadas))::int AS "Value" """;
+
+    public async Task<int> EscribirAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken cancellationToken) =>
+        await EnTransaccionAsync(async () =>
+        {
+            var cambiadas = await EscribirFilasEnTransaccionAsync(calculo, cancellationToken);
+            await SubirVersionEnTransaccionAsync(crearVersionSiFalta, huboCambios: cambiadas > 0, cancellationToken);
+            return cambiadas;
+        }, cancellationToken);
+
+    public Task<int> EscribirFilasAsync(CalculoEstadoMaterializado calculo, CancellationToken cancellationToken) =>
+        EnTransaccionAsync(() => EscribirFilasEnTransaccionAsync(calculo, cancellationToken), cancellationToken);
+
+    public Task SubirVersionAsync(bool crearSiFalta, bool huboCambios, CancellationToken cancellationToken) =>
+        EnTransaccionAsync(async () =>
+        {
+            await SubirVersionEnTransaccionAsync(crearSiFalta, huboCambios, cancellationToken);
+            return 0;
+        }, cancellationToken);
+
+    public async Task<T> EnTransaccionConTenantExclusivoAsync<T>(Func<Task<T>> trabajo, CancellationToken cancellationToken) =>
+        await EnTransaccionAsync(async () =>
+        {
+            // Sin Tenant en la conexión no hay nada que rellenar (y el NOT NULL de TenantId haría fallar la escritura).
+            var tenant = await CerrojosEstadoMaterializado.TenantDeLaConexionAsync(dbContext)
+                         ?? throw new InvalidOperationException("El relleno del estado materializado necesita el contexto RLS de un Tenant.");
+            var anterior = await CerrojosEstadoMaterializado.FijarTopeDeEsperaAsync(dbContext, TopeDeEsperaDelCerrojoExclusivo);
+            await CerrojosEstadoMaterializado.BloquearAsync(dbContext, [CerrojosEstadoMaterializado.ClaveDeTenant(tenant)], compartido: false);
+            await CerrojosEstadoMaterializado.FijarTopeDeEsperaAsync(dbContext, anterior);
+            return await trabajo();
+        }, cancellationToken);
+
+    /// <summary>
+    /// Espera máxima por el cerrojo exclusivo del Tenant en el relleno: las acciones en línea lo tienen compartido como mucho
+    /// el tope de su recálculo; si no llega, el relleno falla y se reintenta en la pasada siguiente.
+    /// </summary>
+    public const string TopeDeEsperaDelCerrojoExclusivo = "15s";
+
+    /// <summary>En la transacción abierta (la de la acción, la de la cola o la del relleno) o en una propia.</summary>
+    private async Task<T> EnTransaccionAsync<T>(Func<Task<T>> trabajo, CancellationToken cancellationToken)
     {
         if (dbContext.Database.CurrentTransaction is not null || System.Transactions.Transaction.Current is not null)
-        {
-            await EscribirEnTransaccionAsync(calculo, crearVersionSiFalta, cancellationToken);
-            return;
-        }
+            return await trabajo();
 
         var estrategia = dbContext.Database.CreateExecutionStrategy();
-        await estrategia.ExecuteAsync(async () =>
+        return await estrategia.ExecuteAsync(async () =>
         {
             await using var transaccion = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            await EscribirEnTransaccionAsync(calculo, crearVersionSiFalta, cancellationToken);
+            var resultado = await trabajo();
             await transaccion.CommitAsync(cancellationToken);
+            return resultado;
         });
     }
 
-    private async Task EscribirEnTransaccionAsync(CalculoEstadoMaterializado calculo, bool crearVersionSiFalta, CancellationToken ct)
-    {
-        await EscribirParesAsync(calculo, ct);
-        await EscribirPlataformaAsync(calculo, ct);
-        await EscribirEntidadesAsync(calculo, ct);
+    private async Task<int> EscribirFilasEnTransaccionAsync(CalculoEstadoMaterializado calculo, CancellationToken ct) =>
+        await EscribirParesAsync(calculo, ct)
+        + await EscribirPlataformaAsync(calculo, ct)
+        + await EscribirEntidadesAsync(calculo, ct);
 
-        // La versión del Tenant: el relleno completo la crea; un recálculo parcial solo la sube si ya existe, para que los
-        // lectores no tomen por entero un Tenant a medio rellenar (diseño § 7.3).
+    /// <summary>
+    /// La versión del Tenant: el relleno completo la crea; un recálculo parcial solo la sube si ya existe, para que los
+    /// lectores no tomen por entero un Tenant a medio rellenar (diseño § 7.3). Solo sube si alguna fila cambió: un recálculo
+    /// sin cambios no toca la fila caliente, así que dos recálculos de clausuras disjuntas del mismo Tenant no se esperan en
+    /// ella (diseño § 4.4, M1).
+    /// </summary>
+    private async Task SubirVersionEnTransaccionAsync(bool crearSiFalta, bool huboCambios, CancellationToken ct)
+    {
+        if (!crearSiFalta && !huboCambios)
+            return;
+
         await dbContext.Database.ExecuteSqlRawAsync(
-            crearVersionSiFalta
-                ? $"""
-                  INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
-                  VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
-                  ON CONFLICT ("TenantId") DO UPDATE
-                      SET "Version" = "VersionesEstadoTenant"."Version" + 1, "ActualizadoEnUtc" = now()
-                  """
-                : """UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()""",
+            (crearSiFalta, huboCambios) switch
+            {
+                (true, true) => $"""
+                    INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
+                    VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
+                    ON CONFLICT ("TenantId") DO UPDATE
+                        SET "Version" = "VersionesEstadoTenant"."Version" + 1, "ActualizadoEnUtc" = now()
+                    """,
+                (true, false) => $"""
+                    INSERT INTO "VersionesEstadoTenant" ("Id", "Version", "ActualizadoEnUtc", "UltimoDiaProcesado", "TenantId")
+                    VALUES (gen_random_uuid(), 1, now(), NULL, {TenantDeLaConexion})
+                    ON CONFLICT ("TenantId") DO NOTHING
+                    """,
+                _ => """UPDATE "VersionesEstadoTenant" SET "Version" = "Version" + 1, "ActualizadoEnUtc" = now()""",
+            },
             ct);
     }
+
+    public Task<int> PurgarHuerfanosAsync(
+        IReadOnlyCollection<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, IReadOnlyCollection<Guid> empresaIds,
+        CancellationToken cancellationToken) =>
+        EnTransaccionAsync(() => ContarAsync(
+            $"""
+            WITH centros AS (SELECT unnest(@centros) AS id),
+            trabajadores AS (SELECT unnest(@trabajadores) AS id),
+            empresas AS (SELECT unnest(@empresas) AS id),
+            pares AS (
+                DELETE FROM "EstadosRequisito" r
+                WHERE r."TenantId" = {TenantDeLaConexion} AND NOT EXISTS (SELECT 1 FROM centros WHERE centros.id = r."CentroId")
+                RETURNING 1
+            ),
+            plataforma AS (
+                DELETE FROM "EstadosPlataforma" r
+                WHERE r."TenantId" = {TenantDeLaConexion} AND NOT EXISTS (SELECT 1 FROM centros WHERE centros.id = r."CentroId")
+                RETURNING 1
+            ),
+            entidades AS (
+                DELETE FROM "EstadosEntidad" r
+                WHERE r."TenantId" = {TenantDeLaConexion}
+                  AND NOT ((r."Ambito" = @ambCentro AND EXISTS (SELECT 1 FROM centros WHERE centros.id = r."EntidadId"))
+                        OR (r."Ambito" = @ambTrabajador AND EXISTS (SELECT 1 FROM trabajadores WHERE trabajadores.id = r."EntidadId"))
+                        OR (r."Ambito" = @ambEmpresa AND EXISTS (SELECT 1 FROM empresas WHERE empresas.id = r."EntidadId")))
+                RETURNING 1
+            )
+            SELECT ((SELECT count(*) FROM pares) + (SELECT count(*) FROM plataforma) + (SELECT count(*) FROM entidades))::int AS "Value"
+            """,
+            [
+                Parametro("ambCentro", NpgsqlDbType.Smallint, (short)AmbitoEstadoEntidad.Centro),
+                Parametro("ambTrabajador", NpgsqlDbType.Smallint, (short)AmbitoEstadoEntidad.Trabajador),
+                Parametro("ambEmpresa", NpgsqlDbType.Smallint, (short)AmbitoEstadoEntidad.Empresa),
+                Lista("centros", NpgsqlDbType.Uuid, centroIds.Distinct().ToArray()),
+                Lista("trabajadores", NpgsqlDbType.Uuid, trabajadorIds.Distinct().ToArray()),
+                Lista("empresas", NpgsqlDbType.Uuid, empresaIds.Distinct().ToArray()),
+            ],
+            cancellationToken), cancellationToken);
+
+    /// <summary>Una sentencia de escritura con CTE que termina en el recuento de filas que cambió.</summary>
+    private async Task<int> ContarAsync(string sql, NpgsqlParameter[] parametros, CancellationToken ct) =>
+        (await dbContext.Database.SqlQueryRaw<int>(sql, parametros).ToListAsync(ct)).Single();
 
     /// <summary>
     /// Alcance de los pares (<see cref="CalculoEstadoMaterializado"/>): todos los de <c>CentrosConTodosLosPares</c>, y en los
     /// demás Centros del cálculo solo los de sus Trabajadores y Empresas.
     /// </summary>
-    private async Task EscribirParesAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
+    private async Task<int> EscribirParesAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
     {
         var titulares = calculo.TrabajadorIds.Concat(calculo.EmpresaIds).Distinct().ToArray();
         if (calculo.Pares.Count == 0 && calculo.CentrosConTodosLosPares.Count == 0 && (calculo.CentroIds.Count == 0 || titulares.Length == 0))
-            return;
+            return 0;
 
         var p = calculo.Pares;
-        await dbContext.Database.ExecuteSqlRawAsync(
+        return await ContarAsync(
             $"""
             WITH f AS (
                 SELECT * FROM unnest(@c, @a, @t, @tipo, @doc, @est, @bloq, @cuenta, @plat, @ve, @pc)
@@ -87,6 +183,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                 WHERE r."TenantId" = {TenantDeLaConexion} AND (r."CentroId" = ANY(@completos) OR (r."CentroId" = ANY(@centros) AND r."TitularId" = ANY(@titulares)))
                   AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.a = r."AmbitoTitular" AND f.t = r."TitularId"
                                                     AND f.tipo = r."TipoDocumentoId")
+                RETURNING 1
             ),
             cambiadas AS (
                 UPDATE "EstadosRequisito" r
@@ -100,16 +197,21 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                        OR r."CuentaParaCumplimiento" <> f.cuenta OR r."EstadoPlataforma" IS DISTINCT FROM f.plat
                        OR r."VencimientoEfectivo" IS DISTINCT FROM f.ve OR r."ProximoCambioEl" IS DISTINCT FROM f.pc
                        OR r."DiaCalculo" <> @dia OR r."VersionCalculo" <> {CalculoEstadoMaterializado.VersionDeLaRegla})
+                RETURNING 1
+            ),
+            insertadas AS (
+                INSERT INTO "EstadosRequisito" ("Id", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId",
+                    "DocumentoEfectivoId", "EstadoTalveg", "BloqueaAcceso", "CuentaParaCumplimiento", "EstadoPlataforma",
+                    "VencimientoEfectivo", "ProximoCambioEl", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
+                SELECT gen_random_uuid(), f.c, f.a, f.t, f.tipo, f.doc, f.est, f.bloq, f.cuenta, f.plat, f.ve, f.pc,
+                    @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
+                FROM f
+                WHERE NOT EXISTS (SELECT 1 FROM "EstadosRequisito" r
+                                  WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."AmbitoTitular" = f.a AND r."TitularId" = f.t
+                                    AND r."TipoDocumentoId" = f.tipo)
+                RETURNING 1
             )
-            INSERT INTO "EstadosRequisito" ("Id", "CentroId", "AmbitoTitular", "TitularId", "TipoDocumentoId",
-                "DocumentoEfectivoId", "EstadoTalveg", "BloqueaAcceso", "CuentaParaCumplimiento", "EstadoPlataforma",
-                "VencimientoEfectivo", "ProximoCambioEl", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
-            SELECT gen_random_uuid(), f.c, f.a, f.t, f.tipo, f.doc, f.est, f.bloq, f.cuenta, f.plat, f.ve, f.pc,
-                @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
-            FROM f
-            WHERE NOT EXISTS (SELECT 1 FROM "EstadosRequisito" r
-                              WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."AmbitoTitular" = f.a AND r."TitularId" = f.t
-                                AND r."TipoDocumentoId" = f.tipo)
+            {SumaDeCambios}
             """,
             [
                 Parametro("dia", NpgsqlDbType.Date, calculo.Dia),
@@ -132,13 +234,13 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
     }
 
     /// <summary>Alcance: todas las acreditaciones de los Centros del cálculo.</summary>
-    private async Task EscribirPlataformaAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
+    private async Task<int> EscribirPlataformaAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
     {
         if (calculo.CentroIds.Count == 0 && calculo.Plataforma.Count == 0)
-            return;
+            return 0;
 
         var p = calculo.Plataforma;
-        await dbContext.Database.ExecuteSqlRawAsync(
+        return await ContarAsync(
             $"""
             WITH f AS (
                 SELECT * FROM unnest(@c, @canal, @a, @t, @tipo, @est, @vig, @fv, @pc) AS f(c, canal, a, t, tipo, est, vig, fv, pc)
@@ -148,6 +250,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                 WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = ANY(@centros)
                   AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.c = r."CentroId" AND f.canal = r."CanalGestionDocumentalId"
                                                     AND f.a = r."AmbitoTitular" AND f.t = r."TitularId" AND f.tipo = r."TipoDocumentoId")
+                RETURNING 1
             ),
             cambiadas AS (
                 UPDATE "EstadosPlataforma" r
@@ -159,16 +262,21 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                   AND (r."Estado" <> f.est OR r."EstadoVigencia" <> f.vig
                        OR r."FechaVencimientoEnPlataforma" IS DISTINCT FROM f.fv OR r."ProximoCambioEl" IS DISTINCT FROM f.pc
                        OR r."DiaCalculo" <> @dia OR r."VersionCalculo" <> {CalculoEstadoMaterializado.VersionDeLaRegla})
+                RETURNING 1
+            ),
+            insertadas AS (
+                INSERT INTO "EstadosPlataforma" ("Id", "CentroId", "CanalGestionDocumentalId", "AmbitoTitular", "TitularId",
+                    "TipoDocumentoId", "Estado", "EstadoVigencia", "FechaVencimientoEnPlataforma", "ProximoCambioEl",
+                    "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
+                SELECT gen_random_uuid(), f.c, f.canal, f.a, f.t, f.tipo, f.est, f.vig, f.fv, f.pc,
+                    @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
+                FROM f
+                WHERE NOT EXISTS (SELECT 1 FROM "EstadosPlataforma" r
+                                  WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."CanalGestionDocumentalId" = f.canal AND r."AmbitoTitular" = f.a
+                                    AND r."TitularId" = f.t AND r."TipoDocumentoId" = f.tipo)
+                RETURNING 1
             )
-            INSERT INTO "EstadosPlataforma" ("Id", "CentroId", "CanalGestionDocumentalId", "AmbitoTitular", "TitularId",
-                "TipoDocumentoId", "Estado", "EstadoVigencia", "FechaVencimientoEnPlataforma", "ProximoCambioEl",
-                "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
-            SELECT gen_random_uuid(), f.c, f.canal, f.a, f.t, f.tipo, f.est, f.vig, f.fv, f.pc,
-                @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
-            FROM f
-            WHERE NOT EXISTS (SELECT 1 FROM "EstadosPlataforma" r
-                              WHERE r."TenantId" = {TenantDeLaConexion} AND r."CentroId" = f.c AND r."CanalGestionDocumentalId" = f.canal AND r."AmbitoTitular" = f.a
-                                AND r."TitularId" = f.t AND r."TipoDocumentoId" = f.tipo)
+            {SumaDeCambios}
             """,
             [
                 Parametro("dia", NpgsqlDbType.Date, calculo.Dia),
@@ -187,13 +295,13 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
     }
 
     /// <summary>Alcance: la fila de cada Centro, Trabajador y Empresa del cálculo, exista o no la entidad.</summary>
-    private async Task EscribirEntidadesAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
+    private async Task<int> EscribirEntidadesAsync(CalculoEstadoMaterializado calculo, CancellationToken ct)
     {
         if (calculo.CentroIds.Count == 0 && calculo.TrabajadorIds.Count == 0 && calculo.EmpresaIds.Count == 0 && calculo.Entidades.Count == 0)
-            return;
+            return 0;
 
         var e = calculo.Entidades;
-        await dbContext.Database.ExecuteSqlRawAsync(
+        return await ContarAsync(
             $"""
             WITH f AS (
                 SELECT * FROM unnest(@amb, @id, @est, @plat, @v, @vsb, @u, @p, @fa, @sc, @pp, @req, @ald, @pc)
@@ -205,6 +313,7 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                        OR (r."Ambito" = @ambTrabajador AND r."EntidadId" = ANY(@trabajadores))
                        OR (r."Ambito" = @ambEmpresa AND r."EntidadId" = ANY(@empresas)))
                   AND NOT EXISTS (SELECT 1 FROM f WHERE r."TenantId" = {TenantDeLaConexion} AND f.amb = r."Ambito" AND f.id = r."EntidadId")
+                RETURNING 1
             ),
             cambiadas AS (
                 UPDATE "EstadosEntidad" r
@@ -219,14 +328,19 @@ public sealed class EscritorEstadoMaterializado(CaeManagerDbContext dbContext) :
                        OR r."SinConfirmar" <> f.sc OR r."PendientesEnPlataforma" <> f.pp OR r."Requeridos" <> f.req
                        OR r."AlDia" <> f.ald OR r."ProximoCambioEl" IS DISTINCT FROM f.pc OR r."DiaCalculo" <> @dia
                        OR r."VersionCalculo" <> {CalculoEstadoMaterializado.VersionDeLaRegla})
+                RETURNING 1
+            ),
+            insertadas AS (
+                INSERT INTO "EstadosEntidad" ("Id", "Ambito", "EntidadId", "Estado", "EstadoPlataforma", "Vencidos",
+                    "VencidosSinBloqueo", "Urgentes", "Proximos", "Faltan", "SinConfirmar", "PendientesEnPlataforma",
+                    "Requeridos", "AlDia", "ProximoCambioEl", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
+                SELECT gen_random_uuid(), f.amb, f.id, f.est, f.plat, f.v, f.vsb, f.u, f.p, f.fa, f.sc, f.pp, f.req, f.ald, f.pc,
+                    @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
+                FROM f
+                WHERE NOT EXISTS (SELECT 1 FROM "EstadosEntidad" r WHERE r."TenantId" = {TenantDeLaConexion} AND r."Ambito" = f.amb AND r."EntidadId" = f.id)
+                RETURNING 1
             )
-            INSERT INTO "EstadosEntidad" ("Id", "Ambito", "EntidadId", "Estado", "EstadoPlataforma", "Vencidos",
-                "VencidosSinBloqueo", "Urgentes", "Proximos", "Faltan", "SinConfirmar", "PendientesEnPlataforma",
-                "Requeridos", "AlDia", "ProximoCambioEl", "DiaCalculo", "CalculadoEnUtc", "VersionCalculo", "TenantId")
-            SELECT gen_random_uuid(), f.amb, f.id, f.est, f.plat, f.v, f.vsb, f.u, f.p, f.fa, f.sc, f.pp, f.req, f.ald, f.pc,
-                @dia, now(), {CalculoEstadoMaterializado.VersionDeLaRegla}, {TenantDeLaConexion}
-            FROM f
-            WHERE NOT EXISTS (SELECT 1 FROM "EstadosEntidad" r WHERE r."TenantId" = {TenantDeLaConexion} AND r."Ambito" = f.amb AND r."EntidadId" = f.id)
+            {SumaDeCambios}
             """,
             [
                 Parametro("dia", NpgsqlDbType.Date, calculo.Dia),

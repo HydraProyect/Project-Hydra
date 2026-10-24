@@ -73,6 +73,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<TenantRlsConnectionInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
         services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorMarcaRecalculandoEstado, CaeManager.Infrastructure.EstadoMaterializado.LectorMarcaRecalculandoEstado>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),
@@ -666,6 +668,9 @@ public static class InfrastructureServiceCollectionExtensions
         // evento, no una automatización opcional del Tenant.
         services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
         services.AddHostedService<Dashboard.CierreMensualCuadroDireccionHostedService>();
+
+        // Cola y relleno del estado materializado (PR 4b del plan): una sola ranura la procesa, por elección de líder.
+        services.AddHostedService<CaeManager.Infrastructure.EstadoMaterializado.ColaEstadoMaterializadoHostedService>();
 
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.

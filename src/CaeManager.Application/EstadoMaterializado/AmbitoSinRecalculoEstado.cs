@@ -36,25 +36,68 @@ public static class AmbitoSinRecalculoEstado
     /// <c>true</c> (por defecto): cada guardado que toque una entrada del cálculo encola el Tenant entero. <c>false</c>: no se
     /// encola nada (el Tenant se retira).
     /// </param>
-    public static IDisposable Abrir(string motivo, bool encolarAlGuardar = true)
+    /// <returns>
+    /// El ámbito abierto, que cierra al desecharse y guarda los Tenants cuyo dato de entrada se guardó dentro
+    /// (<see cref="Abierto.TenantsTocados"/>): quien lo abre los encola enteros al cerrarlo, para cubrir también lo que el
+    /// detector no ve (<c>ExecuteUpdate</c>, o una transacción explícita que no pasa por la envoltura del recálculo).
+    /// </returns>
+    public static Abierto Abrir(string motivo, bool encolarAlGuardar = true)
     {
         var anterior = _actual.Value;
-        _actual.Value = new Ambito(motivo, encolarAlGuardar);
-        return new Cierre(anterior);
+        var ambito = new Ambito(motivo, encolarAlGuardar);
+        _actual.Value = ambito;
+        return new Abierto(ambito, anterior);
     }
 
-    private sealed record Ambito(string Motivo, bool Encolar);
-
-    private sealed class Cierre(Ambito? anterior) : IDisposable
+    /// <summary>
+    /// Anota en el ámbito abierto (el más interior) los Tenants de un guardado. Lo llama el detector de cambios; sin ámbito, o
+    /// con uno que no encola, no hace nada.
+    /// </summary>
+    public static void AnotarTenants(IEnumerable<Guid> tenants)
     {
+        if (_actual.Value is not { Encolar: true } ambito)
+            return;
+        lock (ambito.Tenants)
+            ambito.Tenants.UnionWith(tenants);
+    }
+
+    internal sealed record Ambito(string Motivo, bool Encolar)
+    {
+        public HashSet<Guid> Tenants { get; } = [];
+    }
+
+    /// <summary>Un ámbito abierto con <see cref="Abrir"/>.</summary>
+    public sealed class Abierto : IDisposable
+    {
+        private readonly Ambito _ambito;
+        private readonly Ambito? _anterior;
         private bool _cerrado;
+
+        internal Abierto(Ambito ambito, Ambito? anterior)
+        {
+            _ambito = ambito;
+            _anterior = anterior;
+        }
+
+        /// <summary>Motivo con que se abrió.</summary>
+        public string Motivo => _ambito.Motivo;
+
+        /// <summary>Los Tenants cuyo dato de entrada del estado se guardó dentro del ámbito (vacío si no encola).</summary>
+        public IReadOnlyCollection<Guid> TenantsTocados
+        {
+            get
+            {
+                lock (_ambito.Tenants)
+                    return _ambito.Tenants.ToList();
+            }
+        }
 
         public void Dispose()
         {
             if (_cerrado)
                 return;
             _cerrado = true;
-            _actual.Value = anterior;
+            _actual.Value = _anterior;
         }
     }
 }

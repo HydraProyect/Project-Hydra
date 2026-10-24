@@ -139,6 +139,9 @@ public sealed class DetectorCambiosEstadoInterceptor(IServiceProvider servicios)
             if (encolar)
                 foreach (var tenant in delGuardado.PorTenant.Keys)
                     soloTenants.De(tenant).TenantEntero = motivo;
+            // Quien abrió el ámbito los encola también al cerrarlo: este guardado puede no llegar a recalcularse (una
+            // transacción explícita que no pasa por la envoltura) y otros cambios del mismo Tenant no pasan por aquí.
+            AmbitoSinRecalculoEstado.AnotarTenants(delGuardado.PorTenant.Keys);
             delGuardado = soloTenants;
         }
 
