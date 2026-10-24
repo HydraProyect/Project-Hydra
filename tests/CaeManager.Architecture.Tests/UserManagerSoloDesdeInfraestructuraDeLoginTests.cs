@@ -49,6 +49,7 @@ public class UserManagerSoloDesdeInfraestructuraDeLoginTests
     private static readonly string[] InfraestructuraDeLogin =
     [
         "src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",
+        "src/CaeManager.Web/Components/Account/InicioSesionMicrosoft.cs",
         "src/CaeManager.Web/Components/Account/Pages/CambiarContrasena.razor",
         "src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor",
         "src/CaeManager.Web/Components/Account/Pages/Login.razor",

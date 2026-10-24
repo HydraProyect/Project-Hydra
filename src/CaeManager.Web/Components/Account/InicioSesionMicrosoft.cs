@@ -54,6 +54,41 @@ public static class InicioSesionMicrosoft
     }
 
     /// <summary>
+    /// Busca las cuentas candidatas y aplica <see cref="DecidirCuenta"/>. Debe
+    /// llamarse dentro de <see cref="AmbitoIdentificacionSinTenant"/>: el vínculo
+    /// (<c>AspNetUserLogins</c>) y el correo se resuelven antes de que haya Tenant.
+    /// Devuelve la cuenta con la que se entra, la que hay que vincular o, en un
+    /// rechazo, la que se intentó abrir (para la vigilancia de su Tenant).
+    /// </summary>
+    public static async Task<(DecisionCuentaMicrosoft Decision, ApplicationUser? Cuenta)> ResolverCuentaAsync(
+        UserManager<ApplicationUser> userManager, UserLoginInfo identidad, string email, Guid tenantDestino)
+    {
+        ArgumentNullException.ThrowIfNull(userManager);
+        ArgumentNullException.ThrowIfNull(identidad);
+
+        var vinculada = await userManager.FindByLoginAsync(identidad.LoginProvider, identidad.ProviderKey);
+        ApplicationUser? porCorreo = null;
+        var porCorreoTieneOtraIdentidad = false;
+        if (vinculada is null)
+        {
+            porCorreo = await userManager.FindByEmailAsync(email);
+            if (porCorreo is not null)
+                porCorreoTieneOtraIdentidad = (await userManager.GetLoginsAsync(porCorreo))
+                    .Any(l => l.LoginProvider == identidad.LoginProvider);
+        }
+
+        var decision = DecidirCuenta(vinculada?.TenantId, porCorreo?.TenantId, porCorreoTieneOtraIdentidad, tenantDestino);
+        var cuenta = decision switch
+        {
+            DecisionCuentaMicrosoft.EntrarConCuentaVinculada => vinculada,
+            DecisionCuentaMicrosoft.VincularCuentaExistente => porCorreo,
+            DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant or DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad => vinculada ?? porCorreo,
+            _ => null,
+        };
+        return (decision, cuenta);
+    }
+
+    /// <summary>
     /// Con qué cuenta de TALVEG entra una identidad de Microsoft.
     ///
     /// <para>

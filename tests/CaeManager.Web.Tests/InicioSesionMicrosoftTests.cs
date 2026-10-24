@@ -90,14 +90,26 @@ public class InicioSesionMicrosoftTests
     // ── Gate de configuración ───────────────────────────────────────────────
 
     [Fact]
-    public void TenantHydraId_vacio_cuenta_como_no_informado()
+    public void Sin_TenantHydraId_el_esquema_sigue_registrado_y_se_avisa_de_que_falta()
     {
+        // Fallo cerrado: quitarlo no puede apagar el gate, porque apagarlo levanta
+        // la restricción del login local. El callback rechaza a todos y se avisa.
         var opciones = OpcionesCompletas();
-        opciones.EstaConfigurado.Should().BeTrue("control positivo");
+        opciones.ProblemasDeConfiguracion().Should().BeEmpty("control positivo");
 
-        opciones.TenantHydraId = Guid.Empty;
-        opciones.EstaConfigurado.Should().BeFalse();
-        opciones.ProblemasDeConfiguracion().Should().ContainSingle().Which.Should().Contain("TenantHydraId");
+        foreach (Guid? sinTenant in new Guid?[] { null, Guid.Empty })
+        {
+            opciones.TenantHydraId = sinTenant;
+            opciones.EstaConfigurado.Should().BeTrue();
+            opciones.TieneTenantDestino.Should().BeFalse();
+            opciones.ProblemasDeConfiguracion().Should().ContainSingle().Which.Should().Be("falta TenantHydraId");
+        }
+    }
+
+    [Fact]
+    public void Sin_ninguna_clave_no_se_avisa_de_TenantHydraId()
+    {
+        new AzureAdOptions().ProblemasDeConfiguracion().Should().BeEmpty("apagado es lo normal");
     }
 
     // ── Redirección a Microsoft ─────────────────────────────────────────────
@@ -137,7 +149,7 @@ public class InicioSesionMicrosoftTests
         await app.StartAsync();
 
         var origen = app.Urls.Single();
-        using var cliente = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false });
+        using var cliente = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
         using var respuesta = await cliente.GetAsync($"{origen}/cuenta/iniciar-sesion-microsoft?returnUrl=%2Fdocumentos");
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);

@@ -98,21 +98,8 @@ public static class IdentityEndpointsExtensions
             // directorio configurado con el correo de una cuenta de otra organización,
             // o de Soporte TALVEG, se vinculaba a ella y entraba sin su contraseña ni
             // su segundo factor.
-            var tenantDestino = opcionesAzureAd.Value.TenantHydraId ?? Guid.Empty;
-            var usuario = await userManager.FindByLoginAsync(infoExterna.LoginProvider, infoExterna.ProviderKey);
-            var tenantCuentaVinculada = usuario?.TenantId;
-            ApplicationUser? cuentaPorCorreo = null;
-            var cuentaPorCorreoTieneOtraIdentidad = false;
-            if (usuario is null)
-            {
-                cuentaPorCorreo = await userManager.FindByEmailAsync(email);
-                if (cuentaPorCorreo is not null)
-                    cuentaPorCorreoTieneOtraIdentidad = (await userManager.GetLoginsAsync(cuentaPorCorreo))
-                        .Any(l => l.LoginProvider == infoExterna.LoginProvider);
-            }
-
-            var decision = InicioSesionMicrosoft.DecidirCuenta(
-                tenantCuentaVinculada, cuentaPorCorreo?.TenantId, cuentaPorCorreoTieneOtraIdentidad, tenantDestino);
+            var tenantDestino = opcionesAzureAd.Value.TenantDestino;
+            var (decision, usuario) = await InicioSesionMicrosoft.ResolverCuentaAsync(userManager, infoExterna, email, tenantDestino);
 
             switch (decision)
             {
@@ -129,16 +116,13 @@ public static class IdentityEndpointsExtensions
                     // Queda en la vigilancia del Tenant de la cuenta que se intentó
                     // abrir: es a quien le interesa saber que alguien lo intentó.
                     // Mismo mensaje genérico que el resto: no se confirma que exista.
-                    var objetivo = usuario ?? cuentaPorCorreo!;
-                    logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, objetivo.Id);
-                    await vigilancia.RegistrarAsync(objetivo.Id, objetivo.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                    // Solo deja la fila Rechazado: la vigilancia no avisa por ella.
+                    logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, usuario?.Id);
+                    if (usuario is not null)
+                        await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
                     await signInManager.SignOutAsync();
                     return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
                 }
-
-                case DecisionCuentaMicrosoft.VincularCuentaExistente:
-                    usuario = cuentaPorCorreo;
-                    break;
             }
 
             var esUsuarioNuevo = decision == DecisionCuentaMicrosoft.CrearCuenta;

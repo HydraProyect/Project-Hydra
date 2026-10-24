@@ -319,13 +319,14 @@ authenticationBuilder.AddScheme<ExtensionAuthenticationSchemeOptions, ExtensionA
     ExtensionAuthenticationSchemeOptions.NombreEsquema, options => { });
 
 // Login corporativo vía Microsoft Entra ID (SSO), opcional — ver
-// AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las cuatro
+// AzureAdOptions y RestriccionLoginLocalClaimsTransformation. Sin las tres
 // variables configuradas, este proveedor externo ni se registra: el login
 // local sigue siendo el único camino y se comporta exactamente igual que
 // hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
 var azureAd = builder.Configuration.GetSection(AzureAdOptions.SeccionConfiguracion).Get<AzureAdOptions>() ?? new AzureAdOptions();
-builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd,
-    "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
+builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd, azureAd.EstaConfigurado
+    ? "El login con Microsoft Entra ID está registrado pero rechaza a todo el mundo hasta que se configure su Tenant destino; la restricción del login local sigue activa."
+    : "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
 
 if (azureAd.EstaConfigurado)
 {
