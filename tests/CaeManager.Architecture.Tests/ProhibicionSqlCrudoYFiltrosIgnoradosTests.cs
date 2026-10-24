@@ -445,6 +445,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 4,
         [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "var fila = (await dbContext.Database.SqlQuery<ResumenColaEstado>($\"\"\"")] = 1,
+        // Marca «recalculando» (PR 4b): lee sin cerrojo las raíces encoladas del Tenant de la conexión, bajo la RLS forzada.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/LectorMarcaRecalculandoEstado.cs", "var entradas = await dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
     };
 
     /// <summary>
