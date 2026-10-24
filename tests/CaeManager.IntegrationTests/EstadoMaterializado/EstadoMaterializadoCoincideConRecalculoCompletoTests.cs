@@ -174,16 +174,21 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
             var recalculo = sp.GetRequiredService<IRecalculoEstadoMaterializado>();
             var hechos = new List<string>();
             var distintos = new List<string>();
+            db.ChangeTracker.Clear();
+            var previa = await FotoAsync(db);
 
             async Task Comprobar(string cambio, RaicesDeRecalculo raices)
             {
-                hechos.Add(cambio);
                 await recalculo.RecalcularAsync(raices, CancellationToken.None);
                 db.ChangeTracker.Clear();
                 var acotado = await FotoAsync(db);
                 await recalculo.RellenarTenantAsync(CancellationToken.None);
                 db.ChangeTracker.Clear();
                 var completo = await FotoAsync(db);
+                // Solo cuenta el cambio que movió el estado: uno que no cambia nada no prueba la clausura.
+                if (!completo.SequenceEqual(previa))
+                    hechos.Add(cambio);
+                previa = completo;
                 var faltan = completo.Except(acotado).ToList();
                 var sobran = acotado.Except(completo).ToList();
                 if (faltan.Count + sobran.Count > 0)
@@ -248,11 +253,23 @@ public class EstadoMaterializadoCoincideConRecalculoCompletoTests(EstadoMaterial
                 await Comprobar("baja de Asignación", new RaicesDeRecalculo([baja.CentroId], [baja.TrabajadorId], []));
             }
 
+            // 5. Baja de Asignación dada solo con el Trabajador: el Centro ya no sale de las Asignaciones activas, y solo lo
+            // recoge la clausura por las filas que el Trabajador ya tiene escritas allí (sus pares dejan de exigirse).
+            var bajaSoloTrabajador = await db.Asignaciones.Where(a => a.CentroId == centro && a.FechaBaja == null)
+                .OrderByDescending(a => a.TrabajadorId).Select(a => (Guid?)a.TrabajadorId).FirstOrDefaultAsync();
+            if (bajaSoloTrabajador is { } trabajadorSinCentro)
+            {
+                await db.Asignaciones.Where(a => a.CentroId == centro && a.TrabajadorId == trabajadorSinCentro && a.FechaBaja == null)
+                    .ExecuteUpdateAsync(s => s.SetProperty(a => a.FechaBaja, (DateOnly?)hoy));
+                await Comprobar("baja de Asignación con solo el Trabajador", RaicesDeRecalculo.DeTrabajadores(trabajadorSinCentro));
+            }
+
             return (hechos, distintos);
         });
 
         salida.WriteLine($"Tenant {tenant}: {string.Join(", ", cambios)}");
-        cambios.Should().HaveCountGreaterThanOrEqualTo(3, "sin cambios el test no prueba la clausura");
+        cambios.Should().HaveCountGreaterThanOrEqualTo(3, "solo cuentan los cambios que movieron el estado; sin ellos el test no prueba la clausura");
+        cambios.Should().Contain("baja de Asignación con solo el Trabajador", "es el caso que solo cubren las filas ya escritas");
         fallos.Should().BeEmpty();
     }
 

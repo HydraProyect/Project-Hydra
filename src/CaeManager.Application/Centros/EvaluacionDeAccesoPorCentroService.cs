@@ -112,7 +112,11 @@ public class EvaluacionDeAccesoPorCentroService(
             join tipo in tiposDocumentoContext.TiposDocumento on tc.TipoDocumentoId equals tipo.Id
             select new
             {
-                tc.CentroId, tc.TipoDocumentoId, tc.Incluido, tc.PeriodicidadEspecialMeses, tc.ToleranciaDias,
+                tc.CentroId,
+                tc.TipoDocumentoId,
+                tc.Incluido,
+                tc.PeriodicidadEspecialMeses,
+                tc.ToleranciaDias,
                 // Misma condición que la carga de EvaluarEnAlcanceAsync: incluido, marcado, Tipo sin archivar y de un ámbito que bloquea.
                 Bloquea = tc.Incluido && tc.BloqueaAcceso && !tipo.Archivado,
                 tipo.AmbitoAplicacion
