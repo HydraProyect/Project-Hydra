@@ -545,7 +545,9 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         if (resetPagina)
             _pagina = 1;
 
-        _cargasIniciadas++;
+        // Dos cargas solapadas (dos cambios de filtro seguidos): solo la última escribe y suelta el esqueleto, para que la
+        // anterior, más lenta, no pise su respuesta ni deje sin apuntar un aviso que llegue mientras la última sigue en vuelo.
+        var carga = ++_cargasIniciadas;
         _cargando = true;
         _errorCarga = false;
         StateHasChanged();
@@ -553,6 +555,8 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         try
         {
             var resultado = await Mediator.Send(ConsultaDePaginaActual());
+            if (carga != _cargasIniciadas)
+                return;
 
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
@@ -564,9 +568,15 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
             // Batch por página (no por fila) — mismo criterio que el badge de
             // cumplimiento: evita N+1 aunque solo se pinte cuando hay visita.
-            _visitasPorCentro = _elementosPagina.Count == 0
+            var visitas = _elementosPagina.Count == 0
                 ? new Dictionary<Guid, IReadOnlyList<VisitaResumenDto>>()
                 : await Mediator.Send(new ObtenerProximaVisitaPorCentroQuery(_elementosPagina.Select(c => c.Id).ToList()));
+            if (carga == _cargasIniciadas)
+                _visitasPorCentro = visitas;
+        }
+        catch (Exception) when (carga != _cargasIniciadas)
+        {
+            // Una carga superada que falla no tapa con el error la respuesta de la vigente.
         }
         catch (Exception)
         {
@@ -574,14 +584,21 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
         }
         finally
         {
-            _cargando = false;
-            StateHasChanged();
-            // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
-            if (_releerTrasCarga && !_desechado)
-            {
-                _releerTrasCarga = false;
-                _repintado?.PedirRelectura();
-            }
+            if (carga == _cargasIniciadas)
+                FinDeCarga();
+        }
+    }
+
+    /// <summary>Acaba la carga vigente: fuera el esqueleto, y si llegó un aviso mientras tanto, se relee.</summary>
+    private void FinDeCarga()
+    {
+        _cargando = false;
+        StateHasChanged();
+        // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+        if (_releerTrasCarga && !_desechado)
+        {
+            _releerTrasCarga = false;
+            _repintado?.PedirRelectura();
         }
     }
 

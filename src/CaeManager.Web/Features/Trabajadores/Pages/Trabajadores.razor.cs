@@ -669,7 +669,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (_pagina > TotalPaginas)
             {
                 _pagina = TotalPaginas;
-                await CargarListaAsync();
+                await CargarListaAsync(silenciosa);
             }
         }
         catch (Exception) when (_desechado || carga != _cargaVigente) { }

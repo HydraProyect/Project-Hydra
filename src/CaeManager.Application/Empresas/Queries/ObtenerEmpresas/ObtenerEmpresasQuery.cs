@@ -261,11 +261,12 @@ public class ObtenerEmpresasQueryHandler(
                 {
                     e.Id,
                     e.RazonSocial,
-                    e.Cif,
+                    // El mismo tipo anónimo que el del cálculo, que los infiere no anulables (EF no ve el «!»).
+                    Cif = e.Cif!,
                     e.CreadoEnUtc,
-                    ClientePrincipal = ordenaPorCliente
+                    ClientePrincipal = (ordenaPorCliente
                         ? clientesAlcanzados.Where(c => c.EmpresaId == e.Id).Min(c => c.RazonSocial)
-                        : null,
+                        : null)!,
                     PeorFecha = (DateOnly?)null,
                     HaySinConfirmar = false,
                     ClaveEstado = idsVencido.Contains(e.Id) ? claveVencido
