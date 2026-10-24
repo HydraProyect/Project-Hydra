@@ -6,6 +6,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Documentos;
@@ -93,9 +94,13 @@ public class ObtenerAlertasQueryHandler(
     IAlcanceDatosService alcanceDatos,
     IDocumentosFaltantesService documentosFaltantesService,
     IProyectosQueryContext proyectosContext,
-    IRequisitosEventoQueryContext requisitosEventoContext)
+    IRequisitosEventoQueryContext requisitosEventoContext,
+    ILectorEstadoRequisitos? lectorRequisitos = null)
     : IRequestHandler<ObtenerAlertasQuery, IReadOnlyList<AlertaDto>>
 {
+    // Sin lector (quien construye el manejador a mano: el resumen diario por correo, los tests), todo se calcula como siempre.
+    private readonly ILectorEstadoRequisitos lector = lectorRequisitos ?? SinLectorDeEstadoRequisitos.Instancia;
+
     public async Task<IReadOnlyList<AlertaDto>> Handle(ObtenerAlertasQuery request, CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
@@ -300,6 +305,18 @@ public class ObtenerAlertasQueryHandler(
         IReadOnlyList<Guid>? trabajadorIdsVisibles, IReadOnlyList<Guid>? centroIdsVisibles,
         IQueryable<Guid> voluntariosInactivos, DateOnly hoy, CancellationToken cancellationToken)
     {
+        // PR 9 del estado materializado: en un Tenant completo y con filas fiables, los pares exigidos que están en Faltante
+        // (la misma regla de abajo, ya aplicada al escribirlos) con el alcance de quien mira aplicado al leer. Si el lector no
+        // puede servirlos, el cálculo de siempre, que no se ha tocado.
+        if (await lector.FaltantesDeTrabajadoresAsync(trabajadorIdsVisibles, centroIdsVisibles, cancellationToken) is { } leidos)
+            return leidos
+                // En el orden del registro (el Cliente empresarial del Centro es el undécimo y el duodécimo valor).
+                .Select(f => new AlertaDto(
+                    null, f.TrabajadorId, f.TrabajadorNombre, f.TipoDocumentoId, f.TipoDocumentoNombre, null,
+                    EstadoDocumento.Faltante, null, f.CentroNombre, f.CentroId, f.ClienteEmpresarialId, f.ClienteNombre,
+                    EmpresaId: f.EmpresaId))
+                .ToList();
+
         var asignacionesActivas = await (
             from asignacion in asignacionesContext.Asignaciones
             where asignacion.FechaBaja == null

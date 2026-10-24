@@ -218,6 +218,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoCentros, CaeManager.Application.EstadoMaterializado.LectorEstadoCentros>();
         services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
         services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoMaterializado, CaeManager.Application.EstadoMaterializado.LectorEstadoMaterializado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoRequisitos, CaeManager.Application.EstadoMaterializado.LectorEstadoRequisitos>();
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();

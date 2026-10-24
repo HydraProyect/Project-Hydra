@@ -34,6 +34,8 @@ using CaeManager.Application.Visitas.Queries.ObtenerVisitas;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
+using CaeManager.Application.EstadoMaterializado;
+using CaeManager.Domain.EstadoMaterializado;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Seed;
 using FluentAssertions;
@@ -636,6 +638,65 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         // actual para que no empeore; bajarlo es el trabajo pendiente que recoge el informe de escala.
         miTrabajo.Should().BeLessThanOrEqualTo(297, "presupuesto de Mi trabajo");
         cuadro.Should().BeLessThanOrEqualTo(587, "presupuesto del Cuadro de dirección");
+    }
+
+    /// <summary>
+    /// PR 9 del estado materializado: el ahorro de sentencias de las colas de trabajo con los Tenants completos (rellenos). Los
+    /// presupuestos de arriba se miden con el Tenant sin rellenar, como hoy están todos los Tenants reales (sin fila de
+    /// versión): ahí el lector paga una sentencia de sondeo y vuelve al cálculo. Aquí se mide la misma lectura con los Tenants
+    /// del piloto rellenos y se compara con la medida sin rellenar; el Tenant queda sin fila de versión al terminar.
+    /// </summary>
+    [Fact]
+    public async Task Con_los_Tenants_completos_las_colas_de_trabajo_caben_en_su_presupuesto_de_SQL()
+    {
+        string[] pantallas = ["Alertas", "Inicio: KPIs", "Inicio: bandeja agrupada"];
+        var ficha = fixture.FichaDe(fixture.Piloto, TenantMedido);
+
+        async Task<Dictionary<string, int>> MedirAsync()
+        {
+            var medidas = new Dictionary<string, int>();
+            foreach (var pantalla in pantallas)
+                medidas[pantalla] = (await fixture.ComoGestorEnAsync(fixture.Piloto, TenantMedido,
+                    sp => ContarAsync(sp, s => LecturasDePantalla.DeTenant[pantalla](s, ficha)))).Sentencias;
+            medidas["Mi trabajo"] = (await fixture.Arnes.ComoCuentaAsync(CatalogoPilotoOutbound.NombreTenantOperador, CuentasPilotoOutbound.Locales.GestoraPrimera,
+                sp => ContarAsync(sp, async s => await s.Send(new ObtenerMiTrabajoAgregadoQuery())))).Sentencias;
+            return medidas;
+        }
+
+        var sinRellenar = await MedirAsync();
+        Dictionary<string, int> rellenos;
+        try
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, (_, sp) =>
+                    sp.GetRequiredService<IRecalculoEstadoMaterializado>().RellenarTenantAsync(CancellationToken.None));
+            rellenos = await MedirAsync();
+        }
+        finally
+        {
+            foreach (var tenant in fixture.Piloto.Tenants.Values)
+                await fixture.Arnes.EnTenantAsync(tenant, async (db, _) =>
+                {
+                    await db.Set<VersionEstadoTenant>().ExecuteDeleteAsync();
+                    return 0;
+                });
+        }
+
+        foreach (var (pantalla, sin) in sinRellenar)
+            salida.WriteLine($"{pantalla}: {sin} sentencias sin rellenar, {rellenos[pantalla]} con los Tenants completos");
+
+        foreach (var (pantalla, maximo) in new Dictionary<string, int>
+        {
+            ["Alertas"] = 1000,
+            ["Inicio: KPIs"] = 1000,
+            ["Inicio: bandeja agrupada"] = 1000,
+            ["Mi trabajo"] = 1000,
+        })
+        {
+            rellenos[pantalla].Should().BeLessThan(sinRellenar[pantalla],
+                $"«{pantalla}» con los Tenants completos lee de las tablas: {rellenos[pantalla]} sentencias frente a {sinRellenar[pantalla]} sin rellenar");
+            rellenos[pantalla].Should().BeLessThanOrEqualTo(maximo, $"presupuesto de «{pantalla}» con los Tenants completos");
+        }
     }
 
     /// <summary>
