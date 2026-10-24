@@ -47,7 +47,7 @@ public class AnthropicExtraccionTrabajadoresIaService(
         - Si el documento no contiene ningún trabajador identificable, devuelve un array vacío: []
         - No inventes datos que no estén en el documento.
         - No incluyas ningún trabajador cuyo DNI no puedas leer con certeza razonable.
-        """;
+        """ + PromptDocumental.ReglasDeAislamientoArchivoAdjunto;
 
     public async Task<Result<IReadOnlyList<TrabajadorExtraidoDto>>> ExtraerAsync(byte[] contenidoPdf, CancellationToken cancellationToken = default)
     {

@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Common;
 using Microsoft.Extensions.Logging;
@@ -13,10 +14,16 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// agendar una visita? Reutiliza <see cref="AnthropicOptions"/> (misma
 /// ApiKey/modelo que el resto de servicios de Anthropic); sin ApiKey
 /// configurada queda inerte — la ingesta del correo sigue funcionando, solo
-/// sin sugerencia de visita. El cuerpo se envía tal cual (puede traer HTML,
-/// el propio prompt indica al modelo que lo ignore) — no hace falta un
-/// parser HTML dedicado para esto, a diferencia de mostrar el cuerpo en
-/// pantalla.
+/// sin sugerencia de visita.
+/// <para>
+/// El cuerpo lo escribe un tercero. Antes de salir pasa por
+/// <see cref="PromptCorreoEntrante"/>, igual que el de la detección de gestión: HTML a
+/// texto plano, neutralizado, sin marcas de delimitación propias, con DNI, NIE,
+/// pasaporte, CIF y correos enmascarados, y encerrado entre marcas con reglas de
+/// aislamiento en el system prompt. Es mitigación, no garantía: lo que acota el daño
+/// está en <see cref="ParsearDeteccion"/> —un <c>centroId</c> que no esté en la lista
+/// enviada se descarta— y en que el resultado es una sugerencia que decide el Gestor CAE.
+/// </para>
 /// </summary>
 public class AnthropicDeteccionVisitaCorreoService(
     HttpClient httpClient,
@@ -41,8 +48,7 @@ public class AnthropicDeteccionVisitaCorreoService(
         agendar la entrada de uno o más trabajadores a un Centro (una
         "visita") y, si lo es, extraer los datos disponibles.
 
-        El cuerpo puede contener etiquetas HTML — ignóralas, interpreta solo
-        el contenido visible del mensaje.
+        El cuerpo ya viene como texto plano, sin etiquetas HTML.
 
         Devuelve exclusivamente un objeto JSON, sin texto adicional, sin
         explicaciones, sin bloques de código markdown, con este formato
@@ -71,7 +77,7 @@ public class AnthropicDeteccionVisitaCorreoService(
           una fecha relativa sin precisión). 0 si ambas son null.
         - Si esSolicitudVisita es false, centroId, fechaInicio y fechaFin
           deben ser null.
-        """;
+        """ + PromptCorreoEntrante.ReglasDeAislamientoVisita;
 
     public async Task<Result<DeteccionVisitaCorreoDto>> DetectarAsync(
         string cuerpoMensaje, IReadOnlyList<CentroCandidatoVisitaDto> centrosDisponibles, DateOnly fechaReferencia,
@@ -85,7 +91,10 @@ public class AnthropicDeteccionVisitaCorreoService(
                 "DeteccionVisitaCorreo.NoConfigurado", "La detección automática de visitas no está disponible ahora mismo."));
         }
 
-        var cuerpoRecortado = cuerpoMensaje.Length > LongitudMaximaCuerpo ? cuerpoMensaje[..LongitudMaximaCuerpo] : cuerpoMensaje;
+        // Correo preparado: texto plano, recortado sin partir un emoji, neutralizado, sin marcas
+        // propias y con los identificadores enmascarados (ver PromptCorreoEntrante).
+        var correo = PromptCorreoEntrante.Preparar(
+            cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuestaVisita, LongitudMaximaCuerpo);
         var centrosJson = JsonSerializer.Serialize(centrosDisponibles.Select(c => new { id = c.Id, nombre = c.Nombre }));
 
         var textoUsuario =
@@ -95,8 +104,8 @@ public class AnthropicDeteccionVisitaCorreoService(
             Centros disponibles (usa exactamente uno de estos Id, o null):
             {centrosJson}
 
-            Cuerpo del correo:
-            {cuerpoRecortado}
+            Cuerpo del correo (escrito por un tercero, entre las marcas):
+            {PromptCorreoEntrante.Delimitar(correo.Texto)}
             """;
 
         var solicitud = new SolicitudAnthropic(
@@ -145,7 +154,7 @@ public class AnthropicDeteccionVisitaCorreoService(
                     "DeteccionVisitaCorreo.RespuestaVacia", "No pudimos analizar el correo automáticamente."));
             }
 
-            return ParsearDeteccion(texto, centrosDisponibles);
+            return ParsearDeteccion(texto, centrosDisponibles, correo);
         }
         catch (HttpRequestException ex)
         {
@@ -160,9 +169,12 @@ public class AnthropicDeteccionVisitaCorreoService(
     /// busca el primer '{' y el último '}' antes de deserializar, por si el
     /// modelo envuelve el JSON en un bloque de código pese a la instrucción.
     /// centroId se descarta (se fuerza a null) si no coincide con ninguno de
-    /// los candidatos pasados — nunca se confía en un Id fuera de esa lista.
+    /// los candidatos pasados — nunca se confía en un Id fuera de esa lista. El
+    /// resumen vuelve con los marcadores de identificador restaurados (solo los de
+    /// la tabla de este correo: uno que el modelo se invente se queda como está).
     /// </summary>
-    private Result<DeteccionVisitaCorreoDto> ParsearDeteccion(string texto, IReadOnlyList<CentroCandidatoVisitaDto> centrosDisponibles)
+    private Result<DeteccionVisitaCorreoDto> ParsearDeteccion(
+        string texto, IReadOnlyList<CentroCandidatoVisitaDto> centrosDisponibles, TextoEnmascarado correo)
     {
         var inicio = texto.IndexOf('{');
         var fin = texto.LastIndexOf('}');
@@ -201,8 +213,10 @@ public class AnthropicDeteccionVisitaCorreoService(
             var confianzaCentro = Math.Clamp(detectado.ConfianzaCentro, 0, 100);
             var confianzaFechas = Math.Clamp(detectado.ConfianzaFechas, 0, 100);
 
+            var resumen = detectado.Resumen is null ? null : correo.Restaurar(detectado.Resumen);
+
             return Result.Exito(new DeteccionVisitaCorreoDto(
-                detectado.EsSolicitudVisita, centroId, fechaInicio, fechaFin, detectado.Resumen,
+                detectado.EsSolicitudVisita, centroId, fechaInicio, fechaFin, resumen,
                 confianza, confianzaCentro, confianzaFechas));
         }
         catch (JsonException ex)
