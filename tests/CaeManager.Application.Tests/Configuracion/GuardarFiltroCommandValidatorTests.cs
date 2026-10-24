@@ -5,7 +5,7 @@ using Xunit;
 namespace CaeManager.Application.Tests.Configuracion;
 
 /// <summary>
-/// La pantalla de un filtro guardado es una lista cerrada: el validador admite los doce listados
+/// La pantalla de un filtro guardado es una lista cerrada: el validador admite los trece listados
 /// que los ofrecen y rechaza cualquier otro nombre.
 /// </summary>
 public class GuardarFiltroCommandValidatorTests
@@ -46,9 +46,9 @@ public class GuardarFiltroCommandValidatorTests
     }
 
     [Fact]
-    public void La_lista_de_admitidas_son_las_doce_y_no_se_repiten()
+    public void La_lista_de_admitidas_son_las_trece_y_no_se_repiten()
     {
-        PantallasConFiltrosGuardados.Admitidas.Should().HaveCount(12).And.OnlyHaveUniqueItems();
+        PantallasConFiltrosGuardados.Admitidas.Should().HaveCount(13).And.OnlyHaveUniqueItems();
         // La columna Pantalla admite 50 caracteres (FiltroGuardadoConfiguration).
         PantallasConFiltrosGuardados.Admitidas.Should().OnlyContain(p => p.Length <= 50);
     }

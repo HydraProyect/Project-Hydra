@@ -177,7 +177,7 @@ public class VistaRecordadaTests
     }
 
     [Fact]
-    public void El_validador_admite_las_doce_pantallas_y_ninguna_otra()
+    public void El_validador_admite_las_trece_pantallas_y_ninguna_otra()
     {
         var validador = new GuardarVistaRecordadaCommandValidator();
 
