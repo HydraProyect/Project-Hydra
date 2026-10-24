@@ -18,6 +18,7 @@ using CaeManager.Application.Clientes.Queries.ObtenerResumenCliente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversacionPorId;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerConversaciones;
+using CaeManager.Application.Documentos;
 using CaeManager.Application.Dashboard.Queries;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Empresas.Queries.BuscarEmpresaPorCif;
@@ -632,6 +633,165 @@ public class EscalaPresupuestoSqlYAislamientoTests(EscalaYAislamientoFixture fix
         miTrabajo.Should().BeLessThanOrEqualTo(297, "presupuesto de Mi trabajo");
         cuadro.Should().BeLessThanOrEqualTo(587, "presupuesto del Cuadro de dirección");
     }
+
+    /// <summary>
+    /// La búsqueda de Documentos resuelve el texto dentro de cada rama, por los titulares y los Tipos que casan, y no
+    /// sobre la unión de las cinco ramas (medición de escala: 9,3 s con 500.000 Documentos). El oráculo es la forma
+    /// anterior: el universo sin buscar, con el mismo orden, filtrado por «PropietarioNombre o TipoDocumentoNombre
+    /// contienen el texto». Tiene que dar las mismas filas, en el mismo orden, con la misma página y los mismos
+    /// recuentos por estado, para un texto que case en cada rama presente (Trabajador, Empresa, Vehículo, Cliente,
+    /// Proyecto), uno que case por Tipo, uno que cruce el espacio entre nombre y apellidos y otros fijos.
+    /// </summary>
+    [Fact]
+    public async Task La_busqueda_de_Documentos_por_titulares_da_lo_mismo_que_filtrar_la_union()
+    {
+        var fallos = new List<string>();
+        var ramasConCoincidencias = new HashSet<AmbitoAplicacion>();
+        var ramasPresentes = new HashSet<AmbitoAplicacion>();
+        var comparaciones = 0;
+
+        foreach (var nombre in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
+        {
+            await fixture.ComoGestorEnAsync(fixture.Piloto, nombre, async sp =>
+            {
+                var sender = sp.GetRequiredService<ISender>();
+                var universo = (await sender.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: TodoElTenant))).Elementos;
+                var universoPorSeveridad = (await sender.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: TodoElTenant,
+                    OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad))).Elementos;
+                ramasPresentes.UnionWith(universo.Select(d => d.Ambito));
+
+                foreach (var (rotulo, termino) in TerminosDeBusqueda(universo))
+                {
+                    var caso = $"{nombre}, {rotulo} «{termino}»";
+                    bool Casa(DocumentoListaDto d) =>
+                        TextoDeBusqueda.Contiene(d.PropietarioNombre, termino) || TextoDeBusqueda.Contiene(d.TipoDocumentoNombre, termino);
+                    var esperado = universo.Where(Casa).ToList();
+                    ramasConCoincidencias.UnionWith(esperado.Select(d => d.Ambito));
+
+                    var completa = await sender.Send(new ObtenerDocumentosQuery(null, null, termino, TamanoPagina: TodoElTenant, ConRecuentosPorEstado: true));
+                    if (!completa.Elementos.Select(d => d.Id).SequenceEqual(esperado.Select(d => d.Id)))
+                        fallos.Add($"{caso}: filas u orden distintos ({completa.Elementos.Count} frente a {esperado.Count})");
+                    if (completa.TotalElementos != esperado.Count)
+                        fallos.Add($"{caso}: total {completa.TotalElementos} frente a {esperado.Count}");
+                    var recuentosEsperados = EstadoDocumentalFiltro.RecuentosPorEstado(esperado
+                        .GroupBy(d => EstadoDocumentalFiltro.ClaveOrden(d.Estado)).ToDictionary(g => g.Key, g => g.Count()));
+                    if (completa.RecuentosPorEstado is null || !completa.RecuentosPorEstado.OrderBy(x => x.Key).SequenceEqual(recuentosEsperados.OrderBy(x => x.Key)))
+                        fallos.Add($"{caso}: recuentos por estado distintos");
+
+                    var pagina = await sender.Send(new ObtenerDocumentosQuery(null, null, termino, Pagina: 2, TamanoPagina: 5));
+                    if (!pagina.Elementos.Select(d => d.Id).SequenceEqual(esperado.Skip(5).Take(5).Select(d => d.Id)))
+                        fallos.Add($"{caso}: la página 2 de 5 no es la de la forma anterior");
+
+                    var porSeveridad = await sender.Send(new ObtenerDocumentosQuery(null, null, termino, TamanoPagina: TodoElTenant,
+                        OrdenarPor: ObtenerDocumentosQuery.OrdenPorSeveridad));
+                    if (!porSeveridad.Elementos.Select(d => d.Id).SequenceEqual(universoPorSeveridad.Where(Casa).Select(d => d.Id)))
+                        fallos.Add($"{caso}: el orden por severidad no es el de la forma anterior");
+                    comparaciones++;
+                }
+                return 0;
+            });
+        }
+
+        salida.WriteLine($"{comparaciones} comparaciones; ramas con coincidencias: {string.Join(", ", ramasConCoincidencias.Order())}");
+        // Control positivo: cada rama que la siembra tiene se ha buscado con un texto que casa en ella (vacío ≠ igual).
+        ramasPresentes.Should().Contain([AmbitoAplicacion.Trabajador, AmbitoAplicacion.Empresa], "la siembra del piloto tiene Documentos de Trabajador y de Empresa");
+        ramasConCoincidencias.Should().BeEquivalentTo(ramasPresentes, "cada rama presente se busca con un texto que casa en ella");
+        fallos.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Buscar solo estrecha lo que el usuario ya ve. En el contexto delegado del Operador CAE externo sobre cada
+    /// Tenant beneficiario, el Gestor CAE con ese Tenant en su Asignación de Cartera encuentra Documentos propios
+    /// (control positivo) y ninguno del otro Operador CAE externo, aunque sus titulares se llamen igual; y el Gestor
+    /// CAE que no lo lleva en su cartera no encuentra nada que no vea ya sin buscar.
+    /// </summary>
+    [Fact]
+    public async Task La_busqueda_de_Documentos_no_sale_de_la_cartera_ni_del_Operador_CAE_externo()
+    {
+        var fallos = new List<string>();
+        foreach (var nombre in fixture.Piloto.Tenants.Keys.Order(StringComparer.Ordinal))
+        {
+            foreach (var lado in new[] { fixture.Piloto, fixture.Otro })
+            {
+                var otro = fixture.ElOtro(lado);
+                var conCartera = lado.CorreoGestorDe(nombre);
+                var sinCartera = conCartera == lado.CorreoGestoraPrimera
+                    ? lado.PrefijoCorreo + CuentasPilotoOutbound.Locales.GestorSegundo
+                    : lado.CorreoGestoraPrimera;
+
+                var (universo, termino, encontrados) = await LeerConBusquedaAsync(lado, nombre, conCartera, null);
+                if (termino is null)
+                    continue;
+                if (encontrados.Count == 0)
+                    fallos.Add($"{lado.Rotulo}, {nombre}: «{termino}» no encuentra ningún Documento propio (control positivo)");
+                if (!encontrados.IsSubsetOf(universo))
+                    fallos.Add($"{lado.Rotulo}, {nombre}: «{termino}» devuelve Documentos que el Gestor CAE de la cartera no ve sin buscar");
+                if (encontrados.Overlaps(otro.Ids))
+                    fallos.Add($"{lado.Rotulo}→{otro.Rotulo}, {nombre}: «{termino}» devuelve Documentos del otro Operador CAE externo");
+
+                var (universoAjeno, _, encontradosAjeno) = await LeerConBusquedaAsync(lado, nombre, sinCartera, termino);
+                if (!encontradosAjeno.IsSubsetOf(universoAjeno))
+                    fallos.Add($"{lado.Rotulo}, {nombre}: «{termino}» enseña al Gestor CAE sin el Tenant en su cartera Documentos que no ve sin buscar");
+                if (encontradosAjeno.Overlaps(otro.Ids))
+                    fallos.Add($"{lado.Rotulo}→{otro.Rotulo}, {nombre}: «{termino}» enseña al Gestor CAE sin cartera Documentos del otro Operador CAE externo");
+                salida.WriteLine($"{lado.Rotulo}, {nombre}, «{termino}»: {encontrados.Count} de {universo.Count} con cartera; {encontradosAjeno.Count} de {universoAjeno.Count} sin ella");
+            }
+        }
+
+        fallos.Should().BeEmpty();
+    }
+
+    private const int TodoElTenant = 100_000;
+
+    /// <summary>Universo sin buscar y resultado de buscar, como <paramref name="correo"/> en el ámbito del Tenant. Negar por autorización cuenta como «no ve nada».</summary>
+    private Task<(HashSet<Guid> Universo, string? Termino, HashSet<Guid> Encontrados)> LeerConBusquedaAsync(
+        LadoOperadorCae lado, string nombreTenant, string correo, string? termino) =>
+        fixture.Arnes.ComoCuentaAsync(lado.NombreTenantOperador, correo, async sp =>
+        {
+            using (AmbitoTenantExplicito.Establecer(lado.Tenants[nombreTenant]))
+            {
+                var sender = sp.GetRequiredService<ISender>();
+                try
+                {
+                    var universo = (await sender.Send(new ObtenerDocumentosQuery(null, null, null, TamanoPagina: TodoElTenant))).Elementos;
+                    termino ??= universo.Where(d => d.Ambito == AmbitoAplicacion.Trabajador).OrderBy(d => d.Id)
+                        .Select(d => PalabraMasLarga(d.PropietarioNombre)).FirstOrDefault();
+                    if (termino is null)
+                        return (universo.Select(d => d.Id).ToHashSet(), (string?)null, new HashSet<Guid>());
+                    var encontrados = (await sender.Send(new ObtenerDocumentosQuery(null, null, termino, TamanoPagina: TodoElTenant))).Elementos;
+                    return (universo.Select(d => d.Id).ToHashSet(), termino, encontrados.Select(d => d.Id).ToHashSet());
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return (new HashSet<Guid>(), termino, new HashSet<Guid>());
+                }
+            }
+        });
+
+    /// <summary>Textos de búsqueda sacados de los datos: uno por rama (por titular), uno que cruza el primer espacio del titular, uno por Tipo y unos fijos.</summary>
+    private static IEnumerable<(string Rotulo, string Termino)> TerminosDeBusqueda(IReadOnlyList<DocumentoListaDto> universo)
+    {
+        foreach (var rama in universo.GroupBy(d => d.Ambito).OrderBy(g => g.Key))
+        {
+            var titular = rama.OrderBy(d => d.Id).First().PropietarioNombre;
+            yield return ($"titular de {rama.Key}", PalabraMasLarga(titular));
+            var espacio = titular.IndexOf(' ', StringComparison.Ordinal);
+            if (espacio >= 2 && espacio + 3 <= titular.Length)
+                yield return ($"titular de {rama.Key} a los dos lados del espacio", titular[(espacio - 2)..(espacio + 3)].ToLowerInvariant());
+        }
+        if (universo.Count > 0)
+            yield return ("Tipo de documento", PalabraMasLarga(universo.OrderBy(d => d.Id).First().TipoDocumentoNombre));
+        yield return ("fijo", "ser");
+        yield return ("fijo", "formacion");
+        yield return ("fijo, sin coincidencias", "zzqxw");
+        yield return ("fijo, comodín de LIKE", "%");
+    }
+
+    /// <summary>La palabra más larga del texto, sin acentos y en minúsculas: casa con él sin acentos ni mayúsculas.</summary>
+    private static string PalabraMasLarga(string texto) =>
+        TextoDeBusqueda.Normalizar(texto).Split([' ', '(', ')', ',', '.', '-'], StringSplitOptions.RemoveEmptyEntries)
+            .OrderByDescending(p => p.Length).ThenBy(p => p, StringComparer.Ordinal)
+            .DefaultIfEmpty(TextoDeBusqueda.Normalizar(texto)).First().ToLowerInvariant();
 
     [Fact]
     public async Task Desde_cada_Tenant_de_un_Operador_CAE_externo_ninguna_pantalla_devuelve_filas_ni_recuentos_del_otro_en_los_dos_sentidos()
