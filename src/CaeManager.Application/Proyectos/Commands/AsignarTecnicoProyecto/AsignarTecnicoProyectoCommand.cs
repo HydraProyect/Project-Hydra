@@ -31,6 +31,9 @@ public class AsignarTecnicoProyectoCommandHandler(
         if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
 
+        if (!proyecto.EstaAbierto)
+            return Result.Fallo<Guid>(Error.Crear("Proyecto.YaCerrado", "Este proyecto ya está cerrado."));
+
         // Auditoría Módulo 5, hallazgo crítico 6/9 (extendido a Proyecto): la
         // existencia del trabajador no basta — tiene que estar bajo la
         // autoridad del actor, o un técnico ajeno a la cartera queda
