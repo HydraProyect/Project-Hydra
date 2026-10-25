@@ -1,0 +1,199 @@
+name: Vigilancia de avisos explotados y críticos
+
+# Capa B de la vigilancia de vulnerabilidades, cada 6 h: cruza el catálogo CISA KEV
+# (vulnerabilidades que se están explotando) y los avisos de OSV (que recoge los de
+# GitHub, GHSA, y los de los ecosistemas) con el inventario versionado de
+# .github/vigilancia/inventario.json: .NET, PostgreSQL, Caddy, Seq, OpenSSL, OpenSSH,
+# LibreOffice, curl, kernel, Python, Borg, Docker, Ubuntu 24.04 y sudo del VPS.
+#
+# Qué cubre que no cubre la capa A (vigilancia-imagenes.yml, Trivy con
+# --ignore-unfixed): lo que aún NO tiene parche, y lo que corre en el VPS fuera de
+# las imágenes. Por eso alerta aunque no haya versión corregida.
+#
+#   - KEV: entradas añadidas en los últimos `ventanaKevDias` días (inventario) cuyo
+#     fabricante y producto casan con un componente. El cruce no mira versiones (KEV
+#     no las trae): la issue pide el triaje. Una alerta KEV es un suceso, no un
+#     estado: no se cierra ni se reabre sola; se cierra a mano tras el triaje.
+#   - OSV: para cada componente con versión fijada en el repositorio (leída del
+#     Dockerfile o del compose, no copiada en el inventario), los avisos que afectan
+#     a esa versión con severidad CRITICAL. Se cierran solos cuando dejan de afectar
+#     (tras una consulta completa); cerrados a mano como «no planificados», no se
+#     reabren.
+#
+# Alarma: issues con la etiqueta `Seguridad: alerta` y un marcador por aviso
+# (`vigilancia:kev:<CVE>`, `vigilancia:osv:<id>`), con la misma conciliación que la
+# capa A (.github/vigilancia/alertas.js). Lógica del cruce en avisos.js; pruebas en
+# *.test.js, que corre ci.yml.
+#
+# Un fallo de la fuente no es «sin avisos»: catálogo KEV que no se descarga o con
+# menos de 1000 entradas, una consulta a OSV fallida, o una versión que el inventario
+# ya no encuentra en su fichero, dejan el job en rojo y no se cierra nada de esa
+# capa.
+#
+# Seguridad: permisos mínimos (contents: read, issues: write); acciones fijadas por
+# SHA; solo se descargan datos (JSON) de las URL fijas de CISA y OSV, que se tratan
+# como datos de terceros y se escapan antes de ir a una issue.
+#
+# `schedule` solo corre desde la rama por defecto; a mano:
+#   gh workflow run vigilancia-avisos.yml            (-f simular=true: solo informa)
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Solo informar en el resumen: no crea, cambia ni cierra issues"
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: vigilancia-avisos
+  cancel-in-progress: false
+
+jobs:
+  cruzar:
+    name: Cruzar KEV y OSV con el inventario
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Cruzar y conciliar las issues de alerta
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          SIMULAR: ${{ inputs.simular }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const raiz = process.env.GITHUB_WORKSPACE;
+            const v = require(path.join(raiz, '.github/vigilancia/alertas.js'));
+            const a = require(path.join(raiz, '.github/vigilancia/avisos.js'));
+            const { owner, repo } = context.repo;
+            const simular = String(process.env.SIMULAR).toLowerCase() === 'true';
+            const URL_KEV = 'https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json';
+            const URL_OSV = 'https://api.osv.dev/v1/query';
+            const MAX_NUEVAS = 20;
+            const fallos = [];
+
+            const pedir = async (url, opciones = {}) => {
+              let ultimo;
+              for (let intento = 1; intento <= 3; intento++) {
+                try {
+                  const r = await fetch(url, { ...opciones, signal: AbortSignal.timeout(60000) });
+                  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                  return await r.json();
+                } catch (e) {
+                  ultimo = e;
+                  core.warning(`Intento ${intento} contra ${url}: ${e.message}`);
+                  if (intento < 3) await new Promise((res) => setTimeout(res, intento * 20000));
+                }
+              }
+              throw ultimo;
+            };
+
+            const inventario = JSON.parse(fs.readFileSync(path.join(raiz, '.github/vigilancia/inventario.json'), 'utf8'));
+            const componentes = a.resolverVersiones(inventario, (f) => fs.readFileSync(path.join(raiz, f), 'utf8'));
+            const ventana = Number(inventario.ventanaKevDias);
+            if (!Number.isInteger(ventana) || ventana < 1 || ventana > 365) {
+              core.setFailed('ventanaKevDias del inventario debe ser un entero entre 1 y 365.');
+              return;
+            }
+
+            // KEV
+            let alertasKev = null;
+            try {
+              const catalogo = a.validarKev(await pedir(URL_KEV));
+              alertasKev = a.cruzarKev(catalogo, componentes, Date.now(), ventana).map(a.alertaKev);
+            } catch (e) {
+              fallos.push(`Catálogo KEV: ${e.message}`);
+            }
+
+            // OSV, con paginación (next_page_token)
+            let alertasOsv = null;
+            try {
+              const respuestas = [];
+              for (const componente of componentes) {
+                for (const paquete of componente.osv) {
+                  const vulns = [];
+                  let token;
+                  do {
+                    const cuerpo = { package: paquete, version: componente.version, ...(token ? { page_token: token } : {}) };
+                    const r = await pedir(URL_OSV, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(cuerpo) });
+                    vulns.push(...(r.vulns || []));
+                    token = r.next_page_token;
+                  } while (token);
+                  respuestas.push({ componente, paquete, vulns });
+                }
+              }
+              if (respuestas.length === 0) throw new Error('el inventario no tiene ningún paquete OSV que consultar');
+              alertasOsv = a.cruzarOsv(respuestas).map(a.alertaOsv);
+            } catch (e) {
+              fallos.push(`OSV: ${e.message}`);
+            }
+
+            const existentes = await v.listarExistentes({ github, owner, repo });
+            const fecha = new Date().toISOString().slice(0, 10);
+            const errores = [];
+            const resumen = [];
+            const capas = [
+              { capa: 'kev', alertas: alertasKev, completo: false, reabrirCerradas: false },
+              { capa: 'osv', alertas: alertasOsv, completo: true, reabrirCerradas: true },
+            ];
+            for (const c of capas) {
+              if (c.alertas === null) {
+                resumen.push([c.capa, 'sin consultar (fallo de la fuente)', '-', '-', '-']);
+                continue;
+              }
+              const plan = v.planificar({
+                capa: c.capa,
+                existentes,
+                alertas: c.alertas,
+                completo: c.completo,
+                maxNuevas: MAX_NUEVAS,
+                reabrirCerradas: c.reabrirCerradas,
+              });
+              errores.push(
+                ...(await v.aplicar({
+                  github,
+                  owner,
+                  repo,
+                  plan,
+                  simular,
+                  motivoCierre: `La consulta completa a OSV del ${fecha} ya no lo encuentra en las versiones del inventario: se cierra.`,
+                })),
+              );
+              resumen.push([
+                c.capa,
+                String(c.alertas.length),
+                String(plan.crear.length),
+                String(plan.actualizar.length + plan.reabrir.length),
+                String(plan.cerrar.length),
+              ]);
+              if (plan.aplazadas.length > 0) core.warning(`${c.capa}: ${plan.aplazadas.length} alertas aplazadas por el tope de ${MAX_NUEVAS}.`);
+            }
+
+            core.summary
+              .addHeading('Vigilancia de avisos explotados y críticos', 2)
+              .addRaw(
+                `Componentes: ${componentes.length} (${componentes.filter((c) => c.version).map((c) => `${v.escaparCelda(c.id)} ${v.escaparCelda(c.version)}`).join(', ')}). ` +
+                  `Ventana KEV: ${ventana} días.${simular ? ' Modo simular: no se ha cambiado nada.' : ''}`,
+                true,
+              )
+              .addTable([
+                ['Capa', 'Alertas', 'Nuevas', 'Actualizadas o reabiertas', 'Cerradas'].map((data) => ({ data, header: true })),
+                ...resumen,
+              ]);
+            await core.summary.write();
+
+            for (const mensaje of errores) core.error(mensaje);
+            if (fallos.length > 0) core.setFailed(`Fuente sin consultar: ${fallos.join(' · ')}. El resultado no es «sin avisos».`);
+            else if (errores.length > 0) core.setFailed(`${errores.length} operación(es) sobre issues fallaron.`);

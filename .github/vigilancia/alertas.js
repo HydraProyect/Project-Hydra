@@ -205,7 +205,9 @@ function alertaDeImagenes(cve) {
 
 // Plan puro: qué crear, actualizar, reabrir y cerrar. `existentes` son issues con la
 // etiqueta (abiertas y cerradas): { number, state, title, body }.
-function planificar({ capa, existentes, alertas, completo, maxNuevas }) {
+// reabrirCerradas=false (capa KEV): una alerta que es un suceso y no un estado no se
+// reabre nunca; la cerrada tras el triaje se queda cerrada.
+function planificar({ capa, existentes, alertas, completo, maxNuevas, reabrirCerradas = true }) {
   validarCapa(capa);
   const porClave = new Map();
   for (const issue of existentes) {
@@ -234,7 +236,7 @@ function planificar({ capa, existentes, alertas, completo, maxNuevas }) {
     } else if (cerradas.length > 0) {
       // Cerrada a mano como «no planificada» (riesgo aceptado): no se reabre cada día.
       // Las que cierra el propio workflow van como «completada» y sí se reabren si vuelven.
-      if (cerradas[0].state_reason === 'not_planned') plan.silenciadas.push({ number: cerradas[0].number, clave });
+      if (!reabrirCerradas || cerradas[0].state_reason === 'not_planned') plan.silenciadas.push({ number: cerradas[0].number, clave });
       else plan.reabrir.push({ number: cerradas[0].number, alerta });
     } else if (plan.crear.length < maxNuevas) {
       plan.crear.push({ alerta });
