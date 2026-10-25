@@ -3,31 +3,8 @@ using System.Text.RegularExpressions;
 namespace CaeManager.E2ETests.Rendimiento;
 
 /// <summary>
-/// Fixture con el log de comandos de EF Core encendido. El servidor de los E2E
-/// es un proceso aparte (ver <see cref="WebAppFixture"/>): un interceptor o un
-/// contador en memoria del test no lo ve. Lo único que cruza esa frontera es
-/// lo que el propio servidor escribe, y con
-/// <c>Microsoft.EntityFrameworkCore.Database.Command</c> en Information
-/// escribe una entrada «Executed DbCommand» por cada comando SQL que ejecuta
-/// (en producción el override está en Warning, ver appsettings.json: solo
-/// esta fixture lo sube). Colección propia: subir el nivel llena el log y no
-/// tiene por qué pagarlo el resto de la suite.
-/// </summary>
-public sealed class WebAppFixtureConConsultasSql : WebAppFixture
-{
-    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
-        new Dictionary<string, string>
-        {
-            ["Serilog__MinimumLevel__Override__Microsoft.EntityFrameworkCore.Database.Command"] = "Information",
-        };
-}
-
-[CollectionDefinition("AppCollectionConsultasSql")]
-public class AppCollectionConsultasSql : ICollectionFixture<WebAppFixtureConConsultasSql>;
-
-/// <summary>
 /// Cuenta los comandos SQL que el servidor ejecutó entre dos instantes, leyendo
-/// el fichero de log de SU fixture (<see cref="WebAppFixture.PatronFicheroLog"/>,
+/// los ficheros de log de su fixture (patrón exclusivo,
 /// un fichero por fixture desde REC-216).
 ///
 /// <para>
@@ -42,12 +19,12 @@ public class AppCollectionConsultasSql : ICollectionFixture<WebAppFixtureConCons
 /// </para>
 ///
 /// <para>
-/// <b>Límite conocido.</b> Lee el fichero fijado en la marca: una medición
-/// que cruce la medianoche (rotación diaria de Serilog) lanza en vez de
-/// devolver un recuento incompleto, que pasaría el «≤ prerender» por defecto.
+/// Lee desde la marca y continúa por los ficheros posteriores en el orden
+/// de nombres diarios de Serilog. Una pérdida, truncado o nueva rotación
+/// durante la lectura lanza para no devolver un recuento incompleto.
 /// </para>
 /// </summary>
-public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
+public sealed partial class MedidorConsultasSql(string directorioLogs, string patronFicheroLog)
 {
     private const string MarcaDeComando = "Executed DbCommand";
 
@@ -74,15 +51,15 @@ public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
     public async Task EsperarSilencioAsync(TimeSpan silencio, TimeSpan presupuesto)
     {
         var limite = DateTime.UtcNow + presupuesto;
-        var ultimo = -1L;
+        var ultimo = (Fichero: (string?)null, Tamano: -1L);
         var desde = DateTime.UtcNow;
         while (DateTime.UtcNow < limite)
         {
             var fichero = FicheroVigente();
             var tamano = fichero is null ? 0 : new FileInfo(fichero).Length;
-            if (tamano != ultimo)
+            if ((fichero, tamano) != ultimo)
             {
-                ultimo = tamano;
+                ultimo = (fichero, tamano);
                 desde = DateTime.UtcNow;
             }
             else if (DateTime.UtcNow - desde >= silencio)
@@ -99,32 +76,29 @@ public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
 
     public IReadOnlyList<ComandoSql> ComandosDesde(Marca marca)
     {
-        var fichero = marca.Fichero ?? FicheroVigente();
-        if (fichero is null)
-            return [];
+        var ficheros = FicherosOrdenados();
+        var inicio = marca.Fichero is null ? 0 : Array.FindIndex(ficheros,
+            f => string.Equals(f, marca.Fichero, StringComparison.OrdinalIgnoreCase));
+        if (inicio < 0)
+            throw new InvalidOperationException("El fichero de la marca desapareció: el recuento estaría incompleto.");
 
-        // Si el log rotó desde la marca, lo escrito después vive en otro
-        // fichero y este recuento saldría bajo: eso daría verde por defecto.
-        // Se para en vez de medir a medias.
-        var vigente = FicheroVigente();
-        if (marca.Fichero is not null && vigente is not null
-            && !string.Equals(vigente, marca.Fichero, StringComparison.OrdinalIgnoreCase))
+        var texto = new System.Text.StringBuilder();
+        for (var i = inicio; i < ficheros.Length; i++)
         {
-            throw new InvalidOperationException(
-                $"El log rotó durante la medición ({Path.GetFileName(marca.Fichero)} → {Path.GetFileName(vigente)}): " +
-                "el recuento estaría incompleto. Repite la medición.");
-        }
-
-        string texto;
-        using (var flujo = new FileStream(fichero, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
-        {
-            flujo.Seek(marca.Desplazamiento, SeekOrigin.Begin);
+            using var flujo = new FileStream(ficheros[i], FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            var desplazamiento = i == inicio ? marca.Desplazamiento : 0;
+            if (flujo.Length < desplazamiento)
+                throw new InvalidOperationException("El log se truncó desde la marca: el recuento estaría incompleto.");
+            flujo.Seek(desplazamiento, SeekOrigin.Begin);
             using var lector = new StreamReader(flujo);
-            texto = lector.ReadToEnd();
+            texto.AppendLine(lector.ReadToEnd());
         }
+
+        if (!ficheros.SequenceEqual(FicherosOrdenados(), StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("Los ficheros de log cambiaron durante la lectura: repite la medición.");
 
         var comandos = new List<ComandoSql>();
-        foreach (var entrada in EntradasDeLog(texto))
+        foreach (var entrada in EntradasDeLog(texto.ToString()))
         {
             var lineas = entrada.Split('\n');
             if (!lineas[0].Contains(MarcaDeComando, StringComparison.Ordinal))
@@ -145,15 +119,11 @@ public sealed partial class MedidorConsultasSql(WebAppFixture fixture)
     public static int Contar(IEnumerable<ComandoSql> comandos, string fragmentoSql) =>
         comandos.Count(c => !c.EsAjustePorTenant && c.Sql.Contains(fragmentoSql, StringComparison.Ordinal));
 
-    private string? FicheroVigente()
-    {
-        if (!Directory.Exists(fixture.DirectorioLogs))
-            return null;
+    private string? FicheroVigente() => FicherosOrdenados().LastOrDefault();
 
-        return Directory.GetFiles(fixture.DirectorioLogs, fixture.PatronFicheroLog)
-            .OrderByDescending(File.GetLastWriteTimeUtc)
-            .FirstOrDefault();
-    }
+    private string[] FicherosOrdenados() => Directory.Exists(directorioLogs)
+        ? Directory.GetFiles(directorioLogs, patronFicheroLog).Order(StringComparer.Ordinal).ToArray()
+        : [];
 
     // Serilog escribe cada evento empezando por «2026-09-20 12:34:56.789 +02:00 [INF]».
     // Las líneas de SQL que siguen no empiezan así.

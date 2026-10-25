@@ -88,18 +88,15 @@ public class ProcesadorAnalisisDocumentoHostedServiceAislamientoTests : IAsyncLi
         await hostedService.StartAsync(cts.Token);
         try
         {
-            // El primer tick de ExecuteAsync corre de inmediato (el do-while
-            // ejecuta el cuerpo antes de esperar al PeriodicTimer de 5 s), así
-            // que no hace falta esperar ningún intervalo real. Se sondea hasta
-            // que el tenant sano acumule una llamada a
-            // ObtenerSiguientePendienteAsync (MedirProfundidadColaAsync, que
-            // corre antes de procesar, sigue usando la lectura de solo
-            // observación) y una a ReclamarSiguientePendienteAsync (el reclamo
-            // atómico del bucle de ProcesarPendientesDelTenantAsync) — la
-            // prueba de que AMBOS bucles lo alcanzaron en el mismo tick que el
-            // tenant que falla.
+            // Esperar todos los efectos de ambos tenants: el orden de la consulta
+            // no garantiza que el tenant que falla se visite antes que el sano.
+            // El presupuesto limita la espera; las aserciones conservan el diagnóstico.
             var limite = DateTime.UtcNow.AddSeconds(10);
-            while ((repositorio.LlamadasObtener(tenantSano.Id) < 1 || repositorio.LlamadasReclamar(tenantSano.Id) < 1)
+            while ((repositorio.LlamadasContarActivos(tenantQueFalla.Id) < 1
+                    || repositorio.LlamadasReclamar(tenantQueFalla.Id) < 1
+                    || repositorio.LlamadasContarActivos(tenantSano.Id) < 1
+                    || repositorio.LlamadasObtener(tenantSano.Id) < 1
+                    || repositorio.LlamadasReclamar(tenantSano.Id) < 1)
                    && DateTime.UtcNow < limite)
                 await Task.Delay(50);
         }
