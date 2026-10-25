@@ -190,6 +190,90 @@ public class RestauracionCambiosDeComandoTests
         primera.Nombre.Should().Be("Cambio de consulta conservado");
     }
 
+    [Fact]
+    public async Task Un_hijo_anadido_a_la_coleccion_por_un_comando_fallido_no_se_guarda_despues()
+    {
+        await using var contexto = await CrearContexto();
+        var padre = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1);
+        var segunda = (await contexto.Filas.FindAsync(2))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        await behavior.Handle(new Comando(), ct =>
+        {
+            padre.Hijos.Add(new Hijo { Id = 11, Nombre = "Alta rechazada" });
+            return Task.FromResult(Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado")));
+        }, default);
+
+        segunda.Nombre = "Edición aceptada";
+        await contexto.SaveChangesAsync();
+
+        (await contexto.Hijos.AsNoTracking().Select(h => h.Id).ToListAsync()).Should().BeEquivalentTo([10]);
+    }
+
+    [Fact]
+    public async Task Un_hijo_quitado_de_la_coleccion_por_un_comando_fallido_no_se_borra_despues()
+    {
+        await using var contexto = await CrearContexto();
+        var padre = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1);
+        var segunda = (await contexto.Filas.FindAsync(2))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        await behavior.Handle(new Comando(), ct =>
+        {
+            padre.Hijos.Clear();
+            return Task.FromResult(Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado")));
+        }, default);
+
+        segunda.Nombre = "Edición aceptada";
+        await contexto.SaveChangesAsync();
+
+        (await contexto.Hijos.AsNoTracking().Select(h => h.Id).ToListAsync()).Should().BeEquivalentTo([10]);
+    }
+
+    [Fact]
+    public async Task No_vuelve_a_rastrear_lo_que_el_comando_desacoplo_tras_un_guardado_deshecho()
+    {
+        // Patrón de TransaccionDeComando: el comando guarda dentro de la transacción, falla, la
+        // transacción se deshace y el contexto se vacía. La instantánea posterior al guardado no
+        // debe devolver al rastreo un alta que la base ya no tiene.
+        await using var contexto = await CrearContexto();
+        var primera = (await contexto.Filas.FindAsync(1))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        var alta = new Fila { Id = 5, Nombre = "Alta deshecha" };
+        await behavior.Handle(new Comando(), async ct =>
+        {
+            await using var transaccion = await contexto.Database.BeginTransactionAsync(ct);
+            contexto.Add(alta);
+            primera.Nombre = "Edición deshecha";
+            await contexto.SaveChangesAsync(ct);
+            await transaccion.RollbackAsync(ct);
+            contexto.ChangeTracker.Clear();
+            return Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado"));
+        }, default);
+
+        contexto.Entry(alta).State.Should().Be(EntityState.Detached);
+        contexto.Entry(primera).State.Should().Be(EntityState.Detached);
+        contexto.ChangeTracker.Entries().Should().BeEmpty();
+        (await contexto.Filas.FindAsync(1))!.Nombre.Should().Be("Primera");
+    }
+
+    [Fact]
+    public async Task No_vuelve_a_rastrear_el_lote_que_descarto_un_guardado_rechazado()
+    {
+        // Patrón de DescartarLoteFallido (#1667): tras el rechazo se desacopla lo pendiente para que
+        // el siguiente comando relea la fila; la restauración no debe devolverla al rastreo.
+        await using var contexto = await CrearContexto();
+        var primera = (await contexto.Filas.FindAsync(1))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        await behavior.Handle(new Comando(), ct =>
+        {
+            primera.Nombre = "Edición en conflicto";
+            ConcurrenciaContexto.DescartarLoteFallido(contexto);
+            return Task.FromResult(Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado")));
+        }, default);
+
+        contexto.Entry(primera).State.Should().Be(EntityState.Detached);
+        (await contexto.Filas.FindAsync(1)).Should().NotBeSameAs(primera);
+    }
+
     private static async Task<ContextoPrueba> CrearContexto()
     {
         var conexion = new SqliteConnection("Data Source=:memory:");
@@ -198,7 +282,9 @@ public class RestauracionCambiosDeComandoTests
             .UseSqlite(conexion, contextOwnsConnection: true).Options);
         await contexto.Database.EnsureCreatedAsync();
         contexto.AddRange(new Fila { Id = 1, Nombre = "Primera" }, new Fila { Id = 2, Nombre = "Segunda" });
+        contexto.Add(new Padre { Id = 1, Hijos = { new Hijo { Id = 10, Nombre = "Hijo previo" } } });
         await contexto.SaveChangesAsync();
+        contexto.ChangeTracker.Clear();
         return contexto;
     }
 
@@ -211,10 +297,25 @@ public class RestauracionCambiosDeComandoTests
         public string Nombre { get; set; } = "";
     }
 
+    private sealed class Padre
+    {
+        public int Id { get; set; }
+        public List<Hijo> Hijos { get; } = [];
+    }
+
+    private sealed class Hijo
+    {
+        public int Id { get; set; }
+        public int PadreId { get; set; }
+        public string Nombre { get; set; } = "";
+    }
+
     private sealed class ContextoPrueba(DbContextOptions<ContextoPrueba> options)
         : DbContext(options), IRestauracionCambiosDeComando, IUnitOfWork
     {
         public DbSet<Fila> Filas => Set<Fila>();
+        public DbSet<Padre> Padres => Set<Padre>();
+        public DbSet<Hijo> Hijos => Set<Hijo>();
         public int Capturas { get; private set; }
         public IInstantaneaCambiosDeComando CapturarRestauracion()
         {

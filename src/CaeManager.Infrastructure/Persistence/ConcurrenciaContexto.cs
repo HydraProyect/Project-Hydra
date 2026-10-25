@@ -59,9 +59,16 @@ public static class ConcurrenciaContexto
                     entrada.State = EntityState.Unchanged;
                 }
 
-                foreach (var inicial in iniciales.Values)
+                // Lo que el comando o su pipeline desacoplaron (DescartarLoteFallido, el Clear de
+                // TransaccionDeComando tras deshacer la transacción, un descarte explícito) se queda
+                // fuera: volver a rastrearlo reintroduciría un lote que la base rechazó o filas de una
+                // transacción deshecha, y podría chocar con otra instancia de la misma clave. Perder
+                // así un cambio pendiente previo nunca escribe nada que nadie pidiera.
+                var actuales = entradas.ToDictionary(e => e.Entity, ReferenceEqualityComparer.Instance);
+                foreach (var (entidad, inicial) in iniciales)
                 {
-                    var entrada = inicial.Entrada;
+                    if (!actuales.TryGetValue(entidad, out var entrada))
+                        continue;
                     entrada.State = inicial.Estado;
                     entrada.OriginalValues.SetValues(inicial.Originales);
                     entrada.CurrentValues.SetValues(inicial.Actuales);
