@@ -128,6 +128,9 @@ public class AsistenteIaAgenteTests : BunitContext
             panel.Find("textarea.asistente-textarea").HasAttribute("disabled").Should().BeTrue();
             panel.Find("button.asistente-boton-enviar").HasAttribute("disabled").Should().BeTrue();
             panel.FindAll("[role=note]").Should().Contain(n => n.TextContent == mensaje);
+            var ejemplos = panel.FindAll("button.vega-ejemplo");
+            ejemplos.Should().NotBeEmpty().And.OnlyContain(e => e.HasAttribute("disabled"));
+            ejemplos.First().Click();
             Enviar(panel, "Pregunta de prueba");
             panel.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
             _mediador.De<PreguntarAlAsistenteQuery>().Should().BeEmpty();
