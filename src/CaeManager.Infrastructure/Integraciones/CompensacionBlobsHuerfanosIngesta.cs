@@ -18,7 +18,7 @@ namespace CaeManager.Infrastructure.Integraciones;
 internal static class CompensacionBlobsHuerfanosIngesta
 {
     public static async Task EliminarSiOrfanosAsync(
-        IReadOnlyList<string> archivosGuardados, IFileStorageService almacenamiento, ILogger logger)
+        Guid eventoId, IReadOnlyList<string> archivosGuardados, IFileStorageService almacenamiento, ILogger logger)
     {
         foreach (var archivoUrl in archivosGuardados)
         {
@@ -28,8 +28,10 @@ internal static class CompensacionBlobsHuerfanosIngesta
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex,
-                    "No se pudo eliminar el blob huérfano {ArchivoUrl} tras un fallo de guardado en la ingesta de webhook.", archivoUrl);
+                // Sin la clave del fichero ni el mensaje de la excepción (suele repetirla): Id del evento y tipo.
+                logger.LogWarning(
+                    "No se pudo eliminar un blob huérfano tras un fallo de guardado en la ingesta del evento de webhook {EventoWebhookId} ({TipoExcepcion}).",
+                    eventoId, ex.GetType().Name);
             }
         }
     }

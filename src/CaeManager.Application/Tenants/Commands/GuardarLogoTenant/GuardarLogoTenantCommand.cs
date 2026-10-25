@@ -122,7 +122,8 @@ public class GuardarLogoTenantCommandHandler(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "No se pudo borrar el blob {Archivo} del logo del Tenant {TenantId}.", clave, tenantId);
+            // Sin la clave del fichero ni el mensaje de la excepción (suele repetirla): Id y tipo.
+            logger.LogError("No se pudo borrar el blob del logo del Tenant {TenantId} ({TipoExcepcion}).", tenantId, ex.GetType().Name);
         }
     }
 }
