@@ -100,14 +100,16 @@ public class ExtensionAcreditacionesTests
     [Fact]
     public async Task Los_proveedores_con_dominios_solapados_viajan_con_su_nombre_aunque_no_tengan_documentos()
     {
-        // Dominios reales del catálogo (ProveedorPlataformaCaeSeedData): Twind posee app.twind.io y ctaima.com;
-        // CTAIMACAE (legacy) ctaimacae.net; Sabentis y Quirón Prevención comparten quironprevencion.com.
+        // Mezcla de dominios de la siembra (ProveedorPlataformaCaeSeedData) y un caso sintético. Reales de la
+        // siembra: Twind con app.twind.io, CTAIMACAE (legacy) con ctaimacae.net, y Sabentis y Quirón Prevención
+        // comparten quironprevencion.com. Sintético: en la siembra ctaima.com es solo de Twind; aquí se le da
+        // además a un Proveedor «CTAIMA» (hipotético) para ejercitar el solape que el piloto podría dar de alta.
         var documentos = new DocumentosQueryContextFalso();
         var centros = new CentrosQueryContextFalso();
         var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
         var tipos = new TiposDocumentoQueryContextFalso();
         var twind = new ProveedorPlataformaCae("twind", "Twind");
-        var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");   // segundo dueño de ctaima.com en el piloto
+        var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");   // sintético: no existe en la siembra
         var legacy = new ProveedorPlataformaCae("ctaimacae-legacy", "CTAIMACAE (legacy)");
         var sabentis = new ProveedorPlataformaCae("sabentis", "Sabentis");
         var quiron = new ProveedorPlataformaCae("quiron-prevencion", "Quirón Prevención");
@@ -145,6 +147,16 @@ public class ExtensionAcreditacionesTests
             .Should().BeEquivalentTo(["Quirón Prevención"]);
         resultado.Single(p => p.ProveedorCodigo == "ctaimacae-legacy").ProveedoresSolapados
             .Should().BeEmpty("ctaimacae.net no se solapa con ctaima.com: son dominios distintos, no subdominios");
+
+        // La forma que lee la extensión (content.js y background.js): proveedoresSolapados[] con
+        // proveedorPlataformaCaeId, nombre y dominios. Renombrar una propiedad rompería el desempate en silencio.
+        var json = JsonSerializer.SerializeToElement(
+            resultado.Single(p => p.ProveedorCodigo == "sabentis"), new JsonSerializerOptions(JsonSerializerDefaults.Web));
+        var solapado = json.GetProperty("proveedoresSolapados").EnumerateArray().Single();
+        solapado.GetProperty("proveedorPlataformaCaeId").GetGuid().Should().Be(quiron.Id);
+        solapado.GetProperty("nombre").GetString().Should().Be("Quirón Prevención");
+        solapado.GetProperty("dominios").EnumerateArray().Select(d => d.GetString())
+            .Should().BeEquivalentTo(["quironprevencion.com"]);
     }
 
     [Fact]

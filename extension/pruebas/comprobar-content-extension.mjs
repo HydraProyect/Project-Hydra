@@ -649,10 +649,10 @@ let campoPrincipal;
     textos.includes("Trabajador inventado — Certificado Dokify"), JSON.stringify(textos));
 
   // --- Dominios compartidos: gana el más largo y, con empate, se pregunta ---------------------------
-  // Dominios reales del catálogo de Proveedores (ProveedorPlataformaCaeSeedData): Twind posee
-  // app.twind.io y ctaima.com; Sabentis y Quirón Prevención comparten quironprevencion.com a propósito.
-  // «CTAIMA» (también dueño de ctaima.com) es el segundo Proveedor que el piloto puede tener sobre el
-  // mismo dominio: no está sembrado hoy, pero la regla tiene que cubrirlo.
+  // Sembrados (ProveedorPlataformaCaeSeedData): Twind posee app.twind.io y ctaima.com; Sabentis y Quirón
+  // Prevención comparten quironprevencion.com a propósito (el único empate real de hoy).
+  // «CTAIMA» (también dueño de ctaima.com) es sintético: el segundo Proveedor que el piloto podría dar de
+  // alta sobre el mismo dominio; no está sembrado, pero la regla tiene que cubrirlo.
   const ID = { twind: "t-1", ctaima: "c-1", sabentis: "s-1", quiron: "q-1", dokify: "d-1", ecoordina: "e-1", ctaimaLegacy: "l-1" };
   const real = (id, nombre, dominios, solapados, documentos) => ({
     ...proveedor(nombre, dominios, documentos), proveedorPlataformaCaeId: id,

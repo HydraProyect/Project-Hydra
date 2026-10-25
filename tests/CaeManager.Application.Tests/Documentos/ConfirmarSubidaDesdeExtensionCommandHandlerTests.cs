@@ -158,8 +158,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
     [Fact]
     public async Task Un_dominio_compartido_con_otro_proveedor_se_acepta_si_pertenece_al_de_la_acreditacion()
     {
-        // Dominios reales del catálogo: Twind posee app.twind.io y ctaima.com. Un segundo Proveedor (CTAIMA) con
-        // ctaima.com no cambia lo que el servidor comprueba: que el dominio sea del Proveedor de la acreditación.
+        // Caso sintético: Twind posee app.twind.io y ctaima.com (en la siembra ctaima.com es solo de Twind). Un
+        // segundo Proveedor (CTAIMA, hipotético) con ctaima.com no cambia lo que el servidor comprueba: que el dominio sea del Proveedor de la acreditación.
         var twindId = Guid.Empty;
         var e = Crear(
             dominios: ["app.twind.io", "ctaima.com"],
