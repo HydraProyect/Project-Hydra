@@ -1,3 +1,5 @@
+using System.Data.Common;
+using CaeManager.Application.Auditoria;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
@@ -10,6 +12,8 @@ using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Net.Http.Headers;
 
 namespace CaeManager.Web.Features.Documentos;
@@ -156,11 +160,24 @@ public static class DocumentosEndpoints
             return Results.NotFound();
         }
 
-        // Falla en cerrado: si el acceso no queda registrado, la excepción corta la respuesta y
-        // el contenido no sale; el flujo ya abierto se cierra antes de propagarla.
+        // Falla en cerrado: ningún rechazo ni fallo de registro entrega contenido.
         try
         {
             await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        }
+        catch (Exception ex) when (ex is AccesoDocumentoSensibleNoRegistradoException
+            or DbException { SqlState: "42501" }
+            or DbUpdateException { InnerException: DbException { SqlState: "42501" } })
+        {
+            await flujo.DisposeAsync();
+            return Results.StatusCode(StatusCodes.Status403Forbidden);
+        }
+        catch (Exception ex) when (EsFalloTransitorioDeRegistro(ex))
+        {
+            await flujo.DisposeAsync();
+            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogError(
+                "Fallo transitorio al registrar el acceso al Documento {DocumentoId}; se responde 503.", documento.Id);
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
         catch
         {
@@ -198,4 +215,11 @@ public static class DocumentosEndpoints
         // bloques, pendiente de decisión.
         return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
     }
+
+    // EF puede envolver el fallo del proveedor o agotar los reintentos de escritura.
+    // Solo se traduce a 503 si la causa sigue siendo transitoria.
+    private static bool EsFalloTransitorioDeRegistro(Exception excepcion) =>
+        excepcion is TimeoutException or DbException { IsTransient: true }
+        || (excepcion is DbUpdateException or InvalidOperationException or RetryLimitExceededException
+            && excepcion.InnerException is { } causa && EsFalloTransitorioDeRegistro(causa));
 }

@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Text;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
@@ -8,6 +9,8 @@ using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -74,21 +77,53 @@ public class DocumentosEndpointsArchivoAusenteTests
     /// Falla en cerrado (DEC-36, REC-208; revisión extensa 2026-10-23, Z2-2): si el acceso no
     /// queda registrado, el manejador no devuelve el fichero y cierra el flujo que ya abrió.
     /// </summary>
-    [Fact]
-    public async Task Si_el_acceso_no_queda_registrado_no_se_sirve_y_el_flujo_se_cierra()
+    [Theory]
+    [InlineData(0, StatusCodes.Status403Forbidden)]
+    [InlineData(2, StatusCodes.Status403Forbidden)]
+    [InlineData(3, StatusCodes.Status403Forbidden)]
+    [InlineData(1, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(4, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(5, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(6, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(7, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(8, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(9, StatusCodes.Status503ServiceUnavailable)]
+    public async Task Si_el_registro_falla_responde_sin_contenido_y_cierra_el_flujo(int fallo, int codigo)
     {
         var contexto = Contexto();
         var almacen = new AlmacenConElFichero();
 
+        var resultado = await DocumentosEndpoints.ServirArchivoAsync(
+            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(fallo),
+            new FabricaDeRegistroEspia(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(codigo);
+        almacen.UltimoFlujo.Should().NotBeNull("control positivo: el fichero llegó a abrirse");
+        almacen.UltimoFlujo!.CanRead.Should().BeFalse("el flujo se cierra antes de responder");
+        LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
+        LeerCuerpo(contexto).Should().NotContain(AlmacenConElFichero.Contenido);
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(11)]
+    public async Task Un_error_no_transitorio_o_cancelacion_se_propaga_sin_servir_el_fichero(int fallo)
+    {
+        var contexto = Contexto();
+        var almacen = new AlmacenConElFichero();
         var servir = () => DocumentosEndpoints.ServirArchivoAsync(
-            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(),
+            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(fallo),
             new FabricaDeRegistroEspia(), CancellationToken.None);
 
-        (await servir.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
-            .Which.RecursoId.Should().Be(DocumentoId);
-        almacen.UltimoFlujo.Should().NotBeNull("control positivo: el fichero llegó a abrirse");
-        almacen.UltimoFlujo!.CanRead.Should().BeFalse("el flujo abierto se cierra antes de propagar el fallo");
-        LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
+        if (fallo == 11)
+            await servir.Should().ThrowAsync<OperationCanceledException>();
+        else
+            await servir.Should().ThrowAsync<InvalidOperationException>();
+        almacen.UltimoFlujo.Should().NotBeNull();
+        almacen.UltimoFlujo!.CanRead.Should().BeFalse();
+        LeerCuerpo(contexto).Should().BeEmpty();
     }
 
     [Fact]
@@ -202,14 +237,34 @@ public class DocumentosEndpointsArchivoAusenteTests
     }
 
     /// <summary>Lo que hace el servicio real cuando la base rechaza el registro.</summary>
-    private sealed class RegistroQueNoRegistra : IRegistroAccesoDocumentoSensibleService
+    private sealed class RegistroQueNoRegistra(int fallo) : IRegistroAccesoDocumentoSensibleService
     {
         public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
-            throw new AccesoDocumentoSensibleNoRegistradoException(documentoId);
+            throw fallo switch
+            {
+                0 => new AccesoDocumentoSensibleNoRegistradoException(documentoId),
+                1 => new TimeoutException(),
+                2 => new FalloBaseDatos("42501", false),
+                3 => new DbUpdateException("rechazo", new FalloBaseDatos("42501", false)),
+                4 => new FalloBaseDatos("08006", true),
+                5 => new DbUpdateException("transitorio", new FalloBaseDatos("08006", true)),
+                6 => new InvalidOperationException("transitorio", new FalloBaseDatos("08006", true)),
+                7 => new InvalidOperationException("transitorio", new DbUpdateException("escritura", new FalloBaseDatos("08006", true))),
+                8 => new InvalidOperationException("transitorio", new TimeoutException()),
+                9 => new RetryLimitExceededException("reintentos agotados", new DbUpdateException("escritura", new FalloBaseDatos("08006", true))),
+                11 => new OperationCanceledException(),
+                _ => new InvalidOperationException()
+            };
 
         public Task RegistrarSiSensibleAsync(
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class FalloBaseDatos(string sqlState, bool transitorio) : DbException
+    {
+        public override string SqlState => sqlState;
+        public override bool IsTransient => transitorio;
     }
 
     private sealed class FabricaDeRegistroEspia : ILoggerFactory, ILogger
