@@ -112,6 +112,19 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // más de una página, se pide el tamaño de página mayor para no depender del orden.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Ambito=Empresa");
         await Expect(page.Locator("table tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
+        // Como en VistaRecordadaE2ETests: abrir y cerrar una pastilla confirma que
+        // el listado ya atiende por el circuito, sin cambiar la consulta.
+        var agrupar = page.Locator(".barra-filtros-pastillas")
+            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new Regex("^Agrupar:") });
+        await Ayudas.AbrirMenuAccionesAsync(agrupar);
+        await agrupar.PressAsync("Escape");
+        await Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
+        // El oyente delegado se registra por JS en OnAfterRenderAsync, después
+        // del prerender. Espera su contador real antes de probar su exclusión. El predicado
+        // es síncrono sobre el módulo ya importado: WaitForFunctionAsync no espera a una
+        // promesa (una función async es truthy al instante y la espera no esperaría nada).
+        var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
+        await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
         // El pie ofrece los tamaños de página como botones 20 · 50 · 100.
         var mayor = page.Locator(".paginador-pie-listado .paginador-opciones-tamano")
             .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "100", Exact = true });
