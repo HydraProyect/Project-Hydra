@@ -68,9 +68,10 @@ updates:
       # Paquetes de ASP.NET Core y EF Core de la misma publicación de .NET 10
       # (2026-10-25): cada csproj las fija sin comodín (suelo exacto) y se
       # mueven JUNTAS. Con "10.*", un proyecto que vuelve a resolver (lock
-      # file invalidado por un csproj tocado o, con toda probabilidad, por
-      # compilar con otro SDK: el runner usó 10.0.401 y setup-dotnet instala
-      # 10.0.3xx) sube a lo último publicado y sus proyectos de tests siguen
+      # file invalidado por un csproj tocado o por compilar con otro SDK: el
+      # runner usó 10.0.401 cuando setup-dotnet instalaba 10.0.3xx; desde
+      # el 2026-10-25 lo fija global.json y CI restaura en modo bloqueado)
+      # sube a lo último publicado y sus proyectos de tests siguen
       # en lo de su lock. Medido: Identity.UI 10.0.13 frente a 10.0.14 en
       # Web.Tests, MSB3277 con -warnaserror. Un PR por paquete repetiría ese
       # desfase; uno por grupo los sube a la vez. Sustituye a `ef-design`.
@@ -130,6 +131,13 @@ updates:
       - "Type: Enhancement"
       - "Priority: Low"
     milestone: 12 # "Mantenimiento de dependencias (Dependabot)"
+    ignore:
+      # La imagen sdk va a la par con global.json y con el lock de
+      # CaeManager.Web, que registra la versión de ASP.NET Core del SDK
+      # (Microsoft.AspNetCore.App.Internal.Assets). Un PR que solo mueva esta
+      # imagen cae siempre en el restore bloqueado con NU1004; el salto de SDK
+      # se hace a mano, las tres cosas en una PR (ver Directory.Build.props).
+      - dependency-name: "dotnet/sdk"
 
   - package-ecosystem: "github-actions"
     directory: "/"

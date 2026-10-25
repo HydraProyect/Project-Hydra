@@ -7,19 +7,26 @@
 # podía producir binarios distintos en CI y en el VPS. Fijado a la versión
 # exacta MÁS el digest (comprobado contra mcr.microsoft.com, no copiado de un
 # blog) — Dependabot (ver .github/dependabot.yml, ecosistema "docker") sigue
-# proponiendo el salto cuando salga una versión nueva, con su propio PR,
-# CI y escaneo Trivy antes de fusionar.
-FROM mcr.microsoft.com/dotnet/sdk:10.0.402@sha256:747cbade5bfd918a175ac32f8f1d931edec2c7d0d5397a3de72eaef1ac1f66d2 AS build
+# proponiendo el salto de la imagen aspnet de abajo, con su propio PR, CI y
+# escaneo Trivy antes de fusionar.
+#
+# La imagen sdk no: va a la par con global.json (exacta, sin rollForward).
+# El SDK escribe en el packages.lock.json de CaeManager.Web la versión de
+# Microsoft.AspNetCore.App.Internal.Assets que trae consigo, así que con otro
+# SDK el restore bloqueado de abajo falla con NU1004 (ver Directory.Build.props).
+# Un salto de SDK va a mano en una sola PR: global.json, esta línea y el lock
+# de Web regenerado. Por eso dependabot.yml ignora dotnet/sdk.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS build
 WORKDIR /src
 
-# Copiar solo los .csproj primero para que `dotnet restore` se cachee entre
-# builds mientras no cambien las dependencias — el resto del código cambia
-# mucho más a menudo que las referencias de paquete.
-COPY src/CaeManager.Domain/CaeManager.Domain.csproj src/CaeManager.Domain/
-COPY src/CaeManager.Application/CaeManager.Application.csproj src/CaeManager.Application/
-COPY src/CaeManager.Infrastructure/CaeManager.Infrastructure.csproj src/CaeManager.Infrastructure/
-COPY src/CaeManager.Migrations.PostgreSQL/CaeManager.Migrations.PostgreSQL.csproj src/CaeManager.Migrations.PostgreSQL/
-COPY src/CaeManager.Web/CaeManager.Web.csproj src/CaeManager.Web/
+# Restore con los packages.lock.json y en modo bloqueado (2026-10-25). Antes
+# se copiaban solo los .csproj, sin locks ni Directory.Build.props, y la imagen
+# resolvía los comodines (10.*) a lo último publicado el día del build. Copiar
+# todo de una vez cuesta nada: ni el job `imagen` de deploy.yml ni el de CI
+# reutilizan capas entre ejecuciones, y el restore necesita los .razor para
+# que el SDK pida el paquete de assets de Blazor que el lock ya registra.
+COPY global.json Directory.Build.props ./
+COPY src/ src/
 #
 # -p:UseSharedCompilation=false (REC-199, apagón de producción 2026-09-04):
 # sin esto, `dotnet restore`/`publish` levantan VBCSCompiler como servidor
@@ -28,21 +35,21 @@ COPY src/CaeManager.Web/CaeManager.Web.csproj src/CaeManager.Web/
 # 2026-09-23 esta imagen ya no se construye en el VPS sino en el runner de
 # GitHub Actions (job `imagen` de deploy.yml); el flag se conserva porque no
 # cambia los binarios y sigue acotando el pico de memoria del build.
-RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj -r linux-x64 -p:UseSharedCompilation=false
+#
+# Sin -r aquí a propósito: `restore -r linux-x64` es una propiedad global que
+# llega a Domain, Application, Infrastructure y Migrations, cuyos locks no
+# tienen ese RID, y el modo bloqueado los rechaza (NU1004). Web sí lo tiene,
+# porque declara <RuntimeIdentifiers>linux-x64</RuntimeIdentifiers>, y lo
+# restaura junto al grafo sin RID.
+RUN dotnet restore src/CaeManager.Web/CaeManager.Web.csproj --locked-mode -p:UseSharedCompilation=false
 
-COPY src/ src/
 # -r linux-x64 --self-contained false: sin fijar un RuntimeIdentifier, este SDK
 # no restaura el paquete de runtime que aporta los assets estáticos del propio
 # framework (_framework/blazor.web.js) — el publish "genérico" completa sin
 # error pero el archivo nunca se genera, y toda la interactividad (cualquier
-# botón, cualquier circuit de SignalR) queda rota en silencio.
-#
-# Sin --no-restore a propósito: el restore de la capa anterior (hecho solo con
-# los .csproj, antes de copiar los .razor) no basta para que el SDK detecte que
-# necesita ese paquete de runtime — deja el mismo hueco. El restore completo,
-# ya con el código fuente presente, sí lo detecta. Sigue siendo
-# framework-dependent (no self-contained), solo fuerza qué paquete de runtime
-# se resuelve.
+# botón, cualquier circuit de SignalR) queda rota en silencio. Con
+# --no-restore usa el restore bloqueado de arriba; las bibliotecas se
+# compilan sin RID (el SDK las trata como independientes del RID).
 #
 # -p:RunAnalyzers=false (despliegue a staging roto desde 2026-09-21): el csc
 # de CaeManager.Migrations.PostgreSQL (157 Designer.cs, ~42 MB de C#) muere
@@ -55,7 +62,7 @@ COPY src/ src/
 # SDK lo traduce a /skipanalyzers, que conserva los source generators: los
 # binarios publicados son idénticos. Los analizadores siguen aplicándose
 # donde deciden algo, en el `dotnet build -warnaserror` de CI.
-RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false -p:UseSharedCompilation=false -p:RunAnalyzers=false
+RUN dotnet publish src/CaeManager.Web/CaeManager.Web.csproj -c Release -o /app/publish -r linux-x64 --self-contained false --no-restore -p:UseSharedCompilation=false -p:RunAnalyzers=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.13@sha256:8af87eba5e7cdafb1514d7388be287365da97c132509e84dfe252ffd552398ca AS final
 WORKDIR /app

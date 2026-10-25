@@ -161,13 +161,22 @@ jobs:
       # exigen paquetes Microsoft.Extensions.* >= 10.0.12 que nuget.org
       # todavía no publica en estable (solo hasta 10.0.11) — NU1103 en los 10
       # jobs que restauran, transversal a cualquier PR, no causado por ningún
-      # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
-      # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
-      # una herramienta cambia de condiciones sin avisar.
+      # cambio de código. Se acotó entonces a "10.0.3xx" siguiendo la § 23
+      # (fijar la versión libre cuando una herramienta cambia de condiciones
+      # sin avisar).
+      #
+      # Desde el 2026-10-25 la versión sale de global.json, exacta y sin
+      # rollForward, en todos los jobs y workflows. "10.0.3xx" no fijaba nada:
+      # la imagen del runner trae además el SDK 10.0.401, y sin global.json
+      # el host elige el más alto instalado, así que se compilaba con ese.
+      # Además el SDK fija dentro de packages.lock.json de CaeManager.Web la
+      # referencia implícita Microsoft.AspNetCore.App.Internal.Assets con su
+      # propia versión de ASP.NET Core; con otro SDK el lock deja de cuadrar
+      # y NuGet reevaluaba Web en silencio (ver Directory.Build.props).
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       # Solo lo necesita CaeManager.IntegrationTests, en
       # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
@@ -398,10 +407,25 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
+
+      # Con los locks ya coherentes, el CI sale igual de verde con el modo
+      # bloqueado activo que roto; esto mira las tres piezas que impiden que
+      # NuGet vuelva a reevaluar en silencio (ver Directory.Build.props): el
+      # SDK que de verdad corre es el de global.json, la propiedad llega
+      # evaluada a los proyectos y el restore no ha reescrito ningún lock.
+      - name: Comprobar SDK fijado y restore bloqueado
+        run: |
+          set -euo pipefail
+          esperado="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' global.json)"
+          real="$(dotnet --version)"
+          [ "$real" = "$esperado" ] || { echo "::error::SDK $real en vez del $esperado de global.json"; exit 1; }
+          bloqueado="$(dotnet msbuild src/CaeManager.Web/CaeManager.Web.csproj -getProperty:RestoreLockedMode)"
+          [ "$bloqueado" = "true" ] || { echo "::error::RestoreLockedMode='$bloqueado' en CI; tiene que ser true"; exit 1; }
+          git diff --exit-code -- '*packages.lock.json'
 
       # reportgenerator (para el informe de cobertura de abajo) — mismo
       # manifiesto que dotnet-ef, ver .config/dotnet-tools.json.
@@ -469,7 +493,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -605,7 +629,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       # Solo para reportgenerator; no se compila nada en este job.
       - name: Restaurar herramientas locales
@@ -966,7 +990,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1007,6 +1031,16 @@ jobs:
           load: true
           tags: caemanager:ci
 
+      # El publish sin blazor.web.js termina bien y deja la interactividad
+      # rota en silencio (ver el comentario del publish en el Dockerfile).
+      # Desde que el restore de la imagen va en modo bloqueado y sin -r
+      # (2026-10-25), el artefacto se mira aquí en vez de darlo por hecho.
+      - name: Comprobar los assets de Blazor en la imagen
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint ls caemanager:ci /app/wwwroot/_framework | tee assets.txt
+          grep -qx 'blazor.web.js' assets.txt || { echo "::error::La imagen no trae _framework/blazor.web.js"; exit 1; }
+
       # P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md: escaneo de la imagen de
       # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
       # framework de .NET). Bloqueante desde la auditoría de madurez
@@ -1035,7 +1069,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1128,7 +1162,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1459,7 +1493,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1866,7 +1900,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1900,7 +1934,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
