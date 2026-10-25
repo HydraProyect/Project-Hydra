@@ -32,6 +32,9 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// </summary>
 public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
 {
+    /// <summary>La ruta que recorre esta prueba; la cita el catálogo de EndpointsQueSirvenBinariosEstanCatalogadosTests.</summary>
+    private const string Ruta = "/tenants/{id:guid}/logo";
+
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly string _rutaArchivos = Path.Combine(Path.GetTempPath(), $"caemanager-logo-{Guid.NewGuid():N}");
     private readonly IDataProtectionProvider _protector = new EphemeralDataProtectionProvider();
@@ -116,7 +119,7 @@ public class LogoTenantEndpointBajoRlsTests : IAsyncLifetime, IDisposable
 
         foreach (var respuesta in new[] { sinCartera, inexistente, ajenoConLogo, autorizadoSinLogo })
         {
-            respuesta.Estado.Should().Be(StatusCodes.Status404NotFound);
+            respuesta.Estado.Should().Be(StatusCodes.Status404NotFound, $"{Ruta} no distingue los casos negativos");
             respuesta.Cuerpo.Should().BeEmpty();
             respuesta.Cabeceras.Should().Equal(inexistente.Cabeceras,
                 "un Tenant sin cartera, inexistente, ajeno o sin logo no se distinguen por las cabeceras");
