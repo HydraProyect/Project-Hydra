@@ -1,4 +1,5 @@
-﻿using CaeManager.Domain.Auditoria;
+﻿using CaeManager.Application.Common;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
@@ -12,6 +13,73 @@ namespace CaeManager.Infrastructure.Persistence;
 /// </summary>
 public static class ConcurrenciaContexto
 {
+    /// <summary>Conserva valores y marcas previos, incluidos los cambios pendientes ajenos.</summary>
+    public static IInstantaneaCambiosDeComando CapturarRestauracion(DbContext contexto) => new Instantanea(contexto);
+
+    private sealed class Instantanea : IInstantaneaCambiosDeComando
+    {
+        private readonly DbContext contexto;
+        private Dictionary<object, EstadoEntrada> iniciales;
+
+        public Instantanea(DbContext contexto)
+        {
+            this.contexto = contexto;
+            iniciales = Capturar();
+            contexto.SavedChanges += Guardado;
+        }
+
+        private Dictionary<object, EstadoEntrada> Capturar() => contexto.ChangeTracker.Entries()
+            .Select(e => new EstadoEntrada(e, e.State, e.CurrentValues.Clone(), e.OriginalValues.Clone(),
+                e.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name).ToHashSet()))
+            .ToDictionary(e => e.Entrada.Entity, ReferenceEqualityComparer.Instance);
+
+        // Un guardado aceptado pasa a ser la nueva base: también cubre altas y bajas,
+        // sin resucitar una fila eliminada ni volver a insertar una alta confirmada.
+        private void Guardado(object? sender, SavedChangesEventArgs args) => iniciales = Capturar();
+
+        public void Dispose() => contexto.SavedChanges -= Guardado;
+
+        public void Restaurar()
+        {
+            contexto.ChangeTracker.DetectChanges();
+            var entradas = contexto.ChangeTracker.Entries().ToList();
+            var deteccionAutomatica = contexto.ChangeTracker.AutoDetectChangesEnabled;
+            contexto.ChangeTracker.AutoDetectChangesEnabled = false;
+            try
+            {
+                // Las altas del comando no tienen una versión previa que restaurar.
+                foreach (var entrada in entradas.Where(e => e.State == EntityState.Added
+                             && !iniciales.ContainsKey(e.Entity)))
+                    entrada.State = EntityState.Detached;
+
+                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)
+                             && e.State is EntityState.Modified or EntityState.Deleted))
+                {
+                    entrada.CurrentValues.SetValues(entrada.OriginalValues);
+                    entrada.State = EntityState.Unchanged;
+                }
+
+                foreach (var inicial in iniciales.Values)
+                {
+                    var entrada = inicial.Entrada;
+                    entrada.State = inicial.Estado;
+                    entrada.OriginalValues.SetValues(inicial.Originales);
+                    entrada.CurrentValues.SetValues(inicial.Actuales);
+                    if (inicial.Estado is EntityState.Modified or EntityState.Unchanged)
+                        foreach (var propiedad in entrada.Properties)
+                            propiedad.IsModified = inicial.Modificadas.Contains(propiedad.Metadata.Name);
+                }
+            }
+            finally
+            {
+                contexto.ChangeTracker.AutoDetectChangesEnabled = deteccionAutomatica;
+            }
+        }
+    }
+
+    private sealed record EstadoEntrada(EntityEntry Entrada, EntityState Estado,
+        PropertyValues Actuales, PropertyValues Originales, HashSet<string> Modificadas);
+
     /// <summary>
     /// Ejecuta la consulta normal, con sus filtros, y si devuelve una instancia que el circuito ya tenía
     /// rastreada la relee: EF no reemplaza sus valores al materializar otra consulta, y el comando

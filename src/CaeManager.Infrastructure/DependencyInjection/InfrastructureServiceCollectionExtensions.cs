@@ -438,6 +438,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
