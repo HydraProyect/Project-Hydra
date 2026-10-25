@@ -14,6 +14,10 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
 
     public Guid TenantPropietarioId { get; set; }
 
+    public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+            && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
+
     public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
             && e.Cif == cif.Trim().ToUpperInvariant() && e.Id != excluirId));

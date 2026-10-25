@@ -469,7 +469,7 @@ public class CaeManagerDbContext(
         }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
         {
-            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Empresas_TenantId_Cif"
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Empresas_TenantId_Cif" or "IX_Empresas_TenantId_RazonSocial"
         })
         {
             // Con lotes, EF puede no identificar la entrada exacta que chocó: si Entries no trae
@@ -479,12 +479,13 @@ public class CaeManagerDbContext(
                 empresasEnConflicto = ChangeTracker.Entries<Empresa>()
                     .Where(e => e.State is EntityState.Added or EntityState.Modified)
                     .Select(e => e.Entity).ToList();
-            var cifs = empresasEnConflicto
-                .Where(e => e.Cif != null).Select(e => e.Cif!).Distinct().ToArray();
+            var razonSocial = ((Npgsql.PostgresException)ex.InnerException!).ConstraintName == "IX_Empresas_TenantId_RazonSocial";
+            var valores = empresasEnConflicto
+                .Where(e => razonSocial || e.Cif != null).Select(e => razonSocial ? e.RazonSocial : e.Cif!).Distinct().ToArray();
             // La unidad de escritura fallida no debe reintentarse en un guardado posterior del circuito,
             // ni persistir la auditoría de cambios que la base rechazó.
             ConcurrenciaContexto.DescartarLoteFallido(this);
-            throw new CifEmpresaDuplicadoException(cifs, ex);
+            throw razonSocial ? new DatoEmpresaDuplicadoException(valores, true, ex) : new CifEmpresaDuplicadoException(valores, ex);
         }
     }
 

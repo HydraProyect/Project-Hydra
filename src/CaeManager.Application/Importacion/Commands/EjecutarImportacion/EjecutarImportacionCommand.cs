@@ -242,6 +242,18 @@ public class EjecutarImportacionCommandHandler(
                 continue;
             }
 
+            // La razón social de una Empresa dada de baja (o activa, con otros espacios
+            // exteriores) del Tenant propietario haría fallar el SaveChangesAsync final por
+            // IX_Empresas_TenantId_RazonSocial y, con él, el archivo entero. Se omite solo
+            // esta fila, con su causa; un return a mitad del plan dejaría en el DbContext del
+            // circuito las altas ya añadidas.
+            if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, fila.RazonSocial,
+                cancellationToken: cancellationToken) is { } razonSocialOcupada)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto("Empleados", 0, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                continue;
+            }
+
             try
             {
                 var empresa = new Empresa(fila.RazonSocial);

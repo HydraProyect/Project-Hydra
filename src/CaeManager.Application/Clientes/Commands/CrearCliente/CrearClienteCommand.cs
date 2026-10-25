@@ -53,7 +53,10 @@ public class CrearClienteCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.RazonSocialDuplicada", "Ya existe una organización con esta razón social."));
 
-        if (await DuplicadosCifEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Cliente.CifDuplicado", cancellationToken) is { } duplicadoCif)
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, null, "Cliente.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo<Guid>(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Cliente.CifDuplicado", cancellationToken) is { } duplicadoCif)
             return Result.Fallo<Guid>(duplicadoCif);
 
         // Un Cliente creado por un Gestor CAE lo tiene a él como Gestor CAE de

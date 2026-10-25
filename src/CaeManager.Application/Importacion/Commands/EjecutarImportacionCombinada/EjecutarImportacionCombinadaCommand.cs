@@ -88,7 +88,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
         {
             var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
             if (duplicada?.EstaEliminado == true)
-                return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosCifEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
+                return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
         }
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
@@ -125,13 +125,33 @@ public class EjecutarImportacionCombinadaCommandHandler(
         var clientesCreados = 0;
         var clientesActualizados = 0;
 
+        // Una razón social que IX_Empresas_TenantId_RazonSocial rechazaría (otra Empresa del Tenant
+        // propietario, también dada de baja, u otra fila de esta hoja que ya la escribe) no se aplica:
+        // la fila se omite con su causa (éxito parcial, DCR-12 B). Un return a mitad del plan dejaría
+        // en el DbContext del circuito los cambios ya hechos. La consulta solo ve la base, así que las
+        // razones sociales que esta hoja ya escribe se llevan aparte.
+        var razonesSocialesEscritas = new HashSet<string>(StringComparer.Ordinal);
+        async Task<Error?> RazonSocialOcupadaAsync(string razonSocial, Guid? excluirId) =>
+            razonesSocialesEscritas.Contains(razonSocial.Trim())
+                ? DuplicadosEmpresa.ErrorRazonSocialDuplicada(dadaDeBaja: false)
+                : await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, razonSocial, excluirId,
+                    cancellationToken: cancellationToken);
+
         foreach (var fila in plan.Clientes)
         {
             if (clientesPorCif.TryGetValue(fila.Cif.Trim().ToUpperInvariant(), out var existente))
             {
                 if (reemplazar && (existente.RazonSocial != fila.RazonSocial || existente.EsCritico != fila.EsCritico))
                 {
+                    if (await RazonSocialOcupadaAsync(fila.RazonSocial, existente.Id) is { } razonSocialOcupada)
+                    {
+                        // El nombre del archivo no se registra: es el de otra Empresa, y las demás
+                        // hojas que lo citen deben resolver a ella, no a este Cliente.
+                        omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", 0, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                        continue;
+                    }
                     existente.ActualizarComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
+                    razonesSocialesEscritas.Add(existente.RazonSocial);
                     clientesActualizados++;
                 }
                 else if (!reemplazar && existente.EsCritico is null)
@@ -157,10 +177,17 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 continue;
             }
 
+            if (await RazonSocialOcupadaAsync(fila.RazonSocial, null) is { } razonSocialDeOtra)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", 0, fila.RazonSocial, razonSocialDeOtra.Mensaje));
+                continue;
+            }
+
             try
             {
                 var cliente = Empresa.CrearComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, notas: null, ejecutivoUsuarioId: null);
                 empresaRepositorio.Agregar(cliente);
+                razonesSocialesEscritas.Add(cliente.RazonSocial);
                 clientesPorCif[fila.Cif.Trim().ToUpperInvariant()] = cliente;
                 clientesIdPorRazonSocial[fila.RazonSocial] = cliente.Id;
                 clientesCreados++;
@@ -207,6 +234,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
             if (esNueva)
             {
+                // Mismo criterio que la hoja «Clientes».
+                if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, fila.RazonSocial,
+                    cancellationToken: cancellationToken) is { } razonSocialOcupada)
+                {
+                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", 0, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                    continue;
+                }
+
                 try
                 {
                     empresa = new Empresa(fila.RazonSocial);

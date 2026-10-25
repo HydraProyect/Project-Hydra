@@ -67,7 +67,10 @@ public class EditarClienteCommandHandler(IEmpresaRepository repositorio, IAlcanc
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Cliente.RazonSocialDuplicada", "Ya existe una organización con esta razón social."));
 
-        if (await DuplicadosCifEmpresa.ComprobarAsync(repositorio, request.Cif, request.Id, "Cliente.CifDuplicado", cancellationToken) is { } duplicadoCif)
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, request.Id, "Cliente.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, request.Id, "Cliente.CifDuplicado", cancellationToken) is { } duplicadoCif)
             return Result.Fallo(duplicadoCif);
 
         empresa.ActualizarComoCliente(request.RazonSocial, request.Cif, request.EsCritico, request.Notas);

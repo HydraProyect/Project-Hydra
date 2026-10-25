@@ -182,7 +182,7 @@ public class DuplicadosCifEmpresaTests
         if (baja)
             existente.MarcarComoEliminado(Guid.NewGuid());
         repo.Agregar(existente);
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(Proveedor(repo));
+        var behavior = new DuplicadosEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(Proveedor(repo));
         var resultado = await behavior.Handle(new CrearEmpresaCommand("Nueva", "B12345674", []),
             _ => throw new CifEmpresaDuplicadoException("B12345674", new InvalidOperationException()), default);
         resultado.Error.Codigo.Should().Be(baja ? "Empresa.CifDeBaja" : "Empresa.CifDuplicado");
@@ -193,7 +193,7 @@ public class DuplicadosCifEmpresaTests
     {
         var repo = new EmpresaRepositorioFalso();
         repo.Agregar(new Empresa("Ganadora", "B12345674"));
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearClienteCommand, Result<Guid>>(Proveedor(repo));
+        var behavior = new DuplicadosEmpresaBehavior<CrearClienteCommand, Result<Guid>>(Proveedor(repo));
         var resultado = await behavior.Handle(new CrearClienteCommand("Nueva", "B12345674", false, null),
             _ => throw new CifEmpresaDuplicadoException("B12345674", new InvalidOperationException()), default);
         resultado.Error.Codigo.Should().Be("Cliente.CifDuplicado");
@@ -204,7 +204,7 @@ public class DuplicadosCifEmpresaTests
     {
         // MediatR construye el behavior para toda petición; un contenedor sin
         // IEmpresaRepository (los mínimos de integración) no debe romperse.
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
+        var behavior = new DuplicadosEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
             new ServiceCollection().BuildServiceProvider());
         var resultado = await behavior.Handle(new CrearEmpresaCommand("Nueva", "B12345674", []),
             _ => Task.FromResult(Result.Exito(Guid.Empty)), default);

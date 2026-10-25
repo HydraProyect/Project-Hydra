@@ -7,4 +7,6 @@
   <data name="CifDeBaja" xml:space="preserve"><value>Ja existeix una empresa donada de baixa amb aquest CIF. Restaura-la en lloc de crear-ne una altra o de reutilitzar-ne el CIF.</value></data>
   <data name="CifDeBajaEnImportacion" xml:space="preserve"><value>La fila de Clients amb CIF {0} coincideix amb una empresa donada de baixa. Restaura-la abans d'importar.</value></data>
   <data name="CifDuplicado" xml:space="preserve"><value>Ja existeix una empresa amb aquest CIF.</value></data>
+  <data name="RazonSocialDeBaja" xml:space="preserve"><value>Ja existeix una empresa donada de baixa amb aquesta raó social. Restaura-la en lloc de crear-ne una altra.</value></data>
+  <data name="RazonSocialDuplicada" xml:space="preserve"><value>Ja existeix una empresa amb aquesta raó social.</value></data>
 </root>

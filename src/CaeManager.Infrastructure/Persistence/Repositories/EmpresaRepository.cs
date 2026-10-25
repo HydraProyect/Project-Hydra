@@ -15,17 +15,30 @@ public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaReposito
             e => e.RazonSocial.ToUpper() == razonSocial.ToUpper() && (excluirId == null || e.Id != excluirId),
             cancellationToken);
 
+    public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default)
+    {
+        var normalizada = razonSocial.Trim();
+        // El índice compara el valor persistido exacto e incluye bajas.
+        return EmpresasDelTenantPropietarioIncluyendoBajas()
+            .FirstOrDefaultAsync(e => e.RazonSocial == normalizada && (excluirId == null || e.Id != excluirId), cancellationToken);
+    }
+
     public async Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         await ObtenerDuplicadaPorCifAsync(cif, excluirId, cancellationToken) is not null;
 
     public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default)
     {
         var normalizado = cif.Trim().ToUpperInvariant();
-        // El índice incluye bajas. Al retirar el filtro combinado, se repone explícitamente el Tenant
-        // propietario; sin Tenant resuelto no se ve ninguna fila. RLS sigue aplicándose.
-        return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()
-            .Where(e => dbContext.TenantPropietarioId != null && e.TenantId == dbContext.TenantPropietarioId)
+        return EmpresasDelTenantPropietarioIncluyendoBajas()
             .FirstOrDefaultAsync(e => e.Cif == normalizado && (excluirId == null || e.Id != excluirId), cancellationToken);
+    }
+
+    private IQueryable<Empresa> EmpresasDelTenantPropietarioIncluyendoBajas()
+    {
+        // Ambos índices incluyen bajas. Al retirar el filtro combinado, se repone explícitamente el
+        // Tenant propietario; sin Tenant propietario resuelto no se ve ninguna fila. RLS sigue aplicándose.
+        return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()
+            .Where(e => dbContext.TenantPropietarioId != null && e.TenantId == dbContext.TenantPropietarioId);
     }
 
     public Task<bool> TieneTrabajadoresAsync(Guid empresaId, CancellationToken cancellationToken = default) =>

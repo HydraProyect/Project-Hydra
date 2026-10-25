@@ -45,7 +45,7 @@ public class DuplicadosCifEmpresaTests : IAsyncLifetime
             await ganadora.SaveChangesAsync();
         }
         perdedora.Empresas.Add(new Empresa("Perdedora", "b12345674"));
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
+        var behavior = new DuplicadosEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
             new ServiceCollection().AddSingleton<IEmpresaRepository>(repo).BuildServiceProvider());
         var resultado = await behavior.Handle(new CrearEmpresaCommand("Perdedora", "b12345674", []), async ct =>
         {
@@ -65,8 +65,10 @@ public class DuplicadosCifEmpresaTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
         contexto.Empresas.Add(new Empresa("Mismo nombre", "P1234567D"));
         var accion = () => contexto.SaveChangesAsync();
-        var error = await accion.Should().ThrowAsync<DbUpdateException>();
-        error.Which.InnerException.Should().BeOfType<PostgresException>()
+        var error = await accion.Should().ThrowAsync<DatoEmpresaDuplicadoException>();
+        error.Which.Should().NotBeOfType<CifEmpresaDuplicadoException>();
+        error.Which.EsRazonSocial.Should().BeTrue();
+        ((DbUpdateException)error.Which.InnerException!).InnerException.Should().BeOfType<PostgresException>()
             .Which.ConstraintName.Should().Be("IX_Empresas_TenantId_RazonSocial");
     }
 
