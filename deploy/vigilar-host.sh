@@ -41,9 +41,14 @@
 #      reinicio automatico): si siguen ahi tres dias, algo lo impide (paquete
 #      retenido, dpkg a medias, apt-daily parado). El recuento sale de
 #      /usr/lib/update-notifier/apt-check o, sin el, de `apt-get -s dist-upgrade`
-#      (lineas Inst de un origen -security). Un recuento ilegible (apt a medias
-#      durante apt-daily) no alerta por si solo: se anota n/d y conserva la fecha
-#      desde la que habia pendientes, que sigue contando.
+#      (lineas Inst de un origen -security), como mucho una vez por hora (cache en
+#      $ESTADO.parches) y con `timeout` y `nice`: con un umbral en dias, contar cada
+#      5 minutos solo anadiria picos de memoria a un VPS sin swap. Un recuento
+#      ilegible cuenta como "puede haber pendientes": un apt a medias durante
+#      apt-daily se corrige en la siguiente lectura buena, pero un apt-check roto
+#      para siempre acaba alertando en vez de dejar esta condicion ciega en silencio.
+#      Limite aceptado: la cuenta solo vuelve a empezar si alguna lectura da 0; con
+#      avisos nuevos cada dia que llegasen justo tras cada instalacion, sonaria.
 #   5. /var/run/reboot-required existe desde hace UMBRAL_DIAS_REINICIO dias o mas
 #      (defecto 3): un parche (kernel, libc, openssl...) instalado pero no en uso
 #      hasta reiniciar. El reinicio es manual a proposito (staging y produccion
@@ -51,6 +56,11 @@
 #      lo ve o, si no hay estado, la fecha de modificacion del fichero.
 #   La fecha de partida de 4 y 5 se guarda en el estado; el fichero de /var/run
 #   desaparece al reiniciar y la cuenta vuelve a empezar.
+#   4 y 5 son de mantenimiento y pueden durar dias (el reinicio es manual): en un
+#   monitor Heartbeat con el incidente ya abierto, un /fail nuevo de disco o de
+#   memoria no volveria a notificar. Con BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL
+#   van a su propio monitor (ping de exito o /fail en cada ejecucion) y el principal
+#   queda para 1 a 3; sin ella, todo va al principal.
 #
 # Uso (cron del host; ver ## Paso operativo en servidores de la PR):
 #   */5 * * * *  set -a; . /etc/caemanager-vigilancia.env; set +a; /opt/talveg/deploy/vigilar-host.sh >> /var/log/caemanager-vigilancia.log 2>&1
@@ -59,6 +69,7 @@
 #   BETTERSTACK_HOST_HEARTBEAT_URL  URL del monitor Heartbeat. Sin ella no hay
 #                                   llamada de red: el guion solo informa y
 #                                   devuelve el codigo de salida.
+#   BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL   monitor aparte para 4 y 5.
 #   UMBRAL_DISCO, UMBRAL_MEMORIA, MUESTRAS_MEMORIA,
 #   UMBRAL_DIAS_PARCHES, UMBRAL_DIAS_REINICIO        ver arriba.
 #   VIGILANCIA_ESTADO               fichero de estado entre ejecuciones
@@ -66,8 +77,9 @@
 # Para probarlo sin VPS: VIGILANCIA_USO_DISCO (porcentaje forzado),
 # VIGILANCIA_MEMINFO y VIGILANCIA_VMSTAT (rutas a ficheros con el formato de
 # /proc/meminfo y /proc/vmstat), VIGILANCIA_PARCHES_SEGURIDAD (recuento forzado;
-# vacio = ilegible), VIGILANCIA_REINICIO_REQUERIDO (ruta del fichero) y
-# VIGILANCIA_AHORA (segundos desde 1970). Tests en vigilar-host.tests.sh.
+# vacio = ilegible), VIGILANCIA_APT_CHECK (ruta de apt-check),
+# VIGILANCIA_REINICIO_REQUERIDO (ruta del fichero) y VIGILANCIA_AHORA (segundos
+# desde 1970). Tests en vigilar-host.tests.sh.
 #
 # Codigos de salida: 0 en orden, 1 alerta, 2 configuracion invalida. Cualquier
 # salida distinta de 0 que no sea una alerta ya avisada (incluido un aborto con
@@ -81,6 +93,8 @@ MUESTRAS_MEMORIA="${MUESTRAS_MEMORIA:-2}"
 UMBRAL_DIAS_PARCHES="${UMBRAL_DIAS_PARCHES:-3}"
 UMBRAL_DIAS_REINICIO="${UMBRAL_DIAS_REINICIO:-3}"
 REINICIO_REQUERIDO="${VIGILANCIA_REINICIO_REQUERIDO:-/var/run/reboot-required}"
+APT_CHECK="${VIGILANCIA_APT_CHECK:-/usr/lib/update-notifier/apt-check}"
+CACHE_PARCHES="$ESTADO.parches"
 ESTADO="${VIGILANCIA_ESTADO:-/var/lib/caemanager-vigilancia.estado}"
 MEMINFO="${VIGILANCIA_MEMINFO:-/proc/meminfo}"
 VMSTAT="${VIGILANCIA_VMSTAT:-/proc/vmstat}"
@@ -151,20 +165,40 @@ campo() {   # campo FICHERO CLAVE -> primer numero de la linea que empieza por C
 # Recuento de parches de seguridad pendientes; vacio si no se puede saber. Un apt
 # que falla no puede leerse como "0 pendientes": por eso se mira su codigo antes
 # de contar.
-parches_seguridad() {
+contar_parches() {
   local salida
-  if [ -n "${VIGILANCIA_PARCHES_SEGURIDAD+x}" ]; then
-    echo "$VIGILANCIA_PARCHES_SEGURIDAD"
-  elif [ -x /usr/lib/update-notifier/apt-check ]; then
-    # apt-check escribe "<actualizaciones>;<de seguridad>" en stderr.
-    if salida=$(/usr/lib/update-notifier/apt-check 2>&1 >/dev/null); then
+  if [ -x "$APT_CHECK" ]; then
+    # apt-check escribe "<actualizaciones>;<de seguridad>" en stderr; se toma la
+    # ultima linea por si un aviso de Python la precede.
+    if salida=$(timeout 120 nice -n 19 "$APT_CHECK" 2>&1 >/dev/null); then
+      salida=$(printf '%s\n' "$salida" | tail -1)
       [[ "$salida" =~ ^[0-9]+\;([0-9]+)$ ]] && echo "${BASH_REMATCH[1]}"
     fi
   elif command -v apt-get >/dev/null 2>&1; then
-    if salida=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null); then
-      printf '%s\n' "$salida" | grep -c '^Inst .*-security' || true
+    if salida=$(timeout 120 nice -n 19 apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null); then
+      printf '%s\n' "$salida" | grep -cE '^Inst .*/[a-z]+-security[ ,]' || true
     fi
   fi
+  return 0
+}
+parches_seguridad() {
+  local hora recuento
+  if [ -n "${VIGILANCIA_PARCHES_SEGURIDAD+x}" ]; then
+    echo "$VIGILANCIA_PARCHES_SEGURIDAD"
+    return 0
+  fi
+  # Cache "<epoch> <recuento>" de menos de una hora; solo se guardan lecturas buenas.
+  if [ -r "$CACHE_PARCHES" ] && read -r hora recuento < "$CACHE_PARCHES" 2>/dev/null \
+     && [[ "$hora" =~ ^[0-9]{1,12}$ && "$recuento" =~ $NUM ]] \
+     && [ "$hora" -le "$ahora" ] && [ $(( ahora - hora )) -lt 3600 ]; then
+    echo "$recuento"
+    return 0
+  fi
+  recuento=$(contar_parches)
+  if [[ "$recuento" =~ $NUM ]]; then
+    printf '%s %s\n' "$ahora" "$recuento" > "$CACHE_PARCHES" 2>/dev/null || true
+  fi
+  echo "$recuento"
   return 0
 }
 
@@ -254,12 +288,13 @@ if [[ "$parches" =~ $NUM ]]; then
   if [ "$parches" -gt 0 ]; then desde_parches="${desde_parches_previo:-$ahora}"; fi
   parches_txt="$parches"
 else
-  # Ilegible: no se sabe si siguen; se conserva la fecha de partida, que sigue contando.
-  desde_parches="$desde_parches_previo"
+  # Ilegible: cuenta como "puede haber pendientes" (ver cabecera).
+  desde_parches="${desde_parches_previo:-$ahora}"
   parches_txt="n/d"
 fi
+motivos_mant=()
 if [ -n "$desde_parches" ] && [ "$(dias_desde "$desde_parches")" -ge "$UMBRAL_DIAS_PARCHES" ]; then
-  motivos+=("parches de seguridad pendientes (${parches_txt}) desde hace $(dias_desde "$desde_parches") dias >= ${UMBRAL_DIAS_PARCHES}")
+  motivos_mant+=("parches de seguridad pendientes (${parches_txt}) desde hace $(dias_desde "$desde_parches") dias >= ${UMBRAL_DIAS_PARCHES}")
 fi
 
 # 5. Reinicio pendiente
@@ -274,7 +309,7 @@ if [ -e "$REINICIO_REQUERIDO" ]; then
     if ! [[ "$desde_reinicio" =~ $NUM ]] || [ "$desde_reinicio" -gt "$ahora" ]; then desde_reinicio="$ahora"; fi
   fi
   if [ "$(dias_desde "$desde_reinicio")" -ge "$UMBRAL_DIAS_REINICIO" ]; then
-    motivos+=("reinicio pendiente (reboot-required) desde hace $(dias_desde "$desde_reinicio") dias >= ${UMBRAL_DIAS_REINICIO}")
+    motivos_mant+=("reinicio pendiente (reboot-required) desde hace $(dias_desde "$desde_reinicio") dias >= ${UMBRAL_DIAS_REINICIO}")
   fi
 fi
 
@@ -285,9 +320,33 @@ if ! guardar_estado "$bajas" "${oom:--}" "$arranque" "${desde_parches:--}" "${de
 fi
 
 datos="disco=${disco}% memoria_disponible=${pct_mem}% oom_kill=${oom:-n/d} parches_seguridad=${parches_txt} reinicio_pendiente=${reinicio_txt}"
-if [ "${#motivos[@]}" -eq 0 ]; then
+
+# Monitor de mantenimiento aparte (ver cabecera): si existe, 4 y 5 van a el; si no,
+# se suman a los motivos del principal.
+URL_MANT="${BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL:-}"
+alerta_mant=0
+if [ -n "$URL_MANT" ]; then
+  if [ "${#motivos_mant[@]}" -gt 0 ]; then
+    alerta_mant=1
+    destino_mant="${URL_MANT%/}/fail"
+  else
+    destino_mant="$URL_MANT"
+  fi
+  if ! llamar_heartbeat "$destino_mant" 2>/dev/null; then
+    echo "$marca AVISO no se pudo llamar al heartbeat de mantenimiento." || true
+  fi
+else
+  motivos+=(${motivos_mant[@]+"${motivos_mant[@]}"})
+fi
+if [ "${#motivos[@]}" -eq 0 ] && [ "$alerta_mant" = "0" ]; then
   linea="$marca ok $datos"
   codigo=0
+  destino="${BETTERSTACK_HOST_HEARTBEAT_URL:-}"
+elif [ "${#motivos[@]}" -eq 0 ]; then
+  # Solo mantenimiento, ya avisado a su monitor: el principal sigue arriba.
+  resumen=$(IFS=';'; echo "${motivos_mant[*]}")
+  linea="$marca ALERTA $resumen ($datos)"
+  codigo=1
   destino="${BETTERSTACK_HOST_HEARTBEAT_URL:-}"
 else
   resumen=$(IFS=';'; echo "${motivos[*]}")

@@ -66,7 +66,7 @@ ejecutar() {
   llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
 }
 arranque() { echo "$1" > "$TMP/boot_id"; }
-reiniciar() { rm -f "$TMP/estado" "$TMP/reboot-required"; meminfo 50; vmstat 3; arranque aaaa-1111; }
+reiniciar() { rm -f "$TMP/estado" "$TMP/estado.parches" "$TMP/reboot-required" "$TMP/bin/apt-get"; meminfo 50; vmstat 3; arranque aaaa-1111; }
 BASE=$(date -u +%s)
 DIA=86400
 
@@ -326,6 +326,66 @@ ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=3
 ejecutar 40 VIGILANCIA_AHORA="$((BASE + DIA))" VIGILANCIA_PARCHES_SEGURIDAD=
 ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=
 comprobar "pendientes y luego ilegible: la fecha sigue contando y alerta" "$URL/fail" "$llamada"
+# Un apt-check roto para siempre no deja la condicion ciega: acaba alertando.
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=
+comprobar "ilegible durante 3 dias sin historial: alerta" "$URL/fail" "$llamada"
+case "$salida" in *"parches de seguridad pendientes (n/d) desde hace 3 dias"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "ilegible: el motivo dice n/d" "si" "$r"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA + 60))" VIGILANCIA_PARCHES_SEGURIDAD=0
+comprobar "ilegible y luego 0: fin de la alerta" "$URL" "$llamada"
+
+# Recuento real con dobles de apt-check y apt-get (sin VIGILANCIA_PARCHES_SEGURIDAD).
+cat > "$TMP/apt-check" <<'EOF'
+#!/bin/bash
+printf '%s' "$APT_CHECK_SALIDA" >&2
+exit "${APT_CHECK_CODIGO:-0}"
+EOF
+chmod +x "$TMP/apt-check"
+ejecutar_apt() {   # ejecutar_apt [VAR=valor ...] -> deja $codigo y $salida
+  : > "$CURL_LOG"
+  salida=$(env VIGILANCIA_USO_DISCO=40 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
+    VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+    VIGILANCIA_REINICIO_REQUERIDO="$TMP/reboot-required" VIGILANCIA_APT_CHECK="$TMP/apt-check" \
+    VIGILANCIA_AHORA="$BASE" BETTERSTACK_HOST_HEARTBEAT_URL="$URL" "$@" bash "$GUION" 2>&1)
+  codigo=$?
+}
+recuento() { case "$salida" in *"parches_seguridad=$1 "*) echo si ;; *) echo "no ($salida)" ;; esac; }
+reiniciar; ejecutar_apt APT_CHECK_SALIDA="12;3"
+comprobar "apt-check '12;3': 3 de seguridad" "si" "$(recuento 3)"
+reiniciar; ejecutar_apt APT_CHECK_SALIDA=$'aviso de python\n12;4'
+comprobar "apt-check con un aviso delante: se lee la ultima linea" "si" "$(recuento 4)"
+reiniciar; ejecutar_apt APT_CHECK_SALIDA="12;3" APT_CHECK_CODIGO=1
+comprobar "apt-check que falla: n/d, no 0" "si" "$(recuento n/d)"
+reiniciar; ejecutar_apt APT_CHECK_SALIDA="E: basura"
+comprobar "apt-check con salida extrana: n/d" "si" "$(recuento n/d)"
+# Cache de una hora: el segundo recuento no se mira hasta que pasa.
+reiniciar; ejecutar_apt APT_CHECK_SALIDA="1;1"
+ejecutar_apt APT_CHECK_SALIDA="9;9" VIGILANCIA_AHORA="$((BASE + 3599))"
+comprobar "dentro de la hora: se usa la cache" "si" "$(recuento 1)"
+ejecutar_apt APT_CHECK_SALIDA="9;9" VIGILANCIA_AHORA="$((BASE + 3600))"
+comprobar "pasada la hora: se vuelve a contar" "si" "$(recuento 9)"
+# Sin apt-check: apt-get -s, solo lineas Inst de un origen -security.
+reiniciar
+cat > "$TMP/bin/apt-get" <<'EOF'
+#!/bin/bash
+cat <<'FIN'
+Inst openssl [3.0.13-0ubuntu3.4] (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-updates, Ubuntu:24.04/noble-security [amd64])
+Inst libc6 [2.39-0ubuntu8.3] (2.39-0ubuntu8.4 Ubuntu:24.04/noble-security [amd64])
+Inst vim [2:9.1.0016-1ubuntu7.3] (2:9.1.0016-1ubuntu7.4 Ubuntu:24.04/noble-updates [amd64])
+Inst foo-security [1.0] (1.1 Ubuntu:24.04/noble-updates [amd64])
+Conf openssl (3.0.13-0ubuntu3.5 Ubuntu:24.04/noble-security [amd64])
+FIN
+exit "${APT_GET_CODIGO:-0}"
+EOF
+chmod +x "$TMP/bin/apt-get"
+ejecutar_apt VIGILANCIA_APT_CHECK="$TMP/no-existe"
+comprobar "apt-get -s: cuenta 2 (no el paquete foo-security ni las Conf)" "si" "$(recuento 2)"
+rm -f "$TMP/estado.parches"
+ejecutar_apt VIGILANCIA_APT_CHECK="$TMP/no-existe" APT_GET_CODIGO=100
+comprobar "apt-get que falla: n/d, no 0" "si" "$(recuento n/d)"
+rm -f "$TMP/bin/apt-get"
 
 # Estado de la version anterior (tres campos): se empieza a contar, sin abortar.
 reiniciar; echo "0 3 aaaa-1111" > "$TMP/estado"
@@ -362,6 +422,28 @@ comprobar "tras reiniciar (sin reboot-required): sin alerta" "$URL" "$llamada"
 reiniciar; touch -d "@$((BASE - 5 * DIA))" "$TMP/reboot-required"
 ejecutar 40 VIGILANCIA_AHORA="$BASE"
 comprobar "reboot-required de hace 5 dias sin estado: alerta a la primera" "$URL/fail" "$llamada"
+
+# Fecha del fichero en el futuro: se cuenta desde ahora.
+reiniciar; touch -d "@$((BASE + 5 * DIA))" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE"
+comprobar "reboot-required con fecha futura: sin alerta y cuenta desde ahora" "0 3 aaaa-1111 - $BASE" "$(cat "$TMP/estado")"
+
+# --- Monitor de mantenimiento aparte: 4 y 5 no tapan las alarmas de 1 a 3.
+URL2="https://uptime.betterstack.com/api/v1/heartbeat/MANTENIMIENTO-DE-PRUEBA"
+reiniciar; touch -d "@$((BASE - 5 * DIA))" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE" BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL="$URL2"
+comprobar "con monitor de mantenimiento, reinicio pendiente: /fail al de mantenimiento y exito al principal" \
+  "$URL2/fail $URL" "$(tr '\n' ' ' < "$CURL_LOG" | sed 's/ $//')"
+comprobar "con monitor de mantenimiento, reinicio pendiente: sale 1" "1" "$codigo"
+ejecutar 90 VIGILANCIA_AHORA="$BASE" BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL="$URL2"
+comprobar "con monitor de mantenimiento, disco 90% y reinicio: /fail a los dos" \
+  "$URL2/fail $URL/fail" "$(tr '\n' ' ' < "$CURL_LOG" | sed 's/ $//')"
+rm -f "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE" BETTERSTACK_HOST_MANTENIMIENTO_HEARTBEAT_URL="$URL2"
+comprobar "con monitor de mantenimiento y todo en orden: exito a los dos" \
+  "$URL2 $URL" "$(tr '\n' ' ' < "$CURL_LOG" | sed 's/ $//')"
+if grep -q "MANTENIMIENTO-DE-PRUEBA" "$CURL_ARGS"; then r=si; else r=no; fi
+comprobar "la URL de mantenimiento tampoco va en los argumentos de curl" "no" "$r"
 
 reiniciar; touch -d "@$BASE" "$TMP/reboot-required"
 ejecutar 40 VIGILANCIA_AHORA="$BASE" UMBRAL_DIAS_REINICIO=1
