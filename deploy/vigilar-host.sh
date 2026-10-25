@@ -1,5 +1,6 @@
 #!/bin/bash
-# Vigilancia del host del VPS: disco y memoria. Cron del host, cada 5 minutos.
+# Vigilancia del host del VPS: disco, memoria y parches de seguridad. Cron del
+# host, cada 5 minutos.
 #
 # Nace de dos huecos medidos, no supuestos:
 #   - Disco: el 2026-08-26, el 2026-08-29 y el 2026-09-13 el disco llego al
@@ -34,6 +35,22 @@
 #      el kernel ya ha matado un proceso por falta de memoria, sea cual sea la
 #      memoria disponible en este instante. La primera ejecucion (sin estado
 #      previo) solo toma la referencia y no puede avisar de lo anterior.
+#   4. Hay parches de seguridad de Ubuntu pendientes de instalar desde hace
+#      UMBRAL_DIAS_PARCHES dias o mas (defecto 3) sin que el recuento haya vuelto
+#      a 0. unattended-upgrades los instala a diario (solo seguridad, sin
+#      reinicio automatico): si siguen ahi tres dias, algo lo impide (paquete
+#      retenido, dpkg a medias, apt-daily parado). El recuento sale de
+#      /usr/lib/update-notifier/apt-check o, sin el, de `apt-get -s dist-upgrade`
+#      (lineas Inst de un origen -security). Un recuento ilegible (apt a medias
+#      durante apt-daily) no alerta por si solo: se anota n/d y conserva la fecha
+#      desde la que habia pendientes, que sigue contando.
+#   5. /var/run/reboot-required existe desde hace UMBRAL_DIAS_REINICIO dias o mas
+#      (defecto 3): un parche (kernel, libc, openssl...) instalado pero no en uso
+#      hasta reiniciar. El reinicio es manual a proposito (staging y produccion
+#      comparten la maquina). La fecha de partida es la primera vez que este guion
+#      lo ve o, si no hay estado, la fecha de modificacion del fichero.
+#   La fecha de partida de 4 y 5 se guarda en el estado; el fichero de /var/run
+#   desaparece al reiniciar y la cuenta vuelve a empezar.
 #
 # Uso (cron del host; ver ## Paso operativo en servidores de la PR):
 #   */5 * * * *  set -a; . /etc/caemanager-vigilancia.env; set +a; /opt/talveg/deploy/vigilar-host.sh >> /var/log/caemanager-vigilancia.log 2>&1
@@ -42,12 +59,15 @@
 #   BETTERSTACK_HOST_HEARTBEAT_URL  URL del monitor Heartbeat. Sin ella no hay
 #                                   llamada de red: el guion solo informa y
 #                                   devuelve el codigo de salida.
-#   UMBRAL_DISCO, UMBRAL_MEMORIA, MUESTRAS_MEMORIA   ver arriba.
+#   UMBRAL_DISCO, UMBRAL_MEMORIA, MUESTRAS_MEMORIA,
+#   UMBRAL_DIAS_PARCHES, UMBRAL_DIAS_REINICIO        ver arriba.
 #   VIGILANCIA_ESTADO               fichero de estado entre ejecuciones
 #                                   (defecto /var/lib/caemanager-vigilancia.estado).
 # Para probarlo sin VPS: VIGILANCIA_USO_DISCO (porcentaje forzado),
 # VIGILANCIA_MEMINFO y VIGILANCIA_VMSTAT (rutas a ficheros con el formato de
-# /proc/meminfo y /proc/vmstat). Tests en vigilar-host.tests.sh.
+# /proc/meminfo y /proc/vmstat), VIGILANCIA_PARCHES_SEGURIDAD (recuento forzado;
+# vacio = ilegible), VIGILANCIA_REINICIO_REQUERIDO (ruta del fichero) y
+# VIGILANCIA_AHORA (segundos desde 1970). Tests en vigilar-host.tests.sh.
 #
 # Codigos de salida: 0 en orden, 1 alerta, 2 configuracion invalida. Cualquier
 # salida distinta de 0 que no sea una alerta ya avisada (incluido un aborto con
@@ -58,6 +78,9 @@ set -euo pipefail
 UMBRAL_DISCO="${UMBRAL_DISCO:-85}"
 UMBRAL_MEMORIA="${UMBRAL_MEMORIA:-10}"
 MUESTRAS_MEMORIA="${MUESTRAS_MEMORIA:-2}"
+UMBRAL_DIAS_PARCHES="${UMBRAL_DIAS_PARCHES:-3}"
+UMBRAL_DIAS_REINICIO="${UMBRAL_DIAS_REINICIO:-3}"
+REINICIO_REQUERIDO="${VIGILANCIA_REINICIO_REQUERIDO:-/var/run/reboot-required}"
 ESTADO="${VIGILANCIA_ESTADO:-/var/lib/caemanager-vigilancia.estado}"
 MEMINFO="${VIGILANCIA_MEMINFO:-/proc/meminfo}"
 VMSTAT="${VIGILANCIA_VMSTAT:-/proc/vmstat}"
@@ -100,6 +123,8 @@ entero_en_rango() {   # entero_en_rango NOMBRE VALOR MIN MAX
 entero_en_rango UMBRAL_DISCO "$UMBRAL_DISCO" 1 99
 entero_en_rango UMBRAL_MEMORIA "$UMBRAL_MEMORIA" 1 99
 entero_en_rango MUESTRAS_MEMORIA "$MUESTRAS_MEMORIA" 1 100
+entero_en_rango UMBRAL_DIAS_PARCHES "$UMBRAL_DIAS_PARCHES" 1 365
+entero_en_rango UMBRAL_DIAS_REINICIO "$UMBRAL_DIAS_REINICIO" 1 365
 
 # Las lecturas no abortan: un valor ilegible se convierte en motivo de alerta
 # (o en hueco declarado, para oom_kill) mas abajo, nunca en un final mudo.
@@ -113,9 +138,9 @@ uso_disco() {
 
 # Temporal + mv: un disco lleno o un corte a mitad nunca deja el estado vacio
 # (que haria tomar la referencia de oom_kill en silencio).
-guardar_estado() {   # guardar_estado BAJAS OOM ARRANQUE
+guardar_estado() {   # guardar_estado BAJAS OOM ARRANQUE DESDE_PARCHES DESDE_REINICIO
   local tmp="$ESTADO.tmp.$$"
-  { printf '%s %s %s\n' "$1" "$2" "$3" > "$tmp" && mv -f "$tmp" "$ESTADO"; } 2>/dev/null \
+  { printf '%s %s %s %s %s\n' "$1" "$2" "$3" "$4" "$5" > "$tmp" && mv -f "$tmp" "$ESTADO"; } 2>/dev/null \
     || { rm -f "$tmp" 2>/dev/null; return 1; }
 }
 
@@ -123,7 +148,33 @@ campo() {   # campo FICHERO CLAVE -> primer numero de la linea que empieza por C
   awk -v k="$2" '$1 == k || $1 == k":" { print $2; exit }' "$1" 2>/dev/null || true
 }
 
+# Recuento de parches de seguridad pendientes; vacio si no se puede saber. Un apt
+# que falla no puede leerse como "0 pendientes": por eso se mira su codigo antes
+# de contar.
+parches_seguridad() {
+  local salida
+  if [ -n "${VIGILANCIA_PARCHES_SEGURIDAD+x}" ]; then
+    echo "$VIGILANCIA_PARCHES_SEGURIDAD"
+  elif [ -x /usr/lib/update-notifier/apt-check ]; then
+    # apt-check escribe "<actualizaciones>;<de seguridad>" en stderr.
+    if salida=$(/usr/lib/update-notifier/apt-check 2>&1 >/dev/null); then
+      [[ "$salida" =~ ^[0-9]+\;([0-9]+)$ ]] && echo "${BASH_REMATCH[1]}"
+    fi
+  elif command -v apt-get >/dev/null 2>&1; then
+    if salida=$(apt-get -s -o Debug::NoLocking=1 dist-upgrade 2>/dev/null); then
+      printf '%s\n' "$salida" | grep -c '^Inst .*-security' || true
+    fi
+  fi
+  return 0
+}
+
+dias_desde() {   # dias_desde EPOCH -> dias enteros transcurridos hasta $ahora
+  echo $(( (ahora - $1) / 86400 ))
+}
+
 marca="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+ahora="${VIGILANCIA_AHORA:-$(date -u +%s)}"
+entero_en_rango VIGILANCIA_AHORA "$ahora" 1 999999999999
 motivos=()
 
 # 1. Disco
@@ -140,14 +191,23 @@ disponible=$(campo "$MEMINFO" MemAvailable)
 bajas_previas=0
 oom_previo=""
 arranque_previo=""
+desde_parches_previo=""
+desde_reinicio_previo=""
 if [ -r "$ESTADO" ]; then
-  # Formato: "<muestras bajas seguidas> <oom_kill|-> <boot_id|->"; se lee sin `source`.
-  read -r bajas_previas oom_previo arranque_previo < "$ESTADO" || true
+  # Formato: "<muestras bajas seguidas> <oom_kill|-> <boot_id|-> <desde_parches|->
+  # <desde_reinicio|->"; se lee sin `source`. Un estado de la version anterior (tres
+  # campos) deja los dos ultimos vacios: sin fecha de partida, se empieza a contar.
+  read -r bajas_previas oom_previo arranque_previo desde_parches_previo desde_reinicio_previo < "$ESTADO" || true
   # Un estado editado a mano o corrupto puede traer ceros a la izquierda: se
   # normaliza en base 10 (10#) en vez de descartarlo, porque descartar la
   # referencia de oom_kill haria perder los OOM ocurridos desde entonces.
   if [[ "$bajas_previas" =~ ^[0-9]{1,18}$ ]]; then bajas_previas=$(( 10#$bajas_previas )); else bajas_previas=0; fi
   if [[ "$oom_previo" =~ ^[0-9]{1,18}$ ]]; then oom_previo=$(( 10#$oom_previo )); else oom_previo=""; fi
+  # Una fecha en el futuro (reloj corregido, estado editado) no puede retrasar el aviso.
+  if [[ "$desde_parches_previo" =~ ^[0-9]{1,12}$ ]] && [ $(( 10#$desde_parches_previo )) -le "$ahora" ]; then
+    desde_parches_previo=$(( 10#$desde_parches_previo )); else desde_parches_previo=""; fi
+  if [[ "$desde_reinicio_previo" =~ ^[0-9]{1,12}$ ]] && [ $(( 10#$desde_reinicio_previo )) -le "$ahora" ]; then
+    desde_reinicio_previo=$(( 10#$desde_reinicio_previo )); else desde_reinicio_previo=""; fi
 fi
 arranque=$({ tr -dc '0-9a-f-' < "$BOOT_ID"; } 2>/dev/null || true)
 [ -n "$arranque" ] || arranque="-"
@@ -187,13 +247,44 @@ if [ -n "$oom" ] && [ -n "$oom_previo" ] && [ "$oom" -gt "$oom_previo" ]; then
   alerta_oom=1
 fi
 
+# 4. Parches de seguridad pendientes
+parches=$(parches_seguridad)
+desde_parches=""
+if [[ "$parches" =~ $NUM ]]; then
+  if [ "$parches" -gt 0 ]; then desde_parches="${desde_parches_previo:-$ahora}"; fi
+  parches_txt="$parches"
+else
+  # Ilegible: no se sabe si siguen; se conserva la fecha de partida, que sigue contando.
+  desde_parches="$desde_parches_previo"
+  parches_txt="n/d"
+fi
+if [ -n "$desde_parches" ] && [ "$(dias_desde "$desde_parches")" -ge "$UMBRAL_DIAS_PARCHES" ]; then
+  motivos+=("parches de seguridad pendientes (${parches_txt}) desde hace $(dias_desde "$desde_parches") dias >= ${UMBRAL_DIAS_PARCHES}")
+fi
+
+# 5. Reinicio pendiente
+desde_reinicio=""
+reinicio_txt="no"
+if [ -e "$REINICIO_REQUERIDO" ]; then
+  reinicio_txt="si"
+  if [ -n "$desde_reinicio_previo" ]; then
+    desde_reinicio="$desde_reinicio_previo"
+  else
+    desde_reinicio=$(stat -c %Y "$REINICIO_REQUERIDO" 2>/dev/null || true)
+    if ! [[ "$desde_reinicio" =~ $NUM ]] || [ "$desde_reinicio" -gt "$ahora" ]; then desde_reinicio="$ahora"; fi
+  fi
+  if [ "$(dias_desde "$desde_reinicio")" -ge "$UMBRAL_DIAS_REINICIO" ]; then
+    motivos+=("reinicio pendiente (reboot-required) desde hace $(dias_desde "$desde_reinicio") dias >= ${UMBRAL_DIAS_REINICIO}")
+  fi
+fi
+
 # Guardar estado. Si no se puede escribir, se avisa: sin estado las condiciones
-# 2 y 3 quedan ciegas, y eso tambien es un fallo de la vigilancia.
-if ! guardar_estado "$bajas" "${oom:--}" "$arranque"; then
+# 2 a 5 quedan ciegas, y eso tambien es un fallo de la vigilancia.
+if ! guardar_estado "$bajas" "${oom:--}" "$arranque" "${desde_parches:--}" "${desde_reinicio:--}"; then
   motivos+=("no se pudo escribir el estado en $ESTADO")
 fi
 
-datos="disco=${disco}% memoria_disponible=${pct_mem}% oom_kill=${oom:-n/d}"
+datos="disco=${disco}% memoria_disponible=${pct_mem}% oom_kill=${oom:-n/d} parches_seguridad=${parches_txt} reinicio_pendiente=${reinicio_txt}"
 if [ "${#motivos[@]}" -eq 0 ]; then
   linea="$marca ok $datos"
   codigo=0
@@ -218,7 +309,7 @@ if [ -n "$destino" ]; then
     # condicion; el OOM es un suceso y se perderia: la referencia no avanza
     # hasta que el aviso se entregue, para que la siguiente lectura lo repita.
     if [ "$alerta_oom" = "1" ]; then
-      guardar_estado "$bajas" "$oom_previo" "$arranque" || true
+      guardar_estado "$bajas" "$oom_previo" "$arranque" "${desde_parches:--}" "${desde_reinicio:--}" || true
     fi
   fi
 else

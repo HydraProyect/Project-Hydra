@@ -4,7 +4,10 @@
 # El disco se fuerza con VIGILANCIA_USO_DISCO, /proc/meminfo y /proc/vmstat se
 # sustituyen por ficheros y curl por un doble que anota a que URL se llamo (la
 # lee de stdin, como hace el guion), asi que corren en CI sin VPS, sin red y
-# sin llenar nada de verdad.
+# sin llenar nada de verdad. Los parches de seguridad se fuerzan con
+# VIGILANCIA_PARCHES_SEGURIDAD, el reboot-required es un fichero del temporal y
+# el reloj se fija con VIGILANCIA_AHORA: ningun caso mira el apt ni el /var/run
+# del runner.
 #
 # VIGILAR_HOST_GUION permite apuntar a una copia mutada del guion para la
 # prueba de sensibilidad sin tocar el arbol de trabajo.
@@ -56,13 +59,16 @@ ejecutar() {
   : > "$CURL_LOG"; : > "$CURL_ARGS"
   salida=$(env VIGILANCIA_USO_DISCO="$disco" VIGILANCIA_MEMINFO="$TMP/meminfo" \
     VIGILANCIA_VMSTAT="$TMP/vmstat" VIGILANCIA_ESTADO="$TMP/estado" \
-    VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+    VIGILANCIA_BOOT_ID="$TMP/boot_id" VIGILANCIA_PARCHES_SEGURIDAD=0 \
+    VIGILANCIA_REINICIO_REQUERIDO="$TMP/reboot-required" \
     BETTERSTACK_HOST_HEARTBEAT_URL="$URL" "$@" bash "$GUION" 2>&1)
   codigo=$?
   llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
 }
 arranque() { echo "$1" > "$TMP/boot_id"; }
-reiniciar() { rm -f "$TMP/estado"; meminfo 50; vmstat 3; arranque aaaa-1111; }
+reiniciar() { rm -f "$TMP/estado" "$TMP/reboot-required"; meminfo 50; vmstat 3; arranque aaaa-1111; }
+BASE=$(date -u +%s)
+DIA=86400
 
 echo "vigilar-host.sh"
 
@@ -145,7 +151,8 @@ comprobar "primera ejecucion sin estado: toma referencia, sin alerta" "$URL" "$l
 reiniciar
 : > "$CURL_LOG"
 env VIGILANCIA_USO_DISCO=95 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
-  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" bash "$GUION" >/dev/null 2>&1
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" VIGILANCIA_PARCHES_SEGURIDAD=0 \
+  VIGILANCIA_REINICIO_REQUERIDO="$TMP/reboot-required" bash "$GUION" >/dev/null 2>&1
 codigo=$?
 comprobar "sin URL y disco 95%: sale 1" "1" "$codigo"
 comprobar "sin URL: ninguna llamada de red" "0" "$(wc -l < "$CURL_LOG" | tr -d ' ')"
@@ -213,7 +220,8 @@ comprobar "estado no escribible: alerta" "$URL/fail" "$llamada"
 reiniciar
 : > "$CURL_LOG"
 env VIGILANCIA_USO_DISCO=99 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
-  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" VIGILANCIA_PARCHES_SEGURIDAD=0 \
+  VIGILANCIA_REINICIO_REQUERIDO="$TMP/reboot-required" \
   BETTERSTACK_HOST_HEARTBEAT_URL="$URL" bash "$GUION" >&- 2>/dev/null
 codigo=$?
 llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
@@ -224,7 +232,8 @@ comprobar "log no escribible y disco 99%: sale 1" "1" "$codigo"
 reiniciar
 : > "$CURL_LOG"
 env VIGILANCIA_USO_DISCO=40 VIGILANCIA_MEMINFO="$TMP/meminfo" VIGILANCIA_VMSTAT="$TMP/vmstat" \
-  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" \
+  VIGILANCIA_ESTADO="$TMP/estado" VIGILANCIA_BOOT_ID="$TMP/boot_id" VIGILANCIA_PARCHES_SEGURIDAD=0 \
+  VIGILANCIA_REINICIO_REQUERIDO="$TMP/reboot-required" \
   BETTERSTACK_HOST_HEARTBEAT_URL="$URL" bash "$GUION" >&- 2>/dev/null
 codigo=$?
 llamada=$(tail -1 "$CURL_LOG"); [ -n "$llamada" ] || llamada="ninguna"
@@ -278,6 +287,86 @@ comprobar "sin /proc/meminfo: lo dice" "si" "$r"
 reiniciar
 ejecutar "ilegible"
 comprobar "disco ilegible (lectura no numerica): alerta" "$URL/fail" "$llamada"
+
+# --- 4. Parches de seguridad pendientes (umbral 3 dias por defecto).
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=0
+comprobar "sin parches pendientes: sin alerta" "$URL" "$llamada"
+case "$salida" in *"parches_seguridad=0 reinicio_pendiente=no"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "sin parches: la linea lo dice" "si" "$r"
+
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=5
+comprobar "5 parches vistos por primera vez: sin alerta" "$URL" "$llamada"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA - 60))" VIGILANCIA_PARCHES_SEGURIDAD=5
+comprobar "parches pendientes desde hace casi 3 dias: sin alerta" "$URL" "$llamada"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=4
+comprobar "parches pendientes desde hace 3 dias: alerta" "$URL/fail" "$llamada"
+case "$salida" in *"parches de seguridad pendientes (4) desde hace 3 dias >= 3"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "parches: el motivo nombra recuento, dias y umbral" "si" "$r"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA + 300))" VIGILANCIA_PARCHES_SEGURIDAD=0
+comprobar "parches instalados (recuento 0): fin de la alerta" "$URL" "$llamada"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 4 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=2
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 6 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=2
+comprobar "tras volver a 0, la cuenta empieza de nuevo (2 dias): sin alerta" "$URL" "$llamada"
+
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=1 UMBRAL_DIAS_PARCHES=1
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + DIA))" VIGILANCIA_PARCHES_SEGURIDAD=1 UMBRAL_DIAS_PARCHES=1
+comprobar "UMBRAL_DIAS_PARCHES=1: alerta al dia" "$URL/fail" "$llamada"
+
+# Recuento ilegible: por si solo no alerta, pero no borra la fecha de partida.
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=
+comprobar "recuento ilegible sin historial: sin alerta" "$URL" "$llamada"
+case "$salida" in *"parches_seguridad=n/d"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "recuento ilegible: lo declara n/d" "si" "$r"
+reiniciar
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=3
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + DIA))" VIGILANCIA_PARCHES_SEGURIDAD=
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA))" VIGILANCIA_PARCHES_SEGURIDAD=
+comprobar "pendientes y luego ilegible: la fecha sigue contando y alerta" "$URL/fail" "$llamada"
+
+# Estado de la version anterior (tres campos): se empieza a contar, sin abortar.
+reiniciar; echo "0 3 aaaa-1111" > "$TMP/estado"
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=7
+comprobar "estado de tres campos y parches pendientes: sin alerta" "$URL" "$llamada"
+comprobar "estado de tres campos: se reescribe con cinco" "0 3 aaaa-1111 $BASE -" "$(cat "$TMP/estado")"
+
+# Una fecha de partida en el futuro (reloj corregido) no retrasa el aviso.
+reiniciar; echo "0 3 aaaa-1111 $((BASE + 30 * DIA)) -" > "$TMP/estado"
+ejecutar 40 VIGILANCIA_AHORA="$BASE" VIGILANCIA_PARCHES_SEGURIDAD=1
+comprobar "fecha de partida futura: se descarta y se cuenta desde ahora" "0 3 aaaa-1111 $BASE -" "$(cat "$TMP/estado")"
+
+reiniciar
+ejecutar 40 UMBRAL_DIAS_PARCHES=0
+comprobar "UMBRAL_DIAS_PARCHES=0: configuracion invalida (2)" "2" "$codigo"
+
+# --- 5. Reinicio pendiente (reboot-required).
+reiniciar; touch -d "@$BASE" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE"
+comprobar "reboot-required recien aparecido: sin alerta" "$URL" "$llamada"
+case "$salida" in *"reinicio_pendiente=si"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "reboot-required: la linea lo dice" "si" "$r"
+# Que un paquete posterior lo toque no retrasa la cuenta: manda la primera vez vista.
+touch -d "@$((BASE + 2 * DIA))" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA))"
+comprobar "reboot-required desde hace 3 dias: alerta" "$URL/fail" "$llamada"
+case "$salida" in *"reinicio pendiente (reboot-required) desde hace 3 dias >= 3"*) r=si ;; *) r="no ($salida)" ;; esac
+comprobar "reinicio: el motivo nombra dias y umbral" "si" "$r"
+rm -f "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + 3 * DIA + 300))"
+comprobar "tras reiniciar (sin reboot-required): sin alerta" "$URL" "$llamada"
+
+# Sin estado previo, la fecha del fichero cuenta: uno de hace 5 dias alerta ya.
+reiniciar; touch -d "@$((BASE - 5 * DIA))" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE"
+comprobar "reboot-required de hace 5 dias sin estado: alerta a la primera" "$URL/fail" "$llamada"
+
+reiniciar; touch -d "@$BASE" "$TMP/reboot-required"
+ejecutar 40 VIGILANCIA_AHORA="$BASE" UMBRAL_DIAS_REINICIO=1
+ejecutar 40 VIGILANCIA_AHORA="$((BASE + DIA - 1))" UMBRAL_DIAS_REINICIO=1
+comprobar "UMBRAL_DIAS_REINICIO=1 a las 23:59: sin alerta" "$URL" "$llamada"
 
 echo
 if [ "$fallos" -gt 0 ]; then
