@@ -326,12 +326,8 @@ public class ParticionadoAuditoriaBajoRuntimeTests
         return conexion;
     }
 
-    private static async Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant)
-    {
-        await using var orden = new NpgsqlCommand("SELECT set_config('app.tenant_id', @tenant, false);", conexion);
-        orden.Parameters.AddWithValue("tenant", tenant.ToString());
-        await orden.ExecuteNonQueryAsync();
-    }
+    private static Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant);
 
     private static async Task InsertarEventoAsync(NpgsqlConnection conexion, string tabla, Guid tenant, DateTime fecha)
     {

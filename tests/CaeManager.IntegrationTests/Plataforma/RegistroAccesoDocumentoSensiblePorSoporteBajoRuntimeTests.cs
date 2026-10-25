@@ -2,12 +2,14 @@ using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
 using CaeManager.Domain.Auditoria;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
 using CaeManager.Infrastructure.Persistence.Interceptors;
 using CaeManager.Infrastructure.Persistence.Repositories;
+using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -335,10 +337,17 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
     /// <summary>
     /// Un contexto firmado corrupto (o caducado) no devuelve un código: app_contexto_validado lanza
     /// 42501 en cuanto se evalúa, y la función de registro lo evalúa siempre. El repositorio lo
-    /// traduce a false y el servicio falla en cerrado con la excepción que DocumentosEndpoints
-    /// convierte en 403 sin servir el fichero. Aquí las consultas previas del servicio, sobre un
-    /// Documento inexistente, no llegan a lanzarlo (observado en CI); el 42501 directo que el
-    /// endpoint también traduce a 403 es el de una lectura que sí lo evalúe.
+    /// traduce a false, y con eso el servicio falla en cerrado con la excepción que
+    /// DocumentosEndpoints convierte en 403 sin servir el fichero.
+    ///
+    /// <para>
+    /// Desde P6 «contraer» (ContraeContextoRlsFirmado) la política de Documentos también lee el
+    /// contexto firmado, así que la consulta previa del servicio puede lanzar el 42501 antes de
+    /// llegar al repositorio (lo observado en CI con PostgreSQL 18); antes la política leía la GUC
+    /// suelta y no lo evaluaba. Las dos salidas fallan en cerrado y el endpoint traduce las dos a
+    /// 403 (ErroresLecturaSensible.EsContextoNoAutorizado): el servicio se comprueba por esa
+    /// propiedad, y la traducción del repositorio, aparte, con su llamada directa.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Un_contexto_firmado_corrupto_hace_lanzar_42501_a_la_funcion_y_el_servicio_falla_en_cerrado()
@@ -362,8 +371,28 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
             new ActorAuditoriaFalso(new ActorAuditoria(_tecnico, null, TipoViaAcceso.SesionPrivilegiada, sesion)),
             new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
         var registrar = () => servicio.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura);
-        (await registrar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
-            .Which.RecursoId.Should().Be(documentoId);
+        // Se exige la propiedad y no la salida concreta: que la consulta previa evalúe el
+        // contexto sobre un Documento inexistente depende del plan (InitPlan como clave de
+        // índice o como filtro), y cualquiera de las dos salidas falla en cerrado.
+        var falloDelServicio = await Record.ExceptionAsync(registrar);
+        falloDelServicio.Should().NotBeNull("con el contexto corrupto el servicio no puede terminar sin error");
+        ErroresLecturaSensible.EsContextoNoAutorizado(falloDelServicio!).Should().BeTrue(
+            $"el endpoint tiene que responder 403 sin servir el fichero, y llegó {falloDelServicio!.GetType().Name}: {falloDelServicio.Message}");
+        if (falloDelServicio is AccesoDocumentoSensibleNoRegistradoException noRegistrado)
+            noRegistrado.RecursoId.Should().Be(documentoId);
+        else
+            falloDelServicio.Should().BeOfType<PostgresException>()
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+
+        var actor = new ActorAuditoria(_tecnico, null, TipoViaAcceso.SesionPrivilegiada, sesion);
+        var registro = new RegistroAccesoDocumentoSensible(
+            documentoId, SensibilidadDocumental.CategoriaEspecialSalud, TipoAccesoDocumentoSensible.Apertura,
+            actor.UsuarioSimuladoId ?? actor.ActorRealUsuarioId, actor.ActorRealUsuarioId,
+            (TipoViaAccesoAuditoria)actor.Via, actor.ViaAccesoId, (TipoActorAuditoria)actor.ResolverTipoActor());
+        (await new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance)
+                .GuardarAsync(registro))
+            .Should().BeFalse("el repositorio traduce el 42501 de la función a false, que el servicio convierte en el fallo en cerrado");
+
         (await LeerFilasAsync(documentoId)).Should().BeEmpty();
     }
 

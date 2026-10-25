@@ -17,6 +17,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Retencion;
@@ -488,7 +489,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// <c>app.tenant_id</c> en cada conexión, como hace <c>TenantRlsConnectionInterceptor</c>
+    /// El Tenant del contexto RLS firmado en cada conexión, como hace <c>TenantRlsConnectionInterceptor</c>
     /// en producción: la ejecución de una purga de Trabajadores llama a
     /// <c>app_enmascarar_auditoria_de_trabajador_anonimizado</c>, que sin Tenant en la
     /// sesión falla con 42501. Estos tests conectan como propietario (sin RLS), así que
@@ -499,9 +500,7 @@ public class EjecucionPurgaTests : IAsyncLifetime
         public override async Task ConnectionOpenedAsync(
             DbConnection connection, ConnectionEndEventData eventData, CancellationToken cancellationToken = default)
         {
-            await using var comando = connection.CreateCommand();
-            comando.CommandText = $"SELECT set_config('app.tenant_id', '{tenant}', false);";
-            await comando.ExecuteNonQueryAsync(cancellationToken);
+            await ContextoRlsDePruebas.FijarAsync((NpgsqlConnection)connection, tenantId: tenant);
         }
     }
 

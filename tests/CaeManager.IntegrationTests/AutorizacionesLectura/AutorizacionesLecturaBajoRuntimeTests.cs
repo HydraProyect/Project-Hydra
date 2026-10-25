@@ -347,10 +347,11 @@ public class AutorizacionesLecturaBajoRuntimeTests : IAsyncLifetime
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        var contextoFirmado = await ContextoRlsDePruebas.FirmarAsync(conexion, tenantId: _tenantContratista.Id);
         await using (var preparar = conexion.CreateCommand())
         {
-            preparar.CommandText = "SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE cae_app_soporte;";
-            preparar.Parameters.AddWithValue("tenant", _tenantContratista.Id.ToString());
+            preparar.CommandText = "SELECT set_config('app.contexto', @contexto, true); SET LOCAL ROLE cae_app_soporte;";
+            preparar.Parameters.AddWithValue("contexto", contextoFirmado);
             await preparar.ExecuteNonQueryAsync();
         }
 

@@ -257,12 +257,7 @@ VALUES (@usuario, 'AdminPlataforma', 'Vigente', now() - interval '1 minute', NUL
         var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        await using (var fijar = conexion.CreateCommand())
-        {
-            fijar.CommandText = "SELECT set_config('app.usuario_id', @valor, false);";
-            fijar.Parameters.AddWithValue("valor", usuarioId.ToString());
-            await fijar.ExecuteNonQueryAsync();
-        }
+        await ContextoRlsDePruebas.FijarAsync(conexion, usuarioId: usuarioId);
 
         await using var setRol = conexion.CreateCommand();
         setRol.CommandText = "SET ROLE cae_app_runtime;";

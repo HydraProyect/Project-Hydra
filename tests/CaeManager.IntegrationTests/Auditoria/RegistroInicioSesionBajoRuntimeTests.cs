@@ -140,9 +140,7 @@ public class RegistroInicioSesionBajoRuntimeTests
     {
         var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario));
         await conexion.OpenAsync();
-        await using var fijar = new NpgsqlCommand("SELECT set_config('app.tenant_id', @tenant, false);", conexion);
-        fijar.Parameters.AddWithValue("tenant", tenantId.ToString());
-        await fijar.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
         return conexion;
     }
 

@@ -119,8 +119,8 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     private static readonly Dictionary<string, (string Politica, string Motivo, string[] Menciona)> PoliticasRestrictivasRevisadas = new()
     {
         ["TareasAsistente"] = ("solo_su_persona",
-            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app.usuario_id",
-            ["\"ActorRealUsuarioId\"", "'app.usuario_id'"]),
+            "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app_ctx_usuario_id()",
+            ["\"ActorRealUsuarioId\"", "app_ctx_usuario_id()"]),
         ["TurnosTareaAsistente"] = ("solo_su_persona",
             "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
             ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""]),
@@ -338,7 +338,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
 
         string.Join(" | ", conExpresionSospechosa).Should().BeEmpty(
             $"la política '{PoliticaAislamiento}' tiene que comparar la columna TenantId contra la variable de " +
-            "sesión app.tenant_id, en USING y también en WITH CHECK — sin WITH CHECK, un INSERT o UPDATE podría " +
+            "sesión firmado (app_ctx_tenant_id(), P6), en USING y también en WITH CHECK — sin WITH CHECK, un INSERT o UPDATE podría " +
             "escribir filas de otro tenant aunque no pudiera leerlas");
     }
 
@@ -464,12 +464,12 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             if (politica is null) continue;
 
             politica.Using.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app.tenant_origen_id",
+                .And.Subject.As<string>().Should().Contain("app_ctx_tenant_origen_id()",
                     "sin la segunda variable de sesión, un operador no vería las asignaciones que opera — su propio " +
-                    "tenant no es el que está fijado en app.tenant_id dentro de un workspace delegado");
+                    "tenant no es el que está firmado en app_ctx_tenant_id() dentro de un workspace delegado");
 
             politica.WithCheck.Should().NotBeNull();
-            politica.WithCheck!.Should().NotContain("app.tenant_origen_id",
+            politica.WithCheck!.Should().NotContain("app_ctx_tenant_origen_id()",
                 "el WITH CHECK es asimétrico a propósito: si el operador pudiera escribir por su posición, se " +
                 "concedería a sí mismo asignaciones sobre propietarios ajenos sin necesitar ver nada de ellos");
             politica.WithCheck.Should().Contain("PropietarioTenantId",
@@ -531,20 +531,20 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
         var lectura = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_lectura_de_la_raiz");
         lectura.Should().NotBeNull();
         lectura!.Using.Should().NotBeNull()
-            .And.Subject.As<string>().Should().Contain("UsuarioRaizId").And.Contain("app.usuario_id",
+            .And.Subject.As<string>().Should().Contain("UsuarioRaizId").And.Contain("app_ctx_usuario_id()",
                 "solo la identidad raíz ve la fila: para cualquier otro usuario la tabla está vacía");
 
         var designacion = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_designacion_al_arrancar");
         designacion.Should().NotBeNull();
         designacion!.WithCheck.Should().NotBeNull()
-            .And.Subject.As<string>().Should().Contain("app.usuario_id",
-                "la designación la escribe el ARRANQUE, que no es una sesión de usuario: la ausencia de " +
-                "app.usuario_id es el discriminante, y es una coordenada del modelo, no una propiedad del rol");
+            .And.Subject.As<string>().Should().Contain("app_ctx_valido()").And.Contain("app_ctx_usuario_id()",
+                "la designación la escribe el ARRANQUE, que no es una sesión de usuario: " +
+                "un contexto firmado sin usuario es el discriminante (sin token no hay excepción), y es una coordenada del modelo, no una propiedad del rol");
 
         var consumo = e.Politicas.FirstOrDefault(p => p.Nombre == "estado_bootstrap_consumo_por_la_raiz");
         consumo.Should().NotBeNull();
         consumo!.Using.Should().NotBeNull()
-            .And.Subject.As<string>().Should().Contain("app.usuario_id");
+            .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()");
         consumo.WithCheck.Should().NotBeNull()
             .And.Subject.As<string>().Should().Contain("UsuarioRaizId",
                 "el WITH CHECK repite el predicado a propósito: sin él, la fila podría actualizarse para " +
@@ -587,7 +587,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             var escritura = e.Politicas.FirstOrDefault(p => p.Nombre == nombre);
             escritura.Should().NotBeNull();
             escritura!.WithCheck.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(").And.Contain("app.usuario_id",
+                .And.Subject.As<string>().Should().Contain("app_es_admin_plataforma_global(").And.Contain("app_ctx_usuario_id()",
                     "la escritura se ata a la concesión GLOBAL del usuario de la sesión, no a app_es_admin_plataforma, " +
                     "que admitiría una concesión acotada a un solo Tenant");
         }
@@ -644,7 +644,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
                 transparencia.WithCheck.Should().BeNull();
                 transparencia.Permisiva.Should().BeTrue();
                 transparencia.Using.Should().NotBeNull()
-                    .And.Subject.As<string>().Should().Contain("app.tenant_id")
+                    .And.Subject.As<string>().Should().Contain("app_ctx_tenant_id()")
                     .And.Contain("app_es_administrador_del_tenant(",
                         "por Tenant a secas cualquier usuario del Tenant leería el historial de accesos de soporte: " +
                         "la autoridad (Administrador) se exige en la misma frontera que el aislamiento");
@@ -654,13 +654,13 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             if (politica is null) continue;
 
             politica.Using.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app.usuario_id",
+                .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()",
                     "la autoridad vive en la fila: se ven las que te nombran. Y la coordenada es la identidad " +
                     "autenticada — no existe ni debe existir app.usuario_plataforma_id, que incrustaría una " +
                     "afirmación de privilegio en la sesión");
 
             politica.WithCheck.Should().NotBeNull()
-                .And.Subject.As<string>().Should().Contain("app.usuario_id",
+                .And.Subject.As<string>().Should().Contain("app_ctx_usuario_id()",
                     "sin WITH CHECK se podría crear o reasignar una concesión a nombre de otro usuario");
         }
     }
@@ -669,9 +669,9 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     /// Categoría 5: <b>catálogo del Operador CAE</b>. Las solicitudes de
     /// incorporación a cartera no llevan <c>TenantId</c>: nacen en el Operador
     /// CAE del Gestor CAE que las pide, pero se aceptan en la misma transacción
-    /// que escribe la cartera, con <c>app.tenant_id</c> puesto en el Tenant
+    /// que escribe la cartera, con <c>app_ctx_tenant_id()</c> puesto en el Tenant
     /// propietario (lo exige <c>posicion_en_la_asignacion</c>). Por eso su
-    /// política no mira <c>app.tenant_id</c> sino <c>app.tenant_origen_id</c>,
+    /// política no mira <c>app_ctx_tenant_id()</c> sino <c>app_ctx_tenant_origen_id()</c>,
     /// la organización de la cuenta, que no cambia al abrir un ámbito
     /// explícito. Sin FORCE por el mismo motivo que los catálogos de
     /// asignación: la retirada de un Tenant de demo corre como propietario.
@@ -696,8 +696,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
         {
             expresion.Should().NotBeNull("USING protege la lectura y WITH CHECK la escritura; hacen falta las dos")
                 .And.Subject.As<string>().Should().Contain("OperadorTenantId")
-                .And.Contain("app.tenant_origen_id")
-                .And.NotContain("app.tenant_id'",
+                .And.Contain("app_ctx_tenant_origen_id()")
+                .And.NotContain("app_ctx_tenant_id()",
                     "el Tenant activo es el propietario al aceptar; aislar por él rompería la aceptación");
         }
     }
@@ -733,13 +733,13 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
         politica.Permisiva.Should().BeTrue();
 
         politica.Using.Should().NotBeNull("USING protege la lectura")
-            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app.tenant_id")
-            .And.Contain("OperadorTenantId").And.Contain("app.tenant_origen_id")
+            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app_ctx_tenant_id()")
+            .And.Contain("OperadorTenantId").And.Contain("app_ctx_tenant_origen_id()")
             .And.Contain(" OR ", "las dos posiciones leen: el Operador CAE necesita el encargo para calcular su techo");
 
         politica.WithCheck.Should().NotBeNull("sin WITH CHECK, cualquiera que lo lea podría escribirlo")
-            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app.tenant_id")
-            .And.Contain("OperadorTenantId").And.Contain("app.tenant_origen_id")
+            .And.Subject.As<string>().Should().Contain("PropietarioTenantId").And.Contain("app_ctx_tenant_id()")
+            .And.Contain("OperadorTenantId").And.Contain("app_ctx_tenant_origen_id()")
             .And.Contain("IS DISTINCT FROM",
                 "la escritura exige que el Tenant de origen de la conexión NO sea el Operador CAE del encargo")
             .And.Contain(" AND ", "las dos condiciones de escritura hacen falta a la vez");
@@ -809,8 +809,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     /// <summary>
     /// Categoría 5 también: las <b>propuestas de apoyo</b> entre Gestores CAE de un mismo
     /// Operador CAE. Mismo motivo que la solicitud de incorporación: se aceptan en la transacción
-    /// que escribe la cartera, con <c>app.tenant_id</c> en el Tenant propietario, así que se
-    /// aíslan por <c>app.tenant_origen_id</c>. Lo que la política NO decide es quién, dentro del
+    /// que escribe la cartera, con <c>app_ctx_tenant_id()</c> en el Tenant propietario, así que se
+    /// aíslan por <c>app_ctx_tenant_origen_id()</c>. Lo que la política NO decide es quién, dentro del
     /// Operador CAE, puede aceptar cada una: eso es del Command (solo el destinatario).
     /// </summary>
     [Fact]
@@ -833,8 +833,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
         {
             expresion.Should().NotBeNull("USING protege la lectura y WITH CHECK la escritura; hacen falta las dos")
                 .And.Subject.As<string>().Should().Contain("OperadorTenantId")
-                .And.Contain("app.tenant_origen_id")
-                .And.NotContain("app.tenant_id'",
+                .And.Contain("app_ctx_tenant_origen_id()")
+                .And.NotContain("app_ctx_tenant_id()",
                     "el Tenant activo es el propietario al aceptar; aislar por él rompería la aceptación");
         }
     }
@@ -855,7 +855,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
         var texto = File.ReadAllText(interceptor);
 
-        texto.Should().Contain("app.usuario_id", "la coordenada de identidad tiene que seguir fijándose");
+        texto.Should().Contain("ContextoSesionRls(tenantId, tenantOrigenId, usuarioId", "la coordenada de identidad tiene que seguir firmándose");
         texto.Should().NotContain("set_config('app.usuario_plataforma_id",
             "la pertenencia a plataforma se deriva de las filas de concesión, no se declara en la sesión");
     }
@@ -880,7 +880,8 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     private static bool MencionaElAislamiento(string? expresion) =>
         expresion is not null
         && expresion.Contains("TenantId", StringComparison.Ordinal)
-        && expresion.Contains("app.tenant_id", StringComparison.Ordinal);
+        && expresion.Contains("app_ctx_tenant_id()", StringComparison.Ordinal)
+        && !expresion.Contains("current_setting(", StringComparison.Ordinal);
 
     private sealed record PoliticaRls(
         string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');

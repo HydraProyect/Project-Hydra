@@ -217,12 +217,7 @@ VALUES (gen_random_uuid(), @otro, 'SoporteLectura', false, now(), 'Vigente', now
         var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        await using (var fijar = conexion.CreateCommand())
-        {
-            fijar.CommandText = "SELECT set_config('app.usuario_id', @valor, false);";
-            fijar.Parameters.AddWithValue("valor", usuarioId?.ToString() ?? string.Empty);
-            await fijar.ExecuteNonQueryAsync();
-        }
+        await ContextoRlsDePruebas.FijarAsync(conexion, usuarioId: usuarioId);
 
         // Imprescindible: sin SET ROLE seguiríamos siendo superusuario y las
         // políticas no se evaluarían.
