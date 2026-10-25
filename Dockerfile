@@ -7,15 +7,15 @@
 # podía producir binarios distintos en CI y en el VPS. Fijado a la versión
 # exacta MÁS el digest (comprobado contra mcr.microsoft.com, no copiado de un
 # blog) — Dependabot (ver .github/dependabot.yml, ecosistema "docker") sigue
-# proponiendo el salto cuando salga una versión nueva, con su propio PR,
-# CI y escaneo Trivy antes de fusionar.
+# proponiendo el salto de la imagen aspnet de abajo, con su propio PR, CI y
+# escaneo Trivy antes de fusionar.
 #
-# La versión del SDK va a la par con global.json (exacta, sin rollForward):
-# el SDK escribe en el packages.lock.json de CaeManager.Web la versión de
+# La imagen sdk no: va a la par con global.json (exacta, sin rollForward).
+# El SDK escribe en el packages.lock.json de CaeManager.Web la versión de
 # Microsoft.AspNetCore.App.Internal.Assets que trae consigo, así que con otro
 # SDK el restore bloqueado de abajo falla con NU1004 (ver Directory.Build.props).
-# Un salto de esta imagen va en la misma PR que global.json y el lock de Web
-# regenerado; uno suelto de Dependabot cae en el CI con ese error.
+# Un salto de SDK va a mano en una sola PR: global.json, esta línea y el lock
+# de Web regenerado. Por eso dependabot.yml ignora dotnet/sdk.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302@sha256:72dd743782f2ae7e5476fd64f6a460045e3998dc862218b80e6944cba79a01b0 AS build
 WORKDIR /src
 
