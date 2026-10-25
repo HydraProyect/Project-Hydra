@@ -8,7 +8,8 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 /// Decisión pura de FiltrarTrabajadoresFueraDeVentana (ronda de reducción de ruido en
 /// Comunicaciones, patrón "trabajador fuera de ventana") — un ítem cuyo Trabajador resuelto ya no
 /// tiene asignación activa se descarta antes de crear ninguna sugerencia, no hay ninguna gestión
-/// real que el gestor pueda hacer sobre un Trabajador dado de baja.
+/// real que el gestor pueda hacer sobre un Trabajador dado de baja. Desde Z4-2 los candidatos que
+/// salen al proveedor ya son solo los activos, así que este filtro queda como defensa en profundidad.
 /// </summary>
 public class SugerenciaGestionCorreoServiceTests
 {
