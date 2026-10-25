@@ -156,4 +156,47 @@ public class CambioEstadoAcreditacionAManoTests
             case EstadoAcreditacion.Rechazada: acreditacion.Rechazar(CausaRechazoAcreditacion.Ilegible, "Ilegible", DateTime.UtcNow); break;
         }
     }
-}
+
+    [Fact]
+    public void Un_cambio_de_Centro_360_lleva_ese_origen()
+    {
+        var cambio = Crear().CambiarEstadoAMano(EstadoAcreditacion.Subida, Hoy, null, null, Usuario, DateTime.UtcNow);
+
+        cambio.Origen.Should().Be(OrigenCambioEstadoAcreditacion.Centro360);
+    }
+
+    [Fact]
+    public void Lo_he_enviado_de_la_extension_deja_subida_con_un_cambio_de_origen_extension()
+    {
+        var acreditacion = Crear();
+        acreditacion.MarcarAceptada(VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 1, 1)));
+
+        var cambio = acreditacion.ConfirmarEnvioDesdeExtension(Hoy, Usuario, DateTime.UtcNow);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        acreditacion.Vigencia.EstaSinConfirmar.Should().BeTrue("la plataforma lo revisa otra vez, igual que con «Marcar subido»");
+        cambio.Origen.Should().Be(OrigenCambioEstadoAcreditacion.Extension);
+        cambio.EstadoAnterior.Should().Be(EstadoAcreditacion.Aceptada);
+        cambio.Estado.Should().Be(EstadoAcreditacion.Subida);
+        cambio.Fecha.Should().Be(Hoy);
+        cambio.UsuarioId.Should().Be(Usuario);
+        acreditacion.CambiosEstado.Should().ContainSingle().Which.Should().BeSameAs(cambio);
+        acreditacion.UltimoCambioEstadoAManoId.Should().Be(cambio.Id);
+    }
+
+    [Fact]
+    public void Lo_he_enviado_se_deshace_y_devuelve_estado_y_vigencia_exactos()
+    {
+        var acreditacion = Crear();
+        var vigencia = VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 1, 1));
+        acreditacion.MarcarAceptada(vigencia);
+        var cambio = acreditacion.ConfirmarEnvioDesdeExtension(Hoy, Usuario, DateTime.UtcNow);
+
+        acreditacion.PuedeDeshacerCambioEstado(cambio.Id).Should().BeTrue();
+        acreditacion.DeshacerCambioEstado(cambio.Id, DateTime.UtcNow);
+
+        acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        acreditacion.Vigencia.Should().Be(vigencia);
+        cambio.EstaDeshecho.Should().BeTrue();
+        acreditacion.PuedeDeshacerCambioEstado(cambio.Id).Should().BeFalse("un cambio deshecho no se deshace dos veces");
+    }}

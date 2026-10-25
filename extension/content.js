@@ -420,8 +420,177 @@ async function elegirDocumentoAsync(documento, boton, fila, campo) {
   fila.after(aviso);
 }
 
-// --- Depositar el fichero -------------------------------------------------
+// --- «Lo he enviado» (E1) -------------------------------------------------
+//
+// Poner el archivo en el formulario no es subirlo: la persona aún lo revisa y
+// pulsa Enviar en la plataforma, o no. Por eso, tras ponerlo, una barra fija
+// pregunta por cada documento «Lo he enviado» / «No lo he enviado», y solo el
+// primero anota en TALVEG «Pendiente de validar» (con «Deshacer» unos
+// segundos). Lo pendiente lo guarda el service worker por pestaña: si la
+// plataforma recarga la página al enviar, esta barra vuelve a salir. El panel
+// no decide qué acreditación se anota; solo responde por las que el service
+// worker dice que puso en ESTA pestaña.
+//
+// Patrón visual provisional (el del panel) hasta que llegue la maqueta.
 
+const SEGUNDOS_PARA_DESHACER = 10;
+let anfitrionBarra = null;
+let listaBarra = null;
+const filasDeEnvio = new Map(); // acreditacionId -> fila
+
+const ESTILOS_BARRA = `
+  :host { all: initial; }
+  .barra {
+    position: fixed; right: 16px; bottom: 16px; z-index: 2147483647;
+    width: min(420px, calc(100vw - 32px)); background: #fff; color: #15191b;
+    border: 1px solid #e3e2dc; border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    font: 14px/1.4 system-ui, sans-serif;
+  }
+  .envio { padding: 12px 16px; border-top: 1px solid #e3e2dc; }
+  .envio:first-child { border-top: 0; }
+  .envio p { margin: 0 0 8px; font-size: 13.5px; }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px;
+    border: 1px solid #c9c8c0; background: #fff; color: #15191b; cursor: pointer;
+  }
+  button.principal { background: #1d5b57; border-color: #1d5b57; color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
+  .aviso { color: #8a4718; }
+`;
+
+function asegurarBarra() {
+  if (anfitrionBarra?.isConnected) return;
+  anfitrionBarra = document.createElement("div");
+  const raiz = anfitrionBarra.attachShadow({ mode: "closed" });
+  const estilos = document.createElement("style");
+  estilos.textContent = ESTILOS_BARRA;
+  raiz.appendChild(estilos);
+  listaBarra = document.createElement("div");
+  listaBarra.className = "barra";
+  listaBarra.setAttribute?.("role", "status");
+  raiz.appendChild(listaBarra);
+  document.documentElement.appendChild(anfitrionBarra);
+}
+
+function quitarFilaDeEnvio(acreditacionId) {
+  filasDeEnvio.get(acreditacionId)?.remove();
+  filasDeEnvio.delete(acreditacionId);
+  if (filasDeEnvio.size === 0) {
+    anfitrionBarra?.remove();
+    anfitrionBarra = null;
+    listaBarra = null;
+  }
+}
+
+function boton(texto, principal, alPulsar) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = texto;
+  if (principal) b.className = "principal";
+  b.addEventListener("click", alPulsar);
+  return b;
+}
+
+function pintarPregunta(fila, { acreditacionId, documento }) {
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = `«${documento}» está puesto en el formulario. Revísalo y pulsa Enviar en la plataforma; el estado en TALVEG no cambia hasta que lo confirmes.`;
+  const acciones = document.createElement("div");
+  acciones.className = "acciones";
+  const enviado = boton("Lo he enviado", true, () => confirmarEnvioAsync(acreditacionId, fila, enviado, noEnviado));
+  const noEnviado = boton("No lo he enviado", false, () => descartarEnvioAsync(acreditacionId, fila));
+  acciones.append(enviado, noEnviado);
+  fila.append(texto, acciones);
+}
+
+function pintarMensaje(fila, acreditacionId, mensaje, segundos) {
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = mensaje;
+  fila.appendChild(texto);
+  setTimeout(() => quitarFilaDeEnvio(acreditacionId), segundos * 1000);
+}
+
+async function preguntarAlServiceWorker(mensaje) {
+  try {
+    return await chrome.runtime.sendMessage(mensaje);
+  } catch (error) {
+    return { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
+  }
+}
+
+async function confirmarEnvioAsync(acreditacionId, fila, enviado, noEnviado) {
+  enviado.disabled = true;
+  noEnviado.disabled = true;
+  enviado.textContent = "Anotando…";
+  const resultado = await preguntarAlServiceWorker({ accion: "confirmarEnvio", acreditacionId });
+
+  if (!resultado?.ok) {
+    enviado.disabled = false;
+    noEnviado.disabled = false;
+    enviado.textContent = "Lo he enviado";
+    fila.querySelector?.(".aviso")?.remove();
+    const aviso = document.createElement("p");
+    aviso.className = "aviso";
+    aviso.textContent = resultado?.error ?? "No pudimos anotarlo en TALVEG.";
+    fila.appendChild(aviso);
+    return;
+  }
+
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = "Anotado en TALVEG: Pendiente de validar.";
+  fila.appendChild(texto);
+  if (resultado.puedeDeshacer) {
+    const acciones = document.createElement("div");
+    acciones.className = "acciones";
+    const deshacer = boton("Deshacer", false, () => deshacerEnvioAsync(acreditacionId, fila, deshacer));
+    acciones.appendChild(deshacer);
+    fila.appendChild(acciones);
+  }
+  // Pasado el plazo, el aviso se va solo: ya se corrige desde Centro 360.
+  fila.plazoDeshacer = setTimeout(() => quitarFilaDeEnvio(acreditacionId), SEGUNDOS_PARA_DESHACER * 1000);
+}
+
+async function deshacerEnvioAsync(acreditacionId, fila, deshacer) {
+  clearTimeout(fila.plazoDeshacer);
+  deshacer.disabled = true;
+  const resultado = await preguntarAlServiceWorker({ accion: "deshacerEnvio", acreditacionId });
+  pintarMensaje(
+    fila,
+    acreditacionId,
+    resultado?.ok ? "Deshecho: en TALVEG vuelve a estar como antes." : (resultado?.error ?? "No pudimos deshacerlo."),
+    resultado?.ok ? 4 : 8
+  );
+}
+
+async function descartarEnvioAsync(acreditacionId, fila) {
+  await preguntarAlServiceWorker({ accion: "descartarEnvio", acreditacionId });
+  pintarMensaje(fila, acreditacionId, "De acuerdo, no hemos anotado nada.", 4);
+}
+
+// Pregunta al service worker qué hay pendiente de confirmar en esta pestaña y
+// añade a la barra lo que aún no tenga. Se llama al cargar la página y cuando
+// el service worker avisa de que acaba de poner un documento.
+async function mostrarEnviosPendientesAsync() {
+  const resultado = await preguntarAlServiceWorker({ accion: "obtenerEnviosPendientes" });
+  if (!resultado?.ok || !Array.isArray(resultado.pendientes)) return;
+
+  for (const pendiente of resultado.pendientes) {
+    if (typeof pendiente?.acreditacionId !== "string" || filasDeEnvio.has(pendiente.acreditacionId)) continue;
+    asegurarBarra();
+    const fila = document.createElement("div");
+    fila.className = "envio";
+    pintarPregunta(fila, { acreditacionId: pendiente.acreditacionId, documento: String(pendiente.documento ?? "Documento") });
+    listaBarra.appendChild(fila);
+    filasDeEnvio.set(pendiente.acreditacionId, fila);
+  }
+}
+
+mostrarEnviosPendientesAsync();
+
+// --- Depositar el fichero -------------------------------------------------
 chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
   // El service worker avisa al conectar y al desconectar. Sin esto, quien se
   // conecta con la pestaña del portal ya abierta tendría que recargarla para
@@ -438,6 +607,12 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
     // mirando un campo que no responde. Se le dice qué ha pasado y se le deja
     // la salida «Buscar en mi equipo», que sigue en el pie.
     if (!hayConexion) avisarEnPanelDeConexionPerdida();
+    enviarRespuesta({ ok: true });
+    return true;
+  }
+
+  if (mensaje?.accion === "pedirConfirmacionEnvio") {
+    mostrarEnviosPendientesAsync();
     enviarRespuesta({ ok: true });
     return true;
   }

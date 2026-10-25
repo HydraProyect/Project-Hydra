@@ -114,6 +114,8 @@ const documentoSimulado = {
 let respuestaDeListarPendientes = { ok: true, proveedores: [] };
 let respuestaDeSubirDocumento = { ok: true };
 let respuestaDeObtenerConexion = { conectado: false };
+let respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
+let respuestaDeConfirmarEnvio = { ok: true, puedeDeshacer: true };
 const mensajesEnviados = [];
 let manejadorDeMensajes = null;
 
@@ -124,6 +126,8 @@ const chromeSimulado = {
       if (mensaje.accion === "obtenerConexion") return respuestaDeObtenerConexion;
       if (mensaje.accion === "listarPendientes") return respuestaDeListarPendientes;
       if (mensaje.accion === "subirDocumento") return respuestaDeSubirDocumento;
+      if (mensaje.accion === "obtenerEnviosPendientes") return respuestaDeEnviosPendientes;
+      if (mensaje.accion === "confirmarEnvio") return respuestaDeConfirmarEnvio;
       return { ok: false, error: "acción no simulada" };
     },
     onMessage: { addListener: (fn) => (manejadorDeMensajes = fn) },
@@ -527,6 +531,33 @@ let campoPrincipal;
     "pasada la hora, el clic ya NO se intercepta aunque nadie haya pedido nada",
     lanzarClic(despues).prevenido === false
   );
+}
+
+// 5b. «Lo he enviado» (E1): tras poner el archivo, la página pregunta, y solo la
+//     respuesta de la persona manda la confirmación al service worker.
+{
+  respuestaDeEnviosPendientes = {
+    ok: true,
+    pendientes: [{ acreditacionId: "22222222-2222-2222-2222-222222222222", documento: "Reconocimiento médico" }],
+  };
+  mensajesEnviados.length = 0;
+  const r = responder();
+  manejadorDeMensajes({ accion: "pedirConfirmacionEnvio" }, {}, r.enviar);
+  await reposar();
+
+  const enviado = documentoSimulado.documentElement.buscarPorTexto("Lo he enviado");
+  comprobar("la página pregunta «Lo he enviado» por lo puesto", enviado !== null);
+  comprobar("y ofrece «No lo he enviado»", documentoSimulado.documentElement.buscarPorTexto("No lo he enviado") !== null);
+  comprobar("sin pulsarlo, no se confirma nada", !mensajesEnviados.some((m) => m.accion === "confirmarEnvio"));
+
+  for (const fn of enviado?.oyentes.click ?? []) fn();
+  await reposar();
+  const confirmacion = mensajesEnviados.find((m) => m.accion === "confirmarEnvio");
+  comprobar("al pulsarlo se confirma esa acreditación", confirmacion?.acreditacionId === "22222222-2222-2222-2222-222222222222");
+  comprobar("y se dice «Pendiente de validar» con «Deshacer»",
+    documentoSimulado.documentElement.buscarPorTexto("Anotado en TALVEG: Pendiente de validar.") !== null
+      && documentoSimulado.documentElement.buscarPorTexto("Deshacer") !== null);
+  respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
 }
 
 // 6. CONTROL POSITIVO DEL ARNÉS. Si el simulado no fuera capaz de registrar una
