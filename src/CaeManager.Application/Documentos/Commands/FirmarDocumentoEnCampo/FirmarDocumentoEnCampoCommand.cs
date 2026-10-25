@@ -210,9 +210,10 @@ public class FirmarDocumentoEnCampoCommandHandler(
             // No se aborta la operación por no poder borrar el archivo
             // anterior: la firma ya está confirmada. Queda constancia porque
             // un archivo huérfano es justo lo que esto existe para evitar.
-            logger.LogError(ex,
-                "No se pudo borrar el archivo anterior {Archivo} del documento {DocumentoId} tras firmar en campo.",
-                urlAnterior, documento.Id);
+            // Sin la clave del fichero ni el mensaje de la excepción (suele repetirla): Id y tipo.
+            logger.LogError(
+                "No se pudo borrar el archivo anterior del documento {DocumentoId} tras firmar en campo ({TipoExcepcion}).",
+                documento.Id, ex.GetType().Name);
         }
 
         return Result.Exito();

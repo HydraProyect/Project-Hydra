@@ -5,6 +5,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Plantillas;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
@@ -140,6 +141,30 @@ public class AgregarVersionPlantillaCommandHandlerTests
             new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
 
         almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
+
+    /// <summary>Si además falla la limpieza, el aviso identifica la plantilla por Id y no revela la clave del blob ni el mensaje de la excepción.</summary>
+    [Fact]
+    public async Task El_aviso_del_blob_que_no_se_pudo_limpiar_identifica_la_plantilla_sin_revelar_la_clave()
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
+        var unitOfWork = new UnitOfWorkFalso { ExcepcionAlGuardar = new DbUpdateException("índice único violado") };
+        var almacenamiento = new FileStorageServiceFalso
+        {
+            ExcepcionAlEliminar = new IOException("Acceso denegado a falso-1-nueva.pdf"),
+        };
+        var registro = new RegistroDeAvisos<AgregarVersionPlantillaCommandHandler>();
+        var handler = new AgregarVersionPlantillaCommandHandler(
+            plantillas, versiones, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork, registro);
+
+        var resultado = await handler.Handle(
+            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.VersionEnConflicto", "el fallo real sigue siendo el conflicto de versión");
+        var aviso = registro.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Warning);
+        aviso.Texto.Should().Contain(plantilla.Id.ToString()).And.Contain(nameof(IOException))
+            .And.NotContain("nueva.pdf").And.NotContain("Acceso denegado");
     }
 
     /// <summary>Un choque de concurrencia optimista (DbUpdateConcurrencyException) no es el caso de esta pieza — debe seguir propagando para que ConcurrenciaBehavior lo traduzca, no confundirse con el conflicto de número de versión.</summary>
