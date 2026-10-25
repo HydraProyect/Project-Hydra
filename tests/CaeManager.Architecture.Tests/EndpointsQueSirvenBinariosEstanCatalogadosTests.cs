@@ -100,6 +100,9 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         rutas.Should().BeSubsetOf(RutasPorId.Keys,
             "una ruta con parámetro en un fichero que sirve binarios recibe el Id de un recurso: necesita su "
             + "prueba con el Id de otro Tenant");
+        RutasPorId.Keys.Should().BeSubsetOf(rutas,
+            "cada ruta catalogada existe en el código, en un fichero que sirve binarios: una ruta renombrada o "
+            + "retirada se corrige aquí y en su prueba, para que el catálogo no recorra rutas que ya no existen");
     }
 
     [Fact]
