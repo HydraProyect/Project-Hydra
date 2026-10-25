@@ -81,7 +81,12 @@ public class ExtensionAcreditacionesTests
         var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
             new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
 
-        var resultado = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true), CancellationToken.None);
+        var sinPedirlos = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true), CancellationToken.None);
+        sinPedirlos.Should().OnlyContain(p => p.Dominios == null || p.Dominios.Count == 0,
+            "los dominios son opt-in: Bandeja y Mi trabajo no pagan una consulta más");
+
+        var resultado = await handler.Handle(
+            new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true, IncluirDominios: true), CancellationToken.None);
 
         resultado.Should().HaveCount(3);
         resultado.Single(p => p.ProveedorCodigo == "nalanda").Dominios.Should().BeEquivalentTo(["nalandaglobal.com"]);

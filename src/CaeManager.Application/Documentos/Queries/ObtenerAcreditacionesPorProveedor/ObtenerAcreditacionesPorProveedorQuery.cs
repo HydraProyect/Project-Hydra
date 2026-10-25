@@ -74,9 +74,14 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// «Plataformas» de Empresa 360. Es el mismo alcance de gestión de siempre, más la comprobación de que la Empresa es visible;
 /// una Empresa fuera de alcance devuelve la lista vacía, igual que el resto de consultas de Empresa 360.
 /// </param>
+/// <param name="IncluirDominios">
+/// Rellena <see cref="ProveedorAcreditacionesDto.Dominios"/>. Solo lo pide la extensión, que filtra por el
+/// portal abierto; el resto de consumidores (Bandeja, Mi trabajo, drill-down) no los usan y así no pagan una
+/// consulta más a la base (el presupuesto de consultas de Mi trabajo está medido al límite).
+/// </param>
 public record ObtenerAcreditacionesPorProveedorQuery(
     bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false,
-    Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false)
+    Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false, bool IncluirDominios = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
 /// <param name="Dominios">
@@ -86,7 +91,8 @@ public record ObtenerAcreditacionesPorProveedorQuery(
 /// los documentos de SU Plataforma CAE: sin esto, un documento acreditado en
 /// una plataforma podía ponerse en el formulario de otra. Vacía si el catálogo
 /// no registra ningún dominio del Proveedor: entonces la extensión no ofrece
-/// nada de él en ningún portal (ante la duda, no se divulga).
+/// nada de él en ningún portal (ante la duda, no se divulga). También vacía, o
+/// <c>null</c>, cuando la consulta no pide <c>IncluirDominios</c>.
 /// </param>
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
@@ -195,12 +201,14 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo, p.Activo), cancellationToken);
 
-        var dominiosPorProveedor = (await proveedoresContext.DominiosProveedorPlataformaCae
-                .Where(d => proveedorIds.Contains(d.ProveedorPlataformaCaeId))
-                .Select(d => new { d.ProveedorPlataformaCaeId, d.Dominio })
-                .ToListAsync(cancellationToken))
-            .GroupBy(d => d.ProveedorPlataformaCaeId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(d => d.Dominio).Distinct().OrderBy(d => d, StringComparer.Ordinal).ToList());
+        var dominiosPorProveedor = request.IncluirDominios
+            ? (await proveedoresContext.DominiosProveedorPlataformaCae
+                    .Where(d => proveedorIds.Contains(d.ProveedorPlataformaCaeId))
+                    .Select(d => new { d.ProveedorPlataformaCaeId, d.Dominio })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(d => d.ProveedorPlataformaCaeId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(d => d.Dominio).Distinct().OrderBy(d => d, StringComparer.Ordinal).ToList())
+            : new Dictionary<Guid, IReadOnlyList<string>>();
 
         // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
         // se resuelve contra Empresas, no contra la tabla Clientes congelada.
