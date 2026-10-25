@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="CifDeBaja" xml:space="preserve"><value>Ja existeix una empresa donada de baixa amb aquest CIF. Restaura-la en lloc de crear-ne una altra.</value></data>
+  <data name="CifDuplicado" xml:space="preserve"><value>Ja existeix una empresa amb aquest CIF.</value></data>
+</root>
