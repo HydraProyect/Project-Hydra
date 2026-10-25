@@ -111,8 +111,8 @@ public class ApplicationServiceCollectionExtensionsTests
         using var ambito = proveedor.CreateScope();
 
         servicios.Should().Contain(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>)
-            && d.ImplementationType == typeof(DuplicadosCifEmpresaBehavior<,>));
-        var accion = () => ActivatorUtilities.CreateInstance<DuplicadosCifEmpresaBehavior<PreguntarAlAsistenteQuery, CaeManager.Domain.Common.Result>>(
+            && d.ImplementationType == typeof(DuplicadosEmpresaBehavior<,>));
+        var accion = () => ActivatorUtilities.CreateInstance<DuplicadosEmpresaBehavior<PreguntarAlAsistenteQuery, CaeManager.Domain.Common.Result>>(
             ambito.ServiceProvider);
 
         accion.Should().NotThrow();

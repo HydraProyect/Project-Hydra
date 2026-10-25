@@ -42,7 +42,10 @@ public class CrearSubcontrataCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Subcontrata.RazonSocialDuplicada", "Ya existe una subcontrata con esta razón social."));
 
-        if (await DuplicadosCifEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Subcontrata.CifDuplicado", cancellationToken) is { } duplicadoCif)
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, null, "Subcontrata.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo<Guid>(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Subcontrata.CifDuplicado", cancellationToken) is { } duplicadoCif)
             return Result.Fallo<Guid>(duplicadoCif);
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.

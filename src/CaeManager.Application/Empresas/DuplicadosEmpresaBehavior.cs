@@ -10,8 +10,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace CaeManager.Application.Empresas;
 
 /// <summary>
-/// Z5-7: traduce la violación del índice único de CIF de Empresa en carrera
-/// (<see cref="CifEmpresaDuplicadoException"/>) al mismo error de dominio que da
+/// Traduce las violaciones de los índices únicos de CIF y razón social de Empresa en carrera
+/// (<see cref="DatoEmpresaDuplicadoException"/>) al mismo error de dominio que da
 /// la comprobación previa de cada comando.
 /// </summary>
 /// <remarks>
@@ -21,7 +21,7 @@ namespace CaeManager.Application.Empresas;
 /// mismo ámbito (mismo DbContext y mismo Tenant propietario) solo dentro del catch,
 /// en vez de pedirlo en el constructor.
 /// </remarks>
-public class DuplicadosCifEmpresaBehavior<TRequest, TResponse>(IServiceProvider proveedor)
+public class DuplicadosEmpresaBehavior<TRequest, TResponse>(IServiceProvider proveedor)
     : IPipelineBehavior<TRequest, TResponse> where TRequest : notnull
 {
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
@@ -30,7 +30,7 @@ public class DuplicadosCifEmpresaBehavior<TRequest, TResponse>(IServiceProvider 
         {
             return await next(cancellationToken);
         }
-        catch (CifEmpresaDuplicadoException ex)
+        catch (DatoEmpresaDuplicadoException ex)
         {
             if (typeof(TResponse) != typeof(Result)
                 && (!typeof(TResponse).IsGenericType || typeof(TResponse).GetGenericTypeDefinition() != typeof(Result<>)))
@@ -39,12 +39,17 @@ public class DuplicadosCifEmpresaBehavior<TRequest, TResponse>(IServiceProvider 
             // El handler ya salió de su transacción. Se consulta únicamente el Tenant propietario actual.
             var repositorio = proveedor.GetRequiredService<IEmpresaRepository>();
             var dadaDeBaja = false;
-            foreach (var cif in ex.Cifs)
+            foreach (var valor in ex.Valores)
             {
-                if (await repositorio.ObtenerDuplicadaPorCifAsync(cif, cancellationToken: cancellationToken) is { EstaEliminado: true })
+                var duplicada = ex.EsRazonSocial
+                    ? await repositorio.ObtenerDuplicadaPorRazonSocialAsync(valor, cancellationToken: cancellationToken)
+                    : await repositorio.ObtenerDuplicadaPorCifAsync(valor, cancellationToken: cancellationToken);
+                if (duplicada is { EstaEliminado: true })
                     dadaDeBaja = true;
             }
-            var error = DuplicadosCifEmpresa.ErrorDuplicado(dadaDeBaja, CodigoDuplicado(request));
+            var error = ex.EsRazonSocial
+                ? DuplicadosEmpresa.ErrorRazonSocialDuplicada(dadaDeBaja, CodigoDuplicado(request, "RazonSocialDuplicada"))
+                : DuplicadosEmpresa.ErrorDuplicado(dadaDeBaja, CodigoDuplicado(request, "CifDuplicado"));
             if (typeof(TResponse) == typeof(Result))
                 return (TResponse)(object)Result.Fallo(error);
             var metodo = typeof(Result).GetMethod(nameof(Result.Fallo), 1, [typeof(Error)])!
@@ -54,10 +59,10 @@ public class DuplicadosCifEmpresaBehavior<TRequest, TResponse>(IServiceProvider 
     }
 
     // El mismo código que devuelve la comprobación previa de cada comando.
-    private static string CodigoDuplicado(TRequest request) => request switch
+    private static string CodigoDuplicado(TRequest request, string dato) => request switch
     {
-        CrearClienteCommand or EditarClienteCommand => "Cliente.CifDuplicado",
-        CrearSubcontrataCommand or EditarSubcontrataCommand => "Subcontrata.CifDuplicado",
-        _ => "Empresa.CifDuplicado"
-    };
+        CrearClienteCommand or EditarClienteCommand => "Cliente.",
+        CrearSubcontrataCommand or EditarSubcontrataCommand => "Subcontrata.",
+        _ => "Empresa."
+    } + dato;
 }
