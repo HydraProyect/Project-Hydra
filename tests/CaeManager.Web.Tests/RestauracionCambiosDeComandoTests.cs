@@ -207,6 +207,48 @@ public class RestauracionCambiosDeComandoTests
         await contexto.SaveChangesAsync();
 
         (await contexto.Hijos.AsNoTracking().Select(h => h.Id).ToListAsync()).Should().BeEquivalentTo([10]);
+        // El padre arrastra el alta en memoria: sale del rastreo y la siguiente lectura lo trae limpio.
+        contexto.Entry(padre).State.Should().Be(EntityState.Detached);
+        var releido = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1);
+        releido.Should().NotBeSameAs(padre);
+        releido.Hijos.Select(h => h.Id).Should().BeEquivalentTo([10]);
+    }
+
+    [Fact]
+    public async Task Lo_que_el_comando_fallido_cargo_y_toco_sale_del_rastreo()
+    {
+        await using var contexto = await CrearContexto();
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        Padre? padre = null;
+        await behavior.Handle(new Comando(), async ct =>
+        {
+            padre = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1, ct);
+            padre.Hijos.Add(new Hijo { Id = 12, Nombre = "Alta rechazada" });
+            padre.Hijos.First(h => h.Id == 10).Nombre = "Edición rechazada";
+            return Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado"));
+        }, default);
+
+        contexto.ChangeTracker.Entries().Should().BeEmpty();
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+        var releido = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1);
+        releido.Should().NotBeSameAs(padre);
+        releido.Hijos.Should().ContainSingle().Which.Nombre.Should().Be("Hijo previo");
+    }
+
+    [Fact]
+    public async Task La_restauracion_no_tapa_el_fallo_si_el_contexto_ya_se_cerro()
+    {
+        var contexto = await CrearContexto();
+        var primera = (await contexto.Filas.FindAsync(1))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        var resultado = await behavior.Handle(new Comando(), async ct =>
+        {
+            primera.Nombre = "Edición rechazada";
+            await contexto.DisposeAsync();
+            return Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado"));
+        }, default);
+
+        resultado.EsFallido.Should().BeTrue();
     }
 
     [Fact]
@@ -226,6 +268,9 @@ public class RestauracionCambiosDeComandoTests
         await contexto.SaveChangesAsync();
 
         (await contexto.Hijos.AsNoTracking().Select(h => h.Id).ToListAsync()).Should().BeEquivalentTo([10]);
+        contexto.Entry(padre).State.Should().Be(EntityState.Detached);
+        (await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1))
+            .Hijos.Select(h => h.Id).Should().BeEquivalentTo([10]);
     }
 
     [Fact]

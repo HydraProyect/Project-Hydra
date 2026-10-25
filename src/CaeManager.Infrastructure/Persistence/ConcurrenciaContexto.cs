@@ -20,6 +20,7 @@ public static class ConcurrenciaContexto
     {
         private readonly DbContext contexto;
         private Dictionary<object, EstadoEntrada> iniciales;
+        private bool baseInvalida;
 
         public Instantanea(DbContext contexto)
         {
@@ -28,36 +29,71 @@ public static class ConcurrenciaContexto
             contexto.SavedChanges += Guardado;
         }
 
+        // Entries() detecta antes de capturar: una mutación previa aún sin detectar queda anotada como
+        // cambio pendiente ajeno y se conserva. No adelanta nada que el comando no fuera a ver: su
+        // SaveChanges y ObtenerActualAsync (Entries<T>()) detectan igual.
         private Dictionary<object, EstadoEntrada> Capturar() => contexto.ChangeTracker.Entries()
-            .Select(e => new EstadoEntrada(e, e.State, e.CurrentValues.Clone(), e.OriginalValues.Clone(),
-                e.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name).ToHashSet()))
-            .ToDictionary(e => e.Entrada.Entity, ReferenceEqualityComparer.Instance);
+            .Select(e => new EstadoEntrada(e.Entity, e.State, e.CurrentValues.Clone(), e.OriginalValues.Clone(),
+                e.Properties.Where(p => p.IsModified).Select(p => p.Metadata.Name).ToHashSet(),
+                Navegaciones(e)))
+            .ToDictionary(e => e.Entidad, ReferenceEqualityComparer.Instance);
 
         // Un guardado aceptado pasa a ser la nueva base: también cubre altas y bajas,
-        // sin resucitar una fila eliminada ni volver a insertar una alta confirmada.
-        private void Guardado(object? sender, SavedChangesEventArgs args) => iniciales = Capturar();
+        // sin resucitar una fila eliminada ni volver a insertar una alta confirmada. El guardado ya
+        // está confirmado: un fallo al recapturar no puede salir de SaveChanges como si no lo estuviera,
+        // así que invalida la base y un fallo posterior del comando lo descartará todo.
+        private void Guardado(object? sender, SavedChangesEventArgs args)
+        {
+            try
+            {
+                iniciales = Capturar();
+            }
+            catch (InvalidOperationException)
+            {
+                baseInvalida = true;
+            }
+        }
 
         public void Dispose() => contexto.SavedChanges -= Guardado;
 
+        /// <summary>
+        /// Nunca lanza: corre en el finally del behavior y no debe tapar el Result.Fallo ni la
+        /// excepción del comando. Si la restauración fina no es posible, vacía el rastreo, que es
+        /// lo más conservador: el siguiente comando relee de la base y no escribe nada heredado.
+        /// </summary>
         public void Restaurar()
         {
-            contexto.ChangeTracker.DetectChanges();
-            var entradas = contexto.ChangeTracker.Entries().ToList();
-            var deteccionAutomatica = contexto.ChangeTracker.AutoDetectChangesEnabled;
-            contexto.ChangeTracker.AutoDetectChangesEnabled = false;
             try
             {
-                // Las altas del comando no tienen una versión previa que restaurar.
-                foreach (var entrada in entradas.Where(e => e.State == EntityState.Added
-                             && !iniciales.ContainsKey(e.Entity)))
-                    entrada.State = EntityState.Detached;
+                if (baseInvalida)
+                    contexto.ChangeTracker.Clear();
+                else
+                    RestaurarEntradas();
+            }
+            catch (ObjectDisposedException)
+            {
+                // El circuito ya cerró el contexto: no queda nada que pueda guardarse después.
+            }
+            catch (InvalidOperationException)
+            {
+                contexto.ChangeTracker.Clear();
+            }
+        }
 
-                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)
-                             && e.State is EntityState.Modified or EntityState.Deleted))
-                {
-                    entrada.CurrentValues.SetValues(entrada.OriginalValues);
-                    entrada.State = EntityState.Unchanged;
-                }
+        private void RestaurarEntradas()
+        {
+            var deteccionAutomatica = contexto.ChangeTracker.AutoDetectChangesEnabled;
+            try
+            {
+                contexto.ChangeTracker.DetectChanges();
+                var entradas = contexto.ChangeTracker.Entries().ToList();
+                contexto.ChangeTracker.AutoDetectChangesEnabled = false;
+
+                // Lo que el comando cargó o creó no tiene un estado previo que conservar: sale del rastreo
+                // (altas, ediciones, bajas y lecturas) y el siguiente comando lo relee de la base. Devolverlo
+                // a Unchanged dejaría en memoria las colecciones y referencias que el comando tocó.
+                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)))
+                    entrada.State = EntityState.Detached;
 
                 // Lo que el comando o su pipeline desacoplaron (DescartarLoteFallido, el Clear de
                 // TransaccionDeComando tras deshacer la transacción, un descarte explícito) se queda
@@ -69,6 +105,14 @@ public static class ConcurrenciaContexto
                 {
                     if (!actuales.TryGetValue(entidad, out var entrada))
                         continue;
+                    // Los valores se restauran; las navegaciones en memoria, no. Si el comando cambió una
+                    // colección o una referencia de una entidad previa, esta sale del rastreo por la misma
+                    // razón que las anteriores.
+                    if (!MismasNavegaciones(inicial.Navegaciones, Navegaciones(entrada)))
+                    {
+                        entrada.State = EntityState.Detached;
+                        continue;
+                    }
                     entrada.State = inicial.Estado;
                     entrada.OriginalValues.SetValues(inicial.Originales);
                     entrada.CurrentValues.SetValues(inicial.Actuales);
@@ -84,8 +128,20 @@ public static class ConcurrenciaContexto
         }
     }
 
-    private sealed record EstadoEntrada(EntityEntry Entrada, EntityState Estado,
-        PropertyValues Actuales, PropertyValues Originales, HashSet<string> Modificadas);
+    // Por navegación: la entidad referenciada o los elementos de la colección, por identidad.
+    private static object?[][] Navegaciones(EntityEntry entrada) => entrada.Navigations
+        .Select(n => n is CollectionEntry coleccion
+            ? coleccion.CurrentValue?.Cast<object?>().ToArray() ?? []
+            : [n.CurrentValue])
+        .ToArray();
+
+    private static bool MismasNavegaciones(object?[][] antes, object?[][] despues) =>
+        antes.Length == despues.Length
+        && antes.Zip(despues).All(par => par.First.Length == par.Second.Length
+            && par.First.ToHashSet(ReferenceEqualityComparer.Instance).SetEquals(par.Second));
+
+    private sealed record EstadoEntrada(object Entidad, EntityState Estado, PropertyValues Actuales,
+        PropertyValues Originales, HashSet<string> Modificadas, object?[][] Navegaciones);
 
     /// <summary>
     /// Ejecuta la consulta normal, con sus filtros, y si devuelve una instancia que el circuito ya tenía
