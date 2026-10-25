@@ -385,6 +385,8 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         EscribirPropiedadInyectada(pagina, "Logger", NullLogger<PaginaUsuarios>.Instance);
         EscribirPropiedadInyectada(pagina, "AuthenticationStateProvider", new AutenticacionFalsa(actorId, esAdministrador));
         EscribirPropiedadInyectada(pagina, "EmailService", emailService ?? new EmailServiceEspia());
+        // El tope del envío del correo se arma con este reloj: sin él el envío fallaría antes de llamar al servicio y el espía quedaría en 0.
+        EscribirPropiedadInyectada(pagina, "Reloj", TimeProvider.System);
         EscribirPropiedadInyectada(pagina, "NavigationManager", new NavigationManagerFalsa());
         // Con URL pública configurada: sin ella la página no emite ningún enlace y la
         // frontera de tenant, que es lo que estos tests observan, ni se llegaría a ejercer.
