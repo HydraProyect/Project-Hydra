@@ -30,6 +30,9 @@ namespace CaeManager.Domain.Reclamaciones;
 /// <see cref="IVersionable"/>: dos circuitos que reanudan a la vez el mismo envío pendiente reescribirían la lista
 /// entera de entregas (gana el último) y el segundo cierre pisaría la reclamación del primero. Con el token, el segundo
 /// guardado falla y se informa como registro fallido, en vez de perder una entrega o dejar una reclamación huérfana.
+/// El token no evita el correo duplicado: cuando el segundo guardado falla, su correo ya ha salido. Tampoco hay índice
+/// único sobre la huella del registro sin cerrar, así que dos pestañas del mismo usuario que envían a la vez la misma
+/// reclamación pueden mandarla dos veces (riesgo residual aceptado: la pantalla ya bloquea el doble clic).
 /// </para>
 /// </summary>
 public class EnvioReclamacion : EntidadConTenant, IVersionable

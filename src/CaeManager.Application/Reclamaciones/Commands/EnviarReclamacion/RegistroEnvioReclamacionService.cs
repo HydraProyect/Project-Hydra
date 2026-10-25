@@ -381,8 +381,8 @@ public class RegistroEnvioReclamacionService(
             logger.LogError(ex, "Reclamación: el correo salió pero no pudimos guardar su registro.");
             return Result.Fallo(Error.Crear(
                 CodigoRegistroFallido,
-                "El correo de la reclamación ya ha salido, pero no pudimos guardarla. " +
-                "Vuelve a enviarla en unos minutos para que quede registrada."));
+                "El correo de la reclamación ya ha salido, al menos a una parte de los destinatarios, pero no pudimos guardarla. " +
+                "Vuelve a enviarla en unos minutos para que quede registrada; puede que a alguno le llegue dos veces."));
         }
     }
 

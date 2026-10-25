@@ -44,6 +44,7 @@ public class EnvioIdempotenteDeLaReclamacionTests
         public required CorreoFalso Correo { get; init; }
         public required MediadorFalso Mediador { get; init; }
         public required List<string> Secuencia { get; init; }
+        public required IntegracionesQueryContextFalso Integraciones { get; init; }
     }
 
     private static Entorno Construir(Guid? usuarioId = null, bool conBuzon = false)
@@ -61,7 +62,7 @@ public class EnvioIdempotenteDeLaReclamacionTests
             new CorreoDelActorRealFalso(), mediador, NullLogger<RegistroEnvioReclamacionService>.Instance,
             baseFalsa, baseFalsa, baseFalsa);
 
-        return new Entorno { Servicio = servicio, Base = baseFalsa, Correo = correo, Mediador = mediador, Secuencia = secuencia };
+        return new Entorno { Servicio = servicio, Base = baseFalsa, Correo = correo, Mediador = mediador, Secuencia = secuencia, Integraciones = integraciones };
     }
 
     private static readonly Guid UsuarioPorDefecto = Guid.NewGuid();
@@ -320,6 +321,22 @@ public class EnvioIdempotenteDeLaReclamacionTests
         entorno.Base.ReclamacionesGuardadas.Should().ContainSingle()
             .Which.ConversacionId.Should().Be(entorno.Mediador.UltimaConversacion);
         entorno.Mediador.TokenDelMensaje.CanBeCanceled.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_buzon_conectado_entre_un_intento_por_SMTP_y_su_reintento_no_cambia_de_carril()
+    {
+        var entorno = Construir();
+        entorno.Base.FallarEnGuardado.Add(3); // 1 previo, 2 entrega a Contacto, 3 entrega a Prl
+
+        var primero = await Enviar(entorno, [Contacto, Prl]);
+        entorno.Integraciones.ConexionesLista.Add(new ConexionIntegracion("buzon@tenant.example", "Buzón genérico del tenant"));
+        var reintento = await Enviar(entorno, [Contacto, Prl]);
+
+        primero.Error.Codigo.Should().Be(RegistroEnvioReclamacionService.CodigoRegistroFallido);
+        reintento.EsExitoso.Should().BeTrue();
+        entorno.Mediador.Mensajes.Should().BeEmpty("por el buzón saldría a todos otra vez, también a quien ya consta que lo recibió");
+        entorno.Correo.Entregados.Should().Equal([Contacto, Prl, Prl]);
     }
 
     [Fact]
