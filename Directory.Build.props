@@ -11,7 +11,23 @@
        cambie. Actualizar una dependencia sigue siendo `dotnet restore` con
        el flag de reevaluación forzada, ahora con el lock file como diff
        explícito en el PR en vez de un cambio invisible en el árbol de
-       paquetes. -->
+       paquetes.
+
+       El lock file solo protege mientras sigue siendo válido (2026-10-25).
+       Basta con tocar un csproj o, con toda probabilidad, con compilar con
+       otro SDK (el lock de Web guarda una dependencia implícita cuya versión
+       pone el SDK), para que ese proyecto vuelva a resolver sus comodines y
+       suba a lo último publicado mientras sus vecinos siguen en lo de su
+       lock. Medido en la cola de fusión: Identity.UI 10.0.13 frente a
+       10.0.14 en Web.Tests, MSB3277 con -warnaserror.
+       Por eso los PackageReference de este repositorio no llevan comodín
+       (a esa fecha, la única excepción es Npgsql "10.*" en
+       CaeManager.E2ETests, que no tiene vecinos con los que desalinearse).
+       Una versión sin comodín es un suelo: NuGet elige esa salvo que un
+       transitivo exija más. Por eso los que tienen que ir a la par (ASP.NET
+       Core y EF Core de una misma publicación de .NET) se suben juntos en el
+       grupo `dotnet-10` de .github/dependabot.yml; un transitivo de fuera
+       del grupo que pida un suelo mayor puede reabrir el desfase. -->
   <PropertyGroup>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>

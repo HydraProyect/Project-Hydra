@@ -15,7 +15,7 @@
     <PackageReference Include="AngleSharp" Version="1.8.4" />
     <PackageReference Include="AWSSDK.KeyManagementService" Version="4.0.100.14" />
     <PackageReference Include="AWSSDK.S3" Version="4.0.104.2" />
-    <PackageReference Include="ClosedXML" Version="0.105.*" />
+    <PackageReference Include="ClosedXML" Version="0.105.1" />
     <PackageReference Include="HtmlSanitizer" Version="9.2.1039" />
     <!-- Sustituye a System.Net.Mail.SmtpClient (obsoleto) en SmtpEmailService:
          necesitamos validar el certificado TLS del servidor por su SAN real
@@ -26,13 +26,13 @@
          paquete publicado). -->
     <PackageReference Include="MailKit" Version="4.18.1" />
     <PackageReference Include="MaxMind.Db" Version="5.2.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.*" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.*" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*">
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.14" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.*" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
     <!-- Solo el SDK "core" (no Sentry.AspNetCore, que es de CaeManager.Web,
@@ -47,8 +47,9 @@
     <PackageReference Include="MessagePack" Version="2.5.303" />
     <PackageReference Include="Stripe.net" Version="52.3.0" />
     <!-- Mínimo 10.0.13: GHSA-846f-f764-76mx y GHSA-2fmv-rv2c-59x7 (2026-10-13)
-         afectan a 10.0.0–10.0.12. El lock file fija la versión resuelta. -->
-    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
+         afectan a 10.0.0–10.0.12. Va a 10.0.14 con el resto de la publicación
+         de .NET 10 (grupo `dotnet-10` de .github/dependabot.yml). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <PackageReference Include="PDFtoImage" Version="5.2.1" />
     <PackageReference Include="SkiaSharp" Version="3.119.2" />
   </ItemGroup>
