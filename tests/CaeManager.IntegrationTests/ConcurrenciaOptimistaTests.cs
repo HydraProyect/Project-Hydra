@@ -194,6 +194,21 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Releer_una_entidad_con_cambios_pendientes_de_la_operacion_no_los_pierde()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var empresa = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        empresa.ActualizarComoCliente("Cambio aún sin guardar", "B12345674", false, null);
+
+        var otraLectura = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+
+        otraLectura.Should().BeSameAs(empresa);
+        otraLectura.RazonSocial.Should().Be("Cambio aún sin guardar");
+        circuito.Entry(otraLectura).State.Should().Be(EntityState.Modified);
+    }
+
+    [Fact]
     public async Task Tras_una_carrera_real_el_siguiente_guardado_del_circuito_no_reintenta_la_edicion()
     {
         await using var circuito = CrearContexto();

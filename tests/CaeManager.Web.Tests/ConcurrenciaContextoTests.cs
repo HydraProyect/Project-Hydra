@@ -69,7 +69,7 @@ public class ConcurrenciaContextoTests
         {
             if (Conflicto is not null)
                 return;
-            // La auditoría nace durante SaveChanges, después de capturar el lote pendiente.
+            // La auditoría nace durante SaveChanges, como la de los interceptores reales.
             contexto.Set<RegistroAuditoria>().Add(Auditoria);
             var entrada = contexto.Entry(Entidad);
             // EF expone las entradas de la excepción mediante IUpdateEntry; se usa
