@@ -92,6 +92,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     [Inject] private IStringLocalizer<TextosUsuarios> TextosUsuarios { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private IEmailService EmailService { get; set; } = default!;
+    [Inject] private TimeProvider Reloj { get; set; } = default!;
     [Inject] private NavigationManager NavigationManager { get; set; } = default!;
     [Inject] private ILogger<Usuarios> Logger { get; set; } = default!;
     [Inject] private Microsoft.JSInterop.IJSRuntime Js { get; set; } = default!;
@@ -1169,7 +1170,7 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
         Result resultado;
         try
         {
-            using var tope = new CancellationTokenSource(TopeEnvioCorreoActivacion);
+            using var tope = new CancellationTokenSource(TopeEnvioCorreoActivacion, Reloj);
             resultado = await EnviarCorreoActivacionAsync(usuarioId, email, nombreCompleto, enlace, tope.Token)
                 .WaitAsync(tope.Token);
         }
