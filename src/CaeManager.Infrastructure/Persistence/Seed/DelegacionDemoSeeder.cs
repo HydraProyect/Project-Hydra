@@ -268,8 +268,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el usuario de Refrielectric {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el usuario de Refrielectric {Rol}{Indice}: {Errores}",
+                    rol, indice, string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -339,8 +339,7 @@ public static class DelegacionDemoSeeder
         await CrearAsync(Roles.Consulta, 1, "Consulta");
 
         logger.LogInformation(
-            "Usuarios de Refrielectric sembrados (contraseña «{Contrasena}» para todos, email {Prefijo}<rol><n>@caemanager.local).",
-            credenciales.Contrasena, PrefijoEmailRefrielectric);
+            "Usuarios de Refrielectric sembrados con contraseña de demo fijada; consulta la configuración.");
 
         return gestores;
     }
@@ -506,8 +505,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el operador de consultora {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el operador de consultora: {Errores}",
+                    string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -555,8 +554,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el usuario de variante de identidad {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el usuario de variante de identidad: {Errores}",
+                    string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -867,6 +866,6 @@ public static class DelegacionDemoSeeder
 
         logger.LogInformation(
             "Delegated Workspace de demo sembrado: {Administrador} puede operar {TenantCliente} como {Rol}.",
-            administradorConsultora.Email, nombreTenantCliente, RolOperadorDelegadoDemo);
+            administradorConsultora.Id, nombreTenantCliente, RolOperadorDelegadoDemo);
     }
 }

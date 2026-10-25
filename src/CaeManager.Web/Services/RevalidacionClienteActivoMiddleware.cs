@@ -132,7 +132,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                     "Selección de Workspace operativo derivado invalidada en {Ruta}: la revalidación no la autorizó. "
                     + "Tenant seleccionado {TenantSeleccionado}. Petición sin página: la cookie se conserva hasta la "
                     + "próxima, que la retira y avisa.",
-                    contexto.Request.Path,
+                    ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()),
                     tenantSeleccionado);
 
                 seleccionConcreta?.Invalidar();
@@ -153,7 +153,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 logger.LogWarning(
                     "Selección de Workspace operativo derivado invalidada en {Ruta}: la revalidación no la autorizó. "
                     + "Tenant seleccionado {TenantSeleccionado}, vía {Via}.",
-                    contexto.Request.Path,
+                    ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()),
                     tenantSeleccionado,
                     clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
                         ? "sesión privilegiada"
@@ -227,7 +227,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
                 "Selección de Workspace operativo derivado descartada en {Ruta}: la cookie está presente pero el "
                 + "token no resolvió a ningún tenant (no se pudo descifrar, formato inesperado, o no ligado al "
                 + "usuario actual).",
-                contexto.Request.Path);
+                ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()));
 
             contexto.Response.Cookies.Delete(ClienteActivoSeleccionado.NombreCookie);
         }
@@ -254,7 +254,7 @@ public class RevalidacionClienteActivoMiddleware(RequestDelegate siguiente)
     {
         logger.LogInformation(
             "Revalidación de Workspace operativo derivado abortada en {Ruta}: el cliente canceló la petición.",
-            contexto.Request.Path);
+            ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()));
 
         if (!contexto.Response.HasStarted)
         {

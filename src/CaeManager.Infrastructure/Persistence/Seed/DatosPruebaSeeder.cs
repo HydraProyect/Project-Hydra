@@ -1516,8 +1516,8 @@ public static class DatosPruebaSeeder
                 if (!resultado.Succeeded)
                 {
                     logger.LogWarning(
-                        "No se pudo crear el usuario de prueba {Email}: {Errores}",
-                        email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                        "No se pudo crear el usuario de prueba {Rol}{Indice}: {Errores}",
+                        rol, i, string.Join(", ", resultado.Errors.Select(e => e.Description)));
                     continue;
                 }
 

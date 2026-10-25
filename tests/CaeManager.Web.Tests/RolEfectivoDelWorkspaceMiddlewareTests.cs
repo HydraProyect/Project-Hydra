@@ -280,6 +280,30 @@ public class RolEfectivoDelWorkspaceMiddlewareTests
             .And.Contain(TenantVisitado.ToString());
     }
 
+    [Theory]
+    [InlineData("Consulta\r\nfalso")]
+    [InlineData(null)]
+    public async Task El_log_sanea_la_ruta_y_el_claim_de_rol(string? rolEfectivo)
+    {
+        var protector = ProtectorDePruebas();
+        var token = ClienteActivoSeleccionado.Proteger(
+            protector, Usuario, TenantVisitado, asignacionOperacionId: Guid.NewGuid());
+        var contexto = ContextoCon(token, rolDeSesion: "rol\r\ninyectado");
+        contexto.Request.Path = "/ruta\r\n" + new string('z', 300);
+        var capturador = new LoggerCapturador<RolEfectivoDelWorkspaceMiddleware>();
+
+        await EjecutarAsync(contexto, protector, new CurrentUserServiceFalso(rolEfectivo), capturador);
+
+        var evento = capturador.Eventos.Should().ContainSingle().Subject;
+        evento.Mensaje.Should().NotContain("\r").And.NotContain("\n")
+            .And.Contain("rolinyectado")
+            // La ruta se registra codificada (PathString.ToUriComponent): el intento de inyección sigue a la vista.
+            .And.Contain("/ruta%0D%0A" + new string('z', 245))
+            .And.NotContain(new string('z', 246));
+        if (rolEfectivo is not null)
+            evento.Mensaje.Should().Contain("Consultafalso");
+    }
+
     [Fact]
     public async Task Retirar_el_rol_por_delegacion_revocada_deja_rastro_en_el_log_como_aviso()
     {
