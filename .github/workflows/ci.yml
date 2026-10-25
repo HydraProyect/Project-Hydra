@@ -506,6 +506,54 @@ jobs:
       - name: background.js — el código de conexión que empaqueta el C# se lee aquí
         run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
 
+      # E3 — empaquetado. El zip se construye con extension/herramientas/empaquetar.mjs:
+      # solo lo que el manifiesto alcanza (sin pruebas ni herramientas), con
+      # fechas y orden fijos, así que dos ejecuciones dan los mismos bytes.
+      # NO se publica en ninguna tienda y no usa secretos: `key` del manifiesto
+      # es una clave PÚBLICA que solo fija el ID de la extensión en desarrollo.
+      # El arnés falla si el manifiesto pierde `key`, si cambia el ID, si el
+      # zip incluye algo que no toca o si deja de ser reproducible.
+      - name: Empaquetado — la clave del manifiesto y el contenido del zip
+        run: node extension/pruebas/comprobar-empaquetado.mjs extension
+
+      # La rama base se baja como carpeta (sin tocar el árbol de trabajo) para
+      # poder construir también su zip y comparar: si el contenido del paquete
+      # cambia, la versión de extension/manifest.json tiene que subir.
+      # En merge_group la base es la punta de lo que ya va delante en la cola
+      # (`base_sha`), no `main` a secas: así dos PR que suben a la misma versión
+      # no llegan juntas a main.
+      - name: Traer la extensión de la rama base
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        env:
+          EVENTO: ${{ github.event_name }}
+          RAMA_BASE: ${{ github.base_ref }}
+          SHA_BASE_COLA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          if [ "$EVENTO" = "merge_group" ]; then
+            git fetch --no-tags --depth=1 origin "$SHA_BASE_COLA"
+          else
+            git fetch --no-tags --depth=1 origin "$RAMA_BASE"
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive FETCH_HEAD extension | tar -x -C "$RUNNER_TEMP/base"
+
+      - name: Generar el zip de la extensión (y comprobar que la versión aumenta)
+        env:
+          EVENTO: ${{ github.event_name }}
+        run: |
+          args=(--origen extension --salida "$RUNNER_TEMP/extension-zip")
+          if [ "$EVENTO" = "pull_request" ] || [ "$EVENTO" = "merge_group" ]; then
+            args+=(--base "$RUNNER_TEMP/base/extension")
+          fi
+          node extension/herramientas/empaquetar.mjs "${args[@]}"
+
+      - name: Publicar el zip de la extensión como artefacto
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: talveg-extension-zip
+          path: ${{ runner.temp }}/extension-zip/talveg-extension-*.zip
+          retention-days: 30
+          if-no-files-found: error
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest

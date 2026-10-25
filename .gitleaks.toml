@@ -46,4 +46,12 @@ description = "Dos asignaciones vacías seguidas: el «secreto» detectado es el
 regexTarget = "match"
 regexes = [
   '''(?-i:(?:[A-Za-z_][A-Za-z0-9_]*=\n[A-Za-z_][A-Za-z0-9_]*=)(?:\n|\z))''',
+  # Clave PUBLICA de extension/manifest.json (campo "key", E3). Es base64 con
+  # entropia alta y la regla generic-api-key la toma por un secreto, pero solo
+  # fija el ID de la extension en desarrollo. Se exime unicamente un hallazgo que CONTIENE
+  # los primeros 100 caracteres de ESA clave (cabecera DER SPKI mas el comienzo
+  # del modulo), no cualquier clave: otra clave publica, o una privada PKCS#8
+  # ("MIIEv..."), se siguen detectando. extension/pruebas/comprobar-empaquetado.mjs
+  # comprueba que este prefijo sigue siendo el de la key del manifiesto.
+  '''MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqscjehEUa7S/0fzjZkVSs5Ny1n8J1vEI4Ugv/ieLXAL5V4T15SBB1Jk6''',
 ]
