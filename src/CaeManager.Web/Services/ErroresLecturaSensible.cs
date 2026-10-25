@@ -26,7 +26,7 @@ public static class ErroresLecturaSensible
         var codigo = EsContextoNoAutorizado(excepcion)
             ? StatusCodes.Status403Forbidden : StatusCodes.Status503ServiceUnavailable;
         registro.Log(codigo == StatusCodes.Status403Forbidden ? LogLevel.Warning : LogLevel.Error,
-            excepcion, "La lectura sensible del recurso {RecursoId} no pudo registrarse; se responde {Codigo}.",
+            excepcion, "La lectura sensible del recurso {RecursoId} falló antes de servir el contenido (registro o consulta previa); se responde {Codigo}.",
             recursoId, codigo);
         // Evita que la página de estado sustituya el cuerpo vacío o vuelva a consultar la base.
         var paginasDeEstado = contexto.Features.Get<IStatusCodePagesFeature>();

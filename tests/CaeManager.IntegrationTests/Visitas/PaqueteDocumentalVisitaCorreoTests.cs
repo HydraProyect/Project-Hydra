@@ -84,8 +84,9 @@ public class PaqueteDocumentalVisitaCorreoTests
             await descargar.Should().ThrowAsync<TimeoutException>();
         else
             await descargar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>();
+        // El doble no escribe en la base: lo que se comprueba es que el paquete real tiene dos
+        // Documentos y que el segundo rechazo propaga la excepción en vez de devolver el zip.
         registro.Intentos.Should().Be(2, "se recorre el paquete real y no se devuelve tras el primer registro");
-        (await LeerRegistrosSensiblesAsync(arnes)).Should().BeEmpty();
     }
 
     private sealed class RegistroQueFallaEnElSegundo(bool transitorio) : IRegistroAccesoDocumentoSensibleService

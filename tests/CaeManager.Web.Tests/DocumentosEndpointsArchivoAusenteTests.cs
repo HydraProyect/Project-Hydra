@@ -278,6 +278,58 @@ public class DocumentosEndpointsArchivoAusenteTests
         avisos.Excepciones.Should().ContainSingle().Which.Should().BeSameAs(causa);
     }
 
+    [Fact]
+    public async Task Un_fallo_transitorio_al_consultar_el_Documento_se_propaga_sin_abrir()
+    {
+        var contexto = Contexto();
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        var servir = () => DocumentosEndpoints.ServirArchivoAsync(DocumentoId, contexto,
+            new MediatorFalso(new TimeoutException()), new AlmacenQueNoSeToca(), registro, avisos, CancellationToken.None);
+
+        await servir.Should().ThrowAsync<TimeoutException>("antes de abrir solo se traduce el contexto que ya no autoriza");
+        registro.Accesos.Should().BeEmpty();
+        avisos.Entradas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_version_anterior_que_ya_no_esta_en_el_almacen_responde_404_sin_registro()
+    {
+        var contexto = Contexto();
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        var resultado = await AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
+            new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+                "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+            new AlmacenSinElFichero(), registro, avisos, CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(404);
+        LeerCuerpo(contexto).Should().BeEmpty();
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        registro.Accesos.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, 403)]
+    [InlineData(false, 409)]
+    public async Task La_Visita_conserva_el_403_y_el_409_con_texto(bool rolSinDescarga, int codigo)
+    {
+        var contexto = Contexto();
+        var error = rolSinDescarga
+            ? ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga
+            : CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo.ObtenerSolicitudAccesoCorreoQueryHandler.VisitaCancelada;
+        var avisos = new FabricaDeRegistroEspia();
+        var resultado = await VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto,
+            new MediatorFalso(Result.Fallo<PaqueteDocumentalDescargaDto>(error)), avisos, CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(codigo);
+        LeerCuerpo(contexto).Should().Be(error.Mensaje);
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        avisos.Entradas.Should().BeEmpty();
+    }
+
     // ── Andamiaje ─────────────────────────────────────────────────────────
 
     private static DocumentoDetalleDto Documento() => new(
