@@ -38,11 +38,16 @@ name: Vigilancia de imágenes desplegadas
 # y se cierra sola cuando deja de aparecer. La lógica está en
 # .github/vigilancia/alertas.js, con pruebas en alertas.test.js (las corre ci.yml).
 #
-# Un fallo del escáner no es «sin hallazgos»: si la base de CVE no se descarga o
-# una imagen no se puede escanear tras tres intentos, el job termina en rojo y no
-# se cierra ninguna issue (no haber mirado no es haber comprobado que ya no está).
-# Si falta el artefacto de la aplicación (caducado) es un aviso, no un rojo, pero
-# tampoco se cierra nada.
+# Un fallo del escáner no es «sin hallazgos»: si la base de CVE no se descarga (o
+# tiene más de 36 h), si el inventario sale recortado, si una imagen no se puede
+# escanear tras tres intentos o si no hay imagen de producción que escanear, el job
+# termina en rojo y no se cierra ninguna issue (no haber mirado no es haber
+# comprobado que ya no está). Si solo falta la de staging es un aviso, pero tampoco
+# se cierra nada. Sin el latido de Better Stack, el rojo de un run programado lo
+# notifica GitHub a quien editó por última vez el cron (y queda en Actions).
+#
+# Una issue cerrada a mano como «no planificada» se respeta (riesgo aceptado) y no
+# se reabre; cerrada como «completada» sin corregir nada, se reabre al día siguiente.
 #
 # Ping a Better Stack: paso opcional, DESACTIVADO mientras no exista el secreto
 # BETTERSTACK_LATIDO_VIGILANCIA_IMAGENES (URL de un latido dedicado). Con él, cada
@@ -104,7 +109,14 @@ jobs:
           set -euo pipefail
           for intento in 1 2 3; do
             if trivy image --download-db-only --no-progress; then
-              trivy version --format json | jq -r '"Base de CVE: versión " + (.VulnerabilityDB.Version|tostring) + ", actualizada " + .VulnerabilityDB.UpdatedAt'
+              # La base se publica cada ~6 h. Una base de más de 36 h (caché vieja, espejo
+              # parado) no es «la del día»: escanear con ella daría un falso «sin hallazgos».
+              actualizada="$(trivy version --format json | jq -r '.VulnerabilityDB.UpdatedAt // empty')"
+              echo "Base de CVE actualizada: ${actualizada:-desconocida}"
+              if [ -z "$actualizada" ] || [ $(( $(date -u +%s) - $(date -u -d "$actualizada" +%s) )) -gt $((36 * 3600)) ]; then
+                echo "::error::La base de CVE tiene más de 36 h (o no se sabe su fecha): no se escanea con ella."
+                exit 1
+              fi
               exit 0
             fi
             echo "::warning::No se pudo descargar la base de CVE (intento $intento)."
@@ -161,9 +173,12 @@ jobs:
             deploy/local/docker-compose.produccion.yml | sort -u)
           # 2. Base de la etapa final del Dockerfile.
           mapfile -t BASE < <(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+@sha256:[0-9a-f]{64})[[:space:]]+AS[[:space:]]+final([[:space:]].*)?$/\1/Ip' Dockerfile | sort -u)
-          # Un inventario vacío o recortado es un instrumento ciego, no un verde.
-          if [ "${#COMPOSE[@]}" -lt 3 ] || [ "${#BASE[@]}" -ne 1 ]; then
-            echo "::error::Inventario incompleto: ${#COMPOSE[@]} imágenes en el compose (se esperan 3 o más) y ${#BASE[@]} base final en el Dockerfile (se espera 1)."
+          # Un inventario vacío o recortado es un instrumento ciego, no un verde: toda
+          # imagen del compose que no sea la de la aplicación debe estar fijada por digest
+          # y casar con la expresión de arriba.
+          TOTAL_COMPOSE="$(grep -E '^[[:space:]]*image:' deploy/local/docker-compose.produccion.yml | grep -vcE 'image:[[:space:]]*"?caemanager:' || true)"
+          if [ "${#COMPOSE[@]}" -lt 3 ] || [ "${#COMPOSE[@]}" -ne "$TOTAL_COMPOSE" ] || [ "${#BASE[@]}" -ne 1 ]; then
+            echo "::error::Inventario incompleto: ${#COMPOSE[@]} imágenes fijadas por digest de $TOTAL_COMPOSE de terceros en el compose (se esperan todas, 3 o más) y ${#BASE[@]} base final en el Dockerfile (se espera 1)."
             exit 1
           fi
 
@@ -182,33 +197,64 @@ jobs:
           # Un fallo de la API no se confunde con «no hay despliegue»: devuelve error y,
           # por set -e en la asignación de quien llama, el paso termina en rojo (si no,
           # se escanearía en silencio un run más antiguo que el desplegado).
+          # Producción se aprueba a mano y puede llevar días sin desplegarse: se miran todos
+          # los runs terminados en verde de los últimos 30 días (lo que dura el artefacto).
+          # Staging se despliega tras cada CI verde: basta la primera página, y un run con
+          # producción aún esperando aprobación no está terminado, así que no se filtra.
+          DESDE="$(date -u -d '30 days ago' +%Y-%m-%d)"
           ultimo_run_con_job() {
-            local job="$1" ids id jobs
-            ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=40" --jq '.workflow_runs[].id')" || return 1
+            local job="$1" consulta="$2" ids id jobs hallados
+            ids="$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=100$consulta" --jq '.workflow_runs[].id')" || return 1
             for id in $ids; do
               jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")" || return 1
-              if jq -e --arg job "$job" '.jobs[] | select(.name == $job and .conclusion == "success")' <<< "$jobs" > /dev/null; then
+              hallados="$(jq --arg job "$job" '[.jobs[] | select(.name == $job and .conclusion == "success")] | length' <<< "$jobs")" || return 1
+              if [ "$hallados" -gt 0 ]; then
                 echo "$id"
                 return 0
               fi
             done
             return 0
           }
-          RUN_PRODUCCION="$(ultimo_run_con_job 'Desplegar a producción')"
-          RUN_STAGING="$(ultimo_run_con_job 'Desplegar a staging')"
+          RUN_PRODUCCION="$(ultimo_run_con_job 'Desplegar a producción' "&status=success&created=%3E%3D$DESDE")"
+          RUN_STAGING="$(ultimo_run_con_job 'Desplegar a staging' "&created=%3E%3D$DESDE")"
           echo "Run de deploy.yml en producción: ${RUN_PRODUCCION:-ninguno}; en staging: ${RUN_STAGING:-ninguno}"
 
+          # Sin imagen que escanear: para producción es un rojo (la imagen que más importa
+          # quedaría sin vigilar en silencio); para staging, un aviso. En los dos casos el
+          # escaneo deja de ser completo y no se cierra ninguna issue.
+          sin_imagen() {
+            local nombre="$1" motivo="$2"
+            case "$nombre" in
+              *producción*)
+                printf '%s\tfallo\t\n' "$nombre" >> "$OBJETIVOS"
+                echo "::error::$motivo" ;;
+              *)
+                printf '%s\tausente\t\n' "$nombre" >> "$OBJETIVOS"
+                echo "::warning::$motivo" ;;
+            esac
+          }
           escanear_aplicacion() {
-            local nombre="$1" run="$2" dir manifiesto esperado real
+            local nombre="$1" run="$2" dir manifiesto esperado real vigentes
             if [ -z "$run" ]; then
-              printf '%s\tausente\t\n' "$nombre" >> "$OBJETIVOS"
-              echo "::warning::No hay ningún run reciente de deploy.yml con despliegue correcto para $nombre."
+              sin_imagen "$nombre" "Ningún run de deploy.yml de los últimos 30 días desplegó con éxito $nombre."
+              return 0
+            fi
+            # Caducado o no publicado es «ausente»; vigente pero imposible de descargar es
+            # un fallo de red o de la API, no un «no hay nada».
+            vigentes="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts?name=imagen-despliegue" \
+              --jq '[.artifacts[] | select(.name == "imagen-despliegue" and (.expired | not))] | length')" || {
+              printf '%s\tfallo\t\n' "$nombre" >> "$OBJETIVOS"
+              echo "::error::No se pudo consultar el artefacto del run $run."
+              return 0
+            }
+            if [ "$vigentes" -eq 0 ]; then
+              sin_imagen "$nombre" "El artefacto imagen-despliegue del run $run ha caducado o no existe (dura 30 días)."
               return 0
             fi
             dir="$SALIDA/app-$run"
             if ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n imagen-despliegue -D "$dir"; then
-              printf '%s\tausente\t\n' "$nombre" >> "$OBJETIVOS"
-              echo "::warning::El artefacto imagen-despliegue del run $run no está disponible (caduca a los 30 días)."
+              printf '%s\tfallo\t\n' "$nombre" >> "$OBJETIVOS"
+              echo "::error::No se pudo descargar el artefacto vigente imagen-despliegue del run $run."
               return 0
             fi
             manifiesto="$dir/imagen.manifiesto"
@@ -262,8 +308,7 @@ jobs:
               return;
             }
 
-            const fallidos = objetivos.filter((o) => o.estado === 'fallo');
-            const ausentes = objetivos.filter((o) => o.estado === 'ausente');
+            const { fallidos, ausentes, completo } = v.resumirObjetivos(objetivos);
             const resultados = [];
             for (const o of objetivos.filter((x) => x.estado === 'ok')) {
               let informe = null;
@@ -282,10 +327,7 @@ jobs:
               core.setFailed(`Informe de Trivy ilegible: ${e.message}`);
               return;
             }
-            const alertas = [...porCve.values()]
-              .sort((a, b) => (a.severidad === b.severidad ? a.id.localeCompare(b.id) : a.severidad === 'CRITICAL' ? -1 : 1))
-              .map(v.alertaDeImagenes);
-            const completo = fallidos.length === 0 && ausentes.length === 0;
+            const alertas = v.ordenarCves(porCve.values()).map(v.alertaDeImagenes);
 
             const existentes = await v.listarExistentes({ github, owner, repo });
             const plan = v.planificar({ capa: 'imagenes', existentes, alertas, completo, maxNuevas: MAX_NUEVAS });
@@ -311,7 +353,8 @@ jobs:
                 `Objetivos: ${objetivos.length} (fallidos: ${fallidos.length}, sin artefacto: ${ausentes.length}). ` +
                   `CVE alertables: ${alertas.length} (CRITICAL: ${criticas}). ` +
                   `Issues: ${plan.crear.length} nuevas, ${plan.actualizar.length} actualizadas, ${plan.reabrir.length} reabiertas, ` +
-                  `${plan.cerrar.length} cerradas, ${plan.aplazadas.length} aplazadas por el tope de ${MAX_NUEVAS}` +
+                  `${plan.cerrar.length} cerradas, ${plan.silenciadas.length} silenciadas (cerradas a mano como no planificadas), ` +
+                  `${plan.aplazadas.length} aplazadas por el tope de ${MAX_NUEVAS}` +
                   `${completo ? '' : `, ${plan.conservadas.length} conservadas porque el escaneo no fue completo`}` +
                   `${simular ? ' (modo simular: no se ha cambiado nada)' : ''}.`,
                 true,

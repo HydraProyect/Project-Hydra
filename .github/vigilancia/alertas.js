@@ -42,6 +42,17 @@ function normalizarClave(clave) {
   return limpia;
 }
 
+// Identificadores de aviso de terceros (RHSA-2024:1234, GHSA-…) a clave de marcador: lo que
+// no sea [A-Za-z0-9._-] pasa a «_». Un identificador raro no debe tumbar todas las alertas.
+function claveSegura(id) {
+  const clave = String(id == null ? '' : id)
+    .trim()
+    .replace(/[^A-Za-z0-9._-]/g, '_')
+    .replace(/^[^A-Za-z0-9]+/, '');
+  if (!clave) throw new Error(`Identificador de aviso vacío o ilegible: ${id}`);
+  return clave.slice(0, 100);
+}
+
 function marcador(capa, clave) {
   return `<!-- vigilancia:${validarCapa(capa)}:${normalizarClave(clave)} -->`;
 }
@@ -53,18 +64,21 @@ function claveDe(cuerpo, capa) {
 }
 
 // Texto de terceros (títulos de CVE, nombres de paquete) dentro de una tabla Markdown:
-// sin HTML, sin barras que rompan la tabla y sin saltos de línea.
+// sin HTML, sin barras que rompan la tabla, sin saltos de línea, sin menciones (@paquete
+// notificaría a un usuario) y sin corchetes con los que armar un enlace Markdown. Se recorta
+// antes de escapar para no partir una entidad.
 function escaparCelda(texto, max = 160) {
-  let s = String(texto == null ? '' : texto)
-    .replace(/[\r\n\t]+/g, ' ')
+  let s = String(texto == null ? '' : texto).replace(/[\r\n\t]+/g, ' ').trim();
+  if (s.length > max) s = `${s.slice(0, max - 1)}…`;
+  return s
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/\|/g, '&#124;')
-    .replace(/`/g, "'")
-    .trim();
-  if (s.length > max) s = `${s.slice(0, max - 1)}…`;
-  return s;
+    .replace(/@/g, '&#64;')
+    .replace(/\[/g, '&#91;')
+    .replace(/\]/g, '&#93;')
+    .replace(/`/g, "'");
 }
 
 function urlSegura(url) {
@@ -95,11 +109,12 @@ function agruparTrivy(resultados) {
         // Defensa en profundidad: el escaneo ya filtra por severidad y por corrección
         // disponible (--severity, --ignore-unfixed).
         if (!SEVERIDADES_ALERTA.has(severidad) || !v.FixedVersion) continue;
-        const id = normalizarClave(v.VulnerabilityID);
-        if (!porCve.has(id)) {
-          porCve.set(id, { id, severidad, titulo: v.Title || '', url: urlSegura(v.PrimaryURL), afectados: new Map() });
+        const id = String(v.VulnerabilityID || '').trim();
+        const clave = claveSegura(id);
+        if (!porCve.has(clave)) {
+          porCve.set(clave, { clave, id, severidad, titulo: v.Title || '', url: urlSegura(v.PrimaryURL), afectados: new Map() });
         }
-        const cve = porCve.get(id);
+        const cve = porCve.get(clave);
         cve.severidad = mayorSeveridad(cve.severidad, severidad);
         if (!cve.titulo && v.Title) cve.titulo = v.Title;
         if (!cve.url) cve.url = urlSegura(v.PrimaryURL);
@@ -124,18 +139,44 @@ function agruparTrivy(resultados) {
   return porCve;
 }
 
+// Orden de prioridad (decide qué entra bajo el tope de issues nuevas): CRITICAL primero,
+// después por identificador.
+function ordenarCves(cves) {
+  return [...cves].sort((a, b) =>
+    a.severidad === b.severidad ? a.clave.localeCompare(b.clave) : (ORDEN_SEVERIDAD[b.severidad] || 0) - (ORDEN_SEVERIDAD[a.severidad] || 0),
+  );
+}
+
+// objetivos: [{ nombre, estado }] con estado ok | fallo | ausente. El escaneo es completo
+// solo si todos se han escaneado: un fallo o un artefacto ausente impiden cerrar issues.
+function resumirObjetivos(objetivos) {
+  const fallidos = objetivos.filter((o) => o.estado === 'fallo');
+  const ausentes = objetivos.filter((o) => o.estado === 'ausente');
+  const desconocidos = objetivos.filter((o) => !['ok', 'fallo', 'ausente'].includes(o.estado));
+  return {
+    fallidos: [...fallidos, ...desconocidos],
+    ausentes,
+    completo: objetivos.length > 0 && fallidos.length === 0 && ausentes.length === 0 && desconocidos.length === 0,
+  };
+}
+
+const MAX_FILAS = 150;
+
 // Cuerpo determinista (sin fechas): solo cambia cuando cambia lo afectado, así la
-// issue no se reescribe cada día.
+// issue no se reescribe cada día. Con un tope de filas: GitHub rechaza cuerpos de más
+// de 65 536 caracteres y el job quedaría en rojo cada día.
 function alertaDeImagenes(cve) {
   const imagenes = [...new Set(cve.afectados.map((a) => a.imagen))].sort();
-  const filas = cve.afectados.map(
+  const sobrantes = Math.max(0, cve.afectados.length - MAX_FILAS);
+  const filas = cve.afectados.slice(0, MAX_FILAS).map(
     (a) =>
       `| ${escaparCelda(a.imagen)} | ${escaparCelda(a.paquete)} | ${escaparCelda(a.instalada)} | ${escaparCelda(a.corregida)} | ${escaparCelda(a.objetivo)} |`,
   );
-  const enlace = cve.url ? `[${cve.id}](${cve.url})` : cve.id;
+  const id = escaparCelda(cve.id, 100);
+  const enlace = cve.url ? `[${id}](${cve.url})` : id;
   const cuerpo = [
-    marcador('imagenes', cve.id),
-    `## ${cve.id} (${cve.severidad}) con corrección disponible`,
+    marcador('imagenes', cve.clave),
+    `## ${id} (${cve.severidad}) con corrección disponible`,
     '',
     `**Aviso:** ${enlace}${cve.titulo ? ` — ${escaparCelda(cve.titulo, 300)}` : ''}`,
     '',
@@ -144,6 +185,7 @@ function alertaDeImagenes(cve) {
     '| Imagen | Paquete | Versión instalada | Versión corregida | Dónde |',
     '|---|---|---|---|---|',
     ...filas,
+    ...(sobrantes > 0 ? ['', `… y ${sobrantes} filas más (ver el resumen del run).`] : []),
     '',
     '### Qué hacer',
     '',
@@ -151,11 +193,11 @@ function alertaDeImagenes(cve) {
     '- Paquete instalado por el `Dockerfile` o dependencia NuGet en la imagen de la aplicación: reconstruir y desplegar, o subir la versión del paquete.',
     '- Si se acepta el riesgo (falso positivo, no aplicable), anotarlo en `.trivyignore` con su motivo: la issue se cerrará sola en el siguiente escaneo completo.',
     '',
-    'Esta issue la mantiene el workflow: se actualiza si cambia lo afectado y se cierra sola cuando el CVE deja de aparecer.',
+    'Esta issue la mantiene el workflow: se actualiza si cambia lo afectado y se cierra sola cuando el CVE deja de aparecer. Cerrarla a mano como «completada» sin corregir nada la reabre en el siguiente escaneo; cerrarla como «no planificada» la deja cerrada.',
   ].join('\n');
   return {
-    clave: cve.id,
-    titulo: `[Vigilancia imágenes] ${cve.id} (${cve.severidad}) en ${imagenes.join(', ')}`.slice(0, 250),
+    clave: cve.clave,
+    titulo: `[Vigilancia imágenes] ${String(cve.id).replace(/[\r\n]+/g, ' ')} (${cve.severidad}) en ${imagenes.join(', ')}`.slice(0, 250),
     cuerpo,
     critica: cve.severidad === 'CRITICAL',
   };
@@ -173,7 +215,7 @@ function planificar({ capa, existentes, alertas, completo, maxNuevas }) {
     porClave.get(clave).push(issue);
   }
 
-  const plan = { crear: [], actualizar: [], reabrir: [], cerrar: [], duplicadas: [], aplazadas: [], conservadas: [] };
+  const plan = { crear: [], actualizar: [], reabrir: [], cerrar: [], duplicadas: [], aplazadas: [], conservadas: [], silenciadas: [] };
   const vistas = new Set();
 
   for (const alerta of alertas) {
@@ -190,7 +232,10 @@ function planificar({ capa, existentes, alertas, completo, maxNuevas }) {
       }
       for (const d of sobrantes) plan.duplicadas.push({ number: d.number, de: principal.number });
     } else if (cerradas.length > 0) {
-      plan.reabrir.push({ number: cerradas[0].number, alerta });
+      // Cerrada a mano como «no planificada» (riesgo aceptado): no se reabre cada día.
+      // Las que cierra el propio workflow van como «completada» y sí se reabren si vuelven.
+      if (cerradas[0].state_reason === 'not_planned') plan.silenciadas.push({ number: cerradas[0].number, clave });
+      else plan.reabrir.push({ number: cerradas[0].number, alerta });
     } else if (plan.crear.length < maxNuevas) {
       plan.crear.push({ alerta });
     } else {
@@ -227,7 +272,7 @@ async function listarExistentes({ github, owner, repo }) {
   });
   return issues
     .filter((i) => !i.pull_request)
-    .map((i) => ({ number: i.number, state: i.state, title: i.title, body: i.body || '' }));
+    .map((i) => ({ number: i.number, state: i.state, state_reason: i.state_reason || null, title: i.title, body: i.body || '' }));
 }
 
 // Aplica el plan. Un fallo en una issue no impide las demás; devuelve la lista de
@@ -276,7 +321,9 @@ async function aplicar({ github, owner, repo, plan, motivoCierre, simular }) {
   for (const { number, de } of plan.duplicadas) {
     await intentar(`cerrar la duplicada #${number}`, async () => {
       await github.rest.issues.createComment({ owner, repo, issue_number: number, body: `Duplicada de #${de}, que sigue abierta con la misma alerta.` });
-      await github.rest.issues.update({ owner, repo, issue_number: number, state: 'closed', state_reason: 'not_planned' });
+      // «completada», no «no planificada»: esta última la reserva planificar() para el riesgo
+      // aceptado a mano, que no se reabre.
+      await github.rest.issues.update({ owner, repo, issue_number: number, state: 'closed', state_reason: 'completed' });
     });
   }
   return errores;
@@ -288,7 +335,10 @@ module.exports = {
   claveDe,
   escaparCelda,
   urlSegura,
+  claveSegura,
   agruparTrivy,
+  ordenarCves,
+  resumirObjetivos,
   alertaDeImagenes,
   planificar,
   listarExistentes,

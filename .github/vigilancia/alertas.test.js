@@ -169,3 +169,53 @@ test('aplicar cierra con comentario y sigue tras un fallo', async () => {
   assert.match(errores[0], /crear CVE-MAL: 422/);
   assert.deepEqual(hechas, ['crear t CVE-BIEN', 'comentar #7', 'update #7 closed']);
 });
+
+test('un identificador con caracteres raros no tumba el resto y conserva su texto', () => {
+  assert.equal(v.claveSegura('RHSA-2024:1234'), 'RHSA-2024_1234');
+  assert.throws(() => v.claveSegura('  '));
+  const porCve = v.agruparTrivy([
+    { imagen: 'aspnet', informe: informe([vuln('RHSA-2024:1234', 'HIGH'), vuln('CVE-2026-0005', 'HIGH')]) },
+  ]);
+  assert.deepEqual([...porCve.keys()].sort(), ['CVE-2026-0005', 'RHSA-2024_1234']);
+  const a = v.alertaDeImagenes(porCve.get('RHSA-2024_1234'));
+  assert.equal(v.claveDe(a.cuerpo, 'imagenes'), 'RHSA-2024_1234');
+  assert.match(a.titulo, /RHSA-2024:1234/);
+});
+
+test('el texto ajeno no menciona usuarios ni arma enlaces, y el cuerpo tiene tope', () => {
+  assert.equal(v.escaparCelda('@types/node [x](https://e.vil)'), '&#64;types/node &#91;x&#93;(https://e.vil)');
+  const muchas = Array.from({ length: 400 }, (_, i) => vuln('CVE-2026-0100', 'HIGH', { PkgName: `paquete-${i}` }));
+  const a = v.alertaDeImagenes(v.agruparTrivy([{ imagen: 'app', informe: informe(muchas) }]).get('CVE-2026-0100'));
+  assert.ok(a.cuerpo.length < 65536);
+  assert.match(a.cuerpo, /y 250 filas más/);
+});
+
+test('una issue cerrada a mano como «no planificada» no se reabre', () => {
+  const plan = v.planificar({
+    capa: 'imagenes',
+    existentes: [issue(30, 'closed', 'CVE-S', { state_reason: 'not_planned' }), issue(31, 'closed', 'CVE-R', { state_reason: 'completed' })],
+    alertas: [alerta('CVE-S'), alerta('CVE-R')],
+    completo: true,
+    maxNuevas: 10,
+  });
+  assert.deepEqual(plan.silenciadas.map((x) => x.number), [30]);
+  assert.deepEqual(plan.reabrir.map((x) => x.number), [31]);
+  assert.deepEqual(plan.crear, []);
+});
+
+test('el escaneo solo es completo si no falta ni falla ningún objetivo', () => {
+  assert.equal(v.resumirObjetivos([{ estado: 'ok' }, { estado: 'ok' }]).completo, true);
+  assert.equal(v.resumirObjetivos([{ estado: 'ok' }, { estado: 'ausente' }]).completo, false);
+  assert.equal(v.resumirObjetivos([{ estado: 'ok' }, { estado: 'fallo' }]).completo, false);
+  assert.equal(v.resumirObjetivos([{ estado: 'ok' }, { estado: 'raro' }]).fallidos.length, 1);
+  assert.equal(v.resumirObjetivos([]).completo, false);
+});
+
+test('las CRITICAL van primero para entrar bajo el tope', () => {
+  const orden = v.ordenarCves([
+    { clave: 'CVE-B', severidad: 'HIGH' },
+    { clave: 'CVE-Z', severidad: 'CRITICAL' },
+    { clave: 'CVE-A', severidad: 'HIGH' },
+  ]);
+  assert.deepEqual(orden.map((c) => c.clave), ['CVE-Z', 'CVE-A', 'CVE-B']);
+});
