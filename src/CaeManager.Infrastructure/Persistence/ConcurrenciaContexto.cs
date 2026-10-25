@@ -48,7 +48,9 @@ public static class ConcurrenciaContexto
             {
                 iniciales = Capturar();
             }
-            catch (InvalidOperationException)
+#pragma warning disable CA1031 // El guardado ya está confirmado: ningún fallo de la recaptura puede salir de SaveChanges.
+            catch (Exception)
+#pragma warning restore CA1031
             {
                 baseInvalida = true;
             }
@@ -74,9 +76,18 @@ public static class ConcurrenciaContexto
             {
                 // El circuito ya cerró el contexto: no queda nada que pueda guardarse después.
             }
-            catch (InvalidOperationException)
+#pragma warning disable CA1031 // Corre en un finally: cualquier fallo cae al descarte completo, sin tapar el original.
+            catch (Exception)
+#pragma warning restore CA1031
             {
-                contexto.ChangeTracker.Clear();
+                try
+                {
+                    contexto.ChangeTracker.Clear();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Igual que arriba: un contexto cerrado ya no guarda nada.
+                }
             }
         }
 
@@ -89,30 +100,45 @@ public static class ConcurrenciaContexto
                 var entradas = contexto.ChangeTracker.Entries().ToList();
                 contexto.ChangeTracker.AutoDetectChangesEnabled = false;
 
-                // Lo que el comando cargó o creó no tiene un estado previo que conservar: sale del rastreo
-                // (altas, ediciones, bajas y lecturas) y el siguiente comando lo relee de la base. Devolverlo
-                // a Unchanged dejaría en memoria las colecciones y referencias que el comando tocó.
-                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)))
-                    entrada.State = EntityState.Detached;
-
-                // Lo que el comando o su pipeline desacoplaron (DescartarLoteFallido, el Clear de
-                // TransaccionDeComando tras deshacer la transacción, un descarte explícito) se queda
-                // fuera: volver a rastrearlo reintroduciría un lote que la base rechazó o filas de una
-                // transacción deshecha, y podría chocar con otra instancia de la misma clave. Perder
-                // así un cambio pendiente previo nunca escribe nada que nadie pidiera.
-                var actuales = entradas.ToDictionary(e => e.Entity, ReferenceEqualityComparer.Instance);
-                foreach (var (entidad, inicial) in iniciales)
+                // Lo que el comando creó, editó o borró sin estar antes rastreado no tiene un estado previo
+                // que conservar: sale del rastreo y el siguiente comando lo relee de la base. Lo que solo
+                // leyó se queda: desacoplarlo dejaría colecciones fantasma en las entidades previas.
+                var desacopladas = new HashSet<object>(ReferenceEqualityComparer.Instance);
+                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)
+                             && e.State != EntityState.Unchanged))
                 {
-                    if (!actuales.TryGetValue(entidad, out var entrada))
-                        continue;
-                    // Los valores se restauran; las navegaciones en memoria, no. Si el comando cambió una
-                    // colección o una referencia de una entidad previa, esta sale del rastreo por la misma
-                    // razón que las anteriores.
-                    if (!MismasNavegaciones(inicial.Navegaciones, Navegaciones(entrada)))
+                    desacopladas.Add(entrada.Entity);
+                    entrada.State = EntityState.Detached;
+                }
+
+                // Los valores se restauran; las navegaciones en memoria, no. Si el comando dejó en una
+                // colección o referencia algo que no está en la base, o quitó algo que sigue en ella, la
+                // entidad sale del rastreo por la misma razón, y con ella lo que apunte a algo desacoplado
+                // aquí (hasta un punto fijo), para que la siguiente lectura reconstruya el grafo entero.
+                // El fixup de una lectura solo añade entidades rastreadas y no cuenta. «rastreadas» queda fija
+                // tras el primer paso: una entidad desacoplada en cascada sigue existiendo en la base.
+                var rastreadas = contexto.ChangeTracker.Entries().Select(e => e.Entity)
+                    .ToHashSet(ReferenceEqualityComparer.Instance);
+                bool hubo;
+                do
+                {
+                    hubo = false;
+                    foreach (var entrada in contexto.ChangeTracker.Entries().ToList())
                     {
+                        iniciales.TryGetValue(entrada.Entity, out var inicial);
+                        if (!NavegacionTocada(inicial?.Navegaciones, Navegaciones(entrada), rastreadas, desacopladas))
+                            continue;
+                        desacopladas.Add(entrada.Entity);
                         entrada.State = EntityState.Detached;
-                        continue;
+                        hubo = true;
                     }
+                }
+                while (hubo);
+
+                foreach (var entrada in contexto.ChangeTracker.Entries().ToList())
+                {
+                    if (!iniciales.TryGetValue(entrada.Entity, out var inicial))
+                        continue;
                     entrada.State = inicial.Estado;
                     entrada.OriginalValues.SetValues(inicial.Originales);
                     entrada.CurrentValues.SetValues(inicial.Actuales);
@@ -120,6 +146,11 @@ public static class ConcurrenciaContexto
                         foreach (var propiedad in entrada.Properties)
                             propiedad.IsModified = inicial.Modificadas.Contains(propiedad.Metadata.Name);
                 }
+                // Las entradas previas que ya no están rastreadas las desacoplaron el comando o su pipeline
+                // (DescartarLoteFallido, el Clear de TransaccionDeComando tras deshacer la transacción, un
+                // descarte explícito) y se quedan fuera: volver a rastrearlas reintroduciría un lote que la
+                // base rechazó o filas de una transacción deshecha, y podría chocar con otra instancia de la
+                // misma clave. Perder así un cambio pendiente previo nunca escribe nada que nadie pidiera.
             }
             finally
             {
@@ -129,19 +160,32 @@ public static class ConcurrenciaContexto
     }
 
     // Por navegación: la entidad referenciada o los elementos de la colección, por identidad.
-    private static object?[][] Navegaciones(EntityEntry entrada) => entrada.Navigations
+    private static object[][] Navegaciones(EntityEntry entrada) => entrada.Navigations
         .Select(n => n is CollectionEntry coleccion
-            ? coleccion.CurrentValue?.Cast<object?>().ToArray() ?? []
-            : [n.CurrentValue])
+            ? coleccion.CurrentValue?.Cast<object>().ToArray() ?? []
+            : n.CurrentValue is { } referencia ? [referencia] : Array.Empty<object>())
         .ToArray();
 
-    private static bool MismasNavegaciones(object?[][] antes, object?[][] despues) =>
-        antes.Length == despues.Length
-        && antes.Zip(despues).All(par => par.First.Length == par.Second.Length
-            && par.First.ToHashSet(ReferenceEqualityComparer.Instance).SetEquals(par.Second));
+    // Sin instantánea (lo leyó el comando) solo cuenta lo añadido que no está rastreado.
+    private static bool NavegacionTocada(object[][]? antes, object[][] despues, HashSet<object> rastreadas,
+        HashSet<object> desacopladas)
+    {
+        for (var i = 0; i < despues.Length; i++)
+        {
+            var previos = antes is not null && i < antes.Length ? antes[i] : [];
+            if (previos.Length == 0 && despues[i].Length == 0)
+                continue;
+            var conjuntoPrevio = previos.ToHashSet(ReferenceEqualityComparer.Instance);
+            var conjuntoActual = despues[i].ToHashSet(ReferenceEqualityComparer.Instance);
+            if (despues[i].Any(e => desacopladas.Contains(e) || (!conjuntoPrevio.Contains(e) && !rastreadas.Contains(e)))
+                || previos.Any(e => !conjuntoActual.Contains(e) && rastreadas.Contains(e)))
+                return true;
+        }
+        return false;
+    }
 
     private sealed record EstadoEntrada(object Entidad, EntityState Estado, PropertyValues Actuales,
-        PropertyValues Originales, HashSet<string> Modificadas, object?[][] Navegaciones);
+        PropertyValues Originales, HashSet<string> Modificadas, object[][] Navegaciones);
 
     /// <summary>
     /// Ejecuta la consulta normal, con sus filtros, y si devuelve una instancia que el circuito ya tenía

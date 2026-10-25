@@ -236,6 +236,45 @@ public class RestauracionCambiosDeComandoTests
     }
 
     [Fact]
+    public async Task Leer_hijos_en_un_comando_fallido_no_desacopla_al_padre_ni_pierde_su_cambio_previo()
+    {
+        await using var contexto = await CrearContexto();
+        var padre = await contexto.Padres.SingleAsync(p => p.Id == 1);
+        padre.Nombre = "Cambio previo";
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        await behavior.Handle(new Comando(), async ct =>
+        {
+            await contexto.Hijos.ToListAsync(ct);
+            return Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado"));
+        }, default);
+
+        contexto.Entry(padre).State.Should().Be(EntityState.Modified);
+        padre.Nombre.Should().Be("Cambio previo");
+        padre.Hijos.Should().ContainSingle().Which.Id.Should().Be(10);
+        contexto.Entry(padre.Hijos[0]).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
+    public async Task Una_referencia_cambiada_por_un_comando_fallido_no_se_guarda_despues()
+    {
+        await using var contexto = await CrearContexto();
+        var hijo = await contexto.Hijos.Include(h => h.Padre).SingleAsync(h => h.Id == 10);
+        var segunda = (await contexto.Filas.FindAsync(2))!;
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        await behavior.Handle(new Comando(), ct =>
+        {
+            hijo.Padre = new Padre { Id = 2, Nombre = "Padre rechazado" };
+            return Task.FromResult(Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado")));
+        }, default);
+
+        segunda.Nombre = "Edición aceptada";
+        await contexto.SaveChangesAsync();
+
+        (await contexto.Padres.AsNoTracking().Select(p => p.Id).ToListAsync()).Should().BeEquivalentTo([1]);
+        (await contexto.Hijos.AsNoTracking().SingleAsync(h => h.Id == 10)).PadreId.Should().Be(1);
+        contexto.Entry(hijo).State.Should().Be(EntityState.Detached);
+    }
+    [Fact]
     public async Task La_restauracion_no_tapa_el_fallo_si_el_contexto_ya_se_cerro()
     {
         var contexto = await CrearContexto();
@@ -345,6 +384,7 @@ public class RestauracionCambiosDeComandoTests
     private sealed class Padre
     {
         public int Id { get; set; }
+        public string Nombre { get; set; } = "";
         public List<Hijo> Hijos { get; } = [];
     }
 
@@ -352,6 +392,7 @@ public class RestauracionCambiosDeComandoTests
     {
         public int Id { get; set; }
         public int PadreId { get; set; }
+        public Padre? Padre { get; set; }
         public string Nombre { get; set; } = "";
     }
 
