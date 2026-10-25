@@ -60,9 +60,9 @@ public class FirmasGuardadasCacheTests
             contexto,
             FirmasGuardadasEndpoints.ServirFirmaAsync(
                 contexto,
-                new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow)),
+                new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow, Guid.NewGuid())),
                 new AlmacenamientoFalso(),
-                CancellationToken.None));
+                Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None));
 
         var cacheControl = contexto.Response.Headers.CacheControl.ToString();
 
@@ -85,7 +85,7 @@ public class FirmasGuardadasCacheTests
                 contexto,
                 new MediatorFalso(new SelloEmpresaDto("sello.png", DateTime.UtcNow)),
                 new AlmacenamientoFalso(),
-                CancellationToken.None));
+                Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None));
 
         var cacheControl = contexto.Response.Headers.CacheControl.ToString();
 
@@ -110,9 +110,9 @@ public class FirmasGuardadasCacheTests
             contexto,
             FirmasGuardadasEndpoints.ServirFirmaAsync(
                 contexto,
-                new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow)),
+                new MediatorFalso(new FirmaGuardadaUsuarioDto("firma.png", DateTime.UtcNow, Guid.NewGuid())),
                 new AlmacenamientoFalso(),
-                CancellationToken.None));
+                Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, CancellationToken.None));
 
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
         contexto.Response.ContentType.Should().Be("image/png");

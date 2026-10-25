@@ -438,6 +438,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
@@ -981,9 +982,10 @@ public static class InfrastructureServiceCollectionExtensions
         if (!entorno.IsDevelopment() && !configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
             throw new InvalidOperationException(
                 $"Falta ConnectionStrings:CaeManagerDbRuntime en el entorno '{entorno.EnvironmentName}'. " +
-                "El tráfico se ejecutaría con el rol propietario de la base, al que PostgreSQL nunca " +
-                "somete a RLS (ni siquiera con FORCE ROW LEVEL SECURITY), dejando el aislamiento por " +
-                "tenant a merced únicamente del filtro global de EF Core. Configura la conexión del rol " +
+                "El tráfico se ejecutaría con el rol propietario de la base, exento de RLS: como " +
+                "superusuario o con BYPASSRLS, PostgreSQL no le aplica ninguna política ni con FORCE ROW " +
+                "LEVEL SECURITY, y como propietario ordinario solo en las tablas con FORCE. El aislamiento " +
+                "por tenant quedaría a merced del filtro global de EF Core. Configura la conexión del rol " +
                 "restringido cae_app_runtime (deploy/bootstrap/roles-de-cluster.sql) o, si de verdad " +
                 $"quieres arrancar sin esa protección, declara {ClaveDegradacionInsegura}=true.");
 
