@@ -98,6 +98,40 @@ public class CaeManagerDbContext(
         IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
 {
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var pendientes = ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // El lote es atómico: tampoco se reintentan sus cambios relacionados
+            // (por ejemplo, Relaciones Empresariales de una edición de Empresa).
+            ConcurrenciaContexto.DescartarEdicionPerdida(this, pendientes.Concat(ex.Entries));
+            throw;
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        var pendientes = ChangeTracker.Entries()
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList();
+        try
+        {
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            // El lote es atómico: tampoco se reintentan sus cambios relacionados
+            // (por ejemplo, Relaciones Empresariales de una edición de Empresa).
+            ConcurrenciaContexto.DescartarEdicionPerdida(this, pendientes.Concat(ex.Entries));
+            throw;
+        }
+    }
+
     public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
     IQueryable<CaeManager.Domain.Dashboard.TarifaOperadorCae> CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.TarifasOperadorCae => TarifasOperadorCae;
     void CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext.Agregar(CaeManager.Domain.Dashboard.TarifaOperadorCae tarifa) => TarifasOperadorCae.Add(tarifa);
