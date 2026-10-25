@@ -116,7 +116,7 @@
                         <p>@Textos["BienvenidaTexto"]</p>
                         @foreach (var modo in ModosDisponibles)
                         {
-                            <button type="button" class="vega-ejemplo" @onclick="() => EnviarEjemploAsync(modo)">
+                            <button type="button" class="vega-ejemplo" disabled="@_sesionPrivilegiada" @onclick="() => EnviarEjemploAsync(modo)">
                                 <small><Icono Nombre="@IconoModo(modo)" Tamano="TamanoIcono.Pequeno" />@NombreModo(modo) · @ResumenModo(modo)</small>
                                 <span>@EjemploModo(modo)</span>
                             </button>
@@ -177,18 +177,22 @@
                 }
             </div>
 
+            @if (_sesionPrivilegiada)
+            {
+                <p class="asistente-nota" role="note">@Textos["SesionPrivilegiada"]</p>
+            }
             <div class="vega-entrada">
                 <div class="vega-caja">
                     <textarea class="asistente-textarea" rows="1" @ref="_campo"
                               aria-label="@Textos["EtiquetaMensaje"]"
                               placeholder="@Textos["PlaceholderMensaje"]"
                               value="@_valorMostrado"
-                              disabled="@_enviando"
+                              disabled="@(_enviando || _sesionPrivilegiada)"
                               maxlength="@(EnModoGestion ? CaeManager.Domain.AsistenteIa.TurnoTareaAsistente.LongitudMaximaTexto : LimitesConsulta.Value.MaxCaracteresPregunta)"
                               @oninput="e => _pregunta = e.Value?.ToString() ?? string.Empty"
                               @onkeydown="ManejarTeclaAsync"></textarea>
                     <button type="button" class="asistente-boton-enviar" aria-label="@Textos["BotonEnviar"]"
-                            disabled="@(_enviando || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
+                            disabled="@(_enviando || _sesionPrivilegiada || _pregunta.Trim().Length == 0)" @onclick="EnviarAsync">
                         <Icono Nombre="enviar" Tamano="TamanoIcono.Pequeno" />
                     </button>
                 </div>

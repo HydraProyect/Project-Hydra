@@ -17,9 +17,9 @@ public class PreguntarAlAsistenteQueryHandlerTests
 {
     private static readonly Guid TenantId = Guid.NewGuid();
 
-    private sealed class ActorFalso(Guid? usuarioId, Guid? simuladoId = null) : IActorAuditoria
+    private sealed class ActorFalso(Guid? usuarioId, Guid? simuladoId = null, TipoViaAcceso via = TipoViaAcceso.Normal) : IActorAuditoria
     {
-        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(new ActorAuditoria(usuarioId, simuladoId, TipoViaAcceso.Normal, null));
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(new ActorAuditoria(usuarioId, simuladoId, via, null));
         public ActorAuditoria? ObtenerSiYaEstaResuelto() => null;
     }
 
@@ -28,6 +28,49 @@ public class PreguntarAlAsistenteQueryHandlerTests
         new(servicio, instruccion, tenant, mediator, new ActorFalso(Guid.NewGuid()),
             new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions()), TimeProvider.System),
             Options.Create(new AsistenteConsultaOptions()));
+
+    [Theory]
+    [InlineData(TipoViaAcceso.SesionPrivilegiada)]
+    [InlineData(TipoViaAcceso.Normal)]
+    [InlineData(TipoViaAcceso.OperacionDelegada)]
+    public async Task Solo_la_Sesion_Privilegiada_impide_consultar_el_modelo(TipoViaAcceso via)
+    {
+        var servicio = new AsistenteIaServiceFalso(Result.Exito("Respuesta"));
+        var handler = new PreguntarAlAsistenteQueryHandler(
+            servicio, new InstruccionTratamientoIaFalsa(true), new TenantActualFalso(TenantId), new CarteraFalsa(),
+            new ActorFalso(Guid.NewGuid(), via: via),
+            new LimitadorConsultaIa(Options.Create(new AsistenteConsultaOptions()), TimeProvider.System),
+            Options.Create(new AsistenteConsultaOptions()));
+
+        var resultado = await handler.Handle(new([new(RolMensajeChat.Usuario, "Pregunta")]), CancellationToken.None);
+
+        if (via == TipoViaAcceso.SesionPrivilegiada)
+        {
+            servicio.HistorialRecibido.Should().BeNull();
+            resultado.EsFallido.Should().BeTrue();
+            resultado.Error.Codigo.Should().Be("TareaAsistente.SesionPrivilegiada");
+            resultado.Error.Mensaje.Should().Be("El asistente no está disponible en una sesión de soporte.");
+        }
+        else
+        {
+            resultado.EsExitoso.Should().BeTrue();
+            resultado.Valor.Should().Be("Respuesta");
+            servicio.HistorialRecibido.Should().ContainSingle().Which.Texto.Should().Be("Pregunta");
+        }
+    }
+
+    [Fact]
+    public async Task Rechazar_por_Sesion_Privilegiada_no_consume_cuota_ni_instruccion_ni_cartera()
+    {
+        var escenario = new Escenario(new AsistenteConsultaOptions { MaxPreguntasUsuario = 1 });
+        var usuario = Guid.NewGuid();
+
+        var rechazada = await escenario.Preguntar(usuario, TenantId, via: TipoViaAcceso.SesionPrivilegiada);
+        var normal = await escenario.Preguntar(usuario, TenantId);
+
+        rechazada.Error.Codigo.Should().Be("TareaAsistente.SesionPrivilegiada");
+        normal.EsExitoso.Should().BeTrue();
+    }
 
     private sealed class RelojFalso : TimeProvider
     {
@@ -45,13 +88,13 @@ public class PreguntarAlAsistenteQueryHandlerTests
         public bool InstruccionHabilitada { get; set; } = true;
         public TenantDeCarteraDto[]? CarteraSinInstruccion { get; set; }
 
-        public PreguntarAlAsistenteQueryHandler Handler(Guid? usuario, Guid? tenant, Guid? simulado = null) =>
+        public PreguntarAlAsistenteQueryHandler Handler(Guid? usuario, Guid? tenant, Guid? simulado = null, TipoViaAcceso via = TipoViaAcceso.Normal) =>
             new(Servicio, new InstruccionTratamientoIaFalsa(InstruccionHabilitada), new TenantActualFalso(tenant),
-                new CarteraFalsa(CarteraSinInstruccion), new ActorFalso(usuario, simulado),
+                new CarteraFalsa(CarteraSinInstruccion), new ActorFalso(usuario, simulado, via),
                 _limitador ??= new(Options.Create(config), Reloj), Options.Create(config));
 
-        public Task<Result<string>> Preguntar(Guid? usuario, Guid? tenant, Guid? simulado = null) =>
-            Handler(usuario, tenant, simulado).Handle(new([new(RolMensajeChat.Usuario, "Pregunta")]), CancellationToken.None);
+        public Task<Result<string>> Preguntar(Guid? usuario, Guid? tenant, Guid? simulado = null, TipoViaAcceso via = TipoViaAcceso.Normal) =>
+            Handler(usuario, tenant, simulado, via).Handle(new([new(RolMensajeChat.Usuario, "Pregunta")]), CancellationToken.None);
     }
 
     [Theory]
