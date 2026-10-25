@@ -199,7 +199,7 @@ public class ProyectoAutorizacionEscrituraTests
             new DesasignarTecnicoProyectoCommand(proyectoTecnico.Id, new DateOnly(2026, 2, 1)), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Proyecto.NoEncontrado");
+        resultado.Error.Codigo.Should().Be("Proyecto.TecnicoNoEncontrado");
         proyectoTecnico.EstaActivo.Should().BeTrue();
         unitOfWork.VecesGuardado.Should().Be(0);
     }

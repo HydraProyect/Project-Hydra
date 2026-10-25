@@ -30,7 +30,7 @@ public class ProyectoCerradoEscrituraTests
             new DesasignarTecnicoProyectoCommand(tecnico.Id, new DateOnly(2026, 2, 1), tecnico.Version), CancellationToken.None);
 
         resultado.EsExitoso.Should().Be(!cerrado && visible);
-        if (!visible) resultado.Error.Codigo.Should().Be("Proyecto.NoEncontrado");
+        if (!visible) resultado.Error.Codigo.Should().Be("Proyecto.TecnicoNoEncontrado");
         else if (cerrado) resultado.Error.Codigo.Should().Be("Proyecto.YaCerrado");
         tecnico.EstaActivo.Should().Be(cerrado || !visible);
         guardado.VecesGuardado.Should().Be(!cerrado && visible ? 1 : 0);
