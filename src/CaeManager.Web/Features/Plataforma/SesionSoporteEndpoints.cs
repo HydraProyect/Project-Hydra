@@ -157,9 +157,11 @@ public static class SesionSoporteEndpoints
     /// puede salir de ella, y <c>IPlataformaQueryContext</c> declara de forma normativa
     /// que «no existe ni debe existir un listar sesiones» — así que tampoco puede salir
     /// de una consulta. Pasarlo por la URL es lo único que queda, y es seguro porque
-    /// <b>el id no es autoridad</b>: la política RLS <c>privilegio_del_usuario</c> (F2b-5)
-    /// solo entrega las sesiones que cuelgan de una concesión que nombra al usuario
-    /// actual, así que un id ajeno escrito a mano no encuentra ninguna fila que cerrar.
+    /// <b>el id no es autoridad</b>: solo puede escribir la sesión el usuario que nombra
+    /// su concesión (política RLS <c>privilegio_del_usuario</c>, F2b-5), y el comando de
+    /// cierre lo comprueba antes de cerrar. El Administrador del Tenant beneficiario puede
+    /// leer la sesión por la política de transparencia, pero con un id escrito a mano
+    /// recibe un error de dominio y no cierra nada.
     /// </para>
     ///
     /// <para>

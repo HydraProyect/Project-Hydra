@@ -134,6 +134,8 @@ public class PlataformaGen2Tests : BunitContext
         var cut = Render<Plataforma>();
         await cut.InvokeAsync(() => CargarDirectamente(cut.Instance));
 
+        cut.Markup.Should().Contain("Incidencia",
+            "control: el detalle de la sesión se pinta en los dos casos; solo cambia el formulario");
         cut.FindAll("form[action='/cuenta/soporte/cerrar']").Count.Should().Be(esSuya ? 1 : 0);
     }
 

@@ -120,7 +120,9 @@ public class CerrarSesionPrivilegiadaTests : IAsyncLifetime
     /// Un id que no existe se comporta igual que uno que RLS no entrega: fallo
     /// con código, sin distinguir entre «no existe» y «no es tuya». Esa
     /// indistinguibilidad es deliberada — decir cuál de las dos es filtraría qué
-    /// sesiones existen.
+    /// sesiones existen. El Administrador del Tenant beneficiario, que sí ve la
+    /// sesión, recibe <c>SesionPrivilegiada.CierreNoPermitido</c>: ese caso, bajo
+    /// RLS, vive en <c>AccesosSoporteTalvegBajoRuntimeTests</c>.
     /// </summary>
     [Fact]
     public async Task Una_sesion_inexistente_no_se_cierra()

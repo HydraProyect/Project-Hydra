@@ -235,9 +235,11 @@ public class AccesoRestringidoACatalogosDeAsignacionTests
         // asignación no tienen: RLS con FORCE sobre las tres tablas, con la
         // política privilegio_del_usuario. Aunque un comando pidiera una
         // concesión ajena por Id, la base no la devuelve — la política solo
-        // entrega las filas que nombran a app.usuario_id. Por eso ninguno de
-        // los tres lleva un "y además comprueba que es tuya" a mano: sería una
-        // segunda regla que mantener sincronizada con la primera.
+        // entrega las filas que nombran a app.usuario_id. La excepción es la
+        // lectura: la política administrador_del_tenant_objetivo deja ver la
+        // Sesión Privilegiada al Administrador del Tenant beneficiario, así que
+        // el cierre sí comprueba a mano que la concesión nombra al usuario
+        // actual (Z2-6); la barrera de escritura sigue siendo la de RLS.
         "src/CaeManager.Application/Plataforma/Commands/AbrirSesionPrivilegiada/AbrirSesionPrivilegiadaCommand.cs",
         "src/CaeManager.Application/Plataforma/Commands/CerrarSesionPrivilegiada/CerrarSesionPrivilegiadaCommand.cs",
         "src/CaeManager.Infrastructure/Plataforma/PlataformaWriter.cs",

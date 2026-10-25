@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.AbrirSesionPrivilegiada;
+using CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 using CaeManager.Application.Plataforma.Queries.ObtenerAccesosSoporteTalveg;
 using CaeManager.Application.Tenants;
 using CaeManager.Domain.Plataforma;
@@ -145,6 +146,38 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Z2-6, por el comando y bajo RLS: el Administrador del Tenant beneficiario ve la
+    /// Sesión Privilegiada, pero cerrarla le devuelve un error de dominio —no una
+    /// excepción— y la sesión sigue abierta. Ver no autoriza a cerrar.
+    /// </summary>
+    [Fact]
+    public async Task El_Administrador_que_ve_la_sesion_recibe_un_error_de_dominio_al_cerrarla()
+    {
+        (await ContarSesionesVisiblesComoAsync(_administradorDeA, _tenantA)).Should().Be(1,
+            "control: la ve, así que el rechazo no es un «no encontrada»");
+
+        var resultado = await CerrarComoAsync(_administradorDeA, _tenantA, _sesionSobreA);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("SesionPrivilegiada.CierreNoPermitido");
+        (await SesionAbiertaAsync(_sesionSobreA)).Should().BeTrue("ver la sesión no autoriza a cerrarla");
+    }
+
+    /// <summary>
+    /// Control positivo del anterior, también bajo RLS: el Actor de Plataforma TALVEG
+    /// que nombra la concesión sí la cierra, así que la comprobación previa del comando
+    /// alcanza su concesión con el rol de runtime.
+    /// </summary>
+    [Fact]
+    public async Task El_Actor_de_Plataforma_TALVEG_de_la_concesion_cierra_su_sesion_bajo_runtime()
+    {
+        var resultado = await CerrarComoAsync(_tecnico, _tenantPlataforma, _sesionSobreA);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        (await SesionAbiertaAsync(_sesionSobreA)).Should().BeFalse();
+    }
+
+    /// <summary>
     /// Ni el titular de la concesión, que sí puede escribir su sesión bajo RLS,
     /// consigue que la sesión declare otra capacidad que la de su concesión: la
     /// clave foránea compuesta lo rechaza. Sin ella, la etiqueta que ve el Tenant
@@ -195,6 +228,20 @@ public class AccesosSoporteTalvegBajoRuntimeTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto(tenant, usuario);
         return await contexto.SesionesPrivilegiadas.CountAsync();
+    }
+
+    private async Task<Domain.Common.Result> CerrarComoAsync(Guid usuario, Guid tenant, Guid sesionId)
+    {
+        await using var contexto = CrearContexto(tenant, usuario);
+        var handler = new CerrarSesionPrivilegiadaCommandHandler(
+            contexto, contexto, new CurrentUserServiceFalso(usuario, rol: null, tenantOrigenId: tenant));
+        return await handler.Handle(new CerrarSesionPrivilegiadaCommand(sesionId), CancellationToken.None);
+    }
+
+    private async Task<bool> SesionAbiertaAsync(Guid sesionId)
+    {
+        await using var contexto = CrearContexto(_tenantPlataforma, _tecnico);
+        return (await contexto.SesionesPrivilegiadas.SingleAsync(s => s.Id == sesionId)).EstaAbierta;
     }
 
     private async Task<Guid> AutoconcederGlobalComoRuntimeAsync()
