@@ -78,6 +78,15 @@ public class AzureAdOptions : IOpcionesConGate
     /// </summary>
     public string? ContextoAutenticacionMfa { get; set; }
 
+    /// <summary>
+    /// Si entran por Microsoft las cuentas invitadas B2B del directorio, las que llegan
+    /// con la notificación <c>acct</c> = 1 en el token de ID. Falso por defecto: se
+    /// rechazan antes de buscar la cuenta de TALVEG y de emitir la sesión. Solo se
+    /// detectan si el App Registration emite <c>acct</c> (notificación opcional); sin
+    /// ella, el inicio sigue como antes. Variable: <c>AzureAd__PermitirInvitados</c>.
+    /// </summary>
+    public bool PermitirInvitados { get; set; }
+
     public bool EstaConfigurado => Evaluar().Completo;
 
 

@@ -21,6 +21,21 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class InicioSesionMicrosoftTests
 {
+    [Theory]
+    [InlineData("acct", "1", false, false)]
+    [InlineData("acct", "1", true, true)]
+    [InlineData("acct", "0", false, true)]
+    [InlineData("otro", "1", false, true)]
+    [InlineData("http://schemas.microsoft.com/ws/2010/07/identity/claims/accounttype", "1", false, false)]
+    public void La_cuenta_invitada_requiere_configuracion_explicita(string tipo, string valor, bool permitir, bool esperado)
+    {
+        var opciones = new AzureAdOptions();
+        opciones.PermitirInvitados.Should().BeFalse();
+        opciones.PermitirInvitados = permitir;
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(tipo, valor)], "Microsoft"));
+        InicioSesionMicrosoft.PermiteCuenta(principal, opciones).Should().Be(esperado);
+    }
+
     private static readonly Guid TenantDestino = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
     private static readonly Guid OtroTenant = Guid.Parse("00000000-0000-0000-0000-0000000000bb");
 

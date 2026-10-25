@@ -26,15 +26,16 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// <b>Un error al validar no expulsa.</b> Si la base falla, se conserva el
-/// estado y se reintenta en el siguiente ciclo: sin base tampoco se sirve
-/// ningún dato, y expulsar a todos los circuitos en un parpadeo de la base
-/// sería un incidente peor que el hueco de un ciclo. Vale también para una
-/// cancelación que no sea la del propio ciclo (p. ej. un tiempo de espera del
-/// proveedor de base de datos): el bucle base la trataría como error y dejaría
-/// la cuenta legítima como anónima. El intervalo es el de
-/// <see cref="SecurityStampValidatorOptions.ValidationInterval"/>, el mismo
-/// de la cookie, configurable con <c>Sesion:IntervaloRevalidacionSegundos</c>.
+/// <b>Un error al validar falla cerrado.</b> Si la base falla (también con un
+/// tiempo de espera del proveedor que llegue como cancelación con un token que no
+/// es el del ciclo), no se puede afirmar que la sesión siga valiendo: se marca
+/// invalidada y el circuito pasa a anónimo, con un aviso en el log que solo lleva
+/// el tipo de la excepción (su mensaje puede arrastrar datos de la consulta). La
+/// cookie no se toca: al recargar, sigue su propia validación por petición. La
+/// cancelación del propio ciclo (circuito que se cierra o se desconecta, ciclo
+/// nuevo) no invalida nada. El intervalo es el de
+/// <see cref="SecurityStampValidatorOptions.ValidationInterval"/>, el mismo de la
+/// cookie, configurable con <c>Sesion:IntervaloRevalidacionSegundos</c>.
 /// </para>
 /// </summary>
 public sealed class ProveedorAutenticacionRevalidada(
@@ -79,8 +80,10 @@ public sealed class ProveedorAutenticacionRevalidada(
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "No se pudo revalidar la sesión del circuito; se reintentará en el próximo ciclo.");
-            return true;
+            _logger.LogWarning("No se pudo revalidar la sesión del circuito ({TipoError}); se invalida la sesión del circuito.",
+                ex.GetType().Name);
+            _sesionInvalidada = true;
+            return false;
         }
     }
 }

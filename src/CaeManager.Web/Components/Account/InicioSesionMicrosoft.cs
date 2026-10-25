@@ -65,6 +65,24 @@ public static class InicioSesionMicrosoft
             ? null
             : JsonSerializer.Serialize(new { id_token = new { acrs = new { essential = true, value = contexto.Trim() } } });
 
+    // «acct» llega con su nombre; el segundo cubre un mapeo de entrada que lo renombre.
+    private static readonly string[] TiposClaimAcct = ["acct", "http://schemas.microsoft.com/ws/2010/07/identity/claims/accounttype"];
+
+    /// <summary>
+    /// Si la identidad de Microsoft puede seguir hacia la cuenta de TALVEG: una cuenta
+    /// invitada B2B del directorio (<c>acct</c> = 1) solo con
+    /// <see cref="AzureAdOptions.PermitirInvitados"/>. <c>acct</c> es una notificación
+    /// opcional que el App Registration tiene que emitir en el token de ID: sin ella
+    /// (o con 0, miembro) el inicio sigue como antes.
+    /// </summary>
+    public static bool PermiteCuenta(ClaimsPrincipal principalExterno, AzureAdOptions opciones)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+        ArgumentNullException.ThrowIfNull(opciones);
+        return opciones.PermitirInvitados || !principalExterno.Claims.Any(c =>
+            TiposClaimAcct.Contains(c.Type, StringComparer.Ordinal) && c.Value.Trim() == "1");
+    }
+
     // «amr» llega con su nombre o, con el mapeo de entrada del manejador, con este.
     private static readonly string[] TiposClaimAmr = ["amr", "http://schemas.microsoft.com/claims/authnmethodsreferences"];
 

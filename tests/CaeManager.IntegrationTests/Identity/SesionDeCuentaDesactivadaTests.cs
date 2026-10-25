@@ -323,12 +323,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     }
 
     [Fact]
-    public async Task Una_cancelacion_que_no_es_del_ciclo_no_expulsa_al_circuito()
+    public async Task Una_cancelacion_que_no_es_del_ciclo_invalida_el_circuito()
     {
-        // Un tiempo de espera del proveedor de base de datos llega como
-        // OperationCanceledException con un token que NO es el del ciclo: el
-        // bucle base la trataría como error y dejaría anónima a una cuenta
-        // legítima. Debe conservar el estado, como cualquier otro fallo de la base.
+        // Un timeout ajeno al ciclo es un error de revalidación: falla cerrado.
         var usuario = await CrearUsuarioAsync("cancelacion-ajena@x.test");
         var principal = await PrincipalDeSesionAsync(usuario);
 
@@ -341,9 +338,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             proveedor.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
 
             await Task.Delay(TimeSpan.FromSeconds(3.5)); // al menos un ciclo completo con la cancelación ajena
-            (await proveedor.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated.Should().BeTrue(
-                "una cancelación ajena al ciclo es un fallo transitorio, no una sesión inválida");
-            proveedor.SesionInvalidada.Should().BeFalse();
+            (await proveedor.GetAuthenticationStateAsync()).User.Identity!.IsAuthenticated.Should().BeFalse(
+                "un timeout ajeno al ciclo invalida la sesión");
+            proveedor.SesionInvalidada.Should().BeTrue();
         }
         finally
         {
