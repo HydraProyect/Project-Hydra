@@ -1,0 +1,349 @@
+name: Vigilancia de imágenes desplegadas
+
+# Vigilancia diaria de vulnerabilidades de lo YA desplegado, con alarma.
+#
+# Qué cubre que no cubrían ya otros controles: Trivy de ci.yml escanea la imagen
+# que se acaba de construir, en el momento de construirla; Dependabot propone
+# subidas. Nadie volvía a mirar, con la base de CVE del día, las imágenes que
+# siguen corriendo semanas después ni las de terceros (base de datos, proxy,
+# logs), que no se reconstruyen nunca. Este workflow las escanea cada día sin
+# reconstruir nada y convierte cada hallazgo en una issue.
+#
+# Qué escanea (el inventario se lee de los ficheros, no se copia aquí):
+#   - cada `image: <ref>@sha256:<digest>` de deploy/local/docker-compose.produccion.yml
+#     (staging usa el mismo compose con otro proyecto);
+#   - la base de la etapa `final` del Dockerfile, fijada por digest. La etapa de
+#     compilación (SDK) no se despliega y no se escanea;
+#   - la imagen de la aplicación tal como se desplegó: el artefacto
+#     `imagen-despliegue` (docker save, firmado) del último run de deploy.yml cuyo
+#     job «Desplegar a producción» terminó bien, y el del último «Desplegar a
+#     staging» si es otro run. Ese artefacto lleva lo que la base no lleva
+#     (paquetes apt del Dockerfile y dependencias NuGet). Se comprueba su sha256
+#     contra el manifiesto del propio artefacto antes de escanearlo; no se ejecuta.
+#     Límite conocido: el artefacto caduca a los 30 días y una vuelta atrás
+#     manual (volver-atras.sh) no deja rastro en deploy.yml.
+#
+# La imagen de PostgreSQL se lee del espejo de GHCR de la organización con el mismo
+# digest (ver MismaVersionDePostgresTests): Docker Hub limita las descargas
+# anónimas desde las IP compartidas de los runners.
+#
+# Criterio de alerta: severidad HIGH o CRITICAL con corrección publicada
+# (`--ignore-unfixed`), respetando el `.trivyignore` de la raíz si existe (Trivy lo
+# lee por defecto del directorio de trabajo). Lo explotado sin parche es de otra
+# capa de vigilancia.
+#
+# Alarma: una issue por CVE (agrupando todas las imágenes afectadas), con la
+# etiqueta `Seguridad: alerta` (se crea si falta) y un marcador invisible en el
+# cuerpo que la deduplica: se actualiza en vez de duplicarse, se reabre si vuelve
+# y se cierra sola cuando deja de aparecer. La lógica está en
+# .github/vigilancia/alertas.js, con pruebas en alertas.test.js (las corre ci.yml).
+#
+# Un fallo del escáner no es «sin hallazgos»: si la base de CVE no se descarga o
+# una imagen no se puede escanear tras tres intentos, el job termina en rojo y no
+# se cierra ninguna issue (no haber mirado no es haber comprobado que ya no está).
+# Si falta el artefacto de la aplicación (caducado) es un aviso, no un rojo, pero
+# tampoco se cierra nada.
+#
+# Ping a Better Stack: paso opcional, DESACTIVADO mientras no exista el secreto
+# BETTERSTACK_LATIDO_VIGILANCIA_IMAGENES (URL de un latido dedicado). Con él, cada
+# ejecución hace ping a <url> si todo está bien y a <url>/fail si hay alguna CRITICAL
+# o el escaneo ha fallado; un latido que deja de llegar también alarma.
+#
+# Seguridad: permisos mínimos por job; acciones fijadas por SHA; ninguna expresión
+# de GitHub entra en el texto de los guiones (las entradas pasan por `env:`); los
+# textos de los avisos son datos de terceros y se escapan antes de ir a una issue.
+#
+# `schedule` solo corre desde la rama por defecto; a mano:
+#   gh workflow run vigilancia-imagenes.yml            (-f simular=true: solo informa)
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  workflow_dispatch:
+    inputs:
+      simular:
+        description: "Solo informar en el resumen: no crea, cambia ni cierra issues"
+        required: false
+        default: false
+        type: boolean
+
+permissions: {}
+
+concurrency:
+  group: vigilancia-imagenes
+  cancel-in-progress: false
+
+jobs:
+  escanear:
+    name: Escanear imágenes desplegadas
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      # Leer los runs y descargar el artefacto imagen-despliegue de deploy.yml.
+      actions: read
+      # Leer el espejo de GHCR de la organización.
+      packages: read
+      issues: write
+    env:
+      HAY_LATIDO: ${{ secrets.BETTERSTACK_LATIDO_VIGILANCIA_IMAGENES != '' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      # El mismo instalador (y la misma versión de Trivy) que usa por dentro la
+      # trivy-action fijada en ci.yml y seguridad-codigo.yml (v0.36.0).
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@3fb12ec12f41e471780db15c232d5dd185dcb514 # v0.2.6
+        with:
+          version: v0.70.0
+          cache: true
+
+      - name: Descargar la base de CVE del día
+        run: |
+          set -euo pipefail
+          for intento in 1 2 3; do
+            if trivy image --download-db-only --no-progress; then
+              trivy version --format json | jq -r '"Base de CVE: versión " + (.VulnerabilityDB.Version|tostring) + ", actualizada " + .VulnerabilityDB.UpdatedAt'
+              exit 0
+            fi
+            echo "::warning::No se pudo descargar la base de CVE (intento $intento)."
+            [ "$intento" -lt 3 ] && sleep $((intento * 60))
+          done
+          echo "::error::Sin base de CVE no hay escaneo: el job falla en vez de dar «sin hallazgos»."
+          exit 1
+
+      - name: Acceder al espejo de GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+
+      - name: Escanear
+        id: escaneo
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SALIDA="$RUNNER_TEMP/vigilancia"
+          mkdir -p "$SALIDA"
+          OBJETIVOS="$SALIDA/objetivos.tsv"
+          : > "$OBJETIVOS"
+          n=0
+
+          # Una línea por objetivo: nombre<TAB>estado<TAB>informe. estado: ok | fallo | ausente.
+          escanear() {
+            local nombre="$1" modo="$2" objetivo="$3" informe intento
+            n=$((n + 1))
+            informe="$SALIDA/informe-$n.json"
+            for intento in 1 2 3; do
+              rm -f "$informe"
+              if [ "$modo" = tar ]; then
+                set -- --input "$objetivo"
+              else
+                set -- "$objetivo"
+              fi
+              if trivy image --skip-db-update --no-progress --scanners vuln \
+                   --severity HIGH,CRITICAL --ignore-unfixed --timeout 20m \
+                   --format json --output "$informe" "$@"; then
+                printf '%s\tok\t%s\n' "$nombre" "$informe" >> "$OBJETIVOS"
+                echo "Escaneada: $nombre"
+                return 0
+              fi
+              echo "::warning::Intento $intento de escanear $nombre ha fallado."
+              [ "$intento" -lt 3 ] && sleep $((intento * 45))
+            done
+            printf '%s\tfallo\t\n' "$nombre" >> "$OBJETIVOS"
+            echo "::error::No se pudo escanear $nombre."
+          }
+
+          # 1. Imágenes de terceros fijadas por digest en el compose de producción.
+          mapfile -t COMPOSE < <(sed -nE 's/^[[:space:]]*image:[[:space:]]*"?([^"[:space:]#]+@sha256:[0-9a-f]{64})"?[[:space:]]*(#.*)?$/\1/p' \
+            deploy/local/docker-compose.produccion.yml | sort -u)
+          # 2. Base de la etapa final del Dockerfile.
+          mapfile -t BASE < <(sed -nE 's/^FROM[[:space:]]+([^[:space:]]+@sha256:[0-9a-f]{64})[[:space:]]+AS[[:space:]]+final([[:space:]].*)?$/\1/Ip' Dockerfile | sort -u)
+          # Un inventario vacío o recortado es un instrumento ciego, no un verde.
+          if [ "${#COMPOSE[@]}" -lt 3 ] || [ "${#BASE[@]}" -ne 1 ]; then
+            echo "::error::Inventario incompleto: ${#COMPOSE[@]} imágenes en el compose (se esperan 3 o más) y ${#BASE[@]} base final en el Dockerfile (se espera 1)."
+            exit 1
+          fi
+
+          for ref in "${COMPOSE[@]}" "${BASE[@]}"; do
+            nombre="${ref%@*}"
+            digest="${ref#*@}"
+            case "$nombre" in
+              postgres|postgres:*|docker.io/library/postgres|docker.io/library/postgres:*)
+                escanear "$nombre" remoto "ghcr.io/hydraproyect/postgres@$digest" ;;
+              *)
+                escanear "$nombre" remoto "$ref" ;;
+            esac
+          done
+
+          # 3. Imagen de la aplicación desplegada (artefacto de deploy.yml).
+          # Un fallo de la API no se confunde con «no hay despliegue»: devuelve error y,
+          # por set -e en la asignación de quien llama, el paso termina en rojo (si no,
+          # se escanearía en silencio un run más antiguo que el desplegado).
+          ultimo_run_con_job() {
+            local job="$1" ids id jobs
+            ids="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/deploy.yml/runs?branch=main&per_page=40" --jq '.workflow_runs[].id')" || return 1
+            for id in $ids; do
+              jobs="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100")" || return 1
+              if jq -e --arg job "$job" '.jobs[] | select(.name == $job and .conclusion == "success")' <<< "$jobs" > /dev/null; then
+                echo "$id"
+                return 0
+              fi
+            done
+            return 0
+          }
+          RUN_PRODUCCION="$(ultimo_run_con_job 'Desplegar a producción')"
+          RUN_STAGING="$(ultimo_run_con_job 'Desplegar a staging')"
+          echo "Run de deploy.yml en producción: ${RUN_PRODUCCION:-ninguno}; en staging: ${RUN_STAGING:-ninguno}"
+
+          escanear_aplicacion() {
+            local nombre="$1" run="$2" dir manifiesto esperado real
+            if [ -z "$run" ]; then
+              printf '%s\tausente\t\n' "$nombre" >> "$OBJETIVOS"
+              echo "::warning::No hay ningún run reciente de deploy.yml con despliegue correcto para $nombre."
+              return 0
+            fi
+            dir="$SALIDA/app-$run"
+            if ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n imagen-despliegue -D "$dir"; then
+              printf '%s\tausente\t\n' "$nombre" >> "$OBJETIVOS"
+              echo "::warning::El artefacto imagen-despliegue del run $run no está disponible (caduca a los 30 días)."
+              return 0
+            fi
+            manifiesto="$dir/imagen.manifiesto"
+            esperado="$(sed -n 's/^sha256=\([0-9a-f]\{64\}\)$/\1/p' "$manifiesto")"
+            real="$(sha256sum "$dir/imagen.tar.gz" | cut -d' ' -f1)"
+            if [ -z "$esperado" ] || [ "$esperado" != "$real" ]; then
+              printf '%s\tfallo\t\n' "$nombre" >> "$OBJETIVOS"
+              echo "::error::El tarball del run $run no casa con el sha256 de su manifiesto."
+              return 0
+            fi
+            gunzip "$dir/imagen.tar.gz"
+            escanear "$nombre ($(sed -n 's/^revision=\([0-9a-f]\{7\}\).*/\1/p' "$manifiesto"))" tar "$dir/imagen.tar"
+            rm -rf "$dir"
+          }
+          if [ -n "$RUN_PRODUCCION" ] && [ "$RUN_PRODUCCION" = "$RUN_STAGING" ]; then
+            escanear_aplicacion "caemanager producción y staging" "$RUN_PRODUCCION"
+          else
+            escanear_aplicacion "caemanager producción" "$RUN_PRODUCCION"
+            escanear_aplicacion "caemanager staging" "$RUN_STAGING"
+          fi
+
+          echo "objetivos=$OBJETIVOS" >> "$GITHUB_OUTPUT"
+          column -t -s $'\t' "$OBJETIVOS" || cat "$OBJETIVOS"
+
+      - name: Abrir, actualizar y cerrar las issues de alerta
+        id: conciliar
+        if: ${{ !cancelled() && steps.escaneo.outputs.objetivos != '' }}
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          OBJETIVOS: ${{ steps.escaneo.outputs.objetivos }}
+          SIMULAR: ${{ inputs.simular }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const v = require(path.join(process.env.GITHUB_WORKSPACE, '.github/vigilancia/alertas.js'));
+            const { owner, repo } = context.repo;
+            const simular = String(process.env.SIMULAR).toLowerCase() === 'true';
+            const MAX_NUEVAS = 30;
+
+            const objetivos = fs
+              .readFileSync(process.env.OBJETIVOS, 'utf8')
+              .split('\n')
+              .filter(Boolean)
+              .map((l) => {
+                const [nombre, estado, informe] = l.split('\t');
+                return { nombre, estado, informe };
+              });
+            if (objetivos.length === 0) {
+              core.setFailed('El escaneo no dejó ningún objetivo: nada que conciliar.');
+              return;
+            }
+
+            const fallidos = objetivos.filter((o) => o.estado === 'fallo');
+            const ausentes = objetivos.filter((o) => o.estado === 'ausente');
+            const resultados = [];
+            for (const o of objetivos.filter((x) => x.estado === 'ok')) {
+              let informe = null;
+              try {
+                informe = JSON.parse(fs.readFileSync(o.informe, 'utf8'));
+              } catch (e) {
+                informe = null;
+              }
+              resultados.push({ imagen: o.nombre, informe });
+            }
+
+            let porCve;
+            try {
+              porCve = v.agruparTrivy(resultados);
+            } catch (e) {
+              core.setFailed(`Informe de Trivy ilegible: ${e.message}`);
+              return;
+            }
+            const alertas = [...porCve.values()]
+              .sort((a, b) => (a.severidad === b.severidad ? a.id.localeCompare(b.id) : a.severidad === 'CRITICAL' ? -1 : 1))
+              .map(v.alertaDeImagenes);
+            const completo = fallidos.length === 0 && ausentes.length === 0;
+
+            const existentes = await v.listarExistentes({ github, owner, repo });
+            const plan = v.planificar({ capa: 'imagenes', existentes, alertas, completo, maxNuevas: MAX_NUEVAS });
+            const fecha = new Date().toISOString().slice(0, 10);
+            const errores = await v.aplicar({
+              github,
+              owner,
+              repo,
+              plan,
+              simular,
+              motivoCierre: `El escaneo completo del ${fecha} ya no lo encuentra en ninguna imagen desplegada: se cierra.`,
+            });
+
+            const criticas = alertas.filter((a) => a.critica).length;
+            core.setOutput('criticas', String(criticas));
+            core.setOutput('completo', String(completo));
+
+            const filasObjetivos = objetivos.map((o) => [v.escaparCelda(o.nombre), o.estado]);
+            const filasAlertas = alertas.map((a) => [v.escaparCelda(a.titulo, 250)]);
+            core.summary
+              .addHeading('Vigilancia de imágenes desplegadas', 2)
+              .addRaw(
+                `Objetivos: ${objetivos.length} (fallidos: ${fallidos.length}, sin artefacto: ${ausentes.length}). ` +
+                  `CVE alertables: ${alertas.length} (CRITICAL: ${criticas}). ` +
+                  `Issues: ${plan.crear.length} nuevas, ${plan.actualizar.length} actualizadas, ${plan.reabrir.length} reabiertas, ` +
+                  `${plan.cerrar.length} cerradas, ${plan.aplazadas.length} aplazadas por el tope de ${MAX_NUEVAS}` +
+                  `${completo ? '' : `, ${plan.conservadas.length} conservadas porque el escaneo no fue completo`}` +
+                  `${simular ? ' (modo simular: no se ha cambiado nada)' : ''}.`,
+                true,
+              )
+              .addTable([[{ data: 'Objetivo', header: true }, { data: 'Estado', header: true }], ...filasObjetivos])
+              .addTable([[{ data: 'Alerta', header: true }], ...filasAlertas]);
+            await core.summary.write();
+
+            core.info(`CVE alertables: ${alertas.length}; CRITICAL: ${criticas}; completo: ${completo}`);
+            for (const o of ausentes) core.warning(`Sin artefacto que escanear: ${o.nombre}. No se cierra ninguna issue.`);
+            for (const mensaje of errores) core.error(mensaje);
+            if (plan.aplazadas.length > 0) core.warning(`${plan.aplazadas.length} alertas nuevas aplazadas a la siguiente ejecución por el tope.`);
+            if (fallidos.length > 0) core.setFailed(`${fallidos.length} objetivo(s) sin escanear: el resultado no es «sin hallazgos».`);
+            else if (errores.length > 0) core.setFailed(`${errores.length} operación(es) sobre issues fallaron.`);
+
+      # DESACTIVADO mientras no exista el secreto (ver cabecera). Sin él, HAY_LATIDO es
+      # 'false' y el paso no corre; la URL nunca se imprime.
+      - name: Avisar a Better Stack
+        if: ${{ always() && env.HAY_LATIDO == 'true' }}
+        env:
+          URL_LATIDO: ${{ secrets.BETTERSTACK_LATIDO_VIGILANCIA_IMAGENES }}
+          CRITICAS: ${{ steps.conciliar.outputs.criticas }}
+          RESULTADO_ESCANEO: ${{ steps.escaneo.outcome }}
+          RESULTADO_CONCILIAR: ${{ steps.conciliar.outcome }}
+        run: |
+          set -uo pipefail
+          sufijo=""
+          if [ "$RESULTADO_ESCANEO" != "success" ] || [ "$RESULTADO_CONCILIAR" != "success" ] || [ "${CRITICAS:-0}" != "0" ]; then
+            sufijo="/fail"
+          fi
+          if curl -fsS -o /dev/null -m 15 --retry 3 "${URL_LATIDO%/}${sufijo}"; then
+            echo "Latido enviado (${sufijo:-ok})."
+          else
+            echo "::warning::No se pudo enviar el latido a Better Stack."
+          fi
