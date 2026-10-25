@@ -274,6 +274,26 @@ public class RestauracionCambiosDeComandoTests
         (await contexto.Hijos.AsNoTracking().SingleAsync(h => h.Id == 10)).PadreId.Should().Be(1);
         contexto.Entry(hijo).State.Should().Be(EntityState.Detached);
     }
+
+    [Fact]
+    public async Task Un_padre_leido_por_el_comando_al_que_quito_hijos_no_queda_truncado_en_memoria()
+    {
+        await using var contexto = await CrearContexto();
+        var behavior = new RestauracionCambiosDeComandoBehavior<Comando, Result>(new ProveedorPrueba(contexto));
+        Padre? padre = null;
+        await behavior.Handle(new Comando(), async ct =>
+        {
+            padre = await contexto.Padres.Include(p => p.Hijos).SingleAsync(p => p.Id == 1, ct);
+            padre.Hijos.Clear();
+            return Result.Fallo(Error.Crear("Prueba.Fallo", "Fallo esperado"));
+        }, default);
+
+        contexto.Entry(padre!).State.Should().Be(EntityState.Detached);
+        (await contexto.Padres.SingleAsync(p => p.Id == 1)).Should().NotBeSameAs(padre);
+        (await contexto.SaveChangesAsync()).Should().Be(0);
+        (await contexto.Hijos.AsNoTracking().Select(h => h.Id).ToListAsync()).Should().BeEquivalentTo([10]);
+    }
+
     [Fact]
     public async Task La_restauracion_no_tapa_el_fallo_si_el_contexto_ya_se_cerro()
     {

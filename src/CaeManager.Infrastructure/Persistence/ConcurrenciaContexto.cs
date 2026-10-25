@@ -103,11 +103,17 @@ public static class ConcurrenciaContexto
                 // Lo que el comando creó, editó o borró sin estar antes rastreado no tiene un estado previo
                 // que conservar: sale del rastreo y el siguiente comando lo relee de la base. Lo que solo
                 // leyó se queda: desacoplarlo dejaría colecciones fantasma en las entidades previas.
+                // Un principal que el comando solo leyó no tiene instantánea con la que ver lo que se le quitó
+                // de una colección: sale también si una de esas entradas apunta a él por clave ajena.
                 var desacopladas = new HashSet<object>(ReferenceEqualityComparer.Instance);
-                foreach (var entrada in entradas.Where(e => !iniciales.ContainsKey(e.Entity)
-                             && e.State != EntityState.Unchanged))
+                var tocadas = entradas.Where(e => !iniciales.ContainsKey(e.Entity)
+                    && e.State != EntityState.Unchanged).ToList();
+                var principales = tocadas.SelectMany(e => PrincipalesRastreados(e, entradas))
+                    .Where(p => !iniciales.ContainsKey(p.Entity)).ToList();
+                foreach (var entrada in tocadas.Concat(principales))
                 {
-                    desacopladas.Add(entrada.Entity);
+                    if (!desacopladas.Add(entrada.Entity))
+                        continue;
                     entrada.State = EntityState.Detached;
                 }
 
@@ -165,6 +171,23 @@ public static class ConcurrenciaContexto
             ? coleccion.CurrentValue?.Cast<object>().ToArray() ?? []
             : n.CurrentValue is { } referencia ? [referencia] : Array.Empty<object>())
         .ToArray();
+
+    // Los principales rastreados a los que apunta la entrada por sus claves ajenas, con los valores
+    // originales y los actuales (una edición puede haberla movido de principal).
+    private static IEnumerable<EntityEntry> PrincipalesRastreados(EntityEntry entrada, List<EntityEntry> entradas)
+    {
+        foreach (var clave in entrada.Metadata.GetForeignKeys())
+        {
+            var originales = clave.Properties.Select(p => entrada.Property(p.Name).OriginalValue).ToArray();
+            var actuales = clave.Properties.Select(p => entrada.Property(p.Name).CurrentValue).ToArray();
+            foreach (var candidata in entradas.Where(e => clave.PrincipalEntityType.IsAssignableFrom(e.Metadata)))
+            {
+                var valores = clave.PrincipalKey.Properties.Select(p => candidata.Property(p.Name).CurrentValue).ToArray();
+                if (valores.SequenceEqual(originales) || valores.SequenceEqual(actuales))
+                    yield return candidata;
+            }
+        }
+    }
 
     // Sin instantánea (lo leyó el comando) solo cuenta lo añadido que no está rastreado.
     private static bool NavegacionTocada(object[][]? antes, object[][] despues, HashSet<object> rastreadas,
