@@ -116,6 +116,7 @@ let respuestaDeSubirDocumento = { ok: true };
 let respuestaDeObtenerConexion = { conectado: false };
 let respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
 let respuestaDeConfirmarEnvio = { ok: true, puedeDeshacer: true };
+let respuestaDeDeshacerEnvio = { ok: true };
 const mensajesEnviados = [];
 let manejadorDeMensajes = null;
 
@@ -128,6 +129,7 @@ const chromeSimulado = {
       if (mensaje.accion === "subirDocumento") return respuestaDeSubirDocumento;
       if (mensaje.accion === "obtenerEnviosPendientes") return respuestaDeEnviosPendientes;
       if (mensaje.accion === "confirmarEnvio") return respuestaDeConfirmarEnvio;
+      if (mensaje.accion === "deshacerEnvio") return respuestaDeDeshacerEnvio;
       return { ok: false, error: "acción no simulada" };
     },
     onMessage: { addListener: (fn) => (manejadorDeMensajes = fn) },
@@ -557,6 +559,36 @@ let campoPrincipal;
   comprobar("y se dice «Pendiente de validar» con «Deshacer»",
     documentoSimulado.documentElement.buscarPorTexto("Anotado en TALVEG: Pendiente de validar.") !== null
       && documentoSimulado.documentElement.buscarPorTexto("Deshacer") !== null);
+
+  // «Deshacer» pulsado: pide al service worker deshacer ESA acreditación (el cambio y la versión los pone él) y
+  // dice que volvió a estar como antes.
+  const deshacer = documentoSimulado.documentElement.buscarPorTexto("Deshacer");
+  for (const fn of deshacer?.oyentes.click ?? []) fn();
+  await reposar();
+  const peticionDeshacer = mensajesEnviados.find((m) => m.accion === "deshacerEnvio");
+  comprobar("al pulsar «Deshacer» se pide deshacer esa acreditación",
+    peticionDeshacer?.acreditacionId === "22222222-2222-2222-2222-222222222222"
+      && peticionDeshacer.cambioId === undefined && peticionDeshacer.version === undefined, JSON.stringify(peticionDeshacer));
+  comprobar("y se dice que vuelve a estar como antes",
+    documentoSimulado.documentElement.buscarPorTexto("Deshecho: en TALVEG vuelve a estar como antes.") !== null);
+  comprobar("el botón «Deshacer» desaparece tras usarlo", documentoSimulado.documentElement.buscarPorTexto("Deshacer") === null);
+
+  // Si TALVEG no lo deshace (Centro 360 lo cambió después), se muestra su motivo, no un «Deshecho» falso.
+  mensajesEnviados.length = 0;
+  // Otra acreditación: la fila de la primera sigue mostrando «Deshecho» hasta que se va sola.
+  respuestaDeEnviosPendientes = { ok: true, pendientes: [{ acreditacionId: "55555555-5555-5555-5555-555555555555", documento: "Formación PRL" }] };
+  respuestaDeDeshacerEnvio = { ok: false, error: "El estado ya ha vuelto a cambiar: no se puede deshacer. Corrígelo desde Centro 360." };
+  manejadorDeMensajes({ accion: "pedirConfirmacionEnvio" }, {}, () => {});
+  await reposar();
+  const enviadoOtraVez = documentoSimulado.documentElement.buscarPorTexto("Lo he enviado");
+  for (const fn of enviadoOtraVez?.oyentes.click ?? []) fn();
+  await reposar();
+  for (const fn of documentoSimulado.documentElement.buscarPorTexto("Deshacer")?.oyentes.click ?? []) fn();
+  await reposar();
+  comprobar("si no se pudo deshacer, se muestra el motivo de TALVEG",
+    documentoSimulado.documentElement.buscarPorTexto(respuestaDeDeshacerEnvio.error) !== null
+      && mensajesEnviados.some((m) => m.accion === "deshacerEnvio" && m.acreditacionId === "55555555-5555-5555-5555-555555555555"));
+  respuestaDeDeshacerEnvio = { ok: true };
   respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
 }
 

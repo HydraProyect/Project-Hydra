@@ -37,6 +37,9 @@ public static class MarcarAcreditacionSubidaEndpoints
         endpoints.MapPost("/extension/acreditaciones/{id:guid}/subida", async (
             Guid id, IMediator mediator, CancellationToken cancellationToken) =>
         {
+            // Un id vacío no es ninguna acreditación: el mismo 404 que "no existe", sin llegar al comando.
+            if (id == Guid.Empty)
+                return Results.NotFound();
             var resultado = await mediator.Send(new ConfirmarSubidaDesdeExtensionCommand(id), cancellationToken);
             return resultado.EsFallido
                 ? Fallo(resultado.Error)
@@ -47,6 +50,13 @@ public static class MarcarAcreditacionSubidaEndpoints
         endpoints.MapPost("/extension/acreditaciones/{id:guid}/subida/deshacer", async (
             Guid id, DeshacerSubidaPeticion peticion, IMediator mediator, CancellationToken cancellationToken) =>
         {
+            if (id == Guid.Empty)
+                return Results.NotFound();
+            // Sin cambio o sin versión la petición está mal formada (400): ni es un conflicto ni algo que no existe. La
+            // extensión siempre reenvía lo que recibió de la confirmación.
+            if (peticion is null || peticion.CambioId == Guid.Empty || peticion.Version == Guid.Empty)
+                return Results.Problem(
+                    "Falta el cambio o la versión que se quiere deshacer.", statusCode: StatusCodes.Status400BadRequest);
             var resultado = await mediator.Send(
                 new DeshacerSubidaDesdeExtensionCommand(id, peticion.CambioId, peticion.Version), cancellationToken);
             return resultado.EsFallido ? Fallo(resultado.Error) : Results.NoContent();

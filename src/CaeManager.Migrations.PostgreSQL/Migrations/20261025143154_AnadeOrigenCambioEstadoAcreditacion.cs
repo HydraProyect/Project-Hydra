@@ -17,13 +17,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                 nullable: false,
                 defaultValue: 0);
 
-            // Todos los cambios anotados hasta hoy salieron de Centro 360 (OrigenCambioEstadoAcreditacion.Centro360 = 0):
-            // el DEFAULT solo sirve para rellenarlos. Después se retira, como en AnadeVersionPlataformaCaeClienteEmpresarial:
-            // el dominio fija el origen de cada cambio nuevo, y un INSERT que lo omita debe fallar en vez de quedar como
-            // si viniera de Centro 360 (sería un rastro de auditoría falso para un «Lo he enviado» de la extensión).
-            migrationBuilder.Sql("""
-                ALTER TABLE public."CambiosEstadoAcreditacionPlataforma" ALTER COLUMN "Origen" DROP DEFAULT;
-                """);
+            // Todos los cambios anotados hasta hoy salieron de Centro 360 (OrigenCambioEstadoAcreditacion.Centro360 = 0),
+            // y el DEFAULT 0 los rellena. Se conserva a propósito: durante el relevo azul/verde, o tras volver a la imagen
+            // anterior, esa imagen inserta cambios sin conocer la columna, y todos salen de Centro 360, así que 0 es su
+            // origen verdadero. La imagen nueva no depende del DEFAULT: el modelo no declara valor por defecto y EF envía
+            // siempre el origen que fija el dominio, también cuando es Centro 360.
         }
 
         /// <inheritdoc />

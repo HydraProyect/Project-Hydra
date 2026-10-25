@@ -154,6 +154,55 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
     }
 
     [Fact]
+    public async Task Deshacer_fuera_de_la_cartera_sale_como_no_encontrada_y_no_toca_nada()
+    {
+        var visible = Crear();
+        var confirmado = (await visible.Confirmar.Handle(
+            new ConfirmarSubidaDesdeExtensionCommand(visible.Acreditacion.Id), CancellationToken.None)).Valor;
+        // La misma acreditación, ya confirmada, vista ahora por alguien sin ese Trabajador en su cartera.
+        var fueraDeCartera = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()]);
+        var documentos = new DocumentoRepositorioFalso();
+        documentos.Agregar(visible.Documento);
+        var acreditaciones = new AcreditacionDocumentoPlataformaRepositorioFalso();
+        acreditaciones.Agregar(visible.Acreditacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var deshacer = new DeshacerSubidaDesdeExtensionCommandHandler(
+            acreditaciones, documentos, fueraDeCartera, new ProyectosQueryContextFalso(), unitOfWork);
+
+        var resultado = await deshacer.Handle(
+            new DeshacerSubidaDesdeExtensionCommand(visible.Acreditacion.Id, confirmado.CambioId, confirmado.Version),
+            CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada", "fuera de cartera no se distingue de no existe");
+        visible.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        visible.Acreditacion.CambiosEstado.Should().ContainSingle().Which.EstaDeshecho.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Si_Centro_360_cambio_el_estado_despues_la_extension_ya_no_lo_deshace()
+    {
+        var e = Crear();
+        var confirmado = (await e.Confirmar.Handle(new ConfirmarSubidaDesdeExtensionCommand(e.Acreditacion.Id), CancellationToken.None)).Valor;
+        e.Acreditacion.CambiarEstadoAMano(
+            EstadoAcreditacion.Aceptada, new DateOnly(2026, 10, 25), null, null, UsuarioId, DateTime.UtcNow);
+
+        // Con la versión que recibió la extensión: la acreditación cambió después.
+        var conVersionVieja = await e.Deshacer.Handle(
+            new DeshacerSubidaDesdeExtensionCommand(e.Acreditacion.Id, confirmado.CambioId, confirmado.Version), CancellationToken.None);
+        // Aunque llegara con la versión actual, el cambio de la extensión ya no es el que dejó el estado.
+        var conVersionActual = await e.Deshacer.Handle(
+            new DeshacerSubidaDesdeExtensionCommand(e.Acreditacion.Id, confirmado.CambioId, e.Acreditacion.Version), CancellationToken.None);
+
+        conVersionVieja.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        conVersionActual.Error.Codigo.Should().Be(DeshacerSubidaDesdeExtensionCommandHandler.CodigoYaNoSePuedeDeshacer);
+        e.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Aceptada);
+        e.Acreditacion.CambiosEstado.Should().OnlyContain(c => !c.EstaDeshecho);
+        e.UnitOfWork.VecesGuardado.Should().Be(1, "solo guardó la confirmación");
+    }
+
+    [Fact]
     public async Task Desde_la_extension_no_se_deshace_un_cambio_de_Centro_360()
     {
         CambioEstadoAcreditacionPlataforma? deCentro360 = null;

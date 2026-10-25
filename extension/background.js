@@ -88,9 +88,16 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   return { ok: true };
 }
 
-async function desconectar() {
-  // Las confirmaciones pendientes eran de quien estaba conectado: no se le ofrecen a quien conecte después.
-  await chrome.storage.session.remove(["token", "expiraEnUtc", CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS]);
+// Solo el «Desconectar» que pide la persona (popup) borra los envíos sin
+// confirmar: quien se desconecta a propósito no quiere que se le ofrezcan a
+// quien conecte después. La desconexión automática (401, redirección al login o
+// caducidad de las 8 h) los conserva, para que «Lo he enviado» se pueda
+// reintentar al volver a conectar; caducan solos a los 30 min, y el servidor
+// vuelve a comprobar la cartera de quien confirme.
+async function desconectar({ borrarEnvios = false } = {}) {
+  const claves = ["token", "expiraEnUtc"];
+  if (borrarEnvios) claves.push(CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS);
+  await chrome.storage.session.remove(claves);
   await avisarDeLaConexion(false);
   return { ok: true };
 }
@@ -370,7 +377,10 @@ async function confirmarEnvio({ acreditacionId }, idPestana) {
     return { ok: false, error: "Ya no hay nada que confirmar aquí. Si lo enviaste, anótalo en Centro 360." };
 
   const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
-  if (!marcado.ok) return marcado; // sin conexión: sigue pendiente, para reintentar al volver a conectar.
+  // Sin conexión, o con la conexión caducada (peticionAutenticada desconecta
+  // sola, sin borrar los envíos): sigue pendiente, para reintentar al volver a
+  // conectar mientras no pasen los 30 min. Solo el «Desconectar» del popup lo borra.
+  if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {
     // Un 409 es un conector inactivo o un rechazo posterior a la lista: no se
     // arregla reintentando, así que deja de estar pendiente. Se muestra el
@@ -443,7 +453,8 @@ chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
     obtenerConexion: () => obtenerConexion(),
     conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
     conectarManual: (m) => conectarManual(m),
-    desconectar: () => desconectar(),
+    // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
+    desconectar: () => desconectar({ borrarEnvios: true }),
     listarPendientes: () => listarPendientes(),
     subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
     // Solo desde el content script de una pestaña: remitente.tab lo pone Chrome.

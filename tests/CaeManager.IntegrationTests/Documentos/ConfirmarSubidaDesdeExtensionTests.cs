@@ -87,7 +87,7 @@ public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task La_columna_Origen_no_tiene_valor_por_defecto_en_la_base()
+    public async Task La_columna_Origen_conserva_el_valor_por_defecto_Centro360_para_la_imagen_anterior()
     {
         await using var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
@@ -100,7 +100,9 @@ public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
 
         (await lector.ReadAsync()).Should().BeTrue("la migración AnadeOrigenCambioEstadoAcreditacion crea la columna");
         lector.GetString(0).Should().Be("NO");
-        lector.IsDBNull(1).Should().BeTrue("tras rellenar las filas antiguas con Centro 360 la migración quita el valor por defecto");
+        lector.IsDBNull(1).Should().BeFalse(
+            "la imagen anterior, durante el relevo azul/verde o tras volver atrás, inserta sin conocer la columna");
+        lector.GetString(1).Should().Be("0", "todos los cambios de la imagen anterior salen de Centro 360 (0)");
     }
 
     private async Task<IReadOnlyList<CambioEstadoPlataformaCentroDto>> LeerHistorialAsync(Guid centroId)

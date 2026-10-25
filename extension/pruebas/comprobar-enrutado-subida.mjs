@@ -24,6 +24,12 @@ let almacen = {};
 let pestanaActiva = 99;
 const entregas = [];   // {idPestana, accion}
 let manejadorDeMensajes = null;
+let alCerrarPestana = null;
+
+// Reloj adelantable: la caducidad de lo pendiente (30 min) y la ventana del «Deshacer» (15 s) se miden con Date.now.
+const ahoraReal = Date.now;
+let desfaseMs = 0;
+Date.now = () => ahoraReal() + desfaseMs;
 
 globalThis.chrome = {
   runtime: {
@@ -52,6 +58,7 @@ globalThis.chrome = {
       entregas.push({ idPestana, accion: mensaje.accion });
       return { ok: true };
     },
+    onRemoved: { addListener: (fn) => (alCerrarPestana = fn) },
   },
 };
 
@@ -283,13 +290,116 @@ const postsDeDeshacer = () => llamadas.filter((l) => l.metodo === "POST" && l.ur
   comprobar("y deja de estar pendiente", pendientes?.pendientes?.length === 0);
 }
 
-// Al desconectar, lo pendiente no se ofrece a quien conecte después.
+// El «Desconectar» que pide la persona (popup) borra lo pendiente: no se ofrece a quien conecte después.
 {
   conectar(dentroDeOchoHoras);
   await pedirSubida({ tab: { id: 7 } });
   await mensaje("desconectar", {});
   const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
-  comprobar("desconectar borra lo pendiente", pendientes?.pendientes?.length === 0, JSON.stringify(pendientes));
+  comprobar("el «Desconectar» del popup borra lo pendiente", pendientes?.pendientes?.length === 0, JSON.stringify(pendientes));
+}
+
+// Vuelve a conectar SIN vaciar storage.session: conectar() empieza de cero, y aquí importa lo que sobrevive.
+function reconectar() {
+  Object.assign(almacen, { hydraUrl: "https://staging.talveg.es", token: "token-inventado-para-el-arnes", expiraEnUtc: dentroDeOchoHoras });
+}
+const MINUTO = 60 * 1000;
+
+// Lo pendiente caduca a los 30 min: pasado ese tiempo ni se ofrece ni se anota.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  desfaseMs = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  desfaseMs = 29 * MINUTO;
+  const aLos29 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("a los 29 min sigue pendiente", aLos29?.pendientes?.length === 1, JSON.stringify(aLos29));
+  desfaseMs = 30 * MINUTO + 1000;
+  const aLos30 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("pasados 30 min ya no se ofrece", aLos30?.pendientes?.length === 0, JSON.stringify(aLos30));
+  const tarde = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("y confirmarlo tarde no anota nada", tarde?.ok === false && postsDeSubida().length === 0);
+  desfaseMs = 0;
+}
+
+// El «Deshacer» solo vale 15 s desde la confirmación.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  desfaseMs = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  desfaseMs = 16 * 1000;
+  const tarde = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("pasados 15 s ya no se deshace desde la extensión", tarde?.ok === false && postsDeDeshacer().length === 0,
+    JSON.stringify(tarde));
+  comprobar("y remite a Centro 360", tarde?.error?.includes("Centro 360"));
+
+  desfaseMs = 0;
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  desfaseMs = 14 * 1000;
+  const aTiempo = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("a los 14 s sí se deshace", aTiempo?.ok === true && postsDeDeshacer().length === 1);
+  desfaseMs = 0;
+}
+
+// Otra pestaña no deshace lo que se confirmó en la 7.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const ajena = await mensaje("deshacerEnvio", { tab: { id: 8 } }, { acreditacionId: ACREDITACION });
+  comprobar("otra pestaña no puede deshacer lo confirmado en la 7", ajena?.ok === false && postsDeDeshacer().length === 0);
+  const sinPestana = await mensaje("deshacerEnvio", {}, { acreditacionId: ACREDITACION });
+  comprobar("sin pestaña (popup) no se deshace", sinPestana?.ok === false && postsDeDeshacer().length === 0);
+  const propia = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("la pestaña 7 sí lo deshace", propia?.ok === true && postsDeDeshacer().length === 1);
+}
+
+// Cerrar una pestaña olvida lo suyo, y solo lo suyo.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await pedirSubida({ tab: { id: 9 } });
+  comprobar("precondición: el arnés recoge el oyente de tabs.onRemoved", typeof alCerrarPestana === "function");
+  await alCerrarPestana?.(7);
+  const de7 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  const de9 = await mensaje("obtenerEnviosPendientes", { tab: { id: 9 } });
+  comprobar("al cerrar la pestaña 7 se olvida lo pendiente en ella", de7?.pendientes?.length === 0, JSON.stringify(de7));
+  comprobar("y la 9 conserva lo suyo", de9?.pendientes?.length === 1, JSON.stringify(de9));
+
+  await mensaje("confirmarEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION });
+  await alCerrarPestana?.(9);
+  const deshacerCerrada = await mensaje("deshacerEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION });
+  comprobar("ni se deshace lo confirmado en una pestaña ya cerrada", deshacerCerrada?.ok === false && postsDeDeshacer().length === 0);
+}
+
+// La desconexión automática (401 o las 8 h cumplidas) conserva lo pendiente para reintentarlo al volver a conectar.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 401;
+  const con401 = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  estadoDeLaSubida = 200;
+  comprobar("con un 401 no se anota y se desconecta", con401?.ok === false && !almacen.token, JSON.stringify(con401));
+  reconectar();
+  const trasEl401 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("tras el 401 sigue pendiente", trasEl401?.pendientes?.length === 1, JSON.stringify(trasEl401));
+  const reintento = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("y al volver a conectar se confirma", reintento?.ok === true);
+
+  await pedirSubida({ tab: { id: 7 } });
+  almacen.expiraEnUtc = ayer;
+  const caducada = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("con la conexión de 8 h caducada no se anota", caducada?.ok === false && !almacen.token);
+  reconectar();
+  const trasCaducar = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("y lo pendiente sobrevive a la caducidad", trasCaducar?.pendientes?.length === 1, JSON.stringify(trasCaducar));
 }
 
 console.log(`\n${fallos === 0 ? "todo en verde" : `${fallos} fallos`}.\n`);
