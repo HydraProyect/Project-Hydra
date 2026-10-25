@@ -183,7 +183,7 @@ public class ClienteActivoSeleccionado(
     {
         var teniaSeleccion = _tenantIdSeleccionado is not null;
 
-        _tenantIdSeleccionado = null;
+        // MUTACION M1: no se borra la seleccion
         _asignacionOperacionIdSeleccionada = null;
         _sesionPrivilegiadaIdSeleccionada = null;
         _leidoDeCookie = true;
