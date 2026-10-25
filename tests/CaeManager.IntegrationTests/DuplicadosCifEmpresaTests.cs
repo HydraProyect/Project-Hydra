@@ -9,6 +9,7 @@ using CaeManager.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 
 namespace CaeManager.IntegrationTests;
@@ -44,7 +45,8 @@ public class DuplicadosCifEmpresaTests : IAsyncLifetime
             await ganadora.SaveChangesAsync();
         }
         perdedora.Empresas.Add(new Empresa("Perdedora", "b12345674"));
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(repo);
+        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
+            new ServiceCollection().AddSingleton<IEmpresaRepository>(repo).BuildServiceProvider());
         var resultado = await behavior.Handle(new CrearEmpresaCommand("Perdedora", "b12345674", []), async ct =>
         {
             await perdedora.SaveChangesAsync(ct);

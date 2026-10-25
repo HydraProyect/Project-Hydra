@@ -82,11 +82,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
 
         var plan = request.Plan;
+        // Z5-7: el índice único de CIF incluye las Empresas dadas de baja del Tenant propietario;
+        // una fila que coincida con una baja abortaría el guardado con un error genérico.
         foreach (var fila in plan.Clientes)
         {
             var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
             if (duplicada?.EstaEliminado == true)
-                return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosCifEmpresa.ErrorDuplicado(true));
+                return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosCifEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
         }
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();

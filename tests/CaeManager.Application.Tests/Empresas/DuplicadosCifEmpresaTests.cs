@@ -15,6 +15,7 @@ using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
 using CaeManager.Domain.RelacionesEmpresariales;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Application.Tests.Empresas;
 
@@ -137,7 +138,10 @@ public class DuplicadosCifEmpresaTests
         var resultado = await Importar(repo, uow, reemplazar);
         resultado.EsExitoso.Should().Be(otroTenant);
         if (!otroTenant)
+        {
             resultado.Error.Codigo.Should().Be("Empresa.CifDeBaja");
+            resultado.Error.Mensaje.Should().Contain("B12345674");
+        }
         else
             resultado.Valor.ClientesCreados.Should().Be(1);
         uow.VecesGuardado.Should().Be(otroTenant ? 1 : 0);
@@ -178,11 +182,37 @@ public class DuplicadosCifEmpresaTests
         if (baja)
             existente.MarcarComoEliminado(Guid.NewGuid());
         repo.Agregar(existente);
-        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(repo);
+        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(Proveedor(repo));
         var resultado = await behavior.Handle(new CrearEmpresaCommand("Nueva", "B12345674", []),
             _ => throw new CifEmpresaDuplicadoException("B12345674", new InvalidOperationException()), default);
         resultado.Error.Codigo.Should().Be(baja ? "Empresa.CifDeBaja" : "Empresa.CifDuplicado");
     }
+
+    [Fact]
+    public async Task Carrera_en_un_comando_de_Cliente_devuelve_el_mismo_codigo_que_su_comprobacion_previa()
+    {
+        var repo = new EmpresaRepositorioFalso();
+        repo.Agregar(new Empresa("Ganadora", "B12345674"));
+        var behavior = new DuplicadosCifEmpresaBehavior<CrearClienteCommand, Result<Guid>>(Proveedor(repo));
+        var resultado = await behavior.Handle(new CrearClienteCommand("Nueva", "B12345674", false, null),
+            _ => throw new CifEmpresaDuplicadoException("B12345674", new InvalidOperationException()), default);
+        resultado.Error.Codigo.Should().Be("Cliente.CifDuplicado");
+    }
+
+    [Fact]
+    public async Task Sin_choque_el_behavior_no_resuelve_el_repositorio()
+    {
+        // MediatR construye el behavior para toda petición; un contenedor sin
+        // IEmpresaRepository (los mínimos de integración) no debe romperse.
+        var behavior = new DuplicadosCifEmpresaBehavior<CrearEmpresaCommand, Result<Guid>>(
+            new ServiceCollection().BuildServiceProvider());
+        var resultado = await behavior.Handle(new CrearEmpresaCommand("Nueva", "B12345674", []),
+            _ => Task.FromResult(Result.Exito(Guid.Empty)), default);
+        resultado.EsExitoso.Should().BeTrue();
+    }
+
+    private static IServiceProvider Proveedor(IEmpresaRepository repo) =>
+        new ServiceCollection().AddSingleton(repo).BuildServiceProvider();
 
     private sealed class AdministracionPermitida : IAutorizacionEscrituraEfectiva
     {
