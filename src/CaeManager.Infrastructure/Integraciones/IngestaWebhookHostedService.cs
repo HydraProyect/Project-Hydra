@@ -163,7 +163,7 @@ public class IngestaWebhookHostedService(
                     // quedar huérfanos si el registro que los referenciaría
                     // nunca llega a guardarse — ver CompensacionBlobsHuerfanosIngesta.
                     await CompensacionBlobsHuerfanosIngesta.EliminarSiOrfanosAsync(
-                        ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
+                        evento.Id, ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
                     throw;
                 }
             }

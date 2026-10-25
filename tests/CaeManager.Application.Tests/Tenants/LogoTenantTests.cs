@@ -17,7 +17,7 @@ using CaeManager.Domain.Soporte;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Tenants;
@@ -275,6 +275,40 @@ public class LogoTenantTests
         escenario.Almacenamiento.Contiene(clave).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task El_aviso_del_logo_anterior_que_no_se_pudo_borrar_al_guardar_identifica_el_Tenant_sin_revelar_la_clave()
+    {
+        var escenario = new Escenario(_propietario, autoriza: true);
+        await escenario.GuardarAsync();
+        var claveAnterior = _propietario.LogoArchivoClave!;
+        escenario.Almacenamiento.ExcepcionAlEliminar = new IOException($"Acceso denegado a {claveAnterior}");
+
+        var resultado = await escenario.GuardarAsync();
+
+        resultado.EsExitoso.Should().BeTrue("el logo nuevo ya está guardado: la limpieza del anterior no tapa el resultado");
+        var aviso = escenario.RegistroGuardar.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Error);
+        aviso.Texto.Should().Contain(_propietario.Id.ToString()).And.Contain(nameof(IOException))
+            .And.NotContain(claveAnterior).And.NotContain("Acceso denegado");
+    }
+
+    [Fact]
+    public async Task El_aviso_del_logo_que_no_se_pudo_borrar_al_retirar_identifica_el_Tenant_sin_revelar_la_clave()
+    {
+        var escenario = new Escenario(_propietario, autoriza: true);
+        await escenario.GuardarAsync();
+        var clave = _propietario.LogoArchivoClave!;
+        escenario.Almacenamiento.ExcepcionAlEliminar = new IOException($"Acceso denegado a {clave}");
+
+        var resultado = await escenario.RetirarAsync();
+
+        resultado.EsExitoso.Should().BeTrue("la columna ya está vacía: el blob huérfano no tapa el resultado");
+        var aviso = escenario.RegistroRetirar.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Error);
+        aviso.Texto.Should().Contain(_propietario.Id.ToString()).And.Contain(nameof(IOException))
+            .And.NotContain(clave).And.NotContain("Acceso denegado");
+    }
+
     // ── ObtenerLogoTenantQuery ────────────────────────────────────────────────
 
     [Fact]
@@ -401,17 +435,19 @@ public class LogoTenantTests
         public AlmacenamientoConClaveDeTenant Almacenamiento { get; } = new();
         public UnitOfWorkFalso UnidadDeTrabajo { get; } = new();
         public DescarteFalso Descarte { get; } = new();
+        public RegistroDeAvisos<GuardarLogoTenantCommandHandler> RegistroGuardar { get; } = new();
+        public RegistroDeAvisos<RetirarLogoTenantCommandHandler> RegistroRetirar { get; } = new();
 
         public Task<Domain.Common.Result> GuardarAsync() =>
             new GuardarLogoTenantCommandHandler(
                     new TenantActualFijo(_tenant.Id), Autorizacion, Conversor, new TenantRepositoryFalso(_tenant),
-                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, NullLogger<GuardarLogoTenantCommandHandler>.Instance)
+                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, RegistroGuardar)
                 .Handle(new GuardarLogoTenantCommand([1, 2, 3]), CancellationToken.None);
 
         public Task<Domain.Common.Result> RetirarAsync() =>
             new RetirarLogoTenantCommandHandler(
                     new TenantActualFijo(_tenant.Id), Autorizacion, new TenantRepositoryFalso(_tenant),
-                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, NullLogger<RetirarLogoTenantCommandHandler>.Instance)
+                    Almacenamiento.Para(_tenant.Id), UnidadDeTrabajo, Descarte, RegistroRetirar)
                 .Handle(new RetirarLogoTenantCommand(), CancellationToken.None);
     }
 
@@ -460,6 +496,9 @@ public class LogoTenantTests
     {
         private readonly Dictionary<string, byte[]> _archivos = [];
 
+        /// <summary>Si se informa, <c>EliminarAsync</c> la lanza sin borrar: para probar la limpieza best-effort que solo avisa.</summary>
+        public Exception? ExcepcionAlEliminar { get; set; }
+
         public int ArchivosGuardados => _archivos.Count;
         public bool Contiene(string clave) => _archivos.ContainsKey(clave);
         public byte[] Contenido(string clave) => _archivos[clave];
@@ -482,6 +521,9 @@ public class LogoTenantTests
 
             public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
             {
+                if (almacen.ExcepcionAlEliminar is not null)
+                    throw almacen.ExcepcionAlEliminar;
+
                 almacen._archivos.Remove(identificador);
                 return Task.CompletedTask;
             }
