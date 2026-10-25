@@ -73,6 +73,66 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         (await escenario.Servicio.OperaPorAsignacionDeOperacionAsync()).Should().BeTrue();
     }
 
+    /// <summary>
+    /// El escenario del piloto (decisión Chris 2026-10-25): un Gestor CAE del Operador CAE externo, cuyo
+    /// Tenant propietario es el declarado en <c>AzureAd:TenantHydraId</c>, opera un Tenant beneficiario
+    /// delegado por su Asignación de Operación y su Asignación de Cartera. Entrado por Microsoft conserva la
+    /// escritura en el Tenant delegado; la misma persona con contraseña queda en Consulta también allí. En
+    /// los dos casos el perfil que decide el alcance es Gestor CAE: la cartera, no el Tenant entero.
+    /// </summary>
+    [Theory]
+    [InlineData(true, Roles.GestorCae)]
+    [InlineData(false, Roles.Consulta)]
+    public async Task El_Gestor_CAE_del_Tenant_declarado_escribe_en_el_Tenant_delegado_solo_si_entro_por_Microsoft(
+        bool esSso, string esperado)
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae, esSso: esSso,
+            porOperacion: true, conCartera: true);
+
+        (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+        await escenario.AplicarMiddlewareAsync();
+        escenario.Contexto.User.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([esperado]);
+        (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+        (await escenario.Servicio.OperaPorAsignacionDeOperacionAsync()).Should().BeTrue();
+        (await escenario.Servicio.ObtenerPerfilQueDecideAlcanceAsync()).Should().Be(Roles.GestorCae,
+            "la Asignación de Cartera acota el alcance entre por donde entre");
+        Roles.ConEscrituraCsv.Split(',').Contains(esperado).Should().Be(esSso);
+    }
+
+    /// <summary>Control del anterior: sin Asignación de Cartera vigente, el Gestor CAE no alcanza el Tenant delegado.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Sin_cartera_el_Gestor_CAE_no_alcanza_el_Tenant_delegado_por_ninguna_via_de_entrada(bool esSso)
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae, esSso: esSso, porOperacion: true);
+
+        (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().BeNull();
+    }
+
+    /// <summary>
+    /// D-1: un Usuario de otro Tenant propietario que entra con contraseña conserva su rol íntegro, también en
+    /// el Tenant beneficiario delegado, por las dos vías: la de Operación (con su cartera) y la heredada.
+    /// </summary>
+    [Theory]
+    [InlineData(Roles.GestorCae, Roles.GestorCae, true, Roles.GestorCae)]
+    [InlineData(Roles.CoordinadorCae, Roles.GestorCae, true, Roles.CoordinadorCae)]
+    [InlineData(Roles.GestorCae, Roles.CoordinadorCae, false, Roles.CoordinadorCae)]
+    public async Task Un_Usuario_de_otro_Tenant_con_contrasena_conserva_su_rol_en_el_Tenant_delegado(
+        string rolOrigen, string rolAsignado, bool porOperacion, string esperado)
+    {
+        using var escenario = await Escenario.CrearAsync(rolOrigen, rolAsignado, esSso: false,
+            porOperacion: porOperacion, conCartera: porOperacion, deOtroTenant: true);
+
+        escenario.TenantOrigen.Should().NotBe(Escenario.TenantDeclarado);
+        escenario.Contexto.User.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse("la restricción no le alcanza");
+        (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+        await escenario.AplicarMiddlewareAsync();
+        escenario.Contexto.User.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([esperado]);
+        (await escenario.Servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -151,8 +211,15 @@ public partial class LoginLocalEnAsignacionDelegadaTests
 
     private sealed class Escenario : IDisposable, ITenantsQueryContext, IOperacionesQueryContext
     {
+        /// <summary>
+        /// El Tenant propietario declarado en <c>AzureAd:TenantHydraId</c>: el del Operador CAE externo
+        /// cuyos Gestores CAE entran por Microsoft (decisión Chris 2026-10-25). Es el Tenant de origen
+        /// por defecto, porque solo a sus cuentas alcanza la restricción del login local (D-1).
+        /// </summary>
+        public static readonly Guid TenantDeclarado = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
+
         public Guid Usuario { get; } = Guid.NewGuid();
-        public Guid TenantOrigen { get; } = Guid.NewGuid();
+        public Guid TenantOrigen { get; private set; } = TenantDeclarado;
         public Guid TenantVisitado { get; } = Guid.NewGuid();
         public IDataProtectionProvider Protector { get; } = DataProtectionProvider.Create(nameof(LoginLocalEnAsignacionDelegadaTests));
         public DefaultHttpContext Contexto { get; } = new();
@@ -168,12 +235,17 @@ public partial class LoginLocalEnAsignacionDelegadaTests
         public IQueryable<DelegacionTenant> DelegacionesTenant => Consulta(new[] { Delegacion });
         public IQueryable<AsignacionOperadorDelegado> AsignacionesOperadorDelegado => Consulta(Asignaciones.Where(a => !a.EstaRevocada));
         public IQueryable<AsignacionOperacion> AsignacionesOperacion => Consulta(new[] { operacion });
-        public IQueryable<AsignacionCartera> AsignacionesCartera => Consulta(Array.Empty<AsignacionCartera>());
+        public IQueryable<AsignacionCartera> AsignacionesCartera => Consulta(carteras);
+        private readonly List<AsignacionCartera> carteras = [];
 
+        /// <param name="conCartera">Da al usuario una Asignación de Cartera vigente bajo la Asignación de Operación.</param>
+        /// <param name="deOtroTenant">La cuenta es de un Tenant propietario distinto del declarado.</param>
         public static async Task<Escenario> CrearAsync(string rolOrigen, string rolAsignado, bool entraConfigurado = true,
-            bool esSso = false, bool porOperacion = false, bool privilegiada = false)
+            bool esSso = false, bool porOperacion = false, bool privilegiada = false, bool conCartera = false,
+            bool deOtroTenant = false)
         {
             var escenario = new Escenario();
+            if (deOtroTenant) escenario.TenantOrigen = Guid.NewGuid();
             var ahora = DateTime.UtcNow;
             escenario.Delegacion = DelegacionTenant.ParaSoporte(escenario.TenantOrigen, escenario.TenantVisitado);
             escenario.Delegacion.ActivarParaSoporte("Incidencia ficticia", ahora.AddHours(1), ahora);
@@ -182,6 +254,9 @@ public partial class LoginLocalEnAsignacionDelegadaTests
                 ServicioCae.Outbound, AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
             // La vía heredada no debe encontrar una operación alternativa en el fan-out.
             if (!porOperacion) escenario.operacion.Suspender();
+            if (conCartera)
+                escenario.carteras.Add(AsignacionCartera.Externa(escenario.operacion, escenario.Usuario, Roles.GestorCae,
+                    AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora));
             var identidad = new ClaimsIdentity("Prueba");
             identidad.AddClaim(new Claim(ClaimTypes.NameIdentifier, escenario.Usuario.ToString()));
             identidad.AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, escenario.TenantOrigen.ToString()));
@@ -193,7 +268,7 @@ public partial class LoginLocalEnAsignacionDelegadaTests
                 TenantId = entraConfigurado ? "tenant-ficticio" : null,
                 ClientId = entraConfigurado ? "aplicacion-ficticia" : null,
                 ClientSecret = entraConfigurado ? "valor-ficticio" : null,
-                TenantHydraId = entraConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
+                TenantHydraId = entraConfigurado ? TenantDeclarado : null,
             })).TransformAsync(new ClaimsPrincipal(identidad));
             var token = ClienteActivoSeleccionado.Proteger(escenario.Protector, escenario.Usuario, escenario.TenantVisitado,
                 asignacionOperacionId: porOperacion ? escenario.operacion.Id : null,

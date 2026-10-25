@@ -196,6 +196,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
+        // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.
+        services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.

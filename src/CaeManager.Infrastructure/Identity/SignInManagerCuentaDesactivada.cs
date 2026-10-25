@@ -79,9 +79,40 @@ public class SignInManagerCuentaDesactivada(
         return await base.ValidateSecurityStampAsync(user, securityStamp);
     }
 
+    /// <summary>Lo pone <see cref="RefreshSignInAsync"/> mientras refresca una sesión que entró por Microsoft.</summary>
+    private bool _conservarMarcaSso;
+
+    /// <summary>
+    /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor) reemite la cookie
+    /// conservando solo <c>amr</c> y el método de autenticación: perdía la marca
+    /// <see cref="RestriccionLoginLocalClaimsTransformation.MetodoLoginSso"/> y un Gestor CAE del Tenant
+    /// declarado que había entrado por Microsoft quedaba en Consulta. Se conserva solo si la cookie
+    /// autenticada de esta petición ya la traía y es de la misma cuenta; nunca se crea donde no estaba.
+    /// </summary>
+    public override async Task RefreshSignInAsync(ApplicationUser user)
+    {
+        var autenticada = await Context.AuthenticateAsync(AuthenticationScheme);
+        _conservarMarcaSso = autenticada.Principal is { } actual
+            && actual.HasClaim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
+                RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)
+            && UserManager.GetUserId(actual) == user.Id.ToString();
+        try
+        {
+            await base.RefreshSignInAsync(user);
+        }
+        finally
+        {
+            _conservarMarcaSso = false;
+        }
+    }
+
     public override Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
+        if (_conservarMarcaSso && !additionalClaims.Any(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin))
+            additionalClaims = additionalClaims.Append(new Claim(
+                RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+
         if (user.EstaDesactivada(DateTimeOffset.UtcNow))
         {
             // No se lanza: quien llega aquí desde CambiarContrasena o desde el

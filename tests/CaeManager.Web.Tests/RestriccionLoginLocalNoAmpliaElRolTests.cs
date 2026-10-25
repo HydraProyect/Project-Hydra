@@ -10,6 +10,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -34,6 +35,9 @@ namespace CaeManager.Web.Tests;
 public class RestriccionLoginLocalNoAmpliaElRolTests
 {
     private const string SinRol = "";
+
+    /// <summary>El Tenant propietario declarado en <c>AzureAd:TenantHydraId</c>: el único cuyas cuentas entran por Microsoft.</summary>
+    private static readonly Guid TenantDeclarado = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
 
     public static TheoryData<string, string, string> RestringidaPorLoginLocal => new()
     {
@@ -88,6 +92,138 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
         Roles.ConEscrituraCsv.Split(',').Should().NotContain(await servicio.ObtenerRolEfectivoAsync());
     }
 
+    /// <summary>
+    /// D-1 (decisión Chris 2026-10-25): la restricción alcanza solo a las cuentas del Tenant propietario
+    /// declarado en <c>AzureAd:TenantHydraId</c>, las únicas que el inicio con Microsoft puede abrir. Una
+    /// cuenta de otro Tenant propietario que entra con contraseña conserva su rol íntegro, sin perfil
+    /// anterior, igual que si Entra no estuviera configurado.
+    /// </summary>
+    [Fact]
+    public async Task Una_cuenta_de_otro_Tenant_propietario_entrada_con_contrasena_conserva_su_rol_integro()
+    {
+        var otroTenant = Guid.NewGuid().ToString();
+        foreach (var rolReal in Roles.Todos.Append(SinRol))
+        {
+            var transformado = await Transformacion(entraConfigurado: true).TransformAsync(Principal(esSso: false, rolReal, otroTenant));
+            var servicio = Servicio(transformado);
+
+            transformado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal(rolReal.Length == 0 ? [] : [rolReal], $"rol real {rolReal}");
+            transformado.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+                .Should().BeFalse($"rol real {rolReal}");
+            (await servicio.ObtenerPerfilQueDecideAlcanceAsync()).Should().Be(Nulo(rolReal), $"rol real {rolReal}");
+        }
+    }
+
+    [Theory]
+    [InlineData(Roles.DireccionCae)]
+    [InlineData(Roles.CoordinadorCae)]
+    [InlineData(Roles.GestorCae)]
+    public async Task Solo_la_cuenta_del_Tenant_declarado_pierde_la_escritura_con_contrasena(string rolReal)
+    {
+        var escritura = Roles.ConEscrituraCsv.Split(',');
+
+        var delDeclarado = Servicio(await Transformacion(entraConfigurado: true).TransformAsync(Principal(esSso: false, rolReal)));
+        var deOtro = Servicio(await Transformacion(entraConfigurado: true)
+            .TransformAsync(Principal(esSso: false, rolReal, Guid.NewGuid().ToString())));
+
+        escritura.Should().NotContain(await delDeclarado.ObtenerRolEfectivoAsync());
+        (await deOtro.ObtenerRolEfectivoAsync()).Should().Be(rolReal);
+        escritura.Should().Contain(rolReal, "control: el rol real es editor");
+    }
+
+    /// <summary>
+    /// El escenario del piloto tras la revalidación periódica de la cookie: la fábrica de claims rehace
+    /// el principal sin la marca de Microsoft, y el gancho la copia de la cookie validada. Una sesión
+    /// abierta por Microsoft sigue escribiendo después de rehacerse; una con contraseña sigue en Consulta.
+    /// </summary>
+    [Theory]
+    [InlineData(true, Roles.GestorCae)]
+    [InlineData(false, Roles.Consulta)]
+    public async Task Tras_revalidar_la_cookie_la_sesion_de_Microsoft_conserva_la_escritura(bool esSso, string esperado)
+    {
+        var opciones = new SecurityStampValidatorOptions();
+        RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar(opciones);
+        var contexto = new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = Principal(esSso, Roles.GestorCae),
+            NewPrincipal = Principal(esSso: false, Roles.GestorCae),
+        };
+
+        await opciones.OnRefreshingPrincipal!(contexto);
+        var servicio = Servicio(await Transformacion(entraConfigurado: true).TransformAsync(contexto.NewPrincipal!));
+
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+        contexto.NewPrincipal!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().HaveCount(esSso ? 1 : 0, "la marca se conserva sin duplicarse y nunca se inventa");
+    }
+
+    [Fact]
+    public async Task El_gancho_de_revalidacion_respeta_el_anterior()
+    {
+        var anteriorLlamado = false;
+        var opciones = new SecurityStampValidatorOptions
+        {
+            OnRefreshingPrincipal = _ => { anteriorLlamado = true; return Task.CompletedTask; },
+        };
+        RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar(opciones);
+
+        await opciones.OnRefreshingPrincipal!(new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = Principal(esSso: true, Roles.GestorCae),
+            NewPrincipal = Principal(esSso: true, Roles.GestorCae),
+        });
+
+        anteriorLlamado.Should().BeTrue();
+    }
+
+    /// <summary>
+    /// Fallo cerrado: sin Tenant declarado (nulo o vacío), nadie puede probar que su cuenta no es la que
+    /// entraría por Microsoft, y la restricción sigue alcanzando a todas, como antes de D-1 (el callback
+    /// rechaza entonces a todo el mundo y el arranque avisa, ver <c>AzureAdOptions.ProblemasDeConfiguracion</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Sin_Tenant_declarado_la_restriccion_alcanza_a_las_cuentas_de_todos_los_Tenants(bool vacio)
+    {
+        var transformacion = Transformacion(entraConfigurado: true, vacio ? Guid.Empty : null);
+
+        var resultado = await transformacion.TransformAsync(Principal(esSso: false, Roles.GestorCae, Guid.NewGuid().ToString()));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+        resultado.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir).Select(c => c.Value)
+            .Should().Equal([Roles.GestorCae]);
+    }
+
+    /// <summary>
+    /// Fallo cerrado: si no consta, sin ambigüedad, que la cuenta es de otro Tenant propietario —sin claim
+    /// de Tenant, ilegible, vacío o con varios, aunque ninguno sea el declarado—, se restringe.
+    /// </summary>
+    [Theory]
+    [InlineData("sin-claim")]
+    [InlineData("")]
+    [InlineData("no-es-un-guid")]
+    [InlineData("00000000-0000-0000-0000-000000000000")]
+    [InlineData("varios-otros")]
+    [InlineData("otro-y-el-declarado")]
+    public async Task Si_no_consta_otro_Tenant_propietario_la_restriccion_se_aplica(string claimTenant)
+    {
+        var identidad = new ClaimsIdentity(authenticationType: "Prueba");
+        identidad.AddClaim(new Claim(ClaimTypes.Role, Roles.GestorCae));
+        string[] claims = claimTenant switch
+        {
+            "sin-claim" => [],
+            "varios-otros" => [Guid.NewGuid().ToString(), Guid.NewGuid().ToString()],
+            "otro-y-el-declarado" => [Guid.NewGuid().ToString(), TenantDeclarado.ToString()],
+            _ => [claimTenant],
+        };
+        foreach (var claim in claims) identidad.AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, claim));
+
+        var resultado = await Transformacion(entraConfigurado: true).TransformAsync(new ClaimsPrincipal(identidad));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+    }
+
     /// <summary>Por SSO, o sin Entra configurado, la restricción es inerte: el rol real, sin perfil anterior.</summary>
     [Theory]
     [InlineData(true, true)]
@@ -118,7 +254,7 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
     [Fact]
     public async Task En_el_Tenant_de_origen_la_sesion_limitada_nunca_alcanza_el_Tenant_entero_si_el_rol_real_no_lo_alcanza()
     {
-        var tenant = Guid.NewGuid();
+        var tenant = TenantDeclarado;
         foreach (var rolReal in Roles.Todos.Append(SinRol).Append("RolInexistente"))
         {
             var real = await AccesoTotalAsync(entraConfigurado: false, rolReal, tenant);
@@ -138,7 +274,7 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
     [InlineData(SinRol, false)]
     public async Task En_el_Tenant_de_origen_el_acceso_total_de_la_sesion_limitada_es_el_del_rol_real(string rolReal, bool esperado)
     {
-        var tenant = Guid.NewGuid();
+        var tenant = TenantDeclarado;
 
         (await AccesoTotalAsync(entraConfigurado: true, rolReal, tenant)).Should().Be(esperado);
         (await AccesoTotalAsync(entraConfigurado: false, rolReal, tenant)).Should().Be(esperado, "control: el rol real");
@@ -187,8 +323,7 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
 
     private static async Task<bool> AccesoTotalAsync(bool entraConfigurado, string rolReal, Guid tenantOrigen)
     {
-        var principal = Principal(esSso: false, rolReal);
-        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()));
+        var principal = Principal(esSso: false, rolReal, tenantOrigen.ToString());
         var servicio = Servicio(await Transformacion(entraConfigurado).TransformAsync(principal));
 
         var tenantActual = new TenantActualAmbiental { TenantId = tenantOrigen };
@@ -206,18 +341,28 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
         Servicio(await Transformacion(entraConfigurado).TransformAsync(Principal(esSso, rolReal)));
 
     private static RestriccionLoginLocalClaimsTransformation Transformacion(bool entraConfigurado) =>
+        Transformacion(entraConfigurado, entraConfigurado ? TenantDeclarado : null);
+
+    private static RestriccionLoginLocalClaimsTransformation Transformacion(bool entraConfigurado, Guid? tenantHydraId) =>
         new(Options.Create(new AzureAdOptions
         {
             TenantId = entraConfigurado ? "tenant" : null,
             ClientId = entraConfigurado ? "client" : null,
             ClientSecret = entraConfigurado ? "secreto" : null,
-            TenantHydraId = entraConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
+            TenantHydraId = tenantHydraId,
         }));
 
-    private static ClaimsPrincipal Principal(bool esSso, string rol)
+    /// <summary>
+    /// La sesión de una cuenta con el rol dado. Sin <paramref name="claimsTenant"/>, la cuenta es del Tenant
+    /// propietario declarado (<see cref="TenantDeclarado"/>), como la de un Gestor CAE del Operador CAE
+    /// externo que entra por Microsoft; con ellos, lleva exactamente esos claims de Tenant.
+    /// </summary>
+    private static ClaimsPrincipal Principal(bool esSso, string rol, params string[] claimsTenant)
     {
         var identidad = new ClaimsIdentity(authenticationType: "Prueba");
         identidad.AddClaim(new Claim(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()));
+        foreach (var claimTenant in claimsTenant.Length == 0 ? [TenantDeclarado.ToString()] : claimsTenant)
+            identidad.AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, claimTenant));
         if (rol.Length > 0) identidad.AddClaim(new Claim(ClaimTypes.Role, rol));
         if (esSso)
             identidad.AddClaim(new Claim(
