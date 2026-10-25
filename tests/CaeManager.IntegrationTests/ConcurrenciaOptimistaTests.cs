@@ -209,6 +209,27 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Releer_una_entidad_que_arrastra_un_guardado_fallido_la_deja_como_en_la_base()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var empresa = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        var versionEnBase = empresa.Version;
+        var razonSocialEnBase = empresa.RazonSocial;
+        // Lo que deja un SaveChanges que falla sin conflicto (cancelación, restricción no traducida):
+        // la edición sigue Modified con el token que le dio ConcurrenciaOptimistaInterceptor.
+        empresa.ActualizarComoCliente("Guardado que nunca llegó", "B12345674", false, null);
+        circuito.Entry(empresa).Property(nameof(CaeManager.Domain.Common.IVersionable.Version)).CurrentValue = Guid.NewGuid();
+
+        var otraLectura = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+
+        otraLectura.Should().BeSameAs(empresa);
+        otraLectura.Version.Should().Be(versionEnBase);
+        otraLectura.RazonSocial.Should().Be(razonSocialEnBase);
+        circuito.Entry(otraLectura).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task Tras_una_carrera_real_el_siguiente_guardado_del_circuito_no_reintenta_la_edicion()
     {
         await using var circuito = CrearContexto();

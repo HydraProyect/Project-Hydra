@@ -7,7 +7,6 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 
 namespace CaeManager.Web.Tests;
 
@@ -34,7 +33,6 @@ public class ConcurrenciaContextoTests
         contexto.RelacionesEmpresariales.Add(relacion);
         var conservada = Empresa.CrearComoCliente("Empresa sin cambios", "B12345674", false, null, null);
         contexto.Attach(conservada);
-        interceptor.Entidad = empresa;
 
         Func<Task> guardar = async () =>
         {
@@ -61,7 +59,6 @@ public class ConcurrenciaContextoTests
 
     private sealed class ConflictoAlGuardar : SaveChangesInterceptor
     {
-        public Empresa Entidad { get; set; } = null!;
         public RegistroAuditoria Auditoria { get; set; } = null!;
         public DbUpdateConcurrencyException? Conflicto { get; private set; }
 
@@ -71,13 +68,7 @@ public class ConcurrenciaContextoTests
                 return;
             // La auditoría nace durante SaveChanges, como la de los interceptores reales.
             contexto.Set<RegistroAuditoria>().Add(Auditoria);
-            var entrada = contexto.Entry(Entidad);
-            // EF expone las entradas de la excepción mediante IUpdateEntry; se usa
-            // su acceso interno solo para simular el conflicto sin una base de datos.
-#pragma warning disable EF1001
-            Conflicto = new DbUpdateConcurrencyException("Carrera simulada al guardar",
-                new[] { entrada.GetInfrastructure() });
-#pragma warning restore EF1001
+            Conflicto = new DbUpdateConcurrencyException("Carrera simulada al guardar");
             throw Conflicto;
         }
 

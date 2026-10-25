@@ -462,9 +462,9 @@ public class CaeManagerDbContext(
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
         {
-            ConcurrenciaContexto.DescartarLoteFallido(this, ex);
+            ConcurrenciaContexto.DescartarLoteFallido(this);
             throw;
         }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
@@ -483,8 +483,7 @@ public class CaeManagerDbContext(
                 .Where(e => e.Cif != null).Select(e => e.Cif!).Distinct().ToArray();
             // La unidad de escritura fallida no debe reintentarse en un guardado posterior del circuito,
             // ni persistir la auditoría de cambios que la base rechazó.
-            foreach (var entrada in ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList())
-                entrada.State = EntityState.Detached;
+            ConcurrenciaContexto.DescartarLoteFallido(this);
             throw new CifEmpresaDuplicadoException(cifs, ex);
         }
     }
@@ -495,9 +494,9 @@ public class CaeManagerDbContext(
         {
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
-        catch (DbUpdateConcurrencyException ex)
+        catch (DbUpdateConcurrencyException)
         {
-            ConcurrenciaContexto.DescartarLoteFallido(this, ex);
+            ConcurrenciaContexto.DescartarLoteFallido(this);
             throw;
         }
     }

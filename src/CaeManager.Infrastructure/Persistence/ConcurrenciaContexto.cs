@@ -14,18 +14,21 @@ public static class ConcurrenciaContexto
 {
     /// <summary>
     /// Ejecuta la consulta normal, con sus filtros, y si devuelve una instancia que el circuito ya tenía
-    /// rastreada sin cambios la relee: EF no reemplaza sus valores al materializar otra consulta, y el
-    /// comando compararía la Version de pantalla con un token viejo (conflicto falso permanente tras la
-    /// edición de otra persona). Una instancia con cambios pendientes no se relee: son de la operación en
-    /// curso y la relectura los perdería en silencio. Devuelve null si la fila desapareció entre la
-    /// consulta y la relectura.
+    /// rastreada la relee: EF no reemplaza sus valores al materializar otra consulta, y el comando
+    /// compararía la Version de pantalla con un token viejo (conflicto falso permanente tras la edición de
+    /// otra persona). Se relee la instancia sin cambios y la que arrastra un guardado fallido: su Version
+    /// actual ya no es la original porque <c>ConcurrenciaOptimistaInterceptor</c> le dio un token nuevo que
+    /// la base nunca recibió. Una instancia con cambios de la operación en curso (Version intacta) no se
+    /// relee: la relectura los perdería en silencio. Devuelve null si la fila desapareció entre la consulta
+    /// y la relectura.
     /// </summary>
     public static async Task<T?> ObtenerActualAsync<T>(
         this DbContext contexto, IQueryable<T> consulta, CancellationToken cancellationToken = default)
         where T : class, IVersionable
     {
         var rastreadas = contexto.ChangeTracker.Entries<T>()
-            .Where(e => e.State == EntityState.Unchanged)
+            .Where(e => e.State == EntityState.Unchanged
+                        || (e.State == EntityState.Modified && ArrastraGuardadoFallido(e)))
             .Select(e => (object)e.Entity).ToHashSet(ReferenceEqualityComparer.Instance);
         var entidad = await consulta.FirstOrDefaultAsync(cancellationToken);
         if (entidad is null || !rastreadas.Contains(entidad))
@@ -36,18 +39,23 @@ public static class ConcurrenciaContexto
         return entrada.State == EntityState.Detached ? null : entidad;
     }
 
+    private static bool ArrastraGuardadoFallido(EntityEntry entrada)
+    {
+        var version = entrada.Property(nameof(IVersionable.Version));
+        return !Equals(version.CurrentValue, version.OriginalValue);
+    }
+
     /// <summary>
-    /// Tras un <see cref="DbUpdateConcurrencyException"/> el lote entero se revirtió en la base, pero EF
-    /// deja sus entradas como estaban: el siguiente SaveChanges del circuito reintentaría la edición perdida,
-    /// sus cambios relacionados (por ejemplo, las Relaciones Empresariales de una edición de Empresa) y la
-    /// auditoría del intento. Se desacopla todo lo pendiente, incluido lo que los interceptores añadieron
-    /// durante el guardado; las entidades sin cambios se conservan. La excepción sigue su camino hasta
-    /// ConcurrenciaBehavior.
+    /// Tras un guardado que la base rechazó entero (un <see cref="DbUpdateConcurrencyException"/>, o el
+    /// choque de CIF de Z5-7), EF deja sus entradas como estaban: el siguiente SaveChanges del circuito
+    /// reintentaría la edición perdida, sus cambios relacionados (por ejemplo, las Relaciones Empresariales
+    /// de una edición de Empresa) y la auditoría del intento. Se desacopla todo lo pendiente en el momento
+    /// del fallo, incluido lo que los interceptores añadieron durante el guardado; las entidades sin
+    /// cambios se conservan. Quien llama relanza la excepción hasta ConcurrenciaBehavior.
     /// </summary>
-    public static void DescartarLoteFallido(DbContext contexto, DbUpdateConcurrencyException ex) =>
+    public static void DescartarLoteFallido(DbContext contexto) =>
         DescartarEdicionPerdida(contexto, contexto.ChangeTracker.Entries()
-            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
-            .Concat(ex.Entries));
+            .Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted));
 
     /// <summary>
     /// Desacopla las entradas indicadas y las auditorías aún sin guardar.
