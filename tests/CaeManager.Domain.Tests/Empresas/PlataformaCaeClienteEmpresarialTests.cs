@@ -19,6 +19,7 @@ public class PlataformaCaeClienteEmpresarialTests
         var plataforma = new PlataformaCaeClienteEmpresarial(ClienteEmpresarialId, "  Nalanda  ", "  ", " ");
 
         plataforma.ClienteEmpresarialId.Should().Be(ClienteEmpresarialId);
+        plataforma.Version.Should().NotBeEmpty();
         plataforma.Nombre.Should().Be("Nalanda");
         plataforma.UrlPortal.Should().BeNull();
         plataforma.CodigoCliente.Should().BeNull();

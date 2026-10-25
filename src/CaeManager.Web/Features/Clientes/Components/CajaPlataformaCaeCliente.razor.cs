@@ -62,6 +62,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
     private string _bNombre = string.Empty;
     private string _bUrl = string.Empty;
     private string _bCodigo = string.Empty;
+    private Guid? _versionPlataforma;
     private AccesoPlataformaCaeDto? _accesoEnEdicion;
     private string _bUsuario = string.Empty;
     private string _bContrasena = string.Empty;
@@ -253,6 +254,7 @@ public partial class CajaPlataformaCaeCliente : IDisposable
         _bNombre = _plataforma?.Nombre ?? string.Empty;
         _bUrl = _plataforma?.UrlPortal ?? string.Empty;
         _bCodigo = _plataforma?.CodigoCliente ?? string.Empty;
+        _versionPlataforma = _plataforma?.Version;
         _errorModal = null;
         _modalPlataformaVisible = true;
     }
@@ -265,9 +267,16 @@ public partial class CajaPlataformaCaeCliente : IDisposable
         try
         {
             var resultado = await Mediator.Send(
-                new GuardarPlataformaCaeClienteCommand(ClienteEmpresarialId, _bNombre, NuloSiVacio(_bUrl), NuloSiVacio(_bCodigo)), _ciclo.Token);
+                new GuardarPlataformaCaeClienteCommand(ClienteEmpresarialId, _bNombre, NuloSiVacio(_bUrl), NuloSiVacio(_bCodigo), _versionPlataforma), _ciclo.Token);
             if (resultado.EsFallido)
             {
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    ToastService.MostrarError(resultado.Error);
+                    _modalPlataformaVisible = false;
+                    await CargarAsync();
+                    return;
+                }
                 _errorModal = resultado.Error.Mensaje;
                 await RecargarTrasConflictoAsync(resultado.Error);
                 return;

@@ -24,13 +24,14 @@ namespace CaeManager.Domain.Empresas;
 /// es secreto, solo lo reciben los roles con escritura (<c>ObtenerPlataformaCaeClienteQuery</c>).
 /// </para>
 /// </summary>
-public class PlataformaCaeClienteEmpresarial : EntidadConTenant
+public class PlataformaCaeClienteEmpresarial : EntidadConTenant, IVersionable
 {
     public const int LongitudMaximaNombre = 200;
     public const int LongitudMaximaUrlPortal = 500;
     public const int LongitudMaximaCodigoCliente = 200;
 
     public Guid ClienteEmpresarialId { get; private set; }
+    public Guid Version { get; private set; } = Guid.NewGuid();
     public string Nombre { get; private set; } = string.Empty;
     public string? UrlPortal { get; private set; }
     public string? CodigoCliente { get; private set; }
