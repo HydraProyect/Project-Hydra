@@ -281,8 +281,8 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
 
     /// <summary>
     /// Una petición de <paramref name="usuario"/>, Administrador de <paramref name="tenant"/>. Los manejadores
-    /// con nombre se llaman como los llama el enrutado; las dos lambdas (Comunicaciones y Requisitos
-    /// documentales) se ejecutan desde el <c>Map*</c> de producción con <c>RequestDelegateFactory</c>.
+    /// con nombre se llaman como los llama el enrutado; los de Comunicaciones y Requisitos documentales se
+    /// ejecutan desde el <c>Map*</c> de producción con <c>RequestDelegateFactory</c>, con el enlace de parámetros real.
     /// </summary>
     public async Task<Respuesta> DescargarAsync(string ruta, Guid usuario, Guid tenant, Guid id)
     {
@@ -309,7 +309,7 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
             "/visitas/{id:guid}/paquete-documental.zip" =>
                 await VisitasEndpoints.ServirPaqueteAsync(id, contexto, Mediador(), Registros(), ct),
             "/empresas/{id:guid}/sello/archivo" =>
-                await FirmasGuardadasEndpoints.ServirSelloAsync(id, contexto, Mediador(), Almacen(), ct),
+                await FirmasGuardadasEndpoints.ServirSelloAsync(id, contexto, Mediador(), Almacen(), Registros(), ct),
             "/comunicaciones/adjuntos/{id:guid}/archivo" or "/requisitos-documentales/{id:guid}/archivo" => null,
             _ => throw new ArgumentOutOfRangeException(nameof(ruta), ruta, "Ruta sin invocación en la prueba."),
         };
