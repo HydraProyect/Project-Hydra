@@ -1015,7 +1015,7 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogWarning(
             "[AVISO] Sin ConnectionStrings:CaeManagerDbRuntime, el tráfico conecta con el rol propietario " +
-            "de las tablas, al que PostgreSQL no somete a RLS ni con FORCE ROW LEVEL SECURITY. El " +
+            "de las tablas, exento de RLS (superusuario o BYPASSRLS, y si no lo es, solo lo ata FORCE). El " +
             "aislamiento por tenant descansa hoy solo en el filtro global de EF Core, que no cubre SQL " +
             "crudo, IgnoreQueryFilters ni las tablas de Identity. Entorno: {Entorno}. Ver " +
             "deploy/bootstrap/roles-de-cluster.sql para aprovisionar cae_app_runtime.",
