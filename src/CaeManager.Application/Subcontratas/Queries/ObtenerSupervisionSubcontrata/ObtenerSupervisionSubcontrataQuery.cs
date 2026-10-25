@@ -64,7 +64,7 @@ public record UltimaVerificacionDto(
     DateOnly? ValidoHasta,
     string? Observaciones,
     bool TieneEvidencia,
-    string? EvidenciaNombreArchivo);
+    string? EvidenciaNombreArchivo, Guid Version = default);
 
 public record CentroSeleccionableDto(Guid CentroId, string CentroNombre, string ClienteRazonSocial);
 
@@ -153,6 +153,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
             .Select(v => new
             {
                 v.Id,
+                v.Version,
                 v.CentroId,
                 v.TipoDocumentoId,
                 v.FechaVerificacion,
@@ -253,7 +254,7 @@ public class ObtenerSupervisionSubcontrataQueryHandler(
                     tieneVerificacion
                         ? new UltimaVerificacionDto(
                             ultima!.Id, ultima.FechaVerificacion, ultima.Resultado, ultima.ValidoHasta,
-                            ultima.Observaciones, ultima.EvidenciaArchivoRuta is not null, ultima.EvidenciaNombreArchivo)
+                            ultima.Observaciones, ultima.EvidenciaArchivoRuta is not null, ultima.EvidenciaNombreArchivo, ultima.Version)
                         : null));
             }
 

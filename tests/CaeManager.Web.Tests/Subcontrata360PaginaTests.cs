@@ -102,6 +102,10 @@ public class Subcontrata360PaginaTests : BunitContext
         public Dictionary<Guid, Task<ResultadoPaginado<DocumentoListaDto>>> GestionPendiente { get; } = [];
         public Dictionary<Guid, SubcontrataDetalleDto> DetallesPorId { get; } = [];
 
+        /// <summary>Token que devuelve la edición de una verificación, y si el servidor responde con conflicto de concurrencia.</summary>
+        public Guid VersionGuardada { get; } = Guid.NewGuid();
+        public bool ConflictoVerificacion { get; set; }
+
         /// <summary>Lo que responde el servidor a «Guardar» de la nota, y la ficha que entrega la relectura posterior.</summary>
         public Result ResultadoNota { get; set; } = Result.Exito();
         public SubcontrataDetalleDto? DetalleTrasGuardarNota { get; set; }
@@ -147,7 +151,8 @@ public class Subcontrata360PaginaTests : BunitContext
             ObtenerCredencialAccesoSubcontrataQuery => Credencial,
             CambiarNivelServicioSubcontrataCommand or EliminarSubcontrataCommand or RestaurarSubcontrataCommand
                 or EliminarVerificacionExternaSubcontrataCommand or RegistrarVerificacionExternaSubcontrataCommand
-                or ActualizarVerificacionExternaSubcontrataCommand or RestaurarVerificacionExternaSubcontrataCommand => Result.Exito(),
+                or RestaurarVerificacionExternaSubcontrataCommand => Result.Exito(),
+            ActualizarVerificacionExternaSubcontrataCommand => ConflictoVerificacion ? Result.Fallo<Guid>(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona modificó esta verificación mientras lo editabas.")) : Result.Exito(VersionGuardada),
             GuardarNotaInternaSubcontrataCommand => ResultadoNota,
             _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
         };
@@ -253,7 +258,7 @@ public class Subcontrata360PaginaTests : BunitContext
             [
                 new SupervisionTipoDto(Guid.NewGuid(), "Formación Art. 19", Exigido: true, EstadoSupervision.SinVerificar, null),
                 new SupervisionTipoDto(Guid.NewGuid(), "Aptitud médica", Exigido: true, EstadoSupervision.Vigente,
-                    new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png")),
+                    new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png", Guid.NewGuid())),
                 new SupervisionTipoDto(Guid.NewGuid(), "Seguro de vida", Exigido: false, EstadoSupervision.SinVerificar, null),
             ])
         ],
@@ -782,7 +787,7 @@ public class Subcontrata360PaginaTests : BunitContext
                 new SupervisionCentroDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.",
                 [
                     new SupervisionTipoDto(Guid.NewGuid(), "Aptitud médica", Exigido: true, EstadoSupervision.Vigente,
-                        new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png")),
+                        new UltimaVerificacionDto(Guid.NewGuid(), new DateOnly(2026, 9, 20), ResultadoVerificacionExterna.Valido, new DateOnly(2027, 9, 20), null, true, "captura.png", Guid.NewGuid())),
                 ])
             ],
             [new CentroSeleccionableDto(CentroId, "Almacén Vigo", "Cyberdyne Ibérica S.A.")]));
@@ -1093,6 +1098,7 @@ public class Subcontrata360PaginaTests : BunitContext
 
         var comando = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().ContainSingle().Subject;
         comando.Id.Should().Be(anterior.Id);
+        comando.Version.Should().Be(anterior.Version);
         comando.EvidenciaContenido.Should().BeNull("sin archivo nuevo se conserva la evidencia");
         mediador.Enviadas.Should().NotContain(p => p is RegistrarVerificacionExternaSubcontrataCommand, "editar no crea otra verificación");
 
@@ -1101,12 +1107,52 @@ public class Subcontrata360PaginaTests : BunitContext
         await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
         mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Should().HaveCount(2);
         var deshecho = mediador.Enviadas.OfType<ActualizarVerificacionExternaSubcontrataCommand>().Last();
+        deshecho.Version.Should().Be(mediador.VersionGuardada);
         deshecho.FechaVerificacion.Should().Be(anterior.FechaVerificacion);
         deshecho.Resultado.Should().Be(anterior.Resultado);
         deshecho.ValidoHasta.Should().Be(anterior.ValidoHasta, "Deshacer devuelve también la validez declarada");
         deshecho.Observaciones.Should().Be(anterior.Observaciones);
     }
 
+    [Fact]
+    public async Task Editar_verificacion_con_conflicto_avisa_cierra_el_formulario_y_relee_la_supervision()
+    {
+        var mediador = Montar();
+        mediador.ConflictoVerificacion = true;
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Editar").Click();
+        var lecturasAntes = mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+
+        var avisos = Services.GetRequiredService<ToastService>().Mensajes;
+        avisos.Should().ContainSingle(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Otra persona modificó esta verificación"));
+        avisos.Should().NotContain(m => m.TextoAccion == "Deshacer");
+        cut.FindAll(".drawer-panel").Should().BeEmpty("con la copia vieja el mismo conflicto se repetiría: se cierra y se relee");
+        mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count().Should().BeGreaterThan(lecturasAntes);
+    }
+
+    [Fact]
+    public async Task Deshacer_una_edicion_ya_cambiada_por_otra_persona_avisa_y_relee_la_supervision()
+    {
+        var mediador = Montar();
+        var cut = Renderizar("?pestana=supervision");
+        MostrarTodoPlataformas(cut);
+        cut.Find(".fila-relacion .menu-acciones-disparador").Click();
+        cut.FindAll(".fila-relacion .menu-acciones-item").Single(i => i.TextContent.Trim() == "Editar").Click();
+        await cut.Find(".drawer-pie").QuerySelectorAll("button").Single(b => b.TextContent.Trim() == "Guardar verificación").ClickAsync(new MouseEventArgs());
+        var avisos = Services.GetRequiredService<ToastService>();
+        var aviso = avisos.Mensajes.Should().ContainSingle(m => m.TextoAccion == "Deshacer").Subject;
+        mediador.ConflictoVerificacion = true;
+        var lecturasAntes = mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count();
+
+        await cut.InvokeAsync(() => avisos.EjecutarAccionAsync(aviso.Id));
+
+        avisos.Mensajes.Should().Contain(m => m.Tono == TonoToast.Error && m.Mensaje.Contains("Otra persona modificó esta verificación"));
+        mediador.Enviadas.OfType<ObtenerSupervisionSubcontrataQuery>().Count().Should().BeGreaterThan(lecturasAntes);
+    }
     [Fact]
     public void En_Consulta_la_supervision_no_ofrece_verificar_ni_eliminar()
     {
