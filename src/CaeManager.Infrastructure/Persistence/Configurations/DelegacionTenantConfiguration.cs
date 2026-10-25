@@ -27,5 +27,10 @@ public class DelegacionTenantConfiguration : IEntityTypeConfiguration<Delegacion
 
         // Sin HasQueryFilter: catálogo global de autorización, mismo
         // tratamiento que Tenant (ver ADR-004 § 5.3 y DelegacionTenant.cs).
+        // Sí lleva RLS (migración ProtegeDelegacionesTenantConRls): una sesión
+        // lee las delegaciones de las que su Tenant activo o su Tenant de origen
+        // es extremo (organizacion_de_origen_lee_sus_delegaciones, solo SELECT),
+        // y solo inserta, modifica o borra aquellas de las que su Tenant activo
+        // es extremo (extremos_de_la_delegacion).
     }
 }
