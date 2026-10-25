@@ -83,7 +83,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Tenants/EncargoAdministracion.cs"] = 1,
         ["src/CaeManager.Domain/VigilanciaNormativa/AvisoRevisionNormativa.cs"] = 1,
         ["src/CaeManager.Infrastructure/Persistence/Interceptors/ConcurrenciaOptimistaInterceptor.cs"] = 1,
-        // Id del plan de importación en memoria (no se persiste como clave).
+        // Id de la operación de importación (marca de idempotencia de un plan analizado; no es el Id de ninguna entidad de negocio).
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlImportacionParser.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs"] = 2,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs"] = 1,

@@ -21,8 +21,7 @@ internal sealed class EscenarioImportacionCombinada
 
     public EjecutarImportacionCombinadaCommandHandler Handler()
     {
-        // Lo que "ya está en la base" al construir el arnés: el contexto de lectura no se refresca entre
-        // ejecuciones, así que sólo la marca de operación puede evitar que una repetición duplique.
+        // Lo que "ya está en la base" en cada ejecución: se relee del repositorio, como haría una segunda lectura real.
         var empresas = new DocumentosFalsos.EmpresasQueryContextFalso();
         empresas.ListaEmpresas.AddRange(EmpresaRepositorio.Empresas
             .Where(e => e.TenantId == EmpresaRepositorio.TenantPropietarioId && !e.EstaEliminado));

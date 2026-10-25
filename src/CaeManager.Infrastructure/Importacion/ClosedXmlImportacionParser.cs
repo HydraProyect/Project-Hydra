@@ -147,8 +147,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             // Sin Empresa declarada no se puede dar de alta a nadie: se dice, no se calla ni se inventa una.
             omitidos.Add(new ItemImportacionDto(
                 "Configuración", 0, "Hojas de Trabajadores",
-                "La plantilla CAE completa no tiene configurada ninguna hoja de Trabajadores con la razón social de su Empresa " +
-                $"({OpcionesPlantillaCaeCompleta.Seccion}:HojasTrabajadores); no se leyó ningún Trabajador ni Documento."));
+                "La plantilla CAE completa no tiene configuradas en este entorno las hojas de Trabajadores ni la Empresa de cada una; " +
+                "no se leyó ningún Trabajador ni Documento. Avisa a Soporte TALVEG para configurarlas."));
         }
 
         foreach (var hojaTrabajadores in hojasTrabajadores)

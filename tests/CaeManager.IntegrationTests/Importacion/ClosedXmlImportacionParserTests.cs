@@ -373,7 +373,7 @@ public class ClosedXmlImportacionParserTests
         plan.Trabajadores.Should().BeEmpty();
         plan.Empresas.Should().BeEmpty();
         var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Configuración").Subject;
-        omitido.Motivo.Should().Contain(OpcionesPlantillaCaeCompleta.Seccion);
+        omitido.Motivo.Should().Contain("no tiene configuradas").And.Contain("Trabajadores");
     }
 
     [Fact]

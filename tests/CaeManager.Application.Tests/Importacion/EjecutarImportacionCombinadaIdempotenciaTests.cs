@@ -45,6 +45,8 @@ public class EjecutarImportacionCombinadaIdempotenciaTests
 
         (await escenario.OperacionImportacionRepositorio.ExisteAsync(operacionId)).Should().BeFalse(
             "el fallo ocurrió antes de guardar de verdad: un reintento legítimo no puede creer que ya se hizo");
+        escenario.OperacionImportacionRepositorio.VecesDescartado.Should().Be(1,
+            "el contexto del circuito se comparte: lo pendiente (la marca y las altas) se descarta, no se deja para el siguiente guardado");
     }
 
     [Fact]
