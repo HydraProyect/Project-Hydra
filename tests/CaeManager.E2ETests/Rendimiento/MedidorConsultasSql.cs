@@ -39,7 +39,7 @@ public sealed partial class MedidorConsultasSql(string directorioLogs, string pa
     public Marca MarcarAhora()
     {
         var fichero = FicheroVigente();
-        return new Marca(fichero, fichero is null ? 0 : new FileInfo(fichero).Length);
+        return new Marca(fichero, fichero is null ? 0 : TamanoDe(fichero));
     }
 
     /// <summary>
@@ -56,7 +56,7 @@ public sealed partial class MedidorConsultasSql(string directorioLogs, string pa
         while (DateTime.UtcNow < limite)
         {
             var fichero = FicheroVigente();
-            var tamano = fichero is null ? 0 : new FileInfo(fichero).Length;
+            var tamano = fichero is null ? 0 : TamanoDe(fichero);
             if ((fichero, tamano) != ultimo)
             {
                 ultimo = (fichero, tamano);
@@ -94,7 +94,15 @@ public sealed partial class MedidorConsultasSql(string directorioLogs, string pa
             texto.AppendLine(lector.ReadToEnd());
         }
 
-        if (!ficheros.SequenceEqual(FicherosOrdenados(), StringComparer.OrdinalIgnoreCase))
+        // Solo importa el tramo leido (del fichero marcado en adelante): la retencion de Serilog
+        // puede borrar ficheros anteriores a la marca sin afectar al recuento.
+        var despues = FicherosOrdenados();
+        var cambio = ficheros.Length == 0
+            ? despues.Length != 0
+            : !ficheros.Skip(inicio).SequenceEqual(
+                despues.SkipWhile(f => !string.Equals(f, ficheros[inicio], StringComparison.OrdinalIgnoreCase)),
+                StringComparer.OrdinalIgnoreCase);
+        if (cambio)
             throw new InvalidOperationException("Los ficheros de log cambiaron durante la lectura: repite la medición.");
 
         var comandos = new List<ComandoSql>();
@@ -118,6 +126,14 @@ public sealed partial class MedidorConsultasSql(string directorioLogs, string pa
     /// </summary>
     public static int Contar(IEnumerable<ComandoSql> comandos, string fragmentoSql) =>
         comandos.Count(c => !c.EsAjustePorTenant && c.Sql.Contains(fragmentoSql, StringComparison.Ordinal));
+
+    // FileInfo.Length puede ir por detras del tamano real de un fichero que Serilog mantiene abierto;
+    // un FileStream compartido lo lee del manejador.
+    private static long TamanoDe(string fichero)
+    {
+        using var flujo = new FileStream(fichero, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        return flujo.Length;
+    }
 
     private string? FicheroVigente() => FicherosOrdenados().LastOrDefault();
 

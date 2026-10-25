@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using CaeManager.E2ETests.Rendimiento;
 
 namespace CaeManager.Web.Tests.Rendimiento;
@@ -64,6 +64,36 @@ public sealed class MedidorConsultasSqlTests : IDisposable
         var medidor = new MedidorConsultasSql(_directorio, "log-*.txt");
         var marca = medidor.MarcarAhora();
         File.WriteAllText(Path.Combine(_directorio, "log-20261025.txt"), Entrada("SELECT nuevo"));
+
+        Assert.Equal("SELECT nuevo", Assert.Single(medidor.ComandosDesde(marca)).Sql);
+    }
+
+    [Fact]
+    public void Ignora_los_ficheros_de_otra_fixture_y_no_cuenta_los_set_config()
+    {
+        var medidor = new MedidorConsultasSql(_directorio, "log-Mia-*.txt");
+        var marca = medidor.MarcarAhora();
+        File.WriteAllText(Path.Combine(_directorio, "log-Mia-20261025.txt"),
+            Entrada("SELECT 1 FROM \"Empresas\"") + Entrada("SELECT set_config('app.tenant', 'x', false)"));
+        File.WriteAllText(Path.Combine(_directorio, "log-Otra-20261026.txt"), Entrada("SELECT 1 FROM \"Empresas\""));
+
+        var comandos = medidor.ComandosDesde(marca);
+
+        Assert.Equal(2, comandos.Count);
+        Assert.Equal(1, MedidorConsultasSql.Contar(comandos, "FROM \"Empresas\""));
+    }
+
+    [Fact]
+    public void La_retencion_de_ficheros_anteriores_a_la_marca_no_invalida_el_recuento()
+    {
+        var medidor = new MedidorConsultasSql(_directorio, "log-*.txt");
+        var antiguo = Path.Combine(_directorio, "log-20261001.txt");
+        var marcado = Path.Combine(_directorio, "log-20261024.txt");
+        File.WriteAllText(antiguo, Entrada("SELECT antiguo"));
+        File.WriteAllText(marcado, Entrada("SELECT historial"));
+        var marca = medidor.MarcarAhora();
+        File.AppendAllText(marcado, Entrada("SELECT nuevo"));
+        File.Delete(antiguo);
 
         Assert.Equal("SELECT nuevo", Assert.Single(medidor.ComandosDesde(marca)).Sql);
     }
