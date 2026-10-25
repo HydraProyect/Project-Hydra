@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro;
 using CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtension;
 using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Auditoria;

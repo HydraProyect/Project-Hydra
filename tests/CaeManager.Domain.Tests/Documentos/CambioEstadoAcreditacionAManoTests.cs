@@ -199,4 +199,5 @@ public class CambioEstadoAcreditacionAManoTests
         acreditacion.Vigencia.Should().Be(vigencia);
         cambio.EstaDeshecho.Should().BeTrue();
         acreditacion.PuedeDeshacerCambioEstado(cambio.Id).Should().BeFalse("un cambio deshecho no se deshace dos veces");
-    }}
+    }
+}
