@@ -339,8 +339,7 @@ public static class DelegacionDemoSeeder
         await CrearAsync(Roles.Consulta, 1, "Consulta");
 
         logger.LogInformation(
-            "Usuarios de Refrielectric sembrados con contraseña de demo fijada; consulta la configuración. Email {Prefijo}<rol><n>@caemanager.local.",
-            PrefijoEmailRefrielectric);
+            "Usuarios de Refrielectric sembrados con contraseña de demo fijada; consulta la configuración.");
 
         return gestores;
     }
