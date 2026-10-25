@@ -30,8 +30,12 @@ public static class FacturacionEndpoints
                 CaeManager.Infrastructure.Identity.Roles.CoordinadorCae));
 
         endpoints.MapGet("/facturacion/resumen.xlsx", async (
-            Guid clienteId, int anyo, int mes, IMediator mediator, CancellationToken cancellationToken) =>
+            Guid clienteId, int anyo, int mes, IMediator mediator,
+            [Microsoft.AspNetCore.Mvc.FromServices] IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken) =>
         {
+            if (!await alcanceDatos.ClienteVisibleAsync(clienteId, cancellationToken))
+                return Results.NotFound();
+
             var resumen = await mediator.Send(new ObtenerResumenFacturacionQuery(clienteId, anyo, mes), cancellationToken);
             if (resumen is null)
                 return Results.NotFound();

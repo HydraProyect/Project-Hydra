@@ -1,5 +1,6 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Web.Services;
 using System.Text.Json;
 using CaeManager.Application.Auditoria.Queries;
@@ -21,13 +22,31 @@ namespace CaeManager.Web.Features.Auditoria;
 public static class AuditoriaEndpoints
 {
     public static async Task<IResult> ServirArchivoAnteriorAsync(Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-            IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
+            IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro, [Microsoft.AspNetCore.Mvc.FromServices] IAlcanceDatosService alcanceDatos, CancellationToken cancellationToken)
     {
         CabecerasArchivoSensible.ProhibirCache(contexto);
 
         var registro = await mediator.Send(new ObtenerRegistroAuditoriaPorIdQuery(id), cancellationToken);
         if (registro is null || registro.EntidadTipo != "Documento" || registro.DatosAntes is null)
             return Results.NotFound();
+
+        // Administrador puede tener el ámbito efectivo reducido por la lente de demo.
+        // Reutiliza la misma lectura autorizada que el PDF vigente antes de abrir el histórico.
+        // El acceso total conserva también la lectura de históricos de Documentos eliminados.
+        // Mismo tratamiento del contexto no autorizado que DocumentosEndpoints.ServirArchivoAsync.
+        if (!await alcanceDatos.TieneAccesoTotalAsync(cancellationToken))
+        {
+            try
+            {
+                if (await mediator.Send(new ObtenerDocumentoPorIdQuery(registro.EntidadId), cancellationToken) is null)
+                    return Results.NotFound();
+            }
+            catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
+            {
+                return ErroresLecturaSensible.Responder(contexto, ex, registro.EntidadId,
+                    fabricaRegistro.CreateLogger(typeof(AuditoriaEndpoints).FullName!));
+            }
+        }
 
         string? archivoUrl = null;
         try
