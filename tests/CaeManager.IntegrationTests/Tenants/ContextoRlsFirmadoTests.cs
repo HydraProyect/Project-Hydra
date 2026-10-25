@@ -10,8 +10,6 @@ using CaeManager.Migrations.PostgreSQL;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
@@ -28,8 +26,10 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// fase «contraer»: <c>ContraeContextoRlsFirmado</c> aplicó
 /// <see cref="ReescrituraPoliticasContextoRls"/> a todas las políticas y
 /// funciones. Aquí se demuestra que en ese estado las cuatro propiedades del
-/// encargo se cumplen, que la reescritura cubre todo lo que leía GUC sueltas y
-/// que su <c>Down</c> devuelve el catálogo exactamente al estado anterior.
+/// encargo se cumplen y que la reescritura cubre todo lo que leía GUC sueltas.
+/// Que su <c>Down</c> devuelve el catálogo al estado anterior lo prueba
+/// <c>Migraciones/ContraeContextoRlsFirmadoTests</c>, que maneja el migrador y
+/// por eso parte de una base sin crear en vez de un clon ya migrado.
 /// </para>
 ///
 /// <para>
@@ -410,8 +410,6 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
 
     // ── La reescritura: cubre todas las políticas que existen hoy ────────
 
-    private const string MigracionContraer = "20261025120000_ContraeContextoRlsFirmado";
-
     [Fact]
     public async Task Tras_contraer_ninguna_politica_ni_funcion_lee_las_GUC_sueltas()
     {
@@ -429,50 +427,6 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
             .Select(f => f.Key).Should().BeEmpty("una función SECURITY DEFINER que leyera la GUC suelta la creería");
         funciones["app_enmascarar_auditoria_de_trabajador_anonimizado(uuid)"].Should().Contain(
             "public.app_ctx_tenant_id() " + ReescrituraPoliticasContextoRls.MarcaFuncion);
-    }
-
-    /// <summary>
-    /// El <c>Down</c> de «contraer» devuelve el catálogo exactamente al de una
-    /// base migrada solo hasta la migración anterior, y volver a subir deja el
-    /// mismo catálogo que la primera vez: la reescritura es simétrica, no
-    /// pierde ni añade ninguna política, cláusula o función.
-    /// </summary>
-    [Fact]
-    public async Task La_migracion_de_contraer_es_reversible_y_cubre_todas_las_politicas()
-    {
-        var politicasTrasContraer = await CatalogoDePoliticasAsync(_cadenaPropietario);
-        var funcionesTrasContraer = await DefinicionesDeFuncionesAsync();
-
-        var anterior = await MigrarAAnteriorAContraerAsync(_cadenaPropietario);
-
-        var politicasTrasDown = await CatalogoDePoliticasAsync(_cadenaPropietario);
-        var conGuc = politicasTrasDown.Count(p => p.Value.Contains("current_setting('app.", StringComparison.Ordinal));
-        conGuc.Should().BeGreaterThan(100, "control del instrumento: antes de contraer las políticas leían app.*");
-        politicasTrasDown.Values.Should().NotContain(v => v.Contains("app_ctx_", StringComparison.Ordinal),
-            "ninguna política leía el contexto validado antes de contraer");
-        politicasTrasContraer.Count(p => p.Value.Contains("app_ctx_", StringComparison.Ordinal)).Should().Be(conGuc,
-            "cada política que leía una GUC suelta pasa al contexto validado, ni una menos");
-        (await DefinicionesDeFuncionesAsync())["app_enmascarar_auditoria_de_trabajador_anonimizado(uuid)"]
-            .Should().Contain("NULLIF(current_setting('app.tenant_id', true), '')::uuid")
-            .And.NotContain(ReescrituraPoliticasContextoRls.MarcaFuncion);
-
-        var referencia = BaseDatosPostgresDePruebas.CadenaConexionDeBaseVacia();
-        try
-        {
-            await using (var contexto = CrearContextoPropietario(referencia))
-                await contexto.GetService<IMigrator>().MigrateAsync(anterior);
-            politicasTrasDown.Should().Equal(await CatalogoDePoliticasAsync(referencia),
-                "el Down deja cada política como la creó la migración anterior");
-        }
-        finally
-        {
-            await BaseDatosPostgresDePruebas.EliminarAsync(referencia);
-        }
-
-        await using (var contexto = CrearContextoPropietario())
-            await contexto.Database.MigrateAsync();
-        (await CatalogoDePoliticasAsync(_cadenaPropietario)).Should().Equal(politicasTrasContraer);
-        (await DefinicionesDeFuncionesAsync()).Should().Equal(funcionesTrasContraer);
     }
 
     [Fact]
@@ -529,37 +483,6 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         comando.CommandText = "SELECT public.app_enmascarar_auditoria_de_trabajador_anonimizado(@id);";
         comando.Parameters.AddWithValue("id", Guid.NewGuid());
         return Convert.ToInt32(await comando.ExecuteScalarAsync());
-    }
-
-    private async Task<string> MigrarAAnteriorAContraerAsync(string cadena)
-    {
-        await using var contexto = CrearContextoPropietario(cadena);
-        var migraciones = contexto.Database.GetMigrations().ToList();
-        var indice = migraciones.IndexOf(MigracionContraer);
-        indice.Should().BeGreaterThan(0, "control del instrumento: la migración de contraer está en el ensamblado");
-        var anterior = migraciones[indice - 1];
-        await contexto.GetService<IMigrator>().MigrateAsync(anterior);
-        return anterior;
-    }
-
-    private static async Task<Dictionary<string, string>> CatalogoDePoliticasAsync(string cadena)
-    {
-        await using var conexion = new NpgsqlConnection(cadena);
-        await conexion.OpenAsync();
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = @"
-SELECT n.nspname || '.' || cl.relname || '.' || pol.polname,
-       pol.polcmd::text || '|' || pol.polpermissive::text || '|' || pol.polroles::text || '|' ||
-       coalesce(pg_get_expr(pol.polqual, pol.polrelid), '<sin USING>') || '|' ||
-       coalesce(pg_get_expr(pol.polwithcheck, pol.polrelid), '<sin WITH CHECK>')
-  FROM pg_policy pol
-  JOIN pg_class cl ON cl.oid = pol.polrelid
-  JOIN pg_namespace n ON n.oid = cl.relnamespace;";
-        var resultado = new Dictionary<string, string>();
-        await using var lector = await comando.ExecuteReaderAsync();
-        while (await lector.ReadAsync())
-            resultado[lector.GetString(0)] = lector.GetString(1);
-        return resultado;
     }
 
     private async Task<Dictionary<string, string>> DefinicionesDeFuncionesAsync()

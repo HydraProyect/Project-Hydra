@@ -208,8 +208,14 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
         return ids;
     }
 
+    /// <summary>
+    /// Como <see cref="AdoptarRolRestringido"/> sin Tenant: contexto firmado sin
+    /// Tenant ni usuario, y después el rol de tráfico. Así el cero de la lectura
+    /// se debe a que no hay usuario en el contexto, no a que falte el token.
+    /// </summary>
     private static async Task AdoptarRolRestringidoAsync(NpgsqlConnection conexion)
     {
+        await ContextoRlsDePruebas.FijarAsync(conexion);
         await using var comando = conexion.CreateCommand();
         comando.CommandText = "SET ROLE cae_app_runtime;";
         await comando.ExecuteNonQueryAsync();
@@ -268,10 +274,14 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
         private void Preparar(DbConnection conexion)
         {
             // Contexto firmado primero, rol después (el interceptor real hace lo mismo).
-            // Sin coordenada de tenant: es el contexto del arranque, que no tiene
-            // sesión de usuario ni workspace, y no se firma nada.
-            if (tenant is { } valor)
-                ContextoRlsDePruebas.FijarAsync((NpgsqlConnection)conexion, tenantId: valor).GetAwaiter().GetResult();
+            // Sin coordenada de tenant (tenant null) es el contexto del arranque, sin
+            // sesión de usuario ni Workspace operativo derivado, y aun así se firma:
+            // TenantRlsConnectionInterceptor firma en cada apertura, también un
+            // contexto sin Tenant ni usuario. Es lo que hace casar la excepción de
+            // bootstrap del INSERT («contexto firmado válido y sin usuario»). El
+            // origen del token difiere (aquí Ambito, allí Anonimo), pero
+            // app_contexto_validado no lo valida.
+            ContextoRlsDePruebas.FijarAsync((NpgsqlConnection)conexion, tenantId: tenant).GetAwaiter().GetResult();
 
             using var comando = conexion.CreateCommand();
             comando.CommandText = "SET ROLE cae_app_runtime;";
