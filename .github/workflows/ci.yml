@@ -620,6 +620,7 @@ jobs:
       # En coverage-web y NO bajo coverage/: el informe del núcleo recoge
       # coverage/**, y la Web tiene su propio universo y su propio trinquete.
       - name: Recoger la cobertura de la Web (bUnit)
+        id: recoger-cobertura-web
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cobertura-web
@@ -931,8 +932,20 @@ jobs:
             exit 1
           fi
 
+      # Condición (2026-10-25): corre aunque haya fallado el trinquete del
+      # núcleo (de ahí el always()), pero solo si «Exigir…» pasó y el
+      # artefacto de bUnit se descargó. Con un always() a secas, cuando caía
+      # otro job el paso «Exigir…» ya ponía el job en rojo y este corría igual
+      # sobre un coveragereport-web/Summary.json que no existía: un segundo
+      # rojo, «Umbral de cobertura de la Web», que no era una pérdida de
+      # cobertura y llevaba a buscar la causa donde no estaba (61 de los 63
+      # runs fallidos medidos del 22 al 25-10). No abre ningún hueco: si este paso se salta es
+      # porque «Exigir…» o «Recoger la cobertura de la Web» fallaron, y
+      # cualquiera de los dos deja el job en rojo por sí solo. Con el artefacto
+      # descargado, si el informe no se generó, el paso corre y falla, como
+      # antes.
       - name: Umbral de cobertura de la Web (ratchet)
-        if: always()
+        if: always() && steps.exigir.outcome == 'success' && steps.recoger-cobertura-web.outcome == 'success'
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
           umbral="61.2"  # Web: 61,4 % medido (run 35169698302, main@bc9dfa3a) − 0,2
