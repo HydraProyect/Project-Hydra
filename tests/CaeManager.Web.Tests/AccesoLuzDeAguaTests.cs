@@ -147,6 +147,17 @@ public class AccesoLuzDeAguaTests : BunitContext
     }
 
     [Fact]
+    public void El_error_de_SSO_sin_segundo_factor_dice_a_quien_pedirlo()
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/iniciar-sesion?ErrorSso=sin-mfa");
+
+        var cut = Render<Login>();
+
+        cut.Find("[role=alert]").TextContent.Should().Be(
+            $"Tu inicio de sesión con Microsoft no incluyó la verificación en dos pasos, y tu cuenta de {Marca.Nombre} no la tiene configurada. Pide a tu Administrador que active la verificación en dos pasos en Microsoft.");
+    }
+
+    [Fact]
     public void El_error_de_SSO_fallido_se_dice_como_alerta()
     {
         Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/iniciar-sesion?ErrorSso=fallo");

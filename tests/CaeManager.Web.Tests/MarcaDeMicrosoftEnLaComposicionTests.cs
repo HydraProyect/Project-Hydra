@@ -37,6 +37,32 @@ public class MarcaDeMicrosoftEnLaComposicionTests
             RestriccionLoginLocalClaimsTransformation.MetodoLoginSso).Should().BeTrue();
     }
 
+    /// <summary>
+    /// La sesión que Identity emite tras el TOTP de TALVEG del inicio con Microsoft (D-2)
+    /// lleva la marca que pone <see cref="SignInManagerCuentaDesactivada.ConMarcaDeInicioConMicrosoft"/>,
+    /// y el gancho de la composición real la conserva al revalidar la cookie.
+    /// </summary>
+    [Fact]
+    public async Task La_marca_de_la_sesion_tras_el_TOTP_del_inicio_con_Microsoft_sobrevive_a_la_revalidacion()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
+        using var proveedor = servicios.BuildServiceProvider();
+        var opciones = proveedor.GetRequiredService<IOptions<SecurityStampValidatorOptions>>().Value;
+
+        var trasElTotp = SignInManagerCuentaDesactivada.ConMarcaDeInicioConMicrosoft(
+            [new Claim("amr", "mfa"), new Claim(ClaimTypes.AuthenticationMethod, AzureAdOptions.Esquema)]);
+        var contexto = new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = new ClaimsPrincipal(new ClaimsIdentity(trasElTotp, "Prueba")),
+            NewPrincipal = new ClaimsPrincipal(new ClaimsIdentity("Prueba")),
+        };
+        await opciones.OnRefreshingPrincipal!(contexto);
+
+        contexto.NewPrincipal!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().ContainSingle(c => c.Value == RestriccionLoginLocalClaimsTransformation.MetodoLoginSso);
+    }
+
     private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Testing";

@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using System.Text.Json;
 using CaeManager.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
@@ -41,6 +43,180 @@ public static class InicioSesionMicrosoft
         options.Scope.Add("openid");
         options.Scope.Add("profile");
         options.Scope.Add("email");
+
+        // Contexto de autenticación (D-2): se pide en cada inicio para que el Acceso
+        // condicional que IT asocie a él se aplique y vuelva en «acrs».
+        if (SolicitudContextoAutenticacion(azureAd.ContextoAutenticacionMfa) is { } solicitud)
+        {
+            options.Events.OnRedirectToIdentityProvider = contexto =>
+            {
+                contexto.ProtocolMessage.SetParameter("claims", solicitud);
+                return Task.CompletedTask;
+            };
+        }
+    }
+
+    /// <summary>
+    /// El parámetro <c>claims</c> que pide a Entra el contexto de autenticación en el
+    /// token de ID, o <c>null</c> si no hay contexto configurado.
+    /// </summary>
+    public static string? SolicitudContextoAutenticacion(string? contexto) =>
+        string.IsNullOrWhiteSpace(contexto)
+            ? null
+            : JsonSerializer.Serialize(new { id_token = new { acrs = new { essential = true, value = contexto.Trim() } } });
+
+    // «amr» llega con su nombre o, con el mapeo de entrada del manejador, con este.
+    private static readonly string[] TiposClaimAmr = ["amr", "http://schemas.microsoft.com/claims/authnmethodsreferences"];
+
+    /// <summary>
+    /// Si el token de Microsoft acredita la MFA (decisión D-2, exactamente en este
+    /// orden): el contexto de autenticación configurado en <c>acrs</c>; si no, <c>mfa</c>
+    /// en <c>amr</c>. Sin contexto configurado, <c>acrs</c> no se mira.
+    /// </summary>
+    public static bool MfaAcreditadaPorMicrosoft(ClaimsPrincipal principalExterno, string? contextoAutenticacionMfa)
+    {
+        ArgumentNullException.ThrowIfNull(principalExterno);
+
+        if (!string.IsNullOrWhiteSpace(contextoAutenticacionMfa)
+            && principalExterno.FindAll("acrs").SelectMany(Valores).Contains(contextoAutenticacionMfa.Trim(), StringComparer.Ordinal))
+            return true;
+
+        return principalExterno.Claims.Where(c => TiposClaimAmr.Contains(c.Type, StringComparer.Ordinal))
+            .SelectMany(Valores).Contains("mfa", StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// Qué hace el callback con el segundo factor: sesión directa si Microsoft acreditó
+    /// la MFA; si no, el TOTP de TALVEG por el mismo paso que el inicio con contraseña;
+    /// y sin TOTP configurado, rechazo (no se emite sesión).
+    /// <para>
+    /// Excepción: una identidad que se vincula por primera vez (<paramref name="vinculoNuevo"/>)
+    /// a una cuenta con TOTP configurado pasa siempre por el TOTP, aunque Microsoft
+    /// acreditara la MFA, y se vincula solo al superarlo (<see cref="CompletarVinculoPendienteAsync"/>).
+    /// La MFA de Microsoft prueba quién controla la identidad del directorio, no que
+    /// sea la persona de la cuenta: el vínculo se decide por el correo, que en Entra
+    /// edita quien administra el directorio. Sin esta excepción, otra identidad del
+    /// mismo directorio con ese correo se quedaría con una cuenta que exige TOTP sin
+    /// haberlo superado nunca.
+    /// </para>
+    /// </summary>
+    public static SegundoFactorMicrosoft DecidirSegundoFactor(bool mfaAcreditadaPorMicrosoft, bool totpConfigurado, bool vinculoNuevo) =>
+        totpConfigurado && vinculoNuevo ? SegundoFactorMicrosoft.PedirTotp
+        : mfaAcreditadaPorMicrosoft ? SegundoFactorMicrosoft.SesionDirecta
+        : totpConfigurado ? SegundoFactorMicrosoft.PedirTotp
+        : SegundoFactorMicrosoft.RechazarSinSegundoFactor;
+
+    /// <summary>Clave de la identidad de Microsoft que se vinculará a la cuenta al superar el TOTP.</summary>
+    public const string TipoClaimVinculoPendiente = "talveg:microsoft_vinculo_pendiente";
+
+    /// <summary>Nombre visible del proveedor de ese vínculo pendiente.</summary>
+    public const string TipoClaimVinculoPendienteNombre = "talveg:microsoft_vinculo_pendiente_nombre";
+
+    /// <summary>
+    /// El principal de la cookie de dos pasos de Identity
+    /// (<see cref="IdentityConstants.TwoFactorUserIdScheme"/>), con la misma forma que
+    /// escribe <c>PasswordSignInAsync</c>: el Id de la cuenta y el proveedor externo. Con
+    /// él, <c>LoginCon2fa</c> verifica el TOTP como en el inicio con contraseña, e
+    /// Identity deja el proveedor en la sesión que emite.
+    /// <para>
+    /// Con <paramref name="vinculoPendiente"/>, la identidad de Microsoft que se vinculará
+    /// al superar el TOTP viaja en la misma cookie, cifrada y firmada por el servidor,
+    /// junto al Id de la cuenta: no puede acabar vinculada a otra cuenta que la decidida
+    /// aquí. El inicio con contraseña escribe su propia cookie de dos pasos, sin ella.
+    /// </para>
+    /// </summary>
+    public static ClaimsPrincipal PrincipalSegundoFactorPendiente(Guid usuarioId, UserLoginInfo? vinculoPendiente)
+    {
+        var identidad = new ClaimsIdentity(IdentityConstants.TwoFactorUserIdScheme);
+        identidad.AddClaim(new Claim(ClaimTypes.Name, usuarioId.ToString()));
+        identidad.AddClaim(new Claim(ClaimTypes.AuthenticationMethod, AzureAdOptions.Esquema));
+        if (vinculoPendiente is not null)
+        {
+            if (vinculoPendiente.LoginProvider != AzureAdOptions.Esquema)
+                throw new ArgumentException("Solo se vinculan identidades de Microsoft.", nameof(vinculoPendiente));
+            identidad.AddClaim(new Claim(TipoClaimVinculoPendiente, vinculoPendiente.ProviderKey));
+            identidad.AddClaim(new Claim(TipoClaimVinculoPendienteNombre, vinculoPendiente.ProviderDisplayName ?? AzureAdOptions.Esquema));
+        }
+        return new ClaimsPrincipal(identidad);
+    }
+
+    /// <summary>
+    /// El vínculo pendiente de la cookie de dos pasos que escribió el callback, o
+    /// <c>null</c> si no hay (inicio con contraseña, o identidad ya vinculada).
+    /// </summary>
+    public static UserLoginInfo? VinculoPendiente(ClaimsPrincipal? principalSegundoFactor)
+    {
+        if (principalSegundoFactor?.FindFirstValue(ClaimTypes.AuthenticationMethod) != AzureAdOptions.Esquema)
+            return null;
+        var clave = principalSegundoFactor.FindFirstValue(TipoClaimVinculoPendiente);
+        return string.IsNullOrWhiteSpace(clave)
+            ? null
+            : new UserLoginInfo(AzureAdOptions.Esquema, clave,
+                principalSegundoFactor.FindFirstValue(TipoClaimVinculoPendienteNombre) ?? AzureAdOptions.Esquema);
+    }
+
+    /// <summary>
+    /// Qué hacer con el vínculo pendiente al superar el TOTP, según los vínculos que
+    /// la cuenta tenga ahora (pudieron cambiar desde el callback).
+    /// </summary>
+    public static DecisionVinculoTrasTotp DecidirVinculoTrasTotp(IEnumerable<UserLoginInfo> vinculosDeLaCuenta, string clave)
+    {
+        ArgumentNullException.ThrowIfNull(vinculosDeLaCuenta);
+        var deMicrosoft = vinculosDeLaCuenta.Where(v => v.LoginProvider == AzureAdOptions.Esquema).ToList();
+        if (deMicrosoft.Any(v => string.Equals(v.ProviderKey, clave, StringComparison.Ordinal)))
+            return DecisionVinculoTrasTotp.YaVinculada;
+        return deMicrosoft.Count > 0 ? DecisionVinculoTrasTotp.RechazarOtraIdentidad : DecisionVinculoTrasTotp.Vincular;
+    }
+
+    /// <summary>
+    /// Vincula a la cuenta, tras superar su TOTP, la identidad de Microsoft que el
+    /// callback dejó pendiente. <c>false</c> si no queda vinculada: la cuenta ya tiene
+    /// otra identidad de Microsoft, la identidad ya es de otra cuenta, o el guardado falla. Quien llama cierra entonces la
+    /// sesión recién emitida, como hace el callback cuando el vínculo no se guarda.
+    /// </summary>
+    public static async Task<bool> CompletarVinculoPendienteAsync(
+        UserManager<ApplicationUser> userManager, ApplicationUser usuario, UserLoginInfo vinculo)
+    {
+        ArgumentNullException.ThrowIfNull(userManager);
+        ArgumentNullException.ThrowIfNull(usuario);
+        ArgumentNullException.ThrowIfNull(vinculo);
+
+        switch (DecidirVinculoTrasTotp(await userManager.GetLoginsAsync(usuario), vinculo.ProviderKey))
+        {
+            case DecisionVinculoTrasTotp.YaVinculada:
+                return true;
+            case DecisionVinculoTrasTotp.RechazarOtraIdentidad:
+                return false;
+        }
+
+        // La identidad pudo quedar vinculada a otra cuenta entre el callback y el TOTP
+        // (la cookie de dos pasos vive minutos): no se vincula. Se mira antes de
+        // guardar porque la clave del vínculo es única y el choque lanzaría.
+        if (await userManager.FindByLoginAsync(vinculo.LoginProvider, vinculo.ProviderKey) is { } duena)
+            return duena.Id == usuario.Id;
+
+        if ((await userManager.AddLoginAsync(usuario, vinculo)).Succeeded)
+            return true;
+
+        // Dos verificaciones a la vez del mismo inicio: la otra pudo guardarlo antes.
+        return DecidirVinculoTrasTotp(await userManager.GetLoginsAsync(usuario), vinculo.ProviderKey)
+            == DecisionVinculoTrasTotp.YaVinculada;
+    }
+
+    // Un valor por notificación o, según la versión del lector de tokens, una lista JSON.
+    private static IEnumerable<string> Valores(Claim claim)
+    {
+        var valor = claim.Value.Trim();
+        if (!valor.StartsWith('['))
+            return [valor];
+        try
+        {
+            return JsonSerializer.Deserialize<string[]>(valor) ?? [];
+        }
+        catch (JsonException)
+        {
+            return [];
+        }
     }
 
     /// <summary>Desafío del botón «continuar con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.</summary>
@@ -177,4 +353,30 @@ public enum DecisionCuentaMicrosoft
 
     /// <summary>Falta <see cref="AzureAdOptions.TenantHydraId"/>: no se sabe a qué Tenant pertenecería nadie.</summary>
     RechazarSinTenantDestino,
+}
+
+/// <summary>Resultado de <see cref="InicioSesionMicrosoft.DecidirSegundoFactor"/>.</summary>
+public enum SegundoFactorMicrosoft
+{
+    /// <summary>Microsoft acreditó la MFA (<c>acrs</c> con el contexto configurado, o <c>amr</c> con <c>mfa</c>).</summary>
+    SesionDirecta,
+
+    /// <summary>Sin MFA de Microsoft: se pide el TOTP de TALVEG antes de emitir la sesión.</summary>
+    PedirTotp,
+
+    /// <summary>Sin MFA de Microsoft ni TOTP configurado: no se emite sesión.</summary>
+    RechazarSinSegundoFactor,
+}
+
+/// <summary>Resultado de <see cref="InicioSesionMicrosoft.DecidirVinculoTrasTotp"/>.</summary>
+public enum DecisionVinculoTrasTotp
+{
+    /// <summary>La cuenta no tiene identidad de Microsoft: se vincula la pendiente.</summary>
+    Vincular,
+
+    /// <summary>La cuenta ya tiene vinculada justo esta identidad: nada que hacer.</summary>
+    YaVinculada,
+
+    /// <summary>La cuenta ya tiene otra identidad de Microsoft: no se añade una segunda.</summary>
+    RechazarOtraIdentidad,
 }

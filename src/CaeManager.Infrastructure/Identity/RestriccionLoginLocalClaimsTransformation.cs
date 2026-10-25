@@ -13,10 +13,14 @@ namespace CaeManager.Infrastructure.Identity;
 /// <see cref="Roles.Consulta"/> (solo lectura) —, y nunca con más alcance que
 /// su rol real: Cliente conserva su rol y una cuenta sin rol sigue sin él (ver
 /// <c>RolLimitado</c>). El login local con contraseña sigue
-/// funcionando (no se bloquea), pero deja de dar permisos de edición. El
-/// callback de Microsoft (ver IdentityEndpointsExtensions) es el único
-/// lugar que añade <see cref="MetodoLoginSso"/> al iniciar sesión, y
-/// <see cref="ConservarMetodoLoginAlRevalidar"/> la conserva al revalidar la cookie.
+/// funcionando (no se bloquea), pero deja de dar permisos de edición. Solo el
+/// inicio con Microsoft añade <see cref="MetodoLoginSso"/> al iniciar sesión: el
+/// callback (ver IdentityEndpointsExtensions) cuando Microsoft acredita la MFA, y
+/// <see cref="SignInManagerCuentaDesactivada.ConMarcaDeInicioConMicrosoft"/> en la
+/// sesión que Identity emite tras el TOTP de TALVEG de ese mismo inicio (D-2, la
+/// cookie de dos pasos que escribe el callback lleva el proveedor Microsoft).
+/// <see cref="ConservarMetodoLoginAlRevalidar"/> la conserva al revalidar la cookie
+/// y <see cref="SignInManagerCuentaDesactivada.RefreshSignInAsync"/> al reemitirla.
 /// Inerte mientras <see cref="AzureAdOptions.EstaConfigurado"/> sea falso,
 /// para no bloquear el login local antes de tener SSO activo (arranque en
 /// frío del propio Administrador) — mismo principio "inerte por defecto"
