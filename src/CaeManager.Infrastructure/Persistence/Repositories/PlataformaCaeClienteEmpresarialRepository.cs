@@ -16,22 +16,9 @@ public class PlataformaCaeClienteEmpresarialRepository(CaeManagerDbContext dbCon
         "IX_AccesosPlataformaCaeEmpresa_TenantId_ClienteEmpresarialId_E~",
     ];
 
-    public async Task<PlataformaCaeClienteEmpresarial?> ObtenerPlataformaAsync(Guid clienteEmpresarialId, CancellationToken cancellationToken = default)
-    {
-        // El DbContext es el del circuito: si este circuito ya guardó la plataforma, la consulta devuelve la copia
-        // rastreada sin refrescarla, y GuardarPlataformaCaeClienteCommand compararía la Version de pantalla con un
-        // token viejo (conflicto falso permanente tras la edición de otra persona). Se relee solo en ese caso.
-        var yaRastreada = dbContext.ChangeTracker.Entries<PlataformaCaeClienteEmpresarial>()
-            .Any(e => e.Entity.ClienteEmpresarialId == clienteEmpresarialId);
-        var plataforma = await dbContext.PlataformasCaeClienteEmpresarial
-            .FirstOrDefaultAsync(p => p.ClienteEmpresarialId == clienteEmpresarialId, cancellationToken);
-        if (plataforma is null || !yaRastreada)
-            return plataforma;
-
-        var entrada = dbContext.Entry(plataforma);
-        await entrada.ReloadAsync(cancellationToken);
-        return entrada.State == EntityState.Detached ? null : plataforma;
-    }
+    public Task<PlataformaCaeClienteEmpresarial?> ObtenerPlataformaAsync(Guid clienteEmpresarialId, CancellationToken cancellationToken = default) =>
+        dbContext.ObtenerActualAsync(dbContext.PlataformasCaeClienteEmpresarial
+            .Where(p => p.ClienteEmpresarialId == clienteEmpresarialId), cancellationToken);
 
     public void AgregarPlataforma(PlataformaCaeClienteEmpresarial plataforma) => dbContext.PlataformasCaeClienteEmpresarial.Add(plataforma);
 
@@ -53,11 +40,8 @@ public class PlataformaCaeClienteEmpresarialRepository(CaeManagerDbContext dbCon
             // Otra persona cambió la plataforma entre la comprobación de Version y el UPDATE. La edición perdida
             // no se queda Modified (con el token que le dio el interceptor) para que el siguiente SaveChanges del
             // circuito la reintente, ni su auditoría Added. ConcurrenciaBehavior traduce la excepción al conflicto.
-            foreach (var entrada in dbContext.ChangeTracker.Entries()
-                         .Where(e => e.Entity is PlataformaCaeClienteEmpresarial or AccesoPlataformaCaeEmpresa
-                                     || (e.Entity is RegistroAuditoria && e.State == EntityState.Added))
-                         .ToList())
-                entrada.State = EntityState.Detached;
+            ConcurrenciaContexto.DescartarEdicionPerdida(dbContext, dbContext.ChangeTracker.Entries()
+                .Where(e => e.Entity is PlataformaCaeClienteEmpresarial or AccesoPlataformaCaeEmpresa));
             throw;
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException

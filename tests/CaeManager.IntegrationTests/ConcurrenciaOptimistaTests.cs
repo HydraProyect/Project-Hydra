@@ -160,6 +160,96 @@ public class ConcurrenciaOptimistaTests : IAsyncLifetime
         almacenada.RefreshToken.Should().Be("refresh-token-rotado-por-el-primero");
     }
 
+    [Fact]
+    public async Task El_mismo_circuito_relee_la_version_tras_una_edicion_externa()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var primera = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        primera.ActualizarComoCliente("Primera edición", "B12345674", false, null);
+        await circuito.SaveChangesAsync();
+        var versionAnterior = primera.Version;
+
+        Guid versionPantalla;
+        await using (var otraPersona = CrearContexto())
+        {
+            var externa = await otraPersona.Empresas.SingleAsync(e => e.Id == _clienteId);
+            externa.ActualizarComoCliente("Edición externa", "B12345674", false, null);
+            await otraPersona.SaveChangesAsync();
+            versionPantalla = externa.Version;
+        }
+
+        var segunda = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        segunda.Should().BeSameAs(primera);
+        segunda.Version.Should().Be(versionPantalla).And.NotBe(versionAnterior);
+        segunda.RazonSocial.Should().Be("Edición externa");
+        CaeManager.Application.Common.ConcurrenciaOptimista.Verificar(segunda, versionPantalla, "esta empresa")
+            .Should().BeNull();
+        segunda.ActualizarComoCliente("Segunda edición del circuito", "B12345674", false, null);
+        await circuito.SaveChangesAsync();
+
+        await using var comprobacion = CrearContexto();
+        (await comprobacion.Empresas.SingleAsync(e => e.Id == _clienteId)).RazonSocial
+            .Should().Be("Segunda edición del circuito");
+    }
+
+    [Fact]
+    public async Task Releer_una_entidad_con_cambios_pendientes_de_la_operacion_no_los_pierde()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var empresa = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        empresa.ActualizarComoCliente("Cambio aún sin guardar", "B12345674", false, null);
+
+        var otraLectura = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+
+        otraLectura.Should().BeSameAs(empresa);
+        otraLectura.RazonSocial.Should().Be("Cambio aún sin guardar");
+        circuito.Entry(otraLectura).State.Should().Be(EntityState.Modified);
+    }
+
+    [Fact]
+    public async Task Releer_una_entidad_que_arrastra_un_guardado_fallido_la_deja_como_en_la_base()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var empresa = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        var versionEnBase = empresa.Version;
+        var razonSocialEnBase = empresa.RazonSocial;
+        // Lo que deja un SaveChanges que falla sin conflicto (cancelación, restricción no traducida):
+        // la edición sigue Modified con el token que le dio ConcurrenciaOptimistaInterceptor.
+        empresa.ActualizarComoCliente("Guardado que nunca llegó", "B12345674", false, null);
+        circuito.Entry(empresa).Property(nameof(CaeManager.Domain.Common.IVersionable.Version)).CurrentValue = Guid.NewGuid();
+
+        var otraLectura = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+
+        otraLectura.Should().BeSameAs(empresa);
+        otraLectura.Version.Should().Be(versionEnBase);
+        otraLectura.RazonSocial.Should().Be(razonSocialEnBase);
+        circuito.Entry(otraLectura).State.Should().Be(EntityState.Unchanged);
+    }
+
+    [Fact]
+    public async Task Tras_una_carrera_real_el_siguiente_guardado_del_circuito_no_reintenta_la_edicion()
+    {
+        await using var circuito = CrearContexto();
+        var repositorio = new CaeManager.Infrastructure.Persistence.Repositories.EmpresaRepository(circuito);
+        var perdida = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        await using (var otraPersona = CrearContexto())
+        {
+            var externa = await otraPersona.Empresas.SingleAsync(e => e.Id == _clienteId);
+            externa.ActualizarComoCliente("Edición ganadora", "B12345674", false, null);
+            await otraPersona.SaveChangesAsync();
+        }
+        perdida.ActualizarComoCliente("Edición perdida", "B12345674", false, null);
+        Func<Task> guardar = async () => await circuito.SaveChangesAsync();
+        await guardar.Should().ThrowAsync<DbUpdateConcurrencyException>();
+        circuito.Entry(perdida).State.Should().Be(EntityState.Detached);
+        (await circuito.SaveChangesAsync()).Should().Be(0);
+        var actual = (await repositorio.ObtenerPorIdAsync(_clienteId))!;
+        actual.RazonSocial.Should().Be("Edición ganadora");
+    }
+
     private CaeManagerDbContext CrearContexto()
     {
         var tenantActual = new TenantActualAmbiental { TenantId = _tenant };

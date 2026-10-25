@@ -8,7 +8,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class EmpresaRepository(CaeManagerDbContext dbContext) : IEmpresaRepository
 {
     public Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Empresas.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.Empresas.Where(e => e.Id == id), cancellationToken);
 
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.Empresas.AnyAsync(

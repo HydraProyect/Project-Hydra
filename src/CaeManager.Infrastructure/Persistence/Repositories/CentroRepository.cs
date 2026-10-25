@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class CentroRepository(CaeManagerDbContext dbContext) : ICentroRepository
 {
     public Task<Centro?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Centros.FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.Centros.Where(c => c.Id == id), cancellationToken);
 
     public Task<bool> ExisteConNombreEnClienteAsync(
         Guid clienteId, string nombre, Guid? excluirId = null, CancellationToken cancellationToken = default) =>

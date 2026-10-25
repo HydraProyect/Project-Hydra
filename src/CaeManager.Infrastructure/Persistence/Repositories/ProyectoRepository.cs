@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class ProyectoRepository(CaeManagerDbContext dbContext) : IProyectoRepository
 {
     public Task<Proyecto?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Proyectos.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.Proyectos.Where(p => p.Id == id), cancellationToken);
 
     public Task<bool> ExisteNombreParaClienteAsync(Guid clienteId, string nombre, Guid? excluirId = null, CancellationToken cancellationToken = default)
     {
