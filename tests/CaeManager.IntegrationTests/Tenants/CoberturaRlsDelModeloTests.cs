@@ -133,6 +133,42 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     private const string PoliticaPosicion = "posicion_en_la_asignacion";
 
     /// <summary>
+    /// <c>DelegacionesTenant</c> enlaza dos Tenants: RLS sin FORCE (ver <see cref="TablasConRlsSinForce"/>)
+    /// y dos políticas permisivas. La de sus extremos, para todas las órdenes, solo mira el Tenant
+    /// activo. La del Tenant de origen es solo SELECT: en una política de todas las órdenes su USING
+    /// decidiría también qué filas se borran o se reapuntan, y el Tenant de origen da lectura, nunca
+    /// escritura.
+    /// </summary>
+    [Fact]
+    public async Task Las_delegaciones_entre_Tenants_tienen_RLS_y_solo_las_politicas_de_sus_extremos()
+    {
+        var estado = await LeerEstadoRlsAsync(["DelegacionesTenant"]);
+        var tabla = estado["DelegacionesTenant"];
+        tabla.Habilitado.Should().BeTrue();
+        tabla.Politicas.Select(p => p.Nombre).Should().BeEquivalentTo(
+            ["extremos_de_la_delegacion", "organizacion_de_origen_lee_sus_delegaciones"]);
+
+        var extremos = tabla.Politicas.Single(p => p.Nombre == "extremos_de_la_delegacion");
+        extremos.Permisiva.Should().BeTrue();
+        extremos.Comando.Should().Be('*');
+        foreach (var expresion in new[] { extremos.Using, extremos.WithCheck })
+        {
+            expresion.Should().NotBeNull();
+            expresion!.Should().Contain("TenantConsultoraId").And.Contain("TenantClienteId")
+                .And.Contain("app_ctx_tenant_id()").And.NotContain("app_ctx_tenant_origen_id()")
+                .And.NotContain("current_setting(");
+        }
+
+        var origen = tabla.Politicas.Single(p => p.Nombre == "organizacion_de_origen_lee_sus_delegaciones");
+        origen.Permisiva.Should().BeTrue();
+        origen.Comando.Should().Be('r', "el Tenant de origen solo abre la lectura");
+        origen.WithCheck.Should().BeNull();
+        origen.Using.Should().NotBeNull();
+        origen.Using!.Should().Contain("TenantConsultoraId").And.Contain("TenantClienteId")
+            .And.Contain("app_ctx_tenant_origen_id()").And.NotContain("current_setting(");
+    }
+
+    /// <summary>
     /// Categoría 2: RLS implementado con semántica distinta. No llevan
     /// <c>TenantId</c> —la fila enlaza dos tenants— así que el barrido por el
     /// modelo no las alcanza y hay que nombrarlas.
@@ -181,7 +217,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// propietaria de alguna tabla con RLS. Los caminos que conectan COMO rol propietario a
     /// propósito son la identidad administrativa del arranque (<c>FabricaContextoDeBootstrap</c>,
     /// cadena <c>CaeManagerDb</c>), las migraciones y las funciones <c>SECURITY DEFINER</c>, que
-    /// corren con la identidad de quien las creó, la de las migraciones. Las seis de abajo tienen
+    /// corren con la identidad de quien las creó, la de las migraciones. Las siete de abajo tienen
     /// un camino así que necesita ver filas de varios Tenants a la vez; con FORCE, un rol
     /// propietario sometido a RLS las vería vacías sin ningún error — RLS no falla, solo no muestra.
     /// </para>
@@ -191,9 +227,9 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// superusuario <c>postgres</c> en todos los entornos (<c>deploy/local/docker-compose.staging.yml</c>,
     /// <c>docker-compose.produccion.yml</c> y CI), y PostgreSQL no somete a RLS al superusuario ni con
     /// FORCE. La invariante real de estos caminos es «el rol propietario evita RLS», y no la
-    /// necesitan solo estas seis: <c>EstadoBootstrapPlataforma</c> lleva FORCE y el arranque lo lee
+    /// necesitan solo estas siete: <c>EstadoBootstrapPlataforma</c> lleva FORCE y el arranque lo lee
     /// sin <c>app.usuario_id</c>, y la guarda de <c>ParticionadoMensualEventos</c> aborta si el rol no
-    /// evita RLS. Lo que la lista afirma es más estrecho: en estas seis, añadir FORCE no aporta
+    /// evita RLS. Lo que la lista afirma es más estrecho: en estas siete, añadir FORCE no aporta
     /// nada hoy y es una rotura más el día en que la propiedad pasara a un rol sometido a RLS.
     /// Cualquier otra tabla con RLS lleva FORCE, y una tabla nueva sin él pone en rojo
     /// <see cref="Toda_tabla_con_RLS_lleva_FORCE_salvo_las_excepciones_con_su_camino"/> hasta que se le
@@ -209,6 +245,10 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
             "datos las recorren enteras (ConvierteCarterasPorClienteATenantEnteroTests)"),
         ["AsignacionesCartera"] = ("src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs",
             "mismo backfill y misma retirada que AsignacionesOperacion: la cartera cuelga de la operación"),
+        ["DelegacionesTenant"] = ("src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs",
+            "el backfill de asignaciones del arranque (identidad de bootstrap) recorre las delegaciones comerciales de " +
+            "todos los Tenants sin app.tenant_id para trasladarlas a AsignacionesOperacion; y la retirada de un Tenant " +
+            "de demo (RetiradaTenantDemoService) las borra con el rol propietario"),
         ["SolicitudesIncorporacionCartera"] = ("src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs",
             "la retirada de un Tenant de demo corre con el rol propietario de las tablas y con app.tenant_id en el " +
             "Tenant retirado, pero sin app.tenant_origen_id; borra las solicitudes en las que el Tenant retirado es " +

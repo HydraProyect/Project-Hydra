@@ -439,15 +439,16 @@ public static class DelegacionDemoSeeder
             dbContext, userManager, credenciales, logger, tenantConsultoraId, "prueba.operador.consulta1@caemanager.local",
             "Operador Consultora Consulta (prueba)", Roles.Consulta, cancellationToken);
 
-        var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
-                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
-        var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
-                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
-
+        // También las lecturas de autorización se hacen desde el extremo Operador CAE.
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
+                     && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
+            var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
+                     && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
+
             if (operadorGestor is not null && delegacionDemo1 is not null &&
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo1.Id && a.UsuarioId == operadorGestor.Id, cancellationToken))
@@ -731,18 +732,18 @@ public static class DelegacionDemoSeeder
     private static async Task CrearDelegacionRevocadaAsync(
         CaeManagerDbContext dbContext, Guid tenantConsultoraId, Guid tenantClienteId, ILogger logger, CancellationToken cancellationToken)
     {
-        if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
-                cancellationToken))
-        {
-            return;
-        }
-
-        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
-        delegacion.Desactivar();
-
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            if (await dbContext.DelegacionesTenant.AnyAsync(
+                    d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
+            delegacion.Desactivar();
+
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -845,17 +846,17 @@ public static class DelegacionDemoSeeder
         string nombreTenantCliente,
         CancellationToken cancellationToken)
     {
-        if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
-                cancellationToken))
-        {
-            return;
-        }
-
-        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
-
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            if (await dbContext.DelegacionesTenant.AnyAsync(
+                    d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
+
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
 

@@ -610,7 +610,8 @@ public class CaeManagerDbContext(
         // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
         // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
         // catálogos globales por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8 y ADR-011
-        // § 8), no un olvido.
+        // § 8), no un olvido. Sin filtro de EF no quiere decir sin RLS: DelegacionTenant
+        // la lleva por sus dos extremos (migración ProtegeDelegacionesTenantConRls).
         //
         // El filtro de cada entidad se construye con un método genérico real
         // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca
