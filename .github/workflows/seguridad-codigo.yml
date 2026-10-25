@@ -2,9 +2,22 @@ name: Seguridad del código
 
 # Pruebas de código seguro que no caben en el CI obligatorio: análisis estático
 # (CodeQL), inventario de dependencias (SBOM CycloneDX) y escaneo pasivo de la
-# aplicación en marcha (ZAP baseline). Ninguno de estos checks es `required`:
-# informan y dejan evidencia, pero no bloquean la cola de fusión. Por eso no
-# hay disparador `merge_group`.
+# aplicación en marcha (ZAP baseline). Solo `CodeQL (resultado)` es `required`
+# (protección de la rama main); SBOM y ZAP informan y dejan evidencia, pero no
+# bloquean la cola de fusión.
+#
+# Como `CodeQL (resultado)` es obligatorio, este workflow DEBE correr en
+# `merge_group`: la cola espera ahí los checks obligatorios y, sin el
+# disparador, se quedaría colgada en silencio para todas las PR. En `merge_group`
+# CodeQL analiza pero no sube el SARIF (`upload: never`): la subida solo tiene
+# sentido sobre la rama o la PR, y un fallo de subida no debe expulsar de la
+# cola un cambio cuyo código no tiene nada. Los hallazgos se publican en el run
+# de la PR y en el push a main.
+#
+# El check obligatorio es el job agregador, no los de la matriz: el nombre del
+# agregador es estable aunque cambien los lenguajes, y un job de matriz saltado
+# (PR de fork o de Dependabot) no se publica con su nombre expandido, así que
+# exigirlo dejaría esas PR esperando para siempre un check que nunca llega.
 #
 # ZAP se lanza contra una instancia levantada dentro de este mismo runner,
 # nunca contra staging: staging envía correo real por SMTP y un escáner que
@@ -14,6 +27,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  merge_group:
   # Semanal: CodeQL actualiza sus consultas y ZAP sus reglas aunque el código
   # no cambie.
   schedule:
@@ -37,6 +51,10 @@ jobs:
   codeql:
     name: CodeQL (${{ matrix.lenguaje }})
     runs-on: ubuntu-latest
+    # El análisis de C# tarda ~10-12 min (medido en las PR del 2026-10-25); el
+    # tope evita que un cuelgue del extractor retenga la cola hasta el timeout
+    # de checks de la cola de fusión (60 min).
+    timeout-minutes: 30
     # Las PR de forks y de Dependabot reciben un GITHUB_TOKEN de solo lectura:
     # la subida del SARIF fallaría sin que el código tenga nada. Sus cambios se
     # analizan igualmente en el push a main.
@@ -72,9 +90,37 @@ jobs:
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           category: "/language:${{ matrix.lenguaje }}"
+          # En merge_group no se sube el SARIF (ver cabecera del fichero).
+          upload: ${{ github.event_name == 'merge_group' && 'never' || 'always' }}
+
+  # Check obligatorio de la rama main. Falla si algún lenguaje de CodeQL falla o
+  # se cancela; pasa si todos terminan bien o si la matriz se saltó (PR de fork
+  # o de Dependabot, que no pueden subir el SARIF y se analizan en el push a
+  # main). No ejecuta código del repositorio ni usa secretos.
+  codeql-resultado:
+    name: CodeQL (resultado)
+    needs: codeql
+    # No `always()`: en una ejecución cancelada (push nuevo a la PR) el run está
+    # obsoleto y no debe publicar un rojo sobre su SHA.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Comprobar el resultado de la matriz de CodeQL
+        env:
+          RESULTADO: ${{ needs.codeql.result }}
+        run: |
+          echo "Resultado de la matriz de CodeQL: $RESULTADO"
+          case "$RESULTADO" in
+            success|skipped) exit 0 ;;
+            *) echo "::error::CodeQL no terminó correctamente ($RESULTADO)."; exit 1 ;;
+          esac
 
   sbom:
     name: SBOM CycloneDX
+    # No es obligatorio: en la cola de fusión solo corre CodeQL.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -108,6 +154,8 @@ jobs:
 
   zap-baseline:
     name: ZAP baseline (instancia local)
+    # No es obligatorio: en la cola de fusión solo corre CodeQL.
+    if: github.event_name != 'merge_group'
     runs-on: ubuntu-latest
     permissions:
       contents: read
