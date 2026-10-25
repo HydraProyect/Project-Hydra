@@ -144,7 +144,7 @@ public class EscritorasDeIdentitySinAuditarTests
     private static readonly Dictionary<(string Ruta, string Linea), int> UsosObservadosCongelados = new()
     {
         // Vincula un login externo (Microsoft 365 / SSO) a una cuenta
-        // auto-provisionada — escribe AspNetUserLogins. AUDITADA desde la
+        // creada antes (invitación previa, D-3) — escribe AspNetUserLogins. AUDITADA desde la
         // misión N6/V4: deja fila "LoginExterno / Creado" contra el Tenant
         // propietario de la cuenta (ver AuditoriaDeIdentidadRestanteTests).
         [("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",

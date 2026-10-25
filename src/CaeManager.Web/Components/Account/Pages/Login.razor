@@ -12,6 +12,7 @@
 @inject UserManager<ApplicationUser> UserManager
 @inject NavigationManager Navigation
 @inject IOptions<AzureAdOptions> OpcionesAzureAd
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta> Textos
 @inject ILoggerFactory LoggerFactory
 
 <PageTitle>Iniciar sesión — @Marca.Nombre</PageTitle>
@@ -113,10 +114,11 @@
         }
         mensajeErrorSso = ErrorSso switch
         {
-            // Interpolado: dentro de una cadena C# «@Marca.Nombre» no es Razor,
-            // es texto, y así llegaba a la pantalla.
-            "sin-cuenta" => $"Tu cuenta de Microsoft no está dada de alta en {Marca.Nombre}. Contacta con tu administrador.",
-            "fallo" => "No pudimos completar el inicio de sesión con Microsoft. Intenta nuevamente.",
+            // La marca va como argumento: dentro de una cadena C# «@Marca.Nombre» no
+            // es Razor, es texto, y así llegaba a la pantalla. «sin-cuenta» es también
+            // la cuenta de otro Tenant: en el Tenant destino no la hay (D-3).
+            "sin-cuenta" => Textos["LoginErrorSsoSinCuenta", Marca.Nombre].Value,
+            "fallo" => Textos["LoginErrorSsoFallo"].Value,
             _ => null,
         };
     }

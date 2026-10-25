@@ -122,7 +122,7 @@ public partial class MainLayout
                 }
 
                 // Mismo motivo que el guard de arriba: sin esto, un usuario
-                // auto-provisionado por SSO sin rol asignado (ver
+                // creado sin rol que entra por SSO (ver
                 // IdentityEndpointsExtensions) podría saltarse la sala de espera
                 // escribiendo cualquier otra URL a mano.
                 var roles = await UserManager.GetRolesAsync(usuario);

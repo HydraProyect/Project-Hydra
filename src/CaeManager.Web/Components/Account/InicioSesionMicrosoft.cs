@@ -85,8 +85,22 @@ public static class InicioSesionMicrosoft
             DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant or DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad => vinculada ?? porCorreo,
             _ => null,
         };
-        return (decision, cuenta);
+        return (ComprobarCuentaActiva(decision, cuenta, DateTimeOffset.UtcNow), cuenta);
     }
+
+    /// <summary>
+    /// Una cuenta desactivada no entra ni se vincula por Microsoft.
+    /// <c>SignInWithClaimsAsync</c> no comprueba el bloqueo (a diferencia de
+    /// <c>PasswordSignInAsync</c>): sin esto, una cuenta desactivada volvía a entrar
+    /// por Microsoft sin su contraseña (auditoría de seguridad 2026-09-20). Va antes
+    /// de guardar el vínculo, para no dejar una identidad nueva colgada de una cuenta
+    /// dada de baja.
+    /// </summary>
+    public static DecisionCuentaMicrosoft ComprobarCuentaActiva(DecisionCuentaMicrosoft decision, ApplicationUser? cuenta, DateTimeOffset ahora) =>
+        decision is DecisionCuentaMicrosoft.EntrarConCuentaVinculada or DecisionCuentaMicrosoft.VincularCuentaExistente
+        && cuenta is not null && cuenta.EstaDesactivada(ahora)
+            ? DecisionCuentaMicrosoft.RechazarCuentaDesactivada
+            : decision;
 
     /// <summary>
     /// Con qué cuenta de TALVEG entra una identidad de Microsoft.
@@ -101,6 +115,14 @@ public static class InicioSesionMicrosoft
     /// esa cuenta no está ya vinculada a otra identidad de Microsoft. Fuera de ese
     /// Tenant —otra organización, Soporte TALVEG o cualquier Actor de Plataforma— no
     /// se entra nunca por Microsoft, ni con vínculo previo.
+    /// </para>
+    ///
+    /// <para>
+    /// El inicio con Microsoft no crea cuentas (invitación previa, decisión D-3 de
+    /// 2026-10-25). Solo entra quien ya tiene una cuenta de TALVEG en el Tenant
+    /// destino con ese correo, creada antes por un Administrador o por el Actor de
+    /// Plataforma TALVEG. Antes había alta automática sin rol: como el correo de
+    /// Entra no está verificado, abría una cuenta a cualquier persona del directorio.
     /// </para>
     /// </summary>
     /// <param name="tenantCuentaVinculada">Tenant propietario de la cuenta ya vinculada a esta identidad, si la hay.</param>
@@ -128,7 +150,7 @@ public static class InicioSesionMicrosoft
                 : DecisionCuentaMicrosoft.VincularCuentaExistente;
         }
 
-        return DecisionCuentaMicrosoft.CrearCuenta;
+        return DecisionCuentaMicrosoft.RechazarSinCuentaPrevia;
     }
 }
 
@@ -141,8 +163,11 @@ public enum DecisionCuentaMicrosoft
     /// <summary>Cuenta del Tenant destino con el mismo correo y sin otra identidad de Microsoft: se vincula.</summary>
     VincularCuentaExistente,
 
-    /// <summary>Ninguna cuenta: alta sin rol en el Tenant destino (sala de espera).</summary>
-    CrearCuenta,
+    /// <summary>Ninguna cuenta con ese correo en el Tenant destino: no se crea nada; la tiene que dar de alta antes un Administrador.</summary>
+    RechazarSinCuentaPrevia,
+
+    /// <summary>La cuenta existe, pero está desactivada: ni se entra ni se vincula.</summary>
+    RechazarCuentaDesactivada,
 
     /// <summary>La cuenta encontrada pertenece a otro Tenant propietario: nunca se entra en ella por Microsoft.</summary>
     RechazarCuentaDeOtroTenant,

@@ -240,6 +240,57 @@ public class RlsAspNetUsersBajoRuntimeTests
         }
     }
 
+    [Fact]
+    public async Task Microsoft_sin_cuenta_previa_en_el_Tenant_destino_rechaza_y_no_crea_nada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        const string correoNuevo = "sin-alta@ejemplo.test";
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var (decision, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-sin-alta"), correoNuevo, e.TenantX);
+
+            decision.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarSinCuentaPrevia,
+                "invitación previa (D-3): el inicio con Microsoft no da de alta a nadie");
+            cuenta.Should().BeNull();
+            (await usuarios.FindByEmailAsync(correoNuevo)).Should().BeNull("no se creó ninguna cuenta");
+            (await usuarios.FindByLoginAsync(IdentityEndpointsExtensionsEsquema, "clave-sin-alta")).Should().BeNull("ni ningún vínculo");
+        }
+    }
+
+    [Fact]
+    public async Task Microsoft_no_entra_ni_vincula_una_cuenta_desactivada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var propia = await usuarios.FindByEmailAsync(e.PropiaX.Email!);
+            propia!.Desactivar();
+            (await usuarios.UpdateAsync(propia)).Succeeded.Should().BeTrue();
+
+            // Sin vínculo: el correo encuentra la cuenta, pero no se vincula.
+            var (porCorreo, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), e.PropiaX.Email!, e.TenantX);
+            porCorreo.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDesactivada);
+            cuenta!.Id.Should().Be(e.PropiaX.Id, "el rechazo se registra en la vigilancia de su Tenant");
+
+            // Con vínculo previo, tampoco entra.
+            (await usuarios.AddLoginAsync(propia, IdentidadMicrosoft("clave-propia"))).Succeeded.Should().BeTrue();
+            var (porVinculo, _) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), e.PropiaX.Email!, e.TenantX);
+            porVinculo.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDesactivada);
+        }
+    }
+
+    private static string IdentityEndpointsExtensionsEsquema =>
+        CaeManager.Web.Components.Account.IdentityEndpointsExtensions.EsquemaMicrosoft;
+
     private static UserLoginInfo IdentidadMicrosoft(string clave) =>
         new(CaeManager.Web.Components.Account.IdentityEndpointsExtensions.EsquemaMicrosoft, clave, "Microsoft (empresa)");
 

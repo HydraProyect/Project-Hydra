@@ -30,10 +30,10 @@
         }
 
         @* El mockup dice «desde Usuarios» y promete que se avisó por correo. El código
-           asigna el rol de una cuenta pendiente en Roles → «Pendientes de asignar», y el
-           aviso por correo solo sale en el primer acceso con Microsoft y es best-effort
-           (IdentityEndpointsExtensions.NotificarAdministradoresUsuarioPendienteAsync):
-           no se promete un aviso que puede no haber salido. Quien asigna es un usuario con
+           asigna el rol de una cuenta pendiente en Roles → «Pendientes de asignar», y no
+           sale ningún aviso por correo: desde la invitación previa (D-3) el inicio con
+           Microsoft ya no crea cuentas, y con él se retiró el aviso a los Administradores
+           de la cuenta recién creada. No se promete un aviso que no sale. Quien asigna es un usuario con
            rol Administrador del Tenant propietario de la cuenta, nunca Soporte TALVEG ni
            el Operador CAE externo. *@
         <details class="pendiente-rol-ayuda">
