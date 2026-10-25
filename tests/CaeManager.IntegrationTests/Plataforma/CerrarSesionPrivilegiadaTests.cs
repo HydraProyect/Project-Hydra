@@ -141,7 +141,7 @@ public class CerrarSesionPrivilegiadaTests : IAsyncLifetime
     {
         await using var contexto = CrearContexto();
 
-        var handler = new CerrarSesionPrivilegiadaCommandHandler(contexto, contexto);
+        var handler = new CerrarSesionPrivilegiadaCommandHandler(contexto, contexto, new CurrentUserServiceFalso(_tecnico));
 
         return await handler.Handle(
             new CerrarSesionPrivilegiadaCommand(sesionId), CancellationToken.None);

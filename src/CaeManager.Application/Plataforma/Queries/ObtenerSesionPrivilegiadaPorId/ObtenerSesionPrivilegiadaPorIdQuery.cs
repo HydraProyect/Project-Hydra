@@ -19,7 +19,8 @@ public record SesionPrivilegiadaDetalleDto(
     string Motivo,
     string? Ticket,
     DateTime InicioEnUtc,
-    DateTime ExpiraEnUtc);
+    DateTime ExpiraEnUtc,
+    Guid? UsuarioPlataformaId = null);
 
 /// <summary>
 /// Busca UNA sesión por Id, no una lista.
@@ -31,10 +32,10 @@ public record SesionPrivilegiadaDetalleDto(
 /// <c>/cuenta/soporte/salir</c> en la redirección de salida, ver
 /// <c>SesionSoporteEndpoints.SalirAsync</c>), exactamente el mismo patrón que
 /// <c>ISesionPrivilegiadaActual</c> ya tenía autorizado: resolver LA sesión que
-/// algo externo nombra, nunca enumerar. El Id no es autoridad —lo es la fila
-/// que RLS entrega o no entrega—: si el Id fuera ajeno o inventado, la política
-/// <c>privilegio_del_usuario</c> (F2b-5) no devuelve ninguna fila y el método
-/// responde <c>null</c>, indistinguible de "no existe".
+/// algo externo nombra, nunca enumerar. La unión con la concesión resuelve
+/// el Actor de Plataforma TALVEG autorizado a cerrar. La visibilidad de una
+/// Sesión Privilegiada por sí sola no autoriza su cierre: el Administrador del
+/// Tenant beneficiario tiene una política de lectura independiente.
 /// </summary>
 public record ObtenerSesionPrivilegiadaPorIdQuery(Guid SesionPrivilegiadaId)
     : IRequest<SesionPrivilegiadaDetalleDto?>;
@@ -50,6 +51,6 @@ public class ObtenerSesionPrivilegiadaPorIdQueryHandler(IPlataformaQueryContext 
          where sesion.Id == request.SesionPrivilegiadaId
          select new SesionPrivilegiadaDetalleDto(
              sesion.Id, sesion.TenantObjetivoId, concesion.Capacidad,
-             sesion.Motivo, sesion.Ticket, sesion.InicioEnUtc, sesion.ExpiraEnUtc))
+             sesion.Motivo, sesion.Ticket, sesion.InicioEnUtc, sesion.ExpiraEnUtc, concesion.UsuarioPlataformaId))
         .SingleOrDefaultAsync(cancellationToken);
 }
