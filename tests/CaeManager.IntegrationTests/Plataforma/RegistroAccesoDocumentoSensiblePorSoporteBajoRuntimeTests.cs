@@ -306,6 +306,67 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         lector.GetBoolean(3).Should().BeFalse("PUBLIC no conserva EXECUTE");
     }
 
+    [Fact]
+    public async Task Un_contexto_firmado_invalidado_no_registra_y_el_servicio_falla_en_cerrado()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        var documentoId = Guid.NewGuid();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+
+        // Control positivo: la misma conexión y la misma sesión registran antes de invalidar el contexto.
+        (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), "CategoriaEspecialSalud", "Apertura"))
+            .Should().Be("registrado");
+        await contexto.Database.ExecuteSqlRawAsync("SELECT set_config('app.contexto', '', false);");
+
+        (await LlamarFuncionAsync(contexto, sesion, documentoId, "CategoriaEspecialSalud", "Apertura"))
+            .Should().Be("contexto_no_valido");
+
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            contexto, contexto,
+            new ActorAuditoriaFalso(new ActorAuditoria(_tecnico, null, TipoViaAcceso.SesionPrivilegiada, sesion)),
+            new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
+        var registrar = () => servicio.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura);
+        (await registrar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
+            .Which.RecursoId.Should().Be(documentoId);
+        (await LeerFilasAsync(documentoId)).Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Un contexto firmado corrupto (o caducado) no devuelve un código: app_contexto_validado lanza
+    /// 42501 en cuanto se evalúa, y la función de registro lo evalúa siempre. El repositorio lo
+    /// traduce a false y el servicio falla en cerrado con la excepción que DocumentosEndpoints
+    /// convierte en 403 sin servir el fichero. Aquí las consultas previas del servicio, sobre un
+    /// Documento inexistente, no llegan a lanzarlo (observado en CI); el 42501 directo que el
+    /// endpoint también traduce a 403 es el de una lectura que sí lo evalúe.
+    /// </summary>
+    [Fact]
+    public async Task Un_contexto_firmado_corrupto_hace_lanzar_42501_a_la_funcion_y_el_servicio_falla_en_cerrado()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        var documentoId = Guid.NewGuid();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+
+        // Control positivo: la misma conexión registra antes de corromper el contexto.
+        (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), "CategoriaEspecialSalud", "Apertura"))
+            .Should().Be("registrado");
+        await contexto.Database.ExecuteSqlRawAsync("SELECT set_config('app.contexto', 'v1|corrupto', false);");
+
+        var llamar = () => LlamarFuncionAsync(contexto, sesion, documentoId, "CategoriaEspecialSalud", "Apertura");
+        (await llamar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            contexto, contexto,
+            new ActorAuditoriaFalso(new ActorAuditoria(_tecnico, null, TipoViaAcceso.SesionPrivilegiada, sesion)),
+            new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
+        var registrar = () => servicio.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura);
+        (await registrar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
+            .Which.RecursoId.Should().Be(documentoId);
+        (await LeerFilasAsync(documentoId)).Should().BeEmpty();
+    }
+
     // ── Andamiaje ────────────────────────────────────────────────────────────
 
     private async Task NoRegistraYFallaEnCerradoAsync(Guid tenantDelContexto, Guid sesion, Guid? actor = null)

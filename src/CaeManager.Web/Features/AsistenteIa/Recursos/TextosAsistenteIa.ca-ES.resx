@@ -351,4 +351,7 @@
   <data name="EmpresaCambiadaGestionada" xml:space="preserve">
     <value>L'Empresa gestionada ha canviat, així que he buidat la conversa anterior i no he enviat res. Revisa en quina Empresa treballes i torna a escriure.</value>
   </data>
+  <data name="SesionPrivilegiada" xml:space="preserve">
+    <value>L'assistent no està disponible en una sessió de suport.</value>
+  </data>
 </root>

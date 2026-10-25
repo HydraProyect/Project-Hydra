@@ -26,6 +26,12 @@ internal sealed class TenantEfectivoDePrueba(Guid? tenantId) : ITenantActual
     public Guid? TenantId { get; set; } = tenantId;
 }
 
+internal sealed class ActorDeVegaDePrueba(TipoViaAcceso via = TipoViaAcceso.Normal) : IActorAuditoria
+{
+    public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(new ActorAuditoria(Guid.NewGuid(), null, via, null));
+    public ActorAuditoria? ObtenerSiYaEstaResuelto() => null;
+}
+
 internal sealed class UsuarioDeVegaDePrueba(Guid? tenantOrigenId = null) : ICurrentUserService
 {
     public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(null);
@@ -89,6 +95,7 @@ public class AsistenteIaAgenteTests : BunitContext
     public AsistenteIaAgenteTests()
     {
         Services.AddLocalization();
+        Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba());
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
@@ -97,6 +104,41 @@ public class AsistenteIaAgenteTests : BunitContext
         Services.AddSingleton<ICurrentUserService>(new UsuarioDeVegaDePrueba(TenantB));
         AddAuthorization().SetAuthorized("laura.perez@consultora.es");
         JSInterop.Mode = JSRuntimeMode.Loose;
+    }
+
+    [Theory]
+    [InlineData(false, "es-ES", "El asistente no está disponible en una sesión de soporte.")]
+    [InlineData(true, "es-ES", "El asistente no está disponible en una sesión de soporte.")]
+    [InlineData(false, "ca-ES", "L'assistent no està disponible en una sessió de suport.")]
+    [InlineData(true, "ca-ES", "L'assistent no està disponible en una sessió de suport.")]
+    public void Una_Sesion_Privilegiada_desactiva_la_pregunta_en_panel_y_pantalla(bool pantallaCompleta, string cultura, string mensaje)
+    {
+        var anterior = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(cultura);
+            Configurar(anthropic: true, typeSafeActivo: false);
+            GuionDeEmpresa();
+            Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba(TipoViaAcceso.SesionPrivilegiada));
+
+            var panel = pantallaCompleta
+                ? Render<AsistenteIa>(p => p.Add(c => c.PantallaCompleta, true))
+                : Abrir();
+
+            panel.Find("textarea.asistente-textarea").HasAttribute("disabled").Should().BeTrue();
+            panel.Find("button.asistente-boton-enviar").HasAttribute("disabled").Should().BeTrue();
+            panel.FindAll("[role=note]").Should().Contain(n => n.TextContent == mensaje);
+            var ejemplos = panel.FindAll("button.vega-ejemplo");
+            ejemplos.Should().NotBeEmpty().And.OnlyContain(e => e.HasAttribute("disabled"));
+            ejemplos.First().Click();
+            Enviar(panel, "Pregunta de prueba");
+            panel.Find("textarea.asistente-textarea").KeyDown(new Microsoft.AspNetCore.Components.Web.KeyboardEventArgs { Key = "Enter" });
+            _mediador.De<PreguntarAlAsistenteQuery>().Should().BeEmpty();
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = anterior;
+        }
     }
 
     private void Configurar(bool anthropic, bool typeSafeActivo, bool typeSafeClave = true)

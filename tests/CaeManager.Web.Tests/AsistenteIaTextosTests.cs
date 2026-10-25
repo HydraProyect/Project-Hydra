@@ -43,6 +43,7 @@ public class AsistenteIaTextosTests : BunitContext
     public AsistenteIaTextosTests()
     {
         Services.AddLocalization();
+        Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba());
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.AsistenteIa.AnthropicOptions>>(
             Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.AnthropicOptions { ApiKey = "sk-ant-de-prueba" }));
