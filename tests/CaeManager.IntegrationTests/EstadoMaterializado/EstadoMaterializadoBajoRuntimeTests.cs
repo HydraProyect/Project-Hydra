@@ -93,7 +93,7 @@ public class EstadoMaterializadoBajoRuntimeTests : IAsyncLifetime
             lector.GetBoolean(1).Should().BeTrue($"{tabla}: FORCE ROW LEVEL SECURITY");
             lector.GetFieldValue<string[]>(2).Should().Equal(["aislamiento_tenant"], tabla);
             foreach (var expresion in new[] { lector.GetString(3), lector.GetString(4) })
-                expresion.Should().Contain("\"TenantId\"").And.Contain("app.tenant_id", $"{tabla}: USING y WITH CHECK por el Tenant activo");
+                expresion.Should().Contain("\"TenantId\"").And.Contain("app_ctx_tenant_id()", $"{tabla}: USING y WITH CHECK por el Tenant activo firmado");
         }
     }
 

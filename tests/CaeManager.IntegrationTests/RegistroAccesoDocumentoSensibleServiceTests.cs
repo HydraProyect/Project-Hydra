@@ -299,22 +299,19 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         var vistasDesdeOtroTenant = await ContarConTenantFijadoAsync(conexionRuntime, Guid.NewGuid(), documento.Id);
         vistasDesdeOtroTenant.Should().Be(0,
-            "la política aislamiento_tenant filtra por app.tenant_id, así que otro tenant no ve el rastro " +
+            "la política aislamiento_tenant filtra por el Tenant del contexto firmado (app_ctx_tenant_id()), así que otro tenant no ve el rastro " +
             "aunque conozca el DocumentoId y consulte por SQL crudo, fuera del alcance del filtro de EF");
     }
 
     /// <summary>
-    /// Fija <c>app.tenant_id</c> en la sesión —la coordenada de la que se
-    /// alimenta la política— y cuenta las filas del rastro para un documento.
+    /// Fija el Tenant en el contexto RLS firmado de la sesión —<c>app_ctx_tenant_id()</c>,
+    /// de donde se alimenta la política— y cuenta las filas del rastro para un documento.
     /// Por SQL crudo a propósito: el objeto de la prueba es lo que hace la
     /// base, no lo que hace EF.
     /// </summary>
     private static async Task<long> ContarConTenantFijadoAsync(NpgsqlConnection conexion, Guid tenantId, Guid documentoId)
     {
-        await using var comandoTenant = conexion.CreateCommand();
-        comandoTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
-        comandoTenant.Parameters.AddWithValue(tenantId.ToString());
-        await comandoTenant.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
         await using var comandoConteo = conexion.CreateCommand();
         comandoConteo.CommandText = """SELECT COUNT(*) FROM "RegistrosAccesoDocumentoSensible" WHERE "DocumentoId" = $1;""";
@@ -344,10 +341,7 @@ public class RegistroAccesoDocumentoSensibleServiceTests : IAsyncLifetime
 
         await using var conexionRuntime = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
         await conexionRuntime.OpenAsync();
-        await using var comandoSetTenant = conexionRuntime.CreateCommand();
-        comandoSetTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
-        comandoSetTenant.Parameters.AddWithValue(TenantSeedData.IdPorDefecto.ToString());
-        await comandoSetTenant.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexionRuntime, tenantId: TenantSeedData.IdPorDefecto);
 
         await using var comandoUpdate = conexionRuntime.CreateCommand();
         comandoUpdate.CommandText = """UPDATE "RegistrosAccesoDocumentoSensible" SET "TipoAcceso" = 'VersionAnterior';""";

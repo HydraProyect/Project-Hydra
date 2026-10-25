@@ -398,12 +398,7 @@ public class EscrituraAprovisionamientoEnLaCapaDeDatosTests : IAsyncLifetime
         var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        await using (var fijar = conexion.CreateCommand())
-        {
-            fijar.CommandText = "SELECT set_config('app.tenant_id', @tenantId, false);";
-            fijar.Parameters.AddWithValue("tenantId", tenantId.ToString());
-            await fijar.ExecuteNonQueryAsync();
-        }
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
         await using var setRol = conexion.CreateCommand();
         setRol.CommandText = "SET ROLE cae_app_aprovisionamiento;";

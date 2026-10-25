@@ -646,8 +646,8 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(
         sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
         name: "postgresql")
-    // P6: clave del contexto RLS firmado. Degraded, nunca Unhealthy, en la
-    // fase «expandir» (ver ClaveContextoRlsHealthCheck).
+    // P6: clave del contexto RLS firmado. Desde «contraer», Unhealthy sin clave
+    // descifrable y Degraded si caduca pronto (ver ClaveContextoRlsHealthCheck).
     .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
         "contexto-rls-clave",
         sp => new CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck(

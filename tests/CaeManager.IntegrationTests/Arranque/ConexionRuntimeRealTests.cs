@@ -97,7 +97,7 @@ SELECT session_user,
         await using var conexion = await AbrirComoRuntimeAsync();
 
         (await ContarRaicesAsync(conexion)).Should().Be(0,
-            "sin app.tenant_id la política no puede emparejar nada: la ausencia de coordenada no abre, cierra");
+            "sin contexto firmado (app_ctx_tenant_id()) la política no puede emparejar nada: la ausencia de coordenada no abre, cierra");
 
         await FijarTenantAsync(conexion, _tenants[0]);
 
@@ -121,13 +121,8 @@ SELECT session_user,
         return conexion;
     }
 
-    private static async Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false);";
-        comando.Parameters.AddWithValue("tenant", tenant.ToString());
-        await comando.ExecuteNonQueryAsync();
-    }
+    private static Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant);
 
     private static async Task<int> ContarRaicesAsync(NpgsqlConnection conexion)
     {

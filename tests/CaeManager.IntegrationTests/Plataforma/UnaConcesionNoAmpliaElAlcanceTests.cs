@@ -134,24 +134,14 @@ public class UnaConcesionNoAmpliaElAlcanceTests : IAsyncLifetime
         var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        await FijarAsync(conexion, "app.tenant_id", tenantActivo);
-        await FijarAsync(conexion, "app.tenant_origen_id", tenantOrigen);
-        await FijarAsync(conexion, "app.usuario_id", usuario);
+        await ContextoRlsDePruebas.FijarAsync(
+            conexion, tenantId: tenantActivo, tenantOrigenId: tenantOrigen, usuarioId: usuario);
 
         await using var setRol = conexion.CreateCommand();
         setRol.CommandText = "SET ROLE cae_app_runtime;";
         await setRol.ExecuteNonQueryAsync();
 
         return conexion;
-    }
-
-    private static async Task FijarAsync(NpgsqlConnection conexion, string variable, Guid valor)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config(@variable, @valor, false);";
-        comando.Parameters.AddWithValue("variable", variable);
-        comando.Parameters.AddWithValue("valor", valor.ToString());
-        await comando.ExecuteNonQueryAsync();
     }
 
     private static async Task<long> ContarAsync(NpgsqlConnection conexion, string tabla)

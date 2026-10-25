@@ -10,13 +10,15 @@ namespace CaeManager.Infrastructure.Persistence.ContextoRls;
 /// tráfico, que hay una clave vigente que este proceso sabe descifrar.
 ///
 /// <para>
-/// <b>Fase «expandir»: nunca Unhealthy.</b> Sin clave, o con menos de
-/// <see cref="ClaveContextoRls.AvisoCaducidad"/> de vigencia, devuelve
-/// Degraded (200): ninguna política lee todavía el contexto firmado, así que
-/// el tráfico sigue sirviendo y marcar el contenedor como caído lo cortaría
-/// sin motivo. Sin clave, además, se registra como error. En la fase
-/// «contraer» la falta de clave deja las conexiones sin filas y este caso pasa
-/// a Unhealthy.
+/// <b>Fase «contraer» (migración <c>ContraeContextoRlsFirmado</c>).</b> Todas
+/// las políticas leen el contexto firmado, así que sin una clave que este
+/// proceso sepa descifrar ninguna conexión ve ni escribe filas bajo RLS: ese
+/// caso es <b>Unhealthy</b> (503), para que el relevo del despliegue no dé por
+/// sano un contenedor que no puede servir. Con menos de
+/// <see cref="ClaveContextoRls.AvisoCaducidad"/> de vigencia es Degraded (200):
+/// todavía firma, y relanzar el migrador la renueva. Un error al LEER la clave
+/// sigue siendo Degraded: la caída de la base ya la enseña el check de NpgSql
+/// como Unhealthy, y este no la duplica.
 /// </para>
 /// </summary>
 public sealed class ClaveContextoRlsHealthCheck(
@@ -51,8 +53,8 @@ public sealed class ClaveContextoRlsHealthCheck(
             log.LogError(
                 "No hay clave del contexto RLS que este proceso sepa descifrar: las conexiones no llevan " +
                 "contexto firmado. Relanzar el migrador registra una nueva.");
-            return HealthCheckResult.Degraded(
-                "Sin clave del contexto RLS descifrable: el contexto no se firma.");
+            return HealthCheckResult.Unhealthy(
+                "Sin clave del contexto RLS descifrable: el contexto no se firma y RLS no deja ver ninguna fila.");
         }
 
         var restante = clave.ValidaHasta - reloj.GetUtcNow();

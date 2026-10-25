@@ -504,14 +504,7 @@ public class RlsAspNetUsersBajoRuntimeTests
         await using (var identidad = new NpgsqlCommand("SELECT current_user", conexion))
             ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_runtime");
 
-        await using var fijar = new NpgsqlCommand(
-            "SELECT set_config('app.tenant_id', @t, false), set_config('app.tenant_origen_id', @o, false), " +
-            "set_config('app.usuario_id', @u, false);",
-            conexion);
-        fijar.Parameters.AddWithValue("t", tenant?.ToString() ?? string.Empty);
-        fijar.Parameters.AddWithValue("o", origen?.ToString() ?? string.Empty);
-        fijar.Parameters.AddWithValue("u", usuario?.ToString() ?? string.Empty);
-        await fijar.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant, tenantOrigenId: origen, usuarioId: usuario);
         return conexion;
     }
 
