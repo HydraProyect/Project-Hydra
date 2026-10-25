@@ -72,11 +72,11 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         {
             await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
             var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-            await page.WaitForTimeoutAsync(300);
+            var empresaPrecargada = drawer.Locator(".campo-info-valor").GetByText(razonSocialEmpresa, new LocatorGetByTextOptions { Exact = true });
+            await Expect(comboEmpresa.Or(empresaPrecargada)).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+            // Con la Empresa precargada la espera de arriba ya confirmó que se ve; con combo hay que elegirla.
             if (await comboEmpresa.IsVisibleAsync())
                 await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-            else
-                await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(Ayudas.GenerarDniValido(semillaDni));
             await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombre);
             await drawer.GetByLabel("Apellidos").FillAsync(apellidos);
@@ -101,18 +101,27 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro").ClickAsync();
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        await page.WaitForTimeoutAsync(500);
+        // El aviso confirma que terminó el debounce del selector y la consulta de faltantes.
+        await Expect(page.Locator(".alerta-preflight-asignacion"))
+            .ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador}", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Documento vigente con archivo, subido desde /centros ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
+        // PR #1703: confirmar el circuito antes de filtrar y desplegar el HTML del prerender.
+        var agrupar = Ayudas.DesplegableAgrupar(page);
+        await Ayudas.AbrirMenuAccionesAsync(agrupar);
+        await agrupar.PressAsync("Escape");
+        await Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         var buscadorCentros = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
         await buscadorCentros.FillAsync(nombreCentro);
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
         await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await buscadorCentros.BlurAsync();
-        await page.WaitForTimeoutAsync(500);
+        // aria-busy=false: terminó CargarAsync (Centros y visitas), no solo el primer render de la página.
+        await Expect(page.Locator(".lista-filas-acordeon")).ToHaveAttributeAsync("aria-busy", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        await Expect(page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
         await botonExpandir.ClickAsync();
         await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         // En el listado el chevron se oculta para quien gestiona: «Gestionar» abre el mismo desglose.
@@ -124,8 +133,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
                 })
             .Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await page.WaitForTimeoutAsync(300);
+        await Expect(botonExpandirTrabajador).ToHaveAttributeAsync("aria-expanded", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         await botonExpandirTrabajador.ClickAsync();
+        await Expect(botonExpandirTrabajador).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         var filaDocumento = page.GetByRole(AriaRole.Table,
                 new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" })
             .Locator(".fila-documento-requerido", new LocatorLocatorOptions { HasText = nombreTipoDocumento });
@@ -133,6 +143,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         // de la fila es el enlace a Trabajador 360 y no «Gestionar» (ese solo cambia el estado en la plataforma).
         var enlaceFicha = filaDocumento.Locator("[data-accion=actualizar-en-ficha]");
         await Expect(enlaceFicha).ToHaveTextAsync("Actualizar en Trabajador 360", new LocatorAssertionsToHaveTextOptions { Timeout = 15_000 });
+        // PR #1703: el registro tras OnAfterRenderAsync confirma que terminó el prerender.
+        var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
+        await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
         await enlaceFicha.ClickAsync();
         await page.WaitForURLAsync(
             new System.Text.RegularExpressions.Regex(@"/trabajadores/[0-9a-fA-F-]{36}(\?.*)?$"),
@@ -207,12 +220,9 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Expect(solicitud).ToContainTextAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
 
         await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Copiar solicitud" }).ClickAsync();
-        var copiado = "";
-        for (var intento = 0; intento < 20 && !copiado.StartsWith("Solicitud de acceso", StringComparison.Ordinal); intento++)
-        {
-            await page.WaitForTimeoutAsync(250);
-            copiado = await page.EvaluateAsync<string>("navigator.clipboard.readText()");
-        }
+        // La escritura por JSInterop es asíncrona: se espera, sin sondeo fijo, a que el portapapeles ya tenga la solicitud.
+        await page.WaitForFunctionAsync("navigator.clipboard.readText().then(texto => texto.startsWith('Solicitud de acceso'))");
+        var copiado = await page.EvaluateAsync<string>("navigator.clipboard.readText()");
         // El portapapeles de Windows devuelve los saltos como \r\n; que el texto sale
         // sin \r lo fija SolicitudAccesoCorreoComposicionTests, no este instrumento.
         copiado = copiado.Replace("\r\n", "\n");
