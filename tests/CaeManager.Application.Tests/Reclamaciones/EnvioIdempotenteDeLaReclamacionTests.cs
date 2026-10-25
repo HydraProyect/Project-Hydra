@@ -322,6 +322,42 @@ public class EnvioIdempotenteDeLaReclamacionTests
         entorno.Mediador.TokenDelMensaje.CanBeCanceled.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Si_el_comando_del_buzon_falla_se_descarta_lo_rastreado_y_no_queda_registrada()
+    {
+        var entorno = Construir(conBuzon: true);
+        entorno.Mediador.Fallo = Error.Crear("Comunicaciones.HiloDeOtroTitular", "El hilo pertenece a otro titular.");
+
+        var primero = await Enviar(entorno, [Contacto]);
+
+        primero.Error.Codigo.Should().Be("Comunicaciones.HiloDeOtroTitular", "el fallo del buzón llega tal cual a la pantalla");
+        entorno.Base.VecesDescartado.Should().Be(1,
+            "lo que el comando del buzón dejó rastreado no puede viajar en el guardado de otra operación del mismo circuito");
+        entorno.Base.ReclamacionesGuardadas.Should().BeEmpty("un fallo del envío nunca la registra");
+        entorno.Correo.Entregados.Should().BeEmpty("el buzón conectado no cae al SMTP tras un fallo");
+
+        entorno.Mediador.Fallo = null;
+        var reintento = await Enviar(entorno, [Contacto]);
+
+        reintento.EsExitoso.Should().BeTrue();
+        entorno.Mediador.Mensajes.Should().HaveCount(2, "sin hilo apuntado, el reintento vuelve a mandarlo por el buzón");
+        entorno.Base.ReclamacionesGuardadas.Should().ContainSingle()
+            .Which.ConversacionId.Should().Be(entorno.Mediador.UltimaConversacion);
+    }
+
+    [Fact]
+    public async Task Si_el_comando_del_buzon_lanza_se_descarta_lo_rastreado_y_la_excepcion_sube()
+    {
+        var entorno = Construir(conBuzon: true);
+        entorno.Mediador.Lanzar = true;
+
+        var envio = () => Enviar(entorno, [Contacto]);
+
+        await envio.Should().ThrowAsync<InvalidOperationException>();
+        entorno.Base.VecesDescartado.Should().Be(1);
+        entorno.Base.ReclamacionesGuardadas.Should().BeEmpty();
+    }
+
     // ================================================================ dobles
 
     /// <summary>
@@ -456,6 +492,8 @@ public class EnvioIdempotenteDeLaReclamacionTests
         public List<EnviarMensajeNuevoCommand> Mensajes { get; } = [];
         public Guid UltimaConversacion { get; private set; }
         public CancellationToken TokenDelMensaje { get; private set; }
+        public Error? Fallo { get; set; }
+        public bool Lanzar { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -465,6 +503,11 @@ public class EnvioIdempotenteDeLaReclamacionTests
             secuencia.Add("mensaje");
             Mensajes.Add(mensaje);
             TokenDelMensaje = cancellationToken;
+            if (Lanzar)
+                throw new InvalidOperationException("Graph no responde.");
+            if (Fallo is not null)
+                return Task.FromResult((TResponse)(object)Result.Fallo<Guid>(Fallo));
+
             UltimaConversacion = Guid.NewGuid();
             return Task.FromResult((TResponse)(object)Result.Exito(UltimaConversacion));
         }
