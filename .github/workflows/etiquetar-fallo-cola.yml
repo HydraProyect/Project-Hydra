@@ -1,0 +1,109 @@
+name: Etiquetar fallo de la cola
+
+# Cuando el CI de un grupo de la cola de fusión (evento `merge_group`) termina en
+# `failure`, pone la etiqueta «CI: completo» a la PR de ese grupo. Así el siguiente
+# push de la PR corre en `pull_request` la suite entera (integración, E2E y carga;
+# ver scripts/ci-alcance.sh) antes de volver a la cola, en vez de descubrir el
+# defecto otra vez en la cola y arrastrar a las PR que se construyen detrás.
+#
+# POR QUÉ (medido el 2026-10-24/25): la tasa de fallos de `merge_group` subió del
+# 4 % al 34 % en cuatro semanas; PR como #1598 o #1579 reentraron 8 veces en la cola
+# con el mismo defecto, que su run de PR no podía ver porque el alcance del CI dejaba
+# sus E2E o su integración para el grupo.
+#
+# A QUIÉN SE ETIQUETA. A la PR que nombra la rama del grupo,
+# `gh-readonly-queue/main/pr-<N>-<sha base>`: la última que entra en ese grupo. Con
+# varias construcciones especulativas, un grupo puede fallar por un defecto de una PR
+# que va delante (cascada); entonces la PR de detrás también recibe la etiqueta. Es un
+# falso positivo barato y a propósito: solo le cuesta una ejecución completa en su
+# siguiente push, y los minutos de Actions no se pagan en un repositorio público.
+# Distinguir el culpable exigiría reconstruir la cola, y equivocarse en el otro
+# sentido devuelve justo el fallo que este workflow quiere cortar.
+#
+# Qué NO hace: no comenta, no desencola, no relanza nada, no quita la etiqueta. Poner
+# una etiqueta no dispara el CI (ci.yml no escucha `labeled`).
+#
+# Seguridad: sin checkout, así que no ejecuta código de ninguna rama. Permisos mínimos
+# por job: `pull-requests: write` para leer la PR y etiquetarla, `actions: read` solo
+# para la ruta manual, que lee un run por su id. El nombre de la rama del grupo lo
+# genera GitHub, pero se trata como dato ajeno: entra por `env:`, nunca en el texto
+# del script, y solo se acepta si encaja entero con el patrón de arriba.
+#
+# `workflow_run` solo se dispara con la versión de este fichero que hay en la rama por
+# defecto. `workflow_dispatch` permite probarlo o aplicarlo a un run concreto:
+#   gh workflow run etiquetar-fallo-cola.yml -f run_id=<id del run de CI>
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: "Id de un run de ci.yml de evento merge_group terminado en failure"
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  etiquetar:
+    name: Etiquetar la PR del grupo que falló
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.event == 'merge_group' &&
+       github.event.workflow_run.conclusion == 'failure' &&
+       github.event.workflow_run.repository.full_name == github.repository)
+    permissions:
+      actions: read
+      pull-requests: write
+    steps:
+      - name: Poner «CI: completo» a la PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENTO: ${{ github.event_name }}
+          RAMA_RUN: ${{ github.event.workflow_run.head_branch }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          RUN_ID_MANUAL: ${{ inputs.run_id }}
+        run: |
+          set -euo pipefail
+          ETIQUETA="CI: completo"
+          rama="$RAMA_RUN"
+          url="$RUN_URL"
+          if [[ "$EVENTO" == "workflow_dispatch" ]]; then
+            if [[ ! "$RUN_ID_MANUAL" =~ ^[0-9]+$ ]]; then
+              echo "run_id no es un número." >&2; exit 1
+            fi
+            datos="$(gh api "repos/$REPO/actions/runs/$RUN_ID_MANUAL" \
+              --jq '[.path, .event, .conclusion, .repository.full_name, .head_branch, .html_url] | map(. // "") | join("|")')"
+            IFS='|' read -r ruta evento concl repo rama url <<< "$datos"
+            if [[ "$ruta" != ".github/workflows/ci.yml" || "$evento" != "merge_group" \
+                  || "$concl" != "failure" || "$repo" != "$REPO" ]]; then
+              echo "El run $RUN_ID_MANUAL no es un run de ci.yml de merge_group en failure de $REPO: nada que hacer."
+              exit 0
+            fi
+          fi
+
+          if [[ ! "$rama" =~ ^gh-readonly-queue/main/pr-([0-9]+)-[0-9a-f]{40}$ ]]; then
+            echo "La rama del grupo no tiene la forma esperada; no se etiqueta nada." >&2
+            exit 1
+          fi
+          pr="${BASH_REMATCH[1]}"
+
+          estado="$(gh api "repos/$REPO/pulls/$pr" --jq '.state')"
+          if [[ "$estado" != "open" ]]; then
+            echo "La PR #$pr está en estado «$estado»: no se etiqueta."
+            exit 0
+          fi
+
+          gh api --method POST "repos/$REPO/issues/$pr/labels" -f "labels[]=$ETIQUETA" > /dev/null
+          echo "PR #$pr: etiqueta «$ETIQUETA» puesta tras el fallo del grupo $url"
+          {
+            echo "### Fallo de la cola de fusión"
+            echo ""
+            echo "PR #$pr etiquetada «$ETIQUETA»: su siguiente push corre el CI completo antes de volver a la cola."
+            echo ""
+            echo "Run del grupo: $url"
+          } >> "$GITHUB_STEP_SUMMARY"

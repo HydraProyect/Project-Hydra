@@ -135,10 +135,18 @@ echo "=== pull_request ==="
 pr() { nuevo; fx labels "${ETIQUETAS[@]}"; fx files "$@"; correr pull_request 77; }
 ETIQUETAS=("Type: Enhancement" "Priority: Medium")
 
+pr "tests/CaeManager.Web.Tests/ClientesTests.cs" "tests/CaeManager.Application.Tests/CrearTrabajadorTests.cs"
+assert "PR solo de tests bUnit y unitarios: ligera" "$NADA"
 pr "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor" "tests/CaeManager.Web.Tests/ClientesTests.cs"
-assert "PR de pantalla (Web y bUnit): ligera" "$NADA"
+assert "PR de pantalla (Web y bUnit): E2E" "false true false"
+pr "src/CaeManager.Application/Trabajadores/CrearTrabajadorCommand.cs"
+assert "PR de Application: integración y E2E" "true true false"
+pr "src/CaeManager.Domain/Trabajador.cs"
+assert "PR de Domain: integración" "true false false"
 pr "src/CaeManager.Application/Trabajadores/CrearTrabajadorCommand.cs" "src/CaeManager.Domain/Trabajador.cs"
-assert "PR de Application y Domain sin nombres sensibles: ligera" "$NADA"
+assert "PR de Application y Domain sin nombres sensibles" "true true false"
+pr "src/CaeManager.WebOtro/A.cs" "src/CaeManager.ApplicationX/B.cs" "src/CaeManager.DomainY/C.cs"
+assert "un proyecto que solo empieza igual que Web, Application o Domain no cuenta" "$NADA"
 pr "tests/CaeManager.IntegrationTests/AlgoTests.cs"
 assert "toca tests de integración" "true false false"
 pr "src/CaeManager.Infrastructure/Persistence/AppDbContext.cs"
@@ -147,14 +155,16 @@ pr "src/CaeManager.Migrations.PostgreSQL/Migrations/20261009_X.cs"
 assert "toca migraciones" "true false false"
 pr "scripts/turno-postgres.sh"
 assert "toca scripts/" "true false false"
-pr "src/CaeManager.Application/Seguridad/AutorizacionDeCartera.cs"
+pr "tests/CaeManager.Application.Tests/Seguridad/AutorizacionDeCarteraTests.cs"
 assert "nombre con Autorizacion" "true false false"
-pr "src/CaeManager.Application/Common/IAuthorizationService.cs"
+pr "tests/CaeManager.Application.Tests/Common/IAuthorizationServiceFake.cs"
 assert "nombre con Authoriz" "true false false"
-pr "src/CaeManager.Application/Carteras/AlcanceDeCartera.cs"
+pr "tests/CaeManager.Application.Tests/Carteras/AlcanceDeCarteraTests.cs"
 assert "nombre con Alcance" "true false false"
-pr "src/CaeManager.Web/Components/PermisosPanel.razor"
+pr "tests/CaeManager.Web.Tests/Components/PermisosPanelTests.cs"
 assert "nombre con Permis" "true false false"
+pr "src/CaeManager.Web/Components/PermisosPanel.razor"
+assert "Web con nombre sensible: integración y E2E" "true true false"
 pr "src/CaeManager.Domain/Tenants/TenantId.cs"
 assert "ruta con Tenant" "true false false"
 pr "tests/CaeManager.Application.Tests/PoliticaRlsTests.cs"
@@ -173,7 +183,7 @@ pr "src/CaeManager.Web/Dockerfile.dev"
 assert "toca un Dockerfile en otra ruta" "$TODO"
 pr "src/CaeManager.Web/CaeManager.Web.csproj"
 assert "toca un .csproj (dependencias)" "$TODO"
-pr "src/CaeManager.Web/notas.csproj.bak"
+pr "tests/CaeManager.Web.Tests/notas.csproj.bak"
 assert "un .csproj.bak no es un .csproj" "$NADA"
 pr "Directory.Build.props"
 assert "toca Directory.Build.props" "$TODO"
@@ -187,20 +197,20 @@ pr "docker-entrypoint.sh"
 assert "toca docker-entrypoint.sh" "$TODO"
 nuevo; fx labels "${ETIQUETAS[@]}"; for i in $(seq 1 3000); do echo "src/CaeManager.Web/f$i.razor"; done > "$FIXTURE_DIR/files"; correr pull_request 77
 assert "3000 ficheros: la API trunca la lista" "$TODO"
-nuevo; fx labels "${ETIQUETAS[@]}"; for i in $(seq 1 2999); do echo "src/CaeManager.Web/f$i.razor"; done > "$FIXTURE_DIR/files"; correr pull_request 77
-assert "2999 ficheros de pantalla: ligera" "$NADA"
+nuevo; fx labels "${ETIQUETAS[@]}"; for i in $(seq 1 2999); do echo "tests/CaeManager.Web.Tests/f$i.cs"; done > "$FIXTURE_DIR/files"; correr pull_request 77
+assert "2999 ficheros de tests bUnit: ligera" "$NADA"
 pr "docs/Dockerfile/notas.txt"
 assert "un directorio llamado Dockerfile no es un Dockerfile" "$NADA"
-pr "src/CaeManager.Web/Pages/A.razor" "src/CaeManager.Infrastructure/B.cs"
+pr "tests/CaeManager.Web.Tests/A.cs" "src/CaeManager.Infrastructure/B.cs"
 assert "la ruta sensible va la segunda" "true false false"
-nuevo; fx labels "${ETIQUETAS[@]}"; printf 'src/CaeManager.Web/A.razor\r\ntests/CaeManager.E2ETests/B.cs\r\n' > "$FIXTURE_DIR/files"; correr pull_request 77
+nuevo; fx labels "${ETIQUETAS[@]}"; printf 'tests/CaeManager.Web.Tests/A.cs\r\ntests/CaeManager.E2ETests/B.cs\r\n' > "$FIXTURE_DIR/files"; correr pull_request 77
 assert "lista con finales de línea CRLF" "false true false"
 
 ETIQUETAS=("Type: Enhancement" "CI: completo")
 pr "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor"
 assert "PR ligera con etiqueta «CI: completo»" "$TODO"
 ETIQUETAS=("CI: completo y algo más")
-pr "src/CaeManager.Web/Features/Clientes/Pages/Clientes.razor"
+pr "tests/CaeManager.Web.Tests/ClientesTests.cs"
 assert "una etiqueta que solo empieza igual no cuenta" "$NADA"
 ETIQUETAS=("Type: Enhancement")
 
@@ -210,7 +220,7 @@ nuevo; fx labels "${ETIQUETAS[@]}"; fx files MOCK_ERROR; correr pull_request 77
 assert "PR: no se puede leer la lista de ficheros" "$TODO"
 nuevo; fx labels "${ETIQUETAS[@]}"; fx_vacia files; correr pull_request 77
 assert "PR: lista de ficheros vacía" "$TODO"
-nuevo; fx_vacia labels; fx files "src/CaeManager.Web/A.razor"; correr pull_request 77
+nuevo; fx_vacia labels; fx files "tests/CaeManager.Web.Tests/A.cs"; correr pull_request 77
 assert "PR sin etiquetas (respuesta vacía legítima): ligera" "$NADA"
 nuevo; fx labels "${ETIQUETAS[@]}"; fx files "src/CaeManager.Web/A.razor"; correr pull_request ""
 assert "PR sin número" "$TODO"
