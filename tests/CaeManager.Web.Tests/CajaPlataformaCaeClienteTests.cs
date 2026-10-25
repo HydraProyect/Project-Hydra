@@ -36,7 +36,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
     private sealed class MediatorFalso : IMediator
     {
         public PlataformaCaeClienteDto? Plataforma { get; set; } =
-            new(true, "Nalanda", "https://portal.example/acceso", "CLI-01");
+            new(true, "Nalanda", "https://portal.example/acceso", "CLI-01") { Version = Guid.NewGuid() };
 
         /// <summary>null = lo que el servidor devuelve a Consulta (AutorizacionSecretosDeTenantBehavior).</summary>
         public IReadOnlyList<AccesoPlataformaCaeDto>? Accesos { get; set; } =
@@ -49,6 +49,7 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
 
         /// <summary>Otra persona ganó la carrera del índice único: el guardado devuelve el conflicto del Command.</summary>
         public bool GuardadoEnConflicto { get; set; }
+        public bool ConflictoDeVersion { get; set; }
 
         public List<object> Enviadas { get; } = [];
 
@@ -57,6 +58,8 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
             Enviadas.Add(request);
             object? respuesta = request switch
             {
+                GuardarPlataformaCaeClienteCommand when ConflictoDeVersion =>
+                    Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto, "Otra persona modificó esta plataforma CAE mientras lo editabas.")),
                 GuardarPlataformaCaeClienteCommand => GuardadoEnConflicto
                     ? Result.Fallo(Error.Crear(GuardarPlataformaCaeClienteCommand.CodigoConflicto, "Otra persona acaba de registrar la plataforma."))
                     : Result.Exito(),
@@ -144,6 +147,39 @@ public partial class CajaPlataformaCaeClienteTests : BunitContext
 
         mediador.Enviadas.Should().HaveCount(consultas);
         _avisosDeCarga.Should().Be(2, "la página espera el aviso aunque no haya nada nuevo que leer");
+    }
+
+    [Fact]
+    public void El_conflicto_de_version_avisa_cierra_relee_y_reenvia_la_version_actualizada()
+    {
+        var mediador = new MediatorFalso { ConflictoDeVersion = true };
+        var versionLeida = mediador.Plataforma!.Version;
+        var cut = Montar(mediador);
+        var lecturas = mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Count();
+        cut.Find("[data-editar-plataforma]").Click();
+        cut.Find("input").Input("Mi edición");
+        var versionNueva = Guid.NewGuid();
+        mediador.Plataforma = new(true, "Dokify", "https://dokify.example", "CLI-02") { Version = versionNueva };
+
+        Guardar(cut);
+
+        cut.WaitForAssertion(() =>
+        {
+            mediador.Enviadas.OfType<GuardarPlataformaCaeClienteCommand>().Should().ContainSingle()
+                .Which.Version.Should().Be(versionLeida);
+            mediador.Enviadas.OfType<ObtenerPlataformaCaeClienteQuery>().Should().HaveCount(lecturas + 1);
+            cut.Find("[data-plataforma-nombre]").TextContent.Should().Be("Dokify");
+            cut.FindAll("input").Should().BeEmpty("el formulario obsoleto se cierra");
+            Services.GetRequiredService<ToastService>().Mensajes.Should()
+                .ContainSingle(m => m.Mensaje.Contains("Otra persona modificó", StringComparison.Ordinal) && m.Tono == TonoToast.Error);
+        });
+
+        mediador.ConflictoDeVersion = false;
+        cut.Find("[data-editar-plataforma]").Click();
+        cut.Find("input").GetAttribute("value").Should().Be("Dokify");
+        cut.Find("input").Input("Mi edición sobre Dokify");
+        Guardar(cut);
+        mediador.Enviadas.OfType<GuardarPlataformaCaeClienteCommand>().Last().Version.Should().Be(versionNueva);
     }
 
     [Fact]

@@ -128,13 +128,73 @@ public class PlataformaCaeClienteTests
         (await e.GuardarPlataforma(e.EnCartera()).Handle(
             new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Nalanda", "https://a.example", "A"), default)).EsExitoso.Should().BeTrue();
         (await e.GuardarPlataforma(e.EnCartera()).Handle(
-            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Dokify", null, null), default)).EsExitoso.Should().BeTrue();
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Dokify", null, null, e.Contexto.ListaPlataformasCae.Single().Version), default)).EsExitoso.Should().BeTrue();
 
         var plataforma = e.Contexto.ListaPlataformasCae.Should().ContainSingle().Subject;
         plataforma.ClienteEmpresarialId.Should().Be(e.Cliente.Id);
         plataforma.Nombre.Should().Be("Dokify");
         plataforma.UrlPortal.Should().BeNull();
         e.UnitOfWork.VecesGuardado.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Guardar_plataforma_con_version_antigua_no_modifica_ni_guarda()
+    {
+        var e = new Escenario();
+        var plataforma = e.RegistrarPlataforma();
+
+        var resultado = await e.GuardarPlataforma(e.EnCartera()).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Dokify", null, null, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        plataforma.Nombre.Should().Be("Nalanda");
+        plataforma.UrlPortal.Should().Be("https://portal.example");
+        plataforma.CodigoCliente.Should().Be("CLI-01");
+        e.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Guardar_plataforma_comprueba_visibilidad_antes_de_version(bool enCartera, bool ladoDeGestion)
+    {
+        var e = new Escenario();
+        var plataforma = e.RegistrarPlataforma();
+        var alcance = enCartera ? e.EnCartera(ladoDeGestion: ladoDeGestion) : Escenario.FueraDeCartera();
+
+        var resultado = await e.GuardarPlataforma(alcance).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Dokify", null, null, Guid.NewGuid()), default);
+
+        resultado.Error.Codigo.Should().Be("Cliente.NoEncontrado");
+        plataforma.Nombre.Should().Be("Nalanda");
+        e.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_plataforma_existente_sin_token_no_elude_la_concurrencia(bool vacio)
+    {
+        var e = new Escenario();
+        var plataforma = e.RegistrarPlataforma();
+
+        var resultado = await e.GuardarPlataforma(e.EnCartera()).Handle(
+            new GuardarPlataformaCaeClienteCommand(e.Cliente.Id, "Dokify", null, null, vacio ? Guid.Empty : null), default);
+
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        plataforma.Nombre.Should().Be("Nalanda");
+        e.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public void El_validador_admite_el_alta_sin_version_y_rechaza_la_version_vacia()
+    {
+        var validador = new GuardarPlataformaCaeClienteCommandValidator();
+        var alta = new GuardarPlataformaCaeClienteCommand(Guid.NewGuid(), "Nalanda", null, null);
+
+        validador.Validate(alta).IsValid.Should().BeTrue();
+        validador.Validate(alta with { Version = Guid.NewGuid() }).IsValid.Should().BeTrue();
+        validador.Validate(alta with { Version = Guid.Empty }).Errors.Should().Contain(e => e.PropertyName == "Version");
     }
 
     [Fact]
@@ -409,7 +469,10 @@ public class PlataformaCaeClienteTests
 
         var dto = await e.ObtenerPlataforma(e.EnCartera()).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
 
-        dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", "CLI-01"));
+        dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", "CLI-01")
+        {
+            Version = e.Contexto.ListaPlataformasCae.Single().Version
+        });
     }
 
     [Theory]
@@ -425,7 +488,10 @@ public class PlataformaCaeClienteTests
 
         var dto = await e.ObtenerPlataforma(e.EnCartera(), rol, capacidad).Handle(new ObtenerPlataformaCaeClienteQuery(e.Cliente.Id), default);
 
-        dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", null),
+        dto.Should().Be(new PlataformaCaeClienteDto(true, "Nalanda", "https://portal.example", null)
+        {
+            Version = e.Contexto.ListaPlataformasCae.Single().Version
+        },
             "la pantalla lo oculta con SoloConEscritura, pero el dato tampoco debe viajar en la respuesta");
     }
 
