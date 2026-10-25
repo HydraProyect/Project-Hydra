@@ -1,4 +1,4 @@
-﻿using CaeManager.Application.Clientes.Commands.CrearCliente;
+using CaeManager.Application.Clientes.Commands.CrearCliente;
 using CaeManager.Application.Clientes.Commands.EditarCliente;
 using CaeManager.Application.Common;
 using CaeManager.Application.Clientes;
@@ -167,9 +167,10 @@ public class DuplicadosCifEmpresaTests
             new CaeManager.Application.Tests.Centros.CentroRepositorioFalso(),
             new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
-            new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(), uow, new AdministracionPermitida());
+            new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(),
+            new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida());
         return handler.Handle(new EjecutarImportacionCombinadaCommand(
-            new PlanImportacionCombinadaDto([new("Importada", " b12345674 ", false, false)], [], [], [], [], []), reemplazar), default);
+            new PlanImportacionCombinadaDto(Guid.NewGuid(), [new("Importada", " b12345674 ", false, false)], [], [], [], [], []), reemplazar), default);
     }
 
     [Theory]

@@ -299,7 +299,7 @@ public class PlantillaCombinadaAlineacionAnalisisEjecucionTests : IAsyncLifetime
             new RelacionEmpresarialRepository(contexto),
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
-            contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, new OperacionImportacionRepository(contexto),
             new AutorizacionEscrituraEfectivaFalsa());
 
         var resultado = await handler.Handle(

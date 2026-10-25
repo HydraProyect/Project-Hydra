@@ -858,6 +858,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
         // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
         services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
+        services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
