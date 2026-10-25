@@ -65,6 +65,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
     // propio archivo.
     private static readonly Dictionary<(string Ruta, string Linea), int> UsosPermitidos = new()
     {
+        // Z5-7: unicidad de CIF incluye bajas; el repositorio repone explícitamente el Tenant propietario.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.

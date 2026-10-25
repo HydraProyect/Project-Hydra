@@ -6,6 +6,9 @@ public interface IEmpresaRepository
 
     Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
+    /// <summary>Busca también bajas, solo en el Tenant propietario actual, con el CIF normalizado como Empresa.</summary>
+    Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
+
     Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
     /// <summary>Una Empresa con Trabajadores no puede eliminarse (ver EliminarEmpresaCommand).</summary>

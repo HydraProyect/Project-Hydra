@@ -82,6 +82,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
 
         var plan = request.Plan;
+        // Z5-7: el índice único de CIF incluye las Empresas dadas de baja del Tenant propietario;
+        // una fila que coincida con una baja abortaría el guardado con un error genérico.
+        foreach (var fila in plan.Clientes)
+        {
+            var duplicada = await empresaRepositorio.ObtenerDuplicadaPorCifAsync(fila.Cif, cancellationToken: cancellationToken);
+            if (duplicada?.EstaEliminado == true)
+                return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosCifEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
+        }
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
         var ahora = DateTime.UtcNow;
@@ -119,7 +127,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
         foreach (var fila in plan.Clientes)
         {
-            if (clientesPorCif.TryGetValue(fila.Cif, out var existente))
+            if (clientesPorCif.TryGetValue(fila.Cif.Trim().ToUpperInvariant(), out var existente))
             {
                 if (reemplazar && (existente.RazonSocial != fila.RazonSocial || existente.EsCritico != fila.EsCritico))
                 {
@@ -153,7 +161,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             {
                 var cliente = Empresa.CrearComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, notas: null, ejecutivoUsuarioId: null);
                 empresaRepositorio.Agregar(cliente);
-                clientesPorCif[fila.Cif] = cliente;
+                clientesPorCif[fila.Cif.Trim().ToUpperInvariant()] = cliente;
                 clientesIdPorRazonSocial[fila.RazonSocial] = cliente.Id;
                 clientesCreados++;
             }

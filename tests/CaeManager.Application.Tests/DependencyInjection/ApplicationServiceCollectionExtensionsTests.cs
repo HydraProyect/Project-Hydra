@@ -2,6 +2,7 @@ using CaeManager.Application.AsistenteIa;
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Plataforma;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -97,6 +98,24 @@ public class ApplicationServiceCollectionExtensionsTests
 
         proveedor.GetRequiredService<ISesionPrivilegiadaActual>()
             .Should().BeOfType<SesionPrivilegiadaAusente>();
+    }
+
+    [Fact]
+    public void AddApplication_por_si_sola_construye_el_behavior_de_duplicados_de_Cif_sin_Infrastructure()
+    {
+        // Mismo fallo de forma: el behavior de Z5-7 se construye para toda petición,
+        // así que no puede exigir IEmpresaRepository (lo registra Infrastructure) en su constructor.
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+
+        servicios.Should().Contain(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>)
+            && d.ImplementationType == typeof(DuplicadosCifEmpresaBehavior<,>));
+        var accion = () => ActivatorUtilities.CreateInstance<DuplicadosCifEmpresaBehavior<PreguntarAlAsistenteQuery, CaeManager.Domain.Common.Result>>(
+            ambito.ServiceProvider);
+
+        accion.Should().NotThrow();
     }
 
     [Fact]

@@ -12,6 +12,12 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.Any(e => e.RazonSocial == razonSocial && e.Id != excluirId));
 
+    public Guid TenantPropietarioId { get; set; }
+
+    public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+            && e.Cif == cif.Trim().ToUpperInvariant() && e.Id != excluirId));
+
     public Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.Any(e => e.Cif == cif && e.Id != excluirId));
 

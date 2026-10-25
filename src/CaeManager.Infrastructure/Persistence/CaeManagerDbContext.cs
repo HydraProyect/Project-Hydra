@@ -451,6 +451,39 @@ public class CaeManagerDbContext(
     IQueryable<ContactoWhatsApp> IComunicacionesQueryContext.ContactosWhatsApp => ContactosWhatsApp;
 
 
+    internal Guid? TenantPropietarioId => tenantActual.TenantId;
+
+    // Z5-7: se sobrescribe la sobrecarga con acceptAllChangesOnSuccess porque es la que
+    // invocan todas las demás (SaveChangesAsync(ct) incluida): así ningún camino de guardado
+    // asíncrono escapa a la traducción.
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+        {
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Empresas_TenantId_Cif"
+        })
+        {
+            // Con lotes, EF puede no identificar la entrada exacta que chocó: si Entries no trae
+            // ninguna Empresa, se toman todas las Empresas pendientes (cualquiera de ellas pudo chocar).
+            var empresasEnConflicto = ex.Entries.Select(e => e.Entity).OfType<Empresa>().ToList();
+            if (empresasEnConflicto.Count == 0)
+                empresasEnConflicto = ChangeTracker.Entries<Empresa>()
+                    .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                    .Select(e => e.Entity).ToList();
+            var cifs = empresasEnConflicto
+                .Where(e => e.Cif != null).Select(e => e.Cif!).Distinct().ToArray();
+            // La unidad de escritura fallida no debe reintentarse en un guardado posterior del circuito,
+            // ni persistir la auditoría de cambios que la base rechazó.
+            foreach (var entrada in ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList())
+                entrada.State = EntityState.Detached;
+            throw new CifEmpresaDuplicadoException(cifs, ex);
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);

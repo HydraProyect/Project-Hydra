@@ -1,3 +1,4 @@
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -58,8 +59,8 @@ public class CrearEmpresaCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Empresa.RazonSocialDuplicada", "Ya existe una empresa con esta razón social."));
 
-        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
+        if (await DuplicadosCifEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Empresa.CifDuplicado", cancellationToken) is { } duplicadoCif)
+            return Result.Fallo<Guid>(duplicadoCif);
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // EmpresaCliente.ClienteId ya apunta a Empresas (F3): el "cliente" que se
