@@ -122,7 +122,26 @@ public class SignInManagerCuentaDesactivada(
             return Task.CompletedTask;
         }
 
-        return base.SignInWithClaimsAsync(user, authenticationProperties, additionalClaims);
+        return base.SignInWithClaimsAsync(user, authenticationProperties, ConMarcaDeInicioConMicrosoft(additionalClaims));
+    }
+
+    /// <summary>
+    /// Una sesión que Identity emite con el proveedor externo de Microsoft (tras el TOTP
+    /// de TALVEG del inicio con Microsoft, D-2, o al refrescarla) lleva la marca de
+    /// inicio con SSO, como la que emite directamente el callback. Sin ella,
+    /// <see cref="RestriccionLoginLocalClaimsTransformation"/> la trataría como un
+    /// inicio con contraseña. El proveedor solo lo escribe la cookie de dos pasos que
+    /// firma el callback, o la propia sesión al refrescarse.
+    /// </summary>
+    public static IEnumerable<Claim> ConMarcaDeInicioConMicrosoft(IEnumerable<Claim> claims)
+    {
+        ArgumentNullException.ThrowIfNull(claims);
+        var lista = claims.ToList();
+        var porMicrosoft = lista.Any(c => c.Type == ClaimTypes.AuthenticationMethod && c.Value == AzureAdOptions.Esquema);
+        var yaMarcada = lista.Any(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin);
+        if (porMicrosoft && !yaMarcada)
+            lista.Add(new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+        return lista;
     }
 
     // ── Registro de inicios de sesión y bloqueo por país ─────────────────────

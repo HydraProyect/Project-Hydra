@@ -65,6 +65,19 @@ public class AzureAdOptions : IOpcionesConGate
     /// </summary>
     public Guid? TenantHydraId { get; set; }
 
+    /// <summary>Nombre del esquema de autenticación de este inicio de sesión. Identity lo guarda como método de autenticación de la sesión.</summary>
+    public const string Esquema = "Microsoft";
+
+    /// <summary>
+    /// Id del contexto de autenticación de Acceso condicional de Entra (por ejemplo
+    /// <c>c1</c>) que acredita la MFA (decisión D-2 de 2026-10-25). Con valor, se pide
+    /// a Microsoft en cada inicio y se acepta como segundo factor si vuelve en la
+    /// notificación <c>acrs</c> del token. Vacío: no se pide ni se exige <c>acrs</c>,
+    /// y la MFA se acredita solo con <c>amr</c> = <c>mfa</c>. Sin ninguna de las dos,
+    /// se pide el TOTP de TALVEG antes de emitir la sesión.
+    /// </summary>
+    public string? ContextoAutenticacionMfa { get; set; }
+
     public bool EstaConfigurado => Evaluar().Completo;
 
 

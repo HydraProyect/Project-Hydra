@@ -6,6 +6,7 @@
 @using CaeManager.Infrastructure.Identity
 @using CaeManager.Web.Components.Account
 @using CaeManager.Web.Services
+@using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Authorization
 @using CaeManager.Web.Components.Account.Recursos
 @using Microsoft.AspNetCore.Identity
@@ -138,6 +139,7 @@
         using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
 
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+        var vinculoPendiente = await LeerVinculoPendienteAsync();
 
         // Cerrojo no bloqueante por usuario pendiente de 2FA — necesario
         // porque esta página es SSR estática (sin @rendermode): cada POST
@@ -176,6 +178,9 @@
         if (resultado.Succeeded)
         {
             logger.LogInformation("Verificación 2FA correcta: {UsuarioId}", _usuarioPendiente.Id);
+
+            if (!await CompletarVinculoPendienteAsync(_usuarioPendiente, vinculoPendiente, logger))
+                return;
 
             // La cookie de cultura es una proyección de ApplicationUser.Idioma
             // (ver CulturaUsuarioCookie): se reconstruye en cada inicio de
@@ -253,6 +258,7 @@
 
         var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
         var usuario = _usuarioPendiente;
+        var vinculoPendiente = await LeerVinculoPendienteAsync();
 
         SignInResult? resultadoObtenido = null;
         var fallidoSinRegistrar = false;
@@ -296,6 +302,9 @@
         if (resultado.Succeeded)
         {
             logger.LogInformation("Verificación 2FA correcta con código de recuperación: {UsuarioId}", usuario.Id);
+
+            if (!await CompletarVinculoPendienteAsync(usuario, vinculoPendiente, logger))
+                return;
 
             if (HttpContext is not null)
                 CulturaUsuarioCookie.Escribir(HttpContext, usuario.Idioma);
@@ -345,6 +354,39 @@
 
     private const string MensajeBloqueo =
         "Demasiados intentos. Tu cuenta está bloqueada temporalmente; espera unos minutos y vuelve a iniciar sesión.";
+
+    /// <summary>
+    /// La identidad de Microsoft que el callback dejó pendiente en la cookie de dos
+    /// pasos (D-2, vínculo tras el TOTP). Se lee antes de verificar: al superarlo,
+    /// Identity borra esa cookie.
+    /// </summary>
+    private async Task<UserLoginInfo?> LeerVinculoPendienteAsync() =>
+        HttpContext is null
+            ? null
+            : InicioSesionMicrosoft.VinculoPendiente(
+                (await HttpContext.AuthenticateAsync(IdentityConstants.TwoFactorUserIdScheme)).Principal);
+
+    /// <summary>
+    /// Tras superar el TOTP de un inicio con Microsoft, guarda el vínculo pendiente.
+    /// Si no queda guardado, se cierra la sesión recién emitida y se vuelve al inicio,
+    /// como hace el callback: una identidad que no queda vinculada no entra.
+    /// </summary>
+    private async Task<bool> CompletarVinculoPendienteAsync(ApplicationUser usuario, UserLoginInfo? vinculo, ILogger logger)
+    {
+        if (vinculo is null)
+            return true;
+
+        if (await InicioSesionMicrosoft.CompletarVinculoPendienteAsync(SignInManager.UserManager, usuario, vinculo))
+        {
+            logger.LogInformation("Identidad de Microsoft vinculada tras el TOTP de TALVEG: {UsuarioId}", usuario.Id);
+            return true;
+        }
+
+        logger.LogError("No se pudo vincular la identidad de Microsoft tras el TOTP de TALVEG; se cierra la sesión: {UsuarioId}", usuario.Id);
+        await SignInManager.SignOutAsync();
+        Navigation.NavigateTo("/cuenta/iniciar-sesion?errorSso=fallo", forceLoad: true);
+        return false;
+    }
 
     private sealed class DatosRecuperacion
     {

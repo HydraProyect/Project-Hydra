@@ -11,7 +11,7 @@ namespace CaeManager.Web.Components.Account;
 public static class IdentityEndpointsExtensions
 {
     /// <summary>Nombre del esquema de autenticación de Entra ID — usado tanto al registrarlo (Program.cs) como al retarlo (aquí).</summary>
-    public const string EsquemaMicrosoft = "Microsoft";
+    public const string EsquemaMicrosoft = AzureAdOptions.Esquema;
 
     public static IEndpointRouteBuilder MapIdentityEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -159,6 +159,48 @@ public static class IdentityEndpointsExtensions
                     ResultadoInicioSesion.Rechazado, SenalesInicioSesion.PaisNoPermitido);
                 await signInManager.SignOutAsync();
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
+            // Segundo factor (D-2), antes de vincular: una identidad que no lo supera
+            // no deja vínculo. Si Microsoft no acreditó la MFA, el TOTP de TALVEG por
+            // el mismo paso que el inicio con contraseña (LoginCon2fa). Sin TOTP
+            // configurado no se emite sesión: el alta del TOTP exige una sesión ya
+            // emitida (MainLayout la fuerza solo a Administradores, y después). Un
+            // vínculo nuevo a una cuenta con TOTP pasa siempre por el TOTP, también
+            // con MFA de Microsoft, y se guarda solo al superarlo (ver DecidirSegundoFactor).
+            var vinculoNuevo = decision == DecisionCuentaMicrosoft.VincularCuentaExistente;
+            var segundoFactor = InicioSesionMicrosoft.DecidirSegundoFactor(
+                InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(infoExterna.Principal, opcionesAzureAd.Value.ContextoAutenticacionMfa),
+                await userManager.GetTwoFactorEnabledAsync(usuario),
+                vinculoNuevo);
+
+            if (segundoFactor == SegundoFactorMicrosoft.RechazarSinSegundoFactor)
+            {
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("Login de Microsoft rechazado: sin MFA de Microsoft ni TOTP de TALVEG configurado: {UsuarioId}", usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-mfa");
+            }
+
+            if (segundoFactor == SegundoFactorMicrosoft.PedirTotp)
+            {
+                // Sin vincular todavía: un vínculo nuevo viaja en la cookie de dos
+                // pasos, con el Id de la cuenta, y LoginCon2fa lo guarda solo al
+                // superar el TOTP. La sesión la emite Identity al verificar el código,
+                // con el proveedor externo, y SignInManagerCuentaDesactivada le pone la
+                // marca de inicio con SSO.
+                await httpContext.SignInAsync(IdentityConstants.TwoFactorUserIdScheme,
+                    InicioSesionMicrosoft.PrincipalSegundoFactorPendiente(usuario.Id, vinculoNuevo ? infoExterna : null));
+                await httpContext.SignOutAsync(IdentityConstants.ExternalScheme);
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogInformation("Login SSO correcto sin MFA de Microsoft, pendiente del TOTP de TALVEG: {UsuarioId}", usuario.Id);
+                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.SegundoFactorRequerido);
+
+                var verificacion = "/cuenta/verificar-2fa";
+                if (!string.IsNullOrWhiteSpace(returnUrl))
+                    verificacion += $"?ReturnUrl={Uri.EscapeDataString(returnUrl)}";
+                return Results.LocalRedirect(verificacion);
             }
 
             // El vínculo se guarda antes de entrar y su resultado se mira: antes se
