@@ -45,17 +45,17 @@
       },
       "Microsoft.EntityFrameworkCore.Sqlite.Core": {
         "type": "Direct",
-        "requested": "[10.0.10, )",
-        "resolved": "10.0.10",
-        "contentHash": "YbVWMIouzwTKBiLms8boa7xeRT88wI14R1msv3XExFk9n0/sa8nU7MwDa1CKtfLGMJs7O7QWuS9/xhcQ72AD2A==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "08VGlMQ9WbK869as9Ho+VZQbM5Qu6zdorgeh6ShVwQgLYgfUBiaIm02T7spfW7Xc1MBHCvclwPgGWpvx5BYGXQ==",
         "dependencies": {
-          "Microsoft.Data.Sqlite.Core": "10.0.10",
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.10",
-          "Microsoft.Extensions.Caching.Memory": "10.0.10",
-          "Microsoft.Extensions.Configuration.Abstractions": "10.0.10",
-          "Microsoft.Extensions.DependencyModel": "10.0.10",
-          "Microsoft.Extensions.Logging": "10.0.10",
-          "SQLitePCLRaw.core": "2.1.11"
+          "Microsoft.Data.Sqlite.Core": "10.0.14",
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.14",
+          "Microsoft.Extensions.Caching.Memory": "10.0.14",
+          "Microsoft.Extensions.Configuration.Abstractions": "10.0.14",
+          "Microsoft.Extensions.DependencyModel": "10.0.14",
+          "Microsoft.Extensions.Logging": "10.0.14",
+          "SQLitePCLRaw.core": "2.1.13"
         }
       },
       "Microsoft.NET.Test.Sdk": {
@@ -437,10 +437,10 @@
       },
       "Microsoft.Data.Sqlite.Core": {
         "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "TPCs0ldm7AWqcKmp6f/Xr+14sat7hx4rHfRlS4RgCURBH2thEWbAKEyX7cCWr63zVJVOJIJZTg2cBiUXa8ys6g==",
+        "resolved": "10.0.14",
+        "contentHash": "1p9rO3Q2X/L/9YrYog3vaDzi8u+WZfJCOkDYoHqmofqYP0DLPLPyZcS2Rnh/79JXAodgbs1AgsaNwLpIvC3Xew==",
         "dependencies": {
-          "SQLitePCLRaw.core": "2.1.11"
+          "SQLitePCLRaw.core": "2.1.13"
         }
       },
       "Microsoft.EntityFrameworkCore": {
@@ -595,8 +595,8 @@
       },
       "Microsoft.Extensions.DependencyModel": {
         "type": "Transitive",
-        "resolved": "10.0.10",
-        "contentHash": "rfZA1RjR021RPqSmIPovfz2aOd79TGqJ9BengbjnzIISOVwjLmuSDnhCMmiY/1c6iYvGolQ1iNGzkav0u11XEA=="
+        "resolved": "10.0.14",
+        "contentHash": "N8OcqM0370wSXMJ3ZxO66rSElHrIgxvpfUn0vV7zRj7NvKo0nfwgEoTmC3Yz3860o60IaQ4KIPyeLIGX9EeNWA=="
       },
       "Microsoft.Extensions.Diagnostics": {
         "type": "Transitive",
@@ -1333,8 +1333,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.13",
-        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+        "resolved": "10.0.14",
+        "contentHash": "Wz+IgL2xpg8KJ4i2VWj6uz1PmZNu4Q0Ljlwd73P9Vze5NcOBtctLii3itV0PB2MpOqwqDEGfB6RCdv94A4E5yQ=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -1390,12 +1390,12 @@
         "type": "Project",
         "dependencies": {
           "CaeManager.Domain": "[1.0.0, )",
-          "FluentValidation": "[12.*, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.*, )",
-          "MediatR": "[12.*, )",
-          "MediatR.Contracts": "[2.*, )",
-          "Microsoft.EntityFrameworkCore": "[10.*, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.*, )"
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
+          "MediatR": "[12.5.0, )",
+          "MediatR.Contracts": "[2.0.1, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "caemanager.domain": {
@@ -1409,21 +1409,21 @@
           "AngleSharp": "[1.8.4, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
-          "ClosedXML": "[0.105.*, )",
+          "ClosedXML": "[0.105.1, )",
           "HtmlSanitizer": "[9.2.1039, )",
           "MailKit": "[4.18.1, )",
           "MaxMind.Db": "[5.2.0, )",
           "MessagePack": "[2.5.303, )",
-          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
-          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",
-          "Microsoft.Extensions.Http.Resilience": "[10.*, )",
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.0.14, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "PDFsharp": "[6.2.4, )",
           "PDFtoImage": "[5.2.1, )",
           "Sentry": "[6.7.0, )",
           "SkiaSharp": "[3.119.2, )",
           "Stripe.net": "[52.3.0, )",
-          "System.Security.Cryptography.Pkcs": "[10.0.13, )"
+          "System.Security.Cryptography.Pkcs": "[10.0.14, )"
         }
       },
       "caemanager.migrations.postgresql": {
@@ -1443,12 +1443,12 @@
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Infrastructure": "[1.0.0, )",
           "CaeManager.Migrations.PostgreSQL": "[1.0.0, )",
-          "ClosedXML": "[0.105.*, )",
+          "ClosedXML": "[0.105.1, )",
           "Markdig": "[1.4.0, )",
-          "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.*, )",
-          "Microsoft.AspNetCore.Components.QuickGrid": "[10.*, )",
-          "Microsoft.AspNetCore.Identity.UI": "[10.*, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.*, )",
+          "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.0.14, )",
+          "Microsoft.AspNetCore.Components.QuickGrid": "[10.0.14, )",
+          "Microsoft.AspNetCore.Identity.UI": "[10.0.14, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.14, )",
           "Microsoft.OpenApi": "[2.12.2, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.19.1, )",
           "OpenTelemetry.Extensions.Hosting": "[1.19.1, )",
@@ -1459,7 +1459,7 @@
           "QRCoder": "[1.8.0, )",
           "Sentry.AspNetCore": "[6.7.0, )",
           "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Sinks.Seq": "[9.*, )"
+          "Serilog.Sinks.Seq": "[9.1.0, )"
         }
       }
     }

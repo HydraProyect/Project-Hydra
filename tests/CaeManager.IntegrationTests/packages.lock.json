@@ -19,7 +19,7 @@
       },
       "Microsoft.AspNetCore.DataProtection": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "gDUH0z2bK0lPaHGy2/pIQkEtbhG3dFGSIbioy+Qu76Y+HiB0xg2TFqlSLc+DjQ2Jb/3GODGMtTh4JuufVWG7Dw==",
         "dependencies": {
@@ -1248,12 +1248,12 @@
         "type": "Project",
         "dependencies": {
           "CaeManager.Domain": "[1.0.0, )",
-          "FluentValidation": "[12.*, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.*, )",
-          "MediatR": "[12.*, )",
-          "MediatR.Contracts": "[2.*, )",
-          "Microsoft.EntityFrameworkCore": "[10.*, )",
-          "Microsoft.Extensions.Logging.Abstractions": "[10.*, )"
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
+          "MediatR": "[12.5.0, )",
+          "MediatR.Contracts": "[2.0.1, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.Extensions.Logging.Abstractions": "[10.0.14, )"
         }
       },
       "caemanager.domain": {
@@ -1267,21 +1267,21 @@
           "AngleSharp": "[1.8.4, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
-          "ClosedXML": "[0.105.*, )",
+          "ClosedXML": "[0.105.1, )",
           "HtmlSanitizer": "[9.2.1039, )",
           "MailKit": "[4.18.1, )",
           "MaxMind.Db": "[5.2.0, )",
           "MessagePack": "[2.5.303, )",
-          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
-          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",
-          "Microsoft.Extensions.Http.Resilience": "[10.*, )",
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.0.14, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "PDFsharp": "[6.2.4, )",
           "PDFtoImage": "[5.2.1, )",
           "Sentry": "[6.7.0, )",
           "SkiaSharp": "[3.119.2, )",
           "Stripe.net": "[52.3.0, )",
-          "System.Security.Cryptography.Pkcs": "[10.0.13, )"
+          "System.Security.Cryptography.Pkcs": "[10.0.14, )"
         }
       },
       "caemanager.migrations.postgresql": {
@@ -1301,12 +1301,12 @@
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Infrastructure": "[1.0.0, )",
           "CaeManager.Migrations.PostgreSQL": "[1.0.0, )",
-          "ClosedXML": "[0.105.*, )",
+          "ClosedXML": "[0.105.1, )",
           "Markdig": "[1.4.0, )",
-          "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.*, )",
-          "Microsoft.AspNetCore.Components.QuickGrid": "[10.*, )",
-          "Microsoft.AspNetCore.Identity.UI": "[10.*, )",
-          "Microsoft.AspNetCore.OpenApi": "[10.*, )",
+          "Microsoft.AspNetCore.Authentication.OpenIdConnect": "[10.0.14, )",
+          "Microsoft.AspNetCore.Components.QuickGrid": "[10.0.14, )",
+          "Microsoft.AspNetCore.Identity.UI": "[10.0.14, )",
+          "Microsoft.AspNetCore.OpenApi": "[10.0.14, )",
           "Microsoft.OpenApi": "[2.12.2, )",
           "OpenTelemetry.Exporter.OpenTelemetryProtocol": "[1.19.1, )",
           "OpenTelemetry.Extensions.Hosting": "[1.19.1, )",
@@ -1317,7 +1317,7 @@
           "QRCoder": "[1.8.0, )",
           "Sentry.AspNetCore": "[6.7.0, )",
           "Serilog.AspNetCore": "[10.0.0, )",
-          "Serilog.Sinks.Seq": "[9.*, )"
+          "Serilog.Sinks.Seq": "[9.1.0, )"
         }
       }
     }

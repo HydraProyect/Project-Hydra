@@ -4,10 +4,12 @@
 # agruparlos: en un repo con -warnaserror y tests de integración reales, cada
 # actualización merece pasar su propio CI antes de fiarse de ella, no
 # mezclarse con otras diez en un solo PR difícil de diagnosticar si algo
-# rompe. Única excepción: un MISMO paquete referenciado por varios proyectos
+# rompe. Excepciones: un MISMO paquete referenciado por varios proyectos
 # se agrupa en un solo PR (ver `groups` en NuGet). Sin eso, Dependabot abría
 # un PR por proyecto (5 de coverlet.collector, 2026-10-09) y recreaba los que
-# se cerraban a mano.
+# se cerraban a mano. Y los paquetes que solo funcionan a la misma versión
+# (la publicación de ASP.NET Core y EF Core de .NET 10, FluentValidation con
+# su extensión de DI) van en un grupo común: ver `dotnet-10`.
 #
 # Metadatos de PR: el check "Gobernanza — metadatos de PR"
 # (.github/workflows/gobernanza-pr.yml) exige a TODA PR, dependabot[bot]
@@ -63,8 +65,26 @@ updates:
       npgsql:
         patterns: ["Npgsql", "Npgsql.EntityFrameworkCore.PostgreSQL"]
         update-types: ["minor", "patch"]
-      ef-design:
-        patterns: ["Microsoft.EntityFrameworkCore.Design"]
+      # Paquetes de ASP.NET Core y EF Core de la misma publicación de .NET 10
+      # (2026-10-25): cada csproj las fija sin comodín (suelo exacto) y se
+      # mueven JUNTAS. Con "10.*", un proyecto que vuelve a resolver (lock
+      # file invalidado por un csproj tocado o, con toda probabilidad, por
+      # compilar con otro SDK: el runner usó 10.0.401 y setup-dotnet instala
+      # 10.0.3xx) sube a lo último publicado y sus proyectos de tests siguen
+      # en lo de su lock. Medido: Identity.UI 10.0.13 frente a 10.0.14 en
+      # Web.Tests, MSB3277 con -warnaserror. Un PR por paquete repetiría ese
+      # desfase; uno por grupo los sube a la vez. Sustituye a `ef-design`.
+      dotnet-10:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.EntityFrameworkCore*"
+          - "Microsoft.Extensions.Logging.Abstractions"
+          - "System.Security.Cryptography.Pkcs"
+        update-types: ["minor", "patch"]
+      # FluentValidation.DependencyInjectionExtensions exige la misma versión
+      # de FluentValidation: subirlos por separado da NU1605.
+      fluentvalidation:
+        patterns: ["FluentValidation*"]
         update-types: ["minor", "patch"]
     ignore:
       # FluentAssertions 8.x exige licencia comercial de pago (Xceed) desde

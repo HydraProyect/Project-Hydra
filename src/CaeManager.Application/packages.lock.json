@@ -4,13 +4,13 @@
     "net10.0": {
       "FluentValidation": {
         "type": "Direct",
-        "requested": "[12.*, )",
+        "requested": "[12.2.0, )",
         "resolved": "12.2.0",
         "contentHash": "DR3lFbdnKucaaj1/8zMNOACMz/64igzox1yVZSFVsLxYB5mxAB+wFP1WZ8fjwrZnbU1KA1DoMzHKYKxUfuZ4wQ=="
       },
       "FluentValidation.DependencyInjectionExtensions": {
         "type": "Direct",
-        "requested": "[12.*, )",
+        "requested": "[12.2.0, )",
         "resolved": "12.2.0",
         "contentHash": "QpKXgiO9E6wXCh19X2Musn8MZM0xt7KQt/QrD6GDBn3MCUfy8a+rkhCzrYJNCfoxTsTRQ7bpKP8T3geTnJNNeQ==",
         "dependencies": {
@@ -20,7 +20,7 @@
       },
       "MediatR": {
         "type": "Direct",
-        "requested": "[12.*, )",
+        "requested": "[12.5.0, )",
         "resolved": "12.5.0",
         "contentHash": "vqm2H8/nqL5NAJHPhsG1JOPwfkmbVrPyh4svdoRzu+uZh6Ex7PRoHBGsLYC0/RWCEJFqD1ohHNpteQvql9OktA==",
         "dependencies": {
@@ -30,13 +30,13 @@
       },
       "MediatR.Contracts": {
         "type": "Direct",
-        "requested": "[2.*, )",
+        "requested": "[2.0.1, )",
         "resolved": "2.0.1",
         "contentHash": "FYv95bNT4UwcNA+G/J1oX5OpRiSUxteXaUt2BJbRSdRNiIUNbggJF69wy6mnk2wYToaanpdXZdCwVylt96MpwQ=="
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "vY3931PYPIDBbKovGHbACmpOWvURvKNyRXfCjMh5yLW+FH6vLWeqUu2xzSCRo4Oz4tgx9GYpd0JlV5LDyAoQdg==",
         "dependencies": {
@@ -48,7 +48,7 @@
       },
       "Microsoft.Extensions.Logging.Abstractions": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "SwcbEBtkECq3D2oywvHkm46fyrX9Dd2JPWphDnHUc2+cUWR1Mdo41atAjh/9iZjgQxuvbKfZKXqostT/LZfefA==",
         "dependencies": {

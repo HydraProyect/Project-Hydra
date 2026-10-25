@@ -25,7 +25,7 @@
       },
       "ClosedXML": {
         "type": "Direct",
-        "requested": "[0.105.*, )",
+        "requested": "[0.105.1, )",
         "resolved": "0.105.1",
         "contentHash": "X1ruIP9h2FBEK7jmO0peq3s6/Zqt5ve5a9f9kn6WUjdsUWvGbQlqxuGLz822xuFLlmnSeAfWFTGeX/tZlmAt+g==",
         "dependencies": {
@@ -50,7 +50,7 @@
       },
       "Microsoft.AspNetCore.Authentication.OpenIdConnect": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "W5g9xaWjPudw7GNwxCqP9uLxpwE1+LkRf4f8i0aF6Ga1AY3qU2UvBa4+41Opz15sO5oTCLwYYXcvb477Ry8NZQ==",
         "dependencies": {
@@ -59,13 +59,13 @@
       },
       "Microsoft.AspNetCore.Components.QuickGrid": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "6kD6mXu9it899FkLvr+XTWQ6dogwULmGSAR7I1Qh8wDwm5NG/bFCqPDAMa78jCmgfKcn1c7A1P0ar7cANzhsgw=="
       },
       "Microsoft.AspNetCore.Identity.UI": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "MPmnOqCRDxjwiif0kyhkVe1mMUbId89uLHo2GM1JlKgfSw/KvZigN0qAMhUHPffOlbUqmqv0onuZOkdFriJM6A==",
         "dependencies": {
@@ -74,7 +74,7 @@
       },
       "Microsoft.AspNetCore.OpenApi": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "3M6yO4nv8fmvM/1X7DqQcMxw/ptNLBcUzZt19SBEyfZF32gqZuwoPNnYd1xlDnFvQOGOkZDncf7p9E24blcTkQ==",
         "dependencies": {
@@ -83,7 +83,7 @@
       },
       "Microsoft.EntityFrameworkCore.Design": {
         "type": "Direct",
-        "requested": "[10.*, )",
+        "requested": "[10.0.14, )",
         "resolved": "10.0.14",
         "contentHash": "hRaYw8yzhpGq3Yz9apZrr/tp6FeBDUiAq4zJELRxQH1J1PfSBb2uGZoXlOL6EoSB3/M+OMpIjHDH0aOfgwyUUQ==",
         "dependencies": {
@@ -193,7 +193,7 @@
       },
       "Serilog.Sinks.Seq": {
         "type": "Direct",
-        "requested": "[9.*, )",
+        "requested": "[9.1.0, )",
         "resolved": "9.1.0",
         "contentHash": "4Dam+H9AlYigRgvPmbEJmw7jgz2y2He1qmuopAWt/EnZJ2vlrcG5Nmh934LHq4lfKgF6cAau8NIFMCZrq1u2Hw==",
         "dependencies": {
@@ -905,8 +905,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.13",
-        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+        "resolved": "10.0.14",
+        "contentHash": "Wz+IgL2xpg8KJ4i2VWj6uz1PmZNu4Q0Ljlwd73P9Vze5NcOBtctLii3itV0PB2MpOqwqDEGfB6RCdv94A4E5yQ=="
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
@@ -917,11 +917,11 @@
         "type": "Project",
         "dependencies": {
           "CaeManager.Domain": "[1.0.0, )",
-          "FluentValidation": "[12.*, )",
-          "FluentValidation.DependencyInjectionExtensions": "[12.*, )",
-          "MediatR": "[12.*, )",
-          "MediatR.Contracts": "[2.*, )",
-          "Microsoft.EntityFrameworkCore": "[10.*, )"
+          "FluentValidation": "[12.2.0, )",
+          "FluentValidation.DependencyInjectionExtensions": "[12.2.0, )",
+          "MediatR": "[12.5.0, )",
+          "MediatR.Contracts": "[2.0.1, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.14, )"
         }
       },
       "caemanager.domain": {
@@ -935,21 +935,21 @@
           "AngleSharp": "[1.8.4, )",
           "CaeManager.Application": "[1.0.0, )",
           "CaeManager.Domain": "[1.0.0, )",
-          "ClosedXML": "[0.105.*, )",
+          "ClosedXML": "[0.105.1, )",
           "HtmlSanitizer": "[9.2.1039, )",
           "MailKit": "[4.18.1, )",
           "MaxMind.Db": "[5.2.0, )",
           "MessagePack": "[2.5.303, )",
-          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.*, )",
-          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.*, )",
-          "Microsoft.Extensions.Http.Resilience": "[10.*, )",
+          "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.14, )",
+          "Microsoft.AspNetCore.SignalR.StackExchangeRedis": "[10.0.14, )",
+          "Microsoft.Extensions.Http.Resilience": "[10.11.0, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
           "PDFsharp": "[6.2.4, )",
           "PDFtoImage": "[5.2.1, )",
           "Sentry": "[6.7.0, )",
           "SkiaSharp": "[3.119.2, )",
           "Stripe.net": "[52.3.0, )",
-          "System.Security.Cryptography.Pkcs": "[10.0.13, )"
+          "System.Security.Cryptography.Pkcs": "[10.0.14, )"
         }
       },
       "caemanager.migrations.postgresql": {
@@ -1007,8 +1007,8 @@
       },
       "System.Security.Cryptography.Pkcs": {
         "type": "Transitive",
-        "resolved": "10.0.13",
-        "contentHash": "a+EovgC1fBnwdlQ6cn3j4JFBfKqiFaFvoAhjisOoSvazLAcIznaBzPQP0oYnvccmeXfqUH1KebVZOxSeH6rMaw=="
+        "resolved": "10.0.14",
+        "contentHash": "Wz+IgL2xpg8KJ4i2VWj6uz1PmZNu4Q0Ljlwd73P9Vze5NcOBtctLii3itV0PB2MpOqwqDEGfB6RCdv94A4E5yQ=="
       }
     }
   }
