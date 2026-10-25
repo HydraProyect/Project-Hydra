@@ -249,6 +249,38 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         rehechoSinMarca.Should().NotBeNull();
         rehechoSinMarca!.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
             .Should().BeFalse("la marca nunca se crea donde no estaba");
+
+        // De punta a punta: fábrica real (tenant_id de la cuenta) → validador → restricción, con el Tenant de
+        // la cuenta como Tenant declarado. Por Microsoft sigue escribiendo; con contraseña, Consulta.
+        var restriccion = new RestriccionLoginLocalClaimsTransformation(Options.Create(new AzureAdOptions
+        {
+            TenantId = "tenant-ficticio",
+            ClientId = "aplicacion-ficticia",
+            ClientSecret = "valor-ficticio",
+            TenantHydraId = _tenant,
+        }));
+        rehecho.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)!.Value.Should().Be(_tenant.ToString());
+        (await restriccion.TransformAsync(rehecho)).FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.GestorCae]);
+        (await restriccion.TransformAsync(rehechoSinMarca)).FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Refrescar_la_sesion_conserva_la_marca_de_Microsoft_y_no_la_inventa(bool conMarca)
+    {
+        // Cambiar la contraseña o activar el segundo factor llaman a RefreshSignInAsync.
+        var usuario = await CrearUsuarioAsync($"refresco-{conMarca}@x.test");
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null, conMarcaSso: conMarca);
+        PrincipalDeLaCookie(cookie)!.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().Be(conMarca, "control: la cookie de partida");
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: cookie);
+
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        string[] esperado = conMarca ? [RestriccionLoginLocalClaimsTransformation.MetodoLoginSso] : [];
+        PrincipalDeLaCookie(refrescada)!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Select(c => c.Value).Should().Equal(esperado);
     }
 
     [Fact]
@@ -488,7 +520,16 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     }
 
     /// <summary>Devuelve el valor de la cabecera Set-Cookie que produce RefreshSignInAsync (o SignInAsync), o vacío si no emitió nada.</summary>
-    private async Task<string> EmitirCookieAsync(Guid usuarioId, bool refrescar, string? cookiePrevia)
+    /// <summary>El principal que lleva una cookie de aplicación emitida (valor de Set-Cookie), o <c>null</c>.</summary>
+    private ClaimsPrincipal? PrincipalDeLaCookie(string setCookie)
+    {
+        var opciones = _servicios.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+        var par = setCookie.Split(';')[0];
+        return opciones.TicketDataFormat.Unprotect(Uri.UnescapeDataString(par[(par.IndexOf('=') + 1)..]))?.Principal;
+    }
+
+    private async Task<string> EmitirCookieAsync(Guid usuarioId, bool refrescar, string? cookiePrevia, bool conMarcaSso = false)
     {
         using var ambito = _servicios.CreateScope();
         var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
@@ -502,6 +543,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         if (refrescar)
             await signInManager.RefreshSignInAsync(usuario!);
+        else if (conMarcaSso)
+            // Como el callback de Microsoft (IdentityEndpointsExtensions).
+            await signInManager.SignInWithClaimsAsync(usuario!, isPersistent: false, [new Claim(
+                RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
         else
             await signInManager.SignInAsync(usuario!, isPersistent: false);
 
