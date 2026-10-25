@@ -8,6 +8,40 @@ namespace CaeManager.Application.Tests.Dashboard;
 
 public class ObtenerDashboardEjecutivoQueryHandlerTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Las_horas_empatadas_desempatan_por_nombre_e_Id_antes_del_limite(bool invertir)
+    {
+        var horas = Enumerable.Range(1, 14)
+            .Select(i => new HorasClienteDto(new Guid(i, 0, 0, new byte[8]), i >= 12 ? "Antes" : "Igual", 100))
+            .Reverse().ToArray();
+        var entradas = new[]
+        {
+            (Cliente("B"), Valores(bpo: KpisBpoDto.Vacio with { HorasPorCliente = horas[..7] })),
+            (Cliente("A"), Valores(bpo: KpisBpoDto.Vacio with { HorasPorCliente = horas[7..] }))
+        };
+
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar(invertir ? entradas.Reverse().ToArray() : entradas);
+
+        resultado.Bpo.HorasPorCliente.Select(h => h.ClienteId).Should().Equal(
+            new[] { 12, 13, 14, 1, 2 }
+                .Select(i => new Guid(i, 0, 0, new byte[8])));
+    }
+
+    [Fact]
+    public void Las_incidencias_se_ordenan_por_gravedad_independientemente_del_orden_de_entrada()
+    {
+        var resultado = ObtenerDashboardEjecutivoQueryHandler.Fusionar([
+            (Cliente("B"), Valores(incidenciasPorGravedad: [new(GravedadIncidencia.MuyGrave, 2), new(GravedadIncidencia.Grave, 1)])),
+            (Cliente("A"), Valores(incidenciasPorGravedad: [new(GravedadIncidencia.Leve, 2), new(GravedadIncidencia.Grave, 1)]))]);
+
+        resultado.IncidenciasPorGravedad.Should().Equal(
+            new GravedadIncidenciaConteoDto(GravedadIncidencia.Leve, 2),
+            new GravedadIncidenciaConteoDto(GravedadIncidencia.Grave, 2),
+            new GravedadIncidenciaConteoDto(GravedadIncidencia.MuyGrave, 2));
+    }
+
     [Fact]
     public void El_ranking_global_desempata_por_nombre_e_Id_antes_del_limite()
     {

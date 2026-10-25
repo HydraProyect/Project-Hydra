@@ -182,6 +182,7 @@ public class ObtenerCatalogoKpisQueryHandler(
 
         var porGravedad = await incidenciasQuery
             .GroupBy(i => i.Gravedad)
+            .OrderBy(g => g.Key)
             .Select(g => new GravedadIncidenciaConteoDto(g.Key, g.Count()))
             .ToListAsync(cancellationToken);
 

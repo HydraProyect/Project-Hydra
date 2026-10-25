@@ -117,8 +117,6 @@ public class ObtenerKpisBpoQueryHandler(
             .Where(r => r.ClienteId != null)
             .GroupBy(r => r.ClienteId!.Value)
             .Select(g => new { ClienteId = g.Key, Segundos = g.Sum(r => r.SegundosActivos) })
-            .OrderByDescending(x => x.Segundos)
-            .Take(TopClientesPorHoras)
             .ToListAsync(cancellationToken);
 
         // RegistroTiempoGestion.ClienteId hereda Conversacion.ClienteId, que es un
@@ -131,6 +129,10 @@ public class ObtenerKpisBpoQueryHandler(
 
         return porCliente
             .Select(c => new HorasClienteDto(c.ClienteId, nombresCliente.GetValueOrDefault(c.ClienteId, "—"), c.Segundos))
+            .OrderByDescending(c => c.SegundosActivos)
+            .ThenBy(c => c.ClienteNombre, StringComparer.Ordinal)
+            .ThenBy(c => c.ClienteId)
+            .Take(TopClientesPorHoras)
             .ToList();
     }
 

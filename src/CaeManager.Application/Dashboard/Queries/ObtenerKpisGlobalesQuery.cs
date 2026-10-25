@@ -152,6 +152,8 @@ public class ObtenerKpisGlobalesQueryHandler(IMediator mediator)
                 p.Kpis.CentrosBloqueados, p.Kpis.SinDatos, p.Kpis.TrabajadoresBloqueados))
             .OrderByDescending(c => c.DocumentosVencidos)
             .ThenByDescending(c => c.DocumentosUrgentes)
+            .ThenBy(c => c.Nombre, StringComparer.Ordinal)
+            .ThenBy(c => c.TenantId)
             .ToList();
 
         return new KpisGlobalesDto(
