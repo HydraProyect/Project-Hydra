@@ -49,6 +49,7 @@ public partial class ImportarClientesGen2Tests
     private static PlanImportacionCombinadaDto PlanDelMockupCombinado(
         IEnumerable<ItemImportacionDto>? advertencias = null, IEnumerable<ItemImportacionDto>? omitidos = null) =>
         new(
+            Guid.NewGuid(),
             [
                 new ClienteImportadoDto("Instalaciones Vidal S.L.", "B98765432", false, YaExiste: false),
                 new ClienteImportadoDto("Refrielectric S.L.", "B12345674", true, YaExiste: true)
@@ -319,7 +320,7 @@ public partial class ImportarClientesGen2Tests
     [Fact]
     public async Task Sin_nada_nuevo_que_crear_lo_dice_y_deja_seguir_a_confirmar_para_reemplazar()
     {
-        var (cut, _) = RenderizarCombinada(new PlanImportacionCombinadaDto(
+        var (cut, _) = RenderizarCombinada(new PlanImportacionCombinadaDto(Guid.NewGuid(),
             [new ClienteImportadoDto("Refrielectric S.L.", "B12345674", false, YaExiste: true)],
             [new EmpresaCombinadaImportadaDto("Montajes Ebro S.A.", ["Refrielectric S.L."], YaExiste: true)],
             [], [], [], []));

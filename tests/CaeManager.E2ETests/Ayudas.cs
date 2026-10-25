@@ -16,6 +16,12 @@ namespace CaeManager.E2ETests;
 public static class Ayudas
 {
     public const string EmailAdministrador = "admin@caemanager.local";
+
+    /// <summary>Razón social que la configuración E2E (<c>WebAppFixture</c>) da a la hoja «Empleados» de la plantilla CAE completa.</summary>
+    public const string EmpresaDeHojaEmpleadosImportacion = "Empresa Matriz E2E S.A.";
+
+    /// <summary>Razón social que la configuración E2E da a la hoja «Trabajadores de la filial» de la plantilla CAE completa.</summary>
+    public const string EmpresaDeHojaFilialImportacion = "Empresa Filial E2E GmbH";
     public const string ContrasenaAdministrador = "CaeManager#2026";
 
     /// <summary>

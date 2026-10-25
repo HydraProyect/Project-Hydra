@@ -132,7 +132,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
                 continue;
             }
 
-            clientesCentros.Add(new ClienteCentroImportadoDto(nombre, esCritico, direccion, contacto, YaExisteCliente: true, YaExisteCentro: true));
+            clientesCentros.Add(new ClienteCentroImportadoDto(nombre, esCritico, direccion, contacto, YaExisteCliente: true, YaExisteCentro: true, Hoja: NombreHoja, Fila: fila));
         }
 
         return new PlanImportacionDto(Guid.NewGuid(), clientesCentros, [], [], [], [], [], omitidos);

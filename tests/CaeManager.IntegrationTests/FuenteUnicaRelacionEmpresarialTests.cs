@@ -472,7 +472,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
     [Fact]
     public async Task EjecutarImportacionCombinadaCommand_es_idempotente_ejecutado_dos_veces()
     {
-        var plan = new PlanImportacionCombinadaDto(
+        var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(),
             Clientes: [new ClienteImportadoDto("Cliente Import Fuente Unica S.A.", "B10380327", false, YaExiste: false)],
             Empresas: [new EmpresaCombinadaImportadaDto("Empresa Import Fuente Unica S.L.", ["Cliente Import Fuente Unica S.A."], YaExiste: false)],
             Centros: [], Trabajadores: [], Advertencias: [], Omitidos: []);
@@ -481,7 +481,9 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         primeraEjecucion.ClientesCreados.Should().Be(1);
         primeraEjecucion.EmpresasCreadas.Should().Be(1);
 
-        var segundaEjecucion = await EjecutarImportacionAsync(plan);
+        // Otro análisis del mismo archivo = otra operación: lo que evita duplicar aquí son las claves naturales,
+        // no la marca de operación (esa la cubren EjecutarImportacionCombinadaIdempotenciaTests).
+        var segundaEjecucion = await EjecutarImportacionAsync(plan with { OperacionId = Guid.NewGuid() });
         segundaEjecucion.ClientesCreados.Should().Be(0, "el cliente ya existe — la segunda ejecución no debe recrearlo");
         segundaEjecucion.EmpresasCreadas.Should().Be(0);
 
@@ -500,7 +502,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
     [Fact]
     public async Task EjecutarImportacionCombinadaCommand_dos_filas_del_mismo_par_en_un_plan_crean_una_sola_arista()
     {
-        var plan = new PlanImportacionCombinadaDto(
+        var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(),
             Clientes: [new ClienteImportadoDto("Cliente Repetido Fuente Unica S.A.", "B10380335", false, YaExiste: false)],
             Empresas:
             [
@@ -672,7 +674,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             new RelacionEmpresarialRepository(contexto),
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
-            contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, new OperacionImportacionRepository(contexto),
             new AutorizacionEscrituraEfectivaFalsa());
 
         var resultado = await handler.Handle(new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: false), CancellationToken.None);

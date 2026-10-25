@@ -7,7 +7,7 @@ namespace CaeManager.E2ETests;
 /// Cubre /importacion (Importacion.razor, el importador del "Cuadro de
 /// Control CAE") — sin ningún E2E hasta ahora, el más complejo de las 5
 /// pantallas de este bloque (4 hojas heterogéneas: Centros_Plataformas,
-/// Empleados, Extranjeros, Asignaciones — ver ClosedXmlImportacionParser).
+/// Empleados, la hoja de la filial, Asignaciones — ver ClosedXmlImportacionParser).
 ///
 /// Este test guarda la invariante «nada se descarta en silencio»
 /// (Project-Hydra-Negocio/tecnico/IMPORTACION.md § 3 bis, ratificada por DCR-12 decisión B, propietario
@@ -59,9 +59,9 @@ public class ImportacionTests(WebAppFixture fixture)
         hojaEmpleados.Cell(4, 7).Value = fechaEmision; // Columna G: Certificado de aptitud médica (ver ColumnasDocumentos).
 
         // Hoja obligatoria para el parser (ver ClosedXmlImportacionParser) —
-        // sin datos, el bucle de Empleados/Extranjeros la deja vacía sin
+        // sin datos, el bucle de las hojas de Trabajadores la deja vacía sin
         // generar ninguna Empresa ni Trabajador de esta hoja.
-        libro.Worksheets.Add("Extranjeros (Ibertec GmbH)");
+        libro.Worksheets.Add("Trabajadores de la filial");
 
         var hojaAsignaciones = libro.Worksheets.Add("Asignaciones");
         hojaAsignaciones.Cell(4, 4).Value = "Centro 1"; // Cabecera de la única columna de centro…
@@ -158,10 +158,10 @@ public class ImportacionTests(WebAppFixture fixture)
 
         // --- Verificación real de las tres altas que sí ocurrieron ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync("Ibertec S.A.");
+        await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(Ayudas.EmpresaDeHojaEmpleadosImportacion);
         // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
         // hasta que llega el filtro la lista las enseña todas.
-        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = "Ibertec S.A." })
+        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = Ayudas.EmpresaDeHojaEmpleadosImportacion })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");

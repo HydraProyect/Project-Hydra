@@ -9,7 +9,19 @@ namespace CaeManager.Application.Importacion;
 /// está deduplicada contra la base de datos y contra el propio archivo;
 /// Omitidos/Advertencias documentan qué se dejó fuera y por qué.
 /// </summary>
+/// <param name="OperacionId">
+/// Identidad estable de ESTA operación de análisis, generada una sola vez al analizar y
+/// transportada sin tocar hasta confirmar: es la misma que lleva <see cref="PlanImportacionDto"/>
+/// y la protege el mismo índice único de <c>OperacionImportacion</c>, de modo que confirmar
+/// dos veces el mismo plan (doble clic, reintento, dos confirmaciones en paralelo) escribe
+/// una sola vez. Analizar el mismo archivo dos veces genera dos identidades a propósito.
+/// </param>
+/// <param name="Clientes">
+/// Cada fila de las cuatro listas lleva su <c>Fila</c> real del Excel, para que un omitido
+/// detectado al escribir no se reporte con la fila 0.
+/// </param>
 public record PlanImportacionCombinadaDto(
+    Guid OperacionId,
     IReadOnlyList<ClienteImportadoDto> Clientes,
     IReadOnlyList<EmpresaCombinadaImportadaDto> Empresas,
     IReadOnlyList<CentroImportadoDto> Centros,
@@ -17,9 +29,9 @@ public record PlanImportacionCombinadaDto(
     IReadOnlyList<ItemImportacionDto> Advertencias,
     IReadOnlyList<ItemImportacionDto> Omitidos);
 
-public record ClienteImportadoDto(string RazonSocial, string Cif, bool EsCritico, bool YaExiste);
+public record ClienteImportadoDto(string RazonSocial, string Cif, bool EsCritico, bool YaExiste, int Fila = 0);
 
-public record EmpresaCombinadaImportadaDto(string RazonSocial, IReadOnlyList<string> ClientesAsociados, bool YaExiste);
+public record EmpresaCombinadaImportadaDto(string RazonSocial, IReadOnlyList<string> ClientesAsociados, bool YaExiste, int Fila = 0);
 
 public record CentroImportadoDto(
     string Nombre,
@@ -29,4 +41,5 @@ public record CentroImportadoDto(
     string? Direccion,
     string? Contacto,
     DateOnly? ContratoVigenteHasta,
-    bool YaExiste);
+    bool YaExiste,
+    int Fila = 0);

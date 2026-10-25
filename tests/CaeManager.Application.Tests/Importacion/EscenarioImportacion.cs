@@ -32,8 +32,8 @@ internal sealed class EscenarioImportacion
 {
     public const string DniConocido = "12345678Z";
     public const string DniDesconocido = "99999999R";
-    public const string EmpresaConocida = "Ibertec S.A.";
-    public const string EmpresaDesconocida = "Ibertec GmbH";
+    public const string EmpresaConocida = "Empresa Matriz de Prueba S.A.";
+    public const string EmpresaDesconocida = "Empresa Filial de Prueba GmbH";
     public const string CentroConocido = "Cadena Industrial Iberia S.A. - Planta Norte";
     public const string CentroDeclaradoNoCreado = "Refrielectric - Planta Sur";
     public const string CentroNoDeclarado = "Centro que este archivo nunca menciona";
@@ -58,7 +58,7 @@ internal sealed class EscenarioImportacion
     public Centro? CentroExistente { get; private set; }
     public TipoDocumento? TipoDocumentoExistente { get; private set; }
 
-    /// <summary>Siembra la Empresa que las hojas Empleados/Extranjeros dan por buena.</summary>
+    /// <summary>Siembra la Empresa que las hojas de Trabajadores dan por buena.</summary>
     public EscenarioImportacion ConEmpresaExistente(string razonSocial = EmpresaConocida)
     {
         EmpresasContexto.ListaEmpresas.Add(new Empresa(razonSocial));

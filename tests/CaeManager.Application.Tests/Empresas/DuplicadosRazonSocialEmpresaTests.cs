@@ -201,7 +201,7 @@ public class DuplicadosRazonSocialEmpresaTests
         repo.Guardar();
         var antes = repo.Empresas.Count;
         var uow = new UnitOfWorkFalso();
-        var resultado = await Importar(repo, uow, new PlanImportacionCombinadaDto(
+        var resultado = await Importar(repo, uow, new PlanImportacionCombinadaDto(Guid.NewGuid(),
             [new("Repetida", "B12345674", false, false), new("Repetida", "P1234567D", false, false)], [], [], [], [], []), reemplazar);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -215,7 +215,7 @@ public class DuplicadosRazonSocialEmpresaTests
 
     private static Task<Result<ResultadoImportacionCombinadaDto>> Importar(EmpresaRepositorioFalso repo,
         UnitOfWorkFalso uow, bool hojaEmpresas, bool reemplazar, string razonSocial) =>
-        Importar(repo, uow, new PlanImportacionCombinadaDto(
+        Importar(repo, uow, new PlanImportacionCombinadaDto(Guid.NewGuid(),
             hojaEmpresas ? [] : [new(razonSocial, "B12345674", false, false)],
             hojaEmpresas ? [new(razonSocial, [], false)] : [], [], [], [], []), reemplazar);
 
@@ -228,7 +228,8 @@ public class DuplicadosRazonSocialEmpresaTests
             new CaeManager.Application.Tests.Centros.CentroRepositorioFalso(),
             new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
-            new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(), uow, new AdministracionPermitida());
+            new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(),
+            new CaeManager.Application.Tests.Importacion.OperacionImportacionSobreUnitOfWorkFalso(uow), new AdministracionPermitida());
         return handler.Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), default);
     }
 

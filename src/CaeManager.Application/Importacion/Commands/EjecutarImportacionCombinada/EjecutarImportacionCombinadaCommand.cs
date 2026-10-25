@@ -5,6 +5,7 @@ using CaeManager.Application.Trabajadores;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
+using CaeManager.Domain.Importacion;
 using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Trabajadores;
 using MediatR;
@@ -21,6 +22,13 @@ namespace CaeManager.Application.Importacion.Commands.EjecutarImportacionCombina
 /// venga en el archivo); <c>false</c> (por defecto, el modo seguro) solo
 /// rellena lo que esté vacío en el registro existente y solo AÑADE
 /// asociaciones nuevas, nunca quita ni sobrescribe un dato ya presente.
+///
+/// Idempotencia bajo concurrencia: <c>Plan.OperacionId</c> se genera una sola vez al analizar y la
+/// protege el índice único de <c>(TenantId, OperacionId)</c> de <see cref="OperacionImportacion"/>,
+/// con el mismo diseño que <c>EjecutarImportacionCommand</c>: la marca de la operación se guarda en el
+/// MISMO <c>SaveChangesAsync</c> que las altas, así que si dos confirmaciones de la misma operación
+/// compiten, la perdedora choca en el índice y no escribe nada. Las claves naturales siguen haciendo
+/// que subir otra vez el mismo archivo (otro análisis, otra operación) no duplique registros.
 ///
 /// <see cref="IComandoDeAprovisionamiento" /> (PD-A3): forma parte del alta
 /// planificada de contenido CAE en un tenant durante su aprovisionamiento
@@ -39,7 +47,17 @@ public record ResultadoImportacionCombinadaDto(
     int TrabajadoresCreados,
     int TrabajadoresActualizados,
     IReadOnlyList<ItemImportacionDto> Advertencias,
-    IReadOnlyList<ItemImportacionDto> Omitidos);
+    IReadOnlyList<ItemImportacionDto> Omitidos)
+{
+    /// <summary>
+    /// Resultado de una confirmación que perdió la carrera de idempotencia o repitió una operación ya
+    /// confirmada: no creó ni omitió nada, no es un fallo que reportar, es el mismo archivo ya importado.
+    /// Mismo contrato que <see cref="EjecutarImportacion.ResultadoImportacionDto.YaEjecutada"/>.
+    /// </summary>
+    public static ResultadoImportacionCombinadaDto YaEjecutada() => new(0, 0, 0, 0, 0, 0, 0, 0, [],
+        [new ItemImportacionDto("Importación", 0, "Archivo completo",
+            "Esta importación ya se había confirmado antes (reintento o doble confirmación); no se ha vuelto a crear nada.")]);
+}
 
 /// <summary>
 /// F3b — "Clientes" y "Empresas" del archivo escriben ahora en el mismo
@@ -64,7 +82,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
     ICentroRepository centroRepositorio,
     ITrabajadorRepository trabajadorRepositorio,
     ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext,
-    IUnitOfWork unitOfWork,
+    IOperacionImportacionRepository operacionImportacionRepositorio,
     IAutorizacionEscrituraEfectiva autorizacionEscrituraEfectiva)
     : IRequestHandler<EjecutarImportacionCombinadaCommand, Result<ResultadoImportacionCombinadaDto>>
 {
@@ -82,6 +100,13 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 "Importacion.SoloAdministrador", "Solo Administrador puede ejecutar una importación combinada."));
 
         var plan = request.Plan;
+
+        // Reintento secuencial de la MISMA operación ya confirmada: se corta aquí, antes de reconstruir
+        // nada. No es la defensa —es solo evitar trabajo—; la defensa es el índice único que protege el
+        // guardado final.
+        if (await operacionImportacionRepositorio.ExisteAsync(plan.OperacionId, cancellationToken))
+            return ResultadoImportacionCombinadaDto.YaEjecutada();
+
         // Z5-7: el índice único de CIF incluye las Empresas dadas de baja del Tenant propietario;
         // una fila que coincida con una baja abortaría el guardado con un error genérico.
         foreach (var fila in plan.Clientes)
@@ -90,6 +115,28 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (duplicada?.EstaEliminado == true)
                 return Result.Fallo<ResultadoImportacionCombinadaDto>(DuplicadosEmpresa.ErrorDeBajaEnImportacion(fila.Cif));
         }
+
+        try
+        {
+            return await ConstruirYConfirmarAsync(request, cancellationToken);
+        }
+        catch
+        {
+            // Blazor Server comparte un único DbContext por circuito (el mismo que usa
+            // RegistrarHistorialImportacionCommand justo después): una excepción a mitad de construir el
+            // plan dejaría entidades en estado Added —incluida la marca de la operación— que ese guardado
+            // no relacionado intentaría persistir. Ver IOperacionImportacionRepository.DescartarPendientes.
+            operacionImportacionRepositorio.DescartarPendientes();
+            throw;
+        }
+    }
+
+    private async Task<Result<ResultadoImportacionCombinadaDto>> ConstruirYConfirmarAsync(
+        EjecutarImportacionCombinadaCommand request, CancellationToken cancellationToken)
+    {
+        var plan = request.Plan;
+        operacionImportacionRepositorio.Agregar(OperacionImportacion.Registrar(plan.OperacionId));
+
         var reemplazar = request.ReemplazarExistentes;
         var omitidosEnEscritura = new List<ItemImportacionDto>();
         var ahora = DateTime.UtcNow;
@@ -147,7 +194,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                     {
                         // El nombre del archivo no se registra: es el de otra Empresa, y las demás
                         // hojas que lo citen deben resolver a ella, no a este Cliente.
-                        omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", 0, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                        omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
                         continue;
                     }
                     existente.ActualizarComoCliente(fila.RazonSocial, fila.Cif, fila.EsCritico, existente.Notas);
@@ -179,7 +226,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
 
             if (await RazonSocialOcupadaAsync(fila.RazonSocial, null) is { } razonSocialDeOtra)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", 0, fila.RazonSocial, razonSocialDeOtra.Mensaje));
+                omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", fila.Fila, fila.RazonSocial, razonSocialDeOtra.Mensaje));
                 continue;
             }
 
@@ -194,7 +241,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", 0, fila.RazonSocial, ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto("Clientes", fila.Fila, fila.RazonSocial, ex.Message));
             }
         }
 
@@ -238,7 +285,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, fila.RazonSocial,
                     cancellationToken: cancellationToken) is { } razonSocialOcupada)
                 {
-                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", 0, fila.RazonSocial, razonSocialOcupada.Mensaje));
+                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
                     continue;
                 }
 
@@ -251,7 +298,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
                 }
                 catch (ArgumentException ex)
                 {
-                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", 0, fila.RazonSocial, ex.Message));
+                    omitidosEnEscritura.Add(new ItemImportacionDto("Empresas", fila.Fila, fila.RazonSocial, ex.Message));
                     continue;
                 }
             }
@@ -312,14 +359,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (!clientesIdPorRazonSocial.TryGetValue(fila.RazonSocialCliente, out var clienteId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros", 0, fila.Nombre, $"No se encontró el Cliente \"{fila.RazonSocialCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
+                    "Centros", fila.Fila, fila.Nombre, $"No se encontró el Cliente \"{fila.RazonSocialCliente}\" (ni en el sistema ni en la hoja Clientes de este archivo)."));
                 continue;
             }
 
             if (!empresasIdPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros", 0, fila.Nombre, $"No se encontró la empresa \"{fila.RazonSocialEmpresa}\" (ni en el sistema ni en la hoja Empresas de este archivo)."));
+                    "Centros", fila.Fila, fila.Nombre, $"No se encontró la empresa \"{fila.RazonSocialEmpresa}\" (ni en el sistema ni en la hoja Empresas de este archivo)."));
                 continue;
             }
 
@@ -354,7 +401,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Centros", 0, fila.Nombre, ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto("Centros", fila.Fila, fila.Nombre, ex.Message));
             }
         }
 
@@ -372,7 +419,7 @@ public class EjecutarImportacionCombinadaCommandHandler(
             if (!empresasIdPorRazonSocial.TryGetValue(fila.RazonSocialEmpresa, out var empresaId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Trabajadores", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
                     $"No se encontró la empresa \"{fila.RazonSocialEmpresa}\" (ni en el sistema ni en la hoja Empresas de este archivo)."));
                 continue;
             }
@@ -403,11 +450,14 @@ public class EjecutarImportacionCombinadaCommandHandler(
             catch (ArgumentException ex)
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Trabajadores", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ex.Message));
+                    "Trabajadores", fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ex.Message));
             }
         }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // Guarda TODO lo pendiente junto con la marca de la operación en un único SaveChangesAsync: si dos
+        // confirmaciones de la MISMA operación compiten, la perdedora choca en el índice único y no escribe nada.
+        if (!await operacionImportacionRepositorio.GuardarSiOperacionNuevaAsync(cancellationToken))
+            return ResultadoImportacionCombinadaDto.YaEjecutada();
 
         return new ResultadoImportacionCombinadaDto(
             clientesCreados, clientesActualizados, empresasCreadas, empresasActualizadas,

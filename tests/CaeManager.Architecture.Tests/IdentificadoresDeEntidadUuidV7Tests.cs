@@ -86,6 +86,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         // Id del plan de importación en memoria (no se persiste como clave).
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlImportacionParser.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaDocumentosService.cs"] = 2,
         // Referencia de correlación de un error en el log.
         ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,
