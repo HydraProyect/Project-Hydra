@@ -387,6 +387,8 @@ jobs:
   compilacion-y-unitarios:
     name: Compilación y tests unitarios
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # Ya no espera a los bloques: la agregacion vive en su propio job, asi
     # que este corre en paralelo con ellos en vez de detras. No necesita
     # PostgreSQL ni LibreOffice.
@@ -459,6 +461,8 @@ jobs:
   formato:
     name: Verificar formato
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -477,6 +481,8 @@ jobs:
   extension-arneses:
     name: Arneses de la extensión de navegador
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -503,6 +509,8 @@ jobs:
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
@@ -889,6 +897,8 @@ jobs:
   migraciones-pendientes:
     name: Detectar migraciones EF olvidadas
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -914,6 +924,8 @@ jobs:
   docker-build:
     name: Build de la imagen de despliegue
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -954,6 +966,8 @@ jobs:
   bunit-tests:
     name: Tests de componentes (bUnit)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1234,6 +1248,8 @@ jobs:
   e2e-tests:
     name: Tests E2E (Playwright)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [alcance, e2e-bloques]
     if: always()
     steps:
@@ -1606,6 +1622,8 @@ jobs:
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1773,6 +1791,8 @@ jobs:
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1811,6 +1831,8 @@ jobs:
   paquetes-vulnerables:
     name: Paquetes NuGet vulnerables
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
