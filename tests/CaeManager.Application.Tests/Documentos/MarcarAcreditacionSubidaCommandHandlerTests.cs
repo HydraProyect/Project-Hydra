@@ -31,8 +31,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         acreditacionRepositorio.Agregar(acreditacion);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -83,8 +82,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         acreditacionRepositorio.Agregar(acreditacion);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
         return (handler, unitOfWork);
     }
 
@@ -94,8 +92,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, new DocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, new DocumentoRepositorioFalso(), new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(Guid.NewGuid()), CancellationToken.None);
 
@@ -121,8 +118,7 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         var unitOfWork = new UnitOfWorkFalso();
         var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [Guid.NewGuid()]);
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(),
-            new CentrosQueryContextFalso(), new ProveedoresPlataformaCaeQueryContextFalso(), unitOfWork);
+            acreditacionRepositorio, documentoRepositorio, alcance, new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
@@ -133,10 +129,12 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
     }
 
     [Fact]
-    public async Task Falla_con_conector_inactivo_cuando_lo_exige_quien_llama()
+    public async Task No_exige_conector_activo_ni_crea_cambio_de_estado()
     {
-        // Simula la extensión de navegador (MarcarAcreditacionSubidaEndpoints,
-        // ExigirProveedorActivo: true) — kill switch remoto de MVP2 § 14.5.
+        // El drill-down interno (PlataformaTab.razor): "marcar subido" ahí registra
+        // una subida hecha a mano, sin pasar por la extensión — un conector
+        // inactivo para la extensión no debe romper ese registro. La extensión
+        // usa ConfirmarSubidaDesdeExtensionCommand, que sí lo exige.
         var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: false);
         var canal = CanalGestionDocumental.DePlataforma(
@@ -152,182 +150,12 @@ public class MarcarAcreditacionSubidaCommandHandlerTests
         proveedoresContext.ListaProveedores.Add(proveedor);
         var unitOfWork = new UnitOfWorkFalso();
         var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            centrosContext, proveedoresContext, unitOfWork);
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, ExigirProveedorActivo: true), CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be("Acreditacion.ConectorInactivo");
-        acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    // --- Plataforma correcta (extensión): el portal declarado ha de ser el del Proveedor del canal ---
-
-    private static (MarcarAcreditacionSubidaCommandHandler Handler, AcreditacionDocumentoPlataforma Acreditacion, UnitOfWorkFalso UnitOfWork)
-        EscenarioDePortal(Guid? proveedorDelCanal, params (ProveedorPlataformaCae Proveedor, string[] Dominios)[] catalogo)
-    {
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
-        var canal = proveedorDelCanal is { } id
-            ? CanalGestionDocumental.DePlataforma(Guid.NewGuid(), "Portal principal", id, null, null, null)
-            // Un canal que no es de Plataforma (por correo) no lleva Proveedor de catálogo.
-            : CanalGestionDocumental.PorEmail(Guid.NewGuid(), "Por correo", "cae@example.test", null);
-        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
-        var documentoRepositorio = new DocumentoRepositorioFalso();
-        documentoRepositorio.Agregar(documento);
-        var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
-        acreditacionRepositorio.Agregar(acreditacion);
-        var centrosContext = new CentrosQueryContextFalso();
-        centrosContext.ListaCanalesGestionDocumental.Add(canal);
-        var proveedoresContext = new ProveedoresPlataformaCaeQueryContextFalso();
-        foreach (var (proveedor, dominios) in catalogo)
-        {
-            proveedoresContext.ListaProveedores.Add(proveedor);
-            foreach (var dominio in dominios)
-                proveedoresContext.ListaDominios.Add(new DominioProveedorPlataformaCae(proveedor.Id, dominio));
-        }
-        var unitOfWork = new UnitOfWorkFalso();
-        var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            centrosContext, proveedoresContext, unitOfWork);
-        return (handler, acreditacion, unitOfWork);
-    }
-
-    [Theory]
-    [InlineData("nalandaglobal.com")]
-    [InlineData("app.nalandaglobal.com")]
-    [InlineData("ACME.NalandaGlobal.com")]
-    [InlineData("https://acme.nalandaglobal.com/subir?x=1")]
-    public async Task La_extension_marca_subida_en_el_portal_de_la_plataforma_del_canal(string portal)
-    {
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var dokify = new ProveedorPlataformaCae("dokify", "Dokify");
-        var (handler, acreditacion, unitOfWork) = EscenarioDePortal(
-            nalanda.Id, (nalanda, ["nalandaglobal.com"]), (dokify, ["dokify.net"]));
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, DominioPortal: portal, ExigirPortalDelProveedor: true),
-            CancellationToken.None);
-
-        resultado.EsExitoso.Should().BeTrue();
-        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
-        unitOfWork.VecesGuardado.Should().Be(1);
-    }
-
-    [Theory]
-    [InlineData("app.dokify.net")]               // el caso real: documento de Nalanda puesto en Dokify
-    [InlineData("notnalandaglobal.com")]         // acaba igual, pero no es subdominio (falta el punto)
-    [InlineData("nalandaglobal.com.evil.test")]  // el dominio como prefijo no vale
-    [InlineData("https://nalandaglobal.com@evil.test/")] // el host real es lo que hay tras la arroba
-    [InlineData("app.nalandaglobal.com.")]       // punto final: no se normaliza, falla cerrado
-    public async Task La_extension_no_marca_subida_en_el_portal_de_otra_plataforma(string portal)
-    {
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var dokify = new ProveedorPlataformaCae("dokify", "Dokify");
-        var (handler, acreditacion, unitOfWork) = EscenarioDePortal(
-            nalanda.Id, (nalanda, ["nalandaglobal.com"]), (dokify, ["dokify.net"]));
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, DominioPortal: portal, ExigirPortalDelProveedor: true),
-            CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be(MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno);
-        acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    public async Task La_extension_debe_declarar_el_portal(string? portal)
-    {
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var (handler, acreditacion, unitOfWork) = EscenarioDePortal(nalanda.Id, (nalanda, ["nalandaglobal.com"]));
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, DominioPortal: portal, ExigirPortalDelProveedor: true),
-            CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be(MarcarAcreditacionSubidaCommandHandler.CodigoPortalNoDeclarado);
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Un_proveedor_sin_dominios_en_el_catalogo_no_admite_ningun_portal()
-    {
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var (handler, acreditacion, unitOfWork) = EscenarioDePortal(nalanda.Id, (nalanda, []));
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, DominioPortal: "app.nalandaglobal.com", ExigirPortalDelProveedor: true),
-            CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be(MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno);
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Un_canal_sin_proveedor_de_catalogo_no_admite_ningun_portal()
-    {
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var (handler, acreditacion, unitOfWork) = EscenarioDePortal(null, (nalanda, ["nalandaglobal.com"]));
-
-        var resultado = await handler.Handle(
-            new MarcarAcreditacionSubidaCommand(acreditacion.Id, DominioPortal: "app.nalandaglobal.com", ExigirPortalDelProveedor: true),
-            CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        resultado.Error.Codigo.Should().Be(MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno);
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task El_registro_manual_del_drill_down_no_exige_portal()
-    {
-        // PlataformaTab.razor registra una subida hecha a mano: no hay portal que declarar.
-        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
-        var (handler, acreditacion, _) = EscenarioDePortal(nalanda.Id, (nalanda, ["nalandaglobal.com"]));
+            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(), unitOfWork);
 
         var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
-    }
-
-    [Fact]
-    public async Task No_exige_conector_activo_cuando_quien_llama_no_lo_pide()
-    {
-        // El drill-down interno (PlataformaTab.razor) deja ExigirProveedorActivo
-        // en su valor por defecto (false): "marcar subido" ahí registra una
-        // subida hecha a mano, sin pasar por la extensión — un conector
-        // inactivo para la extensión no debe romper ese registro.
-        var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
-        var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: false);
-        var canal = CanalGestionDocumental.DePlataforma(
-            Guid.NewGuid(), "Portal principal", proveedor.Id, null, null, null);
-        var acreditacion = new AcreditacionDocumentoPlataforma(documento.Id, canal.Id);
-        var documentoRepositorio = new DocumentoRepositorioFalso();
-        documentoRepositorio.Agregar(documento);
-        var acreditacionRepositorio = new AcreditacionDocumentoPlataformaRepositorioFalso();
-        acreditacionRepositorio.Agregar(acreditacion);
-        var centrosContext = new CentrosQueryContextFalso();
-        centrosContext.ListaCanalesGestionDocumental.Add(canal);
-        var proveedoresContext = new ProveedoresPlataformaCaeQueryContextFalso();
-        proveedoresContext.ListaProveedores.Add(proveedor);
-        var unitOfWork = new UnitOfWorkFalso();
-        var handler = new MarcarAcreditacionSubidaCommandHandler(
-            acreditacionRepositorio, documentoRepositorio, new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
-            centrosContext, proveedoresContext, unitOfWork);
-
-        var resultado = await handler.Handle(new MarcarAcreditacionSubidaCommand(acreditacion.Id), CancellationToken.None);
-
-        resultado.EsExitoso.Should().BeTrue();
-        acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+        acreditacion.CambiosEstado.Should().BeEmpty("solo «Lo he enviado» de la extensión y Centro 360 anotan un cambio");
     }
 }

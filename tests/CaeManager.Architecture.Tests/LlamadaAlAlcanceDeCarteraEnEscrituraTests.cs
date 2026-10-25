@@ -149,6 +149,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler",
         "Documentos.MarcarAcreditacionRechazadaCommandHandler",
         "Documentos.MarcarAcreditacionSubidaCommandHandler",
+        "Documentos.ConfirmarSubidaDesdeExtensionCommandHandler",
+        "Documentos.DeshacerSubidaDesdeExtensionCommandHandler",
         "Documentos.RenovarDocumentoCommandHandler",
         "Documentos.ResolverRevisionIaDocumentoCommandHandler",
         "Documentos.RestaurarAnotacionAcreditacionCommandHandler",

@@ -2,7 +2,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using CaeManager.Application.Common;
-using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
+using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro;
+using CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtension;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
@@ -29,6 +30,7 @@ namespace CaeManager.Web.Tests;
 public class EntradasExternasAntiforgeryTests
 {
     private const string Subida = "/extension/acreditaciones/11111111-1111-1111-1111-111111111111/subida";
+    private const string DeshacerSubida = Subida + "/deshacer";
 
     [Theory]
     [InlineData(Subida)]
@@ -73,11 +75,34 @@ public class EntradasExternasAntiforgeryTests
         using var cliente = Cliente(app);
         cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
         using var respuesta = await cliente.PostAsync(Subida, null);
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK, "«Lo he enviado» devuelve el cambio y la versión que pide el «Deshacer»");
+    }
+
+    [Fact]
+    public async Task El_deshacer_de_la_subida_con_cookie_sin_token_responde_400()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        await cliente.GetStringAsync("/token");
+        using var respuesta = await cliente.PostAsync(DeshacerSubida, CuerpoDeshacer());
+        respuesta.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task La_credencial_validada_de_extension_permite_deshacer_la_subida()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+        using var respuesta = await cliente.PostAsync(DeshacerSubida, CuerpoDeshacer());
         respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
+    private static StringContent CuerpoDeshacer() => new(
+        $"{{\"cambioId\":\"{Guid.NewGuid()}\",\"version\":\"{Guid.NewGuid()}\"}}", System.Text.Encoding.UTF8, "application/json");
+
     [Theory]
-    [InlineData(Subida, HttpStatusCode.NoContent)]
+    [InlineData(Subida, HttpStatusCode.OK)]
     [InlineData("/cuenta/cerrar-sesion", HttpStatusCode.Found)]
     [InlineData("/cuenta/soporte/salir", HttpStatusCode.Unauthorized)]
     public async Task El_token_valido_permite_el_post_con_cookie(string ruta, HttpStatusCode esperado)
@@ -91,7 +116,7 @@ public class EntradasExternasAntiforgeryTests
     }
 
     [Fact]
-    public async Task La_extension_declara_el_portal_en_el_cuerpo_y_el_servidor_lo_exige()
+    public async Task La_extension_declara_el_portal_en_el_cuerpo_y_el_servidor_lo_pasa_al_comando()
     {
         var mediador = new Mediador();
         await using var app = await ArrancarAsync(mediador);
@@ -101,17 +126,15 @@ public class EntradasExternasAntiforgeryTests
         using var respuesta = await cliente.PostAsync(Subida,
             new StringContent("""{"dominioPortal":"app.dokify.net"}""", System.Text.Encoding.UTF8, "application/json"));
 
-        respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent);
-        mediador.Ultimo.Should().NotBeNull();
-        mediador.Ultimo!.DominioPortal.Should().Be("app.dokify.net");
-        mediador.Ultimo.ExigirPortalDelProveedor.Should().BeTrue("la extensión siempre tiene que declarar el portal");
-        mediador.Ultimo.ExigirProveedorActivo.Should().BeTrue();
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK);
+        mediador.UltimaConfirmacion.Should().NotBeNull();
+        mediador.UltimaConfirmacion!.DominioPortal.Should().Be("app.dokify.net");
     }
 
     [Theory]
     [InlineData("")]
     [InlineData("{no es json")]
-    public async Task Sin_cuerpo_o_con_cuerpo_ilegible_no_declara_portal_pero_el_Command_lo_exige(string cuerpo)
+    public async Task Sin_cuerpo_o_con_cuerpo_ilegible_no_declara_portal_y_el_comando_lo_decide(string cuerpo)
     {
         var mediador = new Mediador();
         await using var app = await ArrancarAsync(mediador);
@@ -121,18 +144,17 @@ public class EntradasExternasAntiforgeryTests
         using var respuesta = await cliente.PostAsync(Subida,
             new StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json"));
 
-        respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent, "el mediador de prueba acepta; lo que importa es lo que llega al Command");
-        mediador.Ultimo!.DominioPortal.Should().BeNull();
-        mediador.Ultimo.ExigirPortalDelProveedor.Should().BeTrue();
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK, "el mediador de prueba acepta; lo que importa es lo que llega al comando");
+        mediador.UltimaConfirmacion!.DominioPortal.Should().BeNull();
     }
 
     [Theory]
-    [InlineData(MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno, HttpStatusCode.Conflict)]
-    [InlineData(MarcarAcreditacionSubidaCommandHandler.CodigoPortalNoDeclarado, HttpStatusCode.BadRequest)]
+    [InlineData(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno, HttpStatusCode.Conflict)]
+    [InlineData(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalNoDeclarado, HttpStatusCode.BadRequest)]
     [InlineData("Acreditacion.NoEncontrada", HttpStatusCode.NotFound)]
     public async Task Los_fallos_del_portal_tienen_su_codigo_http(string codigo, HttpStatusCode esperado)
     {
-        var mediador = new Mediador { Resultado = Result.Fallo(Error.Crear(codigo, "x")) };
+        var mediador = new Mediador { Fallo = Error.Crear(codigo, "x") };
         await using var app = await ArrancarAsync(mediador);
         using var cliente = Cliente(app);
         cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
@@ -226,13 +248,24 @@ public class EntradasExternasAntiforgeryTests
 
     private sealed class Mediador : IMediator
     {
-        public Result Resultado { get; init; } = Result.Exito();
-        public MarcarAcreditacionSubidaCommand? Ultimo { get; private set; }
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
+            Task.FromResult((TResponse)Responder(request));
 
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        /// <summary>Si se pone, todo comando falla con este error.</summary>
+        public Error? Fallo { get; init; }
+        public ConfirmarSubidaDesdeExtensionCommand? UltimaConfirmacion { get; private set; }
+
+        private object Responder(object request)
         {
-            Ultimo = request as MarcarAcreditacionSubidaCommand ?? Ultimo;
-            return Task.FromResult((TResponse)(object)Resultado);
+            if (request is ConfirmarSubidaDesdeExtensionCommand confirmacion)
+            {
+                UltimaConfirmacion = confirmacion;
+                return Fallo is { } errorConfirmacion
+                    ? Result.Fallo<CambioEstadoAnotadoDto>(errorConfirmacion)
+                    : Result.Exito(new CambioEstadoAnotadoDto(Guid.NewGuid(), Guid.NewGuid()));
+            }
+
+            return Fallo is { } error ? Result.Fallo(error) : Result.Exito();
         }
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

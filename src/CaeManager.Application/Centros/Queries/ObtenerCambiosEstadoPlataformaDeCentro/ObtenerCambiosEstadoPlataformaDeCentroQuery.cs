@@ -14,7 +14,8 @@ namespace CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaD
 
 /// <summary>
 /// Sección de cambios del Historial de Centro 360: cada cambio de estado en la plataforma CAE del Cliente anotado a
-/// mano desde ese Centro (bloque 3 de la sesión del 21-10), el más reciente primero, deshechos incluidos y marcados.
+/// mano en ese Centro (bloque 3 de la sesión del 21-10), desde Centro 360 o con «Lo he enviado» de la extensión
+/// (<see cref="CambioEstadoPlataformaCentroDto.Origen"/>), el más reciente primero, deshechos incluidos y marcados.
 /// </summary>
 public record ObtenerCambiosEstadoPlataformaDeCentroQuery(Guid CentroId, int Maximo = 50)
     : IRequest<IReadOnlyList<CambioEstadoPlataformaCentroDto>>;
@@ -22,7 +23,8 @@ public record ObtenerCambiosEstadoPlataformaDeCentroQuery(Guid CentroId, int Max
 public record CambioEstadoPlataformaCentroDto(
     Guid Id, DateTime MomentoUtc, string DocumentoNombre, string? TitularNombre, string NombrePlataforma,
     EstadoAcreditacion EstadoAnterior, EstadoAcreditacion Estado, DateOnly Fecha, string? Motivo, string? Nota,
-    string? UsuarioNombre, bool Deshecho);
+    string? UsuarioNombre, bool Deshecho,
+    OrigenCambioEstadoAcreditacion Origen = OrigenCambioEstadoAcreditacion.Centro360);
 
 /// <summary>
 /// Mismo alcance que la tabla que los produce: el Centro tiene que ser visible para el usuario y, de cada cambio, solo
@@ -75,6 +77,7 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
                 cambio.Nota,
                 cambio.UsuarioId,
                 cambio.DeshechoUtc,
+                cambio.Origen,
                 canal.ProveedorPlataformaCaeId,
                 documento.TipoDocumentoId,
                 documento.TrabajadorId,
@@ -118,6 +121,6 @@ public class ObtenerCambiosEstadoPlataformaDeCentroQueryHandler(
             c.ProveedorPlataformaCaeId is { } p ? proveedores.GetValueOrDefault(p, "Plataforma") : "Plataforma",
             c.EstadoAnterior, c.Estado, c.Fecha, leeDetalle ? c.Motivo : null, leeDetalle ? c.Nota : null,
             leeDetalle && c.UsuarioId is { } u ? nombres.GetValueOrDefault(u) : null,
-            c.DeshechoUtc is not null)).ToList();
+            c.DeshechoUtc is not null, c.Origen)).ToList();
     }
 }
