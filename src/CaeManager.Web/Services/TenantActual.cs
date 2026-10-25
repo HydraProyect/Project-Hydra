@@ -68,8 +68,27 @@ namespace CaeManager.Web.Services;
 public class TenantActual(
     AuthenticationStateProvider authenticationStateProvider,
     IHttpContextAccessor httpContextAccessor,
-    IClienteActivoSeleccionado clienteActivoSeleccionado) : ITenantActual
+    IClienteActivoSeleccionado clienteActivoSeleccionado) : ITenantActual, IAvisoSeleccionRetirada
 {
+    /// <summary>
+    /// Reenvía el aviso de la selección: cuando se retira, este <see cref="TenantId"/> pasa a ser otro, y lo que se
+    /// suscribió con el anterior (la caché del estado materializado, la bandeja de Comunicaciones) se entera por aquí sin
+    /// depender de la selección.
+    /// </summary>
+    public event Action<Guid>? TenantSeleccionadoRetirado
+    {
+        add
+        {
+            if (clienteActivoSeleccionado is IAvisoSeleccionRetirada aviso)
+                aviso.TenantSeleccionadoRetirado += value;
+        }
+        remove
+        {
+            if (clienteActivoSeleccionado is IAvisoSeleccionRetirada aviso)
+                aviso.TenantSeleccionadoRetirado -= value;
+        }
+    }
+
     public Guid? TenantId
     {
         get
