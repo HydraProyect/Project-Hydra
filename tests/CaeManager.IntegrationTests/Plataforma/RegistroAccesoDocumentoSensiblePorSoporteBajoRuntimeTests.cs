@@ -332,6 +332,34 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
         (await LeerFilasAsync(documentoId)).Should().BeEmpty();
     }
 
+    /// <summary>
+    /// Un contexto firmado corrupto (o caducado) no devuelve un código: app_contexto_validado lanza
+    /// 42501 en la primera consulta del servicio. DocumentosEndpoints traduce ese SQLSTATE a 403 sin
+    /// servir el fichero; aquí se fija que la base lo produce de verdad y que no queda fila.
+    /// </summary>
+    [Fact]
+    public async Task Un_contexto_firmado_corrupto_hace_fallar_el_registro_con_42501_sin_fila()
+    {
+        var sesion = await AbrirSesionDeSoporteLecturaAsync();
+        var documentoId = Guid.NewGuid();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion);
+        await contexto.Database.OpenConnectionAsync();
+
+        // Control positivo: la misma conexión registra antes de corromper el contexto.
+        (await LlamarFuncionAsync(contexto, sesion, Guid.NewGuid(), "CategoriaEspecialSalud", "Apertura"))
+            .Should().Be("registrado");
+        await contexto.Database.ExecuteSqlRawAsync("SELECT set_config('app.contexto', 'v1|corrupto', false);");
+
+        var servicio = new RegistroAccesoDocumentoSensibleService(
+            contexto, contexto,
+            new ActorAuditoriaFalso(new ActorAuditoria(_tecnico, null, TipoViaAcceso.SesionPrivilegiada, sesion)),
+            new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
+        var registrar = () => servicio.RegistrarSiSensibleAsync(documentoId, TipoAccesoDocumentoSensible.Apertura);
+        (await registrar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        (await LeerFilasAsync(documentoId)).Should().BeEmpty();
+    }
+
     // ── Andamiaje ────────────────────────────────────────────────────────────
 
     private async Task NoRegistraYFallaEnCerradoAsync(Guid tenantDelContexto, Guid sesion, Guid? actor = null)

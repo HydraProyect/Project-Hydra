@@ -12,6 +12,7 @@ using CaeManager.Web.Exportacion;
 using CaeManager.Web.Services;
 using ClosedXML.Excel;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Net.Http.Headers;
@@ -170,14 +171,17 @@ public static class DocumentosEndpoints
             or DbUpdateException { InnerException: DbException { SqlState: "42501" } })
         {
             await flujo.DisposeAsync();
-            return Results.StatusCode(StatusCodes.Status403Forbidden);
+            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogWarning(ex,
+                "El acceso al Documento {DocumentoId} no quedó registrado porque el contexto ya no lo autoriza; se responde 403.",
+                documento.Id);
+            return RespuestaSinContenido(contexto, StatusCodes.Status403Forbidden);
         }
         catch (Exception ex) when (EsFalloTransitorioDeRegistro(ex))
         {
             await flujo.DisposeAsync();
-            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogError(
+            fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!).LogError(ex,
                 "Fallo transitorio al registrar el acceso al Documento {DocumentoId}; se responde 503.", documento.Id);
-            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+            return RespuestaSinContenido(contexto, StatusCodes.Status503ServiceUnavailable);
         }
         catch
         {
@@ -214,6 +218,15 @@ public static class DocumentosEndpoints
         // lectura por rangos que sí lo haría exige un formato cifrado por
         // bloques, pendiente de decisión.
         return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
+    }
+
+    // Sin cuerpo: UseStatusCodePagesWithReExecute pondría la página Blazor /not-found en el visor
+    // incrustado (y en un 503 volvería a tocar la base); como en LogoTenantEndpoints, aquí no.
+    private static IResult RespuestaSinContenido(HttpContext contexto, int codigo)
+    {
+        var paginasDeEstado = contexto.Features.Get<IStatusCodePagesFeature>();
+        if (paginasDeEstado is not null) paginasDeEstado.Enabled = false;
+        return Results.StatusCode(codigo);
     }
 
     // EF puede envolver el fallo del proveedor o agotar los reintentos de escritura.

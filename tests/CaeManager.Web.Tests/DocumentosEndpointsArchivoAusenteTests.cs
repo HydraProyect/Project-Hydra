@@ -8,6 +8,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -91,6 +92,8 @@ public class DocumentosEndpointsArchivoAusenteTests
     public async Task Si_el_registro_falla_responde_sin_contenido_y_cierra_el_flujo(int fallo, int codigo)
     {
         var contexto = Contexto();
+        var paginasDeEstado = new StatusCodePagesFeature();
+        contexto.Features.Set<IStatusCodePagesFeature>(paginasDeEstado);
         var almacen = new AlmacenConElFichero();
 
         var resultado = await DocumentosEndpoints.ServirArchivoAsync(
@@ -104,6 +107,7 @@ public class DocumentosEndpointsArchivoAusenteTests
         LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
         LeerCuerpo(contexto).Should().NotContain(AlmacenConElFichero.Contenido);
         contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        paginasDeEstado.Enabled.Should().BeFalse("la página /not-found no sustituye la respuesta vacía");
     }
 
     [Theory]
