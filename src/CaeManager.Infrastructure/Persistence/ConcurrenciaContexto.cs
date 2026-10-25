@@ -3,6 +3,7 @@ using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata;
 
 namespace CaeManager.Infrastructure.Persistence;
 
@@ -108,7 +109,8 @@ public static class ConcurrenciaContexto
                 var desacopladas = new HashSet<object>(ReferenceEqualityComparer.Instance);
                 var tocadas = entradas.Where(e => !iniciales.ContainsKey(e.Entity)
                     && e.State != EntityState.Unchanged).ToList();
-                var principales = tocadas.SelectMany(e => PrincipalesRastreados(e, entradas))
+                var indices = new Dictionary<IKey, ILookup<string, EntityEntry>>();
+                var principales = tocadas.SelectMany(e => PrincipalesRastreados(e, entradas, indices))
                     .Where(p => !iniciales.ContainsKey(p.Entity)).ToList();
                 foreach (var entrada in tocadas.Concat(principales))
                 {
@@ -174,20 +176,35 @@ public static class ConcurrenciaContexto
 
     // Los principales rastreados a los que apunta la entrada por sus claves ajenas, con los valores
     // originales y los actuales (una edición puede haberla movido de principal).
-    private static IEnumerable<EntityEntry> PrincipalesRastreados(EntityEntry entrada, List<EntityEntry> entradas)
+    // El índice por clave principal se construye una vez por clave y restauración: un comando masivo que
+    // falla no recorre todo el rastreo por cada alta. Una coincidencia falsa solo desacoplaría de más.
+    private static IEnumerable<EntityEntry> PrincipalesRastreados(EntityEntry entrada, List<EntityEntry> entradas,
+        Dictionary<IKey, ILookup<string, EntityEntry>> indices)
     {
         foreach (var clave in entrada.Metadata.GetForeignKeys())
         {
-            var originales = clave.Properties.Select(p => entrada.Property(p.Name).OriginalValue).ToArray();
-            var actuales = clave.Properties.Select(p => entrada.Property(p.Name).CurrentValue).ToArray();
-            foreach (var candidata in entradas.Where(e => clave.PrincipalEntityType.IsAssignableFrom(e.Metadata)))
+            if (!indices.TryGetValue(clave.PrincipalKey, out var indice))
             {
-                var valores = clave.PrincipalKey.Properties.Select(p => candidata.Property(p.Name).CurrentValue).ToArray();
-                if (valores.SequenceEqual(originales) || valores.SequenceEqual(actuales))
-                    yield return candidata;
+                indice = entradas.Where(e => clave.PrincipalEntityType.IsAssignableFrom(e.Metadata))
+                    .ToLookup(e => ValorDeClave(clave.PrincipalKey.Properties.Select(p => e.Property(p.Name).CurrentValue)));
+                indices[clave.PrincipalKey] = indice;
+            }
+            foreach (var valores in new[]
+                     {
+                         clave.Properties.Select(p => entrada.Property(p.Name).OriginalValue).ToArray(),
+                         clave.Properties.Select(p => entrada.Property(p.Name).CurrentValue).ToArray(),
+                     })
+            {
+                if (valores.Any(v => v is null))
+                    continue;
+                foreach (var principal in indice[ValorDeClave(valores)])
+                    yield return principal;
             }
         }
     }
+
+    private static string ValorDeClave(IEnumerable<object?> valores) =>
+        string.Join('\u001f', valores.Select(v => Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)));
 
     // Sin instantánea (lo leyó el comando) solo cuenta lo añadido que no está rastreado.
     private static bool NavegacionTocada(object[][]? antes, object[][] despues, HashSet<object> rastreadas,
