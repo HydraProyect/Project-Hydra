@@ -315,34 +315,69 @@ async function cargarPendientesEnPanelAsync(cuerpo, campo) {
     return;
   }
 
-  const { filas, deOtrasPlataformas } = aplanarDocumentos(resultado.proveedores, location.hostname);
-  if (filas.length === 0) {
-    const vacio = document.createElement("p");
-    vacio.className = "vacio";
-    vacio.textContent = deOtrasPlataformas > 0
-      ? "No tienes documentos pendientes de subir a esta plataforma. Si el portal te pide otra cosa, búscala en tu equipo."
-      : "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
-    cuerpo.appendChild(vacio);
-    anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
-    return;
-  }
+  // Pinta la lista para el host de la pestaña. Con un portal que casa con dos
+  // Proveedores a la vez (mismo dominio más largo), NO se ofrece ningún documento
+  // hasta que la persona dice cuál es: elegir a ciegas pondría el documento de una
+  // Plataforma CAE en el formulario de otra.
+  const pintar = (proveedorElegidoId) => {
+    cuerpo.replaceChildren();
+    const { filas, deOtrasPlataformas, opcionesDeEmpate } = aplanarDocumentos(
+      resultado.proveedores, location.hostname, proveedorElegidoId);
 
-  let grupoActual = null;
-  for (const fila of filas) {
-    if (fila.grupo !== grupoActual) {
-      grupoActual = fila.grupo;
-      const encabezado = document.createElement("p");
-      encabezado.className = "grupo";
-      encabezado.textContent = grupoActual;
-      cuerpo.appendChild(encabezado);
+    if (proveedorElegidoId === undefined && opcionesDeEmpate.length > 0) {
+      pintarPreguntaDeEmpate(cuerpo, opcionesDeEmpate, pintar);
+      return;
     }
 
-    cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo));
-  }
+    if (filas.length === 0) {
+      const vacio = document.createElement("p");
+      vacio.className = "vacio";
+      vacio.textContent = deOtrasPlataformas > 0
+        ? "No tienes documentos pendientes de subir a esta plataforma. Si el portal te pide otra cosa, búscala en tu equipo."
+        : "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
+      cuerpo.appendChild(vacio);
+      anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+      return;
+    }
 
-  anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+    let grupoActual = null;
+    for (const fila of filas) {
+      if (fila.grupo !== grupoActual) {
+        grupoActual = fila.grupo;
+        const encabezado = document.createElement("p");
+        encabezado.className = "grupo";
+        encabezado.textContent = grupoActual;
+        cuerpo.appendChild(encabezado);
+      }
+
+      cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo, proveedorElegidoId));
+    }
+
+    anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+  };
+
+  pintar(undefined);
 }
 
+function pintarPreguntaDeEmpate(cuerpo, opciones, alElegir) {
+  const pregunta = document.createElement("p");
+  pregunta.className = "aviso";
+  pregunta.textContent = "Este portal puede ser de más de una plataforma. ¿De cuál es?";
+  cuerpo.appendChild(pregunta);
+
+  for (const opcion of opciones) {
+    const fila = document.createElement("div");
+    fila.className = "fila";
+    const nombre = document.createElement("span");
+    nombre.textContent = opcion.nombre;
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.textContent = "Es esta";
+    boton.addEventListener("click", () => alElegir(opcion.id));
+    fila.append(nombre, boton);
+    cuerpo.appendChild(fila);
+  }
+}
 // Lo que no se ofrece aquí no desaparece sin decir nada: el Gestor CAE ve cuántos
 // documentos suyos son de otra Plataforma CAE y entiende por qué faltan.
 function anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas) {
@@ -366,13 +401,43 @@ function hostCoincide(host, dominio) {
   return h === d || h.endsWith("." + d);
 }
 
-// Un documento solo se ofrece en el portal de SU Plataforma CAE: el proveedor del
-// canal en el que está pendiente tiene que tener un dominio que case con el host
-// de la pestaña. Sin dominios en la respuesta —catálogo sin ellos o servidor que
-// aún no los manda— no casa con nada: ante la duda, no se divulga un documento a
-// un tercero.
-function proveedorEsDeEsteHost(proveedor, host) {
-  return (proveedor.dominios ?? []).some((dominio) => hostCoincide(host, dominio));
+// La longitud del dominio más largo de la lista que casa con el host; 0 si ninguno.
+function largoDelDominioQueCasa(host, dominios) {
+  let largo = 0;
+  for (const dominio of dominios ?? [])
+    if (hostCoincide(host, dominio)) largo = Math.max(largo, dominio.trim().length);
+  return largo;
+}
+
+// ¿Es este el portal del Proveedor? Un documento solo se ofrece en el portal de SU
+// Plataforma CAE: el Proveedor del canal en el que está pendiente tiene que tener
+// un dominio que case con el host de la pestaña. Sin dominios en la respuesta
+// —catálogo sin ellos o servidor que aún no los manda— no casa con nada: ante la
+// duda, no se divulga un documento a un tercero.
+//
+// Dos Proveedores pueden casar con el mismo host (Sabentis y Quirón Prevención
+// comparten «quironprevencion.com»; Twind posee «ctaima.com»). Gana el que casa con
+// el dominio MÁS LARGO. Si empatan, `empate` trae a todos los empatados (también a
+// este Proveedor) para preguntar a la persona; nunca se elige uno a ciegas. Los
+// demás Proveedores con dominios solapados llegan en `proveedoresSolapados`, aunque
+// no tengan documentos pendientes. Misma regla en background.js (resolverPortal).
+function resolverPortal(proveedor, host) {
+  const largoPropio = largoDelDominioQueCasa(host, proveedor.dominios);
+  if (largoPropio === 0) return { esDeEstePortal: false, empate: [] };
+
+  const empatados = [];
+  for (const otro of proveedor.proveedoresSolapados ?? []) {
+    const largoAjeno = largoDelDominioQueCasa(host, otro.dominios);
+    if (largoAjeno > largoPropio) return { esDeEstePortal: false, empate: [] };
+    if (largoAjeno === largoPropio) empatados.push({ id: otro.proveedorPlataformaCaeId, nombre: otro.nombre });
+  }
+
+  return {
+    esDeEstePortal: true,
+    empate: empatados.length === 0
+      ? []
+      : [{ id: proveedor.proveedorPlataformaCaeId, nombre: proveedor.proveedorNombre }, ...empatados],
+  };
 }
 
 // Aplana proveedores → clientes → documentos conservando el orden, y trae de
@@ -380,17 +445,23 @@ function proveedorEsDeEsteHost(proveedor, host) {
 // conector sigue activo (kill switch remoto, MVP2 § 14.5 — misma comprobación
 // que hace el popup, y por el mismo motivo: si TALVEG apagó ese conector, ni
 // se ofrece el botón). Los documentos de otras plataformas no entran en `filas`:
-// solo se cuentan.
-function aplanarDocumentos(proveedores, host) {
+// solo se cuentan. Con un empate de Proveedores sin resolver (`proveedorElegidoId`
+// indefinido) no entra ninguna fila y `opcionesDeEmpate` dice entre quiénes elegir;
+// resuelto, solo entran los documentos del Proveedor elegido.
+function aplanarDocumentos(proveedores, host, proveedorElegidoId) {
   const filas = [];
+  const opcionesDeEmpate = [];
   let deOtrasPlataformas = 0;
 
   for (const proveedor of proveedores ?? []) {
-    const esDeEstePortal = proveedorEsDeEsteHost(proveedor, host);
+    const { esDeEstePortal, empate } = resolverPortal(proveedor, host);
+    for (const opcion of empate)
+      if (!opcionesDeEmpate.some((o) => o.id === opcion.id)) opcionesDeEmpate.push(opcion);
+    const sinElegir = empate.length > 0 && proveedorElegidoId !== proveedor.proveedorPlataformaCaeId;
 
     for (const cliente of proveedor.clientes ?? []) {
       for (const documento of cliente.documentos ?? []) {
-        if (!esDeEstePortal) {
+        if (!esDeEstePortal || sinElegir) {
           deOtrasPlataformas++;
           continue;
         }
@@ -404,15 +475,15 @@ function aplanarDocumentos(proveedores, host) {
     }
   }
 
-  return { filas, deOtrasPlataformas };
+  return { filas, deOtrasPlataformas, opcionesDeEmpate };
 }
-
-function construirFila(documento, proveedorActivo, campo) {
+function construirFila(documento, proveedorActivo, campo, proveedorElegidoId) {
   const fila = document.createElement("div");
   fila.className = "fila";
 
   const descripcion = document.createElement("span");
   descripcion.textContent = `${documento.propietarioNombre} — ${documento.tipoDocumentoNombre}`;
+  if (documento.estado === "Rechazada") descripcion.textContent += " (rechazada antes)";
   fila.appendChild(descripcion);
 
   // Ritmo humano (MVP2 § 14.5): un botón por documento, un clic, una subida.
@@ -425,13 +496,13 @@ function construirFila(documento, proveedorActivo, campo) {
   boton.className = "principal";
   boton.textContent = "Poner aquí";
   boton.disabled = !proveedorActivo;
-  boton.addEventListener("click", () => elegirDocumentoAsync(documento, boton, fila, campo));
+  boton.addEventListener("click", () => elegirDocumentoAsync(documento, boton, fila, campo, proveedorElegidoId));
   fila.appendChild(boton);
 
   return fila;
 }
 
-async function elegirDocumentoAsync(documento, boton, fila, campo) {
+async function elegirDocumentoAsync(documento, boton, fila, campo, proveedorElegidoId) {
   boton.disabled = true;
   boton.textContent = "Poniendo…";
 
@@ -447,6 +518,8 @@ async function elegirDocumentoAsync(documento, boton, fila, campo) {
       documentoId: documento.documentoId,
       acreditacionId: documento.acreditacionId,
       nombreArchivo: `${documento.tipoDocumentoNombre}.pdf`,
+      // Solo si la persona tuvo que elegir entre Proveedores empatados; background.js lo exige entonces.
+      proveedorElegidoId,
     });
   } catch (error) {
     resultado = { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
@@ -665,6 +738,19 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
   if (mensaje?.accion !== "inyectarArchivo") return false;
 
   try {
+    // La comprobación de Plataforma CAE se hizo en background.js con el host que
+    // tenía la pestaña al empezar. Si la pestaña ha navegado desde entonces, el
+    // archivo ya no se pone: el host se compara aquí, en el instante de inyectar.
+    // Sin `hostEsperado` tampoco se inyecta (falla cerrado).
+    const hostActual = String(location.hostname ?? "").toLowerCase();
+    if (typeof mensaje.hostEsperado !== "string" || mensaje.hostEsperado.toLowerCase() !== hostActual) {
+      enviarRespuesta({
+        ok: false,
+        error: "La pestaña ha cambiado de portal mientras se descargaba el documento, así que no se pone. Vuelve a elegirlo.",
+      });
+      return true;
+    }
+
     // Sin respaldo al primer input de la página. Un formulario CAE tiene una
     // fila por tipo de documento, así que «el primero que haya» es casi
     // siempre el equivocado, y equivocarse aquí no da error: el portal acepta

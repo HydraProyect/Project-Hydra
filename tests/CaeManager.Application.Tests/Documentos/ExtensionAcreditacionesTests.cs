@@ -1,5 +1,6 @@
 using System.Text.Json;
 using CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProveedor;
+using CaeManager.Application.Integraciones;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -96,6 +97,74 @@ public class ExtensionAcreditacionesTests
             .Should().Contain("\"dominios\":[", "la extensión lee `dominios` del JSON");
     }
 
+    [Fact]
+    public async Task Los_proveedores_con_dominios_solapados_viajan_con_su_nombre_aunque_no_tengan_documentos()
+    {
+        // Dominios reales del catálogo (ProveedorPlataformaCaeSeedData): Twind posee app.twind.io y ctaima.com;
+        // CTAIMACAE (legacy) ctaimacae.net; Sabentis y Quirón Prevención comparten quironprevencion.com.
+        var documentos = new DocumentosQueryContextFalso();
+        var centros = new CentrosQueryContextFalso();
+        var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
+        var tipos = new TiposDocumentoQueryContextFalso();
+        var twind = new ProveedorPlataformaCae("twind", "Twind");
+        var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");   // segundo dueño de ctaima.com en el piloto
+        var legacy = new ProveedorPlataformaCae("ctaimacae-legacy", "CTAIMACAE (legacy)");
+        var sabentis = new ProveedorPlataformaCae("sabentis", "Sabentis");
+        var quiron = new ProveedorPlataformaCae("quiron-prevencion", "Quirón Prevención");
+        proveedores.ListaProveedores.AddRange([twind, ctaima, legacy, sabentis, quiron]);
+        foreach (var (proveedor, dominio) in new[]
+        {
+            (twind, "app.twind.io"), (twind, "ctaima.com"), (ctaima, "ctaima.com"), (legacy, "ctaimacae.net"),
+            (sabentis, "sabentis.com"), (sabentis, "quironprevencion.com"), (quiron, "quironprevencion.com"),
+        })
+            proveedores.ListaDominios.Add(new DominioProveedorPlataformaCae(proveedor.Id, dominio));
+        var tipo = new TipoDocumento("Certificado", null, false, 1, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+        tipos.ListaTiposDocumento.Add(tipo);
+        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Centro de Trabajo");
+        centros.ListaCentros.Add(centro);
+        // Solo Twind, Sabentis y el legacy tienen documentos pendientes: CTAIMA y Quirón no.
+        foreach (var proveedor in new[] { twind, sabentis, legacy })
+        {
+            var canal = CanalGestionDocumental.DePlataforma(centro.Id, $"Portal {proveedor.Nombre}", proveedor.Id, null, null, null);
+            var documento = Documento.DeCliente(Guid.NewGuid(), tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+            centros.ListaCanalesGestionDocumental.Add(canal);
+            documentos.ListaDocumentos.Add(documento);
+            documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canal.Id));
+        }
+        var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
+            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(
+            new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true, IncluirDominios: true), CancellationToken.None);
+
+        var delTwind = resultado.Single(p => p.ProveedorCodigo == "twind");
+        delTwind.ProveedoresSolapados.Should().ContainSingle().Which.Should().Match<ProveedorSolapadoDto>(
+            s => s.Nombre == "CTAIMA" && s.ProveedorPlataformaCaeId == ctaima.Id && s.Dominios.SequenceEqual(new[] { "ctaima.com" }),
+            "CTAIMA comparte ctaima.com con Twind aunque no tenga documentos pendientes, y la extensión tiene que poder nombrarlo");
+        resultado.Single(p => p.ProveedorCodigo == "sabentis").ProveedoresSolapados!.Select(s => s.Nombre)
+            .Should().BeEquivalentTo(["Quirón Prevención"]);
+        resultado.Single(p => p.ProveedorCodigo == "ctaimacae-legacy").ProveedoresSolapados
+            .Should().BeEmpty("ctaimacae.net no se solapa con ctaima.com: son dominios distintos, no subdominios");
+    }
+
+    [Fact]
+    public void Dos_dominios_se_solapan_si_son_iguales_o_uno_es_subdominio_del_otro_y_no_por_acabar_igual()
+    {
+        var a = Guid.NewGuid();
+        var b = Guid.NewGuid();
+        var c = Guid.NewGuid();
+        var catalogo = new Dictionary<Guid, IReadOnlyList<string>>
+        {
+            [a] = ["ejemplo.test"],
+            [b] = ["app.ejemplo.test"],       // subdominio del de A: se solapan, en los dos sentidos
+            [c] = ["otroejemplo.test"],       // acaba igual que el de A, pero no es subdominio
+        };
+
+        ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(a, catalogo).Should().BeEquivalentTo([b]);
+        ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(b, catalogo).Should().BeEquivalentTo([a]);
+        ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(c, catalogo).Should().BeEmpty();
+        ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(Guid.NewGuid(), catalogo).Should().BeEmpty();
+    }
     [Fact]
     public void El_dto_no_expone_el_dni_del_trabajador()
     {

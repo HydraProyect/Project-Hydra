@@ -34,7 +34,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
 
     private static Escenario Crear(
         Action<AcreditacionDocumentoPlataforma>? preparar = null, bool proveedorActivo = true,
-        AlcanceDatosServiceFalso? alcance = null, string[]? dominios = null, bool canalSinProveedor = false)
+        AlcanceDatosServiceFalso? alcance = null, string[]? dominios = null, bool canalSinProveedor = false,
+        Action<ProveedoresPlataformaCaeQueryContextFalso>? ampliarCatalogo = null)
     {
         var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
         var proveedor = new ProveedorPlataformaCae("dokify", "Dokify", activo: proveedorActivo);
@@ -55,6 +56,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
         proveedoresContext.ListaProveedores.Add(proveedor);
         foreach (var dominio in dominios ?? ["dokify.net"])
             proveedoresContext.ListaDominios.Add(new DominioProveedorPlataformaCae(proveedor.Id, dominio));
+        ampliarCatalogo?.Invoke(proveedoresContext);
         var unitOfWork = new UnitOfWorkFalso();
         alcance ??= new AlcanceDatosServiceFalso();
 
@@ -153,6 +155,48 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
         e.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    [Fact]
+    public async Task Un_dominio_compartido_con_otro_proveedor_se_acepta_si_pertenece_al_de_la_acreditacion()
+    {
+        // Dominios reales del catálogo: Twind posee app.twind.io y ctaima.com. Un segundo Proveedor (CTAIMA) con
+        // ctaima.com no cambia lo que el servidor comprueba: que el dominio sea del Proveedor de la acreditación.
+        var twindId = Guid.Empty;
+        var e = Crear(
+            dominios: ["app.twind.io", "ctaima.com"],
+            ampliarCatalogo: catalogo =>
+            {
+                twindId = catalogo.ListaProveedores.Single().Id;
+                var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");
+                catalogo.ListaProveedores.Add(ctaima);
+                catalogo.ListaDominios.Add(new DominioProveedorPlataformaCae(ctaima.Id, "ctaima.com"));
+            });
+
+        var resultado = await e.Confirmar.Handle(new ConfirmarSubidaDesdeExtensionCommand(e.Acreditacion.Id, "ctaima.com"), CancellationToken.None);
+
+        twindId.Should().NotBe(Guid.Empty);
+        resultado.EsExitoso.Should().BeTrue();
+        e.Acreditacion.Estado.Should().Be(EstadoAcreditacion.Subida);
+    }
+
+    [Fact]
+    public async Task Un_dominio_que_solo_es_de_otro_proveedor_no_se_acepta_aunque_comparta_dominios_con_el_de_la_acreditacion()
+    {
+        // La acreditación es de Twind (app.twind.io, ctaima.com); CTAIMA tiene además ctaimacae.net, que no es de Twind.
+        var e = Crear(
+            dominios: ["app.twind.io", "ctaima.com"],
+            ampliarCatalogo: catalogo =>
+            {
+                var ctaima = new ProveedorPlataformaCae("ctaima", "CTAIMA");
+                catalogo.ListaProveedores.Add(ctaima);
+                catalogo.ListaDominios.Add(new DominioProveedorPlataformaCae(ctaima.Id, "ctaima.com"));
+                catalogo.ListaDominios.Add(new DominioProveedorPlataformaCae(ctaima.Id, "ctaimacae.net"));
+            });
+
+        var resultado = await e.Confirmar.Handle(new ConfirmarSubidaDesdeExtensionCommand(e.Acreditacion.Id, "portal.ctaimacae.net"), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno);
+    }
     [Theory]
     [InlineData(null)]
     [InlineData("")]

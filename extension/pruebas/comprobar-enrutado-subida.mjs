@@ -59,7 +59,7 @@ globalThis.chrome = {
     // La URL de cada pestaña; por defecto, el portal de la Plataforma CAE de la lista.
     get: async (id) => ({ id, url: urlsDePestanas[id] ?? "https://app.nalandaglobal.com/documentos" }),
     sendMessage: async (idPestana, mensaje) => {
-      entregas.push({ idPestana, accion: mensaje.accion });
+      entregas.push({ idPestana, accion: mensaje.accion, hostEsperado: mensaje.hostEsperado });
       return { ok: true };
     },
     onRemoved: { addListener: (fn) => (alCerrarPestana = fn) },
@@ -72,6 +72,7 @@ let proveedorActivo = true;
 let documentoDeLaLista = "11111111-1111-1111-1111-111111111111";
 let listaFalla = false;
 let dominiosDelProveedor = ["nalandaglobal.com"];
+let solapadosDelProveedor = [];
 let estadoDeLaSubida = 200;
 const llamadas = []; // {url, metodo, cuerpo}
 const CAMBIO = "33333333-3333-3333-3333-333333333333";
@@ -90,7 +91,7 @@ globalThis.fetch = async (url, opciones = {}) => {
   status: 200,
   type: "basic",
   arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
-  json: async () => subible ? [{ proveedorActivo, dominios: dominiosDelProveedor, clientes: [{ documentos: [{
+  json: async () => subible ? [{ proveedorPlataformaCaeId: "t-1", proveedorNombre: "Twind", proveedorActivo, dominios: dominiosDelProveedor, proveedoresSolapados: solapadosDelProveedor, clientes: [{ documentos: [{
     acreditacionId: "22222222-2222-2222-2222-222222222222",
     documentoId: documentoDeLaLista,
   }] }] }] : [],
@@ -112,7 +113,7 @@ function conectar(expiraEnUtc) {
 const dentroDeOchoHoras = new Date(Date.now() + 8 * 3600e3).toISOString();
 const ayer = new Date(Date.now() - 24 * 3600e3).toISOString();
 
-function pedirSubida(remitente) {
+function pedirSubida(remitente, extra = {}) {
   return new Promise((resolver) =>
     manejadorDeMensajes(
       {
@@ -120,6 +121,7 @@ function pedirSubida(remitente) {
         documentoId: "11111111-1111-1111-1111-111111111111",
         acreditacionId: "22222222-2222-2222-2222-222222222222",
         nombreArchivo: "Reconocimiento medico.pdf",
+        ...extra,
       },
       remitente,
       resolver
@@ -145,6 +147,11 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
     "el documento va a la pestaña que lo pidió, no a la activa",
     inyecciones[0]?.idPestana === 7,
     `fue a la ${inyecciones[0]?.idPestana}`
+  );
+  comprobar(
+    "y lleva el host comprobado para que la pestaña verifique que no ha navegado",
+    inyecciones[0]?.hostEsperado === "app.nalandaglobal.com",
+    String(inyecciones[0]?.hostEsperado)
   );
 }
 
@@ -429,9 +436,9 @@ const MINUTO = 60 * 1000;
 {
   conectar(dentroDeOchoHoras);
   const sinEntregas = () => !entregas.some((e) => e.accion === "inyectarArchivo");
-  const pedir = async (remitente) => {
+  const pedir = async (remitente, extra) => {
     entregas.length = 0; llamadas.length = 0;
-    return pedirSubida(remitente);
+    return pedirSubida(remitente, extra);
   };
 
   // Control: en el portal de su Plataforma (subdominio) se pone el archivo.
@@ -476,6 +483,32 @@ const MINUTO = 60 * 1000;
   comprobar("sin dominios del proveedor en la lista, no se pone el archivo", sinDominios?.ok === false && sinEntregas());
   dominiosDelProveedor = ["nalandaglobal.com"];
 
+  // Dominios compartidos con otro Proveedor. Twind posee app.twind.io y ctaima.com (catálogo real); un segundo
+  // Proveedor, CTAIMA, también tiene ctaima.com. Con empate el popup no puede elegir, y desde el panel solo se
+  // sigue si la persona eligió justo el Proveedor del documento.
+  dominiosDelProveedor = ["app.twind.io", "ctaima.com"];
+  solapadosDelProveedor = [{ proveedorPlataformaCaeId: "c-1", nombre: "CTAIMA", dominios: ["ctaima.com"] }];
+  const sinElegir = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" });
+  comprobar("portal empatado entre dos Proveedores y sin elección: no se pone el archivo y se nombra a los dos",
+    sinElegir?.ok === false && sinEntregas() && sinElegir.error.includes("Twind") && sinElegir.error.includes("CTAIMA"), JSON.stringify(sinElegir));
+  const eligeOtro = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" }, { proveedorElegidoId: "c-1" });
+  comprobar("si la persona eligió el OTRO Proveedor, tampoco se pone", eligeOtro?.ok === false && sinEntregas(), JSON.stringify(eligeOtro));
+  const eligeBien = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" }, { proveedorElegidoId: "t-1" });
+  comprobar("si eligió el Proveedor del documento, sí se pone", eligeBien?.ok === true && !sinEntregas(), JSON.stringify(eligeBien));
+  const sinEmpate = await pedir({ tab: { id: 7 }, url: "https://app.twind.io/" });
+  comprobar("en app.twind.io no hay empate: se pone sin preguntar", sinEmpate?.ok === true && !sinEntregas(), JSON.stringify(sinEmpate));
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+
+  // Gana el dominio más largo: otro Proveedor con un subdominio propio se queda con ese portal.
+  dominiosDelProveedor = ["nalandaglobal.com"];
+  solapadosDelProveedor = [{ proveedorPlataformaCaeId: "p-1", nombre: "Propio", dominios: ["app.nalandaglobal.com"] }];
+  const pierde = await pedir({ tab: { id: 7 }, url: "https://app.nalandaglobal.com/" });
+  comprobar("si otro Proveedor casa con un dominio más largo, el documento no se pone", pierde?.ok === false && sinEntregas(), JSON.stringify(pierde));
+  const gana = await pedir({ tab: { id: 7 }, url: "https://otro.nalandaglobal.com/" });
+  comprobar("pero en el resto de subdominios sigue valiendo el dominio general", gana?.ok === true && !sinEntregas(), JSON.stringify(gana));
+  solapadosDelProveedor = [];
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  dominiosDelProveedor = ["nalandaglobal.com"];
   // Pestaña sin URL legible: no se pone.
   urlsDePestanas[7] = "about:blank";
   const sinHost = await pedir({ tab: { id: 7 } });

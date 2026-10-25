@@ -225,6 +225,35 @@ function hostCoincide(host, dominio) {
   return h === d || h.endsWith("." + d);
 }
 
+// La longitud del dominio más largo de la lista que casa con el host; 0 si ninguno.
+function largoDelDominioQueCasa(host, dominios) {
+  let largo = 0;
+  for (const dominio of dominios ?? [])
+    if (hostCoincide(host, dominio)) largo = Math.max(largo, dominio.trim().length);
+  return largo;
+}
+
+// ¿Es este el portal del Proveedor? Misma regla que content.js (resolverPortal):
+// gana el Proveedor cuyo dominio casa con más caracteres; si empatan con otro,
+// `empate` trae a todos los empatados y no se elige a ciegas.
+function resolverPortal(proveedor, host) {
+  const largoPropio = largoDelDominioQueCasa(host, proveedor.dominios);
+  if (largoPropio === 0) return { esDeEstePortal: false, empate: [] };
+
+  const empatados = [];
+  for (const otro of proveedor.proveedoresSolapados ?? []) {
+    const largoAjeno = largoDelDominioQueCasa(host, otro.dominios);
+    if (largoAjeno > largoPropio) return { esDeEstePortal: false, empate: [] };
+    if (largoAjeno === largoPropio) empatados.push({ id: otro.proveedorPlataformaCaeId, nombre: otro.nombre });
+  }
+
+  return {
+    esDeEstePortal: true,
+    empate: empatados.length === 0
+      ? []
+      : [{ id: proveedor.proveedorPlataformaCaeId, nombre: proveedor.proveedorNombre }, ...empatados],
+  };
+}
 // El host de la pestaña donde va el documento. Desde el panel, la URL la da el
 // remitente del mensaje (la propia pestaña); el popup no tiene pestaña propia, así
 // que se pregunta por la pestaña elegida. Sin host legible devuelve null y no se
@@ -260,7 +289,7 @@ function hostDeUnaUrl(url) {
 // por gesto de usuario (un "subir todos", un reintento automático en bucle...):
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
-async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio, urlDelRemitente) {
+async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, proveedorElegidoId }, pestanaQueLoPidio, urlDelRemitente) {
   // El host de la pestaña se lee antes de descargar nada: sin él no hay forma de
   // saber de qué portal se trata y todo lo demás sería trabajo perdido.
   const idPestanaDestino =
@@ -304,13 +333,28 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   // ofrece los de otras, pero el popup lista todo, así que la comprobación que
   // cierra de verdad la puerta está aquí, antes de entregar nada al formulario.
   // Sin dominios en la respuesta no hay forma de saberlo: no se sube.
-  if (!(dueno.dominios ?? []).some((dominio) => hostCoincide(dominioPortal, dominio)))
+  const portal = resolverPortal(dueno, dominioPortal);
+  if (!portal.esDeEstePortal)
     return { ok: false, error: "Este documento es de otra plataforma CAE: no se puede poner en este portal." };
+  // Un portal que casa con dos Proveedores a la vez: solo se sigue si la persona
+  // eligió en el panel justo el Proveedor de este documento. El popup no pregunta,
+  // así que aquí se detiene.
+  if (portal.empate.length > 0 && proveedorElegidoId !== dueno.proveedorPlataformaCaeId)
+    return {
+      ok: false,
+      error: `Este portal puede ser de ${portal.empate.map((o) => o.nombre).join(" o ")}. Ábrelo desde el panel de la página y elige cuál es antes de poner el documento.`,
+    };
 
   let respuestaContenido;
   try {
+    // La pestaña pudo navegar a otro portal entre la lectura del host (antes de
+    // descargar) y ahora. Por eso se envía `hostEsperado`: el content script lo
+    // compara con SU host en el instante de inyectar y se niega si ya no coincide.
+    // Releer la URL desde aquí no valdría (chrome.tabs.get no da la URL sin el
+    // permiso «tabs») y dejaría igualmente una ventana entre la lectura y el mensaje.
     respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
       accion: "inyectarArchivo",
+      hostEsperado: dominioPortal,
       base64,
       nombreArchivo: nombreArchivo || "documento.pdf",
       tipoMime: "application/pdf",

@@ -94,10 +94,20 @@ public record ObtenerAcreditacionesPorProveedorQuery(
 /// nada de él en ningún portal (ante la duda, no se divulga). También vacía, o
 /// <c>null</c>, cuando la consulta no pide <c>IncluirDominios</c>.
 /// </param>
+/// <param name="ProveedoresSolapados">Los demás Proveedores con dominios que se solapan con los de este (ver <see cref="ProveedorSolapadoDto"/>).</param>
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
     IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true,
-    IReadOnlyList<string>? Dominios = null);
+    IReadOnlyList<string>? Dominios = null,
+    IReadOnlyList<ProveedorSolapadoDto>? ProveedoresSolapados = null);
+
+/// <summary>
+/// Otro Proveedor del catálogo con un dominio igual o solapado (uno subdominio del otro) a alguno de los del Proveedor
+/// que lo lista: Sabentis y Quirón Prevención comparten «quironprevencion.com» a propósito, y Twind posee «ctaima.com».
+/// La extensión lo necesita aunque ese Proveedor no tenga documentos pendientes: en un portal que casa con los dos,
+/// gana el dominio más largo y, si empatan, pregunta a la persona cuál es en vez de elegir a ciegas.
+/// </summary>
+public record ProveedorSolapadoDto(Guid ProveedorPlataformaCaeId, string Nombre, IReadOnlyList<string> Dominios);
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
@@ -201,15 +211,24 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo, p.Activo), cancellationToken);
 
-        var dominiosPorProveedor = request.IncluirDominios
+        // Los dominios de TODO el catálogo (es global y pequeño): hace falta saber también qué otros Proveedores
+        // comparten o solapan los dominios de cada uno, para que la extensión no elija a ciegas entre dos.
+        var dominiosDelCatalogo = request.IncluirDominios
             ? (await proveedoresContext.DominiosProveedorPlataformaCae
-                    .Where(d => proveedorIds.Contains(d.ProveedorPlataformaCaeId))
                     .Select(d => new { d.ProveedorPlataformaCaeId, d.Dominio })
                     .ToListAsync(cancellationToken))
                 .GroupBy(d => d.ProveedorPlataformaCaeId)
                 .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(d => d.Dominio).Distinct().OrderBy(d => d, StringComparer.Ordinal).ToList())
             : new Dictionary<Guid, IReadOnlyList<string>>();
 
+        var solapadosPorProveedor = proveedorIds.ToDictionary(
+            id => id, id => ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(id, dominiosDelCatalogo));
+        var nombresDeSolapados = new Dictionary<Guid, string>();
+        var idsSolapados = solapadosPorProveedor.Values.SelectMany(v => v).Distinct().ToList();
+        if (idsSolapados.Count > 0)
+            nombresDeSolapados = await proveedoresContext.ProveedoresPlataformaCae
+                .Where(p => idsSolapados.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
         // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
         // se resuelve contra Empresas, no contra la tabla Clientes congelada.
         var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
@@ -266,7 +285,12 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                     .ToList();
 
                 return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo,
-                    dominiosPorProveedor.GetValueOrDefault(porProveedor.Key) ?? []);
+                    dominiosDelCatalogo.GetValueOrDefault(porProveedor.Key) ?? [],
+                    solapadosPorProveedor.GetValueOrDefault(porProveedor.Key, [])
+                        .Where(nombresDeSolapados.ContainsKey)
+                        .Select(id => new ProveedorSolapadoDto(id, nombresDeSolapados[id], dominiosDelCatalogo[id]))
+                        .OrderBy(s => s.Nombre, StringComparer.Ordinal)
+                        .ToList());
             })
             .OrderByDescending(p => p.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)))
             .ToList();

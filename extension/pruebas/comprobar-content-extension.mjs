@@ -238,7 +238,7 @@ let campoPrincipal;
 
   const r = responder();
   manejadorDeMensajes(
-    { accion: "inyectarArchivo", base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
+    { accion: "inyectarArchivo", hostEsperado: locationSimulada.hostname, base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
     null,
     r.enviar
   );
@@ -246,6 +246,26 @@ let campoPrincipal;
   comprobar("la inyección responde ok", r.leer()?.ok === true, JSON.stringify(r.leer()));
   comprobar("el archivo va al campo pulsado", otroCampo.files !== null);
   comprobar("y NO al primero de la página", campoPrincipal.files === null);
+
+  // La pestaña navegó a otro portal tras comprobar la Plataforma CAE: no se inyecta.
+  const ajeno = new InputArchivoSimulado("campo-de-otro-portal");
+  lanzarClic(ajeno);
+  await reposar();
+  const rAjeno = responder();
+  manejadorDeMensajes(
+    { accion: "inyectarArchivo", hostEsperado: "portal-anterior.test", base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
+    null,
+    rAjeno.enviar
+  );
+  comprobar("si el host de la pestaña ya no es el comprobado, no se inyecta",
+    rAjeno.leer()?.ok === false && ajeno.files === null && rAjeno.leer().error.includes("ha cambiado de portal"), JSON.stringify(rAjeno.leer()));
+  const rSinHost = responder();
+  manejadorDeMensajes(
+    { accion: "inyectarArchivo", base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
+    null,
+    rSinHost.enviar
+  );
+  comprobar("y sin hostEsperado tampoco (falla cerrado)", rSinHost.leer()?.ok === false && ajeno.files === null, JSON.stringify(rSinHost.leer()));
 }
 
 // 4. EL CASO QUE MOTIVÓ EL CAMBIO. Sin ningún campo pulsado no se adivina:
@@ -267,7 +287,7 @@ let campoPrincipal;
   const huerfano = new InputArchivoSimulado("nadie-lo-pulso");
   const r = responder();
   manejadorDeMensajes(
-    { accion: "inyectarArchivo", base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
+    { accion: "inyectarArchivo", hostEsperado: locationSimulada.hostname, base64: Buffer.from("hola").toString("base64"), nombreArchivo: "a.pdf", tipoMime: "application/pdf" },
     null,
     r.enviar
   );
@@ -616,6 +636,101 @@ let campoPrincipal;
   textos = await abrirPanelEn("APP.Dokify.NET", lista());
   comprobar("la comparación no distingue mayúsculas", textos.includes("Poner aquí"));
 
+  // Un documento rechazado antes se avisa en su fila (comportamiento de main que la fusión con E1 no debe perder).
+  textos = await abrirPanelEn("app.dokify.net", [
+    proveedor("Dokify", ["dokify.net"], [
+      { ...documento("d2", "Seguro Dokify"), estado: "Rechazada" },
+      documento("d3", "Certificado Dokify"),
+    ]),
+  ]);
+  comprobar("un documento rechazado antes lo dice en su fila",
+    textos.includes("Trabajador inventado — Seguro Dokify (rechazada antes)"), JSON.stringify(textos));
+  comprobar("y uno pendiente normal no lleva el aviso",
+    textos.includes("Trabajador inventado — Certificado Dokify"), JSON.stringify(textos));
+
+  // --- Dominios compartidos: gana el más largo y, con empate, se pregunta ---------------------------
+  // Dominios reales del catálogo de Proveedores (ProveedorPlataformaCaeSeedData): Twind posee
+  // app.twind.io y ctaima.com; Sabentis y Quirón Prevención comparten quironprevencion.com a propósito.
+  // «CTAIMA» (también dueño de ctaima.com) es el segundo Proveedor que el piloto puede tener sobre el
+  // mismo dominio: no está sembrado hoy, pero la regla tiene que cubrirlo.
+  const ID = { twind: "t-1", ctaima: "c-1", sabentis: "s-1", quiron: "q-1", dokify: "d-1", ecoordina: "e-1", ctaimaLegacy: "l-1" };
+  const real = (id, nombre, dominios, solapados, documentos) => ({
+    ...proveedor(nombre, dominios, documentos), proveedorPlataformaCaeId: id,
+    proveedoresSolapados: solapados.map(([otroId, otroNombre, otrosDominios]) =>
+      ({ proveedorPlataformaCaeId: otroId, nombre: otroNombre, dominios: otrosDominios })),
+  });
+  const twind = () => real(ID.twind, "Twind", ["app.twind.io", "ctaima.com"], [[ID.ctaima, "CTAIMA", ["ctaima.com"]]],
+    [documento("tw1", "Certificado Twind")]);
+  const ctaima = () => real(ID.ctaima, "CTAIMA", ["ctaima.com"], [[ID.twind, "Twind", ["app.twind.io", "ctaima.com"]]],
+    [documento("ct1", "Certificado CTAIMA")]);
+  const botonesEsEsta = () => {
+    const botones = [];
+    (function recoger(n) {
+      if (n.textContent === "Es esta") botones.push(n);
+      for (const h of [...n.hijos, ...(n.sombra ? [n.sombra] : [])]) recoger(h);
+    })(documentoSimulado.documentElement);
+    return botones;
+  };
+  const hayPonerAqui = (xs) => xs.includes("Poner aquí");
+
+  // Tras `abrirPanelEn`, para poder elegir hace falta el mismo panel abierto: se vuelve a leer su texto.
+  textos = await abrirPanelEn("ctaima.com", [twind(), ctaima()]);
+  comprobar("Twind y CTAIMA sobre ctaima.com (mismo largo): no se ofrece ningún documento", !hayPonerAqui(textos), JSON.stringify(textos.slice(-6)));
+  comprobar("y se pregunta nombrando a los dos Proveedores",
+    textos.some((x) => x === "Twind") && textos.some((x) => x === "CTAIMA") && botonesEsEsta().length === 2);
+  botonesEsEsta()[0].oyentes.click[0](); // «Es esta» de Twind
+  await reposar();
+  textos = textosDelPanel();
+  comprobar("elegido Twind, solo se ofrece su documento", textos.some((x) => x.includes("Certificado Twind")) && !textos.some((x) => x.includes("Certificado CTAIMA")));
+  comprobar("y el de CTAIMA se cuenta como de otra plataforma", textos.some((x) => x.startsWith("1 de otras plataformas")));
+  documentoSimulado.documentElement.buscarPorTexto("Poner aquí").oyentes.click[0]();
+  await reposar();
+  const envio = mensajesEnviados.filter((m) => m.accion === "subirDocumento").at(-1);
+  comprobar("al poner el documento se manda a background qué Proveedor eligió la persona",
+    envio?.proveedorElegidoId === ID.twind, JSON.stringify(envio));
+
+  textos = await abrirPanelEn("ctaima.com", [twind(), ctaima()]);
+  botonesEsEsta()[1].oyentes.click[0](); // «Es esta» de CTAIMA
+  await reposar();
+  textos = textosDelPanel();
+  comprobar("elegido CTAIMA, el documento de Twind no se ofrece en ese portal",
+    textos.some((x) => x.includes("Certificado CTAIMA")) && !textos.some((x) => x.includes("Certificado Twind")));
+
+  textos = await abrirPanelEn("app.twind.io", [twind(), ctaima()]);
+  comprobar("en app.twind.io solo casa Twind: se ofrece sin preguntar",
+    hayPonerAqui(textos) && botonesEsEsta().length === 0 && textos.some((x) => x.includes("Certificado Twind")) && !textos.some((x) => x.includes("Certificado CTAIMA")));
+
+  textos = await abrirPanelEn("quironprevencion.com", [
+    real(ID.sabentis, "Sabentis", ["sabentis.com", "quironprevencion.com"], [[ID.quiron, "Quirón Prevención", ["quironprevencion.com"]]], [documento("sa1", "Certificado Sabentis")]),
+  ]);
+  comprobar("Sabentis y Quirón Prevención sobre quironprevencion.com: se pregunta aunque Quirón no tenga documentos",
+    !hayPonerAqui(textos) && textos.includes("Sabentis") && textos.includes("Quirón Prevención"));
+
+  textos = await abrirPanelEn("rrhh.sabentis.com", [
+    real(ID.sabentis, "Sabentis", ["sabentis.com", "quironprevencion.com"], [[ID.quiron, "Quirón Prevención", ["quironprevencion.com"]]], [documento("sa1", "Certificado Sabentis")]),
+  ]);
+  comprobar("en sabentis.com solo casa Sabentis: sin pregunta", hayPonerAqui(textos) && botonesEsEsta().length === 0);
+
+  // Gana el dominio más largo: el portal de un subdominio propio de otro Proveedor no es del genérico.
+  const general = () => real("g-1", "General", ["ejemplo.test"], [["p-1", "Propio", ["app.ejemplo.test"]]], [documento("g1", "Certificado General")]);
+  const propio = () => real("p-1", "Propio", ["app.ejemplo.test"], [["g-1", "General", ["ejemplo.test"]]], [documento("p1", "Certificado Propio")]);
+  textos = await abrirPanelEn("app.ejemplo.test", [general(), propio()]);
+  comprobar("gana el dominio más largo: solo el documento del Proveedor del subdominio, sin preguntar",
+    textos.some((x) => x.includes("Certificado Propio")) && !textos.some((x) => x.includes("Certificado General")) && botonesEsEsta().length === 0,
+    JSON.stringify(textos.slice(-5)));
+
+  // El resto del piloto, con sus dominios reales, no se estorba entre sí.
+  const solos = [
+    real(ID.dokify, "Dokify", ["dokify.net"], [], [documento("dk1", "Certificado Dokify")]),
+    real(ID.ecoordina, "e-coordina", ["e-coordina.es"], [], [documento("ec1", "Certificado e-coordina")]),
+    real(ID.ctaimaLegacy, "CTAIMACAE (legacy)", ["ctaimacae.net"], [], [documento("cl1", "Certificado CTAIMACAE")]),
+  ];
+  for (const [host, esperado] of [["app.dokify.net", "Dokify"], ["acme.e-coordina.es", "e-coordina"], ["portal.ctaimacae.net", "CTAIMACAE"]]) {
+    textos = await abrirPanelEn(host, solos);
+    comprobar(`en ${host} solo se ofrece ${esperado}, sin preguntar`,
+      textos.filter((x) => x.startsWith("Trabajador inventado — Certificado")).length === 1
+        && textos.some((x) => x.includes(`Certificado ${esperado}`)) && botonesEsEsta().length === 0);
+  }
   respuestaDeListarPendientes = { ok: true, proveedores: [] };
 }
 
