@@ -125,7 +125,15 @@ public class IngestaWebhookService(
             return; // idempotencia: Graph puede reenviar la misma notificación más de una vez.
 
         var candidatos = await resolucionPlataforma.ResolverPorDominioCorreoAsync(mensaje.Remitente, cancellationToken);
-        var esCorreoAutomatico = DeteccionCorreoAutomatico.EsAutomatico(mensaje) || candidatos.Count > 0;
+        var esPlataformaAutenticada = candidatos.Count > 0 && AutenticacionCorreoPlataforma.EsValida(mensaje);
+        if (candidatos.Count > 0 && !esPlataformaAutenticada)
+            logger.LogInformation(
+                "Correo {MensajeExternoId} con dominio de Plataforma CAE sin autenticación SPF/DKIM/DMARC válida: se trata como correo externo.",
+                mensaje.MensajeExternoId);
+        // Un remitente que suplanta una Plataforma CAE tampoco puede eludir la continuación
+        // de un hilo cerrado mediante noreply o cabeceras de respuesta automática.
+        var esCorreoAutomatico = esPlataformaAutenticada
+            || (candidatos.Count == 0 && DeteccionCorreoAutomatico.EsAutomatico(mensaje));
 
         var conversacion = await conversacionRepositorio.ObtenerPorHiloExternoAsync(conexion.Id, mensaje.HiloExternoId, cancellationToken);
         var conversacionNueva = false;
@@ -177,15 +185,14 @@ public class IngestaWebhookService(
         Guid? proveedorPlataformaCaeId = null;
         if (conversacion.Canal == CanalConversacion.Correo)
         {
-            esNotificacionAutomatica = candidatos.Count > 0;
+            esNotificacionAutomatica = esPlataformaAutenticada;
             proveedorPlataformaCaeId = esNotificacionAutomatica ? candidatos[0].Id : null;
             clasificacionMensaje = new ClasificacionRuidoMensaje(mensajeCreado.Id, esNotificacionAutomatica, proveedorPlataformaCaeId);
             clasificacionRuidoRepositorio.Agregar(clasificacionMensaje);
 
-            // Buzón personal del gestor (ronda de reducción de ruido): un correo que no resolvió a
-            // ninguna plataforma conocida (esNotificacionAutomatica) se clasifica como interno o
-            // posible phishing — nunca sobre un buzón de Cliente, donde todo correo humano es
-            // simplemente correo del cliente, no ruido.
+            // En el buzón personal del Gestor CAE, solo una Plataforma CAE autenticada evita
+            // la clasificación como correo interno o posible phishing. En un buzón del
+            // Cliente empresarial se conserva el tratamiento habitual del correo externo.
             if (conexion.GestorPropietarioId is not null && !esNotificacionAutomatica)
                 clasificacionMensaje.CambiarMotivo(ClasificarCorreoBuzonPersonal(mensaje.Remitente, conexion.BuzonEmail));
         }
