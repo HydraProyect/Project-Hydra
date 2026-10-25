@@ -12,6 +12,7 @@
    si lo que trajo al usuario aquí fue la base de datos caída, abrir un
    circuito interactivo no debería añadir más trabajo antes de poder pintar
    el mensaje (mismo principio que ya aplicaba AuthLayout, Sentry DOTNET-8). *@
+@using CaeManager.Web.Components.Account
 @using CaeManager.Infrastructure.Comunicaciones
 @using CaeManager.Web.Components.Layout
 @using CaeManager.Web.Features.Comunicaciones
@@ -159,10 +160,7 @@
 
     private static bool EsRutaLocalSegura(string? ruta) =>
         !string.IsNullOrEmpty(ruta)
-        && ruta.StartsWith('/')
-        && !ruta.StartsWith("//", StringComparison.Ordinal)
-        && !ruta.StartsWith("/\\", StringComparison.Ordinal)
-        && Uri.TryCreate(ruta, UriKind.Relative, out _);
+        && string.Equals(ruta, RedireccionLocal.Sanear(ruta), StringComparison.Ordinal);
 
     private string ClaseTipo => Tipo switch
     {
