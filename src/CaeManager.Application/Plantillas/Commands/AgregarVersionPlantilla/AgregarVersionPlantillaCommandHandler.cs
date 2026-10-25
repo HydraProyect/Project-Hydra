@@ -67,7 +67,7 @@ public class AgregarVersionPlantillaCommandHandler(
             // traducir al llamador y el blob ya subido quedaba huérfano. No
             // es DbUpdateConcurrencyException (ningún token optimista chocó,
             // son dos inserts nuevos) así que ConcurrenciaBehavior no la ve.
-            await EliminarBlobHuerfanoAsync(archivoUrl, cancellationToken);
+            await EliminarBlobHuerfanoAsync(plantilla.Id, archivoUrl, cancellationToken);
             return Result.Fallo<AgregarVersionPlantillaResultadoDto>(Error.Crear(
                 "Plantilla.VersionEnConflicto",
                 "Otra persona guardó una versión de esta plantilla al mismo tiempo. Vuelve a intentarlo."));
@@ -76,7 +76,7 @@ public class AgregarVersionPlantillaCommandHandler(
         return Result.Exito(new AgregarVersionPlantillaResultadoDto(nuevaVersion.Id, archivoIdentico));
     }
 
-    private async Task EliminarBlobHuerfanoAsync(string archivoUrl, CancellationToken cancellationToken)
+    private async Task EliminarBlobHuerfanoAsync(Guid plantillaId, string archivoUrl, CancellationToken cancellationToken)
     {
         try
         {
@@ -90,8 +90,11 @@ public class AgregarVersionPlantillaCommandHandler(
             // best-effort que CompensacionBlobsHuerfanosIngesta (módulo 6):
             // si esta limpieza también falla, el blob queda huérfano sin más
             // reintento — no existe hoy un barrido periódico que lo recoja.
-            logger.LogWarning(ex,
-                "No se pudo eliminar el blob huérfano {ArchivoUrl} tras un conflicto de versión de plantilla.", archivoUrl);
+            // Se registra la plantilla por Id y el tipo de la excepción: ni la clave del blob ni el mensaje
+            // de la excepción (que suele repetirla) deben acabar en los registros.
+            logger.LogWarning(
+                "No se pudo eliminar el blob huérfano de la plantilla {PlantillaDocumentoId} tras un conflicto de versión ({TipoExcepcion}).",
+                plantillaId, ex.GetType().Name);
         }
     }
 

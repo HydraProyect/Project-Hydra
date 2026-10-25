@@ -118,7 +118,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 cancellationToken);
             if (renovado.EsFallido)
             {
-                await EliminarCopiaHuerfanaAsync(archivoUrlDocumento, cancellationToken);
+                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
                 return Result.Fallo<Guid>(renovado.Error);
             }
 
@@ -135,7 +135,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
                 cancellationToken);
             if (creado.EsFallido)
             {
-                await EliminarCopiaHuerfanaAsync(archivoUrlDocumento, cancellationToken);
+                await EliminarCopiaHuerfanaAsync(request.AdjuntoId, archivoUrlDocumento, cancellationToken);
                 return Result.Fallo<Guid>(creado.Error);
             }
 
@@ -162,7 +162,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
     // referencia: se borra para no dejar un blob huérfano por cada intento.
     // Best-effort, mismo criterio que AgregarVersionPlantilla: un fallo al
     // limpiar no debe tapar el error real que se devuelve al llamador.
-    private async Task EliminarCopiaHuerfanaAsync(string archivoUrl, CancellationToken cancellationToken)
+    // El aviso identifica el adjunto por Id y nombra el tipo de la excepción: ni la clave del fichero en el
+    // almacenamiento ni el mensaje de la excepción (que suele repetirla) deben acabar en los registros.
+    internal async Task EliminarCopiaHuerfanaAsync(Guid adjuntoId, string archivoUrl, CancellationToken cancellationToken)
     {
         try
         {
@@ -170,7 +172,8 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            logger.LogWarning(ex, "No se pudo borrar la copia huérfana del adjunto {ArchivoUrl}.", archivoUrl);
+            logger.LogWarning("No se pudo borrar la copia huérfana del adjunto {AdjuntoId} ({TipoExcepcion}).",
+                adjuntoId, ex.GetType().Name);
         }
     }
 }
