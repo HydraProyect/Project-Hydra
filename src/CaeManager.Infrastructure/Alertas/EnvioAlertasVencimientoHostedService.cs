@@ -5,6 +5,8 @@ using CaeManager.Application.Asignaciones;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Configuracion;
+using CaeManager.Domain.Common;
+using CaeManager.Domain.Configuracion;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Autorizacion;
@@ -28,7 +30,8 @@ namespace CaeManager.Infrastructure.Alertas;
 ///
 /// Envuelto en elección de líder (P3-30), igual que
 /// <see cref="Integraciones.RenovacionSuscripcionWebhookHostedService"/> —
-/// mismo motivo: dos réplicas no deben mandar el mismo resumen duplicado.
+/// El liderazgo serializa los ciclos; el registro de una ejecución correcta
+/// evita repetir el resumen en el mismo día de negocio tras reiniciar.
 ///
 /// Destinatarios: Administrador y DireccionCae del tenant — roles con
 /// visión total ya establecida (<c>RolesDeAdministracionAmpliada</c>), no
@@ -131,6 +134,13 @@ public class EnvioAlertasVencimientoHostedService(
         if (!await registroAutomatizaciones.EstaActivoAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, stoppingToken))
             return;
 
+        var estado = await ambito.ServiceProvider.GetRequiredService<IEstadoAutomatizacionRepository>()
+            .ObtenerPorTrabajoAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias, stoppingToken);
+        if (estado?.UltimoResultadoExitoso == true
+            && estado.UltimaEjecucionUtc is { } ultimaEjecucion
+            && DiaDeNegocio.De(new DateTimeOffset(DateTime.SpecifyKind(ultimaEjecucion, DateTimeKind.Utc))) == DiaDeNegocio.Hoy())
+            return;
+
         try
         {
             // Éxito solo si TODOS los destinatarios recibieron el resumen —
@@ -151,7 +161,7 @@ public class EnvioAlertasVencimientoHostedService(
     }
 
     /// <returns>El mensaje de error si al menos un destinatario no recibió el correo (null si todos lo recibieron), y cuántas alertas se evaluaron.</returns>
-    private async Task<(string? MensajeError, int AlertasEvaluadas)> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+    protected virtual async Task<(string? MensajeError, int AlertasEvaluadas)> EjecutarEnvioAsync(IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
     {
         var dbContext = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
         var alcanceDatos = ambito.ServiceProvider.GetRequiredService<IAlcanceDatosService>();
