@@ -35,9 +35,10 @@ namespace CaeManager.Web.Tests;
 ///
 /// <para>
 /// Los dos notificadores se prueban como contrato del diccionario: una suscripción solo recibe los avisos del
-/// Tenant con el que se hizo, y liberarla la retira. No prueban que los componentes del circuito liberen la
-/// suscripción del Tenant anterior al retirarse la selección: hoy <c>Bandeja</c> y <c>CacheEstadoCircuito</c>
-/// solo la liberan al cerrarse el circuito.
+/// Tenant con el que se hizo, y liberarla la retira. Que los componentes del circuito (la bandeja de
+/// Comunicaciones y <c>CacheEstadoCircuito</c>) liberen la suscripción del Tenant anterior al retirarse la
+/// selección, y no solo al cerrarse el circuito, lo prueban <c>BajaDeAvisosDelTenantRetiradoEnCalienteTests</c>
+/// y <c>CacheEstadoCircuitoTrasRetirarLaSeleccionTests</c>.
 /// </para>
 /// </summary>
 public class DiccionariosConcurrentesTrasCambioDeTenantEnCalienteTests
