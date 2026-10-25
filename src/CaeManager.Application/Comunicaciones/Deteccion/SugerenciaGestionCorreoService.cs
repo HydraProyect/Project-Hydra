@@ -26,21 +26,13 @@ public record ResultadoDeteccionGestionDto(SugerenciaGestionCorreo? Sugerencia, 
 /// <summary>
 /// Orquestador puro (mismo patrón que SugerenciaVisitaCorreoService): llamado
 /// desde IngestaWebhookService justo después de persistir un Mensaje
-/// Entrante, carga los Trabajadores con alguna asignación (activa o no) en
-/// algún Centro del Cliente de la conversación y los TipoDocumento de Ámbito
-/// Trabajador, pide a <see cref="IDeteccionGestionCorreoService"/> que
-/// clasifique el correo, y si parece pedir la actualización de uno o varios
-/// documentos registra una <see cref="SugerenciaGestionCorreo"/> pendiente
-/// con un <see cref="DetalleSugerenciaGestionCorreo"/> por ítem detectado —
-/// salvo los ítems que resuelven a un Trabajador sin asignación activa hoy
-/// (patrón "trabajador fuera de ventana", temporeros con alta puntual que
-/// siguen generando notificaciones el resto del año), que se descartan antes
-/// de crear nada: no hay ninguna gestión real que el gestor pueda hacer sobre
-/// un Trabajador ya dado de baja, así que no se le presenta como si la
-/// hubiera (ver <see cref="FiltrarTrabajadoresFueraDeVentana"/>). Candidatos
-/// se amplían a asignación activa o no precisamente para que la IA pueda
-/// resolver a estos Trabajadores y así poder descartarlos — con la lista
-/// limitada a solo activos nunca se les habría podido identificar. No guarda
+/// Entrante, carga solo los Trabajadores con Asignación activa en algún Centro
+/// del Cliente empresarial de la conversación y los TipoDocumento de ámbito
+/// Trabajador. Pide la clasificación y registra una sugerencia pendiente por los
+/// ítems detectados, validando de nuevo que el Trabajador siga entre los candidatos
+/// (ver <see cref="FiltrarTrabajadoresFueraDeVentana"/>). Los Trabajadores con solo
+/// Asignaciones históricas no salen al proveedor (Z4-2), así que la IA ya no puede
+/// resolver un correo a uno de ellos: su ítem vuelve sin Trabajador. No guarda
 /// cambios — el llamador ya persiste todo el mensaje ingerido en una sola
 /// operación. Devuelve el resultado de la extracción (o vacío si no aplica)
 /// para que otros pasos de la ingesta (ronda de reducción de ruido en
@@ -71,8 +63,10 @@ public class SugerenciaGestionCorreoService(
     {
         // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
         // Esta es la detección que más datos personales envía de las tres de la
-        // ingesta: además del cuerpo del correo viajan los Trabajadores candidatos
-        // con su DNI, así que el gate va por delante de cargar nada. Vacío es el
+        // ingesta: además del cuerpo del correo viajan los nombres de los
+        // Trabajadores candidatos (el DNI no: el proveedor lo sustituye por un
+        // marcador, ver AnthropicDeteccionGestionCorreoService), así que el gate
+        // va por delante de cargar nada. Vacío es el
         // mismo resultado que "el correo no aplica" — el llamador ya sabe tratarlo,
         // y ninguna clasificación de ruido depende de IA para existir.
         if (tenantActual.TenantId is not { } tenantId || !await instruccionTratamientoIa.EstaHabilitadaAsync(tenantId, cancellationToken))
@@ -91,19 +85,22 @@ public class SugerenciaGestionCorreoService(
         if (centroIds.Count == 0)
             return ResultadoDeteccionGestionDto.Vacio;
 
-        var asignaciones = await asignacionesContext.Asignaciones
-            .Where(a => centroIds.Contains(a.CentroId))
-            .Select(a => new { a.TrabajadorId, EstaActiva = a.FechaBaja == null })
+        // Solo Asignaciones activas (Z4-2): un Trabajador que solo tiene Asignaciones
+        // históricas en los Centros de este Cliente empresarial no sale al proveedor de IA,
+        // ni su nombre ni su documento. El filtro va en la consulta, antes de la llamada.
+        var trabajadorIds = await asignacionesContext.Asignaciones
+            .Where(a => centroIds.Contains(a.CentroId) && a.FechaBaja == null)
+            .Select(a => a.TrabajadorId)
+            .Distinct()
             .ToListAsync(cancellationToken);
 
-        // Sin Trabajadores con alguna asignación en algún Centro del Cliente
+        // Sin Trabajadores con Asignación activa en algún Centro del Cliente empresarial
         // no hay a quién asociar la sugerencia — v1 no cubre "sugerir un
         // Trabajador nuevo" (YAGNI, mismo criterio que SugerenciaVisitaCorreoService).
-        if (asignaciones.Count == 0)
+        if (trabajadorIds.Count == 0)
             return ResultadoDeteccionGestionDto.Vacio;
 
-        var trabajadorIds = asignaciones.Select(a => a.TrabajadorId).Distinct().ToList();
-        var trabajadorIdsActivos = asignaciones.Where(a => a.EstaActiva).Select(a => a.TrabajadorId).ToHashSet();
+        var trabajadorIdsActivos = trabajadorIds.ToHashSet();
 
         var trabajadores = await trabajadoresContext.Trabajadores
             .Where(t => trabajadorIds.Contains(t.Id))
@@ -152,7 +149,9 @@ public class SugerenciaGestionCorreoService(
     /// Descarta los ítems cuyo Trabajador resuelto ya no tiene asignación
     /// activa (patrón "trabajador fuera de ventana") — un ítem sin Trabajador
     /// resuelto (solo TipoDocumento) nunca se descarta por este motivo, no
-    /// hay nada que comprobar.
+    /// hay nada que comprobar. Desde Z4-2 los candidatos ya son solo los activos,
+    /// así que esto queda como defensa: el proveedor descarta además cualquier Id
+    /// que no esté en la lista.
     /// </summary>
     public static IReadOnlyList<ItemDeteccionGestionDto> FiltrarTrabajadoresFueraDeVentana(
         IReadOnlyList<ItemDeteccionGestionDto> items, IReadOnlySet<Guid> trabajadorIdsActivos) =>

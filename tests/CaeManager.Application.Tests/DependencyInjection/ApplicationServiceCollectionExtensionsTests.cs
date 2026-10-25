@@ -2,6 +2,7 @@ using CaeManager.Application.AsistenteIa;
 using CaeManager.Application.AsistenteIa.Queries.PreguntarAlAsistente;
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Plataforma;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,6 +23,26 @@ namespace CaeManager.Application.Tests.DependencyInjection;
 /// </summary>
 public class ApplicationServiceCollectionExtensionsTests
 {
+    [Fact]
+    public async Task El_behavior_de_restauracion_deja_pasar_consultas_sin_persistencia()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+        var behavior = ActivatorUtilities.CreateInstance<RestauracionCambiosDeComandoBehavior<ConsultaSinPersistencia, CaeManager.Domain.Common.Result>>(proveedor);
+        var resultado = await behavior.Handle(new ConsultaSinPersistencia(),
+            ct => Task.FromResult(CaeManager.Domain.Common.Result.Exito()), default);
+        resultado.EsExitoso.Should().BeTrue();
+
+        var behaviors = servicios.Where(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>))
+            .Select(d => d.ImplementationType).ToList();
+        var restauracion = behaviors.IndexOf(typeof(RestauracionCambiosDeComandoBehavior<,>));
+        restauracion.Should().BeGreaterThan(behaviors.IndexOf(typeof(InvalidacionAlcanceBehavior<,>)));
+        restauracion.Should().BeLessThan(behaviors.IndexOf(typeof(ConcurrenciaBehavior<,>)));
+    }
+
+    private sealed record ConsultaSinPersistencia : MediatR.IRequest<CaeManager.Domain.Common.Result>;
+
     [Fact]
     public void AddApplication_por_si_sola_resuelve_IAlertaOperativa_sin_Infrastructure()
     {
@@ -97,6 +118,24 @@ public class ApplicationServiceCollectionExtensionsTests
 
         proveedor.GetRequiredService<ISesionPrivilegiadaActual>()
             .Should().BeOfType<SesionPrivilegiadaAusente>();
+    }
+
+    [Fact]
+    public void AddApplication_por_si_sola_construye_el_behavior_de_duplicados_de_Cif_sin_Infrastructure()
+    {
+        // Mismo fallo de forma: el behavior de Z5-7 se construye para toda petición,
+        // así que no puede exigir IEmpresaRepository (lo registra Infrastructure) en su constructor.
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        using var proveedor = servicios.BuildServiceProvider();
+        using var ambito = proveedor.CreateScope();
+
+        servicios.Should().Contain(d => d.ServiceType == typeof(MediatR.IPipelineBehavior<,>)
+            && d.ImplementationType == typeof(DuplicadosEmpresaBehavior<,>));
+        var accion = () => ActivatorUtilities.CreateInstance<DuplicadosEmpresaBehavior<PreguntarAlAsistenteQuery, CaeManager.Domain.Common.Result>>(
+            ambito.ServiceProvider);
+
+        accion.Should().NotThrow();
     }
 
     [Fact]

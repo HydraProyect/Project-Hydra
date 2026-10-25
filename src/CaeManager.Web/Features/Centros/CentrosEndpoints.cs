@@ -50,7 +50,10 @@ public static class CentrosEndpoints
                         Pagina: pagina,
                         TamanoPagina: tamanoPagina,
                         CentroId: Guid.TryParse(centroFiltro, out var centroId) ? centroId : null,
-                        EmpresaId: Guid.TryParse(empresa, out var empresaId) ? empresaId : null),
+                        EmpresaId: Guid.TryParse(empresa, out var empresaId) ? empresaId : null,
+                        // El Excel solo lleva estado y % de cumplimiento: el detalle de las causas no se guarda y
+                        // calcularlo por lote era lo que más pesaba de la exportación.
+                        ConIncidencias: false),
                     cancellationToken)))
             {
                 hoja.Cell(fila, 1).Value = centro.Nombre;

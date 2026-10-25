@@ -34,7 +34,8 @@ public class RouterExtraccionMetadatosDocumentoIaService(IDocumentAIRouterServic
             ParsearFecha(campos.GetValueOrDefault("fechaVencimiento")),
             ParsearBooleano(campos.GetValueOrDefault("tieneFirma")),
             resultado.Valor.ConfianzaGeneral,
-            resultado.Valor.NotasValidacion));
+            resultado.Valor.NotasValidacion,
+            resultado.Valor.Contraste));
     }
 
     private static DateOnly? ParsearFecha(string? valor) =>

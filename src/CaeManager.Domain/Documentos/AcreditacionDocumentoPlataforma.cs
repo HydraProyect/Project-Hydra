@@ -54,12 +54,12 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
 
     private readonly List<CambioEstadoAcreditacionPlataforma> _cambiosEstado = [];
 
-    /// <summary>Cambios de estado anotados a mano desde Centro 360 (<see cref="CambiarEstadoAMano"/>), deshechos incluidos.</summary>
+    /// <summary>Cambios de estado anotados a mano (<see cref="CambiarEstadoAMano"/>) desde Centro 360 o con «Lo he enviado» de la extensión, deshechos incluidos.</summary>
     public IReadOnlyList<CambioEstadoAcreditacionPlataforma> CambiosEstado => _cambiosEstado.AsReadOnly();
 
     /// <summary>
     /// El cambio a mano que dejó el estado actual, si lo último que le pasó al estado fue ese cambio. Cualquier otra
-    /// vía que toque el estado (panel «Gestionar», extensión, renovación del Documento, «Deshacer») lo vacía: así la
+    /// vía que toque el estado (panel «Gestionar», renovación del Documento, «Deshacer») lo vacía: así la
     /// anotación de Centro 360 nunca describe otro estado ni otra versión del documento, y «Deshacer» solo deshace el
     /// cambio que sigue en pie. Confirmar la vigencia no cambia el estado y no lo vacía.
     /// </summary>
@@ -254,17 +254,19 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
     /// <item>La vigencia confirmada se pierde salvo al volver a anotar Validado sobre algo que ya lo estaba: la misma
     /// regla que <see cref="MarcarSubida"/>, <see cref="Rechazar"/> y <see cref="DevolverAPendienteDeSubir"/>.</item>
     /// </list>
-    /// Devuelve el cambio, que es lo que «Deshacer» identifica.
+    /// Devuelve el cambio, que es lo que «Deshacer» identifica. <paramref name="origen"/> dice desde dónde se anotó
+    /// (Centro 360, o «Lo he enviado» de la extensión con <see cref="ConfirmarEnvioDesdeExtension"/>).
     /// </summary>
     public CambioEstadoAcreditacionPlataforma CambiarEstadoAMano(
-        EstadoAcreditacion destino, DateOnly fecha, string? motivo, string? nota, Guid? usuarioId, DateTime momentoUtc)
+        EstadoAcreditacion destino, DateOnly fecha, string? motivo, string? nota, Guid? usuarioId, DateTime momentoUtc,
+        OrigenCambioEstadoAcreditacion origen = OrigenCambioEstadoAcreditacion.Centro360)
     {
         if (!EsEstadoAnotableAMano(destino))
             throw new ArgumentException("Ese estado no se anota a mano en la plataforma.", nameof(destino));
 
         // Se construye ANTES de tocar nada: si el motivo o la nota no validan, la acreditación queda como estaba.
         var cambio = new CambioEstadoAcreditacionPlataforma(
-            Id, Estado, Vigencia, destino, fecha, motivo, nota, usuarioId, momentoUtc);
+            Id, Estado, Vigencia, destino, fecha, motivo, nota, usuarioId, momentoUtc, origen);
 
         switch (destino)
         {
@@ -290,6 +292,17 @@ public class AcreditacionDocumentoPlataforma : EntidadBase, IAccionAuditoriaProp
         RenovarVersion();
         return cambio;
     }
+
+    /// <summary>
+    /// «Lo he enviado» de la extensión de navegador: el Gestor CAE confirma que envió en la plataforma el documento que la
+    /// extensión puso en el formulario. Queda Subida (Pendiente de validar) con un cambio de origen
+    /// <see cref="OrigenCambioEstadoAcreditacion.Extension"/>, que se ve en el Historial del Centro y se deshace igual que
+    /// uno de Centro 360. Poner el archivo en el formulario no cambia nada: solo esta confirmación. Si la plataforma ya
+    /// rechazó esta versión, el llamador lo impide antes (<c>ReglaSubidaAcreditacion</c>).
+    /// </summary>
+    public CambioEstadoAcreditacionPlataforma ConfirmarEnvioDesdeExtension(DateOnly fecha, Guid? usuarioId, DateTime momentoUtc) =>
+        CambiarEstadoAMano(EstadoAcreditacion.Subida, fecha, motivo: null, nota: null, usuarioId, momentoUtc,
+            OrigenCambioEstadoAcreditacion.Extension);
 
     /// <summary>
     /// ¿Se puede deshacer este cambio? Solo si es el que dejó el estado actual (<see cref="UltimoCambioEstadoAManoId"/>):

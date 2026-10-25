@@ -746,9 +746,9 @@ public partial class ClienteDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Motivos documentales, rechazos y pendientes de la plataforma CAE y Trabajadores bloqueados, sin partes en cero ni
-    /// confundir pendientes con vencidos. Sale de los mismos recuentos que el estado del Centro
-    /// (<c>CalculoEstadoCentroService</c> → <see cref="CentroListaDto.Recuentos"/>), así que lo que el estado cuenta aquí se
-    /// nombra. «Todo validado en la plataforma» solo se afirma de un Centro Vigente sin ninguna causa: estado TALVEG ≠ estado
+    /// confundir pendientes con vencidos. Sale de las mismas causas que el estado del Centro
+    /// (<c>CalculoEstadoCentroService</c> → <see cref="CentroListaDto.Recuentos"/>; el estado, en un Tenant completo, sale de
+    /// <c>EstadosEntidad</c>, calculado con esa misma regla), así que lo que el estado cuenta aquí se nombra. «Todo validado en la plataforma» solo se afirma de un Centro Vigente sin ninguna causa: estado TALVEG ≠ estado
     /// en la plataforma. Vacío si no hay nada que decir.
     /// </summary>
     private string MotivosCentro(CentroListaDto centro)

@@ -48,6 +48,7 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
 
+        await Ayudas.AbrirDetalleDeDelegacionAsync(page, Ayudas.NombreClienteDelegadoDemo, soporte: true);
         var tarjeta = page.Locator(".delegaciones-tarjeta")
             .Filter(new LocatorFilterOptions { HasText = Ayudas.NombreClienteDelegadoDemo })
             .Filter(new LocatorFilterOptions { Has = page.GetByText("Soporte", new PageGetByTextOptions { Exact = true }) });

@@ -115,11 +115,11 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
 
     /// <summary>
     /// Páginas ya pedidas de la lista entera ordenada por estado, por número
-    /// de página. Se vacía en cada recarga de los recuentos: una página
+    /// de página. Se sustituye al completar la relectura: una página
     /// guardada de una carga anterior podría estar desplazada respecto a los
     /// recuentos nuevos.
     /// </summary>
-    private readonly Dictionary<int, IReadOnlyList<TrabajadorListaDto>> _paginasOrdenadas = [];
+    private Dictionary<int, IReadOnlyList<TrabajadorListaDto>> _paginasOrdenadas = [];
 
     private IReadOnlyList<ClienteDeEmpresaDto>? _clientes;
     private bool _cargandoClientes;
@@ -200,7 +200,22 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     private IReadOnlyList<BreadcrumbElemento> Miguero =>
         [new BreadcrumbElemento(Textos["MigaEmpresas"]), new BreadcrumbElemento(_detalle?.RazonSocial ?? "…")];
 
-    protected override void OnInitialized() => _cancelacion = _ciclo.Token;
+    protected override void OnInitialized()
+    {
+        _cancelacion = _ciclo.Token;
+        // El estado de la pestaña Trabajadores sale de ObtenerTrabajadoresQuery, que lee el estado materializado: un aviso
+        // de cambio (diseño § 13.11) la relee dejando a la vista la lista ya pintada hasta que llega la nueva.
+        _repintado ??= EscucharCambiosDeEstado(async () =>
+        {
+            if (_detalle is null)
+                return;
+            await CargarTrabajadoresAsync(soloLaLista: false, conservarSiFalla: true);
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11).</summary>
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
 
     /// <summary>
     /// Solo recarga cuando cambia la Empresa. La pestaña y el chip también
@@ -425,16 +440,20 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// </summary>
     private Task CargarTrabajadoresAsync() => CargarTrabajadoresAsync(soloLaLista: false);
 
-    private async Task CargarTrabajadoresAsync(bool soloLaLista)
+    /// <param name="conservarSiFalla">
+    /// El repintado por un cambio de estado: si falla, la lista que ya se veía se queda (el fallo sube a
+    /// <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del error de la pestaña.
+    /// </param>
+    private async Task CargarTrabajadoresAsync(bool soloLaLista, bool conservarSiFalla = false)
     {
         var carga = ++_cargaTrabajadores;
-        // Una página pedida con el texto anterior ya no vale: que no escriba en la caché que se vacía aquí.
+        // Una página de la carga anterior ya no puede escribir en la caché.
         _cargaPagina++;
         var empresaId = EmpresaId;
         var busqueda = TextoBuscado;
         _cargandoTrabajadores = _recuentos is null;
         _errorTrabajadores = false;
-        _paginasOrdenadas.Clear();
+        var paginasNuevas = new Dictionary<int, IReadOnlyList<TrabajadorListaDto>>();
 
         try
         {
@@ -466,10 +485,22 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 }
             }
 
-            _paginasOrdenadas[1] = primera;
+            paginasNuevas[1] = primera;
+            // La nueva página visible debe estar lista antes de sustituir la última lectura buena.
+            var cargaDePagina = _cargaPagina + 1;
+            await MostrarPaginaAsync(paginasNuevas, recuentoDeLaLista, conservarSiFalla);
+            if (carga != _cargaTrabajadores) return;
+            _paginasOrdenadas = paginasNuevas;
             _recuentos = todos;
             _recuentosLista = recuentoDeLaLista;
-            await MostrarPaginaAsync();
+            // Si el usuario cambió de página, chip o agrupación mientras tanto, esa acción pintó con los recuentos
+            // y la caché anteriores: se vuelve a pintar con los nuevos.
+            if (_cargaPagina != cargaDePagina)
+                await MostrarPaginaAsync(conservarSiFalla: conservarSiFalla);
+        }
+        catch (Exception) when (conservarSiFalla && carga == _cargaTrabajadores)
+        {
+            throw;
         }
         catch (Exception)
         {
@@ -567,9 +598,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     /// cambian entre el recuento y la página, sobra alguna fila en vez de
     /// colarse una de otro estado.
     /// </summary>
-    private async Task MostrarPaginaAsync()
+    private async Task MostrarPaginaAsync(
+        Dictionary<int, IReadOnlyList<TrabajadorListaDto>>? paginas = null,
+        RecuentoTrabajadores? recuentoNuevo = null, bool conservarSiFalla = false)
     {
-        if (_recuentosLista is not { } recuentos) return;
+        if ((recuentoNuevo ?? _recuentosLista) is not { } recuentos) return;
+        paginas ??= _paginasOrdenadas;
 
         var carga = ++_cargaPagina;
         var generacion = _generacion;
@@ -596,7 +630,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 if (carga != _cargaPagina || generacion != _generacion) return;
                 _filas = agrupada.Elementos;
             }
-            catch (Exception)
+            catch (Exception) when (!conservarSiFalla)
             {
                 if (carga == _cargaPagina && generacion == _generacion)
                 {
@@ -615,12 +649,12 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
             var filas = new List<TrabajadorListaDto>();
             for (var pagina = primeraPagina; pagina <= ultimaPagina; pagina++)
             {
-                if (!_paginasOrdenadas.TryGetValue(pagina, out var elementos))
+                if (!paginas.TryGetValue(pagina, out var elementos))
                 {
                     var resultado = await Mediator.Send(ConsultaOrdenada(empresaId, pagina, busqueda, DelegacionEmpresaFiltro, OficioFiltro), _cancelacion);
                     if (carga != _cargaPagina || generacion != _generacion) return;
                     elementos = resultado.Elementos;
-                    _paginasOrdenadas[pagina] = elementos;
+                    paginas[pagina] = elementos;
                 }
 
                 filas.AddRange(elementos);
@@ -632,7 +666,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
                 .Where(t => Incluye(filtro, t.EstadoDocumental))
                 .ToList();
         }
-        catch (Exception)
+        catch (Exception) when (!conservarSiFalla)
         {
             if (carga == _cargaPagina && generacion == _generacion)
             {
@@ -950,6 +984,7 @@ public partial class EmpresaDetalle : CaeManager.Web.Components.PaginaInteractiv
     public void Dispose()
     {
         InvalidarCargas();
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }

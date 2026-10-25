@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <data name="Abierto" xml:space="preserve">
+    <value>Accés obert</value>
+  </data>
+  <data name="Activa" xml:space="preserve">
+    <value>En actiu</value>
+  </data>
+  <data name="Agrupar" xml:space="preserve">
+    <value>Agrupar per</value>
+  </data>
+  <data name="Alta" xml:space="preserve">
+    <value>Data d’alta</value>
+  </data>
+  <data name="Buscar" xml:space="preserve">
+    <value>Filtrar aquesta pantalla: organització o Operador CAE</value>
+  </data>
+  <data name="Caducada" xml:space="preserve">
+    <value>Vençuda</value>
+  </data>
+  <data name="Estado" xml:space="preserve">
+    <value>Estat</value>
+  </data>
+  <data name="OperadorExterno" xml:space="preserve">
+    <value>Operador CAE extern</value>
+  </data>
+  <data name="Organizacion" xml:space="preserve">
+    <value>Organització</value>
+  </data>
+  <data name="Permiso" xml:space="preserve">
+    <value>Permís</value>
+  </data>
+  <data name="Personas" xml:space="preserve">
+    <value>{0} persones autoritzades</value>
+  </data>
+  <data name="Revocada" xml:space="preserve">
+    <value>Donada de baixa</value>
+  </data>
+  <data name="Seleccionar" xml:space="preserve">
+    <value>Selecciona {0}</value>
+  </data>
+  <data name="SeleccionarVisibles" xml:space="preserve">
+    <value>Seleccionar files visibles</value>
+  </data>
+  <data name="SinAcceso" xml:space="preserve">
+    <value>Sense accés</value>
+  </data>
+  <data name="SinAgrupar" xml:space="preserve">
+    <value>Sense agrupar</value>
+  </data>
+  <data name="Soporte" xml:space="preserve">
+    <value>Suport</value>
+  </data>
+  <data name="Tipo" xml:space="preserve">
+    <value>Tipus</value>
+  </data>
+  <data name="Titulo" xml:space="preserve">
+    <value>Delegacions</value>
+  </data>
+  <data name="Todas" xml:space="preserve">
+    <value>Totes</value>
+  </data>
+  <data name="VerRestantes" xml:space="preserve">
+    <value>Veure els {0} restants</value>
+  </data>
+  <data name="SinAsignaciones" xml:space="preserve">
+    <value>Sense delegacions</value>
+  </data>
+  <data name="SinResultados" xml:space="preserve">
+    <value>Cap delegació amb aquests filtres</value>
+  </data>
+  <data name="SinResultadosDescripcion" xml:space="preserve"><value>Canvia o esborra els filtres per trobar delegacions.</value></data>
+  <data name="SinAsignacionesDescripcion" xml:space="preserve"><value>Aquesta organització no presta ni rep servei CAE delegat.</value></data>
+  <data name="Persona" xml:space="preserve"><value>1 persona autoritzada</value></data>
+</root>

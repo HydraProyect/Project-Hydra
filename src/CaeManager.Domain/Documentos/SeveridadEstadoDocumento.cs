@@ -38,15 +38,40 @@ public static class SeveridadEstadoDocumento
     };
 
     /// <summary>
-    /// El estado documental de un propietario al que un Centro le exige un Tipo de documento que no tiene. El peor
-    /// estado de sus documentos registrados no ve lo que no existe: sin esto, quien no ha subido nada de lo exigido se
-    /// leería como «Sin incidencias». Si ya hay algo más grave (un vencido), manda ese: Vencido, luego Pendiente
-    /// (<see cref="EstadoDocumento.Faltante"/>), luego lo que está por vencer y lo demás, por <see cref="Rango"/>.
-    /// Es la única combinación de los dos: el listado de Trabajadores, Empresa 360 y la cabecera de Trabajador 360
-    /// leen el resultado ya combinado de <c>ObtenerTrabajadoresQuery</c>.
+    /// El peor estado de un propietario con Tipos exigidos sin documento: Vencido, luego Pendiente
+    /// (<see cref="EstadoDocumento.Faltante"/>), luego lo demás, por <see cref="Rango"/>. Lo usa la búsqueda global, que trae
+    /// el peor estado y los faltantes por separado. Los listados de Empresas y de Trabajadores, Empresa 360 y la cabecera
+    /// de Trabajador 360 no lo usan: combinan con <see cref="ConRequisitosObligatorios"/>.
     /// </summary>
     public static EstadoDocumento? ConFaltantes(EstadoDocumento? estado, bool hayFaltantes) =>
         hayFaltantes && (estado is null || Rango(EstadoDocumento.Faltante) < Rango(estado.Value))
             ? EstadoDocumento.Faltante
             : estado;
+
+    /// <summary>
+    /// El estado de una Empresa o de un Trabajador con sus requisitos OBLIGATORIOS de Centro encima (un Tipo de su ámbito que
+    /// un Centro donde opera marca «bloquea el acceso»; <c>RequisitosObligatoriosIncumplidos</c>, decisiones del 2026-10-23).
+    /// En rojo solo lo que bloquea el acceso: un obligatorio vencido allí es <see cref="EstadoDocumento.Vencido"/>, y uno que
+    /// falta, <see cref="EstadoDocumento.Faltante"/> («Pendiente»). Sin obligatorios incumplidos manda el peor estado de
+    /// vigencia de sus documentos, y si ese es un vencido de algo que ningún Centro marca obligatorio, es un aviso
+    /// (<see cref="EsVencidoSinBloqueo"/>), no rojo. El estado de vigencia del Documento no cambia: sigue Vencido.
+    /// Es la única combinación: el listado de Empresas lee el resultado ya combinado de <c>ObtenerEmpresasQuery</c>, y el
+    /// listado de Trabajadores, Empresa 360 y la cabecera de Trabajador 360, el de <c>ObtenerTrabajadoresQuery</c>.
+    /// </summary>
+    /// <param name="peorVigencia">Peor estado de vigencia de los documentos del propietario; <c>null</c> si no tiene ninguno.</param>
+    /// <param name="obligatorioVencido">Algún requisito obligatorio de un Centro visible tiene documento, pero ya no vale allí.</param>
+    /// <param name="obligatorioAusente">Algún requisito obligatorio de un Centro visible no tiene ningún documento.</param>
+    public static EstadoDocumento? ConRequisitosObligatorios(
+        EstadoDocumento? peorVigencia, bool obligatorioVencido, bool obligatorioAusente) =>
+        obligatorioVencido ? EstadoDocumento.Vencido
+        : obligatorioAusente ? EstadoDocumento.Faltante
+        : peorVigencia;
+
+    /// <summary>
+    /// ¿El <see cref="EstadoDocumento.Vencido"/> que resulta de <see cref="ConRequisitosObligatorios"/> es solo un aviso? Lo es
+    /// cuando viene de un documento vencido que ningún Centro visible marca obligatorio: se pinta en el tono de aviso, no en
+    /// rojo (decisión del 2026-10-23).
+    /// </summary>
+    public static bool EsVencidoSinBloqueo(EstadoDocumento? peorVigencia, bool obligatorioVencido, bool obligatorioAusente) =>
+        peorVigencia == EstadoDocumento.Vencido && !obligatorioVencido && !obligatorioAusente;
 }

@@ -210,8 +210,39 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     [SupplyParameterFromQuery] public Guid? ClienteId { get; set; }
 
+    /// <summary>
+    /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
+    /// el refresco que conserva la selección, las filas desplegadas y la fila enfocada.
+    /// </summary>
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la pregunta que hay en pantalla sin el esqueleto de carga, conservando la
+    /// selección, las filas desplegadas y la fila enfocada. Sin Empresa elegida (o aún resolviéndola) no hay lista que
+    /// releer; con una carga en vuelo se apunta y se relee al terminarla.
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada || _ultimaConsulta is null)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await CargarAsync(silenciosa: true);
+    }
+
     protected override async Task OnInitializedAsync()
     {
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
         // La marca de fila sigue al panel del Context Workspace, que se abre y
         // se cierra fuera de esta página.
         WorkspaceService.OnCambio += AlCambiarWorkspace;
@@ -303,7 +334,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         }
     }
 
-    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial);
+    private string EstadoDesdeUrl() => EstadoDocumentoUi.SeleccionDocumentalValida(EstadoInicial, incluirFaltantes: true);
 
     private Guid? ClienteDesdeUrl() =>
         Guid.TryParse(ClienteFiltroInicial, out var id) && _clientesFiltro.Any(c => c.Id == id) ? id : null;
@@ -421,6 +452,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _desechado = true;
         WorkspaceService.OnCambio -= AlCambiarWorkspace;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
     }
@@ -440,7 +472,11 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// </summary>
     private ObtenerEmpresasQuery? _consultaQueConservaSeleccion;
 
-    private async Task CargarAsync(bool resetPagina = false)
+    /// <param name="silenciosa">
+    /// El repintado por un cambio de estado: sin esqueleto de carga, y si falla la lista que ya se veía se queda (el fallo
+    /// sube a <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del estado de error.
+    /// </param>
+    private async Task CargarAsync(bool resetPagina = false, bool silenciosa = false)
     {
         if (resetPagina)
             _pagina = 1;
@@ -469,9 +505,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
 
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
+        if (!silenciosa)
+        {
+            _cargando = true;
+            _errorCarga = false;
+            StateHasChanged();
+        }
 
         try
         {
@@ -479,6 +518,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             if (!EsVigente(carga))
                 return;
 
+            _errorCarga = false;
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             _elementosPagina = resultado.Elementos.ToList();
@@ -505,6 +545,10 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             // Una carga superada que falla no es un error de la vigente: no
             // puede tapar su resultado con el estado de error.
         }
+        catch (Exception) when (silenciosa)
+        {
+            throw;
+        }
         catch (Exception)
         {
             _errorCarga = true;
@@ -515,6 +559,12 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             {
                 _cargando = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }
@@ -644,7 +694,7 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     }
 
     /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila).</summary>
-    private static bool EsFilaRoja(EmpresaListaDto empresa) => ClaseTinte(empresa.EstadoDocumental).Contains("peligro", StringComparison.Ordinal);
+    private static bool EsFilaRoja(EmpresaListaDto empresa) => ClaseTinte(empresa.EstadoDocumental, empresa.VencidoSinBloqueo).Contains("peligro", StringComparison.Ordinal);
 
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
     private int TamanoPedido => AgrupacionDeLista.TamanoPedido(_agruparPorCliente, _tamanoPagina);
@@ -725,14 +775,16 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
         "tarjeta-fila-acordeon"
         + (empresa.Id == _idEnfocado ? " fila-enfocada" : string.Empty)
         + (empresa.Id == EmpresaEnVistaPrevia ? " fila-empresa-en-vista-previa" : string.Empty)
-        + ClaseTinte(empresa.EstadoDocumental);
+        + ClaseTinte(empresa.EstadoDocumental, empresa.VencidoSinBloqueo);
 
     /// <summary>
     /// Fila con problema (rediseño de listados, fase 1): falta o vence un documento → tinte de
-    /// peligro; urgente → de aviso. Mismo criterio que la lista de Clientes empresariales.
+    /// peligro; urgente → de aviso. Mismo criterio que la lista de Clientes empresariales. Un vencido que ningún Centro
+    /// marca obligatorio (<see cref="EmpresaListaDto.VencidoSinBloqueo"/>) es aviso, no peligro (decisión del 2026-10-23).
     /// </summary>
-    private static string ClaseTinte(EstadoDocumento? estado) => estado switch
+    private static string ClaseTinte(EstadoDocumento? estado, bool vencidoSinBloqueo) => estado switch
     {
+        EstadoDocumento.Vencido when vencidoSinBloqueo => " fila-tintada-aviso",
         EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
         EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
         _ => string.Empty
@@ -757,10 +809,13 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
     /// próximo son configurables (<c>CalculadoraEstadoDocumento</c>), así que
     /// no se escribe ningún número.
     /// </summary>
-    private static string TituloEstadoDocumental(EstadoDocumento? estado) =>
-        estado is null
-            ? "Todavía no tiene ningún documento"
-            : $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}";
+    private string TituloEstadoDocumental(EstadoDocumento? estado) =>
+        estado switch
+        {
+            null => "Todavía no tiene ningún documento",
+            EstadoDocumento.Faltante => Textos["EstadoDocumentalFaltanteTitulo"],
+            _ => $"Peor estado de vigencia entre sus documentos: {EstadoDocumentoUi.Texto(estado.Value)}"
+        };
 
     private async Task AbrirCrear()
     {

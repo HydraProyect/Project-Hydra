@@ -1,3 +1,4 @@
+using System.Reflection;
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Queries.ObtenerCentrosParaSelector;
@@ -279,7 +280,8 @@ public class ComunicacionesGen2Tests : BunitContext
                     || c.Asunto.Contains(q.Busqueda, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            return new ResultadoPaginado<ConversacionListaDto>(visibles, visibles.Count, q.Pagina, q.TamanoPagina);
+            return new ResultadoPaginado<ConversacionListaDto>(
+                visibles.Skip((q.Pagina - 1) * q.TamanoPagina).Take(q.TamanoPagina).ToList(), visibles.Count, q.Pagina, q.TamanoPagina);
         }
     }
 
@@ -1218,13 +1220,276 @@ public class ComunicacionesGen2Tests : BunitContext
 
     // ---------------------------------------------------------------- macro, Ctrl+Intro, j/k y errores accionables
 
+    [Fact]
+    public async Task Resolver_avanza_a_la_siguiente_del_filtro_actual()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        var segunda = Conversacion("Segunda", escenario.Clientes[0]);
+        var excluida = Conversacion("Fuera del filtro", escenario.Clientes[1]);
+        escenario.Conversaciones.AddRange([primera, segunda, excluida]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Interceptar = peticion =>
+        {
+            if (peticion is not CambiarEstadoConversacionCommand cambio) return null;
+            var indice = escenario.Conversaciones.FindIndex(c => c.Id == cambio.ConversacionId);
+            escenario.Conversaciones[indice] = escenario.Conversaciones[indice] with { Estado = cambio.NuevoEstado };
+            return Task.FromResult<object?>(Result.Exito());
+        };
+        var (cut, mediador) = Renderizar(escenario, $"comunicaciones?estado=Abierta&cliente={primera.ClienteId}");
+        await SeleccionarFila(cut, "Primera");
+
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Segunda");
+        mediador.Enviados.OfType<ObtenerConversacionesQuery>().Should().OnlyContain(q =>
+            q.Estado == EstadoConversacion.Abierta && q.ClienteId == primera.ClienteId);
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().NotContain(q => q.Id == excluida.Id);
+    }
+
+    [Fact]
+    public async Task Siguiente_se_deshabilita_al_final_y_no_cambia_el_estado()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        var segunda = Conversacion("Segunda", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, segunda]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera");
+
+        await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Segunda");
+        Boton(cut, "button", "Siguiente conversación").HasAttribute("disabled").Should().BeTrue();
+        mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_fallo_al_resolver_conserva_el_hilo()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, Conversacion("Segunda", escenario.Clientes[0])]);
+        escenario.Detalle = _ => DetalleDe(primera);
+        escenario.Interceptar = p => p is CambiarEstadoConversacionCommand
+            ? Task.FromResult<object?>(Result.Fallo(Error.Crear("Prueba.Fallo", "No se pudo resolver."))) : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera");
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Primera");
+    }
+
+    [Fact]
+    public async Task Siguiente_cruza_la_pagina_con_el_mismo_filtro()
+    {
+        var escenario = new Escenario();
+        for (var i = 1; i <= 21; i++) escenario.Conversaciones.Add(Conversacion($"Hilo {i}", escenario.Clientes[0]));
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, mediador) = Renderizar(escenario, $"comunicaciones?cliente={escenario.Clientes[0].Id}");
+        await SeleccionarFila(cut, "Hilo 20");
+        await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
+        cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Hilo 21");
+        var consulta = mediador.Enviados.OfType<ObtenerConversacionesQuery>().Last();
+        consulta.Pagina.Should().Be(2);
+        consulta.ClienteId.Should().Be(escenario.Clientes[0].Id);
+    }
+
+    [Theory]
+    [InlineData(CanalConversacion.Correo, "<p>Falta el certificado.</p>")]
+    [InlineData(CanalConversacion.WhatsApp, "Falta el certificado.")]
+    public async Task Aplicar_macro_completa_el_borrador_sin_enviar(CanalConversacion canal, string esperado)
+    {
+        var escenario = new Escenario();
+        var conversacion = Conversacion("Solicitud", escenario.Clientes[0]) with { Canal = canal };
+        escenario.Conversaciones.Add(conversacion);
+        escenario.Detalle = _ => DetalleDe(conversacion) with { Canal = canal, FechaUltimoMensajeEntranteUtc = DateTime.UtcNow };
+        var macro = new MacroListaDto(Guid.NewGuid(), null, null, "Certificado", "<p>Falta el certificado.</p>", Guid.NewGuid());
+        escenario.Macros.Add(macro);
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Solicitud");
+        await cut.Find(".composer-macro-campo select").ChangeAsync(new ChangeEventArgs { Value = macro.Id.ToString() });
+        cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be(esperado);
+        mediador.Enviados.OfType<AplicarMacroCommand>().Should().ContainSingle(c => c.ConversacionId == conversacion.Id && c.MacroId == macro.Id);
+        mediador.Enviados.OfType<ResponderConversacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Resolver_con_respuesta_tardia_no_cambia_el_hilo_que_ya_se_esta_viendo()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        var segunda = Conversacion("Segunda", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, segunda, Conversacion("Tercera", escenario.Clientes[0])]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var respuesta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is CambiarEstadoConversacionCommand ? respuesta.Task : null;
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera");
+        var cambio = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        await SeleccionarFila(cut, "Segunda");
+        respuesta.SetResult(Result.Exito());
+        await cambio;
+        cut.Find(".bandeja-centro-titulo h2").TextContent.Should().Be("Segunda");
+    }
+
+    /// <summary>
+    /// El aviso de tiempo real que llega de un job de fondo: pasa por la misma ruta privada que en producción
+    /// (<c>AlRecibirMensajeAsync</c>) y recarga la lista, con lo que avanza el contador de cargas vigentes.
+    /// El id de conversación es ajeno a la selección, así que solo refresca la lista.
+    /// </summary>
+    private static Task RefrescoDeFondo(IRenderedComponent<Bandeja> cut) =>
+        (Task)typeof(Bandeja).GetMethod("AlRecibirMensajeAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(cut.Instance, [new MensajeWhatsAppRecibidoEvent(Guid.NewGuid(), Guid.NewGuid())])!;
+
+    private static string TituloAbierto(IRenderedComponent<Bandeja> cut) =>
+        cut.Find(".bandeja-centro-titulo h2").TextContent;
+
+    [Fact]
+    public async Task Resolver_con_un_refresco_de_fondo_en_vuelo_sigue_recargando_el_detalle_y_avanza()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, Conversacion("Segunda", escenario.Clientes[0])]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var respuesta = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        escenario.Interceptar = p => p is CambiarEstadoConversacionCommand ? respuesta.Task : null;
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta");
+        await SeleccionarFila(cut, "Primera");
+        var detallesAntes = mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == primera.Id);
+
+        var cambio = SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+        await RefrescoDeFondo(cut);
+        escenario.Conversaciones[0] = primera with { Estado = EstadoConversacion.Resuelta };
+        respuesta.SetResult(Result.Exito());
+        await cambio;
+
+        TituloAbierto(cut).Should().Be("Segunda");
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Count(q => q.Id == primera.Id)
+            .Should().BeGreaterThan(detallesAntes, "el detalle de la conversación resuelta se recarga aunque la lista se refrescara en medio");
+    }
+
+    [Fact]
+    public async Task Resolver_elige_la_sucesora_por_identidad_aunque_la_lista_se_reordene()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, Conversacion("Segunda", escenario.Clientes[0]), Conversacion("Tercera", escenario.Clientes[0])]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Interceptar = p =>
+        {
+            if (p is not CambiarEstadoConversacionCommand) return null;
+            // Mientras se resuelve, entra otra conversación por arriba: por índice se abriría la recién llegada.
+            escenario.Conversaciones[0] = primera with { Estado = EstadoConversacion.Resuelta };
+            escenario.Conversaciones.Insert(0, Conversacion("Recién llegada", escenario.Clientes[0]));
+            return Task.FromResult<object?>(Result.Exito());
+        };
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta");
+        await SeleccionarFila(cut, "Primera");
+
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        TituloAbierto(cut).Should().Be("Segunda");
+        AsuntosVisibles(cut).Should().Equal("Recién llegada", "Segunda", "Tercera");
+    }
+
+    [Fact]
+    public async Task Resolver_con_la_fila_aun_en_el_filtro_avanza_igualmente_a_la_siguiente_fila()
+    {
+        var escenario = new Escenario();
+        var primera = Conversacion("Primera", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([primera, Conversacion("Segunda", escenario.Clientes[0])]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Interceptar = p =>
+        {
+            if (p is not CambiarEstadoConversacionCommand) return null;
+            escenario.Conversaciones[0] = primera with { Estado = EstadoConversacion.Resuelta };
+            return Task.FromResult<object?>(Result.Exito());
+        };
+        var (cut, _) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera");
+
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        TituloAbierto(cut).Should().Be("Segunda");
+        AsuntosVisibles(cut).Should().Equal("Primera", "Segunda");
+    }
+
+    [Fact]
+    public async Task Resolver_la_ultima_fila_sin_sucesora_conserva_el_hilo_y_no_abre_otro()
+    {
+        var escenario = new Escenario();
+        var anterior = Conversacion("Anterior", escenario.Clientes[0]);
+        var ultima = Conversacion("Última", escenario.Clientes[0]);
+        escenario.Conversaciones.AddRange([anterior, ultima]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        escenario.Interceptar = p =>
+        {
+            if (p is not CambiarEstadoConversacionCommand) return null;
+            escenario.Conversaciones[1] = ultima with { Estado = EstadoConversacion.Resuelta };
+            return Task.FromResult<object?>(Result.Exito());
+        };
+        var (cut, mediador) = Renderizar(escenario, "comunicaciones?estado=Abierta");
+        await SeleccionarFila(cut, "Última");
+
+        await SelectorCambiarEstado(cut).ChangeAsync(new ChangeEventArgs { Value = nameof(EstadoConversacion.Resuelta) });
+
+        TituloAbierto(cut).Should().Be("Última");
+        mediador.Enviados.OfType<ObtenerConversacionPorIdQuery>().Should().NotContain(q => q.Id == anterior.Id);
+        AsuntosVisibles(cut).Should().Equal("Anterior");
+    }
+
+    [Fact]
+    public async Task Siguiente_tras_cruzar_la_pagina_aguanta_un_refresco_de_fondo_en_medio()
+    {
+        var escenario = new Escenario();
+        for (var i = 1; i <= 21; i++) escenario.Conversaciones.Add(Conversacion($"Hilo {i}", escenario.Clientes[0]));
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var paginaDos = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ObtenerConversacionesQuery? pedida = null;
+        escenario.Interceptar = p =>
+        {
+            if (p is not ObtenerConversacionesQuery { Pagina: 2 } q || pedida is not null) return null;
+            pedida = q;
+            return paginaDos.Task;
+        };
+        var (cut, _) = Renderizar(escenario, $"comunicaciones?cliente={escenario.Clientes[0].Id}");
+        await SeleccionarFila(cut, "Hilo 20");
+
+        var siguiente = Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => pedida.Should().NotBeNull());
+        await RefrescoDeFondo(cut);
+        paginaDos.SetResult(escenario.Pagina(pedida!));
+        await siguiente;
+
+        // El clic devuelve al primer punto de espera del manejador; el destino se alcanza tras soltar la carga.
+        cut.WaitForAssertion(() => TituloAbierto(cut).Should().Be("Hilo 21"));
+    }
+
+    [Fact]
+    public async Task Siguiente_tambien_lo_tiene_el_rol_de_consulta_porque_navegar_no_escribe()
+    {
+        this.ConRolDeEscritura(Roles.Consulta);
+        var escenario = new Escenario();
+        escenario.Conversaciones.AddRange([Conversacion("Primera", escenario.Clientes[0]), Conversacion("Segunda", escenario.Clientes[0])]);
+        escenario.Detalle = id => DetalleDe(escenario.Conversaciones.Single(c => c.Id == id));
+        var (cut, mediador) = Renderizar(escenario);
+        await SeleccionarFila(cut, "Primera");
+
+        cut.FindAll(".composer").Should().BeEmpty("Consulta no ve el editor, que escribe");
+        await Boton(cut, "button", "Siguiente conversación").ClickAsync(new MouseEventArgs());
+
+        TituloAbierto(cut).Should().Be("Segunda");
+        mediador.Enviados.OfType<CambiarEstadoConversacionCommand>().Should().BeEmpty();
+    }
+
     private static IElement TextareaCorreo(IRenderedComponent<Bandeja> cut) => cut.Find(".composer-correo textarea");
 
     private static Task Teclear(IElement elemento, string tecla, bool ctrl = false, bool meta = false) =>
         elemento.KeyDownAsync(new KeyboardEventArgs { Key = tecla, CtrlKey = ctrl, MetaKey = meta });
 
     [Fact]
-    public async Task El_nucleo_no_dibuja_macros_ni_plazos_y_conserva_la_respuesta()
+    public async Task El_nucleo_recupera_macros_sin_perder_la_respuesta()
     {
         var conversacion = Conversacion("Documentos", ClienteRefrielectric) with { SlaRestante = TimeSpan.FromHours(2) };
         var escenario = new Escenario { Detalle = _ => DetalleDe(conversacion) };
@@ -1234,7 +1499,7 @@ public class ComunicacionesGen2Tests : BunitContext
             .Should().Equal("Prioridad", "Conversaci\u00f3n", "Cliente", "Estado", "Asignada a");
         await cut.Find(".tabla-conversaciones-asunto button").ClickAsync(new MouseEventArgs());
         await Escribir(cut, "Recibido.");
-        cut.FindAll(".composer-macro-campo").Should().BeEmpty();
+        cut.FindAll(".composer-macro-campo").Should().ContainSingle();
         cut.FindAll(".bandeja-fila-linea3 [title]").Should().NotContain(e => e.GetAttribute("title")!.Contains("SLA"));
         cut.FindComponent<ComposerBar>().Instance.Texto.Should().Be("Recibido.");
     }

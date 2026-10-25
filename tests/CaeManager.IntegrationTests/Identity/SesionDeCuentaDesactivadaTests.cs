@@ -2,9 +2,11 @@ using System.Data.Common;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
+using CaeManager.Domain.Seguridad;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Seguridad;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authentication;
 using CaeManager.Web.Services;
@@ -75,6 +77,11 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>();
+        // El registro de inicios de sesión tiene su propio test
+        // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
+        servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
+        // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
+        servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -219,6 +226,61 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         await DesactivarSinRotarStampAsync(usuario.Id);
 
         (await ValidarConElValidadorDeLaCookieAsync(principal)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task El_validador_real_de_la_cookie_conserva_la_marca_de_Microsoft_al_rehacer_el_principal()
+    {
+        // La fábrica de claims no conoce la marca que el callback de Microsoft añade al iniciar sesión;
+        // sin el gancho, la primera revalidación la borraba y la sesión caía en Consulta.
+        var usuario = await CrearUsuarioAsync("marca-microsoft@x.test");
+        var conMarca = await PrincipalDeSesionAsync(usuario);
+        ((ClaimsIdentity)conMarca.Identity!).AddClaim(new Claim(
+            RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+        var sinMarca = await PrincipalDeSesionAsync(usuario);
+
+        var rehecho = await PrincipalTrasElValidadorDeLaCookieAsync(conMarca);
+        var rehechoSinMarca = await PrincipalTrasElValidadorDeLaCookieAsync(sinMarca);
+
+        rehecho.Should().NotBeNull();
+        rehecho.Should().NotBeSameAs(conMarca, "control: el validador rehízo el principal con la fábrica");
+        rehecho!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin).Select(c => c.Value)
+            .Should().Equal([RestriccionLoginLocalClaimsTransformation.MetodoLoginSso]);
+        rehechoSinMarca.Should().NotBeNull();
+        rehechoSinMarca!.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().BeFalse("la marca nunca se crea donde no estaba");
+
+        // De punta a punta: fábrica real (tenant_id de la cuenta) → validador → restricción, con el Tenant de
+        // la cuenta como Tenant declarado. Por Microsoft sigue escribiendo; con contraseña, Consulta.
+        var restriccion = new RestriccionLoginLocalClaimsTransformation(Options.Create(new AzureAdOptions
+        {
+            TenantId = "tenant-ficticio",
+            ClientId = "aplicacion-ficticia",
+            ClientSecret = "valor-ficticio",
+            TenantHydraId = _tenant,
+        }));
+        rehecho.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)!.Value.Should().Be(_tenant.ToString());
+        (await restriccion.TransformAsync(rehecho)).FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.GestorCae]);
+        (await restriccion.TransformAsync(rehechoSinMarca)).FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Refrescar_la_sesion_conserva_la_marca_de_Microsoft_y_no_la_inventa(bool conMarca)
+    {
+        // Cambiar la contraseña o activar el segundo factor llaman a RefreshSignInAsync.
+        var usuario = await CrearUsuarioAsync($"refresco-{conMarca}@x.test");
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null, conMarcaSso: conMarca);
+        PrincipalDeLaCookie(cookie)!.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().Be(conMarca, "control: la cookie de partida");
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: cookie);
+
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        string[] esperado = conMarca ? [RestriccionLoginLocalClaimsTransformation.MetodoLoginSso] : [];
+        PrincipalDeLaCookie(refrescada)!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Select(c => c.Value).Should().Equal(esperado);
     }
 
     [Fact]
@@ -425,7 +487,11 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     /// Pasa el principal por el <c>ISecurityStampValidator</c> REAL con la
     /// cookie vencida, como haría el middleware. Devuelve si sigue aceptada.
     /// </summary>
-    private async Task<bool> ValidarConElValidadorDeLaCookieAsync(ClaimsPrincipal principal)
+    private async Task<bool> ValidarConElValidadorDeLaCookieAsync(ClaimsPrincipal principal) =>
+        await PrincipalTrasElValidadorDeLaCookieAsync(principal) is not null;
+
+    /// <summary>El principal que deja el validador real de la cookie vencida, o <c>null</c> si la rechaza.</summary>
+    private async Task<ClaimsPrincipal?> PrincipalTrasElValidadorDeLaCookieAsync(ClaimsPrincipal principal)
     {
         using var ambito = _servicios.CreateScope();
         var http = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
@@ -450,11 +516,20 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         await ambito.ServiceProvider.GetRequiredService<ISecurityStampValidator>().ValidateAsync(contexto);
 
-        return contexto.Principal is not null;
+        return contexto.Principal;
     }
 
     /// <summary>Devuelve el valor de la cabecera Set-Cookie que produce RefreshSignInAsync (o SignInAsync), o vacío si no emitió nada.</summary>
-    private async Task<string> EmitirCookieAsync(Guid usuarioId, bool refrescar, string? cookiePrevia)
+    /// <summary>El principal que lleva una cookie de aplicación emitida (valor de Set-Cookie), o <c>null</c>.</summary>
+    private ClaimsPrincipal? PrincipalDeLaCookie(string setCookie)
+    {
+        var opciones = _servicios.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+        var par = setCookie.Split(';')[0];
+        return opciones.TicketDataFormat.Unprotect(Uri.UnescapeDataString(par[(par.IndexOf('=') + 1)..]))?.Principal;
+    }
+
+    private async Task<string> EmitirCookieAsync(Guid usuarioId, bool refrescar, string? cookiePrevia, bool conMarcaSso = false)
     {
         using var ambito = _servicios.CreateScope();
         var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
@@ -468,6 +543,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         if (refrescar)
             await signInManager.RefreshSignInAsync(usuario!);
+        else if (conMarcaSso)
+            // Como el callback de Microsoft (IdentityEndpointsExtensions).
+            await signInManager.SignInWithClaimsAsync(usuario!, isPersistent: false, [new Claim(
+                RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)]);
         else
             await signInManager.SignInAsync(usuario!, isPersistent: false);
 
@@ -508,5 +587,17 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             Interlocked.Increment(ref _total);
             return base.ReaderExecutingAsync(comando, datos, resultado, cancellationToken);
         }
+    }
+
+    private sealed class VigilanciaSinEfecto : IVigilanciaInicioSesion
+    {
+        public Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default) => Task.FromResult(true);
+
+        public Task RegistrarAsync(
+            Guid? usuarioId, Guid? tenantId, MetodoInicioSesion metodo, ResultadoInicioSesion resultado,
+            SenalesInicioSesion senalesConocidas = SenalesInicioSesion.Ninguna, CancellationToken ct = default) => Task.CompletedTask;
+
+        public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default)
+            => Task.FromResult(ResultadoNoHeSidoYo.EnlaceNoValido);
     }
 }

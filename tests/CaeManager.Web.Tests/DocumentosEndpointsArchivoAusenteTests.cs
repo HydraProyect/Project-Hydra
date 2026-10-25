@@ -1,3 +1,11 @@
+using CaeManager.Application.Auditoria.Queries;
+using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
+using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
+using CaeManager.Domain.Common;
+using CaeManager.Web.Features.Auditoria;
+using CaeManager.Web.Features.Subcontratas;
+using CaeManager.Web.Features.Visitas;
+using System.Data.Common;
 using System.Text;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
@@ -7,7 +15,10 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -74,21 +85,56 @@ public class DocumentosEndpointsArchivoAusenteTests
     /// Falla en cerrado (DEC-36, REC-208; revisión extensa 2026-10-23, Z2-2): si el acceso no
     /// queda registrado, el manejador no devuelve el fichero y cierra el flujo que ya abrió.
     /// </summary>
-    [Fact]
-    public async Task Si_el_acceso_no_queda_registrado_no_se_sirve_y_el_flujo_se_cierra()
+    [Theory]
+    [InlineData(0, StatusCodes.Status403Forbidden)]
+    [InlineData(2, StatusCodes.Status403Forbidden)]
+    [InlineData(3, StatusCodes.Status403Forbidden)]
+    [InlineData(1, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(4, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(5, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(6, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(7, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(8, StatusCodes.Status503ServiceUnavailable)]
+    [InlineData(9, StatusCodes.Status503ServiceUnavailable)]
+    public async Task Si_el_registro_falla_responde_sin_contenido_y_cierra_el_flujo(int fallo, int codigo)
+    {
+        var contexto = Contexto();
+        var paginasDeEstado = new StatusCodePagesFeature();
+        contexto.Features.Set<IStatusCodePagesFeature>(paginasDeEstado);
+        var almacen = new AlmacenConElFichero();
+
+        var resultado = await DocumentosEndpoints.ServirArchivoAsync(
+            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(fallo),
+            new FabricaDeRegistroEspia(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(codigo);
+        almacen.UltimoFlujo.Should().NotBeNull("control positivo: el fichero llegó a abrirse");
+        almacen.UltimoFlujo!.CanRead.Should().BeFalse("el flujo se cierra antes de responder");
+        LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
+        LeerCuerpo(contexto).Should().NotContain(AlmacenConElFichero.Contenido);
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        paginasDeEstado.Enabled.Should().BeFalse("la página /not-found no sustituye la respuesta vacía");
+    }
+
+    [Theory]
+    [InlineData(10)]
+    [InlineData(11)]
+    public async Task Un_error_no_transitorio_o_cancelacion_se_propaga_sin_servir_el_fichero(int fallo)
     {
         var contexto = Contexto();
         var almacen = new AlmacenConElFichero();
-
         var servir = () => DocumentosEndpoints.ServirArchivoAsync(
-            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(),
+            DocumentoId, contexto, new MediatorFalso(Documento()), almacen, new RegistroQueNoRegistra(fallo),
             new FabricaDeRegistroEspia(), CancellationToken.None);
 
-        (await servir.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>())
-            .Which.RecursoId.Should().Be(DocumentoId);
-        almacen.UltimoFlujo.Should().NotBeNull("control positivo: el fichero llegó a abrirse");
-        almacen.UltimoFlujo!.CanRead.Should().BeFalse("el flujo abierto se cierra antes de propagar el fallo");
-        LeerCuerpo(contexto).Should().BeEmpty("no sale ni un byte del documento");
+        if (fallo == 11)
+            await servir.Should().ThrowAsync<OperationCanceledException>();
+        else
+            await servir.Should().ThrowAsync<InvalidOperationException>();
+        almacen.UltimoFlujo.Should().NotBeNull();
+        almacen.UltimoFlujo!.CanRead.Should().BeFalse();
+        LeerCuerpo(contexto).Should().BeEmpty();
     }
 
     [Fact]
@@ -104,6 +150,217 @@ public class DocumentosEndpointsArchivoAusenteTests
 
         contexto.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         avisos.Entradas.Should().BeEmpty("que un Documento no tenga adjunto no es una anomalía del almacén");
+    }
+
+    [Theory]
+    [InlineData("evidencia", false)]
+    [InlineData("evidencia", true)]
+    [InlineData("auditoria", false)]
+    [InlineData("auditoria", true)]
+    [InlineData("visita", false)]
+    [InlineData("visita", true)]
+    public async Task Otros_caminos_conservan_200_y_404(string camino, bool ausente)
+    {
+        var contexto = Contexto();
+        var almacen = new AlmacenConElFichero();
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        object? respuesta = camino switch
+        {
+            "evidencia" => ausente ? null : new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid()),
+            "auditoria" => ausente ? null : new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+                "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null),
+            _ => ausente
+                ? Result.Fallo<PaqueteDocumentalDescargaDto>(CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo.ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada)
+                : Result.Exito(new PaqueteDocumentalDescargaDto("visita.zip", Encoding.UTF8.GetBytes(AlmacenConElFichero.Contenido)))
+        };
+        var mediator = new MediatorFalso(respuesta);
+        var resultado = await (camino switch
+        {
+            "evidencia" => SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto, mediator, almacen,
+                registro, avisos, CancellationToken.None),
+            "auditoria" => AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto, mediator, almacen,
+                registro, avisos, CancellationToken.None),
+            _ => VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto, mediator, avisos, CancellationToken.None)
+        });
+        await resultado.ExecuteAsync(contexto);
+        contexto.Response.StatusCode.Should().Be(ausente ? 404 : 200);
+        LeerCuerpo(contexto).Should().Be(ausente ? "" : AlmacenConElFichero.Contenido);
+        if (camino != "visita") registro.Accesos.Should().HaveCount(ausente ? 0 : 1);
+        avisos.Entradas.Should().BeEmpty();
+    }
+
+    public static IEnumerable<object[]> FallosDeOtrosCaminos()
+    {
+        foreach (var camino in new[] { "evidencia", "auditoria", "visita" })
+            for (var fallo = 0; fallo < 12; fallo++)
+                yield return [camino, fallo];
+    }
+
+    [Theory]
+    [MemberData(nameof(FallosDeOtrosCaminos))]
+    public async Task Otros_caminos_fallan_en_cerrado(string camino, int fallo)
+    {
+        var contexto = Contexto();
+        var paginas = new StatusCodePagesFeature();
+        contexto.Features.Set<IStatusCodePagesFeature>(paginas);
+        var almacen = new AlmacenConElFichero();
+        var avisos = new FabricaDeRegistroEspia();
+        var registro = new RegistroQueNoRegistra(fallo);
+        Exception causa;
+        try
+        {
+            await registro.RegistrarSiSensibleAsync(DocumentoId, TipoAccesoDocumentoSensible.Apertura);
+            throw new InvalidOperationException("El doble debe fallar.");
+        }
+        catch (Exception ex) { causa = ex; }
+        var servir = () => camino switch
+        {
+            "evidencia" => SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto,
+                new MediatorFalso(new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid())),
+                almacen, registro, avisos, CancellationToken.None),
+            "auditoria" => AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
+                new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+                    "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+                almacen, registro, avisos, CancellationToken.None),
+            _ => VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto, new MediatorFalso(causa),
+                avisos, CancellationToken.None)
+        };
+        if (fallo >= 10)
+        {
+            if (fallo == 11) await servir.Should().ThrowAsync<OperationCanceledException>();
+            else await servir.Should().ThrowAsync<InvalidOperationException>();
+            avisos.Entradas.Should().BeEmpty();
+        }
+        else
+        {
+            var resultado = await servir();
+            await resultado.ExecuteAsync(contexto);
+            var codigo = fallo is 0 or 2 or 3 ? 403 : 503;
+            contexto.Response.StatusCode.Should().Be(codigo);
+            paginas.Enabled.Should().BeFalse();
+            avisos.Entradas.Should().ContainSingle();
+            avisos.Entradas[0].Nivel.Should().Be(codigo == 403 ? LogLevel.Warning : LogLevel.Error);
+            avisos.Entradas[0].Mensaje.Should().Contain(DocumentoId.ToString()).And.NotContain(ClaveDelFichero);
+            avisos.Excepciones.Should().ContainSingle().Which.Should().NotBeNull();
+        }
+        LeerCuerpo(contexto).Should().BeEmpty();
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        if (camino != "visita")
+        {
+            almacen.UltimoFlujo.Should().NotBeNull();
+            almacen.UltimoFlujo!.CanRead.Should().BeFalse();
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_42501_al_consultar_el_Documento_responde_403_antes_de_abrir(bool envuelto)
+    {
+        Exception causa = new FalloBaseDatos("42501", false);
+        if (envuelto) causa = new DbUpdateException("contexto", causa);
+        var contexto = Contexto();
+        var paginas = new StatusCodePagesFeature();
+        contexto.Features.Set<IStatusCodePagesFeature>(paginas);
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        var resultado = await DocumentosEndpoints.ServirArchivoAsync(DocumentoId, contexto,
+            new MediatorFalso(causa), new AlmacenQueNoSeToca(), registro, avisos, CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+        contexto.Response.StatusCode.Should().Be(403);
+        LeerCuerpo(contexto).Should().BeEmpty();
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        paginas.Enabled.Should().BeFalse();
+        registro.Accesos.Should().BeEmpty();
+        avisos.Entradas.Should().ContainSingle().Which.Nivel.Should().Be(LogLevel.Warning);
+        avisos.Entradas[0].Mensaje.Should().Contain(DocumentoId.ToString()).And.NotContain(ClaveDelFichero);
+        avisos.Excepciones.Should().ContainSingle().Which.Should().BeSameAs(causa);
+    }
+
+    [Fact]
+    public async Task Un_fallo_transitorio_al_consultar_el_Documento_se_propaga_sin_abrir()
+    {
+        var contexto = Contexto();
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        var servir = () => DocumentosEndpoints.ServirArchivoAsync(DocumentoId, contexto,
+            new MediatorFalso(new TimeoutException()), new AlmacenQueNoSeToca(), registro, avisos, CancellationToken.None);
+
+        await servir.Should().ThrowAsync<TimeoutException>("antes de abrir solo se traduce el contexto que ya no autoriza");
+        registro.Accesos.Should().BeEmpty();
+        avisos.Entradas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("evidencia")]
+    [InlineData("auditoria")]
+    public async Task Un_archivo_ausente_responde_404_sin_contenido_y_avisa_sin_revelar_la_clave(string camino)
+    {
+        var contexto = Contexto();
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        // En Auditoría el Id de la ruta es el del Registro de Auditoría y el aviso lleva el del Documento.
+        var idDeLaRuta = Guid.Parse("0199c0de-0000-7000-8000-0000000000aa");
+        var resultado = await (camino == "evidencia"
+            ? SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto,
+                new MediatorFalso(new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid())),
+                new AlmacenSinElFichero(), registro, avisos, CancellationToken.None)
+            : AuditoriaEndpoints.ServirArchivoAnteriorAsync(idDeLaRuta, contexto,
+                new MediatorFalso(new RegistroAuditoriaDto(idDeLaRuta, "Documento", DocumentoId,
+                    "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+                new AlmacenSinElFichero(), registro, avisos, CancellationToken.None));
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(404);
+        LeerCuerpo(contexto).Should().BeEmpty();
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        registro.Accesos.Should().BeEmpty();
+        avisos.Entradas.Should().ContainSingle().Which.Nivel.Should().Be(LogLevel.Warning);
+        avisos.Entradas[0].Mensaje.Should().Contain(DocumentoId.ToString())
+            .And.NotContain(idDeLaRuta.ToString()).And.NotContain(ClaveDelFichero);
+        avisos.Excepciones.Should().ContainSingle().Which.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("evidencia")]
+    [InlineData("auditoria")]
+    public async Task Una_FileNotFoundException_del_registro_de_lectura_no_se_convierte_en_404(string camino)
+    {
+        var contexto = Contexto();
+        var avisos = new FabricaDeRegistroEspia();
+        var registro = new RegistroQueLanzaFicheroNoEncontrado();
+        var servir = () => camino == "evidencia"
+            ? SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto,
+                new MediatorFalso(new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid())),
+                new AlmacenConElFichero(), registro, avisos, CancellationToken.None)
+            : AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
+                new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+                    "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+                new AlmacenConElFichero(), registro, avisos, CancellationToken.None);
+
+        await servir.Should().ThrowAsync<FileNotFoundException>();
+        avisos.Entradas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true, 403)]
+    [InlineData(false, 409)]
+    public async Task La_Visita_conserva_el_403_y_el_409_con_texto(bool rolSinDescarga, int codigo)
+    {
+        var contexto = Contexto();
+        var error = rolSinDescarga
+            ? ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga
+            : CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo.ObtenerSolicitudAccesoCorreoQueryHandler.VisitaCancelada;
+        var avisos = new FabricaDeRegistroEspia();
+        var resultado = await VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto,
+            new MediatorFalso(Result.Fallo<PaqueteDocumentalDescargaDto>(error)), avisos, CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(codigo);
+        LeerCuerpo(contexto).Should().Be(error.Mensaje);
+        contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
+        avisos.Entradas.Should().BeEmpty();
     }
 
     // ── Andamiaje ─────────────────────────────────────────────────────────
@@ -198,23 +455,55 @@ public class DocumentosEndpointsArchivoAusenteTests
 
         public Task RegistrarSiSensibleAsync(
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            RegistrarSiSensibleAsync(recursoId, tipoAcceso, cancellationToken);
     }
 
-    /// <summary>Lo que hace el servicio real cuando la base rechaza el registro.</summary>
-    private sealed class RegistroQueNoRegistra : IRegistroAccesoDocumentoSensibleService
+    private sealed class RegistroQueLanzaFicheroNoEncontrado : IRegistroAccesoDocumentoSensibleService
     {
         public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
-            throw new AccesoDocumentoSensibleNoRegistradoException(documentoId);
+            throw new FileNotFoundException("no es el archivo del almacén");
 
         public Task RegistrarSiSensibleAsync(
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
-            throw new NotSupportedException();
+            RegistrarSiSensibleAsync(recursoId, tipoAcceso, cancellationToken);
+    }
+
+    /// <summary>Lo que hace el servicio real cuando la base rechaza el registro.</summary>
+    private sealed class RegistroQueNoRegistra(int fallo) : IRegistroAccesoDocumentoSensibleService
+    {
+        public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw fallo switch
+            {
+                0 => new AccesoDocumentoSensibleNoRegistradoException(documentoId),
+                1 => new TimeoutException(),
+                2 => new FalloBaseDatos("42501", false),
+                3 => new DbUpdateException("rechazo", new FalloBaseDatos("42501", false)),
+                4 => new FalloBaseDatos("08006", true),
+                5 => new DbUpdateException("transitorio", new FalloBaseDatos("08006", true)),
+                6 => new InvalidOperationException("transitorio", new FalloBaseDatos("08006", true)),
+                7 => new InvalidOperationException("transitorio", new DbUpdateException("escritura", new FalloBaseDatos("08006", true))),
+                8 => new InvalidOperationException("transitorio", new TimeoutException()),
+                9 => new RetryLimitExceededException("reintentos agotados", new DbUpdateException("escritura", new FalloBaseDatos("08006", true))),
+                11 => new OperationCanceledException(),
+                _ => new InvalidOperationException()
+            };
+
+        public Task RegistrarSiSensibleAsync(
+            Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            RegistrarSiSensibleAsync(recursoId, tipoAcceso, cancellationToken);
+    }
+
+    private sealed class FalloBaseDatos(string sqlState, bool transitorio) : DbException
+    {
+        public override string SqlState => sqlState;
+        public override bool IsTransient => transitorio;
     }
 
     private sealed class FabricaDeRegistroEspia : ILoggerFactory, ILogger
     {
         public List<(LogLevel Nivel, string Mensaje)> Entradas { get; } = [];
+
+        public List<Exception?> Excepciones { get; } = [];
 
         public ILogger CreateLogger(string categoryName) => this;
 
@@ -230,14 +519,17 @@ public class DocumentosEndpointsArchivoAusenteTests
 
         public bool IsEnabled(LogLevel logLevel) => true;
 
-        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            Excepciones.Add(exception);
             Entradas.Add((logLevel, formatter(state, exception) + (exception is null ? string.Empty : " " + exception)));
+        }
     }
 
     private sealed class MediatorFalso(object? respuesta) : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)respuesta!);
+            respuesta is Exception ex ? Task.FromException<TResponse>(ex) : Task.FromResult((TResponse)respuesta!);
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
             where TRequest : IRequest => Task.CompletedTask;

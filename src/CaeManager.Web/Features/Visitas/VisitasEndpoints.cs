@@ -1,3 +1,5 @@
+using CaeManager.Domain.Common;
+using CaeManager.Web.Services;
 using CaeManager.Application.Common;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
@@ -22,29 +24,39 @@ namespace CaeManager.Web.Features.Visitas;
 /// </summary>
 public static class VisitasEndpoints
 {
+    public static async Task<IResult> ServirPaqueteAsync(Guid id, HttpContext contexto, IMediator mediator, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
+    {
+        Result<PaqueteDocumentalDescargaDto> resultado;
+        try
+        {
+            resultado = await mediator.Send(new ObtenerPaqueteDocumentalVisitaQuery(id), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            return ErroresLecturaSensible.Responder(contexto, ex, id,
+                fabricaRegistro.CreateLogger(typeof(VisitasEndpoints).FullName!));
+        }
+
+        if (resultado.EsFallido)
+        {
+            // Fuera de alcance responde igual que inexistente; un rol que no descarga
+            // (Consulta), 403; el resto son estados de la Visita que el Gestor CAE
+            // puede entender.
+            if (resultado.Error.Equals(ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga))
+                return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
+
+            return resultado.Error.Equals(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada)
+                ? Results.NotFound()
+                : Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status409Conflict);
+        }
+
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+        return Results.File(resultado.Valor.Contenido, "application/zip", resultado.Valor.NombreArchivo);
+    }
+
     public static IEndpointRouteBuilder MapVisitasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/visitas/{id:guid}/paquete-documental.zip", async (
-            Guid id, HttpContext contexto, IMediator mediator, CancellationToken cancellationToken) =>
-        {
-            var resultado = await mediator.Send(new ObtenerPaqueteDocumentalVisitaQuery(id), cancellationToken);
-
-            if (resultado.EsFallido)
-            {
-                // Fuera de alcance responde igual que inexistente; un rol que no descarga
-                // (Consulta), 403; el resto son estados de la Visita que el Gestor CAE
-                // puede entender.
-                if (resultado.Error.Equals(ObtenerPaqueteDocumentalVisitaQueryHandler.RolSinDescarga))
-                    return Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status403Forbidden);
-
-                return resultado.Error.Equals(ObtenerSolicitudAccesoCorreoQueryHandler.NoEncontrada)
-                    ? Results.NotFound()
-                    : Results.Text(resultado.Error.Mensaje, "text/plain; charset=utf-8", statusCode: StatusCodes.Status409Conflict);
-            }
-
-            CabecerasArchivoSensible.ProhibirCache(contexto);
-            return Results.File(resultado.Valor.Contenido, "application/zip", resultado.Valor.NombreArchivo);
-        });
+        endpoints.MapGet("/visitas/{id:guid}/paquete-documental.zip", ServirPaqueteAsync);
 
         endpoints.MapGet("/visitas/exportar.xlsx", ExportarAsync).SoloRolesDelListado();
 

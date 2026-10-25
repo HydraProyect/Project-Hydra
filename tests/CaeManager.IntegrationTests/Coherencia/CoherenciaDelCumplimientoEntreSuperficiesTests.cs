@@ -242,7 +242,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         Comprobar("Centro B · servicio", porCentro[_centroB], 2, 2);
         Comprobar("Centro C · servicio", porCentro[_centroC], 2, 5);
 
-        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro)
+        var listaCentros = await new ObtenerCentrosQueryHandler(c, c, alcance, calculoCentro, new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(c))
             .Handle(new ObtenerCentrosQuery(null, null), CancellationToken.None);
         var enLista = listaCentros.Elementos.ToDictionary(x => x.Id, x => x.CumplimientoPorcentaje);
         ComprobarPorcentaje("Lista de Centros · Centro A", enLista.GetValueOrDefault(_centroA), 60);
@@ -277,7 +277,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         ComprobarPorcentaje("Empresa P · panel", await cumplimientoEmpresa.Handle(new ObtenerCumplimientoEmpresaQuery(_empresaP), CancellationToken.None), 70);
         ComprobarPorcentaje("Empresa Q · panel", await cumplimientoEmpresa.Handle(new ObtenerCumplimientoEmpresaQuery(_empresaQ), CancellationToken.None), 0);
 
-        var listaEmpresas = await new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro)
+        var listaEmpresas = await new ObtenerEmpresasQueryHandler(c, alcance, calculoDocumental, c, c, c, c, calculoCentro, RequisitosObligatoriosDePrueba.Servicio(c, alcance))
             .Handle(new ObtenerEmpresasQuery(null, TamanoPagina: 100), CancellationToken.None);
         var enListaEmpresas = listaEmpresas.Elementos.ToDictionary(e => e.Id, e => e.CumplimientoPorcentaje);
         ComprobarPorcentaje("Lista de Empresas · Empresa P", enListaEmpresas.GetValueOrDefault(_empresaP), 70);
@@ -297,7 +297,7 @@ public class CoherenciaDelCumplimientoEntreSuperficiesTests : IAsyncLifetime
         // 6. Subcontrata: el % de la fila y la suma del acordeón. Cuenta cada Trabajador×Tipo UNA vez (s1 trabaja en B y
         //    en C: 1 par, no 2), a diferencia del Trabajador y el Centro. Divergencia declarada, decisión pendiente.
         Comprobar("Subcontrata S · servicio", (await calculoSubcontrata.CalcularCumplimientoAsync([_subcontrataS], CancellationToken.None))[_subcontrataS], 2, 4);
-        var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c)
+        var listaSubcontratas = await new ObtenerSubcontratasQueryHandler(c, alcance, calculoSubcontrata, c, new CalculoEstadoDocumentalService(c, c, c), RequisitosObligatoriosDePrueba.Servicio(c, alcance))
             .Handle(new ObtenerSubcontratasQuery(Busqueda: null), CancellationToken.None);
         ComprobarPorcentaje("Lista de Subcontratas · S", listaSubcontratas.Elementos.Single(s => s.Id == _subcontrataS).CumplimientoPorcentaje, 50);
         var trabajadoresSubcontrata = await new ObtenerTrabajadoresDocumentacionPorSubcontrataQueryHandler(c, c, c, c, c, c, alcance, c, c)

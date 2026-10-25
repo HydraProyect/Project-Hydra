@@ -40,12 +40,7 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
         await using var conexionRuntime = new NpgsqlConnection(
             BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario));
         await conexionRuntime.OpenAsync();
-        await using (var comandoSetTenant = conexionRuntime.CreateCommand())
-        {
-            comandoSetTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
-            comandoSetTenant.Parameters.AddWithValue(TenantSeedData.IdPorDefecto.ToString());
-            await comandoSetTenant.ExecuteNonQueryAsync();
-        }
+        await ContextoRlsDePruebas.FijarAsync(conexionRuntime, tenantId: TenantSeedData.IdPorDefecto);
 
         // Control positivo del instrumento, ANTES de los rechazos: la fila la
         // escribió el interceptor como runtime y el mismo rol la ve. Sin esto,
@@ -91,12 +86,7 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
         await using var conexionRuntime = new NpgsqlConnection(
             BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario));
         await conexionRuntime.OpenAsync();
-        await using (var comandoSetTenant = conexionRuntime.CreateCommand())
-        {
-            comandoSetTenant.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
-            comandoSetTenant.Parameters.AddWithValue(TenantSeedData.IdPorDefecto.ToString());
-            await comandoSetTenant.ExecuteNonQueryAsync();
-        }
+        await ContextoRlsDePruebas.FijarAsync(conexionRuntime, tenantId: TenantSeedData.IdPorDefecto);
 
         // Control positivo: la fila existe y el runtime la ve; sin esto, un 42501
         // abajo podría ser una conexión sin SELECT, no el REVOKE.
@@ -128,6 +118,7 @@ public class AuditoriaSoloInsercionBajoRuntimeTests
     [InlineData("RegistrosAuditoria")]
     [InlineData("RegistrosAccesoDocumentoSensible")]
     [InlineData("RegistrosActividadSoporte")]
+    [InlineData("RegistrosInicioSesion")]
     public async Task Runtime_solo_tiene_insert_y_select_sobre_la_auditoria(string tabla)
     {
         await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: false);

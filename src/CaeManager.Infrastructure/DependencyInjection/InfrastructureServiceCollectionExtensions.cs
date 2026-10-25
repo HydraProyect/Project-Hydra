@@ -71,6 +71,21 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<AuditoriaInterceptor>();
         services.AddScoped<TenantSelladoInterceptor>();
         services.AddScoped<TenantRlsConnectionInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.DetectorCambiosEstadoInterceptor>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.RecalculoEstadoEnLinea>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.ProcesadorColaEstadoMaterializado>();
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.CambioDeDiaEstadoMaterializado>();
+        // Relleno automático de los Tenants sin versión, apagado por defecto: con el cotejo nocturno en main ya se puede
+        // encender; encenderlo en producción lo decide Chris.
+        services.Configure<CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado>(
+            configuration.GetSection(CaeManager.Infrastructure.EstadoMaterializado.OpcionesEstadoMaterializado.Seccion));
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorMarcaRecalculandoEstado, CaeManager.Infrastructure.EstadoMaterializado.LectorMarcaRecalculandoEstado>();
+        // Frescura (diseño § 5): avisos tras el COMMIT, el registro con que el escritor los anota y la versión del Tenant.
+        services.AddScoped<CaeManager.Infrastructure.EstadoMaterializado.AvisoEstadoTrasConfirmarInterceptor>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.IRegistroCambiosEstado,
+            CaeManager.Infrastructure.EstadoMaterializado.RegistroCambiosEstado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.ILectorVersionEstadoTenant,
+            CaeManager.Infrastructure.EstadoMaterializado.LectorVersionEstadoTenant>();
         // Singleton: guarda en memoria la clave del contexto RLS leída por base (P6).
         services.AddSingleton(sp => new Persistence.ContextoRls.FirmanteContextoRls(
             sp.GetRequiredService<IConfiguration>(),
@@ -143,7 +158,9 @@ public static class InfrastructureServiceCollectionExtensions
             .AddUserValidator<ValidadorUnicidadGlobalCuenta>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
-            .AddDefaultTokenProviders();
+            .AddDefaultTokenProviders()
+            // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
+            .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -164,8 +181,23 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<DataProtectionTokenProviderOptions>(
             opciones => opciones.TokenLifespan = TimeSpan.FromMinutes(60));
 
+        // Inicios de sesión sospechosos: registro (con RLS del Tenant propietario
+        // de la cuenta), detección, aviso, bloqueo por país (desactivado por
+        // defecto) y retención de 12 meses. Ver VigilanciaInicioSesionService.
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>(
+            configuration.GetSection(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion));
+        services.Configure<CaeManager.Infrastructure.Seguridad.OpcionesTokenNoHeSidoYo>(opciones => opciones.TokenLifespan =
+            TimeSpan.FromDays(configuration.GetValue(CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro.Seccion + ":DiasVigenciaEnlaceNoHeSidoYo", 7)));
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.IGeolocalizadorIp, CaeManager.Infrastructure.Seguridad.GeolocalizadorIpDbIp>();
+        services.AddSingleton(sp => new CaeManager.Application.Seguridad.InicioSesion.RafagaFallosPorIp(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.Seguridad.OpcionesInicioSesionSeguro>>().Value.Deteccion()));
+        services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
+
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
+        // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.
+        services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -369,6 +401,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionTerminosRepository, AceptacionTerminosRepository>();
         services.AddScoped<CaeManager.Domain.Cumplimiento.IInstruccionTratamientoIaTenantPropietarioRepository, InstruccionTratamientoIaTenantPropietarioRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
+        services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
         services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -405,9 +438,11 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IEscritorEstadoMaterializado, CaeManager.Infrastructure.EstadoMaterializado.EscritorEstadoMaterializado>();
         services.AddScoped<CaeManager.Application.Empresas.IEmpresasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Subcontratas.ISubcontratasQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Blindaje42.IBlindaje42QueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -431,6 +466,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IProyectosQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Proyectos.IRequisitosEventoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.ContratosAcceso.IContratosAccesoQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.AutorizacionesLectura.IAutorizacionesLecturaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Retencion.IRetencionQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -533,6 +569,8 @@ public static class InfrastructureServiceCollectionExtensions
         // Encargo pleno (2026-10-15): si el Tenant propietario tiene Administrador propio que pueda actuar.
         services.AddScoped<CaeManager.Application.Tenants.ITenantConAdministradorPropio, TenantConAdministradorPropioEnBase>();
         services.AddScoped<CaeManager.Application.ContratosAcceso.LecturaInbound.ILectorDocumentosInbound, LectorDocumentosInboundEnBase>();
+        services.AddScoped<CaeManager.Domain.EvidenciasInbound.IEvidenciaInboundRepository, EvidenciaInboundRepository>();
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Application.Tenants.Logo.IAutorizacionLogoTenant,
             CaeManager.Application.Tenants.Logo.AutorizacionLogoTenant>();
         // Encargo de administración (D-8): el perfil de Propiedad de la cuenta en su Tenant de
@@ -575,7 +613,12 @@ public static class InfrastructureServiceCollectionExtensions
         //
         // Scoped, no Singleton: depende de ITenantActual, que es scoped — ver
         // Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 4.6.
-        services.AddScoped<IFileStorageService, DiskFileStorageService>();
+        services.AddScoped<DiskFileStorageService>();
+        services.AddScoped<IFileStorageService>(sp => sp.GetRequiredService<DiskFileStorageService>());
+        // Inbound M1, PR 4: lectura del original de la Empresa contratista desde el Tenant del Cliente empresarial. La
+        // misma instancia y la misma clave por Tenant; solo la consumen los handlers que deciden antes la autoridad
+        // (ConsumidoresDelLectorInboundAcotadosTests).
+        services.AddScoped<CaeManager.Application.ContratosAcceso.EvidenciasInbound.IAlmacenOriginalesInbound>(sp => sp.GetRequiredService<DiskFileStorageService>());
 
         // El despliegue real vive en un .env que no está en el repositorio, así
         // que desde aquí no se puede descartar que alguno siga declarando la
@@ -641,6 +684,11 @@ public static class InfrastructureServiceCollectionExtensions
         // evento, no una automatización opcional del Tenant.
         services.AddHostedService<Proyectos.CierreEventosTerminadosHostedService>();
         services.AddHostedService<Dashboard.CierreMensualCuadroDireccionHostedService>();
+
+        // Cola y relleno del estado materializado (PR 4b del plan): una sola ranura la procesa, por elección de líder.
+        services.AddHostedService<CaeManager.Infrastructure.EstadoMaterializado.ColaEstadoMaterializadoHostedService>();
+        // Pasada de medianoche de Madrid, reposición al arrancar y cotejo nocturno (PR 5 del plan), también por líder.
+        services.AddHostedService<CaeManager.Infrastructure.EstadoMaterializado.CambioDeDiaEstadoMaterializadoHostedService>();
 
         // Cierre automático de las conversaciones que llevan 4 días Resueltas (decisión de producto 2026-10-17, hueco 2 de
         // Comunicaciones), auditado como Sistema. Sin interruptor: es la regla de la bandeja, no una automatización opcional.
@@ -934,9 +982,10 @@ public static class InfrastructureServiceCollectionExtensions
         if (!entorno.IsDevelopment() && !configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
             throw new InvalidOperationException(
                 $"Falta ConnectionStrings:CaeManagerDbRuntime en el entorno '{entorno.EnvironmentName}'. " +
-                "El tráfico se ejecutaría con el rol propietario de la base, al que PostgreSQL nunca " +
-                "somete a RLS (ni siquiera con FORCE ROW LEVEL SECURITY), dejando el aislamiento por " +
-                "tenant a merced únicamente del filtro global de EF Core. Configura la conexión del rol " +
+                "El tráfico se ejecutaría con el rol propietario de la base, exento de RLS: como " +
+                "superusuario o con BYPASSRLS, PostgreSQL no le aplica ninguna política ni con FORCE ROW " +
+                "LEVEL SECURITY, y como propietario ordinario solo en las tablas con FORCE. El aislamiento " +
+                "por tenant quedaría a merced del filtro global de EF Core. Configura la conexión del rol " +
                 "restringido cae_app_runtime (deploy/bootstrap/roles-de-cluster.sql) o, si de verdad " +
                 $"quieres arrancar sin esa protección, declara {ClaveDegradacionInsegura}=true.");
 

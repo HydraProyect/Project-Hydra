@@ -23,7 +23,19 @@ public class EmpresaRepositorioFalso : IEmpresaRepository
         Task.FromResult(Empresas.FirstOrDefault(e => e.Id == id));
 
     public Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
-        Task.FromResult(Empresas.Any(e => e.RazonSocial == razonSocial && e.Id != excluirId));
+        // Como la consulta real: el filtro global deja fuera las bajas y compara sin distinguir mayúsculas.
+        Task.FromResult(Empresas.Any(e => !e.EstaEliminado
+            && string.Equals(e.RazonSocial, razonSocial, StringComparison.OrdinalIgnoreCase) && e.Id != excluirId));
+
+    public Guid TenantPropietarioId { get; set; }
+
+    public Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+            && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
+
+    public Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Empresas.FirstOrDefault(e => e.TenantId == TenantPropietarioId
+            && e.Cif == cif.Trim().ToUpperInvariant() && e.Id != excluirId));
 
     public Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         Task.FromResult(Empresas.Any(e => e.Cif == cif && e.Id != excluirId));

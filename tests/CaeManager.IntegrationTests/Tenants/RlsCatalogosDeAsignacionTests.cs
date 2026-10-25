@@ -206,23 +206,13 @@ VALUES (gen_random_uuid(), @ajeno, @operador, 'Outbound', false, now(), 'Vigente
         var conexion = new NpgsqlConnection(_cadenaConexion);
         await conexion.OpenAsync();
 
-        await FijarAsync(conexion, "app.tenant_id", tenantActivo);
-        await FijarAsync(conexion, "app.tenant_origen_id", tenantOrigen);
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantActivo, tenantOrigenId: tenantOrigen);
 
         await using var setRol = conexion.CreateCommand();
         setRol.CommandText = $"SET ROLE {rol};";
         await setRol.ExecuteNonQueryAsync();
 
         return conexion;
-    }
-
-    private static async Task FijarAsync(NpgsqlConnection conexion, string variable, Guid? valor)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config(@variable, @valor, false);";
-        comando.Parameters.AddWithValue("variable", variable);
-        comando.Parameters.AddWithValue("valor", valor?.ToString() ?? string.Empty);
-        await comando.ExecuteNonQueryAsync();
     }
 
     private static async Task<long> ContarOperacionesAsync(NpgsqlConnection conexion)

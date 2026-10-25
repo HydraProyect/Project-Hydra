@@ -89,7 +89,7 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto(sqlCapturado.Add);
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto));
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(
@@ -119,8 +119,8 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
     /// <summary>
     /// Hallazgo de Codex (revisión previa a esta PR): el primer intento
     /// colapsaba "el filtro no parsea" (no filtrar) y "el filtro parsea a un
-    /// valor que este listado nunca produce" (p. ej. <c>Faltante</c>, que solo
-    /// emiten las Alertas) en la misma rama <c>_</c> del switch, así que un
+    /// valor que este listado nunca produce" (p. ej. <c>EnTolerancia</c>, que solo
+    /// emiten las vistas con contexto de Centro) en la misma rama <c>_</c> del switch, así que un
     /// filtro válido pero no aplicable devolvía TODOS los Trabajadores en vez
     /// de ninguno — justo lo contrario de <c>EstadoDocumentalFiltro.Coincide</c>,
     /// que nunca hace coincidir un estado que un Trabajador no puede tener.
@@ -131,11 +131,11 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto();
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto));
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(
-                null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.Faltante)),
+                null, Pagina: 1, TamanoPagina: 50, EstadoDocumental: nameof(EstadoDocumento.EnTolerancia)),
             CancellationToken.None);
 
         resultado.TotalElementos.Should().Be(0);
@@ -149,7 +149,7 @@ public class ObtenerTrabajadoresPaginacionEnSqlTests : IAsyncLifetime
         await using var contexto = CrearContexto(sqlCapturado.Add);
         var handler = new ObtenerTrabajadoresQueryHandler(
             contexto, contexto, contexto, contexto,
-            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, new DocumentosFaltantesService(contexto, contexto, contexto));
+            new AlcanceDatosServiceFalso(), new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto, RequisitosObligatoriosDePrueba.Servicio(contexto));
 
         var resultado = await handler.Handle(
             new ObtenerTrabajadoresQuery(

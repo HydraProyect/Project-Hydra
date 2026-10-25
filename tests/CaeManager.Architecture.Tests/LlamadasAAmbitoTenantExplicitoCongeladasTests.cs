@@ -369,6 +369,12 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants (activos y suspendidos) desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que ExpiracionAsignacionesHostedService (2026-10-16: cierre automático de eventos terminados)"),
         ["src/CaeManager.Infrastructure/Dashboard/CierreMensualCuadroDireccionHostedService.cs"] =
             new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant beneficiario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-18: cierre mensual del Cuadro de dirección)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializadoHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón que CierreEventosTerminadosHostedService (2026-10-24: cola y relleno del estado materializado, PR 4b)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializadoHostedService.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId del bucle que recorre todos los Tenants desde el propio servicio, un CreateScope por Tenant propietario, mismo patrón y misma identidad que ColaEstadoMaterializadoHostedService (2026-10-24: pasada de medianoche, reposición y cotejo nocturno del estado materializado, PR 5)"),
+        ["src/CaeManager.Infrastructure/EstadoMaterializado/EncoladoTrasAmbitoSinRecalculo.cs"] =
+            new(Categoria.JobDeFondoSobreEnumeracionPropia, "tenantId de los Tenants que el detector anotó en el ámbito sin recálculo de una siembra, un CreateScope por Tenant propietario; solo encola su recálculo entero (2026-10-24, PR 4b)"),
         ["src/CaeManager.Application/Dashboard/ReabrirMesCuadroDireccionCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "request.TenantBeneficiarioId, solo tras comprobar que está en ObtenerClientesAutorizadosQuery; después exige AlcanzaElTenantEnteroAsync"),
         ["src/CaeManager.Infrastructure/Comunicaciones/CierreConversacionesResueltasHostedService.cs"] =
@@ -433,8 +439,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenant.Id de un Tenant del piloto que RetiradaTenantDemoService.ValidarTenantRetirableAsync acaba de validar (nombre en la allowlist de demo y marcador), para leer con identidad no privilegiada las claves de los PDF que se eliminan del almacén antes de retirarlo; solo se alcanza desde el modo de CLI --retirar-piloto-outbound"),
         ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
-        ["src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "usuarioPendiente.TenantId, la cuenta que el callback SSO acaba de crear, para avisar a los Administradores de su Tenant propietario"),
+        ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 
@@ -574,6 +580,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = 8,
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
+            ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="CifDeBaja" xml:space="preserve"><value>Ya existe una empresa dada de baja con este CIF. Restáurala en lugar de crear otra o de reutilizar su CIF.</value></data>
+  <data name="CifDeBajaEnImportacion" xml:space="preserve"><value>La fila de Clientes con CIF {0} coincide con una empresa dada de baja. Restáurala antes de importar.</value></data>
+  <data name="CifDuplicado" xml:space="preserve"><value>Ya existe una empresa con este CIF.</value></data>
+  <data name="RazonSocialDeBaja" xml:space="preserve"><value>Ya existe una empresa dada de baja con esta razón social. Restáurala en lugar de crear otra.</value></data>
+  <data name="RazonSocialDuplicada" xml:space="preserve"><value>Ya existe una empresa con esta razón social.</value></data>
+</root>

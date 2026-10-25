@@ -112,6 +112,9 @@ public static class EstadoDocumentalFiltro
                 if ((ClaveOrden(estado) < ClaveSinEstadoDePropietario || incluirFaltantes && estado == EstadoDocumento.Faltante)
                     && !claves.Contains(clave))
                     claves.Add(clave);
+                // «Vencido» deja pasar también el vencido que solo avisa: se rotula igual.
+                if (incluirFaltantes && estado == EstadoDocumento.Vencido && !claves.Contains(ClaveVencidoSinBloqueo))
+                    claves.Add(ClaveVencidoSinBloqueo);
             }
         }
 
@@ -129,16 +132,27 @@ public static class EstadoDocumentalFiltro
         Enum.GetValues<EstadoDocumento>()
             .Where(estado => ClaveOrden(estado) < ClaveSinEstadoDePropietario || incluirFaltantes && estado == EstadoDocumento.Faltante)
             .ToDictionary(estado => estado.ToString(), estado => filasPorClave.GetValueOrDefault(
-                incluirFaltantes ? ClaveOrdenConFaltantes(estado) : ClaveOrden(estado)));
+                incluirFaltantes ? ClaveOrdenConFaltantes(estado) : ClaveOrden(estado))
+                // Con requisitos obligatorios, «Vencido» cuenta también el vencido que solo avisa (el mismo que deja pasar el filtro).
+                + (incluirFaltantes && estado == EstadoDocumento.Vencido ? filasPorClave.GetValueOrDefault(ClaveVencidoSinBloqueo) : 0));
 
     /// <summary>
-    /// Orden de propietarios con requisitos faltantes conocidos: Vencido, Faltante y después
-    /// los demás estados en su orden habitual. Los otros listados usan <see cref="ClaveOrden"/>.
+    /// Orden de los propietarios con requisitos obligatorios de Centro (listados de Empresas y de Trabajadores): primero lo
+    /// que va en rojo, Vencido por un requisito obligatorio y Faltante; después el vencido que solo avisa
+    /// (<see cref="ClaveVencidoSinBloqueo"/>) y los demás estados en su orden habitual. Aquí <see cref="EstadoDocumento.Vencido"/>
+    /// es el que va en rojo. Los otros listados usan <see cref="ClaveOrden"/>.
     /// </summary>
     public static int ClaveOrdenConFaltantes(EstadoDocumento? estado) =>
-        estado == EstadoDocumento.Faltante ? ClaveOrden(EstadoDocumento.Vencido) + 1
-        : ClaveOrden(estado) == ClaveOrden(EstadoDocumento.Vencido) ? ClaveOrden(estado)
-        : ClaveOrden(estado) + 1;
+        estado == EstadoDocumento.Vencido ? 0
+        : estado == EstadoDocumento.Faltante ? 1
+        : ClaveOrden(estado) + 2;
+
+    /// <summary>
+    /// La clave de <see cref="ClaveOrdenConFaltantes"/> del vencido que ningún Centro visible marca obligatorio: se rotula
+    /// «Vencido» en el tono de aviso, entra en el filtro y en el recuento de Vencido, y se ordena detrás de lo que va en
+    /// rojo (decisión del 2026-10-23).
+    /// </summary>
+    public const int ClaveVencidoSinBloqueo = 2;
 
     /// <summary>Un número no es un nombre: <c>Enum.TryParse</c> aceptaría "4" como Vencido.</summary>
     private static bool EsNombreDeEstado(string valor, out EstadoDocumento estado)

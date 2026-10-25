@@ -112,16 +112,17 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // más de una página, se pide el tamaño de página mayor para no depender del orden.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Ambito=Empresa");
         await Expect(page.Locator("table tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
-        // El pie de la maqueta elige el tamaño de página en un selector «Mostrar».
-        var mayor = page.Locator(".pie-lista-opciones select");
-        if (await mayor.InputValueAsync() != "100")
+        // El pie ofrece los tamaños de página como botones 20 · 50 · 100.
+        var mayor = page.Locator(".paginador-pie-listado .paginador-opciones-tamano")
+            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "100", Exact = true });
+        if (await mayor.GetAttributeAsync("aria-pressed") != "true")
         {
             var textoPaginador = page.Locator(".paginador-texto");
             var recuento = Regex.Match(await textoPaginador.InnerTextAsync(), @"Mostrando \d+ de (\d+)$");
             Assert.True(recuento.Success, "El pie debe exponer el total de la consulta.");
             var filasEsperadas = Math.Min(100, int.Parse(recuento.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
-            await mayor.SelectOptionAsync("100");
-            await Expect(mayor).ToHaveValueAsync("100");
+            await mayor.ClickAsync();
+            await Expect(mayor).ToHaveAttributeAsync("aria-pressed", "true");
             // Barrera de datos: las filas reales, excluidas las de relleno de QuickGrid,
             // deben corresponder al tamaño nuevo y al total de esta consulta.
             await Expect(page.Locator("table tbody tr.fila-pulsable")).ToHaveCountAsync(filasEsperadas);

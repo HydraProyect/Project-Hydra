@@ -109,7 +109,11 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
 {
     public async Task<ResultadoPaginado<DocumentoListaDto>> Handle(ObtenerDocumentosQuery request, CancellationToken cancellationToken)
     {
-        var consulta = await ConstruirUniversoAsync(cancellationToken);
+        // El texto se resuelve dentro de cada rama, antes de la unión (ver ConstruirUniversoAsync): sobre la unión
+        // PostgreSQL lo evaluaba una vez por Documento del Tenant.
+        var consulta = await ConstruirUniversoAsync(
+            string.IsNullOrWhiteSpace(request.Busqueda) ? null : request.Busqueda,
+            cancellationToken);
 
         // Una sola fila, para sustituirla en sitio en el listado tras editarla en la vista rápida.
         // El constructor compartido ya acota las cinco ramas al alcance: solo estrecha.
@@ -141,14 +145,6 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                     && (centrosVisibles == null || centrosVisibles.Contains(canal.CentroId))
                 select acreditacion.DocumentoId;
             consulta = consulta.Where(x => documentosEnPlataforma.Contains(x.Id));
-        }
-
-        if (!string.IsNullOrWhiteSpace(request.Busqueda))
-        {
-            var busqueda = request.Busqueda;
-            consulta = consulta.Where(x =>
-                TextoDeBusqueda.Contiene(x.PropietarioNombre, busqueda) ||
-                TextoDeBusqueda.Contiene(x.TipoDocumentoNombre, busqueda));
         }
 
         var parametros = await configuracionContext.ParametrosSistema.SingleAsync(cancellationToken);
@@ -361,7 +357,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
     public async Task<ResultadoPaginado<EntidadAsociadaDocumentoDto>> Handle(
         ObtenerEntidadesAsociadasDeDocumentosQuery request, CancellationToken cancellationToken)
     {
-        var consulta = await ConstruirUniversoAsync(cancellationToken);
+        var consulta = await ConstruirUniversoAsync(null, cancellationToken);
         if (request.Ambito is { } ambito)
             consulta = consulta.Where(x => x.Ambito == ambito);
         if (!string.IsNullOrWhiteSpace(request.Busqueda))
@@ -381,7 +377,15 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
     }
 
     // Ambas lecturas comparten documentos operativos y restricciones de visibilidad por ámbito.
-    private async Task<IQueryable<FilaDocumental>> ConstruirUniversoAsync(CancellationToken cancellationToken)
+    //
+    // El filtro de texto va dentro de cada rama y por identificador, no sobre la unión: primero los titulares y los
+    // Tipos que casan (unos miles de Trabajadores y unos cientos de Tipos, Empresas, Vehículos y Proyectos, con la
+    // misma expresión que la rama pinta como PropietarioNombre) y después los Documentos de esos ids. Sobre la unión,
+    // PostgreSQL no podía bajar el predicado a las tablas de titulares y evaluaba texto_de_busqueda dos veces por
+    // Documento del Tenant (9,3 s con 500.000). Mismo resultado: la rama sigue uniendo con su titular y su Tipo, así
+    // que «su titular está entre los que casan» es lo mismo que «el nombre unido casa». El alcance de cada rama
+    // (cartera, RLS) no cambia: el filtro de texto solo estrecha. Las subconsultas viajan en la misma sentencia.
+    private async Task<IQueryable<FilaDocumental>> ConstruirUniversoAsync(string? busqueda, CancellationToken cancellationToken)
     {
         var trabajadorIdsVisibles = await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken);
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
@@ -402,7 +406,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.TrabajadorId,
                 PropietarioNombre = trabajador.Nombre + " " + trabajador.Apellidos,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
+                TipoDocumentoId = documento.TipoDocumentoId,
                 FechaEmision = documento.FechaEmision,
                 EstadoVigencia = documento.EstadoVigencia,
                 FechaVencimiento = documento.FechaVencimiento,
@@ -425,7 +429,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.ClienteId,
                 PropietarioNombre = cliente.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
+                TipoDocumentoId = documento.TipoDocumentoId,
                 FechaEmision = documento.FechaEmision,
                 EstadoVigencia = documento.EstadoVigencia,
                 FechaVencimiento = documento.FechaVencimiento,
@@ -446,7 +450,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.EmpresaId,
                 PropietarioNombre = empresa.RazonSocial,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
+                TipoDocumentoId = documento.TipoDocumentoId,
                 FechaEmision = documento.FechaEmision,
                 EstadoVigencia = documento.EstadoVigencia,
                 FechaVencimiento = documento.FechaVencimiento,
@@ -467,7 +471,7 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.VehiculoId,
                 PropietarioNombre = vehiculo.Nombre + " (" + vehiculo.NumeroPlaca + ")",
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
+                TipoDocumentoId = documento.TipoDocumentoId,
                 FechaEmision = documento.FechaEmision,
                 EstadoVigencia = documento.EstadoVigencia,
                 FechaVencimiento = documento.FechaVencimiento,
@@ -488,12 +492,40 @@ public class ObtenerDocumentosQueryHandler(IConfiguracionQueryContext configurac
                 PropietarioId = (Guid?)documento.ProyectoId,
                 PropietarioNombre = proyecto.Nombre,
                 TipoDocumentoNombre = tipoDocumento.Nombre,
-                TipoDocumentoId = tipoDocumento.Id,
+                TipoDocumentoId = documento.TipoDocumentoId,
                 FechaEmision = documento.FechaEmision,
                 EstadoVigencia = documento.EstadoVigencia,
                 FechaVencimiento = documento.FechaVencimiento,
                 ArchivoUrl = documento.ArchivoUrl
             };
+
+        // El buscador del listado: casa el Documento cuyo titular (su PropietarioNombre) o cuyo Tipo de documento contienen
+        // el texto, sin acentos ni mayúsculas.
+        if (busqueda is { } texto)
+        {
+            // Cada expresión es la que su rama pinta como PropietarioNombre: el buscador casa con lo que se ve.
+            var trabajadoresQueCasan = trabajadoresContext.Trabajadores
+                .Where(x => TextoDeBusqueda.Contiene(x.Nombre + " " + x.Apellidos, texto)).Select(x => x.Id);
+            var empresasQueCasan = empresasContext.Empresas
+                .Where(x => TextoDeBusqueda.Contiene(x.RazonSocial, texto)).Select(x => x.Id);
+            var vehiculosQueCasan = vehiculosContext.Vehiculos
+                .Where(x => TextoDeBusqueda.Contiene(x.Nombre + " (" + x.NumeroPlaca + ")", texto)).Select(x => x.Id);
+            var proyectosQueCasan = proyectosContext.Proyectos
+                .Where(x => TextoDeBusqueda.Contiene(x.Nombre, texto)).Select(x => x.Id);
+            var tiposQueCasan = tiposDocumentoContext.TiposDocumento
+                .Where(x => TextoDeBusqueda.Contiene(x.Nombre, texto)).Select(x => x.Id);
+
+            // PropietarioId y TipoDocumentoId son columnas del propio Documento en las cinco ramas, así que el filtro
+            // baja a la lectura de Documentos, antes de unir con el titular y el Tipo.
+            IQueryable<FilaDocumental> CasanConElTexto(IQueryable<FilaDocumental> rama, IQueryable<Guid> titularesQueCasan) =>
+                rama.Where(x => titularesQueCasan.Contains(x.PropietarioId!.Value) || tiposQueCasan.Contains(x.TipoDocumentoId));
+
+            deTrabajador = CasanConElTexto(deTrabajador, trabajadoresQueCasan);
+            deCliente = CasanConElTexto(deCliente, empresasQueCasan);
+            deEmpresa = CasanConElTexto(deEmpresa, empresasQueCasan);
+            deVehiculo = CasanConElTexto(deVehiculo, vehiculosQueCasan);
+            deProyecto = CasanConElTexto(deProyecto, proyectosQueCasan);
+        }
 
         return deTrabajador.Concat(deCliente).Concat(deEmpresa).Concat(deVehiculo).Concat(deProyecto);
 

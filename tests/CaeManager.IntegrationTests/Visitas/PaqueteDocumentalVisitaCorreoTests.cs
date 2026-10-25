@@ -70,6 +70,44 @@ public class PaqueteDocumentalVisitaCorreoTests
     private Guid _reconocimientoVencido;
     private Guid _poliza;
 
+    // Solo CI: requiere el arnés PostgreSQL real; no ejecutarlo en la suite local.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Un_fallo_del_segundo_registro_no_devuelve_ni_parte_del_paquete(bool transitorio)
+    {
+        await using var arnes = await PrepararAsync();
+        var registro = new RegistroQueFallaEnElSegundo(transitorio);
+        var descargar = () => DescargarAsync(arnes, _gestora, "GestorCae", _tenantA, _visitaDentro,
+            registroAlternativo: registro);
+        if (transitorio)
+            await descargar.Should().ThrowAsync<TimeoutException>();
+        else
+            await descargar.Should().ThrowAsync<AccesoDocumentoSensibleNoRegistradoException>();
+        // El doble no escribe en la base: lo que se comprueba es que el paquete real tiene dos
+        // Documentos y que el segundo rechazo propaga la excepción en vez de devolver el zip.
+        registro.Intentos.Should().Be(2, "se recorre el paquete real y no se devuelve tras el primer registro");
+    }
+
+    private sealed class RegistroQueFallaEnElSegundo(bool transitorio) : IRegistroAccesoDocumentoSensibleService
+    {
+        public int Intentos { get; private set; }
+        public Task RegistrarSiSensibleAsync(Guid documentoId, CaeManager.Domain.Auditoria.TipoAccesoDocumentoSensible tipoAcceso,
+            CancellationToken cancellationToken = default)
+        {
+            if (++Intentos == 2)
+            {
+                if (transitorio) throw new TimeoutException();
+                throw new AccesoDocumentoSensibleNoRegistradoException(documentoId);
+            }
+            return Task.CompletedTask;
+        }
+
+        public Task RegistrarSiSensibleAsync(Guid recursoId, Guid tipoDocumentoId,
+            CaeManager.Domain.Auditoria.TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
     [Fact]
     public async Task La_Gestora_descarga_solo_lo_vigente_y_queda_registrado_el_acceso_al_documento_sensible()
     {
@@ -323,7 +361,8 @@ public class PaqueteDocumentalVisitaCorreoTests
 
     private async Task<Result<PaqueteDocumentalDescargaDto>> DescargarAsync(
         ArnesDeArranqueRuntime arnes, Guid usuarioId, string rol, Guid tenantId, Guid visitaId,
-        ISesionPrivilegiadaActual? sesionPrivilegiada = null)
+        ISesionPrivilegiadaActual? sesionPrivilegiada = null,
+        IRegistroAccesoDocumentoSensibleService? registroAlternativo = null)
     {
         Como(usuarioId, rol, tenantId);
         await using var scope = arnes.Servicios.CreateAsyncScope();
@@ -337,7 +376,7 @@ public class PaqueteDocumentalVisitaCorreoTests
             new RegistroAccesoDocumentoSensibleRepository(contexto, NullLogger<RegistroAccesoDocumentoSensibleRepository>.Instance));
 
         var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
-            contexto, contexto, Alcance(contexto), paquete, registro, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
+            contexto, contexto, Alcance(contexto), paquete, registroAlternativo ?? registro, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
         return await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(visitaId), CancellationToken.None);
     }
 

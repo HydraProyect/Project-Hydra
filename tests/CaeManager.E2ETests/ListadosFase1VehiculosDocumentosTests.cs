@@ -79,13 +79,8 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
         // El estado se filtra en la franja de estado (sustituyó a la pastilla «Estado»): un botón por
         // estado, localizable por su estado de código (data-estado). Vive en «Más filtros».
         var botonVigentes = page.Locator(".franja-estado-boton[data-estado='Vigente']");
-        var masFiltros = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Más filtros" });
-        await masFiltros.ClickAsync();
         await botonVigentes.ClickAsync();
         await Expect(botonVigentes).ToHaveAttributeAsync("aria-pressed", "true");
-        // Se cierra el menú pulsando fuera: abierto, su superposición y su panel tapan la cabecera de la tabla.
-        await page.Locator(".menu-acciones-superposicion").ClickAsync(new LocatorClickOptions { Position = new Position { X = 5, Y = 5 } });
-        await Expect(page.Locator(".menu-acciones-panel")).ToHaveCountAsync(0);
         var vigencia = CabeceraDocumento(page, "Vence");
         await ElegirOpcionDocumentoAsync(vigencia, "Ordenar por emisión");
         await ComprobarOrdenDocumentoAsync(page, vigencia, "emision");
@@ -175,9 +170,9 @@ public class ListadosFase1VehiculosDocumentosTests(WebAppFixtureListados fixture
               const nodo = fila.querySelector('.documentos-ambito');
               return nodo ? ambitos[nodo.textContent.trim()] : null;
             }
-            const nodo = fila.querySelector('.documentos-vigencia');
-            const fechas = nodo?.textContent.match(/\d{2}\/\d{2}\/\d{4}/g) || [];
-            const fecha = fechas[campo === 'emision' ? 0 : 1];
+            const nodo = fila.querySelector(campo === 'emision'
+              ? '.documentos-vigencia-subtitulo' : '.documentos-vigencia .texto-fecha-copiable');
+            const fecha = nodo?.textContent.match(/\d{2}\/\d{2}\/\d{4}/)?.[0];
             if (!fecha) return null;
             const [dia, mes, ano] = fecha.split('/').map(Number);
             return Date.UTC(ano, mes-1, dia);

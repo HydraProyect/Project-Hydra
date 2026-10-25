@@ -92,7 +92,6 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ICentrosQueryContext"),
         ("Alertas.ObtenerSugerenciasPreventivasQueryHandler", "ITrabajadoresQueryContext"),
         ("ApiKeys.GenerarClaveApiCommandHandler", "IDelegacionTenantRepository"),
-        ("ApiKeys.GenerarClaveApiCommandHandler", "ITenantsQueryContext"),
         ("ApiKeys.ObtenerClavesApiQueryHandler", "ITenantsQueryContext"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "IDelegacionTenantRepository"),
         ("ApiKeys.RevocarClaveApiCommandHandler", "ITenantsQueryContext"),
@@ -481,13 +480,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IVehiculosQueryContext"),
         ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IProveedoresPlataformaCaeQueryContext"),
         // MVP2 § 14.5 (kill switch remoto, ver Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md en
-        // el repositorio de negocio): ExigirProveedorActivo necesita resolver
+        // el repositorio de negocio): «Lo he enviado» de la extensión necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y
-        // comprobar su Activo (IProveedoresPlataformaCaeQueryContext), solo
-        // cuando el llamante es la extensión — el drill-down interno no exige
-        // esta comprobación y sigue sin depender de ninguna de las dos.
-        ("Documentos.MarcarAcreditacionSubidaCommandHandler", "ICentrosQueryContext"),
-        ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
+        // comprobar su Activo (IProveedoresPlataformaCaeQueryContext). «Marcar
+        // subido» del drill-down interno no exige esta comprobación y no depende
+        // de ninguna de las dos.
+        ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
+        ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
+        ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
         ("Documentos.MarcarAcreditacionSubidaCommandHandler", "IProyectosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "ICentrosQueryContext"),
         ("Documentos.ObtenerAcreditacionesPorProveedorQueryHandler", "IClientesQueryContext"),
@@ -646,6 +647,17 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // solo por su Id, igual que AsignarTecnicoProyecto.
         ("AutorizacionesLectura.ConcederAutorizacionLecturaCommandHandler", "ITrabajadoresQueryContext"),
         ("AutorizacionesLectura.AsignarTrabajadoresAutorizacionCommandHandler", "ITrabajadoresQueryContext"),
+        // Copias de evidencia validada (Inbound M1, PR 4): la entidad vive en su propio espacio de dominio
+        // (Domain.EvidenciasInbound) y sus handlers en el de los contratos de acceso, porque la autoridad es la del
+        // contrato. El registro valida el Tipo de Documento del catálogo propio y toma el sujeto de un Documento de
+        // Empresa de la Empresa contratista local del contrato, solo por su Id; las consultas nombran el tipo.
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.RegistrarEvidenciaInboundCommandHandler", "IEmpresasQueryContext"),
+        ("ContratosAcceso.RechazarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ValidarEvidenciaInboundCommandHandler", "IEvidenciaInboundRepository"),
+        ("ContratosAcceso.ObtenerEvidenciasInboundQueryHandler", "ITiposDocumentoQueryContext"),
+        ("ContratosAcceso.ObtenerEvidenciaInboundPorIdQueryHandler", "ITiposDocumentoQueryContext"),
         // Requisitos documentales de un evento: el Tipo de Documento se valida y se nombra desde su lectura.
         ("Proyectos.AnadirRequisitoEventoCommandHandler", "ITiposDocumentoQueryContext"),
         ("Proyectos.ObtenerRequisitosEventoQueryHandler", "ITiposDocumentoQueryContext"),

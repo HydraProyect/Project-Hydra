@@ -257,7 +257,9 @@ public class ReglasDeNegocioSinCopiasTests
     {
         // El único sitio que carga las filas bloqueantes de cada Centro (con su vigencia propia y su tolerancia) y aplica la
         // regla única por Centro (R1, R2): lo usan Mi trabajo y el detalle por Trabajador del Centro 360.
-        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 1,
+        // La segunda lectura es CondicionesDeRequisitosAsync, la misma condición para el estado materializado (PR 3), que
+        // copia el «bloquea el acceso» de cada par sin decidir un bloqueo nuevo.
+        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 2,
         // El semáforo del Centro ya no lee BloqueaAcceso: «Bloqueado» es un estado del Trabajador (2026-10-03) y el Centro solo
         // lo está por la plataforma del Cliente empresarial (D-7). Por eso no figura aquí.
     };
@@ -317,6 +319,9 @@ public class ReglasDeNegocioSinCopiasTests
         // Documentos de otro Tenant sin EF, así que no puede usar DocumentoOperativo.Expresion. Repite la misma regla
         // (NOT "EstaEliminado" AND "SustituidoEnUtc" IS NULL) y la prueba LecturaInboundBajoRuntimeTests contra un sustituido.
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023150000_AnadeLecturaInboundEntreTenants.cs"] = 1,
+        // Inbound M1, PR 4: la misma función reescrita con CREATE OR REPLACE para la excepción de salud (Up) y restaurada
+        // en su versión de la PR 3 (Down), con la regla idéntica en las dos.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261023195346_AnadeEvidenciasInbound.cs"] = 2,
     };
 
     [Fact]
@@ -767,6 +772,34 @@ public class ReglasDeNegocioSinCopiasTests
             File.Exists(Path.Combine(raiz, ruta.Replace('/', Path.DirectorySeparatorChar)))
                 .Should().BeTrue($"{ruta} está en una lista de excepciones: si se movió o se borró, la lista engaña");
         }
+    }
+
+    // ---------- 9. Evaluación de acceso sin el alcance del usuario ----------
+
+    /// <summary>
+    /// <c>IEvaluacionDeAccesoDelTenant</c> evalúa los requisitos de los Centros sin la Asignación de Cartera del usuario: es
+    /// para el estado materializado, que es dato del Tenant. Una pantalla que la usara enseñaría lo que exigen Centros que el
+    /// usuario no alcanza, así que solo la nombran su implementación, su registro y el servicio de recálculo.
+    /// </summary>
+    private static readonly Regex PatronEvaluacionSinAlcance = new(
+        @"\b(?:IEvaluacionDeAccesoDelTenant|EvaluarCentrosAsync|CondicionesDeRequisitosAsync)\b",
+        RegexOptions.Compiled);
+
+    private static readonly Dictionary<string, int> UsosDeLaEvaluacionSinAlcance = new()
+    {
+        // La interfaz, su implementación (dos métodos) y la declaración en la clase.
+        ["src/CaeManager.Application/Centros/EvaluacionDeAccesoPorCentroService.cs"] = 6,
+        ["src/CaeManager.Application/DependencyInjection/ApplicationServiceCollectionExtensions.cs"] = 1,
+        // El único consumidor: el recálculo del estado materializado (inyección y las dos llamadas).
+        ["src/CaeManager.Application/EstadoMaterializado/RecalculoEstadoMaterializadoService.cs"] = 3,
+    };
+
+    [Fact]
+    public void La_evaluacion_sin_alcance_solo_la_usa_el_estado_materializado()
+    {
+        Divergencias(UsosDeLaEvaluacionSinAlcance, ContarPorFichero(PatronEvaluacionSinAlcance)).Should().BeEmpty(
+            "la evaluación sin Asignación de Cartera es para el estado del Tenant; un lector de pantalla usa " +
+            "IEvaluacionDeAccesoPorCentroService, que aplica el alcance del usuario");
     }
 
     private static List<string> Divergencias(Dictionary<string, int> esperado, Dictionary<string, int> medido) =>

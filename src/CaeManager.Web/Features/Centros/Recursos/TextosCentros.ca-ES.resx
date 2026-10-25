@@ -702,6 +702,7 @@
   <data name="HistorialPlataforma360" xml:space="preserve"><value>Estat a la plataforma</value></data>
   <data name="HistorialPlataformaFila360" xml:space="preserve"><value>{0}: {1} → {2} a {3}</value></data>
   <data name="HistorialPlataformaDeshecho360" xml:space="preserve"><value>Desfet</value></data>
+  <data name="HistorialPlataformaDesdeExtension360" xml:space="preserve"><value>Des de l'extensió</value></data>
   <data name="TotalesAlDiaPorVencer" xml:space="preserve">
     <value>(d'ells, {0} per vèncer)</value>
   </data>

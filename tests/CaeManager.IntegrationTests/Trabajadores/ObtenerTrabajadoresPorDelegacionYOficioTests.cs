@@ -77,7 +77,7 @@ public class ObtenerTrabajadoresPorDelegacionEmpresaYOficioTests : IAsyncLifetim
             contexto, contexto, contexto, contexto,
             new AlcanceDatosServiceFalso(trabajadorIds: trabajadoresVisibles),
             new CalculoEstadoDocumentalService(contexto, contexto, contexto), contexto, contexto,
-            new DocumentosFaltantesService(contexto, contexto, contexto));
+            RequisitosObligatoriosDePrueba.Servicio(contexto));
         return await handler.Handle(consulta, CancellationToken.None);
     }
 

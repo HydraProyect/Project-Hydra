@@ -8,7 +8,9 @@ namespace CaeManager.IntegrationTests.Identity;
 
 /// <summary>
 /// Verifica la capa extra de control del login SSO: mientras Entra ID esté
-/// configurado, cualquier sesión sin la marca de login por Microsoft queda
+/// configurado, una sesión sin la marca de login por Microsoft de una cuenta
+/// del Tenant propietario declarado en AzureAd:TenantHydraId (o de Tenant que no
+/// conste) queda
 /// sin escritura: un rol editor pasa a Consulta (salvo Administrador, vía de
 /// escape deliberada para nunca perder acceso de administración), Cliente
 /// conserva su rol y una cuenta sin rol sigue sin él, porque la restricción
@@ -36,6 +38,7 @@ public class RestriccionLoginLocalClaimsTransformationTests
             TenantId = ssoConfigurado ? "tenant" : null,
             ClientId = ssoConfigurado ? "client" : null,
             ClientSecret = ssoConfigurado ? "secreto" : null,
+            TenantHydraId = ssoConfigurado ? Guid.Parse("00000000-0000-0000-0000-0000000000aa") : null,
         }));
 
     [Fact]
@@ -168,6 +171,38 @@ public class RestriccionLoginLocalClaimsTransformationTests
         segundaPasada.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Cliente]);
         segundaPasada.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
             .Select(c => c.Value).Should().Equal([Roles.Cliente], "con el perfil Gestor CAE alcanzaría su cartera");
+    }
+
+    // D-1 (decisión Chris 2026-10-25): solo las cuentas del Tenant propietario declarado en
+    // AzureAd:TenantHydraId pierden la escritura con contraseña. Sin claim de Tenant (los casos de
+    // arriba) se restringe: fallo cerrado.
+
+    private static readonly Guid TenantDeclarado = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
+
+    private static ClaimsPrincipal ConTenant(ClaimsPrincipal principal, Guid tenant)
+    {
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(TenantClaimsPrincipalFactory.TipoClaimTenantId, tenant.ToString()));
+        return principal;
+    }
+
+    [Fact]
+    public async Task Con_sso_configurado_una_cuenta_del_Tenant_declarado_con_login_local_queda_en_consulta()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(ConTenant(CrearPrincipal(esSso: false, Roles.GestorCae), TenantDeclarado));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.Consulta]);
+    }
+
+    [Fact]
+    public async Task Con_sso_configurado_una_cuenta_de_otro_Tenant_con_login_local_conserva_su_rol()
+    {
+        var resultado = await CrearTransformacion(ssoConfigurado: true)
+            .TransformAsync(ConTenant(CrearPrincipal(esSso: false, Roles.GestorCae), Guid.NewGuid()));
+
+        resultado.FindAll(ClaimTypes.Role).Select(c => c.Value).Should().Equal([Roles.GestorCae]);
+        resultado.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimPerfilAntesDeRestringir)
+            .Should().BeFalse();
     }
 
     [Fact]

@@ -169,10 +169,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         await using var comando = conexion.CreateCommand();
         comando.CommandText = "SET ROLE cae_app_runtime";
         await comando.ExecuteNonQueryAsync();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false)";
-        comando.Parameters.AddWithValue("tenant", _tenantA.ToString());
-        await comando.ExecuteScalarAsync();
-        comando.Parameters.Clear();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _tenantA);
         comando.CommandText = "SELECT count(*) FROM \"AlertasCriticasConversacion\"";
         ((long)(await comando.ExecuteScalarAsync())!).Should().Be(1);
         comando.CommandText = "UPDATE \"AlertasCriticasConversacion\" SET \"TenantId\" = @otro, \"OperadorCaeTenantId\" = @otro";
@@ -180,10 +177,7 @@ public class AlertasCriticasConversacionTests : IAsyncLifetime
         Func<Task> modificar = async () => await comando.ExecuteNonQueryAsync();
         (await modificar.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
         comando.Parameters.Clear();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false)";
-        comando.Parameters.AddWithValue("tenant", _tenantB.ToString());
-        await comando.ExecuteScalarAsync();
-        comando.Parameters.Clear();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: _tenantB);
         comando.CommandText = "SELECT count(*) FROM \"AlertasCriticasConversacion\"";
         ((long)(await comando.ExecuteScalarAsync())!).Should().Be(0);
     }

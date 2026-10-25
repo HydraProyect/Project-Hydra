@@ -221,7 +221,7 @@ public class ObtenerCentrosQueryResumenPorGrupoBajoRlsTests : IAsyncLifetime
     {
         var handler = new ObtenerCentrosQueryHandler(
             _runtime, _runtime, alcance ?? new AlcanceDatosServiceFalso(),
-            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime));
+            new CalculoEstadoCentroService(_runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime, _runtime), new CaeManager.Application.EstadoMaterializado.LectorEstadoCentros(_runtime));
 
         return handler.Handle(consulta, CancellationToken.None);
     }

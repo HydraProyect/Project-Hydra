@@ -1,7 +1,8 @@
 @*
     Historial de Centro 360, sección de cambios: cada cambio de estado en la plataforma CAE del Cliente anotado a mano en
-    este Centro (bloque 3 del 21-10), con quién, cuándo, la fecha anotada, el motivo y la nota. Un cambio deshecho sigue
-    aquí, marcado. Si no hay ninguno, la sección no se pinta.
+    este Centro (bloque 3 del 21-10), con quién, cuándo, la fecha anotada, el motivo y la nota. Uno anotado con «Lo he
+    enviado» de la extensión lleva «Desde la extensión». Un cambio deshecho sigue aquí, marcado. Si no hay ninguno, la
+    sección no se pinta.
 *@
 @using System.Globalization
 @using CaeManager.Application.Centros.Queries.ObtenerCambiosEstadoPlataformaDeCentro
@@ -23,6 +24,10 @@
                 <li @key="cambio.Id" class="historial-estado-plataforma-fila @(cambio.Deshecho ? "historial-estado-plataforma-deshecho" : null)" data-cambio-plataforma>
                     <span class="historial-estado-plataforma-que">
                         @Textos["HistorialPlataformaFila360", Documento(cambio), TextoEstado(cambio.EstadoAnterior), TextoEstado(cambio.Estado), cambio.NombrePlataforma]
+                        @if (cambio.Origen == OrigenCambioEstadoAcreditacion.Extension)
+                        {
+                            <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno" data-origen-extension>@Textos["HistorialPlataformaDesdeExtension360"]</Badge>
+                        }
                         @if (cambio.Deshecho)
                         {
                             <Badge Tono="TonoBadge.Neutro" Tamano="TamanoBadge.Pequeno">@Textos["HistorialPlataformaDeshecho360"]</Badge>

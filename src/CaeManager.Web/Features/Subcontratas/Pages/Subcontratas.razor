@@ -79,7 +79,7 @@
             <PastillaFiltro Etiqueta="@Textos["RotuloNivel"]" Valor="@_nivelFiltro" ValorChanged="CambiarNivelAsync" Opciones="OpcionesNivel" />
         </Pastillas>
         <Estados>
-            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaDocumental" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
+            <FranjaEstado Opciones="EstadoDocumentoUi.FranjaConPendiente" Valor="@_estadoFiltro" ValorChanged="CambiarEstadoAsync"
                   Recuentos="_recuentosPorEstado" />
         </Estados>
         <Herramientas>
@@ -261,10 +261,10 @@
                             @* Estado documental: la pastilla (o «Sin incidencias» con su punto) y debajo el motivo con las cifras. El
                                detalle de cada documento vive en la fila desplegada, con su «Gestionar». *@
                             <span class="celda-estado-subcontrata">
-                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(subcontrata.EstadoDocumental)"
+                                <EstadoFila Tono="EstadoDocumentoUi.TonoDocumental(subcontrata.EstadoDocumental, subcontrata.VencidoSinBloqueo)"
                                             Texto="@EstadoDocumentoUi.TextoDocumental(subcontrata.EstadoDocumental)"
                                             Correcto="EstadoDocumentoUi.EsCorrecto(subcontrata.EstadoDocumental)"
-                                            Motivo="@MotivoDeFila(subcontrata.Recuentos)" />
+                                            Motivo="@MotivoDeFila(subcontrata)" />
                             </span>
                             <div class="tarjeta-fila-acordeon-acciones acciones-subcontrata">
                                 <Boton360 Nombre="@subcontrata.RazonSocial" Href="@($"/subcontratas/{subcontrata.Id}")" />

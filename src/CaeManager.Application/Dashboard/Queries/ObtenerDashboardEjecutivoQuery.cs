@@ -118,6 +118,8 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentU
             .SelectMany(p => p.Valores.CentrosConMenorCumplimiento.Select(c =>
                 new CentroCumplimientoMultiTenantDto(p.Cliente.Nombre, c.CentroId, c.CentroNombre, c.Porcentaje)))
             .OrderBy(c => c.Porcentaje)
+            .ThenBy(c => c.CentroNombre, StringComparer.Ordinal)
+            .ThenBy(c => c.CentroId)
             .Take(TopCentrosConMasRiesgo)
             .ToList();
 

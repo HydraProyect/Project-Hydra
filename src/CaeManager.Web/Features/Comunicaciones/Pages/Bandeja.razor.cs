@@ -43,6 +43,7 @@ using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Services;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -239,6 +240,9 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private int _cargaListaVigente;
 
+    /// <summary>Número de la última carga cuyo resultado llegó a <c>_conversaciones</c> (no descartada por otra posterior).</summary>
+    private int _cargaListaAplicada;
+
     /// <summary>Lo mismo para el detalle del hilo abierto — ver <see cref="CargarDetalleAsync"/>.</summary>
     private int _cargaDetalleVigente;
 
@@ -296,12 +300,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         await CargarCompanerosAsync();
 
-        // La suscripción es del tenant del circuito: los avisos de otros
-        // tenants nunca llegan aquí (el notificador ya segrega por tenant).
+        // La suscripción es del Tenant del circuito: los avisos de otros
+        // Tenants nunca llegan aquí (el notificador ya segrega por Tenant), y si
+        // la selección de Tenant beneficiario se retira en caliente se da de baja
+        // del anterior y pasa al de origen sin esperar al cierre del circuito.
         // Refresca la bandeja unificada al instante cuando la ingesta de
         // WhatsApp persiste un mensaje nuevo — antes solo lo hacía /chat.
-        if (TenantActual.TenantId is { } tenantId)
-            _suscripcionTiempoReal = Notificador.Suscribir(tenantId, AlRecibirMensajeAsync);
+        // Si se salió de la pantalla durante las lecturas de arriba, DisposeAsync ya corrió: suscribirse ahora dejaría
+        // una suscripción, y su oyente de la retirada, que nadie soltaría hasta el cierre del circuito.
+        if (_ciclo.IsCancellationRequested)
+            return;
+        _suscripcionTiempoReal = SuscripcionMensajesDelTenantActual.Abrir(Notificador, TenantActual, AlRecibirMensajeAsync);
 
         if (_vista == "personal")
             await CargarBuzonPersonalAsync();
@@ -518,6 +527,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             // el gestor ve conversaciones, no "correo" o "WhatsApp" por separado.
             _conversaciones = resultado.Elementos;
             _totalConversaciones = resultado.TotalElementos;
+            _cargaListaAplicada = carga;
         }
         catch (OperationCanceledException)
         {
@@ -646,6 +656,56 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     /// <summary>El teclado recorre el mismo orden que la tabla y la lista plana del hilo.</summary>
     private List<ConversacionListaDto> ConversacionesVisiblesEnOrden() => _conversaciones.ToList();
+
+    private bool HaySiguienteConversacion
+    {
+        get
+        {
+            var indice = ConversacionesVisiblesEnOrden().FindIndex(c => c.Id == _conversacionSeleccionadaId);
+            return !_errorCargaLista && indice >= 0 && (indice + 1 < _conversaciones.Count || _pagina < TotalPaginas);
+        }
+    }
+
+    private async Task SiguienteConversacionAsync()
+    {
+        if (_cargandoLista || _errorCargaLista) return;
+        var filas = ConversacionesVisiblesEnOrden();
+        var indice = filas.FindIndex(c => c.Id == _conversacionSeleccionadaId);
+        if (indice < 0) return;
+        if (indice + 1 < filas.Count)
+        {
+            await SeleccionarConversacionAsync(filas[indice + 1].Id);
+            return;
+        }
+        if (_pagina < TotalPaginas)
+        {
+            if (!await _ambitoConversacion.ConfirmarAbandonoAsync()) return;
+            var id = _conversacionSeleccionadaId;
+            _pagina++;
+            // Un refresco de fondo no invalida esta carga: lo que cuenta es que la lista aplicada
+            // sea posterior a la petición y que el Gestor CAE no haya navegado a otra conversación.
+            var cargada = await RecargarListaFrescaAsync();
+            if (cargada && _conversacionSeleccionadaId == id && _conversaciones.FirstOrDefault() is { } siguiente)
+                await SeleccionarConversacionAsync(siguiente.Id);
+        }
+    }
+
+    /// <summary>
+    /// Recarga la lista y confirma que lo que quedó en <c>_conversaciones</c> se pidió DESPUÉS de esta llamada.
+    /// Si un refresco de fondo (aviso de tiempo real) se adelantó y descartó esta carga, el resultado vigente
+    /// aún puede estar en vuelo; se repite una vez, que es más barato que decidir sobre una lista vieja.
+    /// </summary>
+    private async Task<bool> RecargarListaFrescaAsync()
+    {
+        for (var intento = 0; intento < 2; intento++)
+        {
+            var propia = _cargaListaVigente + 1;
+            await CargarListaAsync();
+            if (!_errorCargaLista && _cargaListaAplicada >= propia) return true;
+        }
+
+        return false;
+    }
 
     /// <summary>
     /// j/k mueven el foco por la lista y Enter abre la conversación enfocada.
@@ -882,9 +942,12 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
             _macroSeleccionadaId = macroIdTexto;
+            var cuerpo = _detalle?.Canal == CanalConversacion.WhatsApp
+                ? AvisoSinBuzonCorreo.HtmlATexto(resultado.Valor) ?? string.Empty
+                : resultado.Valor;
             _textoRespuesta = string.IsNullOrWhiteSpace(_textoRespuesta)
-                ? resultado.Valor
-                : $"{_textoRespuesta.TrimEnd()}\n\n{resultado.Valor}";
+                ? cuerpo
+                : $"{_textoRespuesta.TrimEnd()}\n\n{cuerpo}";
             await CargarDetalleAsync();
         }
         catch (OperationCanceledException) { }
@@ -1118,7 +1181,16 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
     private async Task CambiarEstadoAsync(EstadoConversacion nuevoEstado)
     {
-        if (_conversacionSeleccionadaId is null) return;
+        if (_conversacionSeleccionadaId is not { } id || _cambiandoEstado) return;
+
+        // La sucesora se fija por identidad ANTES de enviar el comando: la siguiente fila de la lista
+        // que el Gestor CAE ve ahora (mismos filtros y Asignación de Cartera). Tras recargar, ni el
+        // índice ni el orden son fiables: la fila puede haber salido del filtro y otra, entrar.
+        var filasAntes = ConversacionesVisiblesEnOrden();
+        var indiceAnterior = filasAntes.FindIndex(c => c.Id == id);
+        Guid? sucesoraId = indiceAnterior >= 0 && indiceAnterior + 1 < filasAntes.Count
+            ? filasAntes[indiceAnterior + 1].Id
+            : null;
 
         _cambiandoEstado = true;
         try
@@ -1130,9 +1202,27 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
                 return;
             }
 
+            // Solo importa si el Gestor CAE navegó a otra conversación mientras el comando viajaba:
+            // los refrescos de fondo de la lista no son motivo para dejar de registrar ni de recargar.
+            if (_conversacionSeleccionadaId != id)
+            {
+                await CargarListaAsync();
+                return;
+            }
+
             await RegistrarAccionMedidaAsync();
+            if (_conversacionSeleccionadaId != id)
+            {
+                await CargarListaAsync();
+                return;
+            }
+
             await CargarDetalleAsync();
-            await CargarListaAsync();
+            var listaFresca = await RecargarListaFrescaAsync();
+            if (_conversacionSeleccionadaId != id || !listaFresca) return;
+            if (nuevoEstado is EstadoConversacion.Resuelta or EstadoConversacion.Cerrada
+                && sucesoraId is { } sucesora && _conversaciones.Any(c => c.Id == sucesora))
+                await SeleccionarConversacionAsync(sucesora);
         }
         finally
         {

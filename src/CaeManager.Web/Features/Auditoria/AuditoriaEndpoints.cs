@@ -20,6 +20,67 @@ namespace CaeManager.Web.Features.Auditoria;
 /// </summary>
 public static class AuditoriaEndpoints
 {
+    public static async Task<IResult> ServirArchivoAnteriorAsync(Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
+    {
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+
+        var registro = await mediator.Send(new ObtenerRegistroAuditoriaPorIdQuery(id), cancellationToken);
+        if (registro is null || registro.EntidadTipo != "Documento" || registro.DatosAntes is null)
+            return Results.NotFound();
+
+        string? archivoUrl = null;
+        try
+        {
+            using var datosAntes = JsonDocument.Parse(registro.DatosAntes);
+            if (datosAntes.RootElement.TryGetProperty("ArchivoUrl", out var valor) && valor.ValueKind == JsonValueKind.String)
+                archivoUrl = valor.GetString();
+        }
+        catch (JsonException)
+        {
+            // DatosAntes mal formado no debería ocurrir (lo escribe el propio
+            // interceptor), pero un 404 es más seguro que propagar la excepción.
+        }
+
+        if (string.IsNullOrWhiteSpace(archivoUrl))
+            return Results.NotFound();
+
+        // DEC-36 (REC-099): se abre primero y se registra después de
+        // confirmar que el archivo existe (mismo criterio que
+        // DocumentosEndpoints) — registro.EntidadId es el DocumentoId
+        // (el tipo ya se comprobó arriba): sigue siendo el mismo
+        // Documento aunque el archivo servido sea una versión
+        // anterior. Solo la apertura se traduce a 404: una
+        // FileNotFoundException del registro de lectura no es un archivo ausente.
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return ErroresLecturaSensible.ArchivoAusente(registro.EntidadId,
+                fabricaRegistro.CreateLogger(typeof(AuditoriaEndpoints).FullName!));
+        }
+        // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
+        try
+        {
+            await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            await flujo.DisposeAsync();
+            return ErroresLecturaSensible.Responder(contexto, ex, registro.EntidadId,
+                fabricaRegistro.CreateLogger(typeof(AuditoriaEndpoints).FullName!));
+        }
+        catch
+        {
+            await flujo.DisposeAsync();
+            throw;
+        }
+        return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
+    }
+
     public static IEndpointRouteBuilder MapAuditoriaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         // H2 (Project-Hydra-Negocio/tecnico/docs/ux-audit/14-administracion.md): "con los filtros aplicados"
@@ -89,58 +150,7 @@ public static class AuditoriaEndpoints
         }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();
 
-        endpoints.MapGet("/auditoria/{id:guid}/archivo-anterior", async (
-            Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
-        {
-            CabecerasArchivoSensible.ProhibirCache(contexto);
-
-            var registro = await mediator.Send(new ObtenerRegistroAuditoriaPorIdQuery(id), cancellationToken);
-            if (registro is null || registro.EntidadTipo != "Documento" || registro.DatosAntes is null)
-                return Results.NotFound();
-
-            string? archivoUrl = null;
-            try
-            {
-                using var datosAntes = JsonDocument.Parse(registro.DatosAntes);
-                if (datosAntes.RootElement.TryGetProperty("ArchivoUrl", out var valor) && valor.ValueKind == JsonValueKind.String)
-                    archivoUrl = valor.GetString();
-            }
-            catch (JsonException)
-            {
-                // DatosAntes mal formado no debería ocurrir (lo escribe el propio
-                // interceptor), pero un 404 es más seguro que propagar la excepción.
-            }
-
-            if (string.IsNullOrWhiteSpace(archivoUrl))
-                return Results.NotFound();
-
-            try
-            {
-                // DEC-36 (REC-099): se abre primero y se registra después de
-                // confirmar que el archivo existe (mismo criterio que
-                // DocumentosEndpoints) — registro.EntidadId es el DocumentoId
-                // (el tipo ya se comprobó arriba): sigue siendo el mismo
-                // Documento aunque el archivo servido sea una versión
-                // anterior.
-                var flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
-                // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
-                try
-                {
-                    await registroAcceso.RegistrarSiSensibleAsync(registro.EntidadId, TipoAccesoDocumentoSensible.VersionAnterior, cancellationToken);
-                }
-                catch
-                {
-                    await flujo.DisposeAsync();
-                    throw;
-                }
-                return Results.File(flujo, "application/pdf", "documento-anterior.pdf", enableRangeProcessing: true);
-            }
-            catch (FileNotFoundException)
-            {
-                return Results.NotFound();
-            }
-        }).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
+        endpoints.MapGet("/auditoria/{id:guid}/archivo-anterior", ServirArchivoAnteriorAsync).RequireAuthorization(policy => policy.RequireRole(Roles.Administrador))
         .ExcluidoDelEncargoDeAdministracion();
 
         return endpoints;

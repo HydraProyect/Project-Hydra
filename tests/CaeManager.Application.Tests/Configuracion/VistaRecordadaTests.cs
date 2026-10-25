@@ -177,16 +177,16 @@ public class VistaRecordadaTests
     }
 
     [Fact]
-    public void El_validador_admite_las_once_pantallas_y_ninguna_otra()
+    public void El_validador_admite_las_trece_pantallas_y_ninguna_otra()
     {
         var validador = new GuardarVistaRecordadaCommandValidator();
 
         PantallasConVistaRecordada.Admitidas.Should().BeEquivalentTo(
-            "Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias");
+            "Trabajadores", "Empresas", "Clientes", "Documentos", "Centros", "Subcontratas", "Vehiculos", "Proyectos", "Visitas", "Gestiones", "Incidencias", "Usuarios", "Delegaciones");
         foreach (var pantalla in PantallasConVistaRecordada.Admitidas)
             validador.Validate(new GuardarVistaRecordadaCommand(pantalla, "{}")).IsValid.Should().BeTrue(pantalla);
 
-        foreach (var ajena in new[] { "", "clientes", "Usuarios", "Clientes " })
+        foreach (var ajena in new[] { "", "clientes", "Inventada", "Clientes " })
             validador.Validate(new GuardarVistaRecordadaCommand(ajena, "{}")).IsValid.Should().BeFalse($"«{ajena}» no recuerda la vista");
     }
 
@@ -331,7 +331,8 @@ public class VistaRecordadaTests
         var validador = new OlvidarVistaRecordadaCommandValidator();
 
         validador.Validate(new OlvidarVistaRecordadaCommand(Pantalla)).IsValid.Should().BeTrue();
-        validador.Validate(new OlvidarVistaRecordadaCommand("Usuarios")).IsValid.Should().BeFalse();
+        validador.Validate(new OlvidarVistaRecordadaCommand("Usuarios")).IsValid.Should().BeTrue();
+        validador.Validate(new OlvidarVistaRecordadaCommand("Inventada")).IsValid.Should().BeFalse();
     }
 
     // ───────────── Los filtros con nombre no alcanzan la fila reservada ─────────────

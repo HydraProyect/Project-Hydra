@@ -51,4 +51,7 @@
   <data name="RestablecerConfirmar" xml:space="preserve">
     <value>Sí, restablecer</value>
   </data>
+  <data name="CierreNoPermitido" xml:space="preserve">
+    <value>No tens permís per tancar aquesta sessió de suport o la sessió ja ha canviat.</value>
+  </data>
 </root>

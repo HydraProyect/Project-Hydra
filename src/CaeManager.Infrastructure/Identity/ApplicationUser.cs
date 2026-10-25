@@ -67,8 +67,8 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     /// <summary>
     /// Cuándo se creó la cuenta — Identity no trae esto de serie. Usado para
     /// ordenar la lista de "Pendientes de asignar" (ver Roles.razor): un
-    /// usuario sin ningún rol asignado (típicamente auto-provisionado por
-    /// login de Microsoft, ver IdentityEndpointsExtensions) queda ahí hasta
+    /// usuario sin ningún rol asignado (por ejemplo, dado de alta sin rol y que
+    /// ya entró con Microsoft, ver IdentityEndpointsExtensions) queda ahí hasta
     /// que un Administrador le asigna uno.
     /// </summary>
     public DateTime FechaCreacion { get; set; } = DateTime.UtcNow;

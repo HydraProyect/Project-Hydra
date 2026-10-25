@@ -1,6 +1,7 @@
 using CaeManager.Domain.Common;
 using CaeManager.Application.Common;
 using System.IO.Compression;
+using System.Net;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
@@ -57,7 +58,7 @@ public class PaqueteDocumentalVisitaService(
 
         var cuerpo =
             $"""
-            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{paquete.CentroNombre}</strong>
+            <p>Adjuntamos automáticamente la documentación disponible en la plataforma para la visita en <strong>{WebUtility.HtmlEncode(paquete.CentroNombre)}</strong>
             del {paquete.FechaInicio:dd/MM/yyyy} al {paquete.FechaFin:dd/MM/yyyy} ({paquete.Documentos.Count} documento(s)).</p>
             """;
 
@@ -271,7 +272,8 @@ public class PaqueteDocumentalVisitaService(
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "No se pudo abrir el archivo {ArchivoUrl} para el paquete documental de la visita.", documento.ArchivoUrl);
+                        // Solo el tipo de la excepcion: su mensaje arrastra la clave del fichero.
+                        logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental de la visita ({TipoExcepcion}).", documento.Id, ex.GetType().Name);
                         continue;
                     }
 

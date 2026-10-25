@@ -34,6 +34,12 @@ public class ValidadorFirmaArchivoTests
         ValidadorFirmaArchivo.TieneFirmaValida(BytesPngValidos, "captura.png").Should().BeTrue();
 
     [Fact]
+    public void Jpeg_y_png_son_intercambiables_entre_extensiones_de_imagen()
+    {
+        ValidadorFirmaArchivo.TieneFirmaValida(BytesPngValidos, "captura.jpg").Should().BeTrue();
+        ValidadorFirmaArchivo.TieneFirmaValida(BytesJpegValidos, "captura.png").Should().BeTrue();
+    }
+    [Fact]
     public void Un_word_con_firma_zip_correcta_es_valido() =>
         ValidadorFirmaArchivo.TieneFirmaValida(BytesZipValidos, "contrato.docx").Should().BeTrue();
 

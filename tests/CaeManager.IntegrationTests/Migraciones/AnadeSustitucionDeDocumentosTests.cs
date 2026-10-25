@@ -268,6 +268,14 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
         var politicasFinales = await PoliticasDeDocumentosAsync();
         politicasFinales.Should().NotBeEmpty("control positivo: Documentos tiene su política por Tenant y el instrumento la ve");
 
+        // Una migración posterior sí reescribe la política de Documentos
+        // (ContraeContextoRlsFirmado la pasa al contexto RLS firmado), así que
+        // primero se deshacen las posteriores: lo que se compara es la política
+        // justo con esta migración aplicada, antes y después de su Down y su Up.
+        await MigrarHastaAsync(MigracionDelCambio);
+        var politicasDelCambio = await PoliticasDeDocumentosAsync();
+        politicasDelCambio.Should().NotBeEmpty("control positivo: la política existe también en ese punto del historial");
+
         await DeshacerElCambioAsync();
 
         await using (var contexto = NuevoContexto(null))
@@ -280,7 +288,11 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
             (await ExisteIndice(contexto, IndiceDeLaForanea)).Should().BeFalse("Down quita el índice");
             (await ContarDocumentosAsync(contexto)).Should().Be(4, "Down no borra documentos");
         }
-        (await PoliticasDeDocumentosAsync()).Should().Equal(politicasFinales, "Down no toca RLS");
+        (await PoliticasDeDocumentosAsync()).Should().Equal(politicasDelCambio, "Down no toca RLS");
+
+        await MigrarHastaAsync(MigracionDelCambio);
+        (await PoliticasDeDocumentosAsync()).Should().Equal(politicasDelCambio,
+            "la migración no crea ni cambia políticas RLS: la de Documentos es por fila y por TenantId");
 
         await MigrarAsync();
 
@@ -300,7 +312,8 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
             (await ExisteRestriccion(contexto, ForaneaSustituto)).Should().BeTrue();
             (await ExisteIndice(contexto, IndiceDeLaForanea)).Should().BeTrue();
         }
-        (await PoliticasDeDocumentosAsync()).Should().Equal(politicasFinales, "la migración no crea ni cambia políticas RLS: la de Documentos es por fila y por TenantId");
+        (await PoliticasDeDocumentosAsync()).Should().Equal(politicasFinales,
+            "volver a subir hasta la última migración deja la política final, la del contexto firmado");
     }
 
     // ── Arnés ──────────────────────────────────────────────────────────────
@@ -406,6 +419,12 @@ public class AnadeSustitucionDeDocumentosTests : IAsyncLifetime
     {
         await using var contexto = NuevoContexto(null);
         await contexto.GetService<IMigrator>().MigrateAsync(MigracionAnterior);
+    }
+
+    private async Task MigrarHastaAsync(string migracion)
+    {
+        await using var contexto = NuevoContexto(null);
+        await contexto.GetService<IMigrator>().MigrateAsync(migracion);
     }
 
     private async Task MigrarAsync()

@@ -104,8 +104,40 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
 
         _desechado = true;
         WorkspaceService.OnEntidadGuardada -= AlGuardarEntidad;
+        _repintado?.Dispose();
         _ciclo.Cancel();
         _ciclo.Dispose();
+    }
+
+    /// <summary>
+    /// Escucha los cambios del estado materializado de los Tenants leídos (diseño § 13.11) y relee la misma pregunta con
+    /// el refresco que conserva la selección y las filas desplegadas.
+    /// </summary>
+    private CaeManager.Web.Components.RepintadoPorCambioDeEstado? _repintado;
+
+    /// <summary>
+    /// Llegó un aviso con una carga en vuelo, que puede haber leído antes del cambio: al terminar se relee una vez más.
+    /// </summary>
+    private bool _releerTrasCarga;
+
+    /// <summary>
+    /// Un aviso de cambio de estado: se relee la pregunta que hay en pantalla sin el esqueleto de carga, conservando la
+    /// selección y las filas desplegadas. Sin Empresa elegida (o aún resolviéndola) no hay lista que releer; con una carga en
+    /// vuelo se apunta y se relee al terminarla.
+    /// </summary>
+    private async Task RepintarPorCambioDeEstadoAsync()
+    {
+        if (_desechado || _resolviendoEmpresa || _sinEmpresaSeleccionada || _ultimaConsulta is null)
+            return;
+        if (_cargando)
+        {
+            _releerTrasCarga = true;
+            return;
+        }
+
+        _consultaQueConservaSeleccion = _ultimaConsulta;
+        await CargarListaAsync(silenciosa: true);
+        StateHasChanged();
     }
 
     /// <summary>Quien mira no alcanza nada en este Tenant (<see cref="CaeManager.Web.Features.IncorporacionCartera.Components.VacioSegunAlcance"/>):
@@ -418,6 +450,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     protected override async Task OnInitializedAsync()
     {
         WorkspaceService.OnEntidadGuardada += AlGuardarEntidad;
+        _repintado ??= EscucharCambiosDeEstado(RepintarPorCambioDeEstadoAsync);
 
         if (EstadoAutenticacion is not null)
         {
@@ -564,7 +597,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     /// </summary>
     private int _cargaVigente;
 
-    private async Task CargarListaAsync()
+    /// <param name="silenciosa">
+    /// El repintado por un cambio de estado: sin esqueleto de carga, y si falla la lista que ya se veía se queda (el fallo
+    /// sube a <see cref="CaeManager.Web.Components.RepintadoPorCambioDeEstado"/>, que lo registra) en vez del estado de error.
+    /// </param>
+    private async Task CargarListaAsync(bool silenciosa = false)
     {
         if (_desechado || !_parametrosInicializados) return;
         _cargaPendiente = false;
@@ -596,9 +633,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         var conservarSeleccion = consulta == _consultaQueConservaSeleccion;
         _consultaQueConservaSeleccion = null;
         _ultimaConsulta = consulta;
-        _cargando = true;
-        _errorCarga = false;
-        StateHasChanged();
+        if (!silenciosa)
+        {
+            _cargando = true;
+            _errorCarga = false;
+            StateHasChanged();
+        }
         try
         {
             // Las opciones de las pastillas «Delegación» y «Oficio» son las del catálogo de la Empresa en juego.
@@ -606,6 +646,7 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (_desechado || carga != _cargaVigente) return;
             var resultado = await Mediator.Send(consulta, cancelacion.Token);
             if (_desechado || carga != _cargaVigente) return;
+            _errorCarga = false;
             _totalElementos = resultado.TotalElementos;
             _recuentosPorEstado = resultado.RecuentosPorEstado;
             if (_totalElementos > 0) _alcanceCero = false;
@@ -628,10 +669,11 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             if (_pagina > TotalPaginas)
             {
                 _pagina = TotalPaginas;
-                await CargarListaAsync();
+                await CargarListaAsync(silenciosa);
             }
         }
         catch (Exception) when (_desechado || carga != _cargaVigente) { }
+        catch (Exception) when (silenciosa) { throw; }
         catch (Exception) { _errorCarga = true; }
         finally
         {
@@ -640,6 +682,12 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
             {
                 _cargando = false;
                 StateHasChanged();
+                // Un aviso llegado durante la carga: puede que esta leyera antes del cambio.
+                if (_releerTrasCarga)
+                {
+                    _releerTrasCarga = false;
+                    _repintado?.PedirRelectura();
+                }
             }
         }
     }
@@ -716,9 +764,9 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
         if (_idEnfocado is { } enfocado && pintadas.All(t => t.Id != enfocado)) _idEnfocado = null;
     }
 
-    /// <summary>Fila en rojo: lo que falta o vence (el tinte de peligro de la fila). «Sin confirmar» no cuenta.</summary>
+    /// <summary>Fila en rojo: lo que bloquea el acceso, un obligatorio que falta o vence (el tinte de peligro de la fila). Un vencido que solo avisa y «Sin confirmar» no cuentan.</summary>
     private static bool EsFilaRoja(TrabajadorListaDto item) =>
-        EstadoDocumentoUi.ConFaltantes(item.EstadoDocumental, item.DocumentosFaltantes.Count > 0) is EstadoDocumento.Faltante or EstadoDocumento.Vencido;
+        item.EstadoDocumental is EstadoDocumento.Faltante || item.EstadoDocumental is EstadoDocumento.Vencido && !item.VencidoSinBloqueo;
 
     /// <summary>Filas que se piden por página: agrupada, todas las filtradas, para que el tamaño de página no corte los grupos.</summary>
     private int TamanoPedido => AgrupacionDeLista.TamanoPedido(Agrupado, _tamanoPagina);
@@ -1783,9 +1831,10 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private string ClaseTarjeta(TrabajadorListaDto item)
     {
         // Mismo criterio que Empresas y la maqueta: rojo para lo que falta o vence, ámbar para lo que está por vencer o en
-        // tolerancia; «Sin confirmar» no tiñe.
+        // tolerancia; «Sin confirmar» no tiñe. Un vencido que ningún Centro marca obligatorio es aviso (decisión del 2026-10-23).
         var tinte = item.EstadoDocumental switch
         {
+            EstadoDocumento.Vencido when item.VencidoSinBloqueo => " fila-tintada-aviso",
             EstadoDocumento.Faltante or EstadoDocumento.Vencido => " fila-tintada-peligro",
             EstadoDocumento.Urgente or EstadoDocumento.Proximo or EstadoDocumento.EnTolerancia => " fila-tintada-aviso",
             _ => string.Empty

@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario;
 using CaeManager.Application.Documentos.Queries.ObtenerSelloEmpresa;
+using CaeManager.Web.Services;
 using MediatR;
 
 namespace CaeManager.Web.Features.Documentos;
@@ -29,7 +30,7 @@ public static class FirmasGuardadasEndpoints
     /// </summary>
     public static async Task<IResult> ServirFirmaAsync(
         HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-        CancellationToken cancellationToken)
+        ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
     {
         var firma = await mediator.Send(new ObtenerFirmaGuardadaUsuarioQuery(), cancellationToken);
         if (firma is null)
@@ -40,7 +41,17 @@ public static class FirmasGuardadasEndpoints
         // No pasa por IRegistroAccesoDocumentoSensibleService (DEC-36,
         // HO-099-01 § 6-7): FirmaGuardadaUsuario es una imagen de firma,
         // sin TipoDocumentoId — no es un Documento del catálogo.
-        var flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(firma.ImagenUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return ErroresLecturaSensible.ArchivoAusente(firma.Id,
+                fabricaRegistro
+                    .CreateLogger(typeof(FirmasGuardadasEndpoints).FullName!));
+        }
         return Results.File(flujo, "image/png", enableRangeProcessing: true);
     }
 
@@ -73,7 +84,7 @@ public static class FirmasGuardadasEndpoints
     /// </summary>
     public static async Task<IResult> ServirSelloAsync(
         Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
-        CancellationToken cancellationToken)
+        ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
     {
         var sello = await mediator.Send(new ObtenerSelloEmpresaQuery(id), cancellationToken);
         if (sello is null)
@@ -85,7 +96,17 @@ public static class FirmasGuardadasEndpoints
         // HO-099-01 § 6-7): mismo motivo que /mi-firma/archivo arriba —
         // SelloEmpresa es una imagen de sello, no un Documento
         // clasificable por TipoDocumento.
-        var flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(sello.ImagenUrl, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return ErroresLecturaSensible.ArchivoAusente(id,
+                fabricaRegistro
+                    .CreateLogger(typeof(FirmasGuardadasEndpoints).FullName!));
+        }
         return Results.File(flujo, "image/png", enableRangeProcessing: true);
     }
 }

@@ -11,9 +11,11 @@ namespace CaeManager.Application.Documentos;
 /// Empresa o Vehículo), calculado en bloque para una página entera de una
 /// tabla.
 ///
-/// Existe porque esas tres entidades <b>no tienen estado propio</b> en el
-/// modelo — a diferencia de Centro, que sí tiene
-/// <see cref="Domain.Centros.EstadoCentro"/>. La pregunta que el gestor hace
+/// Es el cálculo del peor estado de vigencia: el recálculo del estado materializado lo usa para escribir la fila de Empresa
+/// y de Trabajador (<c>EstadosEntidad</c>), y los listados lo usan cuando no pueden leerla (Tenant sin completar, alcance
+/// parcial; <c>ILectorEstadoMaterializado</c>). Las tres entidades <b>no tienen estado propio</b> en el modelo de dominio
+/// — a diferencia de Centro, que sí tiene
+/// <see cref="Domain.Centros.EstadoCentro"/> —; lo que se guarda es una proyección derivada. La pregunta que el gestor hace
 /// de verdad ("enséñame los trabajadores con algo vencido") se responde con
 /// el mismo semáforo que rige en el resto del sistema, no con un concepto
 /// nuevo: el estado se deriva con <see cref="CalculadoraEstadoDocumento"/>, la
@@ -27,8 +29,10 @@ namespace CaeManager.Application.Documentos;
 /// <c>ObtenerAlertasQuery</c> y se incorporará aquí cuando ese cálculo se
 /// extraiga a su propio servicio.
 ///
-/// Subcontrata queda fuera a propósito: no es un
-/// <see cref="AmbitoAplicacion"/>, no tiene Documentos propios.
+/// Subcontrata no es un <see cref="AmbitoAplicacion"/> propio: es una fila de
+/// Empresas, y sus documentos de Empresa se piden con
+/// <see cref="AmbitoAplicacion.Empresa"/> y su Id (el estado de la Subcontrata
+/// en su listado, decisión D-1).
 /// </summary>
 public interface ICalculoEstadoDocumentalService
 {
@@ -71,6 +75,12 @@ public class CalculoEstadoDocumentalService(
     ITiposDocumentoQueryContext tiposDocumentoContext)
     : ICalculoEstadoDocumentalService
 {
+    /// <summary>
+    /// Etiqueta SQL (<c>TagWith</c>) de la consulta del desglose: la identifica en los tests que miden cuántas veces se
+    /// lanza, porque la evaluación de requisitos obligatorios de Centro también lee Documentos y Tipos de documento.
+    /// </summary>
+    public const string EtiquetaDesglose = "desglose-documental";
+
     public async Task<IReadOnlyDictionary<Guid, EstadoDocumento>> CalcularPeorEstadoAsync(
         AmbitoAplicacion ambito, IReadOnlyList<Guid> propietarioIds, CancellationToken cancellationToken)
     {
@@ -191,7 +201,7 @@ public class CalculoEstadoDocumentalService(
                 TipoDocumentoNombre = tipo != null ? tipo.Nombre : null,
                 documento.EstadoVigencia,
                 documento.FechaVencimiento
-            }).ToListAsync(cancellationToken);
+            }).TagWith(EtiquetaDesglose).ToListAsync(cancellationToken);
 
         if (filas.Count == 0)
             return new Dictionary<Guid, DesgloseDocumentalDto>();

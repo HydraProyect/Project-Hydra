@@ -149,6 +149,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler",
         "Documentos.MarcarAcreditacionRechazadaCommandHandler",
         "Documentos.MarcarAcreditacionSubidaCommandHandler",
+        "Documentos.ConfirmarSubidaDesdeExtensionCommandHandler",
+        "Documentos.DeshacerSubidaDesdeExtensionCommandHandler",
         "Documentos.RenovarDocumentoCommandHandler",
         "Documentos.ResolverRevisionIaDocumentoCommandHandler",
         "Documentos.RestaurarAnotacionAcreditacionCommandHandler",
@@ -204,6 +206,11 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "ContratosAcceso.EliminarContratoAccesoCommandHandler",
         "ContratosAcceso.ReabrirContratoAccesoCommandHandler",
         "ContratosAcceso.VincularTenantContratistaCommandHandler",
+        // Copias de evidencia validada (Inbound M1, PR 4): la autoridad es la de la lectura Inbound
+        // (LecturaInboundAutoridad), por el Cliente del contrato de la evidencia.
+        "ContratosAcceso.RegistrarEvidenciaInboundCommandHandler",
+        "ContratosAcceso.RechazarEvidenciaInboundCommandHandler",
+        "ContratosAcceso.ValidarEvidenciaInboundCommandHandler",
 
         // Proyectos
         "Proyectos.ActualizarProyectoCommandHandler",

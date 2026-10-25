@@ -250,7 +250,7 @@ public class LecturaInboundBajoRuntimeTests : IAsyncLifetime
         documentos.Single(d => d.DocumentoId == _deEmpresa).TrabajadorId.Should().BeNull();
 
         (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deTrabajador))
-            .Should().Be(new ArchivoInboundDto(_deTrabajador, "y/ana.pdf"));
+            .Should().Be(new ArchivoInboundDto(_deTrabajador, _contratista.Id, "y/ana.pdf", false));
         (await lector.ArchivoAutorizadoAsync(_vigente.Id, _deContraparte))
             .Should().BeNull("un Documento de una Empresa contraparte de Y no es de su Empresa propia");
         (await lector.ArchivoAutorizadoAsync(_vigente.Id, _eliminadoDoc)).Should().BeNull("un Documento eliminado no se abre");

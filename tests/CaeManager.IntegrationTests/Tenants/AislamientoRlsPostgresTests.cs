@@ -48,7 +48,7 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         await using var dbContext = new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
         await dbContext.Database.MigrateAsync();
 
-        dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid()));
+        dbContext.ClavesApi.Add(new ClaveApi("Integración de prueba", "cae_abcd", "hash-de-prueba", Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba de aislamiento"));
 
         var tipoDocumento = new TipoDocumento("Certificado", 12, aplicaVencimientoAutomatico: true, 1, AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
         dbContext.TiposDocumento.Add(tipoDocumento);
@@ -103,13 +103,8 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         return conexion;
     }
 
-    private static async Task FijarTenantDeSesionAsync(NpgsqlConnection conexion, Guid? tenantId)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", tenantId?.ToString() ?? string.Empty);
-        await comando.ExecuteNonQueryAsync();
-    }
+    private static Task FijarTenantDeSesionAsync(NpgsqlConnection conexion, Guid? tenantId) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
     private static async Task<long> ContarEmpresasAsync(NpgsqlConnection conexion)
     {

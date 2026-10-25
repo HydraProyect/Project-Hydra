@@ -41,7 +41,7 @@ namespace CaeManager.Web.Services;
 /// </summary>
 public class ClienteActivoSeleccionado(
     IHttpContextAccessor httpContextAccessor,
-    IDataProtectionProvider dataProtectionProvider) : IClienteActivoSeleccionado
+    IDataProtectionProvider dataProtectionProvider) : IClienteActivoSeleccionado, IAvisoSeleccionRetirada
 {
     public const string NombreCookie = "cae_cliente_activo";
 
@@ -181,23 +181,56 @@ public class ClienteActivoSeleccionado(
     /// </summary>
     public void Invalidar()
     {
-        var teniaSeleccion = _tenantIdSeleccionado is not null;
+        var tenantRetirado = _tenantIdSeleccionado;
 
         _tenantIdSeleccionado = null;
         _asignacionOperacionIdSeleccionada = null;
         _sesionPrivilegiadaIdSeleccionada = null;
         _leidoDeCookie = true;
 
-        if (teniaSeleccion)
+        if (tenantRetirado is { } retirado)
+        {
+            // Primero las bajas, cada una protegida: un oyente de SeleccionRetirada que lance no puede dejarlas sin hacer.
+            AvisarTenantRetirado(retirado);
             SeleccionRetirada?.Invoke();
+        }
     }
+
+    /// <summary>
+    /// Cada oyente por separado: uno que lance no deja a los demás suscritos al Tenant retirado ni tumba a quien retira
+    /// la selección (el temporizador de revalidación del circuito).
+    /// </summary>
+    private void AvisarTenantRetirado(Guid retirado)
+    {
+        if (TenantSeleccionadoRetirado is not { } oyentes)
+            return;
+
+        foreach (var oyente in oyentes.GetInvocationList().Cast<Action<Guid>>())
+        {
+            try
+            {
+                oyente(retirado);
+            }
+            catch
+            {
+                // Mejor esfuerzo: el oyente que falla lo hace con su propio estado; el resto sigue.
+            }
+        }
+    }
+
+    /// <inheritdoc cref="IAvisoSeleccionRetirada.TenantSeleccionadoRetirado" />
+    public event Action<Guid>? TenantSeleccionadoRetirado;
 
     /// <summary>
     /// Se dispara cuando una selección que estaba viva se retira (ventana de
     /// soporte terminada, delegación revocada, operación cerrada). Existe para
     /// que la interfaz de un circuito ya abierto pueda decirlo: retirar la
     /// selección cambia el tenant de las consultas siguientes, pero lo que la
-    /// pantalla ya pintó no se entera. No decide nada ni autoriza nada.
+    /// pantalla ya pintó no se entera. Lo que tiene que darse de baja de los
+    /// avisos del Tenant retirado (<c>CacheEstadoCircuito</c>,
+    /// <see cref="SuscripcionMensajesDelTenantActual"/>) escucha
+    /// <see cref="TenantSeleccionadoRetirado"/>, que además dice cuál era.
+    /// No decide nada ni autoriza nada.
     /// </summary>
     public event Action? SeleccionRetirada;
 

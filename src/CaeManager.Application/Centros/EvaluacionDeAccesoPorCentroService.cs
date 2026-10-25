@@ -50,6 +50,41 @@ public interface IEvaluacionDeAccesoPorCentroService
     Task<EvaluacionDeAccesoPorCentro> EvaluarAsync(IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// La misma evaluación que <see cref="IEvaluacionDeAccesoPorCentroService"/>, sin el alcance del usuario: la usa solo el
+/// estado materializado, que es dato del Tenant propietario y no de quien lo mira. RLS sigue acotando al Tenant de la
+/// conexión. Ninguna pantalla debe llamarla: una pantalla que la usara enseñaría lo que exigen Centros que el usuario no
+/// alcanza (lo congela <c>ReglasDeNegocioSinCopiasTests</c>).
+/// <para>
+/// Consecuencia para quien lea el estado materializado: el estado guardado de un Trabajador o de una Empresa es el de
+/// <b>todos</b> los Centros del Tenant, el que vería un usuario sin Asignación de Cartera. Filtrar filas no basta para un
+/// usuario con alcance restringido, porque es un agregado, y recomponer el rojo desde los pares de <c>EstadosRequisito</c>
+/// tampoco: no guardan la tolerancia del Centro, que decide si un documento vencido bloquea. Por eso el lector
+/// (<c>ILectorEstadoMaterializado</c>) solo sirve el estado guardado a quien alcanza todos los Centros del Tenant, y a los
+/// demás les calcula el rojo con <see cref="IEvaluacionDeAccesoPorCentroService"/>, que sí aplica su alcance (diseño del
+/// estado materializado, § 3.2, § 3.4 y § 13.9).
+/// </para>
+/// </summary>
+public interface IEvaluacionDeAccesoDelTenant
+{
+    Task<EvaluacionDeAccesoPorCentro> EvaluarCentrosAsync(IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Todas las filas de requisitos de esos Centros (no solo las bloqueantes), con la misma resolución de condiciones que la
+    /// evaluación: el estado materializado las necesita para saber qué pares cuentan para el cumplimiento, cuáles bloquean y
+    /// cuándo deja un documento de valer en el Centro (<c>ProximoCambioEl</c>).
+    /// </summary>
+    Task<IReadOnlyList<CondicionDeRequisitoDelCentro>> CondicionesDeRequisitosAsync(
+        IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// Una fila de requisitos de un Centro: <see cref="BloqueaAcceso"/> con la condición de la evaluación (incluido, marcado, Tipo
+/// sin archivar y de un ámbito que bloquea) y las condiciones de acceso resueltas como <c>VigenciaEnCentro.Condiciones</c>.
+/// </summary>
+public sealed record CondicionDeRequisitoDelCentro(
+    Guid CentroId, Guid TipoDocumentoId, bool Incluido, bool BloqueaAcceso, CondicionesDeAccesoDelCentro Condiciones);
+
 public class EvaluacionDeAccesoPorCentroService(
     ICentrosQueryContext centrosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
@@ -57,14 +92,72 @@ public class EvaluacionDeAccesoPorCentroService(
     IAsignacionesQueryContext asignacionesContext,
     IDocumentosQueryContext documentosContext,
     IAlcanceDatosService alcanceDatos)
-    : IEvaluacionDeAccesoPorCentroService
+    : IEvaluacionDeAccesoPorCentroService, IEvaluacionDeAccesoDelTenant
 {
     public async Task<EvaluacionDeAccesoPorCentro> EvaluarAsync(
-        IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken)
+        IReadOnlyCollection<Guid>? centroIds, CancellationToken cancellationToken) =>
+        await EvaluarEnAlcanceAsync(centroIds, await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken), cancellationToken);
+
+    public Task<EvaluacionDeAccesoPorCentro> EvaluarCentrosAsync(
+        IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken) =>
+        EvaluarEnAlcanceAsync(centroIds, centroIdsVisibles: null, cancellationToken);
+
+    public async Task<IReadOnlyList<CondicionDeRequisitoDelCentro>> CondicionesDeRequisitosAsync(
+        IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0)
+            return [];
+
+        var filas = await (
+            from tc in tiposDocumentoContext.TiposDocumentoCentros
+            where centroIds.Contains(tc.CentroId)
+            join tipo in tiposDocumentoContext.TiposDocumento on tc.TipoDocumentoId equals tipo.Id
+            select new
+            {
+                tc.CentroId,
+                tc.TipoDocumentoId,
+                tc.Incluido,
+                tc.PeriodicidadEspecialMeses,
+                tc.ToleranciaDias,
+                // Misma condición que la carga de EvaluarEnAlcanceAsync: incluido, marcado, Tipo sin archivar y de un ámbito que bloquea.
+                Bloquea = tc.Incluido && tc.BloqueaAcceso && !tipo.Archivado,
+                tipo.AmbitoAplicacion
+            })
+            .ToListAsync(cancellationToken);
+        if (filas.Count == 0)
+            return [];
+
+        var titularPorCentro = await TitularesDeCentrosAsync(filas.Select(f => f.CentroId).Distinct().ToList(), cancellationToken);
+        var toleranciasDeCliente = await VigenciaEnCentro.CargarToleranciasDeClientesAsync(
+            tiposDocumentoContext, titularPorCentro.Values.Distinct().ToList(),
+            filas.Select(f => f.TipoDocumentoId).Distinct().ToList(), cancellationToken);
+
+        return filas
+            .Where(f => titularPorCentro.ContainsKey(f.CentroId))
+            .Select(f => new CondicionDeRequisitoDelCentro(
+                f.CentroId, f.TipoDocumentoId, f.Incluido,
+                f.Bloquea && ReglaBloqueoDeAcceso.AmbitoPuedeBloquear(f.AmbitoAplicacion),
+                // Como VigenciaEnCentro.Condiciones: la fila del Centro solo cuenta si el Tipo está incluido.
+                new CondicionesDeAccesoDelCentro(
+                    f.Incluido ? f.PeriodicidadEspecialMeses : null,
+                    ReglaBloqueoDeAcceso.ResolverToleranciaDias(
+                        f.Incluido ? f.ToleranciaDias : null,
+                        toleranciasDeCliente.TryGetValue((titularPorCentro[f.CentroId], f.TipoDocumentoId), out var delCliente) ? delCliente : null))))
+            .ToList();
+    }
+
+    /// <summary>El Cliente empresarial titular de cada Centro (el único sitio de este servicio que lo lee).</summary>
+    private async Task<Dictionary<Guid, Guid>> TitularesDeCentrosAsync(IReadOnlyCollection<Guid> centroIds, CancellationToken cancellationToken) =>
+        await centrosContext.Centros
+            .Where(c => centroIds.Contains(c.Id))
+            .Select(c => new { c.Id, Titular = c.ClienteId })
+            .ToDictionaryAsync(c => c.Id, c => c.Titular, cancellationToken);
+
+    private async Task<EvaluacionDeAccesoPorCentro> EvaluarEnAlcanceAsync(
+        IReadOnlyCollection<Guid>? centroIds, IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var hoy = DiaDeNegocio.Hoy();
 
-        var centroIdsVisibles = await alcanceDatos.ObtenerCentroIdsVisiblesAsync(cancellationToken);
         bool EnAlcance(Guid centroId) =>
             (centroIdsVisibles is null || centroIdsVisibles.Contains(centroId))
             && (centroIds is null || centroIds.Contains(centroId));
@@ -84,14 +177,11 @@ public class EvaluacionDeAccesoPorCentroService(
             return EvaluacionDeAccesoPorCentro.Vacia;
 
         var centrosDeFilas = filas.Select(f => f.CentroId).Distinct().ToList();
-        var centros = await centrosContext.Centros
-            .Where(c => centrosDeFilas.Contains(c.Id))
-            .Select(c => new { c.Id, Titular = c.ClienteId })
-            .ToListAsync(cancellationToken);
+        var titularPorCentro = await TitularesDeCentrosAsync(centrosDeFilas, cancellationToken);
         var sinGestionCae = await CentrosSinGestionCae.FiltrarAsync(centrosContext, centrosDeFilas, cancellationToken);
-        var clientePorCentro = centros
-            .Where(c => !sinGestionCae.Contains(c.Id))
-            .ToDictionary(c => c.Id, c => c.Titular);
+        var clientePorCentro = titularPorCentro
+            .Where(c => !sinGestionCae.Contains(c.Key))
+            .ToDictionary(c => c.Key, c => c.Value);
         filas = filas.Where(f => clientePorCentro.ContainsKey(f.CentroId)).ToList();
 
         if (filas.Count == 0)

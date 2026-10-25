@@ -218,6 +218,8 @@ public class ReclamacionesTabTests : BunitContext
     [Theory]
     [InlineData("Reclamacion.EnvioFallido", 1)]
     [InlineData(RegistroEnvioReclamacionService.CodigoEnvioParcial, 2)]
+    // El correo salió pero no se guardó: el historial no cambió, así que no se recarga; el aviso pide reenviarla.
+    [InlineData(RegistroEnvioReclamacionService.CodigoRegistroFallido, 1)]
     public async Task Un_fallo_de_entrega_del_correo_se_muestra_como_error_y_el_envio_parcial_recarga_el_historial(
         string codigo, int cargasDeHistorialEsperadas)
     {

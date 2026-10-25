@@ -1,3 +1,11 @@
+using CaeManager.Application.Configuracion;
+using System.Reflection;
+using CaeManager.Domain.Common;
+using CaeManager.Infrastructure.Alertas;
+using CaeManager.Infrastructure.Coordinacion;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Configuracion;
 using CaeManager.Infrastructure.Configuracion;
@@ -87,6 +95,94 @@ public class RegistroAutomatizacionesServiceTests
         estado.RegistrarEjecucion(DateTime.UtcNow, exitosa: false, mensajeError: mensajeLargo);
 
         estado.UltimoMensajeError!.Length.Should().Be(EstadoAutomatizacion.LongitudMaximaUltimoMensajeError);
+    }
+
+    [Theory]
+    [InlineData("2026-07-01T21:30:00Z", "2026-07-01T22:30:00Z", 2)]
+    [InlineData("2026-07-01T22:30:00Z", "2026-07-02T00:30:00Z", 1)]
+    [InlineData("2026-01-01T22:30:00Z", "2026-01-01T23:30:00Z", 2)]
+    public async Task Reiniciar_respeta_el_dia_de_Madrid_y_reanuda_al_dia_siguiente(
+        string primerInstante, string siguienteInstante, int enviosEsperados)
+    {
+        var repositorio = new EstadoAutomatizacionRepositorioFalso();
+        var registro = new RegistroAutomatizacionesService(repositorio, new UnitOfWorkFalso());
+        using var servicios = new ServiceCollection()
+            .AddSingleton<IEstadoAutomatizacionRepository>(repositorio)
+            .AddSingleton<IRegistroAutomatizacionesService>(registro)
+            .BuildServiceProvider();
+        var tenantId = Guid.NewGuid();
+        var reloj = new RelojFijo(DateTimeOffset.Parse(primerInstante));
+        using var tiempo = DiaDeNegocio.FijarRelojEnEsteFlujo(reloj);
+
+        var primero = new EnvioFalso(servicios.GetRequiredService<IServiceScopeFactory>());
+        await ProcesarAsync(primero, tenantId);
+        primero.Envios.Should().Be(1);
+        // El registro usa UTC real: fijamos el instante persistido de la ejecución simulada.
+        var estado = await repositorio.ObtenerPorTrabajoAsync(CatalogoAutomatizaciones.AlertasVencimientoDiarias);
+        estado!.RegistrarEjecucion(reloj.GetUtcNow().UtcDateTime, true);
+
+        var segundo = new EnvioFalso(servicios.GetRequiredService<IServiceScopeFactory>());
+        await ProcesarAsync(segundo, tenantId);
+        segundo.Envios.Should().Be(0, "un segundo arranque del mismo día no repite el envío");
+
+        reloj.Instante = DateTimeOffset.Parse(siguienteInstante);
+        var siguiente = new EnvioFalso(servicios.GetRequiredService<IServiceScopeFactory>());
+        await ProcesarAsync(siguiente, tenantId);
+        (primero.Envios + segundo.Envios + siguiente.Envios).Should().Be(enviosEsperados);
+    }
+
+    [Fact]
+    public async Task Un_envio_fallido_del_mismo_dia_permite_reintentar()
+    {
+        var repositorio = new EstadoAutomatizacionRepositorioFalso();
+        var estado = new EstadoAutomatizacion(CatalogoAutomatizaciones.AlertasVencimientoDiarias);
+        estado.RegistrarEjecucion(DateTime.UtcNow, false);
+        repositorio.Agregar(estado);
+        using var servicios = new ServiceCollection()
+            .AddSingleton<IEstadoAutomatizacionRepository>(repositorio)
+            .AddSingleton<IRegistroAutomatizacionesService>(new RegistroAutomatizacionesService(repositorio, new UnitOfWorkFalso()))
+            .BuildServiceProvider();
+        var servicio = new EnvioFalso(servicios.GetRequiredService<IServiceScopeFactory>());
+
+        await ProcesarAsync(servicio, Guid.NewGuid());
+
+        servicio.Envios.Should().Be(1);
+        estado.UltimoResultadoExitoso.Should().BeTrue();
+    }
+
+    private static Task ProcesarAsync(EnvioAlertasVencimientoHostedService servicio, Guid tenantId) =>
+        (Task)typeof(EnvioAlertasVencimientoHostedService)
+            .GetMethod("ProcesarTenantAsync", BindingFlags.Instance | BindingFlags.NonPublic)!
+            .Invoke(servicio, [tenantId, CancellationToken.None])!;
+
+    private sealed class RelojFijo(DateTimeOffset instante) : TimeProvider
+    {
+        public DateTimeOffset Instante { get; set; } = instante;
+        public override DateTimeOffset GetUtcNow() => Instante;
+    }
+
+    // Doble de la frontera de envío: jamás resuelve IEmailService ni abre conexiones.
+    private sealed class EnvioFalso(IServiceScopeFactory ambitos) : EnvioAlertasVencimientoHostedService(
+        ambitos, new LiderFalso(), Options.Create(new AlertasPorCorreoOptions()),
+        NullLogger<EnvioAlertasVencimientoHostedService>.Instance)
+    {
+        public int Envios { get; private set; }
+
+        protected override Task<(string? MensajeError, int AlertasEvaluadas)> EjecutarEnvioAsync(
+            IServiceScope ambito, Guid tenantId, CancellationToken stoppingToken)
+        {
+            Envios++;
+            return Task.FromResult<(string?, int)>((null, 1));
+        }
+    }
+
+    private sealed class LiderFalso : IEleccionLiderService
+    {
+        public async Task<bool> IntentarEjecutarComoLiderAsync(string nombre, Func<CancellationToken, Task> accion, CancellationToken cancellationToken)
+        {
+            await accion(cancellationToken);
+            return true;
+        }
     }
 
     private sealed class EstadoAutomatizacionRepositorioFalso : IEstadoAutomatizacionRepository

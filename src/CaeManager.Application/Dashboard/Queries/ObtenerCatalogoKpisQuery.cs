@@ -4,12 +4,14 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Configuracion;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.DocumentosIa;
+using CaeManager.Application.EstadoMaterializado;
 using CaeManager.Application.Facturacion;
 using CaeManager.Application.Incidencias;
 using CaeManager.Application.Proyectos;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Facturacion;
 using CaeManager.Domain.Incidencias;
 using CaeManager.Domain.Proyectos;
@@ -77,9 +79,12 @@ public class ObtenerCatalogoKpisQueryHandler(
     IIncidenciasQueryContext incidenciasContext, IAlcanceDatosService alcanceDatos, IMediator mediator,
     IAsignacionesQueryContext asignacionesContext, IDocumentosQueryContext documentosContext,
     IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext,
-    IVisitasQueryContext visitasContext, IConfiguracionQueryContext configuracionContext)
+    IVisitasQueryContext visitasContext, IConfiguracionQueryContext configuracionContext,
+    ILectorCumplimientoDeDireccion? lectorEstado = null)
     : IRequestHandler<ObtenerCatalogoKpisQuery, CatalogoKpisValoresDto>
 {
+    private readonly ILectorCumplimientoDeDireccion lector = lectorEstado ?? SinLectorDeCumplimientoDeDireccion.Instancia;
+
     public async Task<CatalogoKpisValoresDto> Handle(ObtenerCatalogoKpisQuery request, CancellationToken cancellationToken)
     {
         var documental = await mediator.Send(new ObtenerKpisDashboardQuery(), cancellationToken);
@@ -121,13 +126,14 @@ public class ObtenerCatalogoKpisQueryHandler(
     }
 
     /// <summary>
-    /// Reutiliza <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
+    /// Lee de las tablas del estado materializado (<see cref="ILectorCumplimientoDeDireccion"/>) los Centros que están al día
+    /// y calcula el resto con <see cref="ICalculoEstadoCentroService.CalcularCumplimientoAsync"/>
     /// (Centro 360, Project-Hydra-Negocio/tecnico/docs/ux-audit/PLAN-EJECUCION-UX.md § 0.5) — sustituye al antiguo KPI de
     /// Evaluaciones (retirado). <c>TotalRequeridosCumplimiento</c> es el
     /// denominador que <see cref="ObtenerDashboardEjecutivoQuery"/> necesita
     /// para ponderar el % al fusionar varios tenants.
     /// </summary>
-    private async Task<(double? Porcentaje, int TotalRequeridos, IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento)>
+    internal async Task<(double? Porcentaje, int TotalRequeridos, IReadOnlyList<CentroCumplimientoDto> CentrosConMenorCumplimiento)>
         CalcularCumplimientoAsync(IReadOnlyList<Guid>? centroIdsVisibles, CancellationToken cancellationToken)
     {
         var centrosQuery = centrosContext.Centros.AsQueryable();
@@ -138,8 +144,15 @@ public class ObtenerCatalogoKpisQueryHandler(
         if (centros.Count == 0)
             return (null, 0, []);
 
-        var cumplimientoPorCentro = await calculoEstadoCentro.CalcularCumplimientoAsync(
-            centros.Select(c => c.Id).ToList(), cancellationToken);
+        // Del estado materializado los Centros con fila fiable en un Tenant completo (PR 10 del plan; el lector ya aplica esas
+        // guardas y no mira el alcance: los Centros son los que el usuario ya alcanza), y el cálculo de siempre para el resto.
+        var ids = centros.Select(c => c.Id).ToList();
+        var cumplimientoPorCentro = new Dictionary<Guid, FraccionCumplimiento>(
+            await lector.CumplimientoDeCentrosAsync(ids, cancellationToken));
+        var sinLeer = ids.Where(id => !cumplimientoPorCentro.ContainsKey(id)).ToList();
+        if (sinLeer.Count > 0)
+            foreach (var (id, fraccion) in await calculoEstadoCentro.CalcularCumplimientoAsync(sinLeer, cancellationToken))
+                cumplimientoPorCentro[id] = fraccion;
 
         var totalAlDia = cumplimientoPorCentro.Values.Sum(f => f.AlDia);
         var totalRequeridos = cumplimientoPorCentro.Values.Sum(f => f.Requeridos);
@@ -149,6 +162,8 @@ public class ObtenerCatalogoKpisQueryHandler(
             .Select(c => new { c.Id, c.Nombre, Fraccion = cumplimientoPorCentro.GetValueOrDefault(c.Id) })
             .Where(c => c.Fraccion is { Requeridos: > 0 })
             .OrderBy(c => c.Fraccion!.Porcentaje)
+            .ThenBy(c => c.Nombre, StringComparer.Ordinal)
+            .ThenBy(c => c.Id)
             .Take(5)
             .Select(c => new CentroCumplimientoDto(c.Id, c.Nombre, c.Fraccion!.Porcentaje!.Value))
             .ToList();

@@ -40,7 +40,8 @@ public partial class SubcontratasListaGen2Tests
     /// <summary>Una Subcontrata con todo lo que la fila pinta: CIF, dos trabajadores, nivel, cumplimiento y un vencido corregible.</summary>
     private static SubcontrataListaDto Completa(Guid id) =>
         Subcontrata("Andamios Bidasoa S.L.", id: id, cumplimiento: 60, nivel: NivelServicioSubcontrata.Supervisada,
-            vencidas: [Corregible("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)]) with
+            vencidas: [Corregible("Aptitud médica — Sonia Cano", EstadoDocumento.Vencido)],
+            estado: EstadoDocumento.Vencido, trabajadoresBloqueados: 1) with
         {
             Trabajadores = [new TrabajadorIdentidadSubcontrataDto(Guid.NewGuid(), "Sonia", "Cano"), new(Guid.NewGuid(), "Luis", "Sanz")]
         };
@@ -66,7 +67,7 @@ public partial class SubcontratasListaGen2Tests
         fila.QuerySelector(".celda-nivel-subcontrata[title^='Supervisada:']").Should().NotBeNull("el nivel se explica sin atribuir la gestion a TALVEG");
         fila.QuerySelector("[role=progressbar], .barra-cumplimiento")!.TextContent.Should().Contain("60");
         fila.QuerySelector(".estado-fila .badge")!.TextContent.Trim().Should().Be("Vencido");
-        fila.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("1 vencido");
+        fila.QuerySelector(".estado-fila-motivo")!.TextContent.Trim().Should().Be("1 Trabajador bloqueado en algún Centro");
         fila.QuerySelector("a.boton-360-pagina")!.GetAttribute("href").Should().Be($"/subcontratas/{id}");
     }
 

@@ -34,6 +34,9 @@ public record ObtenerPlataformaCaeClienteQuery(Guid ClienteEmpresarialId) : IReq
 /// <param name="CodigoCliente">Solo para los roles con escritura; <c>null</c> para el resto.</param>
 public record PlataformaCaeClienteDto(bool Registrada, string? Nombre, string? UrlPortal, string? CodigoCliente)
 {
+    /// <summary>Token de concurrencia que la caja reenvía al guardar; <c>null</c> sin plataforma registrada.</summary>
+    public Guid? Version { get; init; }
+
     /// <summary>
     /// Sin plataforma registrada en el Cliente empresarial: las plataformas CAE en las que se acreditan ya sus Centros
     /// (canal de tipo Plataforma de cada Centro, por el nombre de su proveedor o, sin él, por su etiqueta). Revisión 1:1
@@ -64,7 +67,7 @@ public class ObtenerPlataformaCaeClienteQueryHandler(
 
         var plataforma = await dbContext.PlataformasCaeClienteEmpresarial
             .Where(p => p.ClienteEmpresarialId == request.ClienteEmpresarialId)
-            .Select(p => new PlataformaCaeClienteDto(true, p.Nombre, p.UrlPortal, p.CodigoCliente))
+            .Select(p => new PlataformaCaeClienteDto(true, p.Nombre, p.UrlPortal, p.CodigoCliente) { Version = p.Version })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (plataforma is null)

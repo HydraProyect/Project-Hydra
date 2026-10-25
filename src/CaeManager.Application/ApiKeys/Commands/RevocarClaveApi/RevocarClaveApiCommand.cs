@@ -10,8 +10,12 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.ApiKeys.Commands.RevocarClaveApi;
 
 /// <summary>
-/// Revoca una clave de la API pública. Mismo criterio de autorización que
-/// <see cref="GenerarClaveApi.GenerarClaveApiCommand"/> — ver ahí el porqué.
+/// Revoca una clave de la API pública. Conserva el criterio anterior a la emisión
+/// endurecida de <see cref="GenerarClaveApi.GenerarClaveApiCommand"/>: cuenta del Tenant
+/// de plataforma que es la organización de origen de la delegación de Soporte, sin
+/// exigir AdminPlataforma, 2FA ni que la delegación siga vigente. Retirar aquí la
+/// marca de Tenant de plataforma como autoridad sigue pendiente (bloque C, ver
+/// UsosDeEsPlataformaCongeladosTests).
 /// </summary>
 public record RevocarClaveApiCommand(Guid DelegacionTenantId, Guid ClaveApiId) : ICommand;
 

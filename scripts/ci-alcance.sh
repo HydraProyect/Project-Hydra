@@ -31,10 +31,24 @@
 # en `true`. Lo contrario —saltar por no haber podido preguntar— convertiría un
 # fallo de red en un check obligatorio omitido, que GitHub da por aprobado.
 #
-# RIESGO DECLARADO. Una PR de pantalla que no toque tests/CaeManager.E2ETests/
-# ve sus E2E por primera vez en la cola. Es deliberado (src/CaeManager.Web/ no
-# activa E2E: anularía el ahorro en las PR de pantallas); quien quiera verlos
-# antes pone la etiqueta.
+# RIESGO RETIRADO (2026-10-25). Hasta esa fecha src/CaeManager.Web/ y
+# src/CaeManager.Application/ no activaban E2E ni integración, para ahorrar
+# minutos en las PR de pantallas. Esas PR veían sus E2E o su integración por
+# primera vez en la cola, y la cola, con varias construcciones especulativas,
+# hacía caer también a las PR que iban detrás: la tasa de fallos de
+# `merge_group` subió del 4 % (semanas del 21-09 y del 28-09) al 34 % (semana
+# del 19-10), con los E2E en 98 de 190 runs fallidos. Ejemplos: #1598 (solo
+# Application) cayó 8 veces en la cola por un test de integración que no
+# corrió en su PR. Los minutos de Actions no cuestan en un repositorio
+# público; el recurso escaso es el reloj de la cola. Ahora Web y Application
+# activan E2E, y Application y Domain activan integración. Además,
+# etiquetar-fallo-cola.yml pone «CI: completo» a la PR de un grupo que falla.
+#
+# RIESGO QUE SIGUE DECLARADO. Un cambio solo en src/CaeManager.Web/ (Program.cs,
+# registro de DI, endpoints, middleware) sin nombre sensible en la ruta no
+# activa integración, aunque CaeManager.IntegrationTests referencia Web y la
+# arranca con WebApplicationFactory. Si vuelve a aparecer en la cola, se añade
+# Web a re_integracion.
 #
 # Entradas (entorno): EVENTO, GITHUB_REPOSITORY, GITHUB_SHA, PR_NUMERO (solo en
 # pull_request), GH_TOKEN (lo usa `gh`). Salidas: `integracion`, `e2e` y
@@ -166,10 +180,13 @@ alcance_pr() {
   # Integración: lo que toca base de datos, RLS, migraciones, guiones y
   # autorización. Los directorios de tests entran porque los 6 rojos propios
   # de integración medidos en PR tocaban tests/CaeManager.IntegrationTests/.
-  local re_integracion='^(tests/CaeManager\.IntegrationTests/|src/CaeManager\.Infrastructure/|src/CaeManager\.Migrations\.PostgreSQL/|scripts/)'
+  # Application y Domain entran desde 2026-10-25: los comandos, consultas e
+  # invariantes que prueba la integración viven ahí (ver RIESGO RETIRADO).
+  local re_integracion='^(tests/CaeManager\.IntegrationTests/|src/CaeManager\.(Infrastructure|Migrations\.PostgreSQL|Application|Domain)/|scripts/)'
   local re_nombre='autoriz|authoriz|alcance|permis|rls|tenant'
-  # E2E: los 4 rojos propios de E2E medidos en PR tocaban este directorio.
-  local re_e2e='^tests/CaeManager\.E2ETests/'
+  # E2E: los tests E2E y lo que ejercitan de verdad, las pantallas (Web) y los
+  # casos de uso que esas pantallas invocan (Application).
+  local re_e2e='^(tests/CaeManager\.E2ETests/|src/CaeManager\.(Web|Application)/)'
 
   integracion=false; e2e=false; carga=false
   local porque_integracion="" porque_e2e="" f

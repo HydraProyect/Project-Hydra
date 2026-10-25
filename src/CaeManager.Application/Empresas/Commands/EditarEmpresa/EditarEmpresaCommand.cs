@@ -1,3 +1,4 @@
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -67,8 +68,11 @@ public class EditarEmpresaCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.RazonSocialDuplicada", "Ya existe una empresa con esta razón social."));
 
-        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, request.Id, "Empresa.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, request.Id, "Empresa.CifDuplicado", cancellationToken) is { } duplicadoCif)
+            return Result.Fallo(duplicadoCif);
 
         empresa.Actualizar(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
 

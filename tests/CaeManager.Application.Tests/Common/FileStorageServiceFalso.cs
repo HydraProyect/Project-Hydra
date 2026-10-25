@@ -24,8 +24,14 @@ public class FileStorageServiceFalso : IFileStorageService
     public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
         Task.FromResult<Stream>(new MemoryStream(_archivos[identificador]));
 
+    /// <summary>Si se informa, <see cref="EliminarAsync"/> la lanza sin borrar: para probar la limpieza best-effort que solo avisa.</summary>
+    public Exception? ExcepcionAlEliminar { get; set; }
+
     public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default)
     {
+        if (ExcepcionAlEliminar is not null)
+            throw ExcepcionAlEliminar;
+
         _archivos.Remove(identificador);
         return Task.CompletedTask;
     }

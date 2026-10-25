@@ -139,6 +139,29 @@ public interface ICalculoEstadoCentroService
     /// </summary>
     Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosAsync(
         IReadOnlyList<Guid> centroIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Los pares de <see cref="ObtenerParesExigidosAsync"/> de esos Centros que son de esos Trabajadores, sin calcular los de
+    /// los demás: un par depende solo de su Trabajador, su Centro y su Tipo (recálculo por par del estado materializado).
+    /// Por defecto filtra el resultado completo; el servicio real lee las Asignaciones y los requisitos del Centro igual, pero solo carga los documentos y construye los pares de esos Trabajadores.
+    /// </summary>
+    async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosDeTrabajadoresAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        var ids = trabajadorIds.ToHashSet();
+        return (await ObtenerParesExigidosAsync(centroIds, cancellationToken)).Where(p => ids.Contains(p.TrabajadorId)).ToList();
+    }
+
+    /// <summary>
+    /// Los pares de <see cref="ObtenerParesDeEmpresaExigidosAsync"/> de esos Centros que son de esas Empresas, sin calcular
+    /// los de las demás. Por defecto filtra el resultado completo; el servicio real lee las Asignaciones del Centro igual, pero solo carga los documentos y construye los pares de esas Empresas.
+    /// </summary>
+    async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> empresaIds, CancellationToken cancellationToken)
+    {
+        var ids = empresaIds.ToHashSet();
+        return (await ObtenerParesDeEmpresaExigidosAsync(centroIds, cancellationToken)).Where(p => ids.Contains(p.EmpresaId)).ToList();
+    }
 }
 
 public class CalculoEstadoCentroService(
@@ -710,6 +733,30 @@ public class CalculoEstadoCentroService(
         return await ObtenerParesDeEmpresaAsync(conGestionCae, [], DiaDeNegocio.Hoy(), cancellationToken);
     }
 
+    public async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesExigidosDeTrabajadoresAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> trabajadorIds, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0 || trabajadorIds.Count == 0)
+            return [];
+
+        var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
+        var hoy = DiaDeNegocio.Hoy();
+        var solo = trabajadorIds.ToHashSet();
+        return UnirConParesDeEvento(
+            await ObtenerParesDeTrabajadorAsync(centroIds, conGestionCae, [], hoy, cancellationToken, solo),
+            await ObtenerParesDeEventoAsync(conGestionCae, [], hoy, cancellationToken, solo));
+    }
+
+    public async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaExigidosDeEmpresasAsync(
+        IReadOnlyList<Guid> centroIds, IReadOnlyCollection<Guid> empresaIds, CancellationToken cancellationToken)
+    {
+        if (centroIds.Count == 0 || empresaIds.Count == 0)
+            return [];
+
+        var conGestionCae = await CentrosConGestionCaeAsync(centroIds, cancellationToken);
+        return await ObtenerParesDeEmpresaAsync(conGestionCae, [], DiaDeNegocio.Hoy(), cancellationToken, empresaIds.ToHashSet());
+    }
+
     /// <summary>
     /// Los pares del Centro más los de los eventos futuros o vigentes que el Centro no tenga ya: si un mismo Trabajador × Tipo sale por
     /// las dos vías, cuenta una vez.
@@ -799,9 +846,12 @@ public class CalculoEstadoCentroService(
     /// el estado del documento efectivo, igual que <see cref="ObtenerParesDeTrabajadorAsync"/>.
     /// </summary>
     private async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesDeEventoAsync(
-        List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken)
+        List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken,
+        IReadOnlySet<Guid>? soloTrabajadores = null)
     {
         var requisitos = await RequisitosDeEventosAsync(conGestionCae, hoy, cancellationToken);
+        if (soloTrabajadores is not null)
+            requisitos = requisitos.Where(r => soloTrabajadores.Contains(r.TrabajadorId)).ToList();
         if (requisitos.Count == 0)
             return [];
 
@@ -846,8 +896,10 @@ public class CalculoEstadoCentroService(
     /// (<see cref="ResolucionTipoDocumentoCentro.Aplica"/>, la misma regla que los pares de Trabajador). El estado es el del
     /// documento efectivo de la Empresa y el tipo (<see cref="DocumentoEfectivo"/>), o Faltante.
     /// </summary>
+    /// <param name="soloEmpresas">Solo los pares de esas Empresas; los de cada Empresa no dependen de las demás.</param>
     private async Task<IReadOnlyList<ParDocumentalDeEmpresaExigido>> ObtenerParesDeEmpresaAsync(
-        List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken)
+        List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy, CancellationToken cancellationToken,
+        IReadOnlySet<Guid>? soloEmpresas = null)
     {
         if (conGestionCae.Count == 0)
             return [];
@@ -861,6 +913,7 @@ public class CalculoEstadoCentroService(
             .Select(a => (a.CentroId, EmpresaId: a.EmpresaId ?? a.SubcontrataId))
             .Where(a => a.EmpresaId is not null)
             .Select(a => (a.CentroId, EmpresaId: a.EmpresaId!.Value))
+            .Where(a => soloEmpresas is null || soloEmpresas.Contains(a.EmpresaId))
             .Distinct()
             .ToList();
 
@@ -920,19 +973,22 @@ public class CalculoEstadoCentroService(
         return pares;
     }
 
+    /// <param name="soloTrabajadores">Solo los pares de esos Trabajadores; los de cada uno no dependen de los demás.</param>
     private async Task<IReadOnlyList<ParDocumentalExigido>> ObtenerParesDeTrabajadorAsync(
         IReadOnlyList<Guid> centroIds, List<Guid> conGestionCae, IReadOnlyList<PendienteEnPlataformaDeCentro> pendientes, DateOnly hoy,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, IReadOnlySet<Guid>? soloTrabajadores = null)
     {
         if (centroIds.Count == 0)
             return [];
 
-        var asignacionesActivas = await (
+        var asignacionesActivas = (await (
             from asignacion in AsignacionesQueCuentan()
             where asignacion.FechaBaja == null && conGestionCae.Contains(asignacion.CentroId)
             join trabajador in trabajadoresContext.Trabajadores on asignacion.TrabajadorId equals trabajador.Id
             select new { asignacion.CentroId, asignacion.TrabajadorId, trabajador.EmpresaId, trabajador.TipoContratacion })
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .Where(a => soloTrabajadores is null || soloTrabajadores.Contains(a.TrabajadorId))
+            .ToList();
 
         if (asignacionesActivas.Count == 0)
             return [];

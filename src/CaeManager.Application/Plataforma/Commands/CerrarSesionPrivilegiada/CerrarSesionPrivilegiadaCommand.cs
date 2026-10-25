@@ -16,11 +16,10 @@ namespace CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 /// dejarlas correr. La ventana acota el peor caso; cerrar es lo que hace que el
 /// caso normal dure lo que dura la incidencia.
 ///
-/// No hace falta comprobar de quién es la sesión: la política de RLS (F2b-5)
-/// solo devuelve las sesiones que cuelgan de una concesión que nombra al usuario
-/// actual, así que una sesión ajena no se encuentra aunque se pida por Id. Se
-/// deja dicho aquí porque la ausencia de una comprobación explícita es
-/// justamente lo que un revisor querrá entender.
+/// Solo puede cerrar el Actor de Plataforma TALVEG nombrado en la concesión.
+/// El Administrador del Tenant beneficiario puede leer la Sesión Privilegiada,
+/// pero esa visibilidad no autoriza su cierre. RLS mantiene la barrera de escritura;
+/// si no actualiza la fila, el comando devuelve un error de dominio.
 /// </summary>
 public record CerrarSesionPrivilegiadaCommand(Guid SesionPrivilegiadaId) : ICommand;
 
@@ -34,7 +33,8 @@ public class CerrarSesionPrivilegiadaCommandValidator : AbstractValidator<Cerrar
 
 public class CerrarSesionPrivilegiadaCommandHandler(
     IPlataformaQueryContext plataformaContext,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ICurrentUserService currentUserService)
     : IRequestHandler<CerrarSesionPrivilegiadaCommand, Result>
 {
     public async Task<Result> Handle(CerrarSesionPrivilegiadaCommand request, CancellationToken cancellationToken)
@@ -46,13 +46,31 @@ public class CerrarSesionPrivilegiadaCommandHandler(
             return Result.Fallo(Error.Crear(
                 "SesionPrivilegiada.NoEncontrada", "No encontramos esa sesión de soporte."));
 
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null || !await plataformaContext.ConcesionesPrivilegio.AnyAsync(
+                c => c.Id == sesion.ConcesionPrivilegioId && c.UsuarioPlataformaId == usuarioId,
+                cancellationToken))
+            return CierreNoPermitido();
+
         if (!sesion.EstaAbierta)
             return Result.Fallo(Error.Crear(
                 "SesionPrivilegiada.YaCerrada", "Esa sesión de soporte ya estaba cerrada."));
 
         sesion.Cerrar(DateTime.UtcNow);
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        try
+        {
+            if (await unitOfWork.SaveChangesAsync(cancellationToken) == 0)
+                return CierreNoPermitido();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return CierreNoPermitido();
+        }
 
         return Result.Exito();
     }
+
+    private static Result CierreNoPermitido() => Result.Fallo(Error.Crear(
+        "SesionPrivilegiada.CierreNoPermitido",
+        "No se pudo cerrar la sesión de soporte. Solo puede cerrarla el Actor de Plataforma TALVEG que la abrió; puede que ya haya cambiado."));
 }

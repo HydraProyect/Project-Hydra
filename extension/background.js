@@ -8,6 +8,11 @@
 //   chrome.storage.session: { token, expiraEnUtc }      -- se pierde al cerrar el navegador,
 //                                                           igual de corto que la vigencia real (8h)
 //                                                           que de todos modos impone el servidor.
+//   chrome.storage.session: { enviosPendientes, enviosConfirmados } -- «Lo he enviado» (E1): por
+//                                                           pestaña, la acreditación puesta en el formulario
+//                                                           y aún sin confirmar, y la última confirmada que
+//                                                           se puede deshacer. Solo Ids, el tipo de documento
+//                                                           y caducidades; nada del Trabajador ni el PDF.
 //
 // Conexión automática (DEC A', 2026-09-10): a diferencia del supuesto original
 // ("cada tenant vive en su propio dominio"), TALVEG sirve todos los tenants
@@ -83,8 +88,16 @@ async function conectar(hydraUrl, token, expiraEnUtc) {
   return { ok: true };
 }
 
-async function desconectar() {
-  await chrome.storage.session.remove(["token", "expiraEnUtc"]);
+// Solo el «Desconectar» que pide la persona (popup) borra los envíos sin
+// confirmar: quien se desconecta a propósito no quiere que se le ofrezcan a
+// quien conecte después. La desconexión automática (401, redirección al login o
+// caducidad de las 8 h) los conserva, para que «Lo he enviado» se pueda
+// reintentar al volver a conectar; caducan solos a los 30 min, y el servidor
+// vuelve a comprobar la cartera de quien confirme.
+async function desconectar({ borrarEnvios = false } = {}) {
+  const claves = ["token", "expiraEnUtc"];
+  if (borrarEnvios) claves.push(CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS);
+  await chrome.storage.session.remove(claves);
   await avisarDeLaConexion(false);
   return { ok: true };
 }
@@ -155,6 +168,7 @@ async function peticionAutenticada(ruta, opciones = {}) {
   try {
     respuesta = await fetch(`${hydraUrl}${ruta}`, {
       ...opciones,
+      credentials: "omit",
       // "manual": estos endpoints están protegidos con una política que
       // combina el esquema de extensión con el de cookie de Identity
       // (Policies.SesionOExtension). Cuando ninguno de los dos autentica, el
@@ -222,7 +236,7 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   // pestaña, no a la que esté activa cuando termine la descarga. El PDF tarda,
   // y en ese rato el Gestor CAE puede cambiar de pestaña: con la pestaña activa
   // el documento acabaría en otro portal que también tuviera un campo elegido,
-  // la respuesta sería `ok` y TALVEG marcaría la acreditación como subida. El
+  // la respuesta sería `ok` y la confirmación «Lo he enviado» se pediría ahí. El
   // mismo error que este incremento vino a cerrar, un nivel más arriba.
   // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
   // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
@@ -230,6 +244,18 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   const idPestana =
     pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
   if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+
+  // Revalidar después de descargar y antes de entregar nada al formulario.
+  const pendientes = await listarPendientes();
+  if (!pendientes.ok) return pendientes;
+  const proveedores = Array.isArray(pendientes.proveedores) ? pendientes.proveedores : [];
+  const dueno = proveedores.find((proveedor) => (proveedor.clientes ?? []).some((cliente) =>
+    (cliente.documentos ?? []).some((documento) =>
+      documento.acreditacionId === acreditacionId && documento.documentoId === documentoId)));
+  if (dueno?.proveedorActivo === false)
+    return { ok: false, error: "Conector desactivado temporalmente. Contacta con soporte si lo necesitas." };
+  if (!dueno)
+    return { ok: false, error: "Esta acreditaci\u00f3n ya no se puede subir. Actualiza la lista en TALVEG; si fue rechazada, renueva el documento." };
 
   let respuestaContenido;
   try {
@@ -249,37 +275,210 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   if (!respuestaContenido?.ok)
     return { ok: false, error: respuestaContenido?.error ?? "No pudimos rellenar el formulario de la plataforma." };
 
-  // Marcar "subida" es un acto humano confirmando que el formulario se rellenó
-  // — no que la plataforma ya lo aceptó (eso lo revisa el gestor manualmente
-  // y lo registra con "Marcar validado"/"Marcar rechazado" en Hydra).
-  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
-  if (!marcado.ok) return marcado;
-  if (!marcado.respuesta.ok) {
-    // Kill switch remoto (MVP2 § 14.5): un 409 aquí es
-    // "Acreditacion.ConectorInactivo" — segunda línea de defensa, poco
-    // probable de alcanzar porque popup.js ya deja de ofrecer "Subir" para
-    // un proveedor inactivo (mismo dato, leído antes). Se muestra el
-    // detalle real del problema en vez de un genérico "Hydra no aceptó".
-    let detalle;
-    try {
-      detalle = (await marcado.respuesta.json())?.detail;
-    } catch {
-      // Cuerpo no JSON (o vacío) — se usa el mensaje genérico de abajo.
-    }
-    return { ok: false, error: detalle ?? `TALVEG no aceptó marcarla como subida (${marcado.respuesta.status}).` };
+  // Poner el archivo en el formulario NO es subirlo (D-4 del plan de la
+  // extensión, incremento E1): la persona aún tiene que revisarlo y pulsar
+  // Enviar en la plataforma, y puede no hacerlo. Hasta el 0.4.x aquí se marcaba
+  // «Subida» sin más; ahora se deja la acreditación pendiente de confirmar en
+  // ESTA pestaña y la página le pregunta «Lo he enviado» / «No lo he enviado».
+  // Solo la confirmación llama a TALVEG (confirmarEnvio).
+  await anotarEnvioPendiente(idPestana, acreditacionId, (nombreArchivo || "documento").replace(/\.pdf$/i, ""));
+  try {
+    await chrome.tabs.sendMessage(idPestana, { accion: "pedirConfirmacionEnvio" });
+  } catch {
+    // La pestaña ya no escucha (se recargó o se cerró): al volver a cargar, el
+    // content script pide sus envíos pendientes con obtenerEnviosPendientes.
   }
 
+  return { ok: true, pendienteDeConfirmar: true };
+}
+
+// --- «Lo he enviado» --------------------------------------------------------
+//
+// El estado vive en chrome.storage.session y no en una variable: el service
+// worker de MV3 se duerme a los ~30 s sin eventos, y la persona tarda más que
+// eso en revisar el formulario y enviarlo. Si la plataforma recarga la página
+// al enviar, el content script nuevo pide lo pendiente de su pestaña y vuelve a
+// preguntar. Todo va por pestaña (remitente.tab.id, que pone Chrome, no el
+// mensaje), y el content script nunca elige qué acreditación se anota: solo
+// confirma una de las que ESTA extensión puso en SU pestaña.
+
+const CLAVE_ENVIOS_PENDIENTES = "enviosPendientes";
+const CLAVE_ENVIOS_CONFIRMADOS = "enviosConfirmados";
+// Si en este tiempo no llega «Lo he enviado», el intento caduca y TALVEG no anota nada.
+const CADUCIDAD_ENVIO_PENDIENTE_MS = 30 * 60 * 1000;
+// La página ofrece «Deshacer» 10 s; el margen cubre el viaje del mensaje.
+const VENTANA_DESHACER_MS = 15 * 1000;
+
+async function leerPorPestana(clave) {
+  const datos = await chrome.storage.session.get(clave);
+  const mapa = datos?.[clave];
+  return mapa && typeof mapa === "object" ? mapa : {};
+}
+
+async function guardarPorPestana(clave, mapa) {
+  await chrome.storage.session.set({ [clave]: mapa });
+}
+
+// Cada cambio lee el mapa entero, lo modifica y lo escribe con un await entre
+// medias: dos mensajes a la vez (poner B mientras se confirma A, o la poda de lo
+// caducado) se pisarían y perderían o resucitarían un envío. Todo lo que
+// escribe en estos mapas pasa de uno en uno por esta cola.
+let colaDeEnvios = Promise.resolve();
+function enSerie(tarea) {
+  const resultado = colaDeEnvios.then(tarea);
+  colaDeEnvios = resultado.catch(() => {});
+  return resultado;
+}
+
+// Lo de una pestaña, sin lo caducado. Las claves son texto: storage las serializa así.
+function vigentesDePestana(clave, idPestana) {
+  return enSerie(() => podarYLeerDePestana(clave, idPestana));
+}
+
+async function podarYLeerDePestana(clave, idPestana) {
+  const mapa = await leerPorPestana(clave);
+  const ahora = Date.now();
+  const propios = mapa[String(idPestana)] ?? {};
+  const vigentes = Object.fromEntries(Object.entries(propios).filter(([, v]) => v?.caducaEn > ahora));
+  if (Object.keys(vigentes).length !== Object.keys(propios).length) {
+    if (Object.keys(vigentes).length === 0) delete mapa[String(idPestana)];
+    else mapa[String(idPestana)] = vigentes;
+    await guardarPorPestana(clave, mapa);
+  }
+  return vigentes;
+}
+
+function cambiarEnPestana(clave, idPestana, acreditacionId, valor) {
+  return enSerie(async () => {
+    const mapa = await leerPorPestana(clave);
+    const propios = { ...(mapa[String(idPestana)] ?? {}) };
+    if (valor === undefined) delete propios[acreditacionId];
+    else propios[acreditacionId] = valor;
+    if (Object.keys(propios).length === 0) delete mapa[String(idPestana)];
+    else mapa[String(idPestana)] = propios;
+    await guardarPorPestana(clave, mapa);
+  });
+}
+
+async function anotarEnvioPendiente(idPestana, acreditacionId, documento) {
+  await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, {
+    documento,
+    caducaEn: Date.now() + CADUCIDAD_ENVIO_PENDIENTE_MS,
+  });
+}
+
+async function obtenerEnviosPendientes(idPestana) {
+  if (!idPestana) return { ok: true, pendientes: [] };
+  const vigentes = await vigentesDePestana(CLAVE_ENVIOS_PENDIENTES, idPestana);
+  return {
+    ok: true,
+    pendientes: Object.entries(vigentes).map(([acreditacionId, v]) => ({ acreditacionId, documento: v.documento })),
+  };
+}
+
+async function leerDetalleDelProblema(respuesta) {
+  try {
+    return (await respuesta.json())?.detail;
+  } catch {
+    return undefined; // cuerpo no JSON (o vacío): el llamador usa su mensaje genérico.
+  }
+}
+
+// «Lo he enviado»: la ÚNICA llamada que anota «Subida» en TALVEG. El servidor
+// deja un cambio de estado con origen Extensión (Historial del Centro) y
+// devuelve lo que pide el «Deshacer».
+async function confirmarEnvio({ acreditacionId }, idPestana) {
+  if (!idPestana) return { ok: false, error: "Esta confirmación solo se hace desde la pestaña de la plataforma." };
+  const pendientes = await vigentesDePestana(CLAVE_ENVIOS_PENDIENTES, idPestana);
+  if (!pendientes[acreditacionId])
+    return { ok: false, error: "Ya no hay nada que confirmar aquí. Si lo enviaste, anótalo en Centro 360." };
+
+  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
+  // Sin conexión, o con la conexión caducada (peticionAutenticada desconecta
+  // sola, sin borrar los envíos): sigue pendiente, para reintentar al volver a
+  // conectar mientras no pasen los 30 min. Solo el «Desconectar» del popup lo borra.
+  if (!marcado.ok) return marcado;
+  if (!marcado.respuesta.ok) {
+    // Un 409 es un conector inactivo o un rechazo posterior a la lista: no se
+    // arregla reintentando, así que deja de estar pendiente. Se muestra el
+    // detalle real en vez de un genérico «TALVEG no aceptó».
+    const detalle = await leerDetalleDelProblema(marcado.respuesta);
+    if (marcado.respuesta.status === 409 || marcado.respuesta.status === 404)
+      await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, undefined);
+    return { ok: false, error: detalle ?? `TALVEG no aceptó anotarlo (${marcado.respuesta.status}).` };
+  }
+
+  await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, undefined);
+
+  let anotado = null;
+  try {
+    anotado = await marcado.respuesta.json();
+  } catch {
+    // Un servidor anterior respondía 204 sin cuerpo: anotado, pero sin «Deshacer».
+  }
+  const puedeDeshacer = Boolean(anotado?.cambioId && anotado?.version);
+  if (puedeDeshacer) {
+    await cambiarEnPestana(CLAVE_ENVIOS_CONFIRMADOS, idPestana, acreditacionId, {
+      cambioId: anotado.cambioId,
+      version: anotado.version,
+      caducaEn: Date.now() + VENTANA_DESHACER_MS,
+    });
+  }
+  return { ok: true, puedeDeshacer };
+}
+
+// «No lo he enviado»: no se anota nada y deja de estar pendiente.
+async function descartarEnvio({ acreditacionId }, idPestana) {
+  if (idPestana) await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, undefined);
   return { ok: true };
 }
 
+// «Deshacer» del aviso «Anotado en TALVEG»: el cambio y la versión salen de lo
+// que guardó confirmarEnvio para esta pestaña, nunca del mensaje.
+async function deshacerEnvio({ acreditacionId }, idPestana) {
+  if (!idPestana) return { ok: false, error: "Solo se deshace desde la pestaña de la plataforma." };
+  const confirmados = await vigentesDePestana(CLAVE_ENVIOS_CONFIRMADOS, idPestana);
+  const confirmado = confirmados[acreditacionId];
+  if (!confirmado) return { ok: false, error: "Ya no se puede deshacer desde aquí. Corrígelo desde Centro 360." };
+  await cambiarEnPestana(CLAVE_ENVIOS_CONFIRMADOS, idPestana, acreditacionId, undefined);
+
+  const deshecho = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida/deshacer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cambioId: confirmado.cambioId, version: confirmado.version }),
+  });
+  if (!deshecho.ok) return deshecho;
+  if (!deshecho.respuesta.ok) {
+    const detalle = await leerDetalleDelProblema(deshecho.respuesta);
+    return { ok: false, error: detalle ?? `TALVEG no pudo deshacerlo (${deshecho.respuesta.status}). Corrígelo desde Centro 360.` };
+  }
+  return { ok: true };
+}
+
+// Una pestaña cerrada no va a confirmar nada.
+chrome.tabs?.onRemoved?.addListener?.((idPestana) => enSerie(async () => {
+  for (const clave of [CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS]) {
+    const mapa = await leerPorPestana(clave);
+    if (mapa[String(idPestana)]) {
+      delete mapa[String(idPestana)];
+      await guardarPorPestana(clave, mapa);
+    }
+  }
+}));
 chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
     obtenerConexion: () => obtenerConexion(),
     conectar: (m) => conectar(m.hydraUrl, m.token, m.expiraEnUtc),
     conectarManual: (m) => conectarManual(m),
-    desconectar: () => desconectar(),
+    // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
+    desconectar: () => desconectar({ borrarEnvios: true }),
     listarPendientes: () => listarPendientes(),
     subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
+    // Solo desde el content script de una pestaña: remitente.tab lo pone Chrome.
+    obtenerEnviosPendientes: () => obtenerEnviosPendientes(remitente?.tab?.id),
+    confirmarEnvio: (m) => confirmarEnvio(m, remitente?.tab?.id),
+    descartarEnvio: (m) => descartarEnvio(m, remitente?.tab?.id),
+    deshacerEnvio: (m) => deshacerEnvio(m, remitente?.tab?.id),
   };
 
   const manejador = manejadores[mensaje?.accion];

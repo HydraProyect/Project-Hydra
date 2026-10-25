@@ -65,6 +65,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Comunicaciones/AlertaCriticaConversacion.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
+        ["src/CaeManager.Domain/Empresas/PlataformaCaeClienteEmpresarial.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
@@ -78,6 +79,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Plataforma/OrdenMenuLateral.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/SesionPrivilegiada.cs"] = 1,
         ["src/CaeManager.Domain/Proyectos/ProyectoTecnico.cs"] = 1,
+        ["src/CaeManager.Domain/Reclamaciones/EnvioReclamacion.cs"] = 1,
         ["src/CaeManager.Domain/Tenants/EncargoAdministracion.cs"] = 1,
         ["src/CaeManager.Domain/VigilanciaNormativa/AvisoRevisionNormativa.cs"] = 1,
         ["src/CaeManager.Infrastructure/Persistence/Interceptors/ConcurrenciaOptimistaInterceptor.cs"] = 1,

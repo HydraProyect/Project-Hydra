@@ -233,6 +233,14 @@ builder.Services.AddHttpContextAccessor();
 // Cookie de antiforgery con Secure cuando la peticion es HTTPS (ver
 // AntiforgeryDeTalveg): sin esto rige CookieSecurePolicy.None.
 builder.Services.AddAntiforgery(AntiforgeryDeTalveg.Configurar);
+// Fuera de Development, Smtp:UrlBasePublica es obligatoria (https): sin ella no
+// hay enlaces de cuenta seguros y la aplicación no arranca (ValidadorUrlBasePublica).
+builder.Services.AddSingleton<Microsoft.Extensions.Options.IValidateOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>, CaeManager.Infrastructure.Email.ValidadorUrlBasePublica>();
+builder.Services.AddOptions<CaeManager.Infrastructure.Email.SmtpEmailOptions>().ValidateOnStart();
+builder.Services.AddSingleton<EnlacesPublicos>();
+builder.Services.AddSingleton<RecuperacionContrasena>();
+// Misma instancia en los componentes y en el host (la cola es suya).
+builder.Services.AddSingleton<IHostedService, RecuperacionContrasena>(sp => sp.GetRequiredService<RecuperacionContrasena>());
 
 // Textos de interfaz en recursos .resx (IStringLocalizer<T>): sin esto no hay
 // IStringLocalizerFactory que resolver, aunque las culturas estén configuradas.
@@ -316,25 +324,14 @@ authenticationBuilder.AddScheme<ExtensionAuthenticationSchemeOptions, ExtensionA
 // local sigue siendo el único camino y se comporta exactamente igual que
 // hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
 var azureAd = builder.Configuration.GetSection(AzureAdOptions.SeccionConfiguracion).Get<AzureAdOptions>() ?? new AzureAdOptions();
-builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd,
-    "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
+builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd, azureAd.EstaConfigurado
+    ? "El login con Microsoft Entra ID está registrado pero rechaza a todo el mundo hasta que se configure su Tenant destino; la restricción del login local sigue activa."
+    : "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
 
 if (azureAd.EstaConfigurado)
 {
-    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)", options =>
-    {
-        options.Authority = $"{azureAd.Instance}{azureAd.TenantId}/v2.0";
-        options.ClientId = azureAd.ClientId;
-        options.ClientSecret = azureAd.ClientSecret;
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.CallbackPath = "/signin-microsoft";
-        options.SignInScheme = IdentityConstants.ExternalScheme;
-        options.SaveTokens = false;
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-    });
+    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)",
+        options => InicioSesionMicrosoft.Configurar(options, azureAd));
 }
 
 // Intervalo con el que la cookie y el circuito de Blazor vuelven a preguntar
@@ -649,8 +646,8 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(
         sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
         name: "postgresql")
-    // P6: clave del contexto RLS firmado. Degraded, nunca Unhealthy, en la
-    // fase «expandir» (ver ClaveContextoRlsHealthCheck).
+    // P6: clave del contexto RLS firmado. Desde «contraer», Unhealthy sin clave
+    // descifrable y Degraded si caduca pronto (ver ClaveContextoRlsHealthCheck).
     .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
         "contexto-rls-clave",
         sp => new CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck(
@@ -789,6 +786,9 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoSembrar))
 {
     using var scopeSiembra = app.Services.CreateScope();
     var loggerSiembra = scopeSiembra.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoSiembra = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        SiembraDemoDireccionAdministrativa.ArgumentoSembrar);
 
     try
     {
@@ -809,6 +809,11 @@ if (args.Contains(SiembraDemoDireccionAdministrativa.ArgumentoSembrar))
     {
         Console.Error.WriteLine($"Siembra rechazada: {ex.Message}");
         Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoSiembra, app.Services.GetRequiredService<IServiceScopeFactory>(), loggerSiembra);
     }
 
     return;
@@ -861,6 +866,9 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
 {
     using var scopeSiembraPiloto = app.Services.CreateScope();
     var serviciosSiembraPiloto = scopeSiembraPiloto.ServiceProvider;
+    // Sin recálculo en línea del estado materializado; cada Tenant sembrado va entero a la cola al terminar.
+    var sinRecalculoPiloto = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+        PilotoOutboundAdministrativa.ArgumentoSembrar);
 
     try
     {
@@ -886,6 +894,12 @@ if (args.Contains(PilotoOutboundAdministrativa.ArgumentoSembrar))
     {
         Console.Error.WriteLine(PilotoOutboundAdministrativa.MensajeDeInterrupcion(ex));
         Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoPiloto, app.Services.GetRequiredService<IServiceScopeFactory>(),
+            serviciosSiembraPiloto.GetRequiredService<ILogger<Program>>());
     }
 
     return;
@@ -938,6 +952,17 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
 // descarte el X-Forwarded-For entrante y de que sea el único camino hasta el
 // 8080. Ese es un supuesto de seguridad, y está escrito, medido y vigilado por
 // trinquete en esa clase (REC-019) en vez de quedar aquí como un comentario.
+// Antes de UseForwardedHeaders, que reescribe el par y consume la cabecera: el
+// registro de inicios de sesión necesita los originales para creer
+// X-Forwarded-For solo cuando el par es un proxy de confianza configurado
+// (Seguridad:InicioSesion:ProxiesDeConfianza, ver IpClienteDeConfianza).
+app.Use((contexto, siguiente) =>
+{
+    var xff = contexto.Request.Headers["X-Forwarded-For"].ToString();
+    contexto.Features.Set(new CaeManager.Infrastructure.Seguridad.OrigenConexionCapturado(
+        contexto.Connection.RemoteIpAddress, string.IsNullOrWhiteSpace(xff) ? null : xff));
+    return siguiente(contexto);
+});
 app.UseForwardedHeaders(CabecerasDeProxyDeBorde.Opciones());
 
 using (var scope = app.Services.CreateScope())
@@ -990,7 +1015,7 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogWarning(
             "[AVISO] Sin ConnectionStrings:CaeManagerDbRuntime, el tráfico conecta con el rol propietario " +
-            "de las tablas, al que PostgreSQL no somete a RLS ni con FORCE ROW LEVEL SECURITY. El " +
+            "de las tablas, exento de RLS (superusuario o BYPASSRLS, y si no lo es, solo lo ata FORCE). El " +
             "aislamiento por tenant descansa hoy solo en el filtro global de EF Core, que no cubre SQL " +
             "crudo, IgnoreQueryFilters ni las tablas de Identity. Entorno: {Entorno}. Ver " +
             "deploy/bootstrap/roles-de-cluster.sql para aprovisionar cae_app_runtime.",
@@ -1026,6 +1051,11 @@ using (var scope = app.Services.CreateScope())
         await using var dbContextBootstrap = scope.ServiceProvider
             .GetRequiredService<CaeManager.Infrastructure.Persistence.FabricaContextoDeBootstrap>()
             .Crear();
+
+        // Siembras de arranque: sin recálculo en línea del estado materializado; cada Tenant tocado va entero a la
+        // cola (diseño del estado materializado, § 4.3 y § 7.3).
+        using var sinRecalculoEstado = CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.Abrir(
+            CaeManager.Application.EstadoMaterializado.AmbitoSinRecalculoEstado.MotivoSiembraDeArranque);
 
         // Sin sesión de usuario en el arranque no hay tenant que resolver por
         // claim — la siembra del Administrador inicial se ejecuta explícitamente
@@ -1106,6 +1136,8 @@ using (var scope = app.Services.CreateScope())
         // que la doble escritura quede establecida (F1 del plan de migración).
         await AsignacionesOperativasBackfillSeeder.SeedAsync(dbContextBootstrap, logger);
         await PlantillasRespuestaSeeder.SeedAsync(dbContextBootstrap);
+        await CaeManager.Infrastructure.EstadoMaterializado.EncoladoTrasAmbitoSinRecalculo.CerrarYEncolarAsync(
+            sinRecalculoEstado, app.Services.GetRequiredService<IServiceScopeFactory>(), logger);
 
         // Autoverificación del piloto, después de TODA la siembra: mide con las consultas de las
         // pantallas y compara con la matriz. Si esta ejecución sembró, una discrepancia —o no poder

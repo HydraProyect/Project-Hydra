@@ -76,9 +76,10 @@ public class GuardarSelloEmpresaCommandHandler(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex,
-                    "No se pudo borrar la imagen anterior {Archivo} del sello de la empresa {EmpresaId}.",
-                    urlAnterior, empresa.Id);
+                // Sin la clave del fichero ni el mensaje de la excepción (suele repetirla): Id y tipo.
+                logger.LogError(
+                    "No se pudo borrar la imagen anterior del sello de la empresa {EmpresaId} ({TipoExcepcion}).",
+                    empresa.Id, ex.GetType().Name);
             }
         }
 

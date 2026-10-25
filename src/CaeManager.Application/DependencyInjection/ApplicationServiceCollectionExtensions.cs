@@ -92,6 +92,11 @@ public static class ApplicationServiceCollectionExtensions
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual.MemoPerfilVocabularioActual>(services);
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona.MemoRotulosPrimeraPersona>(services);
         AgregarMemoPorContexto<CaeManager.Application.Operaciones.IncorporacionCartera.Queries.MemoParticipaEnIncorporacionCartera>(services);
+        // Frescura del estado materializado (diseño § 5): el aviso es uno por proceso; la caché, una por circuito
+        // (Scoped, nunca singleton) y no caduca por tiempo sino por la versión del Tenant.
+        services.TryAddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.INotificadorEstadoTenant,
+            CaeManager.Application.EstadoMaterializado.Frescura.NotificadorEstadoTenant>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.Frescura.CacheEstadoCircuito>();
         // Señal «actúa por Encargo de administración» (decisión D-8, 2026-10-08): la da LA MISMA
         // instancia que resuelve el rol efectivo, porque es la misma función. Se reenvía aquí, y no
         // en cada composición, para que no exista un contenedor donde las dos se resuelvan a
@@ -140,6 +145,9 @@ public static class ApplicationServiceCollectionExtensions
         // Va por fuera de AutorizacionEscrituraBehavior y del handler: ambos autorizan con el
         // alcance recién resuelto, no con el que memoizó el circuito.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
+        // La instantánea queda dentro de la puerta y envuelve todos los resultados de fallo.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(RestauracionCambiosDeComandoBehavior<,>));
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(CaeManager.Application.Empresas.DuplicadosEmpresaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         // GateComercialTenantBehavior va justo después: un Command ya
@@ -208,6 +216,18 @@ public static class ApplicationServiceCollectionExtensions
         services.AddSingleton<IParserDocumentoOficialRegistry, ParserDocumentoOficialRegistry>();
         services.AddScoped<ICalculoEstadoCentroService, CalculoEstadoCentroService>();
         services.AddScoped<IEvaluacionDeAccesoPorCentroService, EvaluacionDeAccesoPorCentroService>();
+        services.AddScoped<IEvaluacionDeAccesoDelTenant, EvaluacionDeAccesoPorCentroService>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.IRecalculoEstadoMaterializado, CaeManager.Application.EstadoMaterializado.RecalculoEstadoMaterializadoService>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoCentros, CaeManager.Application.EstadoMaterializado.LectorEstadoCentros>();
+        // Lo que el Cuadro de dirección y el Dashboard ejecutivo leen de las tablas del estado. Un contenedor que no registra
+        // las tablas (composición de prueba) recibe el lector que nunca lee: todo se calcula, que es la referencia.
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorCumplimientoDeDireccion>(sp =>
+            sp.GetService<CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext>() is null
+                ? CaeManager.Application.EstadoMaterializado.SinLectorDeCumplimientoDeDireccion.Instancia
+                : Microsoft.Extensions.DependencyInjection.ActivatorUtilities.CreateInstance<CaeManager.Application.EstadoMaterializado.LectorCumplimientoDeDireccion>(sp));
+        services.AddScoped<IRequisitosObligatoriosIncumplidosService, RequisitosObligatoriosIncumplidosService>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoMaterializado, CaeManager.Application.EstadoMaterializado.LectorEstadoMaterializado>();
+        services.AddScoped<CaeManager.Application.EstadoMaterializado.ILectorEstadoRequisitos, CaeManager.Application.EstadoMaterializado.LectorEstadoRequisitos>();
         services.AddScoped<ICalculoEstadoSubcontrataService, CalculoEstadoSubcontrataService>();
         services.AddScoped<ICalculoEstadoDocumentalService, CalculoEstadoDocumentalService>();
         services.AddScoped<IDocumentosFaltantesService, DocumentosFaltantesService>();

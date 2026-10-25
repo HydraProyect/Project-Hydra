@@ -65,6 +65,8 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
     // propio archivo.
     private static readonly Dictionary<(string Ruta, string Linea), int> UsosPermitidos = new()
     {
+        // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
+        [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
         // queda fuera del filtro global de tenant/borrado — hay que saltarlo
         // a propósito para poder restaurarlo, con el TenantId comprobado a mano.
@@ -316,6 +318,12 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // DEFINER; ni nombres ni SQL del llamador). No existe equivalente EF.
         [("src/CaeManager.Infrastructure/Auditing/ParticionesEventosHostedService.cs", "await using var orden = new NpgsqlCommand(")] = 1,
 
+        // Retención de 12 meses de RegistrosInicioSesion: llamada sin
+        // parámetros a app_purgar_inicios_sesion (SECURITY DEFINER, corte fijo
+        // dentro de la función, runtime solo tiene EXECUTE). No existe
+        // equivalente EF para invocar una función que devuelve un escalar.
+        [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
+
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.
         // Cerrojo consultivo, LOCK TABLE, lectura del historial y DELETE e
@@ -396,6 +404,62 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // Estado materializado (PR 3 y 3b): el escritor compara con lo guardado por lotes con unnest (borra lo que sobra,
+        // actualiza solo las columnas calculadas de lo que cambió e inserta lo nuevo), una sentencia por tabla más la de la
+        // versión. EF no puede: un Update() completo choca con el permiso de UPDATE por columnas (42501) y el rastreador
+        // pasaría filas derivadas por la auditoría. No salta ni la RLS (FORCE, WITH CHECK) ni el filtro: el TenantId sale de
+        // app.tenant_id de la conexión y cada DELETE o UPDATE solo alcanza filas del Tenant; valores en NpgsqlParameter.
+        // PR 4b: las tres sentencias de filas cuentan lo que cambiaron (RETURNING + SqlQueryRaw<int>, sin componer) para
+        // subir la versión solo si cambió alguna fila. Tope de espera y cerrojo exclusivo del Tenant van por
+        // CerrojosEstadoMaterializado. PR 12: la subida de la versión (WHERE/VALUES con el TenantId de app.tenant_id, sin
+        // parámetros de usuario) devuelve TenantId y versión (CTE con RETURNING + SqlQueryRaw<VersionSubida>, sin componer)
+        // para anotar el aviso de frescura con la versión exacta.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "var subidas = await dbContext.Database.SqlQueryRaw<VersionSubida>(sql).ToListAsync(ct);")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/EscritorEstadoMaterializado.cs", "(await dbContext.Database.SqlQueryRaw<int>(sql, parametros).ToListAsync(ct)).Single();")] = 1,
+        // Recálculo en línea del estado materializado (PR 4a, diseño § 4.3-4.5). IgnoreQueryFilters: las raíces de un
+        // documento, canal o evento borrado lógicamente (el borrado es la acción) salen de la fila borrada; cada consulta
+        // lleva el predicado de TenantId explícito (el de app.tenant_id de la conexión) además de la RLS forzada, así que
+        // solo salta el filtro de borrado lógico, nunca el de Tenant. SQL crudo (interpolado, parámetros de Npgsql):
+        // cerrojos consultivos pg_advisory_xact_lock(_shared) del Tenant y de la clausura, lectura de app.tenant_id, si
+        // existe la fila de VersionesEstadoTenant del Tenant y el encolado en RecalculosPendientes con el TenantId de la
+        // conexión; la RLS (FORCE, WITH CHECK) rige en todas.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var titulares = await dbContext.Set<Documento>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "afectados.UnionWith(await dbContext.Set<CanalGestionDocumental>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "var centroDeProyecto = await dbContext.Set<Proyecto>().IgnoreQueryFilters()")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/RecalculoEstadoEnLinea.cs", "trabajadores.UnionWith(await dbContext.Set<ProyectoTecnico>().IgnoreQueryFilters()")] = 1,
+        // PR 4b: los cerrojos, la lectura de app.tenant_id, la existencia de la versión y el tope de espera salen de
+        // RecalculoEstadoEnLinea a CerrojosEstadoMaterializado (los comparten el recálculo en línea, el escritor y la cola),
+        // con el mismo SQL interpolado.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "? dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", ": dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "(await dbContext.Database.SqlQuery<Guid?>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "(await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // Intento sin espera del cerrojo compartido del Tenant (pg_try_advisory_xact_lock_shared).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "return (await dbContext.Database.SqlQuery<bool>($\"\"\"")] = 1,
+        // Tope de espera de cerrojo del recálculo: lee y fija lock_timeout de la transacción (set_config local).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "var anterior = (await dbContext.Database.SqlQuery<string>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CerrojosEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // Cola RecalculosPendientes (PR 4b): encolado con deduplicación (NOT EXISTS … FOR KEY SHARE SKIP LOCKED, para que
+        // una entrada ya reclamada no tape la nueva), reclamo con FOR UPDATE OF p SKIP LOCKED (SqlQuery sin componer: EF no
+        // expresa el cerrojo de fila), borrado de lo procesado, anotación del fallo y resumen para la marca «recalculando».
+        // Todo con el TenantId de app.tenant_id de la conexión, en predicado explícito y bajo la RLS forzada (WITH CHECK).
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "return dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 4,
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/ColaEstadoMaterializado.cs", "var fila = (await dbContext.Database.SqlQuery<ResumenColaEstado>($\"\"\"")] = 1,
+        // Marca «recalculando» (PR 4b): lee sin cerrojo las raíces encoladas del Tenant de la conexión, bajo la RLS forzada.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/LectorMarcaRecalculandoEstado.cs", "var entradas = await dbContext.Database.SqlQuery<EntradaColaEstado>($\"\"\"")] = 1,
+        // Cambio de día (PR 5): la marca UltimoDiaProcesado del Tenant de la conexión, solo hacia delante, con el TenantId en
+        // predicado explícito y bajo la RLS forzada. Es la única columna de VersionesEstadoTenant que la migración concede a
+        // cae_app_runtime además de la versión; el ExecuteUpdate de EF lo prohíbe el trinquete del detector.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializado.cs", "dbContext.Database.ExecuteSqlAsync($\"\"\"")] = 1,
+        // El cotejo nocturno abre su foto REPEATABLE READ como solo lectura: texto fijo, sin parámetros.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/CambioDeDiaEstadoMaterializado.cs", "await dbContext.Database.ExecuteSqlRawAsync(\"SET TRANSACTION READ ONLY\", ct);")] = 1,
+        // Frescura del estado materializado (PR 11, diseño § 5.3): antes del COMMIT, en la propia transacción, el interceptor
+        // de avisos lee app.tenant_id (texto fijo, sin parámetros ni datos de usuario) para descartar avisos de otro Tenant.
+        // Es un interceptor de transacciones: no hay DbContext utilizable a mitad del COMMIT. Solo lee; no salta la RLS.
+        [("src/CaeManager.Infrastructure/EstadoMaterializado/AvisoEstadoTrasConfirmarInterceptor.cs", "var comando = (transaction.Connection ?? throw new InvalidOperationException(\"La transacción no tiene conexión.\")).CreateCommand();")] = 1,
     };
 
     /// <summary>

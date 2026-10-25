@@ -38,6 +38,10 @@ public class PreguntarAlAsistenteQueryHandler(
     public async Task<Result<string>> Handle(PreguntarAlAsistenteQuery request, CancellationToken cancellationToken)
     {
         var actor = await actorAuditoria.ObtenerAsync();
+        if (actor.Via == TipoViaAcceso.SesionPrivilegiada)
+            return Result.Fallo<string>(Error.Crear(
+                "TareaAsistente.SesionPrivilegiada", "El asistente no está disponible en una sesión de soporte."));
+
         if (actor.ActorRealUsuarioId is not { } usuarioId || usuarioId == Guid.Empty
             || tenantActual.TenantId is not { } tenantId || tenantId == Guid.Empty)
             return Result.Fallo<string>(Error.Crear("AsistenteIa.SinIdentidad", TextosConsulta.Obtener("SinIdentidad")));

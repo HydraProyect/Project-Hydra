@@ -24,6 +24,32 @@ namespace CaeManager.Application.Tests.Proyectos;
 /// </summary>
 public class ProyectoAutorizacionEscrituraTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Asignar_tecnico_exige_un_proyecto_abierto(bool cerrado)
+    {
+        var proyecto = CrearProyecto(Guid.NewGuid());
+        if (cerrado) proyecto.Cerrar(new DateOnly(2026, 2, 1));
+        var proyectos = new ProyectoRepositorioFalso();
+        proyectos.Agregar(proyecto);
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "Garcia", "77189989B");
+        var contexto = new TrabajadoresQueryContextFalso();
+        contexto.ListaTrabajadores.Add(trabajador);
+        var tecnicos = new ProyectoTecnicoRepositorioFalso();
+        var guardado = new UnitOfWorkFalso();
+        var handler = new AsignarTecnicoProyectoCommandHandler(
+            tecnicos, proyectos, contexto, new AlcanceDatosServiceFalso(tieneAccesoTotal: true), guardado);
+
+        var resultado = await handler.Handle(
+            new AsignarTecnicoProyectoCommand(proyecto.Id, trabajador.Id, new DateOnly(2026, 1, 10)), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(!cerrado);
+        if (cerrado) resultado.Error.Codigo.Should().Be("Proyecto.YaCerrado");
+        tecnicos.ProyectosTecnicos.Should().HaveCount(cerrado ? 0 : 1);
+        guardado.VecesGuardado.Should().Be(cerrado ? 0 : 1);
+    }
+
     private static Proyecto CrearProyecto(Guid clienteId) =>
         Proyecto.Crear(clienteId, Guid.NewGuid(), "Ampliación Planta 2", new DateOnly(2026, 1, 1), null, null);
 
@@ -88,6 +114,30 @@ public class ProyectoAutorizacionEscrituraTests
     public async Task Asignar_tecnico_a_un_proyecto_fuera_de_cartera_falla()
     {
         var proyecto = CrearProyecto(Guid.NewGuid());
+        var proyectos = new ProyectoRepositorioFalso();
+        proyectos.Agregar(proyecto);
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "García", "77189989B");
+        var trabajadoresContext = new TrabajadoresQueryContextFalso();
+        trabajadoresContext.ListaTrabajadores.Add(trabajador);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new AsignarTecnicoProyectoCommandHandler(
+            new ProyectoTecnicoRepositorioFalso(), proyectos, trabajadoresContext, AlcanceSinAcceso(), unitOfWork);
+
+        var resultado = await handler.Handle(
+            new AsignarTecnicoProyectoCommand(proyecto.Id, trabajador.Id, new DateOnly(2026, 1, 10)), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Proyecto.NoEncontrado");
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Asignar_tecnico_a_un_proyecto_cerrado_fuera_de_cartera_no_revela_que_existe()
+    {
+        // La guarda de «proyecto cerrado» va DESPUÉS de la visibilidad: un actor
+        // sin acceso recibe NoEncontrado, no YaCerrado (que confirmaría que existe).
+        var proyecto = CrearProyecto(Guid.NewGuid());
+        proyecto.Cerrar(new DateOnly(2026, 2, 1));
         var proyectos = new ProyectoRepositorioFalso();
         proyectos.Agregar(proyecto);
         var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "García", "77189989B");
