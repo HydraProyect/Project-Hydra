@@ -5,8 +5,8 @@
 
 @*
     Sin marcado: devuelve a la pantalla de acceso a quien tenía sesión y la ha
-    perdido mientras el circuito seguía abierto (cuenta desactivada o security
-    stamp rotado; ver ProveedorAutenticacionRevalidada).
+    perdido mientras el circuito seguía abierto (cuenta desactivada, security
+    stamp rotado o un error al revalidar; ver ProveedorAutenticacionRevalidada).
 
     Hace falta porque el Router de Routes.razor se pinta en SSR estático y su
     AuthorizeRouteView no vive en el circuito: cuando el proveedor pasa a

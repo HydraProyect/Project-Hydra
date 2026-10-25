@@ -325,7 +325,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     [Fact]
     public async Task Una_cancelacion_que_no_es_del_ciclo_invalida_el_circuito()
     {
-        // Un timeout ajeno al ciclo es un error de revalidación: falla cerrado.
+        // Un tiempo de espera del proveedor de base de datos llega como
+        // OperationCanceledException con un token que NO es el del ciclo. No es
+        // una cancelación del circuito sino un error al revalidar: tras repetir
+        // la consulta una vez, falla cerrado y el circuito pasa a anónimo.
         var usuario = await CrearUsuarioAsync("cancelacion-ajena@x.test");
         var principal = await PrincipalDeSesionAsync(usuario);
 
