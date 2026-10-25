@@ -207,14 +207,18 @@
                         </div>
                     </dl>
                 }
-                <form method="post" action="/cuenta/soporte/cerrar">
-                    @if (_token is not null)
-                    {
-                        <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
-                    }
-                    <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
-                    <Boton Variante="VarianteBoton.Primario" Type="submit">Cerrar la sesión de soporte</Boton>
-                </form>
+                @if (_detalleSesion?.UsuarioPlataformaId is { } usuarioPlataformaId
+                    && usuarioPlataformaId == _identidad?.ActorRealUsuarioId)
+                {
+                    <form method="post" action="/cuenta/soporte/cerrar">
+                        @if (_token is not null)
+                        {
+                            <input type="hidden" name="@_token.FormFieldName" value="@_token.Value" />
+                        }
+                        <input type="hidden" name="sesionPrivilegiadaId" value="@sesion" />
+                        <Boton Variante="VarianteBoton.Primario" Type="submit">Cerrar la sesión de soporte</Boton>
+                    </form>
+                }
             </div>
         </section>
     }
@@ -586,8 +590,9 @@
         }
     }
 
-    private static string TextoDeErrorDeCierre(string codigo) => codigo switch
+    private string TextoDeErrorDeCierre(string codigo) => codigo switch
     {
+        "SesionPrivilegiada.CierreNoPermitido" => Textos["CierreNoPermitido"],
         "SesionPrivilegiada.YaCerrada" => "Esa sesión de soporte ya estaba cerrada.",
         "SesionPrivilegiada.NoEncontrada" => "No encontramos esa sesión de soporte.",
         _ => "No se pudo cerrar la sesión de soporte.",
