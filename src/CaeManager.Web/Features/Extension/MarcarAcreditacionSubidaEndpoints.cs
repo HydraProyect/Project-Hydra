@@ -55,8 +55,7 @@ public static class MarcarAcreditacionSubidaEndpoints
             // Sin cambio o sin versión la petición está mal formada (400): ni es un conflicto ni algo que no existe. La
             // extensión siempre reenvía lo que recibió de la confirmación.
             if (peticion is null || peticion.CambioId == Guid.Empty || peticion.Version == Guid.Empty)
-                return Results.Problem(
-                    "Falta el cambio o la versión que se quiere deshacer.", statusCode: StatusCodes.Status400BadRequest);
+                return Results.BadRequest();
             var resultado = await mediator.Send(
                 new DeshacerSubidaDesdeExtensionCommand(id, peticion.CambioId, peticion.Version), cancellationToken);
             return resultado.EsFallido ? Fallo(resultado.Error) : Results.NoContent();

@@ -46,7 +46,8 @@ globalThis.chrome = {
       clear: async () => (almacen = {}),
     },
     session: {
-      get: async (clave) => (typeof clave === "string" ? { [clave]: almacen[clave] } : { ...almacen }),
+      // Copia, como el chrome real: devolver la referencia ocultaría las escrituras que se pisan.
+      get: async (clave) => structuredClone(typeof clave === "string" ? { [clave]: almacen[clave] } : { ...almacen }),
       set: async (obj) => Object.assign(almacen, obj),
       remove: async (claves) => [].concat(claves).forEach((c) => delete almacen[c]),
     },
@@ -400,6 +401,22 @@ const MINUTO = 60 * 1000;
   reconectar();
   const trasCaducar = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
   comprobar("y lo pendiente sobrevive a la caducidad", trasCaducar?.pendientes?.length === 1, JSON.stringify(trasCaducar));
+}
+
+// Dos mensajes a la vez no se pisan: cada uno lee y escribe el mapa entero, y sin la cola el segundo resucitaría
+// lo que borró el primero.
+{
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  await pedirSubida({ tab: { id: 9 } });
+  await Promise.all([
+    mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION }),
+    mensaje("descartarEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION }),
+  ]);
+  const de7 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  const de9 = await mensaje("obtenerEnviosPendientes", { tab: { id: 9 } });
+  comprobar("dos descartes a la vez borran los dos", de7?.pendientes?.length === 0 && de9?.pendientes?.length === 0,
+    `${JSON.stringify(de7)} · ${JSON.stringify(de9)}`);
 }
 
 console.log(`\n${fallos === 0 ? "todo en verde" : `${fallos} fallos`}.\n`);

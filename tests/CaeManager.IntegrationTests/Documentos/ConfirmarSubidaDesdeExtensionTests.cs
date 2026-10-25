@@ -26,7 +26,8 @@ namespace CaeManager.IntegrationTests.Documentos;
 /// <summary>
 /// Incremento E1 de la extensión: «Lo he enviado» persiste un cambio de estado con origen Extensión, el Historial del
 /// Centro lo devuelve con ese origen, el deshacer de la extensión lo deja deshecho sin borrarlo, y la columna
-/// <c>Origen</c> no tiene valor por defecto en la base: quien inserte un cambio tiene que decir de dónde viene.
+/// <c>Origen</c> conserva en la base el valor por defecto Centro 360 (0), para que la imagen anterior siga insertando
+/// durante el relevo azul/verde o tras volver atrás.
 /// </summary>
 public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
 {

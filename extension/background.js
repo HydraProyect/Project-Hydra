@@ -319,8 +319,23 @@ async function guardarPorPestana(clave, mapa) {
   await chrome.storage.session.set({ [clave]: mapa });
 }
 
+// Cada cambio lee el mapa entero, lo modifica y lo escribe con un await entre
+// medias: dos mensajes a la vez (poner B mientras se confirma A, o la poda de lo
+// caducado) se pisarían y perderían o resucitarían un envío. Todo lo que
+// escribe en estos mapas pasa de uno en uno por esta cola.
+let colaDeEnvios = Promise.resolve();
+function enSerie(tarea) {
+  const resultado = colaDeEnvios.then(tarea);
+  colaDeEnvios = resultado.catch(() => {});
+  return resultado;
+}
+
 // Lo de una pestaña, sin lo caducado. Las claves son texto: storage las serializa así.
-async function vigentesDePestana(clave, idPestana) {
+function vigentesDePestana(clave, idPestana) {
+  return enSerie(() => podarYLeerDePestana(clave, idPestana));
+}
+
+async function podarYLeerDePestana(clave, idPestana) {
   const mapa = await leerPorPestana(clave);
   const ahora = Date.now();
   const propios = mapa[String(idPestana)] ?? {};
@@ -333,14 +348,16 @@ async function vigentesDePestana(clave, idPestana) {
   return vigentes;
 }
 
-async function cambiarEnPestana(clave, idPestana, acreditacionId, valor) {
-  const mapa = await leerPorPestana(clave);
-  const propios = { ...(mapa[String(idPestana)] ?? {}) };
-  if (valor === undefined) delete propios[acreditacionId];
-  else propios[acreditacionId] = valor;
-  if (Object.keys(propios).length === 0) delete mapa[String(idPestana)];
-  else mapa[String(idPestana)] = propios;
-  await guardarPorPestana(clave, mapa);
+function cambiarEnPestana(clave, idPestana, acreditacionId, valor) {
+  return enSerie(async () => {
+    const mapa = await leerPorPestana(clave);
+    const propios = { ...(mapa[String(idPestana)] ?? {}) };
+    if (valor === undefined) delete propios[acreditacionId];
+    else propios[acreditacionId] = valor;
+    if (Object.keys(propios).length === 0) delete mapa[String(idPestana)];
+    else mapa[String(idPestana)] = propios;
+    await guardarPorPestana(clave, mapa);
+  });
 }
 
 async function anotarEnvioPendiente(idPestana, acreditacionId, documento) {
@@ -439,7 +456,7 @@ async function deshacerEnvio({ acreditacionId }, idPestana) {
 }
 
 // Una pestaña cerrada no va a confirmar nada.
-chrome.tabs?.onRemoved?.addListener?.(async (idPestana) => {
+chrome.tabs?.onRemoved?.addListener?.((idPestana) => enSerie(async () => {
   for (const clave of [CLAVE_ENVIOS_PENDIENTES, CLAVE_ENVIOS_CONFIRMADOS]) {
     const mapa = await leerPorPestana(clave);
     if (mapa[String(idPestana)]) {
@@ -447,7 +464,7 @@ chrome.tabs?.onRemoved?.addListener?.(async (idPestana) => {
       await guardarPorPestana(clave, mapa);
     }
   }
-});
+}));
 chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
   const manejadores = {
     obtenerConexion: () => obtenerConexion(),
