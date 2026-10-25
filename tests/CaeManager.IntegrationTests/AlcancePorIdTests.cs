@@ -90,6 +90,31 @@ public class AlcancePorIdTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task Un_documento_de_Proyecto_borrado_logicamente_devuelve_null_sin_excepcion()
+    {
+        var centro = await _dbContext.Centros.FirstAsync(c => c.ClienteId == _clienteVisible.Id);
+        var proyecto = CaeManager.Domain.Proyectos.Proyecto.Crear(
+            _clienteVisible.Id, centro.Id, "Obra eliminada", DiaDeNegocio.Hoy(), null, null);
+        _dbContext.Proyectos.Add(proyecto);
+        var documento = Documento.DeProyecto(
+            proyecto.Id, _documentoDeTrabajadorVisible.TipoDocumentoId, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca);
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+        proyecto.MarcarComoEliminado(Guid.NewGuid());
+        await _dbContext.SaveChangesAsync();
+        _dbContext.ChangeTracker.Clear();
+
+        (await _dbContext.Proyectos.AnyAsync(p => p.Id == proyecto.Id)).Should().BeFalse();
+        (await _dbContext.Documentos.AnyAsync(d => d.Id == documento.Id)).Should().BeTrue();
+        var handler = new ObtenerDocumentoPorIdQueryHandler(
+            _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, _dbContext, new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(new ObtenerDocumentoPorIdQuery(documento.Id), default);
+
+        resultado.Should().BeNull();
+    }
+
     public async Task DisposeAsync()
     {
         await _dbContext.Database.EnsureDeletedAsync();

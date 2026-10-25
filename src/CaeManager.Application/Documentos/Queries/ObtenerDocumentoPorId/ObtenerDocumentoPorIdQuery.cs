@@ -102,7 +102,9 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                     ? await alcanceDatos.VehiculoVisibleAsync(vehiculoId, cancellationToken)
                     : proyectoClienteId is { } clienteIdDeProyecto
                         ? await alcanceDatos.ClienteVisibleAsync(clienteIdDeProyecto, cancellationToken)
-                        : await alcanceDatos.EmpresaVisibleAsync(documento.EmpresaId!.Value, cancellationToken);
+                        // Un Proyecto eliminado (filtro global de borrado logico) no resuelve su Cliente
+                        // empresarial y llega aqui sin EmpresaId (propietario exclusivo): no encontrado, no 500.
+                        : documento.EmpresaId is { } empresaId && await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken);
 
         if (!visible) return null;
 
