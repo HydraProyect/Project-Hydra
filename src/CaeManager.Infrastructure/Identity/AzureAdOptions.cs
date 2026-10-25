@@ -50,6 +50,12 @@ public class AzureAdOptions : IOpcionesConGate
     /// </para>
     ///
     /// <para>
+    /// Decide también a quién alcanza esa restricción (D-1, 2026-10-25): solo a
+    /// las cuentas cuyo Tenant propietario es este. Sin él, alcanza a todas (ver
+    /// <c>RestriccionLoginLocalClaimsTransformation</c>).
+    /// </para>
+    ///
+    /// <para>
     /// Un único tenant destino es la forma correcta <b>mientras</b>
     /// <see cref="TenantId"/> restrinja el login a una sola organización de
     /// Entra, que es el diseño de hoy. Admitir varias organizaciones exigiría
