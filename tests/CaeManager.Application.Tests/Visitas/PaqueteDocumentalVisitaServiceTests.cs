@@ -365,6 +365,22 @@ public class PaqueteDocumentalVisitaServiceTests
     }
 
     [Fact]
+    public async Task El_aviso_de_copia_ilegible_identifica_el_documento_sin_revelar_la_clave()
+    {
+        var ilegible = DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-10),
+            VigenciaDocumento.VenceEl(Hoy.AddDays(100)), "irrelevante", archivoInexistente: true);
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30),
+            VigenciaDocumento.VenceEl(Hoy.AddDays(200)), "reserva");
+
+        var paquete = await ConstruirAsync();
+
+        LeerZip(paquete!.Contenido).Should().ContainSingle().Which.Value.Should().Be("reserva");
+        var aviso = _logger.Entradas.Where(e => e.Mensaje.Contains("No se pudo abrir")).Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Warning);
+        aviso.Mensaje.Should().Contain(ilegible.Id.ToString()).And.NotContain(ilegible.ArchivoUrl!);
+    }
+
+    [Fact]
     public async Task El_aviso_de_sin_confirmar_refleja_lo_que_viajo_si_la_elegida_no_se_pudo_abrir()
     {
         // La sin confirmar es la de emisión más reciente pero su archivo no existe: viaja la confirmada,
@@ -714,6 +730,6 @@ public class PaqueteDocumentalVisitaServiceTests
         public bool IsEnabled(LogLevel logLevel) => true;
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-            Entradas.Add((logLevel, formatter(state, exception)));
+            Entradas.Add((logLevel, formatter(state, exception) + (exception is null ? string.Empty : " " + exception)));
     }
 }

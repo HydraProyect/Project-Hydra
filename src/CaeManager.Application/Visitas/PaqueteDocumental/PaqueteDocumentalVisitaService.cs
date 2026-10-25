@@ -272,7 +272,8 @@ public class PaqueteDocumentalVisitaService(
                     }
                     catch (Exception ex)
                     {
-                        logger.LogWarning(ex, "No se pudo abrir el archivo {ArchivoUrl} para el paquete documental de la visita.", documento.ArchivoUrl);
+                        // Solo el tipo de la excepcion: su mensaje arrastra la clave del fichero.
+                        logger.LogWarning("No se pudo abrir el documento {DocumentoId} para el paquete documental de la visita ({TipoExcepcion}).", documento.Id, ex.GetType().Name);
                         continue;
                     }
 
