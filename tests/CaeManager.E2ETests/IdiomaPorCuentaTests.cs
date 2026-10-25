@@ -260,7 +260,28 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         // no llega nunca — medido en CI (run 36275744744: el script se pidió
         // 286 ms después del HTML y el servidor no vio ningún POST en 30 s).
         // DOMContentLoaded no se dispara hasta ejecutar los scripts síncronos.
-        await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+        //
+        // Esta es la primera página que carga el navegador tras el login, y en
+        // un arranque en frío del bloque de la cola de fusión puede tardar más
+        // de los 30 s por defecto en llegar a DOMContentLoaded (issue #1713:
+        // TimeoutException aquí en un único bloque, con el resto de la clase en
+        // verde). Se mantiene la espera —quitarla reabriría la ventana del
+        // párrafo anterior— y se le da margen solo a esta primera navegación;
+        // el ayudante compartido ya la encuentra cumplida. Si #1713 reaparece
+        // con estos 90 s, es un bloqueo y no lentitud: el fallo trae los
+        // recursos que seguían pendientes.
+        try
+        {
+            await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions { Timeout = 90_000 });
+        }
+        catch (TimeoutException)
+        {
+            var pendientes = await page.EvaluateAsync<string>(
+                "() => document.readyState + ' | sin responseEnd: ' + performance.getEntriesByType('resource')" +
+                ".filter(r => r.responseEnd === 0).map(r => r.name).join(', ')");
+            throw new Xunit.Sdk.XunitException(
+                $"La página tras el login no llegó a DOMContentLoaded en 90 s (URL {page.Url}): {pendientes}");
+        }
         await Ayudas.AbrirMenuDeUsuarioAsync(page);
         var respuesta = await page.RunAndWaitForResponseAsync(
             () => page.SelectOptionAsync("select.selector-idioma", cultura),
