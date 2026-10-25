@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Account;
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
@@ -420,7 +421,7 @@ public partial class BuscadorGlobal
         $"/trabajadores/{trabajadorId}?pestana=documentacion&accion=subir";
 
     private static bool EsRutaLocal(string url) =>
-        url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal) && !url.Contains('\\');
+        string.Equals(url, RedireccionLocal.Sanear(url), StringComparison.Ordinal) && !url.Contains('\\');
 
     /// <summary>
     /// Una fila del palette, ya resuelta para pintar: el DTO, el tipo con el

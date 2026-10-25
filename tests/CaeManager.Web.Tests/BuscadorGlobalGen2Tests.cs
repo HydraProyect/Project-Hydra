@@ -405,12 +405,19 @@ public class BuscadorGlobalGen2Tests : BunitContext
         Filas(cut).Should().Contain(f => f.Titulo == "Reclamar…" && f.Href == "/comunicaciones");
     }
 
-    [Fact]
-    public async Task Un_reciente_con_ruta_no_local_no_ofrece_ir_a()
+    [Theory]
+    [InlineData("https://ajeno.example/centros/1")]
+    [InlineData("/\t/evil.example")]
+    [InlineData("/\n/evil.example")]
+    [InlineData("/\r\n/evil.example")]
+    [InlineData("/\\evil.example")]
+    [InlineData("\\evil.example")]
+    [InlineData("//evil.example")]
+    public async Task Un_reciente_con_ruta_no_local_no_ofrece_ir_a(string ruta)
     {
         var cut = await RenderizarYAbrir(new MediadorControlado
         {
-            Recientes = [new("Centro", null, "Centro Norte", "Centro", "https://ajeno.example/centros/1")]
+            Recientes = [new("Centro", null, "Centro Norte", "Centro", ruta)]
         });
         await Input(cut).EscribirAsync("ir a");
 
