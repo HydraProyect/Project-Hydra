@@ -10,6 +10,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -128,6 +129,51 @@ public class RestriccionLoginLocalNoAmpliaElRolTests
         escritura.Should().NotContain(await delDeclarado.ObtenerRolEfectivoAsync());
         (await deOtro.ObtenerRolEfectivoAsync()).Should().Be(rolReal);
         escritura.Should().Contain(rolReal, "control: el rol real es editor");
+    }
+
+    /// <summary>
+    /// El escenario del piloto tras la revalidación periódica de la cookie: la fábrica de claims rehace
+    /// el principal sin la marca de Microsoft, y el gancho la copia de la cookie validada. Una sesión
+    /// abierta por Microsoft sigue escribiendo después de rehacerse; una con contraseña sigue en Consulta.
+    /// </summary>
+    [Theory]
+    [InlineData(true, Roles.GestorCae)]
+    [InlineData(false, Roles.Consulta)]
+    public async Task Tras_revalidar_la_cookie_la_sesion_de_Microsoft_conserva_la_escritura(bool esSso, string esperado)
+    {
+        var opciones = new SecurityStampValidatorOptions();
+        RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar(opciones);
+        var contexto = new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = Principal(esSso, Roles.GestorCae),
+            NewPrincipal = Principal(esSso: false, Roles.GestorCae),
+        };
+
+        await opciones.OnRefreshingPrincipal!(contexto);
+        var servicio = Servicio(await Transformacion(entraConfigurado: true).TransformAsync(contexto.NewPrincipal!));
+
+        (await servicio.ObtenerRolEfectivoAsync()).Should().Be(esperado);
+        contexto.NewPrincipal!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().HaveCount(esSso ? 1 : 0, "la marca se conserva sin duplicarse y nunca se inventa");
+    }
+
+    [Fact]
+    public async Task El_gancho_de_revalidacion_respeta_el_anterior()
+    {
+        var anteriorLlamado = false;
+        var opciones = new SecurityStampValidatorOptions
+        {
+            OnRefreshingPrincipal = _ => { anteriorLlamado = true; return Task.CompletedTask; },
+        };
+        RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar(opciones);
+
+        await opciones.OnRefreshingPrincipal!(new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = Principal(esSso: true, Roles.GestorCae),
+            NewPrincipal = Principal(esSso: true, Roles.GestorCae),
+        });
+
+        anteriorLlamado.Should().BeTrue();
     }
 
     /// <summary>

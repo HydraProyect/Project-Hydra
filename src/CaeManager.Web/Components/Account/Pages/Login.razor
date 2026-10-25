@@ -61,7 +61,8 @@
        siendo el único camino (mismo principio "inerte por defecto" que
        Sentry/Backups/Anthropic). Ver RestriccionLoginLocalClaimsTransformation:
        una vez configurado, el login local deja de dar rol de edición a las
-       cuentas del Tenant propietario AzureAd:TenantHydraId (las de otros Tenants
+       cuentas del Tenant propietario declarado para el inicio con Microsoft (ver
+       AzureAdOptions; las de otros Tenants
        conservan su rol), y la nota lo dice antes de que alguien entre y no pueda
        editar. *@
     @if (OpcionesAzureAd.Value.EstaConfigurado)

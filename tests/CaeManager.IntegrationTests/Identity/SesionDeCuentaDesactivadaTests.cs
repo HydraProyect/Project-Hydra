@@ -80,6 +80,8 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El registro de inicios de sesión tiene su propio test
         // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
         servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
+        // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
+        servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -224,6 +226,29 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         await DesactivarSinRotarStampAsync(usuario.Id);
 
         (await ValidarConElValidadorDeLaCookieAsync(principal)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task El_validador_real_de_la_cookie_conserva_la_marca_de_Microsoft_al_rehacer_el_principal()
+    {
+        // La fábrica de claims no conoce la marca que el callback de Microsoft añade al iniciar sesión;
+        // sin el gancho, la primera revalidación la borraba y la sesión caía en Consulta.
+        var usuario = await CrearUsuarioAsync("marca-microsoft@x.test");
+        var conMarca = await PrincipalDeSesionAsync(usuario);
+        ((ClaimsIdentity)conMarca.Identity!).AddClaim(new Claim(
+            RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+        var sinMarca = await PrincipalDeSesionAsync(usuario);
+
+        var rehecho = await PrincipalTrasElValidadorDeLaCookieAsync(conMarca);
+        var rehechoSinMarca = await PrincipalTrasElValidadorDeLaCookieAsync(sinMarca);
+
+        rehecho.Should().NotBeNull();
+        rehecho.Should().NotBeSameAs(conMarca, "control: el validador rehízo el principal con la fábrica");
+        rehecho!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin).Select(c => c.Value)
+            .Should().Equal([RestriccionLoginLocalClaimsTransformation.MetodoLoginSso]);
+        rehechoSinMarca.Should().NotBeNull();
+        rehechoSinMarca!.HasClaim(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
+            .Should().BeFalse("la marca nunca se crea donde no estaba");
     }
 
     [Fact]
@@ -430,7 +455,11 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     /// Pasa el principal por el <c>ISecurityStampValidator</c> REAL con la
     /// cookie vencida, como haría el middleware. Devuelve si sigue aceptada.
     /// </summary>
-    private async Task<bool> ValidarConElValidadorDeLaCookieAsync(ClaimsPrincipal principal)
+    private async Task<bool> ValidarConElValidadorDeLaCookieAsync(ClaimsPrincipal principal) =>
+        await PrincipalTrasElValidadorDeLaCookieAsync(principal) is not null;
+
+    /// <summary>El principal que deja el validador real de la cookie vencida, o <c>null</c> si la rechaza.</summary>
+    private async Task<ClaimsPrincipal?> PrincipalTrasElValidadorDeLaCookieAsync(ClaimsPrincipal principal)
     {
         using var ambito = _servicios.CreateScope();
         var http = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
@@ -455,7 +484,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         await ambito.ServiceProvider.GetRequiredService<ISecurityStampValidator>().ValidateAsync(contexto);
 
-        return contexto.Principal is not null;
+        return contexto.Principal;
     }
 
     /// <summary>Devuelve el valor de la cabecera Set-Cookie que produce RefreshSignInAsync (o SignInAsync), o vacío si no emitió nada.</summary>

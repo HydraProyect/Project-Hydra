@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Infrastructure.Identity;
@@ -14,7 +15,8 @@ namespace CaeManager.Infrastructure.Identity;
 /// <c>RolLimitado</c>). El login local con contraseña sigue
 /// funcionando (no se bloquea), pero deja de dar permisos de edición. El
 /// callback de Microsoft (ver IdentityEndpointsExtensions) es el único
-/// lugar que añade <see cref="ClaimMetodoLoginSso"/> al iniciar sesión.
+/// lugar que añade <see cref="MetodoLoginSso"/> al iniciar sesión, y
+/// <see cref="ConservarMetodoLoginAlRevalidar"/> la conserva al revalidar la cookie.
 /// Inerte mientras <see cref="AzureAdOptions.EstaConfigurado"/> sea falso,
 /// para no bloquear el login local antes de tener SSO activo (arranque en
 /// frío del propio Administrador) — mismo principio "inerte por defecto"
@@ -101,6 +103,33 @@ public class RestriccionLoginLocalClaimsTransformation : IClaimsTransformation
             identidad.AddClaim(new Claim(identidad.RoleClaimType, rolLimitado));
 
         return Task.FromResult(principal);
+    }
+
+    /// <summary>
+    /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
+    /// marca <see cref="MetodoLoginSso"/>. El validador de la cookie rehace el principal con la fábrica de
+    /// claims en cada intervalo de revalidación (60 s por defecto, <c>Sesion:IntervaloRevalidacionSegundos</c>)
+    /// y descarta los claims que el callback de Microsoft añadió al iniciar sesión: sin esto, una sesión
+    /// abierta por Microsoft perdía la marca en la primera revalidación y la restricción la dejaba en
+    /// Consulta, también en el Tenant beneficiario delegado. Solo se copia la marca que ya traía la cookie
+    /// validada, emitida por el servidor; nunca se crea donde no estaba. Respeta un gancho anterior.
+    /// </summary>
+    public static void ConservarMetodoLoginAlRevalidar(SecurityStampValidatorOptions opciones)
+    {
+        var anterior = opciones.OnRefreshingPrincipal;
+        opciones.OnRefreshingPrincipal = async contexto =>
+        {
+            if (anterior is not null) await anterior(contexto);
+            CopiarMetodoLoginSso(contexto);
+        };
+    }
+
+    private static void CopiarMetodoLoginSso(SecurityStampRefreshingPrincipalContext contexto)
+    {
+        if (contexto.CurrentPrincipal?.HasClaim(TipoClaimMetodoLogin, MetodoLoginSso) == true
+            && contexto.NewPrincipal?.Identity is ClaimsIdentity nueva
+            && !nueva.HasClaim(TipoClaimMetodoLogin, MetodoLoginSso))
+            nueva.AddClaim(new Claim(TipoClaimMetodoLogin, MetodoLoginSso));
     }
 
     /// <summary>
