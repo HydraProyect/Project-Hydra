@@ -62,7 +62,7 @@ jobs:
       actions: read
       pull-requests: write
     steps:
-      - name: Poner «CI: completo» a la PR
+      - name: "Poner «CI: completo» a la PR"
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
