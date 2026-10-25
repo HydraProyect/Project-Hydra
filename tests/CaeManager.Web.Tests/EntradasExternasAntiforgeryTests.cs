@@ -2,6 +2,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.CambiarEstadoAcreditacionEnCentro;
+using CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtension;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
@@ -28,6 +30,7 @@ namespace CaeManager.Web.Tests;
 public class EntradasExternasAntiforgeryTests
 {
     private const string Subida = "/extension/acreditaciones/11111111-1111-1111-1111-111111111111/subida";
+    private const string DeshacerSubida = Subida + "/deshacer";
 
     [Theory]
     [InlineData(Subida)]
@@ -72,11 +75,34 @@ public class EntradasExternasAntiforgeryTests
         using var cliente = Cliente(app);
         cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
         using var respuesta = await cliente.PostAsync(Subida, null);
+        respuesta.StatusCode.Should().Be(HttpStatusCode.OK, "«Lo he enviado» devuelve el cambio y la versión que pide el «Deshacer»");
+    }
+
+    [Fact]
+    public async Task El_deshacer_de_la_subida_con_cookie_sin_token_responde_400()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        await cliente.GetStringAsync("/token");
+        using var respuesta = await cliente.PostAsync(DeshacerSubida, CuerpoDeshacer());
+        respuesta.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task La_credencial_validada_de_extension_permite_deshacer_la_subida()
+    {
+        await using var app = await ArrancarAsync();
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+        using var respuesta = await cliente.PostAsync(DeshacerSubida, CuerpoDeshacer());
         respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent);
     }
 
+    private static StringContent CuerpoDeshacer() => new(
+        $"{{\"cambioId\":\"{Guid.NewGuid()}\",\"version\":\"{Guid.NewGuid()}\"}}", System.Text.Encoding.UTF8, "application/json");
+
     [Theory]
-    [InlineData(Subida, HttpStatusCode.NoContent)]
+    [InlineData(Subida, HttpStatusCode.OK)]
     [InlineData("/cuenta/cerrar-sesion", HttpStatusCode.Found)]
     [InlineData("/cuenta/soporte/salir", HttpStatusCode.Unauthorized)]
     public async Task El_token_valido_permite_el_post_con_cookie(string ruta, HttpStatusCode esperado)
@@ -173,7 +199,9 @@ public class EntradasExternasAntiforgeryTests
     private sealed class Mediador : IMediator
     {
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)Result.Exito());
+            Task.FromResult((TResponse)(request is ConfirmarSubidaDesdeExtensionCommand
+                ? Result.Exito(new CambioEstadoAnotadoDto(Guid.NewGuid(), Guid.NewGuid()))
+                : (object)Result.Exito()));
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

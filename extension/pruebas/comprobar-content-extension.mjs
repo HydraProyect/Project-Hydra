@@ -114,6 +114,9 @@ const documentoSimulado = {
 let respuestaDeListarPendientes = { ok: true, proveedores: [] };
 let respuestaDeSubirDocumento = { ok: true };
 let respuestaDeObtenerConexion = { conectado: false };
+let respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
+let respuestaDeConfirmarEnvio = { ok: true, puedeDeshacer: true };
+let respuestaDeDeshacerEnvio = { ok: true };
 const mensajesEnviados = [];
 let manejadorDeMensajes = null;
 
@@ -124,6 +127,9 @@ const chromeSimulado = {
       if (mensaje.accion === "obtenerConexion") return respuestaDeObtenerConexion;
       if (mensaje.accion === "listarPendientes") return respuestaDeListarPendientes;
       if (mensaje.accion === "subirDocumento") return respuestaDeSubirDocumento;
+      if (mensaje.accion === "obtenerEnviosPendientes") return respuestaDeEnviosPendientes;
+      if (mensaje.accion === "confirmarEnvio") return respuestaDeConfirmarEnvio;
+      if (mensaje.accion === "deshacerEnvio") return respuestaDeDeshacerEnvio;
       return { ok: false, error: "acción no simulada" };
     },
     onMessage: { addListener: (fn) => (manejadorDeMensajes = fn) },
@@ -527,6 +533,63 @@ let campoPrincipal;
     "pasada la hora, el clic ya NO se intercepta aunque nadie haya pedido nada",
     lanzarClic(despues).prevenido === false
   );
+}
+
+// 5b. «Lo he enviado» (E1): tras poner el archivo, la página pregunta, y solo la
+//     respuesta de la persona manda la confirmación al service worker.
+{
+  respuestaDeEnviosPendientes = {
+    ok: true,
+    pendientes: [{ acreditacionId: "22222222-2222-2222-2222-222222222222", documento: "Reconocimiento médico" }],
+  };
+  mensajesEnviados.length = 0;
+  const r = responder();
+  manejadorDeMensajes({ accion: "pedirConfirmacionEnvio" }, {}, r.enviar);
+  await reposar();
+
+  const enviado = documentoSimulado.documentElement.buscarPorTexto("Lo he enviado");
+  comprobar("la página pregunta «Lo he enviado» por lo puesto", enviado !== null);
+  comprobar("y ofrece «No lo he enviado»", documentoSimulado.documentElement.buscarPorTexto("No lo he enviado") !== null);
+  comprobar("sin pulsarlo, no se confirma nada", !mensajesEnviados.some((m) => m.accion === "confirmarEnvio"));
+
+  for (const fn of enviado?.oyentes.click ?? []) fn();
+  await reposar();
+  const confirmacion = mensajesEnviados.find((m) => m.accion === "confirmarEnvio");
+  comprobar("al pulsarlo se confirma esa acreditación", confirmacion?.acreditacionId === "22222222-2222-2222-2222-222222222222");
+  comprobar("y se dice «Pendiente de validar» con «Deshacer»",
+    documentoSimulado.documentElement.buscarPorTexto("Anotado en TALVEG: Pendiente de validar.") !== null
+      && documentoSimulado.documentElement.buscarPorTexto("Deshacer") !== null);
+
+  // «Deshacer» pulsado: pide al service worker deshacer ESA acreditación (el cambio y la versión los pone él) y
+  // dice que volvió a estar como antes.
+  const deshacer = documentoSimulado.documentElement.buscarPorTexto("Deshacer");
+  for (const fn of deshacer?.oyentes.click ?? []) fn();
+  await reposar();
+  const peticionDeshacer = mensajesEnviados.find((m) => m.accion === "deshacerEnvio");
+  comprobar("al pulsar «Deshacer» se pide deshacer esa acreditación",
+    peticionDeshacer?.acreditacionId === "22222222-2222-2222-2222-222222222222"
+      && peticionDeshacer.cambioId === undefined && peticionDeshacer.version === undefined, JSON.stringify(peticionDeshacer));
+  comprobar("y se dice que vuelve a estar como antes",
+    documentoSimulado.documentElement.buscarPorTexto("Deshecho: en TALVEG vuelve a estar como antes.") !== null);
+  comprobar("el botón «Deshacer» desaparece tras usarlo", documentoSimulado.documentElement.buscarPorTexto("Deshacer") === null);
+
+  // Si TALVEG no lo deshace (Centro 360 lo cambió después), se muestra su motivo, no un «Deshecho» falso.
+  mensajesEnviados.length = 0;
+  // Otra acreditación: la fila de la primera sigue mostrando «Deshecho» hasta que se va sola.
+  respuestaDeEnviosPendientes = { ok: true, pendientes: [{ acreditacionId: "55555555-5555-5555-5555-555555555555", documento: "Formación PRL" }] };
+  respuestaDeDeshacerEnvio = { ok: false, error: "El estado ya ha vuelto a cambiar: no se puede deshacer. Corrígelo desde Centro 360." };
+  manejadorDeMensajes({ accion: "pedirConfirmacionEnvio" }, {}, () => {});
+  await reposar();
+  const enviadoOtraVez = documentoSimulado.documentElement.buscarPorTexto("Lo he enviado");
+  for (const fn of enviadoOtraVez?.oyentes.click ?? []) fn();
+  await reposar();
+  for (const fn of documentoSimulado.documentElement.buscarPorTexto("Deshacer")?.oyentes.click ?? []) fn();
+  await reposar();
+  comprobar("si no se pudo deshacer, se muestra el motivo de TALVEG",
+    documentoSimulado.documentElement.buscarPorTexto(respuestaDeDeshacerEnvio.error) !== null
+      && mensajesEnviados.some((m) => m.accion === "deshacerEnvio" && m.acreditacionId === "55555555-5555-5555-5555-555555555555"));
+  respuestaDeDeshacerEnvio = { ok: true };
+  respuestaDeEnviosPendientes = { ok: true, pendientes: [] };
 }
 
 // 6. CONTROL POSITIVO DEL ARNÉS. Si el simulado no fuera capaz de registrar una

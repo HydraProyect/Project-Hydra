@@ -190,9 +190,15 @@ async function subirAsync(documento, boton, fila) {
     return;
   }
 
+  // Ya está en el formulario, pero TALVEG no anota nada hasta que la persona
+  // pulse «Lo he enviado» en la propia página (E1): el popup se cierra al volver
+  // a ella, así que la pregunta vive allí.
   fila.classList.add("fila-completada");
-  boton.textContent = "Subido";
-  await cargarPendientesAsync();
+  boton.textContent = "Puesto";
+  const aviso = document.createElement("p");
+  aviso.textContent = "Envíalo en la plataforma y confirma «Lo he enviado» en la página.";
+  fila.appendChild(aviso);
+  // Sin releer la lista: nada ha cambiado en TALVEG todavía, y releerla borraría este aviso.
 }
 
 inicializar();
