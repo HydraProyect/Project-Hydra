@@ -112,13 +112,16 @@ public static class IdentityEndpointsExtensions
                 case DecisionCuentaMicrosoft.RechazarSinCuentaPrevia:
                     // Invitación previa (D-3): el inicio con Microsoft no crea cuentas.
                     // Sin cuenta no hay Tenant propietario ni persona a la que avisar, así
-                    // que la vigilancia no deja fila (igual que un correo inexistente con
-                    // contraseña); queda en el log de auditoría de autenticación. Mensaje
-                    // propio: quien llega aquí ya se autenticó en el directorio
-                    // configurado, y lo que necesita es que le den de alta.
+                    // que la vigilancia no deja fila: como un correo inexistente con
+                    // contraseña, cuenta como Fallido para la ráfaga por IP. Queda en el
+                    // log de auditoría de autenticación con la clave de la identidad de
+                    // Microsoft (un identificador, no el correo). Mensaje propio: quien
+                    // llega aquí ya se autenticó en el directorio configurado, y lo que
+                    // necesita es que le den de alta.
                     loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                        .LogWarning("Login de Microsoft rechazado: ninguna cuenta del Tenant {TenantId} tiene ese correo.", tenantDestino);
-                    await vigilancia.RegistrarAsync(null, tenantDestino, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
+                        .LogWarning("Login de Microsoft rechazado: ninguna cuenta del Tenant {TenantId} tiene el correo de la identidad {ClaveIdentidad}.",
+                            tenantDestino, infoExterna.ProviderKey);
+                    await vigilancia.RegistrarAsync(null, tenantDestino, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Fallido);
                     await signInManager.SignOutAsync();
                     return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
 
@@ -128,17 +131,16 @@ public static class IdentityEndpointsExtensions
                     {
                         // Queda en la vigilancia del Tenant de la cuenta que se intentó
                         // abrir: es a quien le interesa saber que alguien lo intentó.
-                        // No se confirma que exista: la cuenta de otro Tenant recibe el
-                        // mismo mensaje que «sin cuenta» (en el Tenant destino no la hay),
-                        // y las demás, el genérico.
+                        // No se confirma que exista: los tres reciben el mismo mensaje
+                        // que «sin cuenta». En el Tenant destino no hay cuenta que abrir
+                        // (la de otro Tenant no cuenta), y la desactivada o ya vinculada
+                        // a otra identidad también la tiene que resolver un Administrador.
                         // Solo deja la fila Rechazado: la vigilancia no avisa por ella.
                         logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, usuario?.Id);
                         if (usuario is not null)
                             await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
                         await signInManager.SignOutAsync();
-                        return Results.LocalRedirect(decision == DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant
-                            ? "/cuenta/iniciar-sesion?errorSso=sin-cuenta"
-                            : "/cuenta/iniciar-sesion?errorSso=fallo");
+                        return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
                     }
             }
 

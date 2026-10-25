@@ -60,7 +60,7 @@
     {
         if (EstadoAutenticacion is null) return;
         // UserName es el correo en todas las altas (GestionCuentasUsuarioIdentity,
-        // acceso con Microsoft, seeders), y es lo que Identity pone en Name.
+        // seeders; el acceso con Microsoft ya no da de alta), y es lo que Identity pone en Name.
         _cuenta = (await EstadoAutenticacion).User.Identity?.Name;
     }
 }

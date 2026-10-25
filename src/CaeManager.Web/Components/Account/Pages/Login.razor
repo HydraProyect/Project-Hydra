@@ -116,7 +116,8 @@
         {
             // La marca va como argumento: dentro de una cadena C# «@Marca.Nombre» no
             // es Razor, es texto, y así llegaba a la pantalla. «sin-cuenta» es también
-            // la cuenta de otro Tenant: en el Tenant destino no la hay (D-3).
+            // la cuenta de otro Tenant, la desactivada y la ya vinculada a otra identidad:
+            // no se confirma que exista (D-3).
             "sin-cuenta" => Textos["LoginErrorSsoSinCuenta", Marca.Nombre].Value,
             "fallo" => Textos["LoginErrorSsoFallo"].Value,
             _ => null,

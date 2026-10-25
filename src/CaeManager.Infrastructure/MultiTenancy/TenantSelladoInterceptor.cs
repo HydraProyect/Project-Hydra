@@ -632,7 +632,7 @@ public class TenantSelladoInterceptor(ITenantActual tenantActual, ICurrentUserSe
     /// sesión ni <c>AmbitoTenantExplicito</c> —un intento de contraseña
     /// incorrecto en <c>Login.razor</c> incrementa <c>AccessFailedCount</c>,
     /// <c>RestablecerContrasena.razor.cs</c> escribe desde un enlace anónimo,
-    /// el alta por SSO de <c>IdentityEndpointsExtensions</c> corre antes de
+    /// el vínculo por SSO de <c>IdentityEndpointsExtensions</c> corre antes de
     /// que exista sesión de CAE Manager—; sin esta excepción, el fallo
     /// cerrado de arriba revertía el <c>SaveChanges</c> entero y esos tres
     /// caminos dejaban de funcionar (hallazgo de Codex antes de abrir la PR
