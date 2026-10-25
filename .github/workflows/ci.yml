@@ -164,6 +164,15 @@ jobs:
       # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
       # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
       # una herramienta cambia de condiciones sin avisar.
+      #
+      # Instalar el 3xx NO basta para usarlo (2026-10-25): la imagen del runner
+      # trae preinstalado el 10.0.401 y, sin global.json, `dotnet` elige el SDK
+      # más alto. Con el 401 algunos proyectos dejaban de respetar su
+      # packages.lock.json y resolvían los comodines «10.*» a 10.0.14 nada más
+      # publicarse, mientras otros seguían en 10.0.13: MSB3277 (conflicto de
+      # Microsoft.EntityFrameworkCore) en tests/CaeManager.IntegrationTests y
+      # cola de fusión parada. El global.json de la raíz fija la banda 10.0.3xx
+      # (rollForward latestPatch) para todos los jobs y en local.
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
