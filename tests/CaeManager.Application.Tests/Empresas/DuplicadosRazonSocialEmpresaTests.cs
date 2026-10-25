@@ -187,8 +187,40 @@ public class DuplicadosRazonSocialEmpresaTests
         existente.RazonSocial.Should().Be("Original");
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Importacion_omite_la_segunda_fila_de_Clientes_que_escribe_la_misma_razon_social(bool reemplazar)
+    {
+        // La consulta solo ve la base: sin el registro en memoria, la segunda fila chocaría con el
+        // índice en el SaveChangesAsync final y abortaría el archivo entero.
+        var repo = new EmpresaRepositorioConsultaSoloLaBase();
+        var original = Empresa.CrearComoCliente("Original", "P1234567D", false, null, null);
+        if (reemplazar)
+            repo.Agregar(original);
+        repo.Guardar();
+        var antes = repo.Empresas.Count;
+        var uow = new UnitOfWorkFalso();
+        var resultado = await Importar(repo, uow, new PlanImportacionCombinadaDto(
+            [new("Repetida", "B12345674", false, false), new("Repetida", "P1234567D", false, false)], [], [], [], [], []), reemplazar);
+
+        resultado.EsExitoso.Should().BeTrue();
+        uow.VecesGuardado.Should().Be(1);
+        repo.Empresas.Count(e => e.RazonSocial == "Repetida").Should().Be(1);
+        repo.Empresas.Count.Should().Be(antes + 1);
+        resultado.Valor.Omitidos.Should().ContainSingle(o => o.Hoja == "Clientes" && o.Descripcion == "Repetida");
+        if (reemplazar)
+            original.RazonSocial.Should().Be("Original", "el renombrado que repite una razón social de la hoja se omite");
+    }
+
     private static Task<Result<ResultadoImportacionCombinadaDto>> Importar(EmpresaRepositorioFalso repo,
-        UnitOfWorkFalso uow, bool hojaEmpresas, bool reemplazar, string razonSocial)
+        UnitOfWorkFalso uow, bool hojaEmpresas, bool reemplazar, string razonSocial) =>
+        Importar(repo, uow, new PlanImportacionCombinadaDto(
+            hojaEmpresas ? [] : [new(razonSocial, "B12345674", false, false)],
+            hojaEmpresas ? [new(razonSocial, [], false)] : [], [], [], [], []), reemplazar);
+
+    private static Task<Result<ResultadoImportacionCombinadaDto>> Importar(EmpresaRepositorioFalso repo,
+        UnitOfWorkFalso uow, PlanImportacionCombinadaDto plan, bool reemplazar)
     {
         var contexto = new CaeManager.Application.Tests.Documentos.EmpresasQueryContextFalso();
         contexto.ListaEmpresas.AddRange(repo.Empresas.Where(e => e.TenantId == repo.TenantPropietarioId && !e.EstaEliminado));
@@ -197,10 +229,41 @@ public class DuplicadosRazonSocialEmpresaTests
             new CaeManager.Application.Tests.Trabajadores.TrabajadorRepositorioFalso(),
             new CaeManager.Application.Tests.Plantillas.CentrosQueryContextFalso(), contexto,
             new CaeManager.Application.Tests.Plantillas.TrabajadoresQueryContextFalso(), uow, new AdministracionPermitida());
-        var plan = new PlanImportacionCombinadaDto(
-            hojaEmpresas ? [] : [new(razonSocial, "B12345674", false, false)],
-            hojaEmpresas ? [new(razonSocial, [], false)] : [], [], [], [], []);
         return handler.Handle(new EjecutarImportacionCombinadaCommand(plan, reemplazar), default);
+    }
+
+    /// <summary>Como el repositorio real: la consulta de duplicados no ve las altas pendientes de guardar.</summary>
+    private sealed class EmpresaRepositorioConsultaSoloLaBase : EmpresaRepositorioFalso, IEmpresaRepository
+    {
+        private HashSet<Guid> _guardadas = [];
+
+        /// <summary>Lo agregado hasta aquí cuenta como ya guardado en la base.</summary>
+        public void Guardar() => _guardadas = Empresas.Select(e => e.Id).ToHashSet();
+
+        Task<Empresa?> IEmpresaRepository.ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId, CancellationToken cancellationToken) =>
+            Task.FromResult(Empresas.FirstOrDefault(e => _guardadas.Contains(e.Id) && e.TenantId == TenantPropietarioId
+                && e.RazonSocial == razonSocial.Trim() && e.Id != excluirId));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Carrera_conserva_el_codigo_de_cada_comando(bool baja)
+    {
+        var (repo, propia) = Preparar();
+        var existente = new Empresa("Ganadora");
+        if (baja) existente.MarcarComoEliminado(Guid.NewGuid());
+        repo.Agregar(existente);
+        var proveedor = new ServiceCollection().AddSingleton<IEmpresaRepository>(repo).BuildServiceProvider();
+        var carrera = new DatoEmpresaDuplicadoException(["Ganadora"], true, new InvalidOperationException());
+
+        var crear = await new DuplicadosEmpresaBehavior<CrearClienteCommand, Result<Guid>>(proveedor).Handle(
+            new CrearClienteCommand("Ganadora", "B12345674", false, null), _ => throw carrera, default);
+        var editar = await new DuplicadosEmpresaBehavior<EditarSubcontrataCommand, Result>(proveedor).Handle(
+            new EditarSubcontrataCommand(propia.Id, "Ganadora", "B12345674", [], [], propia.Version), _ => throw carrera, default);
+
+        crear.Error.Codigo.Should().Be(baja ? "Empresa.RazonSocialDeBaja" : "Cliente.RazonSocialDuplicada");
+        editar.Error.Codigo.Should().Be(baja ? "Empresa.RazonSocialDeBaja" : "Subcontrata.RazonSocialDuplicada");
     }
 
     [Theory]
