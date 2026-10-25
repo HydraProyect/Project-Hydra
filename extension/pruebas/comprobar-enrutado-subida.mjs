@@ -23,6 +23,8 @@ function comprobar(nombre, condicion, detalle = "") {
 let almacen = {};
 let pestanaActiva = 99;
 const entregas = [];   // {idPestana, accion}
+const urlsDePestanas = {};
+const marcados = [];   // POST a …/subida: {url, cuerpo}
 let manejadorDeMensajes = null;
 
 globalThis.chrome = {
@@ -48,6 +50,8 @@ globalThis.chrome = {
   tabs: {
     query: async (criterio) =>
       criterio?.active ? [{ id: pestanaActiva }] : [{ id: 1 }, { id: 2 }, { id: pestanaActiva }],
+    // La URL de cada pestaña; por defecto, el portal de la Plataforma CAE de la lista.
+    get: async (id) => ({ id, url: urlsDePestanas[id] ?? "https://app.nalandaglobal.com/documentos" }),
     sendMessage: async (idPestana, mensaje) => {
       entregas.push({ idPestana, accion: mensaje.accion });
       return { ok: true };
@@ -60,17 +64,22 @@ let subible = true;
 let proveedorActivo = true;
 let documentoDeLaLista = "11111111-1111-1111-1111-111111111111";
 let listaFalla = false;
-globalThis.fetch = async (url) => ({
-  ok: !(listaFalla && String(url).includes("acreditaciones-pendientes")),
-  status: 200,
-  type: "basic",
-  arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
-  json: async () => subible ? [{ proveedorActivo, clientes: [{ documentos: [{
-    acreditacionId: "22222222-2222-2222-2222-222222222222",
-    documentoId: documentoDeLaLista,
-  }] }] }] : [],
-  text: async () => "",
-});
+let dominiosDelProveedor = ["nalandaglobal.com"];
+globalThis.fetch = async (url, opciones) => {
+  if (String(url).endsWith("/subida"))
+    marcados.push({ url: String(url), cuerpo: opciones?.body ? JSON.parse(opciones.body) : null });
+  return {
+    ok: !(listaFalla && String(url).includes("acreditaciones-pendientes")),
+    status: 200,
+    type: "basic",
+    arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
+    json: async () => subible ? [{ proveedorActivo, dominios: dominiosDelProveedor, clientes: [{ documentos: [{
+      acreditacionId: "22222222-2222-2222-2222-222222222222",
+      documentoId: documentoDeLaLista,
+    }] }] }] : [],
+    text: async () => "",
+  };
+};
 
 const fuente = readFileSync(process.argv[2], "utf8");
 (0, eval)(fuente);
@@ -197,6 +206,59 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
   const sinLista = await pedirSubida({ tab: { id: 7 } });
   comprobar("no coloca el fichero si no se puede releer la lista", sinLista?.ok === false && !entregas.some(e => e.accion === "inyectarArchivo"));
   listaFalla = false;
+}
+
+// PLATAFORMA CORRECTA. Un documento de una Plataforma CAE no entra en el portal
+// de otra: el popup lista todo, así que esta puerta es la que cuenta.
+{
+  conectar(dentroDeOchoHoras);
+
+  // Control: en el portal de su Plataforma sube, y el servidor recibe el host declarado.
+  entregas.length = 0; marcados.length = 0;
+  const propio = await pedirSubida({ tab: { id: 7 }, url: "https://acme.nalandaglobal.com/subir?x=1" });
+  comprobar("en el portal de su plataforma (subdominio) sube", propio?.ok === true, JSON.stringify(propio));
+  comprobar("declara al servidor el host de la pestaña",
+    marcados.length === 1 && marcados[0].cuerpo?.dominioPortal === "acme.nalandaglobal.com",
+    JSON.stringify(marcados));
+
+  // Panel: la URL del remitente manda aunque otra pestaña esté activa.
+  entregas.length = 0; marcados.length = 0;
+  const ajenoPanel = await pedirSubida({ tab: { id: 7 }, url: "https://app.dokify.net/subir" });
+  comprobar("desde el panel de otra plataforma NO sube", ajenoPanel?.ok === false && ajenoPanel.error.includes("otra plataforma"), JSON.stringify(ajenoPanel));
+  comprobar("y no entrega ningún archivo al formulario", !entregas.some((e) => e.accion === "inyectarArchivo"));
+  comprobar("ni marca nada en TALVEG", marcados.length === 0);
+
+  // Popup: sin pestaña propia, se pregunta por la pestaña activa.
+  entregas.length = 0; marcados.length = 0;
+  pestanaActiva = 55;
+  urlsDePestanas[55] = "https://app.dokify.net/subir";
+  const ajenoPopup = await pedirSubida({});
+  comprobar("desde el popup, con la pestaña activa en otra plataforma, NO sube",
+    ajenoPopup?.ok === false && !entregas.some((e) => e.accion === "inyectarArchivo") && marcados.length === 0);
+  urlsDePestanas[55] = "https://app.nalandaglobal.com/";
+  const propioPopup = await pedirSubida({});
+  comprobar("desde el popup, en el portal de su plataforma, sube", propioPopup?.ok === true, JSON.stringify(propioPopup));
+  delete urlsDePestanas[55];
+
+  // El sufijo exige el punto: «notnalandaglobal.com» no es un subdominio.
+  entregas.length = 0; marcados.length = 0;
+  const parecido = await pedirSubida({ tab: { id: 7 }, url: "https://notnalandaglobal.com/" });
+  comprobar("un host que solo acaba igual (sin punto) NO cuenta", parecido?.ok === false && marcados.length === 0);
+
+  // Catálogo sin dominios para el Proveedor: no se puede saber, no se sube.
+  entregas.length = 0; marcados.length = 0;
+  dominiosDelProveedor = [];
+  const sinDominios = await pedirSubida({ tab: { id: 7 }, url: "https://app.nalandaglobal.com/" });
+  comprobar("sin dominios del proveedor en la lista, no sube",
+    sinDominios?.ok === false && !entregas.some((e) => e.accion === "inyectarArchivo") && marcados.length === 0);
+  dominiosDelProveedor = ["nalandaglobal.com"];
+
+  // Pestaña sin URL legible: no se sube.
+  entregas.length = 0; marcados.length = 0;
+  urlsDePestanas[7] = "about:blank";
+  const sinHost = await pedirSubida({ tab: { id: 7 } });
+  comprobar("si no hay host legible en la pestaña, no sube", sinHost?.ok === false && marcados.length === 0);
+  delete urlsDePestanas[7];
 }
 
 console.log(`\n${fallos === 0 ? "todo en verde" : `${fallos} fallos`}.\n`);

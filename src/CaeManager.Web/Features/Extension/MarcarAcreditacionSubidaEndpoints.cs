@@ -4,6 +4,7 @@ using CaeManager.Infrastructure.Autenticacion;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
 using MediatR;
+using System.Text.Json;
 
 namespace CaeManager.Web.Features.Extension;
 
@@ -15,27 +16,43 @@ namespace CaeManager.Web.Features.Extension;
 ///
 /// <para>
 /// No es un Command nuevo: envuelve <see cref="MarcarAcreditacionSubidaCommand"/>
-/// -- ya conectado al botón "Marcar subido" de <c>PlataformaTab.razor</c> — sin
-/// tocar su lógica. El propio Command ya resuelve el alcance por cartera
-/// (carga el Documento dueño de la acreditación y comprueba
-/// <c>IAlcanceDatosService.DocumentoVisibleAsync</c>), así que este endpoint no
-/// necesita repetir esa comprobación ni conocer el Centro o el
-/// CanalGestionDocumentalId que expuso el Incremento 2 — solo el AcreditacionId
-/// que la extensión ya recibió de <c>/extension/acreditaciones-pendientes</c>.
+/// -- ya conectado al botón "Marcar subido" de <c>PlataformaTab.razor</c>. El
+/// propio Command ya resuelve el alcance por cartera (carga el Documento dueño de
+/// la acreditación y comprueba <c>IAlcanceDatosService.DocumentoVisibleAsync</c>),
+/// así que este endpoint no necesita repetir esa comprobación ni conocer el Centro
+/// o el CanalGestionDocumentalId que expuso el Incremento 2: recibe el
+/// AcreditacionId que la extensión ya recibió de
+/// <c>/extension/acreditaciones-pendientes</c> y el host del portal donde puso el
+/// documento (<see cref="SubidaAcreditacionPeticion"/>), que el Command compara
+/// con los dominios de la Plataforma CAE del canal.
 /// </para>
 /// </summary>
+/// <param name="DominioPortal">El host de la pestaña donde la extensión puso el documento (p. ej. «app.dokify.net»).</param>
+public sealed record SubidaAcreditacionPeticion(string? DominioPortal);
+
 public static class MarcarAcreditacionSubidaEndpoints
 {
     public static IEndpointRouteBuilder MapMarcarAcreditacionSubidaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/extension/acreditaciones/{id:guid}/subida", async (
-            Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+            Guid id, HttpRequest solicitud, IMediator mediator, CancellationToken cancellationToken) =>
         {
-            // ExigirProveedorActivo: true — solo este llamante (la extensión),
-            // nunca PlataformaTab.razor (ver el comentario del propio Command,
-            // MVP2 § 14.5, kill switch remoto).
+            // El cuerpo se lee a mano, y no como parámetro enlazado, para que el
+            // filtro antifalsificación de abajo siga siendo lo primero que responde
+            // (un parámetro de cuerpo respondería 415 a un POST de formulario antes
+            // de llegar al filtro) y para que una petición sin cuerpo o sin JSON
+            // siga llegando al Command, que es quien dice «no declaraste el portal».
+            var peticion = await LeerPeticionAsync(solicitud, cancellationToken);
+
+            // ExigirProveedorActivo y ExigirPortalDelProveedor: true — solo este
+            // llamante (la extensión), nunca PlataformaTab.razor (ver el comentario
+            // del propio Command: kill switch remoto, MVP2 § 14.5, y que el portal
+            // declarado sea el de la Plataforma CAE del canal).
             var resultado = await mediator.Send(
-                new MarcarAcreditacionSubidaCommand(id, ExigirProveedorActivo: true), cancellationToken);
+                new MarcarAcreditacionSubidaCommand(
+                    id, ExigirProveedorActivo: true,
+                    DominioPortal: peticion?.DominioPortal, ExigirPortalDelProveedor: true),
+                cancellationToken);
 
             // "Acreditacion.NoEncontrada" y "Acreditacion.ConectorInactivo" son
             // hoy los códigos de fallo de este Command; el primero cubre a la
@@ -48,10 +65,17 @@ public static class MarcarAcreditacionSubidaEndpoints
 
             // Una Rechazada tampoco es un 404: existe, pero sin versión nueva
             // no se puede dar por subida (MarcarAcreditacionSubidaCommand).
-            var statusCode = resultado.Error.Codigo is "Acreditacion.ConectorInactivo"
+            // Un portal que no es el de la Plataforma CAE del canal también es un
+            // 409 (existe, pero no se puede registrar ahí); sin portal declarado es
+            // una petición mal formada (400).
+            var statusCode = resultado.Error.Codigo switch
+            {
+                "Acreditacion.ConectorInactivo"
                     or MarcarAcreditacionSubidaCommandHandler.CodigoRechazadaSinVersionNueva
-                ? StatusCodes.Status409Conflict
-                : StatusCodes.Status404NotFound;
+                    or MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno => StatusCodes.Status409Conflict,
+                MarcarAcreditacionSubidaCommandHandler.CodigoPortalNoDeclarado => StatusCodes.Status400BadRequest,
+                _ => StatusCodes.Status404NotFound,
+            };
             return Results.Problem(resultado.Error.Mensaje, statusCode: statusCode);
         })
         // Misma política que el resto de /extension/*: sesión interactiva o
@@ -78,5 +102,19 @@ public static class MarcarAcreditacionSubidaEndpoints
         });
 
         return endpoints;
+    }
+
+    private static async Task<SubidaAcreditacionPeticion?> LeerPeticionAsync(HttpRequest solicitud, CancellationToken cancellationToken)
+    {
+        if (!solicitud.HasJsonContentType()) return null;
+
+        try
+        {
+            return await solicitud.ReadFromJsonAsync<SubidaAcreditacionPeticion>(cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null; // cuerpo mal formado: se trata como «sin portal declarado».
+        }
     }
 }

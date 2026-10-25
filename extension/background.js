@@ -212,7 +212,47 @@ function arrayBufferABase64(buffer) {
 // por gesto de usuario (un "subir todos", un reintento automático en bucle...):
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
-async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio) {
+// ¿Es `host` el dominio del Proveedor o uno de sus subdominios? Misma regla que
+// content.js (hostCoincide) y que el servidor (CoincideHost): exacto o por sufijo
+// con punto delimitador.
+function hostCoincide(host, dominio) {
+  if (typeof host !== "string" || typeof dominio !== "string") return false;
+  const h = host.trim().toLowerCase();
+  const d = dominio.trim().toLowerCase();
+  if (!h || !d) return false;
+  return h === d || h.endsWith("." + d);
+}
+
+// El host de la pestaña donde va el documento. Desde el panel, la URL la da el
+// remitente del mensaje (la propia pestaña); el popup no tiene pestaña propia, así
+// que se pregunta por la pestaña elegida. Sin host legible devuelve null y no se
+// sube nada.
+async function hostDeLaPestana(idPestana, urlDelRemitente) {
+  let url = urlDelRemitente;
+  if (!url) {
+    try {
+      url = (await chrome.tabs.get(idPestana))?.url;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return new URL(url).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
+async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio, urlDelRemitente) {
+  // El host de la pestaña se lee antes de descargar nada: sin él no hay forma de
+  // saber de qué portal se trata y todo lo demás sería trabajo perdido.
+  const idPestanaDestino =
+    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+  if (!idPestanaDestino) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  const dominioPortal = await hostDeLaPestana(idPestanaDestino, urlDelRemitente);
+  if (!dominioPortal)
+    return { ok: false, error: "No pudimos saber en qué portal está esta pestaña, así que no se pone el documento." };
+
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
   if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de TALVEG (${descarga.respuesta.status}).` };
@@ -228,9 +268,8 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
   // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
   // el popup está abierto.
-  const idPestana =
-    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
-  if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  // (La pestaña y su host se fijaron arriba, antes de descargar.)
+  const idPestana = idPestanaDestino;
 
   // Revalidar después de descargar y antes de entregar nada al formulario.
   const pendientes = await listarPendientes();
@@ -243,6 +282,13 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
     return { ok: false, error: "Conector desactivado temporalmente. Contacta con soporte si lo necesitas." };
   if (!dueno)
     return { ok: false, error: "Esta acreditaci\u00f3n ya no se puede subir. Actualiza la lista en TALVEG; si fue rechazada, renueva el documento." };
+
+  // Un documento solo entra en el portal de SU Plataforma CAE. El panel ya no
+  // ofrece los de otras, pero el popup lista todo, así que la comprobación que
+  // cierra de verdad la puerta está aquí, antes de entregar nada al formulario.
+  // Sin dominios en la respuesta no hay forma de saberlo: no se sube.
+  if (!(dueno.dominios ?? []).some((dominio) => hostCoincide(dominioPortal, dominio)))
+    return { ok: false, error: "Este documento es de otra plataforma CAE: no se puede poner en este portal." };
 
   let respuestaContenido;
   try {
@@ -265,7 +311,13 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   // Marcar "subida" es un acto humano confirmando que el formulario se rellenó
   // — no que la plataforma ya lo aceptó (eso lo revisa el gestor manualmente
   // y lo registra con "Marcar validado"/"Marcar rechazado" en Hydra).
-  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
+  // El servidor vuelve a comprobar que este portal es el de la Plataforma CAE del
+  // canal (segunda línea, por si un cliente desactualizado se saltó la de arriba).
+  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dominioPortal }),
+  });
   if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {
     // Un 409 puede indicar un conector inactivo o un rechazo posterior a la
@@ -290,7 +342,9 @@ chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
     conectarManual: (m) => conectarManual(m),
     desconectar: () => desconectar(),
     listarPendientes: () => listarPendientes(),
-    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
+    // `remitente.url` solo es la de la pestaña cuando escribe un content script; la
+    // del popup es la de su propia página de la extensión.
+    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id, remitente?.tab ? remitente.url : undefined),
   };
 
   const manejador = manejadores[mensaje?.accion];

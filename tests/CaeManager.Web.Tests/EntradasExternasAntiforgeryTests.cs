@@ -2,6 +2,7 @@ using System.Net;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 using CaeManager.Application.Common;
+using CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Autenticacion;
 using CaeManager.Infrastructure.Identity;
@@ -89,12 +90,65 @@ public class EntradasExternasAntiforgeryTests
         respuesta.StatusCode.Should().Be(esperado);
     }
 
+    [Fact]
+    public async Task La_extension_declara_el_portal_en_el_cuerpo_y_el_servidor_lo_exige()
+    {
+        var mediador = new Mediador();
+        await using var app = await ArrancarAsync(mediador);
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+
+        using var respuesta = await cliente.PostAsync(Subida,
+            new StringContent("""{"dominioPortal":"app.dokify.net"}""", System.Text.Encoding.UTF8, "application/json"));
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent);
+        mediador.Ultimo.Should().NotBeNull();
+        mediador.Ultimo!.DominioPortal.Should().Be("app.dokify.net");
+        mediador.Ultimo.ExigirPortalDelProveedor.Should().BeTrue("la extensión siempre tiene que declarar el portal");
+        mediador.Ultimo.ExigirProveedorActivo.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("{no es json")]
+    public async Task Sin_cuerpo_o_con_cuerpo_ilegible_no_declara_portal_pero_el_Command_lo_exige(string cuerpo)
+    {
+        var mediador = new Mediador();
+        await using var app = await ArrancarAsync(mediador);
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+
+        using var respuesta = await cliente.PostAsync(Subida,
+            new StringContent(cuerpo, System.Text.Encoding.UTF8, "application/json"));
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.NoContent, "el mediador de prueba acepta; lo que importa es lo que llega al Command");
+        mediador.Ultimo!.DominioPortal.Should().BeNull();
+        mediador.Ultimo.ExigirPortalDelProveedor.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(MarcarAcreditacionSubidaCommandHandler.CodigoPortalAjeno, HttpStatusCode.Conflict)]
+    [InlineData(MarcarAcreditacionSubidaCommandHandler.CodigoPortalNoDeclarado, HttpStatusCode.BadRequest)]
+    [InlineData("Acreditacion.NoEncontrada", HttpStatusCode.NotFound)]
+    public async Task Los_fallos_del_portal_tienen_su_codigo_http(string codigo, HttpStatusCode esperado)
+    {
+        var mediador = new Mediador { Resultado = Result.Fallo(Error.Crear(codigo, "x")) };
+        await using var app = await ArrancarAsync(mediador);
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+
+        using var respuesta = await cliente.PostAsync(Subida,
+            new StringContent("""{"dominioPortal":"app.dokify.net"}""", System.Text.Encoding.UTF8, "application/json"));
+
+        respuesta.StatusCode.Should().Be(esperado);
+    }
+
     private static HttpClient Cliente(WebApplication app) => new(new HttpClientHandler { AllowAutoRedirect = false })
     {
         BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()),
     };
 
-    private static async Task<WebApplication> ArrancarAsync()
+    private static async Task<WebApplication> ArrancarAsync(Mediador? mediador = null)
     {
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.UseUrls("http://127.0.0.1:0");
@@ -108,7 +162,7 @@ public class EntradasExternasAntiforgeryTests
             .AddAuthenticationSchemes(ExtensionAuthenticationSchemeOptions.NombreEsquema, IdentityConstants.ApplicationScheme)
             .RequireAuthenticatedUser()));
         builder.Services.AddIdentityCore<ApplicationUser>().AddUserStore<AlmacenInerte>().AddSignInManager();
-        builder.Services.AddSingleton<IMediator>(new Mediador());
+        builder.Services.AddSingleton<IMediator>(mediador ?? new Mediador());
         builder.Services.AddSingleton<ICurrentUserService>(new UsuarioSinSesionSoporte());
         builder.Services.AddSingleton<IClienteActivoSeleccionado>(new SeleccionVacia());
         builder.Services.AddSingleton<IEmailService>(_ => null!);
@@ -172,8 +226,14 @@ public class EntradasExternasAntiforgeryTests
 
     private sealed class Mediador : IMediator
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)Result.Exito());
+        public Result Resultado { get; init; } = Result.Exito();
+        public MarcarAcreditacionSubidaCommand? Ultimo { get; private set; }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Ultimo = request as MarcarAcreditacionSubidaCommand ?? Ultimo;
+            return Task.FromResult((TResponse)(object)Resultado);
+        }
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest => throw new NotSupportedException();
         public Task<object?> Send(object request, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IAsyncEnumerable<TResponse> CreateStream<TResponse>(IStreamRequest<TResponse> request, CancellationToken cancellationToken = default) => throw new NotSupportedException();

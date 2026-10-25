@@ -172,6 +172,11 @@ async function reposar() {
 
 // --- Carga ----------------------------------------------------------------
 
+// content.js lee `location.hostname` (el host de la pestaña) al listar. En Node no
+// existe `location`; se simula global y modificable por caso.
+const locationSimulada = { hostname: "app.nalandaglobal.com" };
+globalThis.location = locationSimulada;
+
 const fuente = readFileSync(ruta, "utf8");
 const cargar = new Function(
   "document", "chrome", "HTMLInputElement", "DataTransfer", "File", "atob", "Event", "console",
@@ -527,6 +532,85 @@ let campoPrincipal;
     "pasada la hora, el clic ya NO se intercepta aunque nadie haya pedido nada",
     lanzarClic(despues).prevenido === false
   );
+}
+
+// 5-sexies. PLATAFORMA CORRECTA. El panel solo ofrece los documentos del
+//    Proveedor cuyo dominio casa con el host de la pestaña; el resto se cuenta
+//    («N de otras plataformas») pero no se ofrece. Antes se mezclaban todos los
+//    Proveedores, y un documento de una Plataforma CAE se podía poner en otra.
+{
+  const documento = (id, tipo) => ({
+    documentoId: id, acreditacionId: `a-${id}`, tipoDocumentoNombre: tipo,
+    propietarioNombre: "Trabajador inventado", estado: "PendienteDeSubir",
+  });
+  const proveedor = (nombre, dominios, documentos) => ({
+    proveedorNombre: nombre, proveedorActivo: true, dominios,
+    clientes: [{ clienteNombre: "Cliente empresarial inventado", documentos }],
+  });
+
+  const textosDelPanel = () => {
+    const textos = [];
+    (function recoger(n) {
+      if (n.textContent) textos.push(n.textContent);
+      for (const h of [...n.hijos, ...(n.sombra ? [n.sombra] : [])]) recoger(h);
+    })(documentoSimulado.documentElement);
+    return textos;
+  };
+
+  async function abrirPanelEn(host, proveedores) {
+    reiniciarDom();
+    locationSimulada.hostname = host;
+    respuestaDeListarPendientes = { ok: true, proveedores };
+    cargar(
+      documentoSimulado, chromeSimulado, InputArchivoSimulado, DataTransferSimulado,
+      class { constructor(p, n, o) { this.name = n; this.type = o?.type; } },
+      (s) => Buffer.from(s, "base64").toString("binary"),
+      class { constructor(t) { this.type = t; } },
+      { log: () => {}, warn: () => {} }
+    );
+    await reposar();
+    manejadorDeMensajes({ accion: "conexionCambiada", conectado: true }, null, () => {});
+    await reposar();
+    lanzarClic(new InputArchivoSimulado("campo-plataforma"));
+    await reposar();
+    return textosDelPanel();
+  }
+
+  const lista = () => [
+    proveedor("Nalanda", ["nalandaglobal.com"], [documento("n1", "Certificado Nalanda"), documento("n2", "Seguro Nalanda")]),
+    proveedor("Dokify", ["dokify.net"], [documento("d1", "Certificado Dokify")]),
+  ];
+
+  let textos = await abrirPanelEn("app.dokify.net", lista());
+  comprobar("en el portal de Dokify se ofrece el documento de Dokify",
+    textos.some((x) => x.includes("Certificado Dokify")));
+  comprobar("y NO los de Nalanda",
+    !textos.some((x) => x.includes("Nalanda —") || x.includes("Certificado Nalanda") || x.includes("Seguro Nalanda")));
+  comprobar("y dice cuántos son de otras plataformas",
+    textos.some((x) => x.startsWith("2 de otras plataformas")), JSON.stringify(textos));
+
+  textos = await abrirPanelEn("nalandaglobal.com", lista());
+  comprobar("en el dominio exacto de Nalanda se ofrecen sus dos documentos",
+    textos.some((x) => x.includes("Certificado Nalanda")) && textos.some((x) => x.includes("Seguro Nalanda")));
+  comprobar("sin el de Dokify, contado como de otra plataforma",
+    !textos.some((x) => x.includes("Certificado Dokify")) && textos.some((x) => x.startsWith("1 de otras plataformas")));
+
+  textos = await abrirPanelEn("notnalandaglobal.com", lista());
+  comprobar("un host que solo acaba igual (sin punto) no es subdominio: nada se ofrece",
+    !textos.includes("Poner aquí") && textos.some((x) => x.startsWith("3 de otras plataformas")), JSON.stringify(textos));
+  comprobar("y el panel lo explica en vez de decir que no hay nada pendiente",
+    textos.some((x) => x.includes("a esta plataforma")));
+
+  textos = await abrirPanelEn("app.nalandaglobal.com", [
+    { ...proveedor("Nalanda", undefined, [documento("n1", "Certificado Nalanda")]) },
+  ]);
+  comprobar("un Proveedor sin dominios en la respuesta no se ofrece en ningún portal",
+    !textos.includes("Poner aquí") && textos.some((x) => x.startsWith("1 de otras plataformas")), JSON.stringify(textos));
+
+  textos = await abrirPanelEn("APP.Dokify.NET", lista());
+  comprobar("la comparación no distingue mayúsculas", textos.includes("Poner aquí"));
+
+  respuestaDeListarPendientes = { ok: true, proveedores: [] };
 }
 
 // 6. CONTROL POSITIVO DEL ARNÉS. Si el simulado no fuera capaz de registrar una

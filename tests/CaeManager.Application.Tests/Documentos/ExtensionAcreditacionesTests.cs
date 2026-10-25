@@ -53,6 +53,45 @@ public class ExtensionAcreditacionesTests
     }
 
     [Fact]
+    public async Task Cada_proveedor_lleva_sus_dominios_y_no_los_de_otro()
+    {
+        var documentos = new DocumentosQueryContextFalso();
+        var centros = new CentrosQueryContextFalso();
+        var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
+        var tipos = new TiposDocumentoQueryContextFalso();
+        var nalanda = new ProveedorPlataformaCae("nalanda", "Nalanda");
+        var dokify = new ProveedorPlataformaCae("dokify", "Dokify");
+        var sinDominios = new ProveedorPlataformaCae("otra", "Otra");
+        proveedores.ListaProveedores.AddRange([nalanda, dokify, sinDominios]);
+        proveedores.ListaDominios.Add(new DominioProveedorPlataformaCae(nalanda.Id, "nalandaglobal.com"));
+        proveedores.ListaDominios.Add(new DominioProveedorPlataformaCae(dokify.Id, "dokify.net"));
+        proveedores.ListaDominios.Add(new DominioProveedorPlataformaCae(dokify.Id, "dokify.com"));
+        var tipo = new TipoDocumento("Certificado", null, false, 1, AmbitoAplicacion.Empresa, RequisitoDocumental.Si);
+        tipos.ListaTiposDocumento.Add(tipo);
+        var centro = new Centro(Guid.NewGuid(), Guid.NewGuid(), "Centro de Trabajo");
+        centros.ListaCentros.Add(centro);
+        foreach (var proveedor in new[] { nalanda, dokify, sinDominios })
+        {
+            var canal = CanalGestionDocumental.DePlataforma(centro.Id, $"Portal {proveedor.Nombre}", proveedor.Id, null, null, null);
+            var documento = Documento.DeCliente(Guid.NewGuid(), tipo.Id, new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
+            centros.ListaCanalesGestionDocumental.Add(canal);
+            documentos.ListaDocumentos.Add(documento);
+            documentos.ListaAcreditacionesDocumentoPlataforma.Add(new AcreditacionDocumentoPlataforma(documento.Id, canal.Id));
+        }
+        var handler = new ObtenerAcreditacionesPorProveedorQueryHandler(documentos, centros, proveedores,
+            new TrabajadoresQueryContextFalso(), new EmpresasQueryContextFalso(), tipos, new AlcanceDatosServiceFalso());
+
+        var resultado = await handler.Handle(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true), CancellationToken.None);
+
+        resultado.Should().HaveCount(3);
+        resultado.Single(p => p.ProveedorCodigo == "nalanda").Dominios.Should().BeEquivalentTo(["nalandaglobal.com"]);
+        resultado.Single(p => p.ProveedorCodigo == "dokify").Dominios.Should().BeEquivalentTo(["dokify.com", "dokify.net"]);
+        resultado.Single(p => p.ProveedorCodigo == "otra").Dominios.Should().BeEmpty("sin dominios en el catálogo la extensión no ofrece nada de él");
+        JsonSerializer.Serialize(resultado[0], new JsonSerializerOptions(JsonSerializerDefaults.Web))
+            .Should().Contain("\"dominios\":[", "la extensión lee `dominios` del JSON");
+    }
+
+    [Fact]
     public void El_dto_no_expone_el_dni_del_trabajador()
     {
         var dto = new AcreditacionDrillDownDto(Guid.NewGuid(), Guid.NewGuid(), "Nombre", "Tipo",

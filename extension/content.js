@@ -315,12 +315,15 @@ async function cargarPendientesEnPanelAsync(cuerpo, campo) {
     return;
   }
 
-  const filas = aplanarDocumentos(resultado.proveedores);
+  const { filas, deOtrasPlataformas } = aplanarDocumentos(resultado.proveedores, location.hostname);
   if (filas.length === 0) {
     const vacio = document.createElement("p");
     vacio.className = "vacio";
-    vacio.textContent = "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
+    vacio.textContent = deOtrasPlataformas > 0
+      ? "No tienes documentos pendientes de subir a esta plataforma. Si el portal te pide otra cosa, búscala en tu equipo."
+      : "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
     cuerpo.appendChild(vacio);
+    anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
     return;
   }
 
@@ -336,19 +339,62 @@ async function cargarPendientesEnPanelAsync(cuerpo, campo) {
 
     cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo));
   }
+
+  anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+}
+
+// Lo que no se ofrece aquí no desaparece sin decir nada: el Gestor CAE ve cuántos
+// documentos suyos son de otra Plataforma CAE y entiende por qué faltan.
+function anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas) {
+  if (!(deOtrasPlataformas > 0)) return;
+  const nota = document.createElement("p");
+  nota.className = "vacio";
+  nota.textContent = `${deOtrasPlataformas} de otras plataformas: no se ofrecen en este portal.`;
+  cuerpo.appendChild(nota);
+}
+
+// ¿Es `host` el dominio del Proveedor o uno de sus subdominios? Exacto o por
+// sufijo con punto delimitador: «cliente1.ergasia.es» coincide con «ergasia.es»,
+// «notergasia.es» no. Es la misma regla que aplica el servidor
+// (ResolucionProveedorPlataformaCaeService.CoincideHost) cuando comprueba el
+// portal declarado al registrar la subida; si se cambia una, se cambia la otra.
+function hostCoincide(host, dominio) {
+  if (typeof host !== "string" || typeof dominio !== "string") return false;
+  const h = host.trim().toLowerCase();
+  const d = dominio.trim().toLowerCase();
+  if (!h || !d) return false;
+  return h === d || h.endsWith("." + d);
+}
+
+// Un documento solo se ofrece en el portal de SU Plataforma CAE: el proveedor del
+// canal en el que está pendiente tiene que tener un dominio que case con el host
+// de la pestaña. Sin dominios en la respuesta —catálogo sin ellos o servidor que
+// aún no los manda— no casa con nada: ante la duda, no se divulga un documento a
+// un tercero.
+function proveedorEsDeEsteHost(proveedor, host) {
+  return (proveedor.dominios ?? []).some((dominio) => hostCoincide(host, dominio));
 }
 
 // Aplana proveedores → clientes → documentos conservando el orden, y trae de
 // cada nivel lo que hace falta para decidir: el rótulo del grupo y si el
 // conector sigue activo (kill switch remoto, MVP2 § 14.5 — misma comprobación
 // que hace el popup, y por el mismo motivo: si TALVEG apagó ese conector, ni
-// se ofrece el botón).
-function aplanarDocumentos(proveedores) {
+// se ofrece el botón). Los documentos de otras plataformas no entran en `filas`:
+// solo se cuentan.
+function aplanarDocumentos(proveedores, host) {
   const filas = [];
+  let deOtrasPlataformas = 0;
 
   for (const proveedor of proveedores ?? []) {
+    const esDeEstePortal = proveedorEsDeEsteHost(proveedor, host);
+
     for (const cliente of proveedor.clientes ?? []) {
       for (const documento of cliente.documentos ?? []) {
+        if (!esDeEstePortal) {
+          deOtrasPlataformas++;
+          continue;
+        }
+
         filas.push({
           grupo: `${proveedor.proveedorNombre} · ${cliente.clienteNombre}`,
           proveedorActivo: proveedor.proveedorActivo !== false,
@@ -358,7 +404,7 @@ function aplanarDocumentos(proveedores) {
     }
   }
 
-  return filas;
+  return { filas, deOtrasPlataformas };
 }
 
 function construirFila(documento, proveedorActivo, campo) {
@@ -367,7 +413,6 @@ function construirFila(documento, proveedorActivo, campo) {
 
   const descripcion = document.createElement("span");
   descripcion.textContent = `${documento.propietarioNombre} — ${documento.tipoDocumentoNombre}`;
-  if (documento.estado === "Rechazada") descripcion.textContent += " (rechazada antes)";
   fila.appendChild(descripcion);
 
   // Ritmo humano (MVP2 § 14.5): un botón por documento, un clic, una subida.

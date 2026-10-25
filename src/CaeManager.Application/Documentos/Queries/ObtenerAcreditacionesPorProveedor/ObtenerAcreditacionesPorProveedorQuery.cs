@@ -79,9 +79,19 @@ public record ObtenerAcreditacionesPorProveedorQuery(
     Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
+/// <param name="Dominios">
+/// Los dominios del portal del Proveedor (<c>DominioProveedorPlataformaCae</c>,
+/// sin protocolo ni ruta; cada uno vale también para sus subdominios). La
+/// extensión los compara con el host de la pestaña para ofrecer en un portal solo
+/// los documentos de SU Plataforma CAE: sin esto, un documento acreditado en
+/// una plataforma podía ponerse en el formulario de otra. Vacía si el catálogo
+/// no registra ningún dominio del Proveedor: entonces la extensión no ofrece
+/// nada de él en ningún portal (ante la duda, no se divulga).
+/// </param>
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
-    IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true);
+    IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true,
+    IReadOnlyList<string>? Dominios = null);
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
@@ -185,6 +195,13 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo, p.Activo), cancellationToken);
 
+        var dominiosPorProveedor = (await proveedoresContext.DominiosProveedorPlataformaCae
+                .Where(d => proveedorIds.Contains(d.ProveedorPlataformaCaeId))
+                .Select(d => new { d.ProveedorPlataformaCaeId, d.Dominio })
+                .ToListAsync(cancellationToken))
+            .GroupBy(d => d.ProveedorPlataformaCaeId)
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(d => d.Dominio).Distinct().OrderBy(d => d, StringComparer.Ordinal).ToList());
+
         // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
         // se resuelve contra Empresas, no contra la tabla Clientes congelada.
         var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
@@ -240,7 +257,8 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                     .OrderBy(c => c.ClienteNombre)
                     .ToList();
 
-                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo);
+                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo,
+                    dominiosPorProveedor.GetValueOrDefault(porProveedor.Key) ?? []);
             })
             .OrderByDescending(p => p.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)))
             .ToList();

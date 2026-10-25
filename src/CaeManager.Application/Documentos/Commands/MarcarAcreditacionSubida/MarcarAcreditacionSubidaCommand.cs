@@ -41,8 +41,25 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// Documento y crea acreditaciones pendientes; al corregir el mismo registro
 /// reinicia sus acreditaciones a <see cref="EstadoAcreditacion.PendienteDeSubir"/>.
 /// Desde ahí sí se marca subida. La lista de la extensión reutiliza esta regla.
+///
+/// <see cref="ExigirPortalDelProveedor"/> (extensión): el documento solo puede
+/// haberse puesto en el portal de la Plataforma CAE a la que pertenece su canal.
+/// La extensión declara el host de la pestaña en <see cref="DominioPortal"/> y el
+/// servidor lo compara con los dominios del Proveedor del canal
+/// (<c>DominioProveedorPlataformaCae</c>, mismo criterio de sufijo que
+/// <see cref="ResolucionProveedorPlataformaCaeService.CoincideHost"/>). Es la segunda
+/// línea tras el filtro de la propia extensión: protege frente a un cliente
+/// desactualizado o con un error, que ya no puede registrar como subido en una
+/// plataforma lo que puso en otra. NO es una frontera frente a un cliente hostil con
+/// un token válido: el dominio lo declara el propio cliente y podría mentir. Sin
+/// dominio declarado, o con un canal sin Proveedor o sin dominios en el
+/// catálogo, se rechaza (no hay forma de comprobarlo). El drill-down interno
+/// (<c>PlataformaTab.razor</c>) no lo pide: ahí el gestor registra una subida que
+/// hizo a mano.
 /// </summary>
-public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId, bool ExigirProveedorActivo = false) : ICommand;
+public record MarcarAcreditacionSubidaCommand(
+    Guid AcreditacionId, bool ExigirProveedorActivo = false,
+    string? DominioPortal = null, bool ExigirPortalDelProveedor = false) : ICommand;
 
 public class MarcarAcreditacionSubidaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
@@ -52,6 +69,8 @@ public class MarcarAcreditacionSubidaCommandHandler(
     : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
 {
     public const string CodigoRechazadaSinVersionNueva = "Acreditacion.RechazadaSinVersionNueva";
+    public const string CodigoPortalNoDeclarado = "Acreditacion.PortalNoDeclarado";
+    public const string CodigoPortalAjeno = "Acreditacion.PortalAjeno";
 
     public async Task<Result> Handle(MarcarAcreditacionSubidaCommand request, CancellationToken cancellationToken)
     {
@@ -72,10 +91,39 @@ public class MarcarAcreditacionSubidaCommandHandler(
             return Result.Fallo(Error.Crear(
                 "Acreditacion.ConectorInactivo", "Este conector está desactivado temporalmente."));
 
+        if (request.ExigirPortalDelProveedor)
+        {
+            var host = ResolucionProveedorPlataformaCaeService.ExtraerHost(request.DominioPortal);
+            if (host is null)
+                return Result.Fallo(Error.Crear(
+                    CodigoPortalNoDeclarado, "La extensión no indicó en qué portal puso el documento. Actualiza la extensión e inténtalo de nuevo."));
+
+            if (!await PortalEsDelProveedorAsync(acreditacion.CanalGestionDocumentalId, host, cancellationToken))
+                return Result.Fallo(Error.Crear(
+                    CodigoPortalAjeno, "Este documento es de otra plataforma CAE: no se puede registrar como subido en este portal."));
+        }
+
         acreditacion.MarcarSubida();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
+    }
+
+    private async Task<bool> PortalEsDelProveedorAsync(Guid canalGestionDocumentalId, string host, CancellationToken cancellationToken)
+    {
+        var proveedorId = await centrosContext.CanalesGestionDocumental
+            .Where(c => c.Id == canalGestionDocumentalId)
+            .Select(c => c.ProveedorPlataformaCaeId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        if (proveedorId is null) return false; // sin Proveedor no hay dominios con los que comparar
+
+        var dominios = await proveedoresContext.DominiosProveedorPlataformaCae
+            .Where(d => d.ProveedorPlataformaCaeId == proveedorId.Value)
+            .Select(d => d.Dominio)
+            .ToListAsync(cancellationToken);
+
+        return dominios.Any(dominio => ResolucionProveedorPlataformaCaeService.CoincideHost(host, dominio));
     }
 
     private async Task<bool> ProveedorActivoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
