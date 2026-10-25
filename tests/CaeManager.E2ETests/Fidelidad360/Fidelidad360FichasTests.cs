@@ -118,9 +118,35 @@ public class Fidelidad360FichasTests(WebAppFixtureFichas360 fixture)
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, email, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.CambiarClienteActivoAsync(page, fixture, TenantPizzaPlanet);
+        // tema.js escribe la cookie «tema=» cada vez que aplica el tema de la cuenta, y solo lo
+        // llama SelectorTema (OnAfterRenderAsync, tras conectar el circuito y leer la cuenta).
+        // Esa escritura es la señal exacta de que el circuito ya aplicó (o quitó) data-theme:
+        // un tema impuesto antes sería pisado después, y dos mediciones seguidas diferirían.
+        await page.AddInitScriptAsync("""
+            (() => {
+                window.__temaDeLaCuentaAplicado = false;
+                const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+                Object.defineProperty(document, 'cookie', {
+                    configurable: true,
+                    get() { return descriptor.get.call(this); },
+                    set(valor) {
+                        if (String(valor).startsWith('tema=')) window.__temaDeLaCuentaAplicado = true;
+                        descriptor.set.call(this, valor);
+                    },
+                });
+            })();
+            """);
         await page.GotoAsync(fixture.BaseUrl + ruta + id);
         await page.WaitForSelectorAsync("[data-pieza=\"lateral\"] [data-pieza=\"tarjeta\"]", new PageWaitForSelectorOptions { Timeout = 30_000 });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        // El HTML puede ser aún el prerender: se espera a que el circuito haya aplicado el tema de la cuenta.
+        await page.WaitForFunctionAsync("() => window.__temaDeLaCuentaAplicado === true");
+        // ReducedMotion no elimina todas las transiciones de las piezas compartidas.
+        // Mismo patrón que SelectorTemaTests: medir el estilo final, no su interpolación.
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions
+        {
+            Content = "*, *::before, *::after { transition: none !important; animation: none !important; }",
+        });
         await Fidelidad360.PonerTemaDeFichaAsync(page, tema);
         return page;
     }
