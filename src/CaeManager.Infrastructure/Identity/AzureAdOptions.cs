@@ -24,8 +24,8 @@ public class AzureAdOptions : IOpcionesConGate
     public string Instance { get; set; } = "https://login.microsoftonline.com/";
 
     /// <summary>
-    /// El tenant de <b>Hydra</b> al que pertenecen las cuentas que se
-    /// auto-provisionan por este login. No es <see cref="TenantId"/>: aquel es
+    /// El tenant de <b>Hydra</b> al que pertenecen las cuentas que entran por
+    /// este login (creadas antes: no hay alta automática, D-3). No es <see cref="TenantId"/>: aquel es
     /// el tenant de <i>Entra</i>, y son dos espacios de identificadores
     /// distintos que no se pueden deducir el uno del otro.
     ///
@@ -36,7 +36,7 @@ public class AzureAdOptions : IOpcionesConGate
     /// huérfana: no veía nada, no pertenecía a nadie, y aun así aparecía en la
     /// sala de espera de <c>/roles</c> para que cualquier Administrador la
     /// adoptara. Ahora, sin este valor, el callback rechaza todo inicio de
-    /// sesión con Microsoft en vez de crear o abrir cuentas.
+    /// sesión con Microsoft en vez de abrir cuentas, y con él tampoco crea ninguna.
     /// </para>
     ///
     /// <para>

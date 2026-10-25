@@ -60,7 +60,6 @@ public static class IdentityEndpointsExtensions
             SignInManager<ApplicationUser> signInManager,
             HttpContext httpContext,
             UserManager<ApplicationUser> userManager,
-            IEmailService emailService,
             ILogger<Program> logger,
             ILoggerFactory loggerFactory,
             Microsoft.Extensions.Options.IOptions<AzureAdOptions> opcionesAzureAd,
@@ -110,72 +109,44 @@ public static class IdentityEndpointsExtensions
                     await signInManager.SignOutAsync();
                     return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
 
+                case DecisionCuentaMicrosoft.RechazarSinCuentaPrevia:
+                    // Invitación previa (D-3): el inicio con Microsoft no crea cuentas.
+                    // Sin cuenta no hay Tenant propietario ni persona a la que avisar, así
+                    // que la vigilancia no deja fila: como un correo inexistente con
+                    // contraseña, cuenta como Fallido para la ráfaga por IP. Queda en el
+                    // log de auditoría de autenticación con la clave de la identidad de
+                    // Microsoft (un identificador, no el correo). Mensaje propio: quien
+                    // llega aquí ya se autenticó en el directorio configurado, y lo que
+                    // necesita es que le den de alta.
+                    loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                        .LogWarning("Login de Microsoft rechazado: ninguna cuenta del Tenant {TenantId} tiene el correo de la identidad {ClaveIdentidad}.",
+                            tenantDestino, infoExterna.ProviderKey);
+                    await vigilancia.RegistrarAsync(null, tenantDestino, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Fallido);
+                    await signInManager.SignOutAsync();
+                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
+
                 case DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant:
                 case DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad:
+                case DecisionCuentaMicrosoft.RechazarCuentaDesactivada:
                     {
                         // Queda en la vigilancia del Tenant de la cuenta que se intentó
                         // abrir: es a quien le interesa saber que alguien lo intentó.
-                        // Mismo mensaje genérico que el resto: no se confirma que exista.
+                        // No se confirma que exista: los tres reciben el mismo mensaje
+                        // que «sin cuenta». En el Tenant destino no hay cuenta que abrir
+                        // (la de otro Tenant no cuenta), y la desactivada o ya vinculada
+                        // a otra identidad también la tiene que resolver un Administrador.
                         // Solo deja la fila Rechazado: la vigilancia no avisa por ella.
                         logger.LogWarning("Login de Microsoft rechazado ({Decision}) para la cuenta {UsuarioId}.", decision, usuario?.Id);
                         if (usuario is not null)
                             await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
                         await signInManager.SignOutAsync();
-                        return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+                        return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=sin-cuenta");
                     }
-            }
-
-            var esUsuarioNuevo = decision == DecisionCuentaMicrosoft.CrearCuenta;
-
-            if (esUsuarioNuevo)
-            {
-                // Auto-provisión sin rol: cualquier cuenta del tenant de la
-                // empresa (ya restringido por AzureAdOptions.TenantId, ver
-                // InicioSesionMicrosoft.Configurar) puede iniciar sesión, pero queda
-                // en la sala de espera ("Pendientes de asignar", ver Roles.razor)
-                // hasta que un Administrador le asigna un rol — nunca entra con
-                // acceso real solo por tener cuenta de Microsoft de la empresa.
-                // Nace en el Tenant destino declarado (TenantHydraId), nunca en
-                // Guid.Empty: una cuenta que no se sabe de quién es no se arregla
-                // más tarde.
-                var nombreCompleto = infoExterna.Principal.FindFirstValue(ClaimTypes.Name) ?? email;
-                usuario = new ApplicationUser
-                {
-                    UserName = email,
-                    Email = email,
-                    NombreCompleto = nombreCompleto,
-                    EmailConfirmed = true,
-                    DebeCambiarContrasena = false,
-                    TenantId = tenantDestino,
-                };
-
-                var resultadoCreacion = await userManager.CreateAsync(usuario);
-                if (!resultadoCreacion.Succeeded)
-                {
-                    logger.LogError(
-                        "No se pudo auto-provisionar la cuenta de {Email} desde el login de Microsoft: {Errores}",
-                        email, string.Join(" ", resultadoCreacion.Errors.Select(e => e.Description)));
-                    await signInManager.SignOutAsync();
-                    return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-                }
             }
 
             if (usuario is null)
             {
                 // Inalcanzable con DecidirCuenta: toda decisión que no rechaza deja cuenta.
-                await signInManager.SignOutAsync();
-                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
-            }
-
-            // SignInWithClaimsAsync no comprueba bloqueo (a diferencia de
-            // PasswordSignInAsync): sin esto, una cuenta desactivada volvía a
-            // entrar por Microsoft sin necesitar su contraseña (auditoría de
-            // seguridad 2026-09-20). Mismo mensaje genérico que el resto de
-            // rechazos: no se confirma a un tercero que la cuenta existe.
-            if (usuario.EstaDesactivada(DateTimeOffset.UtcNow))
-            {
-                logger.LogWarning("Login de Microsoft rechazado: la cuenta {UsuarioId} está desactivada.", usuario.Id);
-                await vigilancia.RegistrarAsync(usuario.Id, usuario.TenantId, MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Rechazado);
                 await signInManager.SignOutAsync();
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
             }
@@ -192,7 +163,7 @@ public static class IdentityEndpointsExtensions
 
             // El vínculo se guarda antes de entrar y su resultado se mira: antes se
             // ignoraba, y una identidad que no quedaba vinculada entraba igual.
-            if (decision is DecisionCuentaMicrosoft.VincularCuentaExistente or DecisionCuentaMicrosoft.CrearCuenta)
+            if (decision == DecisionCuentaMicrosoft.VincularCuentaExistente)
             {
                 var resultadoVinculo = await userManager.AddLoginAsync(usuario, infoExterna);
                 if (!resultadoVinculo.Succeeded)
@@ -226,13 +197,8 @@ public static class IdentityEndpointsExtensions
             var roles = await userManager.GetRolesAsync(usuario);
             if (roles.Count == 0)
             {
-                // Aviso a los Administradores solo la primera vez (al crear
-                // la cuenta) — no en cada login mientras siga pendiente, para
-                // no generar correo repetido. Best-effort: un fallo de envío
-                // nunca debe impedir que el usuario entre a la sala de espera.
-                if (esUsuarioNuevo)
-                    await NotificarAdministradoresUsuarioPendienteAsync(userManager, emailService, logger, usuario);
-
+                // Cuenta creada antes sin rol: sala de espera hasta que un
+                // Administrador se lo asigne.
                 return Results.LocalRedirect("/cuenta/pendiente-de-rol");
             }
 
@@ -243,48 +209,5 @@ public static class IdentityEndpointsExtensions
         }).AllowAnonymous();
 
         return endpoints;
-    }
-
-    /// <summary>
-    /// Avisa <b>solo</b> a los Administradores del tenant al que pertenece la
-    /// cuenta nueva.
-    ///
-    /// <para>
-    /// <c>GetUsersInRoleAsync</c> no filtra por Tenant, y antes de P1-M1
-    /// <c>AspNetUsers</c> no tenía RLS, así que este correo enviaba el nombre y
-    /// la dirección de la persona recién registrada a los Administradores de
-    /// <b>todas</b> las organizaciones del SaaS. Ahora la lectura corre dentro
-    /// de <see cref="AmbitoTenantExplicito"/> con el Tenant de la cuenta nueva
-    /// —aquí todavía no hay sesión de la que tirar— y la RLS la acota. El
-    /// filtro en memoria se conserva: la política deja ver también a quien
-    /// opera ese Tenant desde otro (Operador Delegado, Gestor CAE con cartera,
-    /// actores de su auditoría), y el aviso es solo para los Administradores
-    /// del Tenant propietario de la cuenta.
-    /// </para>
-    /// </summary>
-    private static async Task NotificarAdministradoresUsuarioPendienteAsync(
-        UserManager<ApplicationUser> userManager, IEmailService emailService, ILogger logger, ApplicationUser usuarioPendiente)
-    {
-        List<ApplicationUser> administradores;
-        using (AmbitoTenantExplicito.Establecer(usuarioPendiente.TenantId))
-        {
-            administradores = (await userManager.GetUsersInRoleAsync(Roles.Administrador))
-                .Where(a => a.TenantId == usuarioPendiente.TenantId)
-                .ToList();
-        }
-        var cuerpo = $"""
-            <p>{System.Net.WebUtility.HtmlEncode(usuarioPendiente.NombreCompleto)} ({System.Net.WebUtility.HtmlEncode(usuarioPendiente.Email)}) inició sesión con su cuenta de Microsoft y está a la espera de que le asignes un rol.</p>
-            <p>Puedes hacerlo desde la pestaña "Pendientes de asignar" en Roles.</p>
-            """;
-
-        foreach (var administrador in administradores)
-        {
-            if (string.IsNullOrWhiteSpace(administrador.Email)) continue;
-
-            var resultado = await emailService.EnviarAsync(
-                administrador.Email, $"Nuevo usuario pendiente de asignar rol — {Marca.Nombre}", cuerpo, TipoAvisoCorreo.Informativo);
-            if (resultado.EsFallido)
-                logger.LogWarning("No se pudo notificar a {UsuarioId} sobre un usuario pendiente de rol.", administrador.Id);
-        }
     }
 }

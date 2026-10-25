@@ -441,8 +441,6 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
         ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
-        ["src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs"] =
-            new(Categoria.IdentificacionDeCuentaSinSesion, "usuarioPendiente.TenantId, la cuenta que el callback SSO acaba de crear, para avisar a los Administradores de su Tenant propietario"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 

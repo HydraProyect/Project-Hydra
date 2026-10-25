@@ -72,10 +72,29 @@ public class InicioSesionMicrosoftTests
     }
 
     [Fact]
-    public void Sin_cuenta_se_crea_en_el_Tenant_destino()
+    public void Sin_cuenta_previa_se_rechaza_y_no_se_crea_nada()
     {
+        // Invitación previa (D-3): antes había alta automática sin rol, y como el
+        // correo de Entra no está verificado, abría cuenta a cualquiera del directorio.
         InicioSesionMicrosoft.DecidirCuenta(null, null, false, TenantDestino)
-            .Should().Be(DecisionCuentaMicrosoft.CrearCuenta);
+            .Should().Be(DecisionCuentaMicrosoft.RechazarSinCuentaPrevia);
+        Enum.GetNames<DecisionCuentaMicrosoft>().Should().NotContain(n => n.Contains("Crear", StringComparison.Ordinal),
+            "ninguna decisión del inicio con Microsoft da de alta una cuenta");
+    }
+
+    [Theory]
+    [InlineData(DecisionCuentaMicrosoft.EntrarConCuentaVinculada)]
+    [InlineData(DecisionCuentaMicrosoft.VincularCuentaExistente)]
+    public void Una_cuenta_desactivada_ni_entra_ni_se_vincula(DecisionCuentaMicrosoft decision)
+    {
+        var ahora = DateTimeOffset.UtcNow;
+        var activa = new ApplicationUser { TenantId = TenantDestino };
+        var desactivada = new ApplicationUser { TenantId = TenantDestino };
+        desactivada.Desactivar();
+
+        InicioSesionMicrosoft.ComprobarCuentaActiva(decision, activa, ahora).Should().Be(decision, "control positivo");
+        InicioSesionMicrosoft.ComprobarCuentaActiva(decision, desactivada, ahora)
+            .Should().Be(DecisionCuentaMicrosoft.RechazarCuentaDesactivada);
     }
 
     [Theory]

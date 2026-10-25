@@ -567,8 +567,8 @@ public class DirectorioUsuariosTenant(
 
     /// <summary>
     /// Cuentas propias del tenant activo que todavía no tienen ningún rol — la
-    /// sala de espera de <c>/roles</c>, que alimenta sobre todo el
-    /// autoaprovisionamiento por SSO.
+    /// sala de espera de <c>/roles</c>: cuentas dadas de alta sin rol (el SSO ya
+    /// no crea cuentas, D-3).
     ///
     /// <para>
     /// Propias por el mismo motivo que <see cref="ContarCuentasPropiasPorRolAsync"/>,

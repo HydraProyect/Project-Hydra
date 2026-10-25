@@ -156,4 +156,10 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Protegir el meu compte</value>
   </data>
+  <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
+    <value>El teu compte de Microsoft no està donat d&apos;alta a {0}. Demana al teu Administrador que et doni d&apos;alta.</value>
+  </data>
+  <data name="LoginErrorSsoFallo" xml:space="preserve">
+    <value>No hem pogut completar l&apos;inici de sessió amb Microsoft. Torna-ho a provar.</value>
+  </data>
 </root>
