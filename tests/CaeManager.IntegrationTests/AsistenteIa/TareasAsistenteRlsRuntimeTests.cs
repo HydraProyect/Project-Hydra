@@ -262,14 +262,8 @@ public class TareasAsistenteRlsRuntimeTests
         return conexion;
     }
 
-    private static async Task FijarAsync(NpgsqlConnection conexion, Guid tenantId, Guid usuarioId)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false), set_config('app.usuario_id', @usuario, false);";
-        comando.Parameters.AddWithValue("tenant", tenantId.ToString());
-        comando.Parameters.AddWithValue("usuario", usuarioId.ToString());
-        await comando.ExecuteNonQueryAsync();
-    }
+    private static Task FijarAsync(NpgsqlConnection conexion, Guid tenantId, Guid usuarioId) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId, usuarioId: usuarioId);
 
     private static async Task EjecutarAsync(NpgsqlConnection conexion, string sql)
     {

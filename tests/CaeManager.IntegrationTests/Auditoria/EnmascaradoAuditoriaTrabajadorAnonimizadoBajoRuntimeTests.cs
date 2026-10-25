@@ -441,10 +441,7 @@ public class EnmascaradoAuditoriaTrabajadorAnonimizadoBajoRuntimeTests
     {
         var conexion = new NpgsqlConnection(BaseDatosPostgresDePruebas.CadenaComoRuntime(arnes.CadenaPropietario));
         await conexion.OpenAsync();
-        await using var fijar = conexion.CreateCommand();
-        fijar.CommandText = "SELECT set_config('app.tenant_id', $1, false);";
-        fijar.Parameters.AddWithValue(tenant?.ToString() ?? string.Empty);
-        await fijar.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant);
         return conexion;
     }
 

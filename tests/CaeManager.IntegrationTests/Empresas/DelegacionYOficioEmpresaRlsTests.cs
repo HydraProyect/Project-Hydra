@@ -259,10 +259,11 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
+        var contextoFirmado = await ContextoRlsDePruebas.FirmarAsync(conexion, tenantId: _tenantB);
         await using (var preparar = conexion.CreateCommand())
         {
-            preparar.CommandText = $"SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE {rol};";
-            preparar.Parameters.AddWithValue("tenant", _tenantB.ToString());
+            preparar.CommandText = $"SELECT set_config('app.contexto', @contexto, true); SET LOCAL ROLE {rol};";
+            preparar.Parameters.AddWithValue("contexto", contextoFirmado);
             await preparar.ExecuteNonQueryAsync();
         }
 
@@ -294,10 +295,11 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
 
         await using var conexion = new NpgsqlConnection(_cadena);
         await conexion.OpenAsync();
+        var contextoFirmado = await ContextoRlsDePruebas.FirmarAsync(conexion, tenantId: _tenantB);
         await using (var preparar = conexion.CreateCommand())
         {
-            preparar.CommandText = "SELECT set_config('app.tenant_id', @tenant, false); SET ROLE cae_app_aprovisionamiento;";
-            preparar.Parameters.AddWithValue("tenant", _tenantB.ToString());
+            preparar.CommandText = "SELECT set_config('app.contexto', @contexto, false); SET ROLE cae_app_aprovisionamiento;";
+            preparar.Parameters.AddWithValue("contexto", contextoFirmado);
             await preparar.ExecuteNonQueryAsync();
         }
 
@@ -444,13 +446,8 @@ public class DelegacionYOficioEmpresaRlsTests : IAsyncLifetime
         await comando.ExecuteNonQueryAsync();
     }
 
-    private static async Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenantId)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", tenantId.ToString());
-        await comando.ExecuteNonQueryAsync();
-    }
+    private static Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenantId) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
     private static async Task<long> ContarAsync(NpgsqlConnection conexion, string tabla)
     {

@@ -272,14 +272,8 @@ public class TarifasOperadorCaeRlsTests : IAsyncLifetime
         return conexion;
     }
 
-    private async Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false), set_config('app.usuario_id', @usuario, false);";
-        comando.Parameters.AddWithValue("tenant", tenant.ToString());
-        comando.Parameters.AddWithValue("usuario", _usuario.ToString());
-        await comando.ExecuteNonQueryAsync();
-    }
+    private Task FijarTenantAsync(NpgsqlConnection conexion, Guid tenant) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant, usuarioId: _usuario);
 
     private sealed class TenantActualPorAmbito : ITenantActual
     {
