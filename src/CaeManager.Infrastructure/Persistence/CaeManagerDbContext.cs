@@ -462,6 +462,11 @@ public class CaeManagerDbContext(
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
+        catch (DbUpdateConcurrencyException)
+        {
+            ConcurrenciaContexto.DescartarLoteFallido(this);
+            throw;
+        }
         catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
         {
             SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Empresas_TenantId_Cif"
@@ -478,9 +483,21 @@ public class CaeManagerDbContext(
                 .Where(e => e.Cif != null).Select(e => e.Cif!).Distinct().ToArray();
             // La unidad de escritura fallida no debe reintentarse en un guardado posterior del circuito,
             // ni persistir la auditoría de cambios que la base rechazó.
-            foreach (var entrada in ChangeTracker.Entries().Where(e => e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted).ToList())
-                entrada.State = EntityState.Detached;
+            ConcurrenciaContexto.DescartarLoteFallido(this);
             throw new CifEmpresaDuplicadoException(cifs, ex);
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        try
+        {
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ConcurrenciaContexto.DescartarLoteFallido(this);
+            throw;
         }
     }
 

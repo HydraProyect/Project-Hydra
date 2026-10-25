@@ -6,7 +6,7 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class TrabajadorRepository(CaeManagerDbContext dbContext) : ITrabajadorRepository
 {
     public Task<Trabajador?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.Trabajadores.FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.Trabajadores.Where(t => t.Id == id), cancellationToken);
 
     public Task<bool> ExisteConDniAsync(string dni, Guid? excluirId = null, CancellationToken cancellationToken = default) =>
         dbContext.Trabajadores.AnyAsync(
