@@ -19,7 +19,9 @@ namespace CaeManager.Application.Reclamaciones;
 /// a alguno de los destinatarios, el comando devuelve un fallo
 /// (<c>Reclamacion.EnvioFallido</c> si no llegó a nadie y no se registró
 /// nada; <c>Reclamacion.EnvioParcial</c> si llegó a una parte, que es la
-/// única que queda registrada en el historial) — ver
+/// única que queda registrada en el historial;
+/// <c>Reclamacion.RegistroFallido</c> si el correo salió y no se pudo guardar el
+/// registro, que el reintento completa sin volver a mandarlo) — ver
 /// <c>RegistroEnvioReclamacionService</c>.
 /// </para>
 /// </summary>

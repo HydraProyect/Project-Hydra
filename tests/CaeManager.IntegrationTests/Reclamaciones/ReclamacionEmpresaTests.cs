@@ -615,7 +615,7 @@ public class ReclamacionEmpresaTests : IAsyncLifetime
             new RegistroEnvioReclamacionService(
                 contexto, emailService ?? new EmailServiceFalso(), new ReclamacionDocumentalRepository(contexto),
                 new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(correoDeQuienReclama),
-                mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto),
+                mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto, new EnvioReclamacionRepository(contexto), contexto),
             PendientesDeReclamacionFabrica.Crear(contexto, alcanceDatos));
 
     private CaeManagerDbContext CrearContexto()

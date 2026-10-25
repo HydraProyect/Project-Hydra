@@ -391,9 +391,76 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
         reclamacion.ConversacionId.Should().BeNull();
 
+        // Registro previo del envío (Z5-4): insertado vacío antes del correo, la entrega llega con un UPDATE de la
+        // columna text[] y el cierre apunta a la reclamación. Todo en el Tenant propietario.
+        var envio = (await lectura.EnviosReclamacion.ToListAsync()).Should().ContainSingle().Which;
+        envio.TenantId.Should().Be(_tenant);
+        envio.Entregados.Should().Equal(["agenda@cliente.test"]);
+        envio.ReclamacionDocumentalId.Should().Be(reclamacion.Id);
+
         var handlerConsulta = CrearQueryHandler(lectura);
         var lotes = await handlerConsulta.Handle(new ObtenerLoteReclamacionQuery(), CancellationToken.None);
         lotes.Should().ContainSingle(l => l.ClienteId == _clienteId).Which.UltimaReclamacionFechaUtc.Should().NotBeNull();
+    }
+
+    /// <summary>
+    /// Z5-4: lo que deja un guardado que falló después del correo es un registro previo pendiente con la entrega
+    /// guardada. El reintento de la misma reclamación, desde un contexto nuevo (otro circuito), la registra sin volver
+    /// a mandar el correo.
+    /// </summary>
+    [Fact]
+    public async Task Un_reintento_reanuda_el_envio_pendiente_y_registra_la_reclamacion_sin_volver_a_mandar_el_correo()
+    {
+        Guid documentoId;
+        await using (var contexto = CrearContexto())
+        {
+            var documento = Documento.DeTrabajador(
+                _trabajadorId, _tipoDocumentoId,
+                DiaDeNegocio.Hoy().AddMonths(-10), VigenciaDocumento.VenceEl(DiaDeNegocio.Hoy().AddMonths(1)));
+            contexto.Documentos.Add(documento);
+            await contexto.SaveChangesAsync();
+            documentoId = documento.Id;
+        }
+
+        await SembrarContactoPredeterminadoAsync("agenda@cliente.test");
+
+        var usuarioId = Guid.NewGuid();
+        await using (var contexto = CrearContexto())
+        {
+            var huella = EnvioReclamacion.CalcularHuella(
+                _clienteId, AmbitoAplicacion.Cliente, false, [documentoId], [], ["agenda@cliente.test"], []);
+            var pendiente = EnvioReclamacion.Iniciar(usuarioId, huella, DateTime.UtcNow.AddMinutes(-5));
+            pendiente.RegistrarEntrega("agenda@cliente.test", enCopia: false);
+            contexto.EnviosReclamacion.Add(pendiente);
+            await contexto.SaveChangesAsync();
+        }
+
+        var emailServiceFalso = new EmailServiceFalso();
+        await using (var contexto = CrearContexto())
+        {
+            var alcance = new AlcanceDatosServiceFalso();
+            var registroEnvio = new RegistroEnvioReclamacionService(
+                contexto, emailServiceFalso, new ReclamacionDocumentalRepository(contexto),
+                new CurrentUserServiceFalso(usuarioId), new CorreoDelActorRealFalso(null),
+                new MediatorFalso(Guid.NewGuid()), NullLogger<RegistroEnvioReclamacionService>.Instance, contexto,
+                new EnvioReclamacionRepository(contexto), contexto);
+            var handler = new EnviarReclamacionCommandHandler(
+                contexto, contexto, contexto, contexto, contexto, contexto,
+                alcance, new ResolucionDestinatariosAgendaService(contexto, contexto),
+                registroEnvio, PendientesDeReclamacionFabrica.Crear(contexto, alcance));
+
+            var resultado = await handler.Handle(new EnviarReclamacionCommand(_clienteId, [documentoId]), CancellationToken.None);
+
+            resultado.EsExitoso.Should().BeTrue();
+        }
+
+        emailServiceFalso.Enviados.Should().BeEmpty("el correo ya había llegado a la agenda: el reintento solo lo registra");
+
+        await using var lectura = CrearContexto();
+        var reclamacion = (await lectura.ReclamacionesDocumentales.ToListAsync()).Should().ContainSingle().Which;
+        reclamacion.DestinatarioEmail.Should().Be("agenda@cliente.test");
+        (await lectura.EnviosReclamacion.ToListAsync()).Should().ContainSingle()
+            .Which.ReclamacionDocumentalId.Should().Be(reclamacion.Id);
     }
 
     [Fact]
@@ -955,7 +1022,8 @@ public class ReclamacionDocumentalTests : IAsyncLifetime
         string? correoDeQuienReclama = null) =>
         new(contexto, emailService, new ReclamacionDocumentalRepository(contexto),
             new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(correoDeQuienReclama),
-            mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto);
+            mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, contexto,
+            new EnvioReclamacionRepository(contexto), contexto);
 
     /// <summary>
     /// El correo del Gestor CAE que emite la reclamación (decisión D3), o

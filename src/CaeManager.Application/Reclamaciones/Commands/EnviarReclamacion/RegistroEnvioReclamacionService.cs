@@ -39,6 +39,13 @@ public sealed record TitularReclamacion(Guid Id, string RazonSocial, AmbitoAplic
 /// destinatarios— se queda en cada comando, porque el join es genuinamente
 /// distinto (Trabajador→Asignación→Centro frente a Documento.EmpresaId
 /// directo).
+///
+/// <para>
+/// El envío es idempotente (<see cref="EnvioReclamacion"/>): antes del primer correo queda guardado un registro previo,
+/// cada entrega se guarda en cuanto sale y la reclamación se registra al final. Si falla un guardado posterior a un
+/// correo, el resultado es <see cref="RegistroEnvioReclamacionService.CodigoRegistroFallido"/> y reenviar la misma
+/// reclamación no vuelve a mandarla a quien ya consta que la recibió. Un fallo del correo nunca la registra.
+/// </para>
 /// </summary>
 public interface IRegistroEnvioReclamacionService
 {
@@ -72,7 +79,9 @@ public class RegistroEnvioReclamacionService(
     ICorreoDelActorReal correoDelActorReal,
     IMediator mediator,
     ILogger<RegistroEnvioReclamacionService> logger,
-    IUnitOfWork unitOfWork) : IRegistroEnvioReclamacionService
+    IUnitOfWork unitOfWork,
+    IEnvioReclamacionRepository envios,
+    IDescarteCambiosPendientes descarteCambios) : IRegistroEnvioReclamacionService
 {
     /// <summary>
     /// Fallo con efecto: la reclamación llegó a una parte de los
@@ -80,6 +89,18 @@ public class RegistroEnvioReclamacionService(
     /// sepa que, aun siendo un fallo, el historial cambió y hay que recargarlo.
     /// </summary>
     public const string CodigoEnvioParcial = "Reclamacion.EnvioParcial";
+
+    /// <summary>
+    /// Fallo con efecto: el correo salió (a todos o a parte) pero no pudimos guardar que salió. El reintento de la misma
+    /// reclamación no lo vuelve a mandar a quien ya lo recibió (<see cref="EnvioReclamacion"/>).
+    /// </summary>
+    public const string CodigoRegistroFallido = "Reclamacion.RegistroFallido";
+
+    /// <summary>
+    /// Cuánto tiempo un envío pendiente se considera reintentable. Pasado este plazo, enviar la misma reclamación es
+    /// una reclamación nueva y el registro antiguo queda como rastro de lo que salió sin registrarse.
+    /// </summary>
+    public static readonly TimeSpan VentanaDeReintento = TimeSpan.FromHours(24);
 
     public async Task<Result> EnviarYRegistrarAsync(
         TitularReclamacion titular,
@@ -92,8 +113,49 @@ public class RegistroEnvioReclamacionService(
         IReadOnlyList<string>? enCopia = null)
     {
         enCopia ??= [];
+        documentosQueFaltan ??= [];
         var destinatarioUnico = DestinatariosExtraDeReclamacion.FormatoDeRegistro(destinatarios, enCopia);
         IReadOnlyList<string> destinatariosFallidos = [];
+
+        // Antes de que salga nada: sin usuario no hay a quién atribuir la reclamación, y comprobarlo después del
+        // correo dejaba el correo salido y sin registrar.
+        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
+        if (usuarioId is null)
+            return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
+
+        // Registro previo del envío (Z5-4, revisión de seguridad 2026-10-23). El correo a un tercero no se deshace,
+        // así que el orden es: registro «en envío» guardado → correo → entrega guardada → reclamación registrada.
+        // Si lo que falla es un guardado posterior al correo, el reintento de la misma reclamación (misma huella)
+        // reanuda este registro y no vuelve a mandar el correo a quien ya lo recibió.
+        var huella = EnvioReclamacion.CalcularHuella(
+            titular.Id, titular.Ambito, titular.DocumentosDeTrabajadores, documentoIds, documentosQueFaltan, destinatarios, enCopia);
+        var envioPrevio = await envios.ObtenerPendienteAsync(
+            usuarioId.Value, huella, DateTime.UtcNow - VentanaDeReintento, cancellationToken);
+
+        if (envioPrevio is null)
+        {
+            envioPrevio = EnvioReclamacion.Iniciar(usuarioId.Value, huella, DateTime.UtcNow);
+            envios.Agregar(envioPrevio);
+            try
+            {
+                // Con el token de la pantalla: todavía no ha salido nada, cancelar aquí no deja nada a medias.
+                await unitOfWork.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                // Circuito de Blazor Server: el registro añadido no puede quedarse para el siguiente comando.
+                descarteCambios.DescartarCambiosPendientes();
+                throw;
+            }
+        }
+
+        var envio = envioPrevio;
+
+        // Desde aquí puede salir un correo. Ni el envío ni su registro se cortan porque la pantalla se retire: un
+        // correo entregado y sin registrar es justo el hueco que esto cierra, y el reintento no puede depender de
+        // que el Gestor CAE siga en la página.
+        var sinCorte = CancellationToken.None;
+        cancellationToken.ThrowIfCancellationRequested();
 
         // GestorPropietarioId != null excluido a propósito: un buzón personal
         // de un gestor (ConexionIntegracion.GestorPropietarioId) también tiene
@@ -109,33 +171,63 @@ public class RegistroEnvioReclamacionService(
         // y no existe hoy la noción de buzón dedicado a una Empresa contraparte.
         var clienteIdDelBuzon = titular.Ambito == AmbitoAplicacion.Cliente ? (Guid?)titular.Id : null;
 
-        var conexionId = await integracionesContext.ConexionesIntegracion
-            .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
-            .Where(c => c.GestorPropietarioId == null)
-            .Where(c => c.ClienteId == null || c.ClienteId == clienteIdDelBuzon)
-            .OrderByDescending(c => c.ClienteId != null)
-            .Select(c => (Guid?)c.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+        // Un reintento sigue por el carril del intento anterior: si el buzón ya mandó el correo (hay hilo) no se
+        // vuelve a mandar, y si el SMTP ya entregó a alguien no se cambia al buzón, que lo mandaría a todos otra vez.
+        Guid? conversacionId = envio.ConversacionId;
+        var reanudaSmtp = envio.Entregados.Count > 0 || envio.EntregadosEnCopia.Count > 0;
 
-        Guid? conversacionId = null;
-        if (conexionId is not null)
+        var conexionId = conversacionId is not null || reanudaSmtp
+            ? null
+            : await integracionesContext.ConexionesIntegracion
+                .Where(c => c.Proveedor == ProveedorIntegracion.Microsoft365 && c.Estado == EstadoConexionIntegracion.Habilitada)
+                .Where(c => c.GestorPropietarioId == null)
+                .Where(c => c.ClienteId == null || c.ClienteId == clienteIdDelBuzon)
+                .OrderByDescending(c => c.ClienteId != null)
+                .Select(c => (Guid?)c.Id)
+                .FirstOrDefaultAsync(sinCorte);
+
+        // Con hilo de un intento anterior, el buzón conectado ya lo mandó: no entra en ninguna rama, solo falta registrarlo.
+        if (conversacionId is null && conexionId is not null)
         {
             // El hilo se ancla al titular real. Para una Empresa contraparte va
             // por EmpresaId y no por ClienteId: son planos distintos, y dejarlo
             // sin ancla lo mandaría a la cola de triage, que es compartida por
             // toda la gestión CAE (§ 12.4) — el alcance de cartera de la
             // reclamación se perdería en cuanto alguien abriera Comunicaciones.
-            var envio = titular.Ambito == AmbitoAplicacion.Cliente
+            var mensaje = titular.Ambito == AmbitoAplicacion.Cliente
                 ? new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, ClienteId: titular.Id, Copia: enCopia)
                 : new EnviarMensajeNuevoCommand(conexionId.Value, destinatarios, asunto, cuerpoHtml, EmpresaId: titular.Id, Copia: enCopia);
 
-            var envioResultado = await mediator.Send(envio, cancellationToken);
+            // Si el comando del buzón falla después de que Graph aceptara el correo (hilo de otro titular, o su propio
+            // guardado), deja el hilo rastreado sin guardar: se descarta para que no viaje en el guardado de otra
+            // operación del mismo circuito. Ese caso residual sí reenvía en el reintento, porque no hay hilo apuntado.
+            Result<Guid> envioResultado;
+            try
+            {
+                envioResultado = await mediator.Send(mensaje, sinCorte);
+            }
+            catch
+            {
+                descarteCambios.DescartarCambiosPendientes();
+                throw;
+            }
+
             if (envioResultado.EsFallido)
+            {
+                descarteCambios.DescartarCambiosPendientes();
                 return Result.Fallo(envioResultado.Error);
+            }
 
             conversacionId = envioResultado.Valor;
+
+            // El hilo se apunta en el registro previo antes de registrar la reclamación: si ese segundo guardado
+            // falla, el reintento ve que el buzón ya lo mandó y no lo vuelve a mandar.
+            envio.RegistrarConversacion(envioResultado.Valor);
+            var hiloGuardado = await GuardarTrasEnviarAsync();
+            if (hiloGuardado.EsFallido)
+                return hiloGuardado;
         }
-        else
+        else if (conversacionId is null)
         {
             // Decisión D3 (2026-09-19): la respuesta la recibe el Gestor CAE
             // que emite la reclamación. Por aquí el correo sale del buzón de
@@ -149,7 +241,7 @@ public class RegistroEnvioReclamacionService(
             // Hoy, además, ninguna Sesión Privilegiada de soporte llega hasta
             // aquí — AutorizacionEscrituraBehavior deniega toda escritura que
             // no sea de aprovisionamiento antes del handler.
-            var responderA = await correoDelActorReal.ObtenerAsync(cancellationToken);
+            var responderA = await correoDelActorReal.ObtenerAsync(sinCorte);
 
             if (responderA is null)
             {
@@ -174,8 +266,10 @@ public class RegistroEnvioReclamacionService(
             // (es append-only y cuenta lo que pasó), y el resultado sigue
             // siendo un fallo que nombra a quienes no, para que la UI nunca
             // lo pinte como enviado del todo.
-            var enviados = new List<string>();
-            var enviadosEnCopia = new List<string>();
+            //
+            // Un reintento parte de lo que el registro previo ya apunta como entregado: a esos no se les vuelve a mandar.
+            var enviados = new List<string>(envio.Entregados);
+            var enviadosEnCopia = new List<string>(envio.EntregadosEnCopia);
             var fallidos = new List<string>();
 
             // Los de copia van después y solo si a algún destinatario le llegó: una copia de un correo que no salió a nadie no informa de nada.
@@ -185,6 +279,9 @@ public class RegistroEnvioReclamacionService(
                 if (esCopia && enviados.Count == 0)
                     break;
 
+                if (envio.YaEntregadoA(destinatario, esCopia))
+                    continue;
+
                 // Una excepción del transporte (una dirección mal formada en la agenda, un servicio SMTP caído de un modo que
                 // el adaptador no contempla) es un destinatario fallido, no un fallo de todo el envío: dejarla subir tras haber
                 // entregado ya a un destinatario anterior dejaba ese correo salido y sin registrar. La cancelación sí sube.
@@ -193,7 +290,7 @@ public class RegistroEnvioReclamacionService(
                 {
                     resultadoCorreo = await emailService.EnviarAsync(
                         destinatario, asunto, esCopia ? CuerpoDeCopia(cuerpoHtml, enviados) : cuerpoHtml,
-                        TipoAvisoCorreo.Requerimiento, responderA, cancellationToken);
+                        TipoAvisoCorreo.Requerimiento, responderA, sinCorte);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -204,6 +301,13 @@ public class RegistroEnvioReclamacionService(
                 if (resultadoCorreo.EsExitoso)
                 {
                     (esCopia ? enviadosEnCopia : enviados).Add(destinatario);
+
+                    // Cada entrega se guarda en el acto, antes del siguiente correo: si algo corta el envío a medias,
+                    // el reintento sabe exactamente a quién ya le llegó.
+                    envio.RegistrarEntrega(destinatario, esCopia);
+                    var entregaGuardada = await GuardarTrasEnviarAsync();
+                    if (entregaGuardada.EsFallido)
+                        return entregaGuardada;
                 }
                 else
                 {
@@ -225,10 +329,6 @@ public class RegistroEnvioReclamacionService(
             destinatariosFallidos = fallidos;
         }
 
-        var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        if (usuarioId is null)
-            return Result.Fallo(Error.Crear("Reclamacion.SinUsuario", "No pudimos identificar tu usuario."));
-
         var reclamacion = titular.Ambito == AmbitoAplicacion.Cliente
             ? ReclamacionDocumental.ParaCliente(titular.Id, usuarioId.Value, destinatarioUnico, DateTime.UtcNow, documentoIds, conversacionId, documentosQueFaltan)
             : titular.DocumentosDeTrabajadores
@@ -237,13 +337,18 @@ public class RegistroEnvioReclamacionService(
 
         repositorio.Agregar(reclamacion);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+        // En el mismo guardado que la reclamación: o quedan las dos cosas (reclamación y envío completo) o ninguna, y
+        // en ese caso el reintento la registra sin volver a mandar el correo.
+        envio.MarcarRegistrado(reclamacion.Id);
+        var reclamacionGuardada = await GuardarTrasEnviarAsync();
+        if (reclamacionGuardada.EsFallido)
+            return reclamacionGuardada;
 
         // Después del commit, no antes: el timeline es un reflejo del hecho, no
         // parte de él. Sin conversación (rama sin buzón conectado) no hay hilo
         // al que avisar.
         if (conversacionId is not null)
-            await mediator.Publish(new ReclamacionEnviadaEvent(conversacionId.Value, reclamacion.Id), cancellationToken);
+            await mediator.Publish(new ReclamacionEnviadaEvent(conversacionId.Value, reclamacion.Id), sinCorte);
 
         if (destinatariosFallidos.Count > 0)
         {
@@ -255,6 +360,30 @@ public class RegistroEnvioReclamacionService(
         }
 
         return Result.Exito();
+    }
+
+    /// <summary>
+    /// Todo guardado posterior al primer correo: sin el token de la pantalla, y un fallo no sube como excepción sino
+    /// como un resultado que dice que el correo salió, porque la UI tiene que poder decirlo y el Gestor CAE reintentar.
+    /// Lo que quedó rastreado se descarta (en Blazor Server el contexto vive lo que el circuito): el reintento relee el
+    /// registro previo tal como quedó guardado.
+    /// </summary>
+    private async Task<Result> GuardarTrasEnviarAsync()
+    {
+        try
+        {
+            await unitOfWork.SaveChangesAsync(CancellationToken.None);
+            return Result.Exito();
+        }
+        catch (Exception ex)
+        {
+            descarteCambios.DescartarCambiosPendientes();
+            logger.LogError(ex, "Reclamación: el correo salió pero no pudimos guardar su registro.");
+            return Result.Fallo(Error.Crear(
+                CodigoRegistroFallido,
+                "El correo de la reclamación ya ha salido, al menos a una parte de los destinatarios, pero no pudimos guardarla. " +
+                "Vuelve a enviarla en unos minutos para que quede registrada; puede que a alguno le llegue dos veces."));
+        }
     }
 
     /// <summary>
