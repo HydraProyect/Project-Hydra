@@ -7,7 +7,7 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerFirmaGuardadaUsuario;
 /// <summary>Firma guardada del usuario actual, o null si todavía no ha configurado ninguna.</summary>
 public record ObtenerFirmaGuardadaUsuarioQuery : IRequest<FirmaGuardadaUsuarioDto?>;
 
-public record FirmaGuardadaUsuarioDto(string ImagenUrl, DateTime ActualizadaEnUtc);
+public record FirmaGuardadaUsuarioDto(string ImagenUrl, DateTime ActualizadaEnUtc, Guid Id);
 
 public class ObtenerFirmaGuardadaUsuarioQueryHandler(
     IDocumentosQueryContext documentosContext, ICurrentUserService currentUserService)
@@ -21,7 +21,7 @@ public class ObtenerFirmaGuardadaUsuarioQueryHandler(
 
         return await documentosContext.FirmasGuardadasUsuario
             .Where(f => f.UsuarioId == usuarioIdValido)
-            .Select(f => new FirmaGuardadaUsuarioDto(f.ImagenUrl, f.ActualizadaEnUtc))
+            .Select(f => new FirmaGuardadaUsuarioDto(f.ImagenUrl, f.ActualizadaEnUtc, f.Id))
             .FirstOrDefaultAsync(cancellationToken);
     }
 }
