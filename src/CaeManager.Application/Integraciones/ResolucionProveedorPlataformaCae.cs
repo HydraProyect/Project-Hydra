@@ -97,6 +97,24 @@ public class ResolucionProveedorPlataformaCaeService(IProveedoresPlataformaCaeQu
         host.Equals(dominio, StringComparison.OrdinalIgnoreCase) ||
         host.EndsWith("." + dominio, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Los demás Proveedores con algún dominio que se solape con los de <paramref name="proveedorId"/>: igual, o uno
+    /// subdominio del otro. Un portal que casa con un dominio de ambos es ambiguo, y la extensión no debe elegir a
+    /// ciegas (gana el dominio más largo; con empate, pregunta). Método puro, como <see cref="Resolver"/>.
+    /// </summary>
+    public static IReadOnlyList<Guid> ProveedoresSolapados(
+        Guid proveedorId, IReadOnlyDictionary<Guid, IReadOnlyList<string>> dominiosPorProveedor)
+    {
+        if (!dominiosPorProveedor.TryGetValue(proveedorId, out var propios))
+            return [];
+
+        return dominiosPorProveedor
+            .Where(otro => otro.Key != proveedorId
+                && otro.Value.Any(ajeno => propios.Any(propio => CoincideHost(ajeno, propio) || CoincideHost(propio, ajeno))))
+            .Select(otro => otro.Key)
+            .ToList();
+    }
+
     /// <summary>Acepta tanto una URL completa como un host suelto — un canal puede tener guardada cualquiera de las dos formas.</summary>
     public static string? ExtraerHost(string? url)
     {

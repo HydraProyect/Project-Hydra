@@ -54,7 +54,7 @@ public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
             var confirmado = await new ConfirmarSubidaDesdeExtensionCommandHandler(
                     new AcreditacionDocumentoPlataformaRepository(contexto), new DocumentoRepository(contexto),
                     new AlcanceDatosServiceFalso(), contexto, contexto, contexto, new CurrentUserServiceFalso(_usuario), contexto)
-                .Handle(new ConfirmarSubidaDesdeExtensionCommand(acreditacionId), CancellationToken.None);
+                .Handle(new ConfirmarSubidaDesdeExtensionCommand(acreditacionId, "app.portal-prueba.test"), CancellationToken.None);
             confirmado.EsExitoso.Should().BeTrue(confirmado.EsFallido ? confirmado.Error.Mensaje : null);
             anotado = confirmado.Valor;
         }
@@ -131,6 +131,7 @@ public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
         contexto.Empresas.AddRange(titular, proveedora);
         contexto.Centros.Add(centro);
         contexto.ProveedoresPlataformaCae.Add(proveedor);
+        contexto.DominiosProveedorPlataformaCae.Add(new DominioProveedorPlataformaCae(proveedor.Id, "portal-prueba.test"));
         contexto.CanalesGestionDocumental.Add(acceso);
         contexto.TiposDocumento.Add(tipo);
         contexto.Trabajadores.Add(trabajador);
