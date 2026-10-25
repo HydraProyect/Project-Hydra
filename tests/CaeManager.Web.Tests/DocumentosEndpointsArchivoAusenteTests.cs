@@ -292,22 +292,55 @@ public class DocumentosEndpointsArchivoAusenteTests
         avisos.Entradas.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task La_version_anterior_que_ya_no_esta_en_el_almacen_responde_404_sin_registro()
+    [Theory]
+    [InlineData("evidencia")]
+    [InlineData("auditoria")]
+    public async Task Un_archivo_ausente_responde_404_sin_contenido_y_avisa_sin_revelar_la_clave(string camino)
     {
         var contexto = Contexto();
         var registro = new RegistroDeAccesosEspia();
         var avisos = new FabricaDeRegistroEspia();
-        var resultado = await AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
-            new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
-                "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
-            new AlmacenSinElFichero(), registro, avisos, CancellationToken.None);
+        // En Auditoría el Id de la ruta es el del Registro de Auditoría y el aviso lleva el del Documento.
+        var idDeLaRuta = Guid.Parse("0199c0de-0000-7000-8000-0000000000aa");
+        var resultado = await (camino == "evidencia"
+            ? SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto,
+                new MediatorFalso(new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid())),
+                new AlmacenSinElFichero(), registro, avisos, CancellationToken.None)
+            : AuditoriaEndpoints.ServirArchivoAnteriorAsync(idDeLaRuta, contexto,
+                new MediatorFalso(new RegistroAuditoriaDto(idDeLaRuta, "Documento", DocumentoId,
+                    "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+                new AlmacenSinElFichero(), registro, avisos, CancellationToken.None));
         await resultado.ExecuteAsync(contexto);
 
         contexto.Response.StatusCode.Should().Be(404);
         LeerCuerpo(contexto).Should().BeEmpty();
         contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
         registro.Accesos.Should().BeEmpty();
+        avisos.Entradas.Should().ContainSingle().Which.Nivel.Should().Be(LogLevel.Warning);
+        avisos.Entradas[0].Mensaje.Should().Contain(DocumentoId.ToString())
+            .And.NotContain(idDeLaRuta.ToString()).And.NotContain(ClaveDelFichero);
+        avisos.Excepciones.Should().ContainSingle().Which.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("evidencia")]
+    [InlineData("auditoria")]
+    public async Task Una_FileNotFoundException_del_registro_de_lectura_no_se_convierte_en_404(string camino)
+    {
+        var contexto = Contexto();
+        var avisos = new FabricaDeRegistroEspia();
+        var registro = new RegistroQueLanzaFicheroNoEncontrado();
+        var servir = () => camino == "evidencia"
+            ? SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto,
+                new MediatorFalso(new EvidenciaParaDescargaDto("evidencia.pdf", ClaveDelFichero, Guid.NewGuid())),
+                new AlmacenConElFichero(), registro, avisos, CancellationToken.None)
+            : AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
+                new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+                    "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
+                new AlmacenConElFichero(), registro, avisos, CancellationToken.None);
+
+        await servir.Should().ThrowAsync<FileNotFoundException>();
+        avisos.Entradas.Should().BeEmpty();
     }
 
     [Theory]
@@ -419,6 +452,16 @@ public class DocumentosEndpointsArchivoAusenteTests
             Accesos.Add((documentoId, tipoAcceso));
             return Task.CompletedTask;
         }
+
+        public Task RegistrarSiSensibleAsync(
+            Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            RegistrarSiSensibleAsync(recursoId, tipoAcceso, cancellationToken);
+    }
+
+    private sealed class RegistroQueLanzaFicheroNoEncontrado : IRegistroAccesoDocumentoSensibleService
+    {
+        public Task RegistrarSiSensibleAsync(Guid documentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>
+            throw new FileNotFoundException("no es el archivo del almacén");
 
         public Task RegistrarSiSensibleAsync(
             Guid recursoId, Guid tipoDocumentoId, TipoAccesoDocumentoSensible tipoAcceso, CancellationToken cancellationToken = default) =>

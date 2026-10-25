@@ -8,6 +8,14 @@ namespace CaeManager.Web.Services;
 
 public static class ErroresLecturaSensible
 {
+    public static IResult ArchivoAusente(Guid recursoId, ILogger registro)
+    {
+        registro.LogWarning(
+            "El recurso {RecursoId} tiene adjunto registrado pero su fichero no está en el almacén; se responde 404.",
+            recursoId);
+        return Results.NotFound();
+    }
+
     public static bool EsContextoNoAutorizado(Exception excepcion) =>
         excepcion is AccesoDocumentoSensibleNoRegistradoException
             or DbException { SqlState: "42501" }

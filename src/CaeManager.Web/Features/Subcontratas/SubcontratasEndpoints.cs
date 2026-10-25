@@ -30,7 +30,16 @@ public static class SubcontratasEndpoints
         // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
         // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
         // abrir la PR — la exclusión original asumía lo contrario).
-        var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return ErroresLecturaSensible.ArchivoAusente(id,
+                fabricaRegistro.CreateLogger(typeof(SubcontratasEndpoints).FullName!));
+        }
         // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
         try
         {
