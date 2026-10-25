@@ -59,11 +59,24 @@ test('el inventario real resuelve todas sus versiones desde los ficheros del rep
   assert.ok(comps.some((c) => c.id === 'kernel'));
 });
 
-test('un patrón de versión que deja de casar es un error, no un «sin versión»', () => {
-  assert.throws(
-    () => a.resolverVersiones({ componentes: [{ id: 'x', kev: [{ vendor: 'a', producto: 'b' }], version: { fichero: 'f', patron: 'x:([0-9]+)' } }] }, () => 'nada'),
-    /No se encuentra la versión de x/,
+test('un patrón de versión que deja de casar es un error, no un «sin versión», y no tumba KEV', () => {
+  const [x, y] = a.resolverVersiones(
+    {
+      componentes: [
+        { id: 'x', kev: [{ vendor: 'a', producto: 'b' }], version: { fichero: 'f', patron: 'x:([0-9]+)' } },
+        { id: 'y', kev: [{ vendor: 'a', producto: 'b' }], version: { fichero: 'falta', patron: 'y:([0-9]+)' } },
+      ],
+    },
+    (f) => {
+      if (f === 'falta') throw new Error('ENOENT');
+      return 'nada';
+    },
   );
+  assert.equal(x.version, null);
+  assert.match(x.errorVersion, /No se encuentra la versión de x en f/);
+  assert.match(y.errorVersion, /No se puede leer falta .*ENOENT/);
+  // El componente sigue en la lista con sus criterios KEV.
+  assert.equal(x.kev.length, 1);
   assert.throws(() => a.resolverVersiones({ componentes: [] }, () => ''), /no tiene componentes/);
   assert.throws(() => a.resolverVersiones({ componentes: [{ id: 'x', kev: [] }] }, () => ''), /criterios KEV/);
   assert.throws(
@@ -104,12 +117,48 @@ test('la alerta KEV deduplica por CVE, escapa el texto ajeno y es crítica', () 
   assert.match(al.titulo, /^\[Vigilancia KEV\] CVE-2026-1001 explotada: Kernel$/);
 });
 
+test('los patrones KEV del inventario real casan lo que corre en el VPS y no subcadenas ni productos ajenos', () => {
+  const comps = a.resolverVersiones(JSON.parse(leerDelRepo('.github/vigilancia/inventario.json')), leerDelRepo);
+  const casa = (vendorProject, product) =>
+    a.cruzarKev(kev(entrada('CVE-2026-9999', vendorProject, product)), comps, AHORA, 30).flatMap((c) => c.componentes.map((x) => x.id));
+  assert.deepEqual(casa('Linux', 'Kernel'), ['kernel']);
+  assert.deepEqual(casa('OpenSSL', 'OpenSSL'), ['openssl']);
+  assert.deepEqual(casa('Sudo', 'Sudo'), ['sudo']);
+  assert.deepEqual(casa('Microsoft', '.NET Core and Visual Studio'), ['aspnetcore']);
+  assert.deepEqual(casa('Microsoft', 'ASP.NET Core'), ['aspnetcore']);
+  assert.deepEqual(casa('Docker', 'Docker Engine'), ['docker']);
+  assert.deepEqual(casa('Canonical', 'Ubuntu Linux'), ['ubuntu']);
+  assert.deepEqual(casa('haxx', 'libcurl'), ['curl']);
+  assert.deepEqual(casa('Microsoft', '.NET Framework'), []);
+  assert.deepEqual(casa('Microsoft', '.NET Framework, SharePoint, Visual Studio'), []);
+  assert.deepEqual(casa('Microsoft', 'Windows'), []);
+  assert.deepEqual(casa('Docker', 'Docker Desktop'), []);
+  assert.deepEqual(casa('Securly', 'Securly Filter'), []);
+  assert.deepEqual(casa('Pseudo Corp', 'Pseudosudo'), []);
+});
+
+test('un CVE repetido en el catálogo da una sola alerta y no tumba la capa', () => {
+  const cruces = a.cruzarKev(kev(entrada('CVE-2026-1001', 'Linux', 'Kernel'), entrada('CVE-2026-1001', 'Linux', 'Kernel')), componentes(), AHORA, 30);
+  assert.equal(cruces.length, 1);
+  assert.doesNotThrow(() =>
+    v.planificar({ capa: 'kev', existentes: [], alertas: cruces.map(a.alertaKev), maxNuevas: 10, ...a.POLITICA_CAPAS.kev }),
+  );
+});
+
+test('la política fija que KEV nunca se cierra ni se reabre sola y OSV sí', () => {
+  assert.deepEqual(a.POLITICA_CAPAS, {
+    kev: { completo: false, reabrirCerradas: false },
+    osv: { completo: true, reabrirCerradas: true },
+  });
+  assert.ok(Object.isFrozen(a.POLITICA_CAPAS.kev));
+});
+
 test('una alerta KEV cerrada tras el triaje no se reabre y nunca se cierra sola', () => {
   const [cruce] = a.cruzarKev(kev(entrada('CVE-2026-1001', 'Linux', 'Kernel')), componentes(), AHORA, 30);
   const al = a.alertaKev(cruce);
   const cerrada = { number: 4, state: 'closed', state_reason: 'completed', title: al.titulo, body: al.cuerpo };
   const abiertaVieja = { number: 5, state: 'open', title: 't', body: v.marcador('kev', 'CVE-2020-0001') };
-  const plan = v.planificar({ capa: 'kev', existentes: [cerrada, abiertaVieja], alertas: [al], completo: false, maxNuevas: 10, reabrirCerradas: false });
+  const plan = v.planificar({ capa: 'kev', existentes: [cerrada, abiertaVieja], alertas: [al], maxNuevas: 10, ...a.POLITICA_CAPAS.kev });
   assert.deepEqual(plan.reabrir, []);
   assert.deepEqual(plan.crear, []);
   assert.deepEqual(plan.silenciadas.map((x) => x.number), [4]);

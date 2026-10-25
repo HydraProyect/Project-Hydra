@@ -1,12 +1,12 @@
 {
-  "comentario": "Inventario de lo que corre en el VPS (staging y producción comparten máquina) para vigilancia-avisos.yml. Las versiones no se copian aquí: se leen del fichero que las fija (version.fichero + version.patron, primer grupo); si el patrón deja de casar, el workflow falla. kev: expresiones (sin distinguir mayúsculas) sobre vendorProject y product del catálogo CISA KEV. osv: paquetes que se consultan en OSV con la versión leída (solo los que tienen versión conocida en el repositorio).",
+  "comentario": "Inventario de lo que corre en el VPS (staging y producción comparten máquina) para vigilancia-avisos.yml. Las versiones no se copian aquí: se leen del fichero que las fija (version.fichero + version.patron, primer grupo); si el patrón deja de casar, el workflow falla. kev: expresiones (sin distinguir mayúsculas) sobre vendorProject y product del catálogo CISA KEV, ancladas por palabra o por extremos para no casar subcadenas (curl en «Securly») ni productos que no corren en el VPS (.NET Framework, Docker Desktop); avisos.test.js las prueba contra entradas reales. osv: paquetes que se consultan en OSV con la versión leída (solo los que tienen versión conocida en el repositorio).",
   "ventanaKevDias": 30,
   "componentes": [
     {
       "id": "aspnetcore",
       "nombre": ".NET / ASP.NET Core (runtime de la imagen de la aplicación)",
       "version": { "fichero": "Dockerfile", "patron": "dotnet/aspnet:([0-9]+\\.[0-9]+\\.[0-9]+)@sha256:" },
-      "kev": [{ "vendor": "^Microsoft$", "producto": "\\.NET|ASP\\.NET" }],
+      "kev": [{ "vendor": "^Microsoft$", "producto": "(?:^|[\\s,])(?:ASP)?\\.NET(?! Framework)" }],
       "osv": [
         { "ecosystem": "NuGet", "name": "Microsoft.AspNetCore.App.Runtime.linux-x64" },
         { "ecosystem": "NuGet", "name": "Microsoft.NETCore.App.Runtime.linux-x64" }
@@ -16,30 +16,30 @@
       "id": "postgresql",
       "nombre": "PostgreSQL",
       "version": { "fichero": "deploy/local/docker-compose.produccion.yml", "patron": "image:\\s*postgres:([0-9]+\\.[0-9]+)@sha256:" },
-      "kev": [{ "vendor": "PostgreSQL", "producto": "PostgreSQL" }]
+      "kev": [{ "vendor": "\\bPostgreSQL\\b", "producto": "\\bPostgreSQL\\b" }]
     },
     {
       "id": "caddy",
       "nombre": "Caddy (proxy inverso)",
       "version": { "fichero": "deploy/local/docker-compose.produccion.yml", "patron": "image:\\s*caddy:([0-9]+\\.[0-9]+\\.[0-9]+)-alpine@sha256:" },
-      "kev": [{ "vendor": "Caddy", "producto": "Caddy" }],
+      "kev": [{ "vendor": "\\bCaddy\\b", "producto": "\\bCaddy\\b" }],
       "osv": [{ "ecosystem": "Go", "name": "github.com/caddyserver/caddy/v2" }]
     },
     {
       "id": "seq",
       "nombre": "Seq (logs)",
       "version": { "fichero": "deploy/local/docker-compose.produccion.yml", "patron": "image:\\s*datalust/seq:([0-9.]+)@sha256:" },
-      "kev": [{ "vendor": "Datalust", "producto": "Seq" }]
+      "kev": [{ "vendor": "\\bDatalust\\b", "producto": "^Seq\\b" }]
     },
-    { "id": "openssl", "nombre": "OpenSSL (VPS e imágenes)", "kev": [{ "vendor": "OpenSSL", "producto": "OpenSSL" }] },
-    { "id": "openssh", "nombre": "OpenSSH (VPS)", "kev": [{ "vendor": "OpenBSD|OpenSSH", "producto": "OpenSSH" }] },
-    { "id": "libreoffice", "nombre": "LibreOffice (imagen de la aplicación)", "kev": [{ "vendor": "LibreOffice|Document Foundation", "producto": "LibreOffice" }] },
-    { "id": "curl", "nombre": "curl (VPS e imagen de la aplicación)", "kev": [{ "vendor": "curl|Haxx", "producto": "curl|libcurl" }] },
-    { "id": "kernel", "nombre": "Kernel Linux (VPS)", "kev": [{ "vendor": "^Linux$", "producto": "Kernel" }] },
-    { "id": "python", "nombre": "Python (VPS: Borg y herramientas de Ubuntu)", "kev": [{ "vendor": "Python", "producto": "Python|CPython" }] },
-    { "id": "borg", "nombre": "BorgBackup (VPS)", "kev": [{ "vendor": "Borg", "producto": "Borg" }] },
-    { "id": "docker", "nombre": "Docker Engine, containerd y runc (VPS)", "kev": [{ "vendor": "Docker|Moby|Linux Foundation|Open Container", "producto": "Docker|Moby|containerd|runc" }] },
-    { "id": "ubuntu", "nombre": "Ubuntu 24.04 LTS (VPS)", "kev": [{ "vendor": "Canonical|Ubuntu", "producto": "Ubuntu|Linux" }] },
-    { "id": "sudo", "nombre": "sudo (VPS)", "kev": [{ "vendor": "Sudo|Todd Miller", "producto": "Sudo" }] }
+    { "id": "openssl", "nombre": "OpenSSL (VPS e imágenes)", "kev": [{ "vendor": "^OpenSSL$", "producto": "\\bOpenSSL\\b" }] },
+    { "id": "openssh", "nombre": "OpenSSH (VPS)", "kev": [{ "vendor": "^(?:OpenBSD|OpenSSH)$", "producto": "\\bOpenSSH\\b" }] },
+    { "id": "libreoffice", "nombre": "LibreOffice (imagen de la aplicación)", "kev": [{ "vendor": "\\b(?:LibreOffice|Document Foundation)\\b", "producto": "\\bLibreOffice\\b" }] },
+    { "id": "curl", "nombre": "curl (VPS e imagen de la aplicación)", "kev": [{ "vendor": "\\b(?:curl|Haxx)\\b", "producto": "\\b(?:lib)?curl\\b" }] },
+    { "id": "kernel", "nombre": "Kernel Linux (VPS)", "kev": [{ "vendor": "^Linux$", "producto": "\\bKernel\\b" }] },
+    { "id": "python", "nombre": "Python (VPS: Borg y herramientas de Ubuntu)", "kev": [{ "vendor": "^Python(?: Software Foundation)?$", "producto": "\\bC?Python\\b" }] },
+    { "id": "borg", "nombre": "BorgBackup (VPS)", "kev": [{ "vendor": "\\bBorg(?:Backup)?\\b", "producto": "\\bBorg(?:Backup)?\\b" }] },
+    { "id": "docker", "nombre": "Docker Engine, containerd y runc (VPS)", "kev": [{ "vendor": "\\b(?:Docker|Moby|Linux Foundation|Open Container)", "producto": "\\b(?:Docker|Moby|containerd|runc)\\b(?! Desktop)" }] },
+    { "id": "ubuntu", "nombre": "Ubuntu 24.04 LTS (VPS)", "kev": [{ "vendor": "^(?:Canonical|Ubuntu)$", "producto": "\\bUbuntu\\b" }] },
+    { "id": "sudo", "nombre": "sudo (VPS)", "kev": [{ "vendor": "^(?:Sudo|Todd Miller)$", "producto": "\\bSudo\\b" }] }
   ]
 }

@@ -14,6 +14,15 @@ const { claveSegura, escaparCelda, urlSegura, marcador } = require('./alertas.js
 
 const MIN_ENTRADAS_KEV = 1000;
 
+// Política de conciliación por capa (alertas.planificar). KEV es un suceso: no se
+// cierra ni se reabre sola, se cierra a mano tras el triaje. OSV es un estado: se
+// cierra cuando deja de afectar y se reabre si vuelve (salvo cerrada como «no
+// planificada»). El workflow la consume; las pruebas la fijan.
+const POLITICA_CAPAS = Object.freeze({
+  kev: Object.freeze({ completo: false, reabrirCerradas: false }),
+  osv: Object.freeze({ completo: true, reabrirCerradas: true }),
+});
+
 function regex(patron, donde) {
   try {
     return new RegExp(patron, 'i');
@@ -24,7 +33,9 @@ function regex(patron, donde) {
 
 // Lee la versión de cada componente del fichero que la fija. Un patrón que ya no casa
 // (alguien cambió el formato del compose o del Dockerfile) es un error, no un «sin
-// versión»: si no, la consulta a OSV dejaría de hacerse en silencio.
+// versión»: si no, la consulta a OSV dejaría de hacerse en silencio. Ese error se
+// devuelve en `errorVersion` del componente y no se lanza: KEV no necesita la versión y
+// debe seguir avisando; el workflow pone el job en rojo y no cierra nada de OSV.
 function resolverVersiones(inventario, leerFichero) {
   if (!inventario || !Array.isArray(inventario.componentes) || inventario.componentes.length === 0) {
     throw new Error('El inventario no tiene componentes.');
@@ -40,15 +51,24 @@ function resolverVersiones(inventario, leerFichero) {
       producto: regex(k.producto, `${c.id}.kev[${i}].producto`),
     }));
     let version = null;
+    let errorVersion = null;
     if (c.version) {
-      const texto = leerFichero(c.version.fichero);
-      const m = regex(c.version.patron, `${c.id}.version.patron`).exec(texto);
-      if (!m || !m[1]) throw new Error(`No se encuentra la versión de ${c.id} en ${c.version.fichero}.`);
-      version = m[1];
+      const patron = regex(c.version.patron, `${c.id}.version.patron`);
+      let texto = null;
+      try {
+        texto = leerFichero(c.version.fichero);
+      } catch (e) {
+        errorVersion = `No se puede leer ${c.version.fichero} para la versión de ${c.id}: ${e.message}`;
+      }
+      if (texto !== null) {
+        const m = patron.exec(texto);
+        if (!m || !m[1]) errorVersion = `No se encuentra la versión de ${c.id} en ${c.version.fichero}.`;
+        else version = m[1];
+      }
     }
     const osv = (c.osv || []).map((p) => ({ ecosystem: String(p.ecosystem), name: String(p.name) }));
-    if (osv.length > 0 && !version) throw new Error(`${c.id} tiene paquetes OSV pero no versión.`);
-    return { id: c.id, nombre: c.nombre || c.id, version, kev, osv };
+    if (osv.length > 0 && !c.version) throw new Error(`${c.id} tiene paquetes OSV pero no versión.`);
+    return { id: c.id, nombre: c.nombre || c.id, version, errorVersion, kev, osv };
   });
 }
 
@@ -67,13 +87,20 @@ function cruzarKev(catalogo, componentes, ahora, ventanaDias) {
   validarKev(catalogo);
   const desde = ahora - ventanaDias * 86400000;
   const cruces = [];
+  const vistas = new Set();
   for (const e of catalogo.vulnerabilities) {
     const fecha = Date.parse(e.dateAdded);
     if (!Number.isFinite(fecha) || fecha < desde) continue;
     const afectados = componentes.filter((c) =>
       c.kev.some((k) => k.vendor.test(String(e.vendorProject || '')) && k.producto.test(String(e.product || ''))),
     );
-    if (afectados.length > 0) cruces.push({ entrada: e, componentes: afectados });
+    if (afectados.length === 0) continue;
+    // Un catálogo con el mismo CVE dos veces (o dos ids que sanean a la misma clave)
+    // no debe tumbar la capa entera en planificar: se queda la primera.
+    const clave = claveSegura(String(e.cveID || '').trim());
+    if (vistas.has(clave)) continue;
+    vistas.add(clave);
+    cruces.push({ entrada: e, componentes: afectados });
   }
   return cruces.sort((a, b) => String(a.entrada.cveID).localeCompare(String(b.entrada.cveID)));
 }
@@ -166,7 +193,7 @@ function alertaOsv({ clave, vuln: v, afectados }) {
     '',
     'Detectado por `vigilancia-avisos.yml` consultando OSV con la versión que fija el repositorio, haya o no corrección publicada.',
     '',
-    'Esta issue se cierra sola cuando el aviso deja de afectar a las versiones del inventario (tras una consulta completa). Cerrarla a mano la deja cerrada.',
+    'Esta issue se cierra sola cuando el aviso deja de afectar a las versiones del inventario (tras una consulta completa). Cerrada a mano como «no planificada» (riesgo aceptado), no se reabre.',
   ].join('\n');
   return {
     clave,
@@ -176,4 +203,4 @@ function alertaOsv({ clave, vuln: v, afectados }) {
   };
 }
 
-module.exports = { MIN_ENTRADAS_KEV, resolverVersiones, validarKev, cruzarKev, alertaKev, esCritico, cruzarOsv, alertaOsv };
+module.exports = { MIN_ENTRADAS_KEV, POLITICA_CAPAS, resolverVersiones, validarKev, cruzarKev, alertaKev, esCritico, cruzarOsv, alertaOsv };
