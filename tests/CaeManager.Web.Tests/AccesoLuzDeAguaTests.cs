@@ -163,6 +163,7 @@ public class AccesoLuzDeAguaTests : BunitContext
         _azureAd.TenantId = "tenant";
         _azureAd.ClientId = "cliente-app";
         _azureAd.ClientSecret = "secreto";
+        _azureAd.TenantHydraId = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
     }
 
     // D-09: con sesión iniciada la página de login redirige en vez de mostrarse.

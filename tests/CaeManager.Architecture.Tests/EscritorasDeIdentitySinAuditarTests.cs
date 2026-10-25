@@ -148,7 +148,7 @@ public class EscritorasDeIdentitySinAuditarTests
         // misión N6/V4: deja fila "LoginExterno / Creado" contra el Tenant
         // propietario de la cuenta (ver AuditoriaDeIdentidadRestanteTests).
         [("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",
-            "await userManager.AddLoginAsync(usuario, infoExterna);")] = 1,
+            "var resultadoVinculo = await userManager.AddLoginAsync(usuario, infoExterna);")] = 1,
 
         // Hallazgo M1 de sesión coordinadora (revisión de `8982cdc8`): el
         // secreto TOTP (AspNetUserTokens). AUDITADA desde la misión N6/V4 —
