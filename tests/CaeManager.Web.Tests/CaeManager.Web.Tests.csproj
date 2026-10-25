@@ -35,6 +35,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\CaeManager.E2ETests\Rendimiento\MedidorConsultasSql.cs" Link="Rendimiento\MedidorConsultasSql.cs" />
   </ItemGroup>
 
   <ItemGroup>
