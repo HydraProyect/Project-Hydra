@@ -29,7 +29,10 @@ public class DesasignarTecnicoProyectoCommandHandler(
 
         var proyecto = await proyectoRepositorio.ObtenerPorIdAsync(proyectoTecnico.ProyectoId, cancellationToken);
         if (proyecto is null || !await ProyectoAutorizacion.VisibleAsync(proyecto.ClienteId, alcanceDatos, cancellationToken))
-            return Result.Fallo(Error.Crear("Proyecto.TecnicoNoEncontrado", "No encontramos esta asignación de técnico."));
+            return Result.Fallo(Error.Crear("Proyecto.NoEncontrado", "El proyecto no existe o no tienes acceso."));
+
+        if (!proyecto.EstaAbierto)
+            return Result.Fallo(Error.Crear("Proyecto.YaCerrado", "Este proyecto ya está cerrado."));
 
         if (ConcurrenciaOptimista.Verificar(proyectoTecnico, request.Version, "esta asignación de técnico") is { } conflicto)
             return Result.Fallo(conflicto);

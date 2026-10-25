@@ -65,6 +65,9 @@ public class AnadirRequisitoEventoCommandHandler(
         var (proyecto, error) = await EventoVisible.ObtenerAsync(proyectos, alcanceDatos, request.ProyectoId, cancellationToken);
         if (proyecto is null) return Result.Fallo(error!);
 
+        if (!proyecto.EstaAbierto)
+            return Result.Fallo(Error.Crear("Proyecto.YaCerrado", "Este proyecto ya está cerrado."));
+
         var tipo = await tiposDocumento.TiposDocumento
             .Where(t => t.Id == request.TipoDocumentoId)
             .Select(t => new { t.AmbitoAplicacion, t.Archivado })
@@ -106,6 +109,9 @@ public class QuitarRequisitoEventoCommandHandler(
     {
         var (proyecto, error) = await EventoVisible.ObtenerAsync(proyectos, alcanceDatos, request.ProyectoId, cancellationToken);
         if (proyecto is null) return Result.Fallo(error!);
+
+        if (!proyecto.EstaAbierto)
+            return Result.Fallo(Error.Crear("Proyecto.YaCerrado", "Este proyecto ya está cerrado."));
 
         var requisito = (await requisitos.ListarDeProyectoAsync(proyecto.Id, cancellationToken))
             .FirstOrDefault(r => r.TipoDocumentoId == request.TipoDocumentoId);
