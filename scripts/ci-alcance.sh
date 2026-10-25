@@ -44,6 +44,12 @@
 # activan E2E, y Application y Domain activan integración. Además,
 # etiquetar-fallo-cola.yml pone «CI: completo» a la PR de un grupo que falla.
 #
+# RIESGO QUE SIGUE DECLARADO. Un cambio solo en src/CaeManager.Web/ (Program.cs,
+# registro de DI, endpoints, middleware) sin nombre sensible en la ruta no
+# activa integración, aunque CaeManager.IntegrationTests referencia Web y la
+# arranca con WebApplicationFactory. Si vuelve a aparecer en la cola, se añade
+# Web a re_integracion.
+#
 # Entradas (entorno): EVENTO, GITHUB_REPOSITORY, GITHUB_SHA, PR_NUMERO (solo en
 # pull_request), GH_TOKEN (lo usa `gh`). Salidas: `integracion`, `e2e` y
 # `carga`, `true` o `false`, en $GITHUB_OUTPUT y en la salida estándar.

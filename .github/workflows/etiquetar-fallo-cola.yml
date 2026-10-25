@@ -12,7 +12,10 @@ name: Etiquetar fallo de la cola
 # sus E2E o su integración para el grupo.
 #
 # A QUIÉN SE ETIQUETA. A la PR que nombra la rama del grupo,
-# `gh-readonly-queue/main/pr-<N>-<sha base>`: la última que entra en ese grupo. Con
+# `gh-readonly-queue/main/pr-<N>-<sha base>`. Con `grouping_strategy: ALLGREEN` cada
+# entrada de la cola se construye por separado encima de la anterior (el `<sha base>`
+# es `main` o el commit del grupo que va delante), así que cada run prueba una sola
+# PR nueva. Con
 # varias construcciones especulativas, un grupo puede fallar por un defecto de una PR
 # que va delante (cascada); entonces la PR de detrás también recibe la etiqueta. Es un
 # falso positivo barato y a propósito: solo le cuesta una ejecución completa en su
