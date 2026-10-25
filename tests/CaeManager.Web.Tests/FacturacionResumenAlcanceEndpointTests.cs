@@ -21,6 +21,7 @@ public class FacturacionResumenAlcanceEndpointTests
 
         resultado.Contexto.Response.StatusCode.Should().Be(StatusCodes.Status404NotFound);
         resultado.Mediador.Consultas.Should().BeEmpty();
+        resultado.Contexto.Response.Headers.CacheControl.ToString().Should().Contain("no-store");
         resultado.Alcance.Consultas.Should().Be(1);
     }
 
@@ -53,6 +54,7 @@ public class FacturacionResumenAlcanceEndpointTests
         resultado.Contexto.Response.ContentType.Should().Contain("spreadsheetml");
         resultado.Mediador.Consultas.Should().ContainSingle().Which.Should()
             .Be(new ObtenerResumenFacturacionQuery(id, 2026, 10));
+        resultado.Contexto.Response.Headers.CacheControl.ToString().Should().Contain("no-store");
         resultado.Alcance.Consultas.Should().Be(1);
     }
 

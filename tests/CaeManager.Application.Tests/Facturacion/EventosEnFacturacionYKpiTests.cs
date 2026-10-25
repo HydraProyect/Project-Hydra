@@ -75,7 +75,7 @@ public class EventosEnFacturacionYKpiTests
     private async Task<ResumenFacturacionDto> ResumenAsync(int anyo, int mes, DateTime? existenteHastaUtc = null)
     {
         var handler = new ObtenerResumenFacturacionQueryHandler(
-            null!, _contextos, _contextos, _contextos, _contextos, _contextos, _trabajadores, null!);
+            null!, _contextos, _contextos, _contextos, _contextos, _contextos, _trabajadores, null!, new AlcanceDatosServiceFalso());
         return (await handler.Handle(new ObtenerResumenFacturacionQuery(_cliente.Id, anyo, mes, existenteHastaUtc), CancellationToken.None))!;
     }
 
@@ -212,6 +212,37 @@ public class EventosEnFacturacionYKpiTests
         Tarifa(ConceptoFacturable.TecnicoAsignadoProyecto, PrecioTecnico);
 
         (await EstimacionDeKpiAsync(InicioMarzo, FinMarzo)).Should().Be(PrecioTecnico, "técnicos únicos por cliente");
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    public async Task Las_queries_directas_solo_devuelven_importes_del_Cliente_empresarial_visible(bool visible, bool carteraVacia)
+    {
+        Tarifa(ConceptoFacturable.AltaCentro, 25m);
+        var alcance = new AlcanceDatosServiceFalso(tieneAccesoTotal: false,
+            clienteIdsVisibles: visible ? [_cliente.Id] : carteraVacia ? [] : [Guid.NewGuid()]);
+        var resumenHandler = new ObtenerResumenFacturacionQueryHandler(
+            null!, _contextos, _contextos, _contextos, _contextos, _contextos, _trabajadores, null!, alcance);
+        var tarifasHandler = new CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente.ObtenerTarifasClienteQueryHandler(
+            _contextos, _contextos, alcance);
+
+        var resumen = await resumenHandler.Handle(new ObtenerResumenFacturacionQuery(_cliente.Id, 2026, 3), default);
+        var tarifas = await tarifasHandler.Handle(
+            new CaeManager.Application.Facturacion.Queries.ObtenerTarifasCliente.ObtenerTarifasClienteQuery(_cliente.Id), default);
+
+        if (visible)
+        {
+            resumen.Should().NotBeNull();
+            resumen!.Lineas.Should().ContainSingle().Which.PrecioUnitario.Should().Be(25m);
+            tarifas.Should().ContainSingle().Which.PrecioUnitario.Should().Be(25m);
+        }
+        else
+        {
+            resumen.Should().BeNull();
+            tarifas.Should().BeEmpty();
+        }
     }
 
     private sealed class Contextos :

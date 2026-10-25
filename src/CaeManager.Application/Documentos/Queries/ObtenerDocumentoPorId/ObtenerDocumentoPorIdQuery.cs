@@ -88,6 +88,8 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
             ? await proyectosContext.Proyectos.Where(p => p.Id == proyectoIdVisibilidad).Select(p => (Guid?)p.ClienteId).FirstOrDefaultAsync(cancellationToken)
             : null;
 
+        if (documento.ProyectoId is not null && proyectoClienteId is null) return null;
+
         // Rama Empresa en alcance de LECTURA es correcta (REC-149, se
         // queda): el documento ES el objeto del portal — es literalmente la
         // documentación de cumplimiento que un Cliente necesita revisar de
@@ -102,7 +104,7 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                     ? await alcanceDatos.VehiculoVisibleAsync(vehiculoId, cancellationToken)
                     : proyectoClienteId is { } clienteIdDeProyecto
                         ? await alcanceDatos.ClienteVisibleAsync(clienteIdDeProyecto, cancellationToken)
-                        : await alcanceDatos.EmpresaVisibleAsync(documento.EmpresaId!.Value, cancellationToken);
+                        : documento.EmpresaId is { } empresaId && await alcanceDatos.EmpresaVisibleAsync(empresaId, cancellationToken);
 
         if (!visible) return null;
 
