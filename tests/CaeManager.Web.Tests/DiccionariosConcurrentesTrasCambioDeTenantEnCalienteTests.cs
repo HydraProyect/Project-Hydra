@@ -32,6 +32,13 @@ namespace CaeManager.Web.Tests;
 /// La parte con base de datos (consultas y entidades rastreadas del DbContext del circuito) está en
 /// <c>CambioDeTenantEnCalienteDelCircuitoBajoRuntimeTests</c>, en la suite de integración.
 /// </para>
+///
+/// <para>
+/// Los dos notificadores se prueban como contrato del diccionario: una suscripción solo recibe los avisos del
+/// Tenant con el que se hizo, y liberarla la retira. No prueban que los componentes del circuito liberen la
+/// suscripción del Tenant anterior al retirarse la selección: hoy <c>Bandeja</c> y <c>CacheEstadoCircuito</c>
+/// solo la liberan al cerrarse el circuito.
+/// </para>
 /// </summary>
 public class DiccionariosConcurrentesTrasCambioDeTenantEnCalienteTests
 {
@@ -70,7 +77,7 @@ public class DiccionariosConcurrentesTrasCambioDeTenantEnCalienteTests
         recibidosEnO.Should().ContainSingle().Which.TenantId.Should().Be(Origen, "lo de B no llega a la suscripción hecha ya en O");
 
         suscripcionB.Dispose();
-        notificador.SuscripcionesDe(Beneficiario).Should().Be(0, "al liberar la del Tenant anterior no queda nada escuchando B");
+        notificador.SuscripcionesDe(Beneficiario).Should().Be(0, "liberada la suscripción hecha en B, el notificador ya no guarda ninguna de B");
         notificador.SuscripcionesDe(Origen).Should().Be(1);
     }
 
@@ -123,7 +130,30 @@ public class DiccionariosConcurrentesTrasCambioDeTenantEnCalienteTests
             Calcular, CancellationToken.None);
 
         conO.Should().Equal(new Dictionary<Guid, int> { [OtroBeneficiario] = 1 }, "B ya no está autorizado y no aparece ni cuenta");
-        calculos.Should().Be(2, "el Tenant activo es otro: no se reutiliza la entrada calculada en B");
+        calculos.Should().Be(2, "el conjunto autorizado es otro: no se reutiliza la entrada calculada en B");
+    }
+
+    [Fact]
+    public async Task El_contador_del_selector_separa_la_entrada_por_Tenant_activo_aunque_el_conjunto_autorizado_sea_el_mismo()
+    {
+        var circuito = Circuito.Abrir();
+        var contador = new ContadorPendientesSelectorTenant(TimeProvider.System);
+        var calculos = 0;
+        Task<MiTrabajoAgregadoDto> Calcular(CancellationToken _)
+        {
+            calculos++;
+            return Task.FromResult(new MiTrabajoAgregadoDto([Cola(Origen, 5, origen: true), Cola(Beneficiario, 3)]));
+        }
+        IReadOnlyList<ClienteAutorizadoDto> autorizados = [Autorizado(Origen, origen: true), Autorizado(Beneficiario)];
+
+        await contador.ObtenerAsync(Gestor, circuito.Tenant.TenantId!.Value, autorizados, Calcular, CancellationToken.None);
+        await contador.ObtenerAsync(Gestor, circuito.Tenant.TenantId!.Value, autorizados, Calcular, CancellationToken.None);
+        calculos.Should().Be(1, "control positivo: con el mismo Tenant activo y el mismo conjunto, la entrada se reutiliza");
+
+        circuito.Seleccion.Invalidar();
+        await contador.ObtenerAsync(Gestor, circuito.Tenant.TenantId!.Value, autorizados, Calcular, CancellationToken.None);
+
+        calculos.Should().Be(2, "el Tenant activo pasó de B a O: la entrada calculada con B no se sirve en O");
     }
 
     // ── Andamiaje ──────────────────────────────────────────────────────────

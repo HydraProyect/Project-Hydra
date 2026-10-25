@@ -11,14 +11,25 @@ namespace CaeManager.Architecture.Tests;
 /// anterior y <c>Find</c> las devuelve (lo demuestra
 /// <c>CambioDeTenantEnCalienteDelCircuitoBajoRuntimeTests</c>). Producción no usa <c>Find</c>; los
 /// <c>.Local</c> que hay están catalogados con el motivo por el que no exponen datos de otro Tenant. Uno
-/// nuevo hace fallar el test hasta que alguien lo justifique aquí.
+/// nuevo hace fallar el test hasta que alguien lo justifique aquí. Se recorren los <c>.cs</c> y los <c>.razor</c> de <c>src</c>.
+///
+/// <para>
+/// Fuera de alcance y sin catalogar: <c>ChangeTracker.Entries()</c>. Hoy lo usan los interceptores (auditoría,
+/// sellado de Tenant, concurrencia, estado materializado), el descarte tras un conflicto y los escritores que
+/// buscan altas pendientes de la propia unidad de trabajo; este trinquete no lo vigila.
+/// </para>
 /// </summary>
 public class LecturasDelRastreadorDeEfEstanCatalogadasTests
 {
-    private static readonly Regex Find = new(@"\.Find(?:Async)?\s*\(", RegexOptions.Compiled);
+    /// <summary><c>Find</c>/<c>FindAsync</c>, también en su forma genérica de <c>DbContext</c> (<c>FindAsync&lt;T&gt;(id)</c>).</summary>
+    private static readonly Regex Find = new(@"\.Find(?:Async)?\s*(?:<[^>]*>)?\s*\(", RegexOptions.Compiled);
 
-    /// <summary><c>.Local</c> seguido de un acceso a miembro (en la misma línea o en la siguiente).</summary>
-    private static readonly Regex Local = new(@"\.Local\s*(?:\.|\r?\n\s*\.)", RegexOptions.Compiled);
+    /// <summary>
+    /// Todo <c>.Local</c> como palabra completa, se use como se use (<c>.Local.First</c>, <c>var l = db.X.Local;</c>,
+    /// <c>.Local)</c>), salvo <c>TimeZoneInfo.Local</c> y <c>DateTimeKind.Local</c>. Casa también con miembros de otros
+    /// tipos llamados <c>Local</c>; esos se catalogan con su motivo.
+    /// </summary>
+    private static readonly Regex Local = new(@"(?<!\b(?:TimeZoneInfo|DateTimeKind|DateTime))\.Local\b(?!\s*\()", RegexOptions.Compiled);
 
     private static readonly Dictionary<string, (int Usos, string Motivo)> LocalCatalogado = new()
     {
@@ -28,6 +39,8 @@ public class LecturasDelRastreadorDeEfEstanCatalogadasTests
             (1, "solo devuelve un booleano (alta pendiente del mismo par de Empresas, cuyos Ids son de un solo Tenant)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundSeeder.cs"] = (1, "siembra, sin circuito"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/CoberturaPantallasSeeder.cs"] = (2, "siembra, sin circuito"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/ComunicacionesDatosPruebaSeeder.cs"] = (1, "no es DbSet.Local: valor de enumeración de la siembra"),
+        ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = (1, "no es DbSet.Local: miembro de EmailsEquipo de la siembra"),
     };
 
     [Fact]
@@ -54,7 +67,8 @@ public class LecturasDelRastreadorDeEfEstanCatalogadasTests
     private static Dictionary<string, int> Recuento(Regex patron)
     {
         var raiz = RaizDelRepositorio();
-        return Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.cs", SearchOption.AllDirectories)
+        return Directory.EnumerateFiles(Path.Combine(raiz, "src"), "*.*", SearchOption.AllDirectories)
+            .Where(f => f.EndsWith(".cs", StringComparison.Ordinal) || f.EndsWith(".razor", StringComparison.Ordinal))
             .Where(f => !f.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(p => p is "bin" or "obj"))
             .Select(f => (Fichero: Path.GetRelativePath(raiz, f).Replace('\\', '/'), Usos: patron.Matches(File.ReadAllText(f)).Count))
             .Where(x => x.Usos > 0)

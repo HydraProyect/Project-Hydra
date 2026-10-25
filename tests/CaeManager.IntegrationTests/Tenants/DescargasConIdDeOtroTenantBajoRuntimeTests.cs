@@ -101,9 +101,19 @@ public class DescargasConIdDeOtroTenantBajoRuntimeTests(DescargasEntreTenantsFix
         ajeno.Estado.Should().BeOneOf([StatusCodes.Status404NotFound, StatusCodes.Status403Forbidden],
             $"{ruta} con el Id de un recurso del Tenant B, pedido desde el Tenant A");
         ajeno.Cuerpo.Should().BeEmpty("no se sirve ningún byte del recurso ajeno");
-        ajeno.Cabeceras.Keys.Should().NotContain("Content-Disposition");
+        ajeno.Cabeceras.ContainsKey("Content-Disposition").Should().BeFalse("sin cabecera de descarga, en ninguna grafía");
         ajeno.Estado.Should().Be(inexistente.Estado, "un Id ajeno no se distingue de uno que no existe");
         ajeno.Cabeceras.Should().Equal(inexistente.Cabeceras, "ni por las cabeceras");
+    }
+
+    [Fact]
+    public async Task La_sesion_de_la_prueba_es_cae_app_runtime_con_RLS_efectiva()
+    {
+        var (rol, saltaRls, ve) = await entorno.SesionDelTenantAAsync();
+
+        rol.Should().Be("cae_app_runtime", "el tráfico de la prueba va con el rol de la aplicación, no con el propietario");
+        saltaRls.Should().BeFalse("cae_app_runtime no es superusuario ni tiene BYPASSRLS");
+        ve.Should().BeFalse("sin el filtro de EF, la RLS del Tenant A no deja ver el documento de B");
     }
 }
 
@@ -326,8 +336,25 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
             contexto.Response.StatusCode,
             ((MemoryStream)contexto.Response.Body).ToArray(),
             contexto.Response.Headers
-                .Where(c => c.Key != "Content-Length")
-                .ToDictionary(c => c.Key, c => c.Value.ToString()));
+                .Where(c => !string.Equals(c.Key, "Content-Length", StringComparison.OrdinalIgnoreCase))
+                .ToDictionary(c => c.Key, c => c.Value.ToString(), StringComparer.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Lo que ve la sesión del Tenant A en la base: el rol de la conexión, si salta la RLS y si, sin el filtro
+    /// de EF, alcanza el documento de B. Sostiene que los 404 de la prueba vienen también de la RLS.
+    /// </summary>
+    public async Task<(string Rol, bool SaltaRls, bool VeElDocumentoDeBSinFiltro)> SesionDelTenantAAsync()
+    {
+        await using var ambito = AmbitoComo(AdministradorA, TenantA);
+        var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+        var rol = await contexto.Database.SqlQueryRaw<string>("SELECT current_user::text AS \"Value\"").SingleAsync();
+        var saltaRls = await contexto.Database
+            .SqlQueryRaw<bool>("SELECT (rolsuper OR rolbypassrls) AS \"Value\" FROM pg_roles WHERE rolname = current_user")
+            .SingleAsync();
+        var documentoDeB = RecursoDeB("/documentos/{id:guid}/archivo").Id;
+        var ve = await contexto.Documentos.IgnoreQueryFilters().AnyAsync(d => d.Id == documentoDeB);
+        return (rol, saltaRls, ve);
     }
 
     private AsyncServiceScope AmbitoComo(Guid usuario, Guid tenant)

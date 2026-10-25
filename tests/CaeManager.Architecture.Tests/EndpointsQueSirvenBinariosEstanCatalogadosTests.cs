@@ -18,6 +18,12 @@ namespace CaeManager.Architecture.Tests;
 /// de integración, o «sin Id», con el motivo. Un recuento que baja también falla, para que el catálogo no
 /// se quede con entradas que ya no existen.
 /// </para>
+///
+/// <para>
+/// Alcance: el Id de la ruta (un literal con <c>{</c>). Un Id que llega por query string (<c>?clienteId=</c>) no
+/// lo detecta: los informes y exportaciones que lo reciben están marcados «sin Id de ruta» y no tienen todavía
+/// prueba con el Id de otro Tenant.
+/// </para>
 /// </summary>
 public class EndpointsQueSirvenBinariosEstanCatalogadosTests
 {
@@ -62,15 +68,15 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         ["src/CaeManager.Web/Features/Asignaciones/AsignacionesEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Centros/CentrosEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Clientes/ClientesEndpoints.cs"] = (3, "sin Id: exportación y dos plantillas"),
-        ["src/CaeManager.Web/Features/CuadroDireccion/CuadroDireccionEndpoints.cs"] = (1, "sin Id: exportación"),
+        ["src/CaeManager.Web/Features/CuadroDireccion/CuadroDireccionEndpoints.cs"] = (1, "sin Id de ruta: exportación; recibe tenantId por query, sin prueba entre Tenants aquí"),
         ["src/CaeManager.Web/Features/Empresas/EmpresasEndpoints.cs"] = (1, "sin Id: exportación"),
-        ["src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs"] = (2, "sin Id: exportaciones"),
+        ["src/CaeManager.Web/Features/Facturacion/FacturacionEndpoints.cs"] = (2, "sin Id de ruta: exportaciones; una recibe clienteId por query, sin prueba entre Tenants aquí"),
         ["src/CaeManager.Web/Features/Gestiones/GestionesEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Incidencias/IncidenciasEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Proyectos/ProyectosEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Trabajadores/TrabajadoresEndpoints.cs"] = (1, "sin Id: exportación"),
         ["src/CaeManager.Web/Features/Vehiculos/VehiculosEndpoints.cs"] = (1, "sin Id: exportación"),
-        ["src/CaeManager.Web/Reportes/ReportesEndpoints.cs"] = (4, "sin Id: informes generados"),
+        ["src/CaeManager.Web/Reportes/ReportesEndpoints.cs"] = (4, "sin Id de ruta: informes generados; reciben clienteId/centroId por query, sin prueba entre Tenants aquí"),
     };
 
     [Fact]
@@ -112,9 +118,18 @@ public class EndpointsQueSirvenBinariosEstanCatalogadosTests
         foreach (var (ruta, prueba) in RutasPorId)
         {
             var fuente = File.ReadAllText(Path.Combine(raiz, prueba));
+            // En la prueba de descargas, la ruta tiene que estar en Rutas(), la lista que alimenta las teorías:
+            // que aparezca en otra parte del fichero (el switch, la siembra) no la recorre.
+            if (prueba == PruebaDeDescargas)
+                fuente = BloqueDeRutas.Match(fuente) is { Success: true } bloque
+                    ? bloque.Value
+                    : throw new InvalidOperationException($"No se encontró Rutas() en {prueba}.");
             fuente.Should().Contain($"\"{ruta}\"", $"{prueba} recorre {ruta} con el Id de un recurso de otro Tenant");
         }
     }
+
+    /// <summary>El cuerpo de <c>TheoryData&lt;string&gt; Rutas() =&gt; [ … ];</c> de la prueba de descargas.</summary>
+    private static readonly Regex BloqueDeRutas = new(@"TheoryData<string>\s+Rutas\(\)\s*=>\s*\[(?<lista>[^\]]*)\];", RegexOptions.Compiled);
 
     private static Dictionary<string, int> FicherosQueSirvenBinarios()
     {
