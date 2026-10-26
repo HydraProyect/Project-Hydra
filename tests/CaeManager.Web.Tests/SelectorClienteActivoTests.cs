@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Bunit;
+using Bunit.TestDoubles;
 using CaeManager.Application.Bandeja.Queries.ObtenerBandejaAgrupada;
 using CaeManager.Application.Bandeja.Queries.ObtenerMiTrabajoAgregado;
 using CaeManager.Application.Common;
@@ -89,14 +90,19 @@ public class SelectorClienteActivoTests : BunitContext
     private Func<Task<MiTrabajoAgregadoDto>> _miTrabajo = () => Task.FromResult(new MiTrabajoAgregadoDto([]));
     private int _cuantasVecesSeCalculoMiTrabajo;
     private bool _participaEnIncorporacion;
+    private readonly BunitPersistentComponentState _estadoPersistente;
 
     public SelectorClienteActivoTests()
     {
+        _estadoPersistente = AddBunitPersistentComponentState();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new Mediador(() => _lista, () => _miTrabajo(), () => _cuantasVecesSeCalculoMiTrabajo++, () => _participaEnIncorporacion));
         Services.AddScoped<CaeManager.Web.Components.DesignSystem.ToastService>();
         Services.AddScoped<ICurrentUserService, UsuarioFalso>();
+        // El Tenant efectivo es el seleccionado, como en la composición real: entra en la clave de la presentación.
+        Services.AddScoped<ITenantActual>(sp =>
+            sp.GetRequiredService<IClienteActivoSeleccionado>() as ITenantActual ?? new SeleccionEmpresaGestionadaDePrueba());
         Services.AddSingleton<IContadorPendientesSelectorTenant>(new ContadorPendientesSelectorTenant(TimeProvider.System));
         Services.AddScoped<ILectorRecientesSelectorTenant>(_ => new RecientesFalsos(() => _recientes));
         Services.AddScoped<AntiforgeryStateProvider, AntiforgeryFalso>();
@@ -106,6 +112,65 @@ public class SelectorClienteActivoTests : BunitContext
 
     private static ClienteAutorizadoDto Propio(bool gestionado = false) =>
         new(Origen, "Operador de prueba", EsOrigen: true, EsGestionadoPorOperacion: gestionado);
+
+    [Fact]
+    public void La_presentacion_prerenderizada_evita_repetir_consultas_en_interactivo()
+    {
+        _lista = [Propio(), Gestionado(Norte, "Empresa Norte"), Gestionado(Sur, "Empresa Sur")];
+        var prerender = Renderizar(Norte);
+        _estadoPersistente.TriggerOnPersisting();
+        prerender.Dispose();
+        _lista = [];
+
+        var interactivo = Render<SelectorClienteActivo>();
+
+        interactivo.Find(".selector-tenant-disparador").TextContent.Should().Contain("Empresa Norte");
+        interactivo.Markup.Should().Contain("token-de-prueba", "el token antiforgery se obtiene en la instancia interactiva");
+    }
+
+    [Theory]
+    [InlineData("vigente")]
+    [InlineData("caducada")]
+    [InlineData("otro-seleccionado")]
+    [InlineData("otro-usuario")]
+    [InlineData("otro-origen")]
+    [InlineData("otro-perfil")]
+    [InlineData("otro-tenant-efectivo")]
+    [InlineData("otro-ambito")]
+    public void Solo_se_reutiliza_la_presentacion_vigente_del_mismo_contexto(string escenario)
+    {
+        Services.AddScoped<IClienteActivoSeleccionado>(_ => new SeleccionEmpresaGestionadaDePrueba(Norte));
+        var clave = new ClaveContextoMemo(
+            escenario == "otro-usuario" ? Guid.NewGuid() : UsuarioFalso.Id,
+            escenario == "otro-origen" ? Guid.NewGuid() : Origen,
+            escenario == "otro-perfil" ? "Consulta" : "GestorCae",
+            escenario == "otro-tenant-efectivo" ? Sur : Norte,
+            escenario == "otro-ambito" ? Norte : null);
+        _estadoPersistente.Persist("layout-selector-presentacion-v1",
+            new SelectorClienteActivo.PresentacionSelector(
+                new(clave, escenario == "otro-seleccionado" ? Sur : Norte),
+                DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
+                [Propio(), Gestionado(Norte, "Dato antiguo"), Gestionado(Sur, "Empresa Sur")], true));
+        _lista = [Propio(), Gestionado(Norte, "Dato vigente"), Gestionado(Sur, "Empresa Sur")];
+
+        var cut = Render<SelectorClienteActivo>();
+
+        cut.Find(".selector-tenant-disparador").TextContent.Should()
+            .Contain(escenario == "vigente" ? "Dato antiguo" : "Dato vigente");
+    }
+
+    [Fact]
+    public void Una_cartera_grande_no_se_persiste_para_el_circuito()
+    {
+        _lista = [Propio(), .. Enumerable.Range(0, 30).Select(i => Gestionado(Guid.NewGuid(), $"Empresa {i}"))];
+        var prerender = Renderizar();
+        _estadoPersistente.TriggerOnPersisting();
+        prerender.Dispose();
+
+        _estadoPersistente.TryTake<SelectorClienteActivo.PresentacionSelector>(
+                "layout-selector-presentacion-v1", out _)
+            .Should().BeFalse("el estado persistido vuelve al servidor en el mensaje de arranque del circuito");
+    }
 
     private static ClienteAutorizadoDto Gestionado(Guid id, string nombre) =>
         new(id, nombre, EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true);

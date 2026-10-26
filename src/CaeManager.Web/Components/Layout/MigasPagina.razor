@@ -1,4 +1,6 @@
 @using System.Security.Claims
+@using CaeManager.Application.Common
+@using Microsoft.Extensions.DependencyInjection
 @using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona
 @using CaeManager.Web.Recursos
 @using MediatR
@@ -9,6 +11,8 @@
 @implements IDisposable
 @inject NavigationManager Navigation
 @inject IMediator Mediator
+@inject PersistentComponentState EstadoPersistente
+@inject IServiceProvider Servicios
 @inject ILogger<ExcepcionDeCircuitoDesconectado> Logger
 @inject IStringLocalizer<TextosComunes> Textos
 @inherits CaeManager.Web.Components.IsloteInteractivo
@@ -61,6 +65,17 @@
 
     private Miga? _miga;
     private bool _rotulosPrimeraPersona;
+    private PersistingComponentStateSubscription _persistencia;
+    private PresentacionMigas? _presentacion;
+    private const string ClavePersistencia = "layout-migas-presentacion-v1";
+    public sealed record PresentacionMigas(ClaveContextoMemo Contexto, DateTimeOffset Creado, bool PrimeraPersona);
+
+    private Task PersistirPresentacionAsync()
+    {
+        if (_presentacion is { } presentacion)
+            EstadoPersistente.PersistAsJson(ClavePersistencia, presentacion);
+        return Task.CompletedTask;
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,7 +85,22 @@
         // diga lo mismo que el menú. Si no se puede leer, los rótulos genéricos.
         try
         {
-            _rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+            var usuario = Servicios.GetService<ICurrentUserService>();
+            var tenant = Servicios.GetService<ITenantActual>();
+            var contexto = usuario is not null && tenant is not null
+                ? await ClaveContextoMemo.ResolverAsync(usuario, tenant) : null;
+            if (Servicios.GetService<CaeManager.Application.Tenants.IVistaVocabularioPreviewService>()?.PerfilForzado is not null)
+                contexto = null;
+            if (EstadoPersistente.TryTakeFromJson<PresentacionMigas>(ClavePersistencia, out var anterior)
+                && anterior is not null && contexto is { } clave && anterior.Contexto == clave
+                && DateTimeOffset.UtcNow - anterior.Creado is var edad && edad >= TimeSpan.Zero && edad < MemoPorContexto.Caducidad)
+                _rotulosPrimeraPersona = anterior.PrimeraPersona;
+            else
+            {
+                _rotulosPrimeraPersona = await Mediator.Send(new UsaRotulosPrimeraPersonaQuery());
+                if (contexto is { } actual)
+                    _presentacion = new(actual, DateTimeOffset.UtcNow, _rotulosPrimeraPersona);
+            }
         }
         catch (Exception ex) when (ExcepcionDeCircuitoDesconectado.Es(ex))
         {
@@ -79,6 +109,7 @@
         }
 
         _miga = Resolver(Navigation.Uri);
+        _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirPresentacionAsync);
     }
 
     private void AlCambiarDeRuta(object? sender, LocationChangedEventArgs e) =>
@@ -176,5 +207,9 @@
             : [nivelSeccion, new Nivel(Textos[pestana.ClaveRotulo], null)]);
     }
 
-    public void Dispose() => Navigation.LocationChanged -= AlCambiarDeRuta;
+    public void Dispose()
+    {
+        _persistencia.Dispose();
+        Navigation.LocationChanged -= AlCambiarDeRuta;
+    }
 }
