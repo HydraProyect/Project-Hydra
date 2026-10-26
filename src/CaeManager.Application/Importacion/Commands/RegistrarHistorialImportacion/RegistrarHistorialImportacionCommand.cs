@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Importacion;
+using FluentValidation;
 using MediatR;
 
 namespace CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
@@ -25,6 +26,16 @@ public record RegistrarHistorialImportacionCommand(
     string Plantilla, string NombreArchivo, bool Exitosa,
     int TotalCreados, int TotalAdvertencias, int TotalOmitidos, string? MensajeError)
     : ICommand, IComandoDeAprovisionamiento;
+
+public class RegistrarHistorialImportacionCommandValidator : AbstractValidator<RegistrarHistorialImportacionCommand>
+{
+    public RegistrarHistorialImportacionCommandValidator()
+    {
+        RuleFor(c => c.NombreArchivo)
+            .NotEmpty().WithMessage("El nombre del archivo es obligatorio.")
+            .MaximumLength(260).WithMessage("El nombre del archivo no puede superar los 260 caracteres.");
+    }
+}
 
 public class RegistrarHistorialImportacionCommandHandler(
     IHistorialImportacionRepository repositorio, IUnitOfWork unitOfWork, ICurrentUserService usuarioActual,

@@ -91,7 +91,7 @@ public class ReactivarDelegacionTenantCommandHandler(
             .Select(t => t.EsPlataforma)
             .SingleOrDefaultAsync(cancellationToken);
 
-        return !esPlataforma;
+        return EstadoDeAccesoDelegado.PermiteReactivar(esDeOperadorExterno, esPlataforma);
     }
 
     public async Task<bool> Handle(PuedeReactivarQuery request, CancellationToken cancellationToken)

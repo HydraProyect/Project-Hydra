@@ -829,7 +829,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         var planCombinada = _planCombinada;
         var reemplazarExistentes = _reemplazarExistentes;
         var plantilla = PlantillaActual;
-        var nombreArchivo = _nombreArchivo ?? "(desconocido)";
+        // El historial exige un nombre no vacío (RegistrarHistorialImportacionCommandValidator).
+        var nombreArchivo = string.IsNullOrWhiteSpace(_nombreArchivo)
+            ? "(desconocido)"
+            : _nombreArchivo[..Math.Min(_nombreArchivo.Length, 260)];
 
         _importando = true;
         _mensajeError = null;

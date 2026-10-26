@@ -72,7 +72,11 @@ public static class WebhookMicrosoft365Endpoints
 
             var clientStateRecibido = graphClient.ExtraerClientStateDeNotificacion(payload);
             if (string.IsNullOrWhiteSpace(clientStateRecibido))
-                return Results.BadRequest();
+            {
+                logger.LogWarning(
+                    "Notificación de webhook de Microsoft 365 rechazada para la conexión {ConexionId}: sin clientState o lote heterogéneo.", conexionId);
+                return Results.Unauthorized();
+            }
 
             var subscriptionIdRecibido = graphClient.ExtraerSubscriptionIdDeNotificacion(payload);
 

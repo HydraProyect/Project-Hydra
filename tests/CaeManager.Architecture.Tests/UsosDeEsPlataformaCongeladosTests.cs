@@ -336,6 +336,14 @@ public class UsosDeEsPlataformaCongeladosTests
                 "(mismo orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
                 "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
+        ["src/CaeManager.Application/Tenants/EstadoDeAccesoDelegado.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "el mismo corte que ReactivarDelegacionTenantCommand.cs, leído en la consulta por lotes " +
+                "PermisosAccesosDelegadosQuery: un :EsPlataforma real proyectado sobre el Tenant propietario " +
+                "de cada acceso delegado, en el Tenant activo y bajo RLS como la lectura individual, para que " +
+                "la pantalla de Delegaciones no ofrezca reactivar una DelegacionTenant heredada sobre TALVEG. " +
+                "Solo resta permisos (PermiteReactivar exige además la autoridad de EquipoDelOperadorCaeExterno); " +
+                "no concede nada. TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)"),
         ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
             new(1, CategoriaUso.Guarda,
                 ":EsPlataforma real, proyectado sobre delegacion.TenantClienteId antes de autorizar la asignación " +

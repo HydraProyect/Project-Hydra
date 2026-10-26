@@ -35,6 +35,11 @@
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.11.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="PDFsharp" Version="6.2.4" />
+    <!-- Lectura de texto con posición de palabra para el parser local de
+         Trabajadores (ITA/RNT/TC2): PDFsharp no expone texto posicionado.
+         Apache-2.0, sin dependencias en net10 (verificado en nuget.org:
+         0.1.16 publicada el 2026-08-22). Sin comodín: lock file de Directory.Build.props. -->
+    <PackageReference Include="PdfPig" Version="0.1.16" />
     <!-- Solo el SDK "core" (no Sentry.AspNetCore, que es de CaeManager.Web,
          el composition root que configura el DSN) — lo mínimo para poder
          llamar a SentrySdk.CaptureMessage desde SentryAlertaOperativa
