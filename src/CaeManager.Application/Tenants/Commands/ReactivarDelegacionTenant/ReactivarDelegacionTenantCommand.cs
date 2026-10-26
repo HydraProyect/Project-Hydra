@@ -205,7 +205,7 @@ public class ReactivarDelegacionTenantCommandHandler(
                 cancellationToken))
             return Result.Fallo(Error.Crear(
                 "DelegacionTenant.NoReactivable",
-                "No se puede reactivar esta Delegación; contacta con el Tenant propietario."));
+                "No se puede reactivar este acceso. Habla con la organización propietaria de los datos."));
 
         delegacion.Reactivar();
 

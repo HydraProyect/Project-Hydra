@@ -204,7 +204,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar
         ? string.Empty
         : $"Se retirará el acceso de «{TituloDe(aRevocar.SomosLaConsultora, aRevocar.ClienteNombre, aRevocar.ConsultoraNombre)}». " +
-          "Los datos no se borran y la delegación se puede reactivar.";
+          "Los datos no se borran. Podrán reactivarlo el Administrador o la Dirección CAE de tu organización.";
 
     private string MensajeRetirada
     {

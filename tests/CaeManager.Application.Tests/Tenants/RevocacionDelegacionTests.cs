@@ -554,7 +554,7 @@ public class RevocacionDelegacionTests
         // Mensaje genérico (decisión del 2026-10-26): quien reactiva es el Operador CAE externo,
         // y ni el código ni el texto le dicen que el Tenant propietario trabaja con otro.
         resultado.Error.Codigo.Should().Be("DelegacionTenant.NoReactivable");
-        resultado.Error.Mensaje.Should().Be("No se puede reactivar esta Delegación; contacta con el Tenant propietario.");
+        resultado.Error.Mensaje.Should().Be("No se puede reactivar este acceso. Habla con la organización propietaria de los datos.");
         resultado.Error.Mensaje.Should().NotContainAny("otro", "Operador");
         delegacion.Activa.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);

@@ -83,10 +83,11 @@ public class DesactivarDelegacionTenantCommandHandler(
         // TALVEG (plano 3) conserva su criterio anterior, las dos partes
         // (DelegacionAdministrablePorElUsuarioAsync): la decisión habla del Operador CAE
         // externo, y el acceso de Soporte se cierra por su propio camino (CerrarAccesoSoporteCommand).
+        var tenantPropietarioId = delegacion.TenantClienteId;
         var deOperadorExterno = delegacion.Proposito == PropositoDelegacion.OperadorExterno;
         var autorizado = deOperadorExterno
             ? await EquipoDelOperadorCaeExterno.PuedeAsync(
-                delegacion.TenantConsultoraId, delegacion.TenantClienteId,
+                delegacion.TenantConsultoraId, tenantPropietarioId,
                 currentUserService, directorioUsuarios, catalogo, cancellationToken)
             : await DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService);
         if (!autorizado)
@@ -98,7 +99,6 @@ public class DesactivarDelegacionTenantCommandHandler(
         // se rechaza aquí, con un error propio, antes de tocar nada. Esta guarda
         // solo restringe: la autoridad ya se decidió arriba por el Tenant de
         // origen, nunca por el Tenant activo.
-        var tenantPropietarioId = delegacion.TenantClienteId;
         var tenantActivo = tenantActual.TenantId;
         if (tenantActivo is null
             || (tenantActivo != tenantPropietarioId
