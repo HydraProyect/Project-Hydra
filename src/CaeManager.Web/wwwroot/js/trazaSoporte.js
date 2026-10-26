@@ -9,10 +9,6 @@
 const INTERVALO_ENVIO_MS = 2000;
 const MAXIMO_POR_LOTE = 25;
 
-let pendientes = [];
-let temporizador = null;
-let referenciaDotNet = null;
-
 /**
  * Describe el elemento pulsado de forma legible para quien después lea la
  * traza. Se prefiere el texto visible porque es lo que reconoce una persona
@@ -36,48 +32,88 @@ function describir(elemento) {
     return `${recortada} — ${location.pathname}`;
 }
 
-async function enviar() {
-    temporizador = null;
-    if (pendientes.length === 0 || !referenciaDotNet) return;
-
-    const lote = pendientes;
-    pendientes = [];
-
-    try {
-        await referenciaDotNet.invokeMethodAsync('RegistrarInteraccionesAsync', lote);
-    } catch {
-        // Circuito caído o navegación en curso. No se reintenta: perder una
-        // anotación de interacción no puede romper la sesión de quien está
-        // atendiendo una incidencia.
-    }
-}
-
-function programarEnvio() {
-    if (pendientes.length >= MAXIMO_POR_LOTE) {
-        if (temporizador) { clearTimeout(temporizador); }
-        enviar();
-        return;
-    }
-
-    if (!temporizador) {
-        temporizador = setTimeout(enviar, INTERVALO_ENVIO_MS);
-    }
-}
-
+/**
+ * Engancha la captura de un componente TrazaSoporte y devuelve su manejador,
+ * que .NET guarda como referencia JS y usa para llamar a detener().
+ *
+ * El estado (lote pendiente, temporizador y listeners) es de cada captura y
+ * no del módulo: el módulo se importa una sola vez por página y lo comparten
+ * todos los componentes, así que un estado global haría que un segundo
+ * componente pisara al primero. Tampoco se compara la referencia .NET por
+ * identidad: el interop crea un objeto JS nuevo en cada llamada para la misma
+ * DotNetObjectReference, así que esa comparación nunca acierta.
+ *
+ * Que no haya dos listeners para el mismo componente lo garantiza .NET, que
+ * llama a iniciar() una sola vez por montaje.
+ */
 export function iniciar(referencia) {
-    referenciaDotNet = referencia;
+    let pendientes = [];
+    let temporizador = null;
+    let activa = true;
 
-    // Delegado en document y en fase de captura: así se registra el clic
-    // aunque el manejador del propio elemento detenga la propagación.
-    document.addEventListener('click', evento => {
+    function enviar() {
+        if (temporizador) {
+            clearTimeout(temporizador);
+            temporizador = null;
+        }
+        if (pendientes.length === 0) return Promise.resolve();
+
+        const lote = pendientes;
+        pendientes = [];
+
+        return referencia.invokeMethodAsync('RegistrarInteraccionesAsync', lote).catch(() => {
+            // Circuito caído o navegación en curso. No se reintenta: perder una
+            // anotación de interacción no puede romper la sesión de quien está
+            // atendiendo una incidencia.
+        });
+    }
+
+    function programarEnvio() {
+        if (pendientes.length >= MAXIMO_POR_LOTE) {
+            enviar();
+            return;
+        }
+
+        if (!temporizador) {
+            temporizador = setTimeout(enviar, INTERVALO_ENVIO_MS);
+        }
+    }
+
+    function alPulsar(evento) {
         const descripcion = describir(evento.target);
         if (!descripcion) return;
 
         pendientes.push(descripcion);
         programarEnvio();
-    }, true);
+    }
 
     // Lo acumulado se envía antes de abandonar la página; si no, el último
-    // tramo de la visita se perdería justo al cerrar.
-    window.addEventListener('pagehide', () => { enviar(); });
+    // tramo de la visita se perdería justo al cerrar. No desengancha: si la
+    // página vuelve de la caché de historial, la captura sigue viva.
+    function alAbandonar() { enviar(); }
+
+    // Delegado en document y en fase de captura: así se registra el clic
+    // aunque el manejador del propio elemento detenga la propagación.
+    document.addEventListener('click', alPulsar, true);
+    window.addEventListener('pagehide', alAbandonar);
+
+    return {
+        /**
+         * Al desmontar el componente. El lote pendiente se toma y se envía
+         * antes de quitar los listeners, en el mismo turno síncrono, así que
+         * ningún clic queda entre medias sin anotar; cancelar el temporizador
+         * no pierde nada porque ese mismo envío se adelanta ahora. Devuelve la
+         * promesa del envío para que .NET espere a que el lote quede guardado
+         * antes de liberar la DotNetObjectReference.
+         */
+        detener() {
+            if (!activa) return Promise.resolve();
+            activa = false;
+
+            const envio = enviar();
+            document.removeEventListener('click', alPulsar, true);
+            window.removeEventListener('pagehide', alAbandonar);
+            return envio;
+        }
+    };
 }

@@ -37,6 +37,9 @@ public partial class TrazaSoporte : IAsyncDisposable
 
     private DotNetObjectReference<TrazaSoporte>? _referencia;
     private IJSObjectReference? _modulo;
+    private IJSObjectReference? _captura;
+    private Task? _inicializacion;
+    private bool _desmontado;
     private bool _capturaLista;
     private int _interaccionesRegistradas;
 
@@ -76,14 +79,33 @@ public partial class TrazaSoporte : IAsyncDisposable
     /// captura de interacciones del técnico no arrancaba, y el rastro
     /// quedaba con las navegaciones pero sin una sola <c>Interaccion</c>.
     /// Mudo por completo: nada fallaba, simplemente faltaba media auditoría.
+    ///
+    /// <para>Tampoco basta con mirar <c>_modulo</c>: queda a <c>null</c> mientras
+    /// la importación está en vuelo, y un render en ese hueco (el propio
+    /// <c>StateHasChanged</c> del aviso, por ejemplo) lanzaba una segunda
+    /// importación y un segundo <c>iniciar</c> — dos listeners, y cada clic
+    /// anotado dos veces en la traza. La tarea se asigna antes del primer
+    /// <c>await</c>, así que el render siguiente ya la ve.</para>
     /// </summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_esSesionDeSoporte || _modulo is not null) return;
+        if (!_esSesionDeSoporte || _inicializacion is not null || _desmontado) return Task.CompletedTask;
 
+        _inicializacion = IniciarCapturaAsync();
+        return _inicializacion;
+    }
+
+    private async Task IniciarCapturaAsync()
+    {
         _referencia = DotNetObjectReference.Create(this);
         _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/trazaSoporte.js");
-        await _modulo.InvokeVoidAsync("iniciar", _referencia);
+        if (_desmontado) return;
+
+        // Se guarda aunque el componente se desmonte mientras tanto: DisposeAsync espera
+        // a esta tarea y usa la captura para vaciar el lote y desenganchar.
+        _captura = await _modulo.InvokeAsync<IJSObjectReference>("iniciar", _referencia);
+        if (_desmontado) return;
+
         _capturaLista = true;
         await InvokeAsync(StateHasChanged);
     }
@@ -130,21 +152,43 @@ public partial class TrazaSoporte : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _desmontado = true;
         if (_esSesionDeSoporte)
             NavigationManager.LocationChanged -= AlCambiarDeUbicacion;
 
-        if (_modulo is not null)
+        try
         {
-            try
+            if (_inicializacion is not null)
             {
-                await _modulo.DisposeAsync();
+                try
+                {
+                    await _inicializacion;
+                }
+                catch (JSException)
+                {
+                    // Ya se notificó en OnAfterRenderAsync; aquí solo se libera lo que exista.
+                }
             }
-            catch (JSDisconnectedException)
-            {
-                // El circuito ya se cerró: no hay módulo que liberar.
-            }
-        }
 
-        _referencia?.Dispose();
+            // detener() envía el lote pendiente y no resuelve hasta que
+            // RegistrarInteraccionesAsync lo ha guardado: la referencia .NET no
+            // puede liberarse antes, o el último tramo de clics se perdería.
+            if (_captura is not null)
+            {
+                await _captura.InvokeVoidAsync("detener");
+                await _captura.DisposeAsync();
+            }
+
+            if (_modulo is not null)
+                await _modulo.DisposeAsync();
+        }
+        catch (JSDisconnectedException)
+        {
+            // El circuito ya se cerró: no hay módulo que liberar.
+        }
+        finally
+        {
+            _referencia?.Dispose();
+        }
     }
 }
