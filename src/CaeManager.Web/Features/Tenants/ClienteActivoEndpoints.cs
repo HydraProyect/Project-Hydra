@@ -33,7 +33,7 @@ public static class ClienteActivoEndpoints
             IOperacionesQueryContext operacionesContext,
             IDataProtectionProvider dataProtectionProvider,
             IContadorPendientesSelectorTenant contadorPendientes,
-            CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
+            [FromServices] CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
