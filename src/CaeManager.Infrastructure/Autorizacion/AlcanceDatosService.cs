@@ -496,8 +496,14 @@ public class AlcanceDatosService(
                         && c.AmbitoRelacionClienteId == null
                         && c.VigenciaDesde <= ahora
                         && (c.VigenciaHasta == null || ahora < c.VigenciaHasta))
+            // La Asignación de Operación unida también tiene que ser del Tenant propietario en el que se
+            // opera, no solo la cartera (revisión de seguridad 2026-10-23, Z1-3). La FK compuesta
+            // (AsignacionOperacionId, PropietarioTenantId) de AsignacionesCartera ya lo impide en la base de
+            // datos; la consulta lo repite para fallar en cerrado si una fila mal formada llegara a existir
+            // —o si la FK se relajara—, en vez de conceder el ámbito de una Operación de otro Tenant.
             .Join(dbContext.AsignacionesOperacion.Where(o =>
                     o.Estado == EstadoAsignacion.Vigente
+                    && o.PropietarioTenantId == propietarioTenantId
                     && o.OperadorTenantId == operadorTenantId.Value
                     && o.VigenciaDesde <= ahora
                     && (o.VigenciaHasta == null || ahora < o.VigenciaHasta)),
@@ -870,17 +876,25 @@ public class AlcanceDatosService(
     /// una misma Query), esto se llama con un Id distinto cada vez —
     /// memoizar por Id sería un diccionario para un método que ya resuelve
     /// con una única consulta indexada por clave primaria.
+    ///
+    /// Falla en cerrado (revisión de seguridad 2026-10-23, Z1-5): una conexión
+    /// que no se puede leer —Id inexistente, de otro Tenant (filtro de
+    /// consulta y RLS) o eliminada— no es visible. Antes, la ausencia de fila
+    /// se confundía con «buzón general» (<c>GestorPropietarioId</c> null) y
+    /// devolvía true. Un buzón general existente del Tenant sigue siendo
+    /// visible; la cartera de Cliente la comprueba cada llamador aparte.
     /// </summary>
     public async Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default)
     {
-        var propietarioId = await dbContext.ConexionesIntegracion
+        var conexion = await dbContext.ConexionesIntegracion
             .Where(c => c.Id == conexionIntegracionId)
-            .Select(c => c.GestorPropietarioId)
+            .Select(c => new { c.GestorPropietarioId })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (propietarioId is null) return true;
+        if (conexion is null) return false;
+        if (conexion.GestorPropietarioId is null) return true;
 
         var usuarioActualId = await currentUserService.ObtenerUsuarioActualIdAsync();
-        return propietarioId == usuarioActualId;
+        return conexion.GestorPropietarioId == usuarioActualId;
     }
 }

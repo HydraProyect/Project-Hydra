@@ -114,7 +114,15 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         var carpetaTenant = CarpetaDeTenant(tenantId);
         Directory.CreateDirectory(Path.Combine(_rutaBase, carpetaTenant));
 
+        // Un nombre recibido puede conservar sufijos de una escritura temporal.
+        // Ese espacio de nombres queda reservado al temporal, nunca al definitivo.
         var extension = Path.GetExtension(nombreArchivoOriginal);
+        while (extension.StartsWith(".tmp-", StringComparison.OrdinalIgnoreCase))
+        {
+            nombreArchivoOriginal = nombreArchivoOriginal[..^extension.Length];
+            extension = Path.GetExtension(nombreArchivoOriginal);
+        }
+        extension = extension.ToLowerInvariant();
         var nombreArchivo = $"{Guid.NewGuid():N}{extension}";
         var identificador = $"{carpetaTenant}/{nombreArchivo}";
         var rutaCompleta = Path.Combine(_rutaBase, carpetaTenant, nombreArchivo);

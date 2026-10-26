@@ -119,6 +119,9 @@ public partial class DelegacionesGen2Tests : BunitContext
                 ObtenerOperadoresCaeExternosQuery => Operadores,
                 CrearOperadorCaeExternoCommand => ResultadoAltaOperador,
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
+                CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery q =>
+                    (IReadOnlyDictionary<Guid, CaeManager.Application.Tenants.PermisosAccesoDelegadoDto>)q.Ids.ToDictionary(
+                        id => id, id => new CaeManager.Application.Tenants.PermisosAccesoDelegadoDto(PuedeRevocar(id), PuedeReactivar(id))),
                 PuedeReactivarQuery q => PuedeReactivar(q.Id),
                 PuedeRevocarQuery q => PuedeRevocar(q.Id),
                 ObtenerTenantPropietarioAutorizanteQuery => TenantPropietarioAutorizante,
@@ -458,7 +461,7 @@ public partial class DelegacionesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// PuedeReactivarQuery recibe el Id de CADA fila, no un booleano global: con dos
+    /// El lote recibe el Id de CADA fila, no un booleano global: con dos
     /// delegaciones inactivas, una autorizada y otra no, deben distinguirse por fila y no
     /// compartir un único resultado.
     /// </summary>
@@ -482,7 +485,7 @@ public partial class DelegacionesGen2Tests : BunitContext
     /// <summary>
     /// «Revocar acceso» se pinta solo a quien puede usarlo: el equipo del Operador CAE externo
     /// con alcance sobre el Tenant propietario (decisiones del 2026-10-26), que la pantalla conoce por
-    /// <see cref="PuedeRevocarQuery"/> fila a fila. Al Administrador del Tenant propietario la
+    /// el lote de permisos por fila. Al Administrador del Tenant propietario la
     /// consulta le dice que no y el botón no aparece. Falsación: invertir el resultado hace que
     /// las aserciones exijan lo contrario.
     /// </summary>
@@ -498,7 +501,10 @@ public partial class DelegacionesGen2Tests : BunitContext
             "solo la fila que PuedeRevocarQuery autoriza lleva el botón");
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reactivar",
             "una fila activa no revocable no cae al botón de reactivar");
-        mediador.Enviadas.Where(x => x.Peticion is PuedeRevocarQuery).Should().HaveCount(2);
+        mediador.Enviadas.Where(x => x.Peticion is CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery)
+            .Should().ContainSingle().Which.Peticion.As<CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery>()
+            .Ids.Should().BeEquivalentTo(new[] { revocable.Id, noRevocable.Id });
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is PuedeRevocarQuery);
         mediador.Enviadas.Should().NotContain(x => x.Peticion is PuedeReactivarQuery,
             "a una fila activa no se le pregunta si se puede reactivar");
     }

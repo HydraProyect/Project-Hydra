@@ -74,6 +74,30 @@ public class DiskFileStorageServiceTests : IDisposable
         return $"{carpeta}/{nombreArchivo}";
     }
 
+    [Theory]
+    [InlineData("documento.PDF", ".pdf")]
+    [InlineData("documento..JpEg", ".jpeg")]
+    [InlineData("documento", "")]
+    [InlineData("documento.PDF.tmp-0123456789abcdef0123456789abcdef", ".pdf")]
+    [InlineData("documento.PDF.TMP-0123456789ABCDEF0123456789ABCDEF.tmp-1", ".pdf")]
+    [InlineData("documento.tmp-0123456789abcdef0123456789abcdef", "")]
+    public async Task El_definitivo_conserva_la_extension_normalizada_sin_sufijos_temporales(string original, string extension)
+    {
+        var servicio = CrearServicio(_tenantA);
+        using var contenido = new MemoryStream("contenido"u8.ToArray());
+
+        var identificador = await servicio.GuardarAsync(contenido, original);
+
+        var nombre = Path.GetFileName(identificador);
+        nombre.Should().NotContain(".tmp-").And.NotContain("..");
+        Path.GetExtension(nombre).Should().Be(extension);
+        nombre.Length.Should().Be(32 + extension.Length);
+        Directory.GetFiles(Path.Combine(_rutaTemporal, _tenantA.ToString("N")))
+            .Should().ContainSingle().Which.Should().Be(RutaDe(_tenantA, identificador));
+        await using var abierto = await servicio.AbrirAsync(identificador);
+        abierto.Length.Should().Be(contenido.Length);
+    }
+
     [Fact]
     public async Task Guarda_el_archivo_bajo_una_carpeta_propia_del_tenant()
     {
@@ -146,6 +170,32 @@ public class DiskFileStorageServiceTests : IDisposable
         var ficheros = Directory.GetFiles(Path.Combine(_rutaTemporal, _tenantA.ToString("N")));
         ficheros.Should().ContainSingle()
             .Which.Should().NotContain(".tmp-", "el temporal se renombra al final, nunca queda junto al definitivo");
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_escritura_antes_del_rename_no_publica_el_definitivo()
+    {
+        var servicio = CrearServicio(_tenantA);
+        using var cts = new CancellationTokenSource();
+        using var contenido = new FlujoQueCancelaTrasCopiar(cts);
+
+        await FluentActions.Awaiting(() => servicio.GuardarAsync(contenido, "documento.PDF", cts.Token))
+            .Should().ThrowAsync<OperationCanceledException>();
+
+        contenido.Copiado.Should().BeTrue("el fallo llega después de leer el contenido y antes del rename");
+        Directory.GetFiles(Path.Combine(_rutaTemporal, _tenantA.ToString("N"))).Should().BeEmpty();
+    }
+
+    private sealed class FlujoQueCancelaTrasCopiar(CancellationTokenSource cts) : MemoryStream("contenido"u8.ToArray())
+    {
+        public bool Copiado { get; private set; }
+
+        public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
+        {
+            await base.CopyToAsync(destination, bufferSize, cancellationToken);
+            Copiado = true;
+            cts.Cancel();
+        }
     }
 
     [Fact]

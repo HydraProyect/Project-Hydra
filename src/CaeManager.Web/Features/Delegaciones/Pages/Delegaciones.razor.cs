@@ -528,11 +528,15 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private Task CargarCriteriosDeRevocacionYReactivacionAsync(IEnumerable<(Guid Id, bool Activa)> entidades, CancellationToken token) =>
         PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            foreach (var (id, activa) in entidades)
+            var filas = entidades.ToArray();
+            var permisos = await Mediator.Send(new CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery(
+                filas.Select(f => f.Id).Distinct().ToArray()), token);
+            foreach (var (id, activa) in filas)
             {
-                token.ThrowIfCancellationRequested();
-                _puedeRevocarPorEntidad[id] = activa && await Mediator.Send(new PuedeRevocarQuery(id), token);
-                _puedeReactivarPorEntidad[id] = !activa && await Mediator.Send(new PuedeReactivarQuery(id), token);
+                _puedeRevocarPorEntidad[id] = activa && permisos.TryGetValue(id, out var permisoRevocar)
+                    && permisoRevocar.PuedeRevocar;
+                _puedeReactivarPorEntidad[id] = !activa && permisos.TryGetValue(id, out var permisoReactivar)
+                    && permisoReactivar.PuedeReactivar;
             }
         });
 

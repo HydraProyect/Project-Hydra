@@ -521,8 +521,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         _filtroPlan = FiltroPlan.Todas;
     }
 
+    // Los pasos solo avanzan desde el anterior (CWE-602, «validación solo en el cliente»): el botón existe únicamente en su paso, pero
+    // el manejador no se fía de dónde venga el clic y vuelve a comprobar la condición en el servidor, como ContinuarARevisarPlan.
+    private bool PuedeContinuarAAnalizar => _step == 1;
+
+    // Del paso de revisión al de confirmación solo se llega con un plan analizado y estando en la revisión.
+    private bool PuedeContinuarAConfirmar => _step == 3 && TienePlan;
+
     private void ContinuarAAnalizar()
     {
+        if (!PuedeContinuarAAnalizar) return;
         _step = 2;
         _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 2);
     }
@@ -784,6 +792,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private void ContinuarAConfirmar()
     {
+        if (!PuedeContinuarAConfirmar) return;
         _step = 4;
         _pasoMaximoAlcanzado = Math.Max(_pasoMaximoAlcanzado, 4);
     }
@@ -820,7 +829,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         var planCombinada = _planCombinada;
         var reemplazarExistentes = _reemplazarExistentes;
         var plantilla = PlantillaActual;
-        var nombreArchivo = _nombreArchivo ?? "(desconocido)";
+        // El historial exige un nombre no vacío (RegistrarHistorialImportacionCommandValidator).
+        var nombreArchivo = string.IsNullOrWhiteSpace(_nombreArchivo)
+            ? "(desconocido)"
+            : _nombreArchivo[..Math.Min(_nombreArchivo.Length, 260)];
 
         _importando = true;
         _mensajeError = null;

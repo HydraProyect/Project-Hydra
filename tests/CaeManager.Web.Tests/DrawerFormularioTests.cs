@@ -478,4 +478,77 @@ public class DrawerFormularioTests : BunitContext
         cut.FindAll(".drawer-cuerpo h3").Should().BeEmpty();
         cut.Find(".drawer-pie .boton-primario").GetAttribute("title").Should().Be("Cargando…");
     }
+
+    // ---- CWE-602: el estado deshabilitado es del servidor. Quitar `disabled` en el DOM del navegador no puede guardar ----
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_deshabilitado_no_llama_a_OnGuardar_aunque_el_clic_llegue_sin_el_atributo_disabled(bool porCarga)
+    {
+        var cut = Renderizar(p =>
+        {
+            if (porCarga) p.Add(x => x.Cargando, true);
+            else p.Add(x => x.MotivoGuardarDeshabilitado, "Espera a que termine la subida del archivo.");
+        });
+        var guardar = cut.Find(".drawer-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue("el botón sale deshabilitado: es el punto de partida del ataque");
+
+        guardar.RemoveAttribute("disabled");
+        await guardar.ClickAsync(new MouseEventArgs());
+
+        _guardados.Should().Be(0, "el servidor vuelve a comprobar el motivo de deshabilitado y no confía en el DOM del cliente");
+    }
+
+    [Fact]
+    public async Task Guardar_habilitado_si_llama_a_OnGuardar()
+    {
+        var cut = Renderizar();
+
+        await cut.Find(".drawer-pie .boton-primario").ClickAsync(new MouseEventArgs());
+
+        _guardados.Should().Be(1);
+    }
+
+    private static readonly IReadOnlyList<PasoDefinicion> DosPasos = [new("datos", "Datos"), new("revision", "Revisión")];
+
+    [Fact]
+    public async Task Siguiente_deshabilitado_no_avanza_aunque_el_clic_llegue_y_habilitado_si()
+    {
+        var siguientes = 0;
+        var cut = Renderizar(p => p
+            .Add(x => x.Pasos, DosPasos)
+            .Add(x => x.PasoActual, "datos")
+            .Add(x => x.MotivoSiguienteDeshabilitado, "Falta el nombre.")
+            .Add(x => x.OnSiguiente, EventCallback.Factory.Create(this, () => siguientes++)));
+        var siguiente = cut.Find(".formulario-drawer-siguiente button");
+        siguiente.HasAttribute("disabled").Should().BeTrue();
+
+        siguiente.RemoveAttribute("disabled");
+        await siguiente.ClickAsync(new MouseEventArgs());
+        siguientes.Should().Be(0);
+
+        var habilitado = Renderizar(p => p
+            .Add(x => x.Pasos, DosPasos)
+            .Add(x => x.PasoActual, "datos")
+            .Add(x => x.OnSiguiente, EventCallback.Factory.Create(this, () => siguientes++)));
+        await habilitado.Find(".formulario-drawer-siguiente button").ClickAsync(new MouseEventArgs());
+        siguientes.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Guardar_y_terminar_deshabilitado_no_guarda_aunque_el_clic_llegue()
+    {
+        var cut = Renderizar(p => p
+            .Add(x => x.Pasos, DosPasos)
+            .Add(x => x.PasoActual, "datos")
+            .Add(x => x.MotivoGuardarDeshabilitado, "Espera a que termine la subida del archivo."));
+        var terminar = cut.Find(".formulario-drawer-terminar button");
+        terminar.HasAttribute("disabled").Should().BeTrue();
+
+        terminar.RemoveAttribute("disabled");
+        await terminar.ClickAsync(new MouseEventArgs());
+
+        _guardados.Should().Be(0);
+    }
 }

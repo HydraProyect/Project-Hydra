@@ -9,10 +9,13 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// <summary>
 /// Un Actor de Plataforma TALVEG con <see cref="CapacidadPrivilegio.AdminPlataforma"/>
 /// concede a OTRO usuario de plataforma, sobre un tenant concreto, una de las
-/// dos capacidades acotadas que admiten concesión por un tercero:
-/// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> (PD-A3) o
+/// capacidades acotadas que admiten concesión por un tercero:
+/// <see cref="CapacidadPrivilegio.Aprovisionamiento"/> (PD-A3),
 /// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/> (ADR-011 § 8.7, punto 3:
-/// Soporte TALVEG restablece la 2FA del Administrador único de ese Tenant).
+/// Soporte TALVEG restablece la 2FA del Administrador único de ese Tenant) o
+/// <see cref="CapacidadPrivilegio.RevocacionOperadorCaeExterno"/> (enmienda de ADR-004
+/// § 12.2 del 2026-10-26: Soporte TALVEG revoca la Delegación de un Operador CAE externo a
+/// petición de ese Tenant propietario).
 ///
 /// <para>
 /// <b>Segunda vía de concesión, no una generalización de la primera.</b>
@@ -20,8 +23,7 @@ namespace CaeManager.Application.Plataforma.Commands.ConcederPrivilegio;
 /// siendo el único punto donde alguien se concede algo a sí mismo, y su
 /// contrato no cambia. Este comando es la vía —deliberadamente distinta,
 /// deliberadamente más estrecha— por la que un tercero recibe una capacidad:
-/// solo <see cref="CapacidadPrivilegio.Aprovisionamiento"/> y
-/// <see cref="CapacidadPrivilegio.RestablecimientoSegundoFactor"/>, siempre sobre un
+/// solo <see cref="CapacidadesConcedibles"/>, siempre sobre un
 /// tenant concreto y nunca <c>AdminPlataforma</c> ni <c>BreakGlass</c> ni
 /// <c>SoporteLectura</c>. La matriz cerrada de auto-concesión
 /// (<see cref="IAutorizacionAutoConcesion"/>) NO se toca: sigue rechazando las dos
@@ -70,6 +72,7 @@ public record ConcederPrivilegioCommand(
         {
             CapacidadPrivilegio.Aprovisionamiento,
             CapacidadPrivilegio.RestablecimientoSegundoFactor,
+            CapacidadPrivilegio.RevocacionOperadorCaeExterno,
         };
 }
 
@@ -92,7 +95,7 @@ public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPriv
         RuleFor(c => c.TenantObjetivoId).NotEmpty();
         RuleFor(c => c.Capacidad)
             .Must(ConcederPrivilegioCommand.CapacidadesConcedibles.Contains)
-            .WithMessage("Solo se conceden a otra persona el aprovisionamiento y el restablecimiento de la verificación en dos pasos.");
+            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos y la revocación del acceso de un Operador CAE externo.");
 
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
@@ -162,7 +165,7 @@ public class ConcederPrivilegioCommandHandler(
         // Tenant ni se ve (null). Se ata a CapacidadesQuePuedenAbrirSesion y no a
         // una capacidad concreta para que una capacidad concedible nueva que
         // abra sesión herede el control sin que nadie tenga que acordarse; hoy
-        // cubre Aprovisionamiento y RestablecimientoSegundoFactor. Para el
+        // cubre Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno. Para el
         // restablecimiento, la función de base lo vuelve a exigir al ejercerla.
         if (CapacidadesQuePuedenAbrirSesion.Admite(request.Capacidad))
         {

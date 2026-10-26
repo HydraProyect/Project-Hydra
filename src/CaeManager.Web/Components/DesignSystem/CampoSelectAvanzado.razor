@@ -269,7 +269,9 @@
 
     private string TextoDe(string valor) => _todas.FirstOrDefault(o => o.Valor == valor)?.Texto ?? valor;
 
-    private Task QuitarAsync(string valor) => ValoresChanged.InvokeAsync([.. Elegidos.Where(v => v != valor)]);
+    // Con el campo deshabilitado el botón de quitar sale deshabilitado; el clic de uno al que le quitaron `disabled` en el DOM no quita (CWE-602).
+    private Task QuitarAsync(string valor) =>
+        Deshabilitado ? Task.CompletedTask : ValoresChanged.InvokeAsync([.. Elegidos.Where(v => v != valor)]);
 
     private async Task AnadirAsync(string valor)
     {

@@ -1,0 +1,11 @@
+{
+  "name": "talveg-extension-pruebas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:chromium": "node --test comprobar-chromium.test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.63.0"
+  }
+}

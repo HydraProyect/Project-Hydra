@@ -70,6 +70,12 @@ public class ConsumidoresDeIaConsultanLaInstruccionDeTratamientoTests
             "servicio de instrucción. Cuando exista REC-104 (gateway común de IA), DEC-46 fija que la " +
             "consulta se hace una sola vez en su punto de entrada y esta exención desaparece",
 
+        ["Trabajadores/Extraccion/ExtraccionTrabajadoresConParserLocalService.cs"] =
+            "compositor del puerto IExtraccionTrabajadoresIaService: prueba el parser local (no envía " +
+            "nada fuera) y solo si el documento no cuadra delega en el cliente de IA de siempre. No decide " +
+            "si se lee el documento: su único consumidor (DeteccionTrabajadoresService) consulta el Nivel 0 " +
+            "antes de llamarlo, y esa clase sigue en ConsumidoresConocidos",
+
         ["DocumentosIa/RouterExtraccionMetadatosDocumentoIaService.cs"] =
             "adaptador de un puerto a otro: no decide nada ni tiene tenant a mano, y su único " +
             "consumidor (VerificacionIaDocumentoService) ya consulta el Nivel 0 antes de llamarlo",

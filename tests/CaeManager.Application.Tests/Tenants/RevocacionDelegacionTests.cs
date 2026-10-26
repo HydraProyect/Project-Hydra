@@ -605,10 +605,16 @@ public class RevocacionDelegacionTests
             var repositorio = new DelegacionTenantRepositorioFalso();
             var desactivar = Desactivar(repositorio, quien, OperadorCae, tenants: tenants);
             var reactivar = Reactivar(repositorio, quien, OperadorCae, tenants: tenants);
-            return (await desactivar.Handle(new PuedeRevocarQuery(activa.Id), CancellationToken.None),
+            var individuales = (await desactivar.Handle(new PuedeRevocarQuery(activa.Id), CancellationToken.None),
                 await desactivar.Handle(new PuedeRevocarQuery(revocada.Id), CancellationToken.None),
                 await reactivar.Handle(new PuedeReactivarQuery(revocada.Id), CancellationToken.None),
                 await reactivar.Handle(new PuedeReactivarQuery(activa.Id), CancellationToken.None));
+            var lote = await new PermisosAccesosDelegadosQueryHandler(tenants, quien, _cuentas, _catalogo)
+                .Handle(new PermisosAccesosDelegadosQuery([activa.Id, revocada.Id, Guid.NewGuid()]), CancellationToken.None);
+            lote.Should().HaveCount(2, "una fila inexistente no concede permisos");
+            (lote[activa.Id].PuedeRevocar, lote[revocada.Id].PuedeRevocar,
+                lote[revocada.Id].PuedeReactivar, lote[activa.Id].PuedeReactivar).Should().Be(individuales);
+            return individuales;
         }
 
         (await Preguntar(ElGestorCae())).Should().Be((true, false, true, false));
@@ -618,8 +624,46 @@ public class RevocacionDelegacionTests
             .Should().Be((false, false, false, false), "sin cartera sobre ese Tenant propietario no tiene alcance");
         (await Preguntar(new CurrentUserServiceFalso(administrador, "Administrador", TenantPropietario)))
             .Should().Be((false, false, false, false), "el Administrador del Tenant propietario no revoca ni reactiva");
+        (await Preguntar(new CurrentUserServiceFalso(GestorCae, rol: null, tenantOrigenId: OperadorCae)))
+            .Should().Be((false, false, false, false), "Soporte TALVEG con Sesión Privilegiada no tiene rol de negocio");
         (await Preguntar(new CurrentUserServiceFalso()))
             .Should().Be((false, false, false, false), "fallo cerrado: sin usuario no hay a quién autorizar");
+    }
+
+    [Fact]
+    public async Task El_lote_distingue_propietario_operador_proposito_y_Tenant_de_plataforma()
+    {
+        var plataforma = new Tenant("Plataforma", esPlataforma: true);
+        var sinCartera = new Tenant("Sin Cartera");
+        var propia = new DelegacionTenant(OperadorCae, TenantPropietario);
+        var deOtroOperador = new DelegacionTenant(Guid.NewGuid(), TenantPropietario);
+        var deSoporte = DelegacionTenant.ParaSoporte(OperadorCae, TenantPropietario);
+        var sobrePlataforma = new DelegacionTenant(OperadorCae, plataforma.Id);
+        sobrePlataforma.Desactivar();
+        var fueraDeCartera = new DelegacionTenant(OperadorCae, sinCartera.Id);
+        var tenants = new TenantsQueryContextFalso();
+        tenants.ListaTenants.AddRange([plataforma, sinCartera]);
+        tenants.ListaDelegacionesTenant.AddRange([propia, deOtroOperador, deSoporte, sobrePlataforma, fueraDeCartera]);
+        DarCartera(GestorCae, "GestorCae", plataforma.Id);
+        var quien = ElGestorCae();
+        var repositorio = new DelegacionTenantRepositorioFalso();
+        var revocar = Desactivar(repositorio, quien, OperadorCae, tenants: tenants);
+        var reactivar = Reactivar(repositorio, quien, OperadorCae, tenants: tenants);
+        var ids = tenants.ListaDelegacionesTenant.Select(d => d.Id).ToArray();
+        var lote = await new PermisosAccesosDelegadosQueryHandler(tenants, quien, _cuentas, _catalogo)
+            .Handle(new PermisosAccesosDelegadosQuery([.. ids, propia.Id, Guid.NewGuid()]), CancellationToken.None);
+        lote.Should().HaveCount(ids.Length);
+        foreach (var id in ids)
+        {
+            lote[id].PuedeRevocar.Should().Be(await revocar.Handle(new PuedeRevocarQuery(id), CancellationToken.None));
+            lote[id].PuedeReactivar.Should().Be(await reactivar.Handle(new PuedeReactivarQuery(id), CancellationToken.None));
+        }
+        lote[propia.Id].Should().Be(new PermisosAccesoDelegadoDto(true, false));
+        lote[deOtroOperador.Id].Should().Be(new PermisosAccesoDelegadoDto(false, false));
+        lote[deSoporte.Id].Should().Be(new PermisosAccesoDelegadoDto(false, false));
+        lote[sobrePlataforma.Id].Should().Be(new PermisosAccesoDelegadoDto(false, false));
+        lote[fueraDeCartera.Id].Should().Be(new PermisosAccesoDelegadoDto(false, false));
+        AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
     }
 
     // ── Retirar a una persona: fuera de la decisión, criterio sin cambios ──

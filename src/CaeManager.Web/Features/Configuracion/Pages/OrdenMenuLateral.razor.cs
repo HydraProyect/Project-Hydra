@@ -107,7 +107,9 @@ public partial class OrdenMenuLateral : CaeManager.Web.Components.PaginaInteract
     {
         try
         {
-            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery());
+            // Lectura vigente, no la memoizada del layout: con ella se decide leer el orden guardado y el correo
+            // de su autor, y esas lecturas no vuelven a autorizar.
+            _esAdministradorPlataforma = await Mediator.Send(new EsAdministradorPlataformaQuery(LecturaVigente: true));
             if (_esAdministradorPlataforma != true)
             {
                 _cargando = false;

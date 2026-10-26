@@ -336,6 +336,14 @@ public class UsosDeEsPlataformaCongeladosTests
                 "(mismo orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
                 "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
+        ["src/CaeManager.Application/Tenants/EstadoDeAccesoDelegado.cs"] =
+            new(1, CategoriaUso.Guarda,
+                "el mismo corte que ReactivarDelegacionTenantCommand.cs, leído en la consulta por lotes " +
+                "PermisosAccesosDelegadosQuery: un :EsPlataforma real proyectado sobre el Tenant propietario " +
+                "de cada acceso delegado, en el Tenant activo y bajo RLS como la lectura individual, para que " +
+                "la pantalla de Delegaciones no ofrezca reactivar una DelegacionTenant heredada sobre TALVEG. " +
+                "Solo resta permisos (PermiteReactivar exige además la autoridad de EquipoDelOperadorCaeExterno); " +
+                "no concede nada. TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)"),
         ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =
             new(1, CategoriaUso.Guarda,
                 ":EsPlataforma real, proyectado sobre delegacion.TenantClienteId antes de autorizar la asignación " +
@@ -428,6 +436,10 @@ public class UsosDeEsPlataformaCongeladosTests
         // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
         // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
         // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
+                "ADR-004 § 12.2 del 2026-10-26; ADR-011 § 8.7.3): el actor de la Sesión Privilegiada debe pertenecer a un Tenant de plataforma. Solo restringe, como el segundo factor"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 ":217 comentario y :221 predicado de app_restablecer_segundo_factor_por_soporte (ADR-011 § 8.7.3, " +
