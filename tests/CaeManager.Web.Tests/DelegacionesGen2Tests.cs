@@ -430,7 +430,8 @@ public partial class DelegacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
-    /// exige ser el Gestor CAE del Operador CAE externo (decisión del 2026-10-26) — NO basta
+    /// exige ser del equipo del Operador CAE externo con alcance sobre el Tenant propietario
+    /// (decisiones del 2026-10-26) — NO basta
     /// con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
     /// que la aserción exija lo contrario y el test caiga.
     /// </summary>
@@ -479,8 +480,8 @@ public partial class DelegacionesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// «Revocar acceso» se pinta solo a quien puede usarlo: el Gestor CAE del Operador CAE
-    /// externo (decisión del 2026-10-26), que la pantalla conoce por
+    /// «Revocar acceso» se pinta solo a quien puede usarlo: el equipo del Operador CAE externo
+    /// con alcance sobre el Tenant propietario (decisiones del 2026-10-26), que la pantalla conoce por
     /// <see cref="PuedeRevocarQuery"/> fila a fila. Al Administrador del Tenant propietario la
     /// consulta le dice que no y el botón no aparece. Falsación: invertir el resultado hace que
     /// las aserciones exijan lo contrario.

@@ -29,6 +29,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _gestorConsultora = Guid.NewGuid();
+    private readonly Guid _direccionConsultora = Guid.NewGuid();
     private readonly Guid _gestorPropietario = Guid.NewGuid();
     private Guid _consultora;
     private Guid _propietario;
@@ -649,26 +650,29 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Revoca y reactiva quien puede: un Gestor CAE de la Consultora (el Operador CAE externo), desde el
-    /// Tenant propietario. Quién puede y quién no se mide bajo RLS real en <c>AutorizarOperadorCaeExternoRlsTests</c>.
+    /// Revoca y reactiva quien puede: la Dirección CAE de la Consultora (el Operador CAE externo), que alcanza
+    /// a toda la organización sin Asignación de Cartera propia, desde el Tenant propietario. Un Gestor CAE no
+    /// serviría para reactivar: revocar le cierra la cartera en cascada (decisiones del 2026-10-26). Quién puede y quién no se mide bajo RLS real en <c>AutorizarOperadorCaeExternoRlsTests</c>.
     /// </summary>
     private DesactivarDelegacionTenantCommandHandler CrearDesactivar(CaeManagerDbContext contexto) =>
-        new(new DelegacionTenantRepository(contexto), GestorDeLaConsultora(), CrearWriter(contexto), contexto,
-            new TenantActualAmbiental { TenantId = _propietario }, new CuentasQueSiguenSiendoGestorCae(), contexto);
+        new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(), CrearWriter(contexto), contexto,
+            new TenantActualAmbiental { TenantId = _propietario }, new CuentasQueSiguenSiendoGestorCae(), contexto,
+            new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())));
 
     private ReactivarDelegacionTenantCommandHandler CrearReactivar(CaeManagerDbContext contexto) =>
-        new(new DelegacionTenantRepository(contexto), GestorDeLaConsultora(),
+        new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(),
             CrearWriter(contexto), contexto, contexto,
             new TransaccionDeComando(contexto),
             new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
             new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
             new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
 
-    private CurrentUserServiceFalso GestorDeLaConsultora() => new(_gestorConsultora, Roles.GestorCae, _consultora);
+    private CurrentUserServiceFalso DireccionDeLaConsultora() => new(_direccionConsultora, Roles.DireccionCae, _consultora);
 
     /// <summary>
     /// Estos tests miden qué carteras repone la reactivación, con el contexto del propietario de la base.
-    /// La cuenta del anterior principal se da por válida aquí, y la de quien revoca o reactiva también; que
+    /// La cuenta del anterior principal (Gestor CAE) se da por válida aquí, y la de quien revoca o reactiva
+    /// (Dirección CAE) también; que
     /// una cuenta desactivada o de otro rol no recupere la marca, y el relevo, se prueban con Identity real
     /// en <c>PrincipalDeCarteraBajoRuntimeTests</c>.
     /// </summary>
@@ -686,7 +690,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         public Task<bool> EsCuentaActivaConRolAsync(
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult(rol == Roles.GestorCae);
+            Task.FromResult(rol is Roles.GestorCae or Roles.DireccionCae);
 
         // Sin nadie en los perfiles de escalado: sin Coordinador CAE la operación queda sin principal.
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(

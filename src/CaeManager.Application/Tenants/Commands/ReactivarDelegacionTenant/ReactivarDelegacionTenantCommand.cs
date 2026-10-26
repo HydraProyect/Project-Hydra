@@ -198,7 +198,7 @@ public class ReactivarDelegacionTenantCommandHandler(
         // externo). Con un error genérico (decisión del 2026-10-26): quien reactiva es el Operador
         // CAE externo, y no debe saber si el Tenant propietario trabaja con otro.
         if (await tenantsContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantClienteId == delegacion.TenantClienteId
+                d => d.TenantClienteId == tenantPropietarioId
                      && d.Id != delegacion.Id
                      && d.Activa
                      && d.Proposito == PropositoDelegacion.OperadorExterno,
@@ -211,37 +211,32 @@ public class ReactivarDelegacionTenantCommandHandler(
 
         // Append-only: no se reabre la operación cerrada, se abre una nueva.
         // El histórico conserva las dos etapas por separado, que es lo que
-        // permite responder quién operaba en cada momento.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
-        {
-            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
-                tenantPropietarioId, delegacion.TenantConsultoraId,
-                DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
+        // permite responder quién operaba en cada momento. Siempre es la de un Operador CAE
+        // externo: la autoridad de arriba (PuedeReactivarAsync) ya lo exigió, y el propósito no
+        // cambia nunca en una DelegacionTenant.
+        var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+            tenantPropietarioId, delegacion.TenantConsultoraId,
+            DateTime.UtcNow, vigenciaHasta: null, cancellationToken);
 
-            // Y sus carteras. Desactivar las cerró en cascada pero no borró las
-            // filas de operador delegado, así que reactivar sin esto dejaría una
-            // operación vigente con cero carteras: el operador entraría al
-            // workspace sin ver un solo dato hasta el siguiente arranque.
-            var anteriorPrincipal = await asignacionesWriter.ReabrirCarterasDeOperadoresAsync(
-                operacion, delegacion.Id, cancellationToken);
-
-            await unitOfWork.SaveChangesAsync(cancellationToken);
-
-            // «Al reactivar vuelve a ser principal quien lo era antes» (D-9, 2026-10-08). Con las
-            // carteras ya guardadas: la marca se enciende sobre la cartera repuesta, o se releva
-            // al Coordinador CAE de esa persona si ya no puede llevarla.
-            if (anteriorPrincipal is { } anteriorPrincipalId
-                && !await RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync(
-                    catalogo,
-                    new OperacionConPrincipal(operacion.PropietarioTenantId, operacion.Id),
-                    operacion.OperadorTenantId, anteriorPrincipalId,
-                    directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken))
-                return Result.Fallo(CambioMientrasReactivabas);
-
-            return Result.Exito();
-        }
+        // Y sus carteras. Desactivar las cerró en cascada pero no borró las
+        // filas de operador delegado, así que reactivar sin esto dejaría una
+        // operación vigente con cero carteras: el operador entraría al
+        // workspace sin ver un solo dato hasta el siguiente arranque.
+        var anteriorPrincipal = await asignacionesWriter.ReabrirCarterasDeOperadoresAsync(
+            operacion, delegacion.Id, cancellationToken);
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
+
+        // «Al reactivar vuelve a ser principal quien lo era antes» (D-9, 2026-10-08). Con las
+        // carteras ya guardadas: la marca se enciende sobre la cartera repuesta, o se releva
+        // al Coordinador CAE de esa persona si ya no puede llevarla.
+        if (anteriorPrincipal is { } anteriorPrincipalId
+            && !await RelevoDePrincipalDeCartera.RestaurarAlReactivarAsync(
+                catalogo,
+                new OperacionConPrincipal(operacion.PropietarioTenantId, operacion.Id),
+                operacion.OperadorTenantId, anteriorPrincipalId,
+                directorioDestinos, directorioUsuarios, bloqueoCartera, cancellationToken))
+            return Result.Fallo(CambioMientrasReactivabas);
 
         return Result.Exito();
     }

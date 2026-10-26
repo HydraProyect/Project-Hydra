@@ -9,7 +9,7 @@ namespace CaeManager.Application.Tenants;
 /// (<c>PuedeRevocarQuery</c> y <c>PuedeReactivarQuery</c>) leen la misma proyección, así que
 /// las dos ven la fila igual. La lectura va con el Tenant activo de la sesión, como el resto de
 /// la pantalla; no abre ningún ámbito ni concede nada: la autoridad la decide después
-/// <see cref="GestorCaeDelOperadorCaeExterno"/>.
+/// <see cref="EquipoDelOperadorCaeExterno"/>.
 /// </summary>
 /// <param name="OperadorTenantId">El Tenant del Operador CAE externo (legacy <c>TenantConsultoraId</c>).</param>
 /// <param name="TenantPropietarioId">El Tenant propietario de los datos (legacy <c>TenantClienteId</c>).</param>

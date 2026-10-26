@@ -30,8 +30,9 @@ namespace CaeManager.Application.Tests.Tenants;
 ///
 /// <para>
 /// Revocar y reactivar la Asignación de Operación de un Operador CAE externo no siguen esta
-/// regla: desde la decisión de producto del 2026-10-26 solo las decide el Gestor CAE del
-/// Operador CAE externo, y sus tests están en <see cref="RevocacionDelegacionTests"/>.
+/// regla: desde las decisiones de producto del 2026-10-26 las decide el equipo del propio Operador CAE
+/// externo con alcance sobre el Tenant propietario (<see cref="CaeManager.Application.Tenants.EquipoDelOperadorCaeExterno"/>), y sus
+/// tests están en <see cref="RevocacionDelegacionTests"/>.
 /// </para>
 /// </summary>
 public class AutorizacionDeDelegacionTests
@@ -292,8 +293,8 @@ public class AutorizacionDeDelegacionTests
 
             // Crear usa el contexto solo para restringir, después de resolver la autoridad del
             // Administrador del Tenant propietario. Reactivar también lo usa solo para restringir,
-            // pero su autoridad es del Gestor CAE del Operador CAE externo (decisión del
-            // 2026-10-26): ya no depende de IAutorizacionDelegacionTenant.
+            // pero su autoridad es del equipo del Operador CAE externo (EquipoDelOperadorCaeExterno,
+            // decisiones del 2026-10-26): ya no depende de IAutorizacionDelegacionTenant.
             if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler))
                 dependencias.Should().Contain("IAutorizacionDelegacionTenant");
             else if (handler == typeof(ReactivarDelegacionTenantCommandHandler))
@@ -307,8 +308,8 @@ public class AutorizacionDeDelegacionTests
         }
     }
 
-    // ── ReactivarDelegacionTenant: desde 2026-10-26 la decide el Gestor CAE del Operador CAE
-    // externo, no el Administrador del Tenant propietario. Sus tests viven en
+    // ── ReactivarDelegacionTenant: desde 2026-10-26 la decide el equipo del Operador CAE externo
+    // (EquipoDelOperadorCaeExterno), no el Administrador del Tenant propietario. Sus tests viven en
     // RevocacionDelegacionTests, junto a los de revocar, porque la regla es la misma.
 
     /// <summary>
@@ -353,15 +354,19 @@ public class AutorizacionDeDelegacionTests
         asignaciones.Asignaciones.Should().BeEmpty();
         writer.CarterasAbiertas.Should().BeEmpty();
 
+        // Reactivar se decide por el rol de la cuenta en su Tenant de origen, leído en Identity, nunca por
+        // el rol elevado en el Tenant propietario: en su casa es Gestor CAE sin cartera sobre ese Tenant.
+        var rolesEnOrigen = new DirectorioRolesEnOrigen();
+        rolesEnOrigen.Asignar(Usuario, Consultora, "GestorCae");
         delegacion.Desactivar();
         var reactivacion = await new ReactivarDelegacionTenantCommandHandler(
                 delegaciones, quienAdministraPorEncargo,
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
                 new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-                new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
+                new DirectorioDestinosCarteraFalso(null), rolesEnOrigen, new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        reactivacion.EsFallido.Should().BeTrue("el rol elevado por un encargo no hace Gestor CAE a nadie");
+        reactivacion.EsFallido.Should().BeTrue("el rol elevado por un encargo no da alcance de organización en el Operador CAE externo");
         delegacion.Activa.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }

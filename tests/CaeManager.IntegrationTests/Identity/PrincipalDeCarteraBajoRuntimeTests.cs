@@ -991,11 +991,13 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     // ── Arnés ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Como la ejecuta un Gestor CAE del Operador CAE externo con cartera sobre el Tenant propietario,
-    /// desde su propia casa (decisiones del 2026-10-26).
+    /// Como la ejecuta la Dirección CAE del Operador CAE externo desde su propia casa: alcanza a toda la
+    /// organización, así que no necesita Asignación de Cartera propia sobre el Tenant propietario
+    /// (decisiones del 2026-10-26). _gestorSinCoordinador no serviría: su cartera es sobre otro Tenant
+    /// propietario.
     /// </summary>
     private Task<Result> DesactivarDelegacion() =>
-        EnArnes(_gestorSinCoordinador, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, sp) =>
+        EnArnes(_direccion, Roles.DireccionCae, _operador.Id, (usuario, contexto, directorio, sp) =>
             new DesactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>(),
@@ -1003,12 +1005,15 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                 .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
 
     /// <summary>
-    /// Como la ejecuta un Gestor CAE del Operador CAE externo desde su propia casa, que es el único que
-    /// puede reactivar (decisión del 2026-10-26). El comando abre su transacción con el Tenant propietario
-    /// como Tenant activo, así que lo que ve de las cuentas del Operador CAE es lo que se ve desde ese Tenant.
+    /// Como la ejecuta la Dirección CAE del Operador CAE externo desde su propia casa (decisiones del
+    /// 2026-10-26). No un Gestor CAE: revocar cierra sus carteras en cascada, así que tras revocar ningún
+    /// Gestor CAE ni Coordinador CAE tiene ya cartera viva con la que reactivar; lo hacen el Administrador o
+    /// la Dirección CAE, que alcanzan a toda la organización. El comando abre su transacción con el Tenant
+    /// propietario como Tenant activo, así que lo que ve de las cuentas del Operador CAE es lo que se ve
+    /// desde ese Tenant.
     /// </summary>
     private Task<Result> ReactivarDelegacion(Pausa? pausa = null) =>
-        EnArnes(_gestorSinCoordinador, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, sp) =>
+        EnArnes(_direccion, Roles.DireccionCae, _operador.Id, (usuario, contexto, directorio, sp) =>
         {
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new ReactivarDelegacionTenantCommandHandler(
