@@ -179,8 +179,11 @@ public class ReactivarDelegacionTenantCommandHandler(
         // La operación y las carteras pertenecen al Tenant propietario autorizado,
         // y se escriben en su ámbito explícito. La transacción de Handle abrió la
         // conexión con el Tenant activo, que la guarda de arriba deja en la casa de
-        // quien reactiva o en el propietario (hoy el mismo); si alguna vez difieren,
-        // TenantSelladoInterceptor alinea la conexión con el ámbito al guardar.
+        // quien reactiva o en el propietario; hoy son el mismo Tenant, porque la
+        // autoridad exige pertenecer al propietario. Si algún día pudieran diferir,
+        // no basta este ámbito: TenantSelladoInterceptor solo realinea la conexión
+        // durante cada SaveChanges, y las lecturas de dentro (operación, carteras,
+        // principal) seguirían con el Tenant firmado al abrir la transacción.
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
             delegacion.Reactivar();
