@@ -184,6 +184,7 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // por ese rol, que vuelve a comprobar sesión, concesión y cuenta contra el
         // contexto RLS firmado antes de escribir. No lee filas: devuelve un código.
         // Los dos Guid van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/RevocacionOperadorCaeExternoPorSoporte.cs", ".SqlQuery<string>(")] = 1,          // Enmienda de ADR-004 § 12.2 (2026-10-26): Soporte TALVEG revoca la Delegación del Operador CAE externo con la conexión de cae_app_soporte (solo SELECT); la escritura es la función SECURITY DEFINER app_revocar_operador_cae_externo_por_soporte, que repite sesión, capacidad, Tenant objetivo y motivo, y devuelve un código. Mismo patrón que el segundo factor.
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
 

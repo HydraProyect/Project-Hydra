@@ -36,8 +36,9 @@ public readonly record struct SesionPrivilegiadaActiva(
     /// de soporte y la administración de plataforma no tocan datos de un
     /// cliente, así que <c>SoporteLectura</c>, <c>AdminPlataforma</c> e
     /// <c>Impersonacion</c> quedan fuera. También <c>RestablecimientoSegundoFactor</c>
-    /// (ADR-011 § 8.7, punto 3): no escribe en el modelo por EF, sino un único acto por la
-    /// función de la base, y <c>AutorizacionEscrituraBehavior</c> lo trata aparte.
+    /// (ADR-011 § 8.7, punto 3) y <c>RevocacionOperadorCaeExterno</c> (enmienda de ADR-004 § 12.2 del 2026-10-26):
+    /// no escriben en el modelo por EF, sino un único acto cada una por su función de la base, y
+    /// <c>AutorizacionEscrituraBehavior</c> las trata aparte.
     ///
     /// Esto es la capacidad en abstracto, no si hoy existe un camino que la
     /// ejecute — eso es <see cref="TieneCaminoDeEscritura"/>.
