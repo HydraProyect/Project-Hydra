@@ -90,8 +90,8 @@ public class ObtenerExtranjerosDelMesQueryHandler(
     TimeProvider reloj)
     : IRequestHandler<ObtenerExtranjerosDelMesQuery, ExtranjerosDelMesDto>
 {
-    private sealed record Fila(
-        Guid TenantId, string TenantNombre, DateTime FechaSolicitudUtc, string? ContactoVisita,
+    internal sealed record Fila(
+        Guid Id, Guid TenantId, string TenantNombre, DateTime FechaSolicitudUtc, string? ContactoVisita,
         string? Empresa, string? Subcontrata, string? Cliente, string Centro, DateOnly FechaIngreso, DateOnly FechaSalida,
         string NombreYApellidos, string? Documento, Guid? GestorCaeId, Guid TrabajadorId);
 
@@ -130,20 +130,23 @@ public class ObtenerExtranjerosDelMesQueryHandler(
 
         await ResolverNombresDesdeElOrigenAsync(filas, nombres, cancellationToken);
 
-        var resultado = filas
+        var resultado = Ordenar(filas)
             .Select(f => new FilaExtranjeroDelMesDto(
                 f.TenantId, f.TenantNombre, DiaDeNegocio.De(f.FechaSolicitudUtc), f.ContactoVisita,
                 f.Empresa, f.Subcontrata, f.Cliente, f.Centro, f.FechaIngreso, f.FechaSalida,
                 f.NombreYApellidos, f.Documento,
                 f.GestorCaeId is { } gestor ? nombres.GetValueOrDefault(gestor) : null, f.TrabajadorId))
-            .OrderBy(f => f.TenantNombre, StringComparer.CurrentCulture)
-            .ThenBy(f => f.FechaIngreso)
-            .ThenBy(f => f.Centro, StringComparer.CurrentCulture)
-            .ThenBy(f => f.NombreYApellidos, StringComparer.CurrentCulture)
             .ToList();
 
         return new ExtranjerosDelMesDto(request.Anyo, request.Mes, resultado, sinAlcanceCompleto.Count, IdsSinAlcanceCompleto: sinAlcanceCompleto);
     }
+
+    internal static IOrderedEnumerable<Fila> Ordenar(IEnumerable<Fila> filas) =>
+        filas.OrderBy(f => f.TenantNombre, StringComparer.CurrentCulture)
+            .ThenBy(f => f.FechaIngreso)
+            .ThenBy(f => f.Centro, StringComparer.CurrentCulture)
+            .ThenBy(f => f.NombreYApellidos, StringComparer.CurrentCulture)
+            .ThenBy(f => f.Id);
 
     private async Task<List<Fila>> LeerDelTenantAsync(
         ClienteAutorizadoDto cliente, int anyo, int numeroMes, CancellationToken cancellationToken)
@@ -222,7 +225,7 @@ public class ObtenerExtranjerosDelMesQueryHandler(
         {
             var alta = altasAuditadas.GetValueOrDefault(a.Id);
             return new Fila(
-                tenantId, cliente.Nombre,
+                a.Id, tenantId, cliente.Nombre,
                 a.FechaAsignacionUtc ?? alta?.FechaUtc ?? a.VisitaCreadaEnUtc,
                 string.IsNullOrWhiteSpace(a.ContactoNombre) ? null : a.ContactoNombre,
                 razonesSociales.GetValueOrDefault(a.EmpresaId ?? a.CentroEmpresaId),

@@ -101,7 +101,7 @@ public class ObtenerKpisBpoQueryHandler(
             todas.Sum(x => x.Cantidad));
     }
 
-    private async Task<IReadOnlyList<HorasClienteDto>> CalcularHorasPorClienteAsync(
+    internal async Task<IReadOnlyList<HorasClienteDto>> CalcularHorasPorClienteAsync(
         DateTime inicioMes, DateTime finMes, CancellationToken cancellationToken)
     {
         var clienteIdsVisibles = await alcanceDatos.ObtenerClienteIdsVisiblesAsync(cancellationToken);
