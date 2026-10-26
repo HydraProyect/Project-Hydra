@@ -201,6 +201,18 @@ public partial class SubcontratasListaGen2Tests : BunitContext
     private Task EncenderSeleccionMultiple(IRenderedComponent<Subcontratas> cut) =>
         cut.Find("button[aria-label='Selección múltiple']").ClickAsync(new MouseEventArgs());
 
+    [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var m = new MediatorFalso();
+        var cut = Renderizar(m, url: "/subcontratas?accion=crear");
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder != "CIF, DNI o NIE").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        m.Enviadas.OfType<CrearSubcontrataCommand>().Should().BeEmpty();
+    }
+
     /// <summary>
     /// Rediseño de listados, fase 1: cabecera de una línea con el contador, el ☑, el icono de
     /// «Exportar a Excel» y la primaria. Sin antetítulo ni rótulo de la empresa gestionada.

@@ -22,6 +22,8 @@ public class CrearSubcontrataCommandValidator : AbstractValidator<CrearSubcontra
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("La identificación fiscal es obligatoria.");
+
         RuleFor(c => c.Cif)
             .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
             .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)

@@ -101,6 +101,7 @@ public class AltaGuiadaAvisoCambiosSinGuardarTests : BunitContext
     {
         var (cut, navegacion) = Renderizar("", "1. Empresa");
         await EscribirAsync(cut, "Razón social", "Construcciones Norte");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
     }
@@ -118,6 +119,7 @@ public class AltaGuiadaAvisoCambiosSinGuardarTests : BunitContext
     {
         var (cut, navegacion) = Renderizar("", "1. Empresa");
         await EscribirAsync(cut, "Razón social", "Construcciones Norte");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await PulsarAsync(cut, "Cancelar");
 
@@ -130,6 +132,7 @@ public class AltaGuiadaAvisoCambiosSinGuardarTests : BunitContext
     {
         var (cut, navegacion) = Renderizar("", "1. Empresa");
         await EscribirAsync(cut, "Razón social", "Construcciones Norte");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
         await PulsarAsync(cut, "Guardar y continuar");
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Ya creada"));
 
@@ -141,7 +144,7 @@ public class AltaGuiadaAvisoCambiosSinGuardarTests : BunitContext
     public async Task Salir_con_el_cliente_empresarial_a_medias_pregunta()
     {
         var (cut, navegacion) = Renderizar($"empresaId={EmpresaId}", "Ya creada");
-        await EscribirAsync(cut, "Identificación fiscal", "B10380186");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await cut.SalirYComprobarQuePreguntaAsync(navegacion);
     }

@@ -81,12 +81,27 @@ public partial class Empresa360Gen2Tests : BunitContext
         public Task Publish<T>(T n, CancellationToken ct = default) where T : INotification => Task.CompletedTask;
     }
 
-    private static EmpresaDetalleDto Detalle(Guid id, string nombre) => new(id, nombre, "B-50", DateTime.UtcNow, [], Guid.NewGuid());
+    private static EmpresaDetalleDto Detalle(Guid id, string nombre) => new(id, nombre, "B10380186", DateTime.UtcNow, [], Guid.NewGuid());
     private MediadorFalso Registrar(MediadorFalso m) { Services.AddScoped<IMediator>(_ => m); Services.AddLocalization(); Services.AddScoped<ToastService>(); Services.AddScoped<ContextWorkspaceService>(); return m; }
     private IRenderedComponent<EmpresaWorkspacePanel> Renderizar(Guid id, string pestana = "informacion") => Render<EmpresaWorkspacePanel>(p => p.Add(x => x.EntidadId, id).Add(x => x.PestanaActiva, pestana).Add(x => x.PestanaActivaChanged, EventCallback.Factory.Create<string>(this, _ => { })));
     private static IElement Boton(IRenderedComponent<EmpresaWorkspacePanel> cut, string texto) => cut.FindAll("button").Where(x => x.TextContent.Trim() == texto).Should().ContainSingle().Subject;
     private static IElement Control(IRenderedComponent<EmpresaWorkspacePanel> cut, string etiqueta) { var id = cut.FindAll("label").Where(x => x.TextContent.Trim() == etiqueta).Should().ContainSingle().Subject.GetAttribute("for"); return cut.Find($"#{id}"); }
     private IReadOnlyList<ToastMensaje> Toasts => Services.GetRequiredService<ToastService>().Mensajes;
+
+    [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediadorFalso());
+        m.Detalles[id] = Detalle(id, "Empresa de prueba");
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.AtributosAdicionales?.ContainsKey("aria-required") == true);
+        await cut.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        m.Enviadas.OfType<EditarEmpresaCommand>().Should().BeEmpty();
+    }
 
     [Fact]
     public void La_pestana_clientes_empresariales_cuenta_la_lista_que_carga_el_panel()

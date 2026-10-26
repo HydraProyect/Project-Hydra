@@ -152,7 +152,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
+                    <CampoTexto aria-required="true" Etiqueta="@(Textos["RotuloIdentificacionFiscal"] + " *")" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarSubcontrataCommand.Cif))" />
                     <SelectorMultiple Etiqueta="@Textos["RotuloClientesEmpresariales"]"
                                        Elementos="@_clientesDisponiblesSelector"
                                        Seleccionados="@_clienteIdsInfo"
@@ -1446,8 +1446,10 @@ else
         try
         {
             var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
-            var resultado = await Mediator.Send(new EditarSubcontrataCommand(
-                detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), detalle.Version));
+            var comando = new EditarSubcontrataCommand(
+                detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(), _empresaIdsInfo.ToList(), detalle.Version);
+            new EditarSubcontrataCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
             // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
             if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Subcontrata, detalle.Id);

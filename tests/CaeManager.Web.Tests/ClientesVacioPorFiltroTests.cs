@@ -442,6 +442,8 @@ public class ClientesVacioPorFiltroTests : BunitContext
         await cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Razón social").Find("input")
             .InputAsync(new ChangeEventArgs { Value = "Refrigeración Norte" });
 
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Raz\u00f3n social").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Identificaci\u00f3n fiscal *").Instance.ValorChanged.InvokeAsync("B10380186"));
         await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Continuar con la empresa").ClickAsync(new MouseEventArgs());
 
         navegacion.Uri.Should().EndWith($"/empresas?accion=crear&clienteId={ClienteCreadoId}");

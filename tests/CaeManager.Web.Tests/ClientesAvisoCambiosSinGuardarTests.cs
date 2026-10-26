@@ -53,8 +53,10 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
 
     private sealed class MediatorPorTipo(bool guardarFiltroDevuelveFallo = false) : IMediator
     {
+        public int Escrituras { get; private set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(request switch
+            Registrar(request, (TResponse)(object)(request switch
             {
                 ObtenerFiltrosGuardadosQuery => (object)Array.Empty<FiltroGuardadoDto>(),
                 ObtenerClientesAutorizadosQuery => (IReadOnlyList<ClienteAutorizadoDto>)[new(Guid.NewGuid(), "Propia", EsOrigen: true)],
@@ -65,6 +67,12 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>([]),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+
+        private Task<T> Registrar<T>(object request, T respuesta)
+        {
+            if (request.GetType().Name.EndsWith("Command", StringComparison.Ordinal)) Escrituras++;
+            return Task.FromResult(respuesta);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -203,10 +211,23 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-pie button").Count(b => b.TextContent.Trim() == "Salir y descartar");
 
     [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var cut = Renderizar("crear");
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Raz\u00f3n social").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Placeholder == "CIF, DNI o NIE");
+        await cut.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await cut.FindAll(".drawer-panel button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        ((MediatorPorTipo)Services.GetRequiredService<IMediator>()).Escrituras.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Salir_con_el_alta_a_medias_pregunta_una_vez_y_deja_seguir_editando()
     {
         var cut = Renderizar("crear");
-        await EscribirCifAsync(cut, "B12345678");
+        await EscribirCifAsync(cut, "B10380186");
         var navegacion = Services.GetRequiredService<NavigationManager>();
         var origen = navegacion.Uri;
 
@@ -217,14 +238,14 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Seguir editando").ClickAsync(new MouseEventArgs());
 
         PreguntasDeSalida(cut).Should().Be(0);
-        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "B12345678");
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "B10380186");
     }
 
     [Fact]
     public async Task Salir_y_descartar_navega_al_destino()
     {
         var cut = Renderizar("crear");
-        await EscribirCifAsync(cut, "B12345678");
+        await EscribirCifAsync(cut, "B10380186");
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
         await cut.InvokeAsync(() => navegacion.NavigateTo("/trabajadores"));
@@ -248,7 +269,8 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
     public async Task Continuar_con_la_empresa_tras_guardar_no_pregunta()
     {
         var cut = Renderizar("crear");
-        await EscribirCifAsync(cut, "B12345678");
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Raz\u00f3n social").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        await EscribirCifAsync(cut, "B10380186");
         var navegacion = Services.GetRequiredService<NavigationManager>();
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Continuar con la empresa").ClickAsync(new MouseEventArgs());
@@ -262,7 +284,7 @@ public class ClientesAvisoCambiosSinGuardarTests : BunitContext
     public async Task Cancelar_con_cambios_pregunta_como_la_X_y_no_es_una_navegacion()
     {
         var cut = Renderizar("crear");
-        await EscribirCifAsync(cut, "B12345678");
+        await EscribirCifAsync(cut, "B10380186");
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 

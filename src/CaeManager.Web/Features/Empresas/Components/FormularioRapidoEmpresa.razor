@@ -7,6 +7,7 @@
 @using FluentValidation
 @using MediatR
 @inject IMediator Mediator
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Empresas.Recursos.TextosEmpresas> Textos
 
 <Modal @ref="_modal" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nueva empresa" Ancho="AnchoModal.Pequeno"
        CerrarAlHacerClicFuera="@(!_guardando)">
@@ -18,7 +19,7 @@
 
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="CambiarRazonSocialAsync"
                     MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.RazonSocial))" />
-        <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="CambiarCifAsync"
+        <CampoTexto aria-required="true" Etiqueta="@Textos["RotuloIdentificacionFiscalObligatoria"]" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="CambiarCifAsync"
                     MensajeError="@ObtenerError(nameof(CrearEmpresaCommand.Cif))" />
     </ChildContent>
     <Pie>
