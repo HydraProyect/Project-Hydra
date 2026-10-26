@@ -18,6 +18,7 @@ internal sealed class NavegacionRetenida : NavigationManager
     public bool Lanzar { get; set; }
 
     public List<string> Destinos { get; } = [];
+    public List<NavigationOptions> Opciones { get; } = [];
 
     protected override void SetNavigationLockState(bool value) { }
 
@@ -29,6 +30,7 @@ internal sealed class NavegacionRetenida : NavigationManager
         var destino = ToAbsoluteUri(uri).AbsoluteUri;
         if (Lanzar) throw new NavigationException(destino);
         Destinos.Add(destino);
+        Opciones.Add(options);
         if (!Retener) Confirmar(destino);
     }
 

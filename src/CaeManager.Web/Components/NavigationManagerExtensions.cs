@@ -122,16 +122,20 @@ public static class NavigationManagerExtensions
     /// (<c>replace: true</c> para no llenar el historial de un clic por
     /// tecla). Un valor vacío o en blanco quita el parámetro en vez de
     /// dejarlo como cadena vacía en la URL.
+    /// <paramref name="estadoHistorial"/> permite conservar la ausencia de marca en escrituras de contexto o pestaña
+    /// que deben seguir pasando por el aviso de cambios sin guardar.
     /// </summary>
-    public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor) =>
-        navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor });
+    public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor,
+        string? estadoHistorial = EstadoEscrituraDeFiltros) =>
+        navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor }, estadoHistorial);
 
     /// <summary>
     /// Igual que <see cref="ActualizarFiltroEnUrl"/> pero para varios
     /// parámetros a la vez, en una única navegación. Mientras el navegador no
     /// confirma la navegación, compone los cambios sobre el último destino solicitado.
     /// </summary>
-    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros)
+    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros,
+        string? estadoHistorial = EstadoEscrituraDeFiltros)
     {
         var normalizados = new Dictionary<string, object?>();
         foreach (var (nombreParametro, valor) in parametros)
@@ -143,7 +147,7 @@ public static class NavigationManagerExtensions
         try
         {
             navigation.NavigateTo(destino,
-                new NavigationOptions { ReplaceHistoryEntry = true, HistoryEntryState = EstadoEscrituraDeFiltros });
+                new NavigationOptions { ReplaceHistoryEntry = true, HistoryEntryState = estadoHistorial });
         }
         catch
         {

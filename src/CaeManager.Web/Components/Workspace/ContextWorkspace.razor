@@ -179,11 +179,10 @@
 
         _ctxSincronizado = ctxDelEstado;
 
-        var destino = Navigation.GetUriWithQueryParameter(ParametroCtx, ctxDelEstado);
         // replace: abrir/cerrar el panel de contexto no es un paso de
         // navegación propio — con push, "Atrás" del navegador tendría que
         // deshacer cada cambio de pestaña del panel antes de salir de la página.
-        Navigation.NavigateTo(destino, forceLoad: false, replace: true);
+        Navigation.ActualizarFiltroEnUrl(ParametroCtx, ctxDelEstado, estadoHistorial: null);
     }
 
     private string? LeerCtxDeUrl()
