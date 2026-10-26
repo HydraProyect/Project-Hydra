@@ -152,18 +152,30 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
         await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
         var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
-        await tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-
+        var revocar = tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true });
         var modalRevocar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
-        await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-        await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        var confirmarRevocar = modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true });
+        async Task RevocarAsync()
+        {
+            await revocar.ClickAsync();
+            await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            await confirmarRevocar.ClickAsync();
+            await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+        }
+
+        await RevocarAsync();
 
         await Expect(tarjetaTrasVolver).ToContainTextAsync("Revocada");
         var reactivar = tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true });
         await Expect(reactivar).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         await reactivar.ClickAsync();
         await Expect(tarjetaTrasVolver).ToContainTextAsync("Activa", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
+
+        // Deja la Delegación revocada, como la dejaba este test antes de poder reactivar: el resto de
+        // la colección comparte base y sesión del Administrador, y un Workspace operativo derivado
+        // activo de más cambia el selector de Tenant que usan otros flujos.
+        await RevocarAsync();
+        await Expect(tarjetaTrasVolver).ToContainTextAsync("Revocada");
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);
