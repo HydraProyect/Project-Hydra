@@ -76,7 +76,9 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, ILocator fila)
     {
-        const string EstaEnfocada = "f => f.classList.contains('fila-enfocada')";
+        // «Enfocada» es la clase y además el foco real del DOM: la clase puede quedarse sin foco tras un
+        // repintado, y entonces Enter lo recibiría el control de origen (#1756).
+        const string EstaEnfocada = "f => f.classList.contains('fila-enfocada') && document.activeElement === f";
         for (var intento = 0; intento < 80; intento++)
         {
             if (await fila.EvaluateAsync<bool>(EstaEnfocada))
@@ -86,11 +88,17 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
                 continue;
             }
 
-            await page.Keyboard.PressAsync("j");
+            // Con la clase pero sin foco, «j» pasaría a la fila siguiente (solo avanza): se devuelve el
+            // foco a la fila, como hace enfocarFilaActiva de atajos-lista.js.
+            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
+                await fila.FocusAsync();
+            else
+                await page.Keyboard.PressAsync("j");
             await page.WaitForTimeoutAsync(250);
         }
 
         await Expect(fila).ToHaveClassAsync(new Regex("fila-enfocada"));
+        await Ayudas.EsperarFocoRealEnFilaAsync(fila);
     }
 
     [Fact]

@@ -58,18 +58,25 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await vista.Locator("button.boton-cerrar-vista-rapida-gestion").ClickAsync();
         await Expect(vista).ToHaveCountAsync(0);
 
-        // Enter sobre la fila enfocada. «j» se reintenta: QuickGrid puede volver a pedir la página
-        // y limpiar la fila enfocada sin que nada en el DOM lo anuncie.
+        // Enter sobre la fila enfocada. Abrir y cerrar la vista rápida deja la clase «fila-enfocada» en la
+        // fila sin garantizar su foco real del DOM (#1756): se da por enfocada solo con la clase y el foco
+        // (:focus). «j» se reintenta desde un control de cabecera, porque QuickGrid puede volver a pedir
+        // la página y limpiar la fila enfocada sin que nada en el DOM lo anuncie.
         var enfocada = page.Locator("tbody tr.fila-enfocada");
+        var conFoco = page.Locator("tbody tr.fila-enfocada:focus");
         for (var intento = 0; intento < 20; intento++)
         {
-            if (await enfocada.CountAsync() == 0)
+            if (await conFoco.CountAsync() == 0)
+            {
+                await page.Locator("thead th.col-estado button.col-title").FocusAsync();
                 await page.Keyboard.PressAsync("j");
+            }
+
             await page.WaitForTimeoutAsync(400);
-            if (await enfocada.CountAsync() == 1)
+            if (await conFoco.CountAsync() == 1)
             {
                 await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1) break;
+                if (await conFoco.CountAsync() == 1) break;
             }
         }
 
