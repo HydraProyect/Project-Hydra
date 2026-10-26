@@ -100,10 +100,12 @@ APP_UID_CONTENEDOR=1654
 # bits_uid_app RUTA -> imprime los permisos (0-7, rwx) que el UID de la app tiene sobre
 # RUTA, con la regla de POSIX: si es el propietario, solo cuentan los bits del
 # propietario; si no, si su GID (igual al UID en la imagen) es el del grupo, los del
-# grupo; si no, los de otros. Solo mira propietario y modo (no ACL ni docker).
+# grupo; si no, los de otros. Solo mira propietario y modo (no ACL), sigue enlaces
+# simbólicos (-L, como el montaje) y no cubre Docker rootless ni userns-remap, donde el
+# 1654 del contenedor no es el 1654 del host.
 bits_uid_app() {
     local propietario grupo modo m
-    read -r propietario grupo modo < <(stat -c '%u %g %a' -- "$1") || return 1
+    read -r propietario grupo modo < <(stat -L -c '%u %g %a' -- "$1") || return 1
     m=$((8#$modo))
     if [ "$propietario" -eq "$APP_UID_CONTENEDOR" ]; then
         echo $(( (m >> 6) & 7 ))
@@ -119,18 +121,22 @@ bits_uid_app() {
 # detecta, y el fallo llegaría tras minutos de construcción de imagen (migrador con
 # UnauthorizedAccessException en /run/secretos/dataprotection.crt). Sale con 2.
 verificar_permisos_certificado_dp() {
-    local dir="$1" f bits dir_q
+    local dir="$1" f crt bits dir_q
     local ilegibles=()
-    if ! stat -c '%u' -- "$dir" >/dev/null 2>&1; then
+    if ! stat -L -c '%u' -- "$dir" >/dev/null 2>&1; then
         echo "AVISO: --certificado-dp: este 'stat' no admite -c (¿no es GNU?); no se comprueba que el UID $APP_UID_CONTENEDOR de la app pueda leer los certificados."
         return 0
     fi
     bits=$(bits_uid_app "$dir")
     [ $((bits & 1)) -ne 0 ] || ilegibles+=("$dir  (directorio: el UID $APP_UID_CONTENEDOR no puede atravesarlo, le falta x)")
-    for f in "$dir"/dataprotection.crt "$dir"/dataprotection.key "$dir"/dataprotection-*.crt "$dir"/dataprotection-*.key; do
-        [ -e "$f" ] || continue
-        bits=$(bits_uid_app "$f")
-        [ $((bits & 4)) -ne 0 ] || ilegibles+=("$f  (el UID $APP_UID_CONTENEDOR no puede leerlo)")
+    # La app solo usa pares completos (.crt con su .key): un .crt o .key suelto no se lee.
+    for crt in "$dir"/dataprotection.crt "$dir"/dataprotection-*.crt; do
+        if [ -e "$crt" ] && [ -e "${crt%.crt}.key" ]; then
+            for f in "$crt" "${crt%.crt}.key"; do
+                bits=$(bits_uid_app "$f")
+                [ $((bits & 4)) -ne 0 ] || ilegibles+=("$f  (el UID $APP_UID_CONTENEDOR no puede leerlo)")
+            done
+        fi
     done
     [ ${#ilegibles[@]} -eq 0 ] && return 0
     dir_q=$(printf '%q' "$dir")
@@ -250,10 +256,15 @@ else
 
     # Cadencia: hueco máximo entre copias consecutivas SOLO dentro de los últimos
     # VENTANA_DIARIAS_DIAS días, que son los que backup-borg.sh retiene como diarios
-    # (--keep-daily 7). Un cron que falló un día lo deja ver aquí. El hueco entre TODOS
+    # (--keep-daily 7). Un cron que falló un día lo deja ver aquí, hasta VENTANA_DIARIAS_DIAS
+    # atrás (una caída ya cerrada, anterior a la ventana, la cubre la retención de abajo, no
+    # esta medida). El hueco entre TODOS
     # los retenidos no mide cadencia: con 7 diarios / 4 semanales / 6 mensuales crece
     # por diseño (semanas y meses entre los archivos viejos), sin que falte ninguna
     # copia; se muestra aparte, como dato informativo.
+    # Primero el listado, en una asignación: si borg falla, el guion para (set -e) en vez de
+    # medir una cadencia sobre una lista vacía.
+    LISTA_ARCHIVOS=$(borg list --glob-archives 'caemanager-*' --short | sort)
     ANTERIOR=""; HUECO_MAX=0; HUECO_DIARIO_MAX=0; N_DIARIOS=0
     LIMITE_DIARIAS=$(( $(date -u +%s) - VENTANA_DIARIAS_DIAS * 86400 ))
     while read -r nombre; do
@@ -269,7 +280,7 @@ else
             fi
         fi
         ANTERIOR=$actual
-    done < <(borg list --glob-archives 'caemanager-*' --short | sort)
+    done <<<"$LISTA_ARCHIVOS"
     HUECO_TOTAL_TXT="$((HUECO_MAX / 3600)) h $(((HUECO_MAX % 3600) / 60)) min"
     if [ "$N_DIARIOS" -ge 2 ]; then
         HUECO_DIARIO_TXT="$((HUECO_DIARIO_MAX / 3600)) h $(((HUECO_DIARIO_MAX % 3600) / 60)) min (${N_DIARIOS} archivos en ${VENTANA_DIARIAS_DIAS} días; objetivo ${HUECO_DIARIO_MAX_HORAS} h)"
@@ -280,6 +291,7 @@ else
         fi
     else
         HUECO_DIARIO_TXT="n/d (menos de 2 archivos en los últimos ${VENTANA_DIARIAS_DIAS} días)"
+        registrar OMITIDO "Hueco máximo entre copias diarias recientes" "$HUECO_DIARIO_TXT: cadencia sin comprobar"
     fi
     fase_hecha "localizar archivo"
 

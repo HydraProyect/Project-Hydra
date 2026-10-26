@@ -133,6 +133,41 @@ else
   echo key > "$DIR_CERT/otro.key"; chmod 600 "$DIR_CERT/otro.key"
   ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar cert-otro
   comprobar "otros certificados del directorio (otro.key 600) no cuentan" '[ "$CODIGO" -ne 2 ]'
+
+  crear_certs cert-huerfano 644 755
+  echo key > "$DIR_CERT/dataprotection-viejo.key"; chmod 600 "$DIR_CERT/dataprotection-viejo.key"
+  ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar cert-huerfano
+  comprobar "un dataprotection-*.key sin su .crt (la app no lo usa) no cuenta" '[ "$CODIGO" -ne 2 ]'
+
+  # Precedencia propietario > grupo > otros: un `stat` falso fija propietario, grupo y
+  # modo (ESC_STAT_FICHERO / ESC_STAT_DIR = «uid gid modo») sin necesidad de ser root.
+  export REAL_STAT="$(command -v stat)"
+  cat > "$MOCK_BIN/stat" <<'EOF'
+#!/bin/bash
+if [ -n "${ESC_STAT_FICHERO:-}" ] && [[ "$*" == *"%u %g %a"* ]]; then
+  if [ -d "${@: -1}" ]; then echo "${ESC_STAT_DIR:-0 0 755}"; else echo "$ESC_STAT_FICHERO"; fi
+else
+  exec "$REAL_STAT" "$@"
+fi
+EOF
+  chmod +x "$MOCK_BIN/stat"
+  crear_certs cert-precedencia 644 755
+  # estat NOMBRE «uid gid modo» fichero  «uid gid modo» dir -> $CODIGO
+  estat() { ARGS_SCRIPT="--certificado-dp $DIR_CERT" ejecutar "$1" ESC_STAT_FICHERO="$2" ESC_STAT_DIR="$3"; }
+
+  estat prec-propietario "1654 0 400" "1654 0 500"
+  comprobar "propietario 1654 con r (400) y dir r-x: no sale con 2" '[ "$CODIGO" -ne 2 ]'
+  estat prec-grupo "0 1654 640" "0 1654 750"
+  comprobar "root:1654 640 y dir 750 (lo que recomienda el compose): no sale con 2" '[ "$CODIGO" -ne 2 ]'
+  estat prec-otros "0 0 604" "0 0 755"
+  comprobar "otro propietario y grupo con «otros» r: no sale con 2" '[ "$CODIGO" -ne 2 ]'
+  estat prec-propietario-070 "1654 0 070" "1654 0 500"
+  comprobar "propietario 1654 sin r (070): solo cuentan sus bits, sale con 2" '[ "$CODIGO" -eq 2 ]'
+  estat prec-grupo-604 "0 1654 604" "0 0 755"
+  comprobar "grupo 1654 sin r (604): no vale «otros», sale con 2" '[ "$CODIGO" -eq 2 ]'
+  estat prec-dir-grupo-sin-x "0 1654 640" "0 1654 640"
+  comprobar "dir del grupo 1654 sin x (640): sale con 2" '[ "$CODIGO" -eq 2 ]'
+  rm -f "$MOCK_BIN/stat"
 fi
 
 echo "== cadencia: el hueco se mide solo entre las copias diarias recientes (8 días)"
@@ -175,6 +210,9 @@ comprobar "llegó a crear la red (el ensayo siguió)" 'grep -q "^docker network 
 ejecutar_borg cadencia-falta-un-dia "$(archivos_diarios 3)"
 comprobar "falta la copia de un día: la cadencia diaria sale FALLO" 'printf "%s" "$SALIDA" | grep -q "\[FALLO\] Hueco máximo entre copias diarias recientes"'
 comprobar "con 48 h de hueco" 'printf "%s" "$SALIDA" | grep -q "Hueco máximo entre copias diarias recientes.*48 h 0 min"'
+
+ejecutar_borg cadencia-sin-datos "caemanager-$(marca_hace 40) caemanager-$(marca_hace 0)"
+comprobar "con un solo archivo en la ventana no se calla: sale OMITIDO" 'printf "%s" "$SALIDA" | grep -q "\[OMITIDO\] Hueco máximo entre copias diarias recientes"'
 
 echo "== trinquete estático: el hueco total entre retenidos no se llama cadencia"
 comprobar "el resumen lo rotula informativo" 'grep -q "^echo \"Hueco entre retenidos: .*informativo, NO es cadencia" "$SCRIPT"'
