@@ -217,6 +217,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             _administradorPropietario, _operador, _propietario, workspaceActivo: _otroPropietario);
 
         resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
+        resultado.Error.Mensaje.Should().Contain("entra en la organización que delega",
+            "es la guarda de contexto la que rechaza, no la falta de autoridad");
 
         await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
         (await propietarioDeLaBase.DelegacionesTenant.AnyAsync(d => d.TenantClienteId == _propietario))

@@ -138,8 +138,8 @@ public class CrearClienteDeleganteCommandHandler(
             // Dentro del mismo ámbito, y no fuera: la AsignacionOperacion delegada
             // y su cartera son datos del Tenant propietario recién creado
             // (PropietarioTenantId = tenantCliente.Id), y la política WITH CHECK
-            // de AsignacionesOperacion exige que ese sea el Tenant activo al
-            // guardar. Fuera del ámbito el Tenant activo sería el de origen de
+            // de la tabla de Asignaciones de Operación exige que ese sea el
+            // Tenant activo al guardar. Fuera del ámbito el Tenant activo sería el de origen de
             // quien ejecuta y RLS rechazaría la inserción. La autoridad sigue
             // siendo la concesión global validada arriba; el ámbito solo fija
             // dónde se escribe. DelegacionTenant y AsignacionOperadorDelegado son

@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
@@ -40,17 +41,38 @@ public class RevocacionDelegacionTests
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
-        resultado.Error.Mensaje.Should().Contain("organización que delega").And.NotContain("Tenant");
+        resultado.Error.Mensaje.Should().Contain("vuelve a tu organización").And.NotContain("Tenant");
         delegacion.Activa.Should().BeTrue();
         writer.OperacionesCerradas.Should().BeEmpty();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
-    public async Task Una_delegacion_de_Soporte_se_revoca_sin_exigir_el_Tenant_propietario_activo()
+    public async Task El_Operador_CAE_renuncia_desde_su_propio_Tenant_y_el_cierre_se_guarda_en_el_Tenant_propietario()
     {
-        // Las de Soporte no escriben en AsignacionesOperacion: la guarda de contexto
-        // existe por la política WITH CHECK de esa tabla y no debe alcanzarlas.
+        // El flujo del E2E de alta y revocación: el Operador CAE externo vuelve a
+        // su casa y revoca. La operación que se cierra es del Tenant propietario,
+        // así que el guardado tiene que ocurrir con ese Tenant activo (RLS), y el
+        // ámbito se restaura al salir.
+        var (delegacion, repositorio, _) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var guardados = new GuardadosConTenant();
+        var handler = new DesactivarDelegacionTenantCommandHandler(
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), writer, guardados,
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora));
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        delegacion.Activa.Should().BeFalse();
+        writer.OperacionesCerradas.Should().ContainSingle();
+        guardados.Tenants.Should().Equal(ClienteDelegante);
+        CaeManager.Application.Common.AmbitoTenantExplicito.TenantIdActual.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Una_delegacion_de_Soporte_se_revoca_desde_la_casa_de_quien_la_tiene()
+    {
         var delegacion = DelegacionTenant.ParaSoporte(Consultora, ClienteDelegante);
         delegacion.ActivarParaSoporte("Incidencia abierta por el Tenant propietario", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
         var repositorio = new DelegacionTenantRepositorioFalso();
@@ -249,5 +271,15 @@ public class RevocacionDelegacionTests
         repositorio.Agregar(delegacion);
 
         return (delegacion, repositorio, new UnitOfWorkFalso());
+    }
+
+    private sealed class GuardadosConTenant : IUnitOfWork
+    {
+        public List<Guid?> Tenants { get; } = [];
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            Tenants.Add(CaeManager.Application.Common.AmbitoTenantExplicito.TenantIdActual);
+            return Task.FromResult(1);
+        }
     }
 }

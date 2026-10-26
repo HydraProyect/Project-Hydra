@@ -43,33 +43,46 @@ public class DesactivarDelegacionTenantCommandHandler(
         if (delegacion is null || !await DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService))
             return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación."));
 
-        // Cerrar la AsignacionOperacion de una delegación de Operador externo es
-        // escribir datos del Tenant propietario: la política WITH CHECK de
-        // AsignacionesOperacion exige que ese sea el Tenant activo. Desde otro
-        // Workspace operativo derivado se rechaza aquí, con un error propio,
-        // antes de tocar nada. Esta guarda solo restringe: la autoridad ya se
-        // decidió arriba por el Tenant de origen. Las de Soporte no escriben
-        // en AsignacionesOperacion y conservan su comportamiento.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno
-            && tenantActual.TenantId != delegacion.TenantClienteId)
+        // Contexto desde el que se revoca: la casa de uno (el Tenant de origen, que
+        // la autoridad de arriba ya exige que sea una de las dos partes) o el
+        // Tenant propietario. Desde un Workspace operativo derivado de un tercero
+        // se rechaza aquí, con un error propio, antes de tocar nada. Esta guarda
+        // solo restringe: la autoridad ya se decidió arriba por el Tenant de
+        // origen, nunca por el Tenant activo.
+        var tenantPropietarioId = delegacion.TenantClienteId;
+        var tenantActivo = tenantActual.TenantId;
+        if (tenantActivo is null
+            || (tenantActivo != tenantPropietarioId
+                && tenantActivo != await currentUserService.ObtenerTenantOrigenIdAsync()))
             return Result.Fallo(Error.Crear(
                 "DelegacionTenant.NoAutorizado",
-                "Para revocar el acceso, entra en la organización que delega."));
+                "Para revocar el acceso, vuelve a tu organización."));
 
         if (!delegacion.Activa)
             return Result.Fallo(Error.Crear("DelegacionTenant.YaInactiva", "Esta delegación ya estaba revocada."));
 
         delegacion.Desactivar();
 
-        // Solo las de Operador externo tienen operación que cerrar: las de
-        // Soporte son plano 3 y conservan su mecánica propia hasta su fase
-        // (ADR-011 § 8.6). Cerrar la operación arrastra sus carteras.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
-            await asignacionesWriter.CerrarOperacionDelegadaAsync(
-                delegacion.TenantClienteId, delegacion.TenantConsultoraId,
-                MotivoCierreAsignacion.Revocada, cancellationToken);
+        // La revocación escribe datos del Tenant propietario: cerrar su
+        // Asignación de Operación y sus carteras. La política WITH CHECK de esa
+        // tabla exige que el Tenant activo sea el propietario, y el Operador CAE
+        // externo que renuncia desde su propia casa tiene activo el suyo. El
+        // guardado se hace por eso en el ámbito del Tenant propietario, mismo
+        // mecanismo que CrearClienteDeleganteCommand. No amplía la autoridad: las
+        // dos partes ya podían revocar (ver DelegacionAdministrablePorElUsuarioAsync)
+        // y revocar solo reduce capacidad.
+        using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
+        {
+            // Solo las de Operador externo tienen operación que cerrar: las de
+            // Soporte son plano 3 y conservan su mecánica propia hasta su fase
+            // (ADR-011 § 8.6). Cerrar la operación arrastra sus carteras.
+            if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
+                await asignacionesWriter.CerrarOperacionDelegadaAsync(
+                    tenantPropietarioId, delegacion.TenantConsultoraId,
+                    MotivoCierreAsignacion.Revocada, cancellationToken);
 
-        await unitOfWork.SaveChangesAsync(cancellationToken);
+            await unitOfWork.SaveChangesAsync(cancellationToken);
+        }
 
         return Result.Exito();
     }
@@ -94,10 +107,10 @@ public class DesactivarDelegacionTenantCommandHandler(
     /// <c>ITenantActual.TenantId</c>: ese refleja el Delegated Workspace
     /// activo, así que un Operador Delegado que estuviera operando como el
     /// cliente pasaría por administrador de ese cliente y podría tocar
-    /// delegaciones de terceros sobre él. El Tenant activo no concede autoridad;
-    /// el comando solo lo usa, después, para exigir que una delegación de
-    /// Operador externo se revoque con el Tenant propietario activo, que es
-    /// donde RLS deja cerrar su operación.
+    /// delegaciones de terceros sobre él. Administrar delegaciones se hace
+    /// desde la casa de uno (o desde el Tenant propietario): el Tenant activo no
+    /// concede autoridad, el comando solo lo usa después para rechazar el
+    /// Workspace operativo derivado de un tercero.
     /// </summary>
     internal static async Task<bool> DelegacionAdministrablePorElUsuarioAsync(
         DelegacionTenant delegacion, ICurrentUserService currentUserService)

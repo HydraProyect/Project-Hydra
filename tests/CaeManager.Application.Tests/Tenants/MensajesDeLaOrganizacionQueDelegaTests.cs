@@ -129,7 +129,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             new CrearDelegacionTenantCommand(_operador.Id, _propietario.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
-        resultado.Error.Mensaje.Should().Contain("organización que delega").And.NotContain("Tenant");
+        resultado.Error.Mensaje.Should().Contain("entra en la organización que delega").And.NotContain("Tenant");
         _vinculos.Delegaciones.Should().BeEmpty();
         _writer.OperacionesAbiertas.Should().BeEmpty();
         _unitOfWork.VecesGuardado.Should().Be(0);

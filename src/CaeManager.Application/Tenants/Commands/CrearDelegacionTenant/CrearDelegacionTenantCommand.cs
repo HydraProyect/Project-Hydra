@@ -78,13 +78,20 @@ public class CrearDelegacionTenantCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.SinUsuario", "No pudimos identificarte. Vuelve a iniciar sesión."));
 
+        var tenantPropietarioId = request.TenantClienteId;
         if (!await autorizacion.PuedeGestionarDelegacionesAsync(
-                usuarioId.Value, request.TenantClienteId, cancellationToken))
+                usuarioId.Value, tenantPropietarioId, cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.NoAutorizado",
                 "Solo un administrador de la organización que delega puede autorizar el acceso a sus datos."));
 
-        if (tenantActual.TenantId != request.TenantClienteId)
+        // Abrir la Asignación de Operación delegada es escribir datos del Tenant
+        // propietario, y la política WITH CHECK de esa tabla exige que sea el
+        // Tenant activo. Desde un Workspace operativo derivado ajeno se rechaza
+        // aquí, con un error propio, antes de escribir nada. Esta guarda solo
+        // restringe: la autoridad ya se decidió arriba contra el Tenant que el
+        // comando nombra, nunca contra el Tenant activo.
+        if (tenantActual.TenantId != tenantPropietarioId)
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.NoAutorizado",
                 "Para autorizar el acceso, entra en la organización que delega."));
@@ -172,8 +179,8 @@ public class CrearDelegacionTenantCommandHandler(
             // comprobación de ConstraintName a Infrastructure, incremento aparte.
             // El Workspace operativo derivado ajeno ya no llega hasta aquí: se
             // rechaza arriba con DelegacionTenant.NoAutorizado, antes de escribir.
-            // La política WITH CHECK de AsignacionesOperacion sigue siendo la
-            // defensa de fondo si esa guarda faltara.
+            // La política WITH CHECK de las Asignaciones de Operación sigue siendo
+            // la defensa de fondo si esa guarda faltara.
             await unitOfWork.SaveChangesAsync(ct);
 
             // Quien ejecuta es el Administrador del Tenant propietario: la RLS de cuentas no le
