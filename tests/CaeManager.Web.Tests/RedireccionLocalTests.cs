@@ -73,6 +73,12 @@ public class RedireccionLocalTests
     [InlineData("/\0/atacante.com")]
     [InlineData("/documentos\t")]
     [InlineData("/doc\numents")]
+    [InlineData("\u0085//evil.example")]
+    [InlineData("\u0000//evil.example")]
+    [InlineData("\u007F//evil.example")]
+    [InlineData("/\u0085//evil.example")]
+    [InlineData("/\u0000//evil.example")]
+    [InlineData("/\u007F//evil.example")]
     public void Los_caracteres_de_control_caen_a_la_raiz_aunque_el_resto_parezca_local(string entrada)
         => RedireccionLocal.Sanear(entrada).Should().Be("/");
 
