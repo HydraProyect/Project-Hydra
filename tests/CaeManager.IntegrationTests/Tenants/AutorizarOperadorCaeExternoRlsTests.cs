@@ -226,6 +226,56 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_Operador_CAE_revoca_desde_su_propio_Tenant_y_la_operacion_del_propietario_queda_cerrada_bajo_RLS()
+    {
+        // Flujo de FlujoAltaYRevocacionDelegacionTests, ahora bajo cae_app_runtime: el
+        // Operador CAE externo renuncia con su propio Tenant activo. La Asignación de
+        // Operación es del Tenant propietario y el WITH CHECK exige ese Tenant activo
+        // para cerrarla; el comando guarda en su ámbito tras decidir la autoridad por el
+        // Tenant de origen.
+        var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
+        alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
+        var delegacionId = alta.Valor;
+
+        var miembroDelOperador = await SembrarUsuarioAsync("gestor-arcospa", _operador, Roles.GestorCae);
+
+        using (var ambito = _arnes.Servicios.CreateScope())
+        {
+            var servicios = ambito.ServiceProvider;
+            var contexto = servicios.GetRequiredService<CaeManagerDbContext>();
+            var usuarioActual = new CurrentUserServiceFalso(miembroDelOperador.Id, tenantOrigenId: _operador);
+            _actor.Actual = miembroDelOperador.Id;
+            _sesion.UsuarioId = miembroDelOperador.Id;
+            _sesion.TenantOrigenId = _operador;
+            var tenantActual = servicios.GetRequiredService<ITenantActual>();
+
+            var handler = new CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant.DesactivarDelegacionTenantCommandHandler(
+                new DelegacionTenantRepository(contexto), usuarioActual,
+                new AsignacionesOperativasWriter(contexto, tenantActual, usuarioActual), contexto, tenantActual);
+
+            using (AmbitoTenantExplicito.Establecer(_operador))
+            {
+                var resultado = await handler.Handle(
+                    new CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant.DesactivarDelegacionTenantCommand(delegacionId),
+                    CancellationToken.None);
+
+                resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : string.Empty);
+                AmbitoTenantExplicito.TenantIdActual.Should().Be(_operador, "el ámbito del propietario se restaura al salir");
+            }
+        }
+
+        await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
+        (await propietarioDeLaBase.DelegacionesTenant.SingleAsync(d => d.Id == delegacionId)).Activa.Should().BeFalse();
+        (await propietarioDeLaBase.AsignacionesOperacion.CountAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador
+                && o.Estado == EstadoAsignacion.Vigente))
+            .Should().Be(0, "la operación delegada del Tenant propietario queda cerrada");
+        (await propietarioDeLaBase.AsignacionesOperacion.CountAsync(o =>
+                !o.EsRaiz && o.PropietarioTenantId == _propietario && o.OperadorTenantId == _operador))
+            .Should().Be(1, "se cierra, no se borra");
+    }
+
+    [Fact]
     public async Task Un_segundo_operador_con_la_operacion_completa_se_rechaza_con_mensaje_y_no_con_excepcion()
     {
         Guid segundoOperador;
