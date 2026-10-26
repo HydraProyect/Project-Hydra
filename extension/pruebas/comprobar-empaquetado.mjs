@@ -80,6 +80,12 @@ const manifiestoReal = JSON.parse(leerZip(real.zip).find((e) => e.ruta === "mani
 comprobar("el manifiesto tiene `key`", typeof manifiestoReal.key === "string" && manifiestoReal.key.length > 300);
 comprobar("el ID derivado de `key` es el fijado", idDeExtension(manifiestoReal.key) === ID_ESTABLE);
 
+for (const dominio of ["valoraprevencion.es", "avantaprevencion.com"]) {
+  comprobar(`el content script se inyecta en ${dominio} y sus subdominios`,
+    manifiestoReal.content_scripts.some((script) =>
+      script.js.includes("content.js") && script.matches.includes(`*://*.${dominio}/*`)));
+}
+
 const rutasReales = real.ficheros;
 for (const necesario of ["manifest.json", "background.js", "content.js", "popup.html", "popup.js", "popup.css", "icons/icon16.png", "icons/icon48.png", "icons/icon128.png"]) {
   comprobar(`el zip contiene ${necesario}`, rutasReales.includes(necesario));
