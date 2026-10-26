@@ -173,6 +173,9 @@ public static class ApplicationServiceCollectionExtensions
         // DeteccionTrabajadoresService) — se registra aquí y no en
         // Infrastructure porque no toca nada específico de infraestructura.
         services.AddScoped<IDeteccionTrabajadoresService, DeteccionTrabajadoresService>();
+        // Parser local de ITA/RNT/TC2 (sin IA): sin estado; lo usa el compositor que registra
+        // Infrastructure delante del cliente de IA. Su lector de PDF (PdfPig) es de Infrastructure.
+        services.AddSingleton<Trabajadores.Extraccion.IExtractorTrabajadoresLocal, Trabajadores.Extraccion.ExtractorTrabajadoresLocalService>();
         services.AddScoped<ISugerenciaVisitaCorreoService, SugerenciaVisitaCorreoService>();
         services.AddScoped<ISugerenciaGestionCorreoService, SugerenciaGestionCorreoService>();
         services.AddScoped<IResolucionParticipanteConversacionService, ResolucionParticipanteConversacionService>();

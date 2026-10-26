@@ -79,6 +79,16 @@ public static class Observabilidad
         "caemanager.ia.llamadas",
         description: "Peticiones HTTP enviadas a un proveedor de IA, reintentos incluidos, por host.");
 
+    /// <summary>
+    /// Lecturas del listado de Trabajadores de un ITA/RNT/TC2, por origen (<c>ParserLocal</c> o
+    /// <c>Ia</c>) y por motivo (<c>Cuadra</c> o el <c>MotivoNoCuadra</c> que mandó el documento a la
+    /// IA). Cardinalidad acotada (los valores de dos enums): sirve para medir cuántas lecturas se ahorran y por qué
+    /// se pierden las demás, sin tenant ni datos del documento.
+    /// </summary>
+    public static readonly Counter<long> ExtraccionesTrabajadores = Meter.CreateCounter<long>(
+        "caemanager.trabajadores.extracciones",
+        description: "Lecturas del listado de Trabajadores de un documento, por origen (parser local o IA) y motivo.");
+
     private static long _colaIaProfundidad;
 
     /// <summary>
