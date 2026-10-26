@@ -165,6 +165,24 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("SuperAdmin")]
+    public async Task Asignar_rol_rechaza_un_rol_vacio_o_desconocido_sin_leer_ni_escribir(string? rol)
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(null) };
+
+        var resultado = await new AsignarRolACuentaCommandHandler(
+                puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+            .Handle(new AsignarRolACuentaCommand(Cuenta, rol!), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.RolDesconocido);
+        puerto.Lecturas.Should().BeEmpty();
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
     // ---------- Propiedad, no visibilidad ----------
 
     [Fact]
