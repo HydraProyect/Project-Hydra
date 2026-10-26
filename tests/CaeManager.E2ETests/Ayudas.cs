@@ -185,7 +185,7 @@ public static class Ayudas
     /// pedido el documento de destino (el GET de la redirección): <c>FrameNavigated</c> también salta con un
     /// <c>replaceState</c> de la pantalla vieja, que no pide documento y no debe contar como recarga.</para>
     /// </summary>
-    private static async Task<IResponse> EnviarCambioDeTenantYEsperarRecargaAsync(IPage page, Func<Task> enviar)
+    internal static async Task<IResponse> EnviarCambioDeTenantYEsperarRecargaAsync(IPage page, Func<Task> enviar)
     {
         var recargada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var destinoPedido = false;

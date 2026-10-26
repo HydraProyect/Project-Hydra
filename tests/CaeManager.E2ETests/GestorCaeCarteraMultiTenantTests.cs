@@ -151,9 +151,8 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         // La acción lleva además la vuelta a Mi trabajo con la búsqueda vigente (RetornoMiTrabajo).
         var vueltaEsperada = Uri.EscapeDataString($"/mi-trabajo?q={Uri.EscapeDataString(TrabajadorB)}");
         var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaB}&volver={vueltaEsperada}";
-        var cambio = await page.RunAndWaitForResponseAsync(
-            () => filaRechazadaB.Locator("form[data-accion-cross-tenant] button[type=submit]").ClickAsync(),
-            r => r.Url.Contains("/cuenta/cliente-activo") && r.Request.Method == "POST");
+        var cambio = await Ayudas.EnviarCambioDeTenantYEsperarRecargaAsync(page,
+            () => filaRechazadaB.Locator("form[data-accion-cross-tenant] button[type=submit]").ClickAsync());
         Assert.InRange(cambio.Status, 300, 399);
         Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
         await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
@@ -460,6 +459,14 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         if (esperaEnFrio)
             await Expect(filtro).ToBeVisibleAsync(EsperaEnFrio);
         await filtro.FillAsync(texto);
+        await Expect(filtro).ToHaveValueAsync(texto);
+        // El valor del input cambia antes de que @oninput escriba la URL. Esa navegación
+        // puede sustituir el DOM: no pulsar el formulario de una fila de la página anterior.
+        await Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(
+            @"[?&]q=" + System.Text.RegularExpressions.Regex.Escape(Uri.EscapeDataString(texto)) + @"(&|$)"),
+            new() { Timeout = 30_000 });
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
         await Expect(filtro).ToHaveValueAsync(texto);
     }
 
