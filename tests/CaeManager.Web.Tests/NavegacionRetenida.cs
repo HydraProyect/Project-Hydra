@@ -1,0 +1,36 @@
+using Microsoft.AspNetCore.Components;
+
+namespace CaeManager.Web.Tests;
+
+/// <summary>
+/// NavigationManager de prueba que, con <see cref="Retener"/>, no confirma las navegaciones hasta que el test llama a
+/// <see cref="Confirmar"/>: reproduce la ventana de Blazor Server en la que <c>NavigateTo</c> ya se pidió pero
+/// <see cref="NavigationManager.Uri"/> todavía no refleja el destino. <see cref="Confirmar"/> con una URL que nadie
+/// pidió simula un enlace del menú o «atrás»/«adelante» del navegador.
+/// </summary>
+internal sealed class NavegacionRetenida : NavigationManager
+{
+    public NavegacionRetenida(string uri = "http://localhost/vehiculos") => Initialize("http://localhost/", uri);
+
+    public bool Retener { get; set; }
+
+    public List<string> Destinos { get; } = [];
+
+    protected override void SetNavigationLockState(bool value) { }
+
+    protected override void NavigateToCore(string uri, bool forceLoad) =>
+        NavigateToCore(uri, new NavigationOptions { ForceLoad = forceLoad });
+
+    protected override void NavigateToCore(string uri, NavigationOptions options)
+    {
+        var destino = ToAbsoluteUri(uri).AbsoluteUri;
+        Destinos.Add(destino);
+        if (!Retener) Confirmar(destino);
+    }
+
+    public void Confirmar(string destino)
+    {
+        Uri = destino;
+        NotifyLocationChanged(false);
+    }
+}
