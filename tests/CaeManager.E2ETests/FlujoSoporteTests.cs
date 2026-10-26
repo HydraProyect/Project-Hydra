@@ -96,18 +96,21 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // soporte antes de generar la actividad que se comprueba después.
         await page.Locator(".aviso-sesion-soporte").WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
 
-        // Navegación real a /clientes: Navegacion nueva vía
-        // TrazaSoporte.OnInitializedAsync/LocationChanged.
+        // Navegación real a /clientes: documento nuevo, así que la Navegacion
+        // la anota TrazaSoporte.OnInitializedAsync (la primera pantalla).
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // El aviso puede existir antes del interop de OnAfterRenderAsync. Esperar
-        // al listener y después al lote persistido evita perder el clic al recargar.
+        // El aviso se pinta antes de que OnAfterRenderAsync importe trazaSoporte.js:
+        // un clic en ese hueco no lo captura nadie. Se espera al listener
+        // (data-captura-lista) y, tras el clic, al lote ya guardado
+        // (data-interacciones-registradas), porque el cambio de Tenant de abajo
+        // recarga el documento y se llevaría el lote pendiente.
         var aviso = page.Locator(".aviso-sesion-soporte");
         await Assertions.Expect(aviso).ToHaveAttributeAsync("data-captura-lista", "true",
             new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         var registradas = await aviso.GetAttributeAsync("data-interacciones-registradas");
-        // Una interacción sin navegación: el documento que confirma el lote debe
-        // seguir siendo el que capturó el clic, también con navegación mejorada.
+        // Una interacción sin navegación: el documento que confirma el lote es el
+        // mismo que capturó el clic.
         await Ayudas.AbrirSelectorTenantAsync(page);
         // El lote sale cada 2 s (INTERVALO_ENVIO_MS de trazaSoporte.js) y el contador solo sube tras guardarlo.
         await Assertions.Expect(aviso).Not.ToHaveAttributeAsync("data-interacciones-registradas", registradas!,
