@@ -664,6 +664,40 @@ CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nomb
 
 var app = builder.Build();
 
+// Mantenimiento manual: misma identidad administrativa que los modos vecinos,
+// sin migraciones, siembra ni Kestrel. Ejecutar con la aplicación detenida.
+if (args.Contains(CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales.Argumento))
+{
+    try
+    {
+        var aplicar = CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales.Aplicar(args);
+        using var scopeReparacion = app.Services.CreateScope();
+        await using var contextoReparacion = scopeReparacion.ServiceProvider
+            .GetRequiredService<FabricaContextoDeBootstrap>().Crear(reintentar: false);
+        var opcionesAlmacen = scopeReparacion.ServiceProvider
+            .GetRequiredService<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.FileStorage.DiskFileStorageServiceOptions>>().Value;
+        var raizAlmacen = Path.IsPathRooted(opcionesAlmacen.Ruta)
+            ? opcionesAlmacen.Ruta : Path.Combine(app.Environment.ContentRootPath, opcionesAlmacen.Ruta);
+        var registroReparacion = scopeReparacion.ServiceProvider
+            .GetRequiredService<ILogger<CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales>>();
+        var resultados = await new CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales(contextoReparacion, registroReparacion)
+            .EjecutarAsync(raizAlmacen, aplicar);
+        foreach (var resultado in resultados)
+            Console.WriteLine($"{(aplicar ? "Aplicado" : "Simulación")}: {resultado.RutaAnterior} -> {resultado.RutaNueva}; existe={resultado.ExisteEnDisco}; extensionRecuperada={resultado.ExtensionRecuperada}");
+        Console.WriteLine($"{resultados.Count} adjuntos definitivos con nombre temporal.");
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Reparación de adjuntos temporales fallida");
+        Environment.ExitCode = 1;
+    }
+    finally
+    {
+        await app.DisposeAsync();
+    }
+    return;
+}
+
 // Modo dedicado para un paso de "pre-deploy" (ver Project-Hydra-Negocio/tecnico/DEPLOY.md § 4 — P2 #22 de
 // Project-Hydra-Negocio/MATURITY_REVIEW.md, una de las tres cosas que desbloquean
 // multi-réplica): aplica las migraciones pendientes y termina, sin levantar

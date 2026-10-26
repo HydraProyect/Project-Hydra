@@ -65,6 +65,9 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
     // propio archivo.
     private static readonly Dictionary<(string Ruta, string Linea), int> UsosPermitidos = new()
     {
+        // Comando manual con identidad de bootstrap: detecta referencias de todos los Tenants propietarios;
+        // las escrituras conservan el ámbito explícito de cada Tenant propietario y los interceptores.
+        [("src/CaeManager.Infrastructure/FileStorage/ReparacionAdjuntosTemporales.cs", "var filas = await db.Set<T>().IgnoreQueryFilters()")] = 1,
         // Unicidad de CIF y razón social incluye bajas; la consulta común repone explícitamente el Tenant propietario.
         [("src/CaeManager.Infrastructure/Persistence/Repositories/EmpresaRepository.cs", "return dbContext.Empresas.IgnoreQueryFilters().AsNoTracking()")] = 1,
         // Fase D "deshacer al eliminar": el registro borrado (soft-delete)
