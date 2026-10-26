@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Seguridad;
 using CaeManager.Domain.BusquedaGlobal;
 using CaeManager.Domain.Common;
 using MediatR;
@@ -22,6 +23,9 @@ public class RegistrarUsoRecienteCommandHandler(
 
     public async Task<Result> Handle(RegistrarUsoRecienteCommand request, CancellationToken cancellationToken)
     {
+        if (!string.Equals(request.UrlDestino, RedireccionLocal.Sanear(request.UrlDestino), StringComparison.Ordinal))
+            return Result.Fallo(Error.Crear("Reciente.UrlDestinoInvalida", "El destino debe ser una ruta local segura."));
+
         var usuarioId = await usuarioActual.ObtenerUsuarioActualIdAsync();
         if (usuarioId is null)
             return Result.Exito();
