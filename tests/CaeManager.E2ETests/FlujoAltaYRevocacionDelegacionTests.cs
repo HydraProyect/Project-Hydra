@@ -10,6 +10,13 @@ namespace CaeManager.E2ETests;
 /// FlujoDelegatedWorkspaceTests (que solo cambia entre workspaces ya
 /// existentes) y FlujoSoporteTests (mecanismo de acceso distinto: motivo +
 /// ventana, no alta/revocación comercial).
+///
+/// <para>
+/// Revoca un Gestor CAE del Operador CAE externo (un GestorCae de prueba de la
+/// organización de origen, en un segundo contexto de navegador), no el
+/// Administrador que dio de alta el acceso: «Solo el Gestor CAE del Operador CAE
+/// externo revoca y reactiva la Delegación» (decisión de producto del 2026-10-26).
+/// </para>
 /// </summary>
 [Collection("AppCollection")]
 public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
@@ -77,7 +84,9 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         var tarjeta = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjeta).ToContainTextAsync("Activa");
-        await Expect(tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true })).ToBeVisibleAsync();
+        // El Administrador del Operador CAE externo no es Gestor CAE: no revoca.
+        await Expect(tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // --- Operar el Delegated Workspace recién creado ---
         // SelectorClienteActivo (en el layout) solo carga _clientes en
@@ -119,46 +128,49 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
             "data-tenant-id", await Ayudas.IdDeOpcionSelectorTenantAsync(page, nombreClienteDelegante) ?? string.Empty);
 
-        // Vuelve al origen antes de revocar — revocar el workspace en el que
-        // se está operando en ese momento no es el escenario que se quiere
-        // probar aquí (además, DesactivarDelegacionTenantCommand actúa sobre
-        // la delegación, no exige haber cambiado de vuelta, pero hacerlo así
-        // es el camino real que seguiría un usuario).
+        // Vuelve al origen: el Administrador comprueba al final, desde su
+        // organización, cómo queda la tarjeta tras la revocación.
         //
         // Misma comprobación concreta que tras el primer cambio (línea
         // arriba), y por el mismo motivo: sin ella, el NavegarYEsperarAsync
         // siguiente puede disparar mientras el <form> POST de este segundo
         // cambio de tenant todavía está resolviéndose, y /delegaciones
         // termina cargando en el workspace delegado equivocado (donde esta
-        // tarjeta no tiene "Revocar acceso", o no existe) — fallo real visto
-        // en CI: timeout de 30s esperando ese texto tras volver al origen.
+        // tarjeta no existe) — fallo real visto en CI: timeout de 30s
+        // esperando la tarjeta tras volver al origen.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, Ayudas.NombreTenantOrigenPorDefecto);
         await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(
             "data-tenant-id", await Ayudas.IdDeOpcionSelectorTenantAsync(page, Ayudas.NombreTenantOrigenPorDefecto) ?? string.Empty);
 
-        // --- Revocación ---
+        // --- Revocación: el Gestor CAE del Operador CAE externo, desde su casa ---
+        await using (var contextoGestor = await fixture.Browser.NewContextAsync())
+        {
+            var paginaGestor = await contextoGestor.NewPageAsync();
+            await Ayudas.IniciarSesionAsync(paginaGestor, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+            await Ayudas.NavegarYEsperarAsync(paginaGestor, $"{fixture.BaseUrl}/delegaciones");
+            await Ayudas.AbrirDetalleDeDelegacionAsync(paginaGestor, nombreClienteDelegante);
+            var tarjetaDelGestor = paginaGestor.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
+            await tarjetaDelGestor.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
+
+            var modalRevocar = paginaGestor.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
+            await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+            await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
+            await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
+
+            await Expect(tarjetaDelGestor).ToContainTextAsync("Revocada");
+            // Reactivar también es suyo.
+            await Expect(tarjetaDelGestor.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true }))
+                .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        }
+
+        // NO "Reactivar" para el Administrador que dio de alta el acceso
+        // (Ayudas.EmailAdministrador): no es Gestor CAE del Operador CAE
+        // externo. La vista contrasta la autorización real (PuedeReactivarQuery),
+        // no solo !OperandoWorkspaceAjeno.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
         await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
         var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
-        await tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-
-        var modalRevocar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
-        await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-        await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-
         await Expect(tarjetaTrasVolver).ToContainTextAsync("Revocada");
-
-        // NO "Reactivar" visible aquí: quien opera este test es el admin de la
-        // CONSULTORA (Ayudas.EmailAdministrador, quien dio de alta la
-        // delegación) y ReactivarDelegacionTenantCommand exige ser
-        // Administrador del CLIENTE DELEGANTE — asimetría deliberada frente a
-        // revocar (ADR-004 § 12.2, documentada en el propio comando: "un
-        // Administrador de la Consultora tiene el rol pero es la parte que
-        // RECIBE el acceso"). Antes del hueco cerrado en esta misma PR el
-        // botón se mostraba igualmente porque la vista solo comprobaba
-        // !OperandoWorkspaceAjeno, sin contrastar la autorización real — esta
-        // aserción es la que ese hueco dejaba sin cubrir.
         await Expect(tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true }))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }

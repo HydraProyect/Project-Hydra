@@ -219,10 +219,13 @@ public class RestaurarPrincipalAlReactivarTests
             },
         };
         var transaccion = new TransaccionDeComandoFalsa();
+        // Reactiva el Gestor CAE del Operador CAE externo, desde su casa (decisión del 2026-10-26).
+        var quienReactiva = Guid.NewGuid();
+        _cuentas.Asignar(quienReactiva, Operador, "GestorCae");
         var handler = new ReactivarDelegacionTenantCommandHandler(
-            repositorio, AutorizacionDelegacionFalsa.AdministradorDe(Propietario),
-            new CurrentUserServiceFalso(Guid.NewGuid()), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
-            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
+            repositorio,
+            new CurrentUserServiceFalso(quienReactiva, "GestorCae", Operador), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
+            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Operador));
 
         return (handler, delegacion, transaccion);
     }

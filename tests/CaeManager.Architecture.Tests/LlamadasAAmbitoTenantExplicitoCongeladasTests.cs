@@ -307,9 +307,11 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
-            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al Administrador del Tenant propietario en origen y validar que el contexto es su casa o el Tenant propietario; guarda la operación y las carteras restauradas"),
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al Gestor CAE del Operador CAE externo en origen (GestorCaeDelOperadorCaeExterno, decisión del 2026-10-26) y validar que el contexto es su casa o el Tenant propietario; la transacción entera se abre en el Tenant propietario y guarda la operación y las carteras restauradas"),
+        ["src/CaeManager.Application/Tenants/GestorCaeDelOperadorCaeExterno.cs"] =
+            new(Categoria.TenantDeOrigenDelUsuario, "el Tenant de origen del usuario (ICurrentUserService.ObtenerTenantOrigenIdAsync), y solo si coincide con el Operador CAE externo; lee el rol GestorCae de su propia cuenta en origen, mismo criterio que AutoridadSobreCarteraDeGestorCae"),
         ["src/CaeManager.Application/Tenants/Commands/DesactivarDelegacionTenant/DesactivarDelegacionTenantCommand.cs"] =
-            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargarla y comprobar que el Tenant de origen es una de sus dos partes (DelegacionAdministrablePorElUsuarioAsync) y que el Tenant activo es esa casa o el propietario; solo guarda el cierre de la Asignación de Operación del Tenant propietario al revocar"),
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargarla y autorizar al Gestor CAE del Operador CAE externo en origen (GestorCaeDelOperadorCaeExterno; las de Soporte, por DelegacionAdministrablePorElUsuarioAsync) y comprobar que el Tenant activo es esa casa o el propietario; solo guarda el cierre de la Asignación de Operación del Tenant propietario al revocar"),
         ["src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenantCliente.Id, del Tenant recién creado por el propio comando en la misma transacción"),
         ["src/CaeManager.Application/Tenants/Commands/CrearOperadorCaeExterno/CrearOperadorCaeExternoCommand.cs"] =

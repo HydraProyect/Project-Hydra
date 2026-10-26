@@ -325,7 +325,7 @@ public class UsosDeEsPlataformaCongeladosTests
                 "es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa de un fallo " +
                 "cerrado"),
         ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
-            new(2, CategoriaUso.Guarda,
+            new(1, CategoriaUso.Guarda,
                 "un comentario y :EsPlataforma real, proyectado sobre el TenantClienteId antes de autorizar la " +
                 "reactivación. Ronda 2 de Codex sobre el delta del incremento 1b (commit 2830297e), mismo " +
                 "patrón que AutorizarOperadorCaeExternoQueries.cs: PuedeGestionarDelegacionesAsync no excluye " +

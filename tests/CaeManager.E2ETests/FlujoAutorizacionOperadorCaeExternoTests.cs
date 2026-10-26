@@ -13,8 +13,15 @@ namespace CaeManager.E2ETests;
 /// (<see cref="Ayudas.EmailAdministrador"/>, tras el acto fundacional) da de alta un
 /// Operador CAE externo nuevo y copia su enlace de autorización; el Administrador del
 /// Tenant de verificación B (<c>SegundoTenantSeeder</c>, sin delegaciones propias) lo
-/// abre, autoriza y revoca. Operador nuevo por ejecución y revocación al final: una
-/// segunda ejecución contra la misma base no choca con un Operador vigente.
+/// abre y autoriza. Operador nuevo por ejecución; cada fixture arranca con su propia base.
+/// </para>
+///
+/// <para>
+/// Revocar ya no es suyo: «Solo el Gestor CAE del Operador CAE externo revoca y reactiva la
+/// Delegación» (decisión de producto del 2026-10-26), así que al Administrador del Tenant
+/// propietario no se le pinta «Revocar acceso». Que el Gestor CAE sí revoque se recorre en
+/// <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el Operador CAE externo recién creado no
+/// tiene ningún Gestor CAE con sesión.
 /// </para>
 /// </summary>
 [Collection("AppCollectionMultiTenant")]
@@ -24,7 +31,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
     private const string ContrasenaAdministradorSegundoTenant = "SegundoTenant#2026";
 
     [Fact]
-    public async Task El_Administrador_del_Tenant_propietario_autoriza_el_Operador_sugerido_por_TALVEG_y_lo_revoca()
+    public async Task El_Administrador_del_Tenant_propietario_autoriza_el_Operador_sugerido_por_TALVEG_y_no_puede_revocarlo()
     {
         var nombreOperador = $"Operador CAE E2E {Guid.NewGuid().ToString("N")[..8]}";
 
@@ -63,7 +70,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         var enlace = await plataforma.EvaluateAsync<string>("navigator.clipboard.readText()");
         Assert.Contains("/delegaciones?autorizar=", enlace);
 
-        // --- Administrador del Tenant propietario B: abre el enlace, autoriza, revoca ---
+        // --- Administrador del Tenant propietario B: abre el enlace y autoriza ---
         await using var contextoB = await fixture.Browser.NewContextAsync();
         var paginaB = await contextoB.NewPageAsync();
         await Ayudas.IniciarSesionAsync(paginaB, fixture.BaseUrl, EmailAdministradorSegundoTenant, ContrasenaAdministradorSegundoTenant);
@@ -86,11 +93,9 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await tarjetaVinculo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjetaVinculo).ToContainTextAsync("Activa");
 
-        await tarjetaVinculo.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-        var modalRevocar = paginaB.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
-        await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
-        await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
-        await Expect(tarjetaVinculo).ToContainTextAsync("Revocada");
+        // Autorizó el acceso, pero revocarlo es solo del Gestor CAE del Operador CAE externo.
+        await Expect(tarjetaVinculo.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }))
+            .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 
     /// <summary>

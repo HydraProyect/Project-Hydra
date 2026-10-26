@@ -29,13 +29,9 @@ namespace CaeManager.Application.Tests.Tenants;
 /// por el otro lado — Hydra nunca inicia una delegación.
 ///
 /// <para>
-/// Se añadió después un tercer comando, <c>ReactivarDelegacionTenant</c>, que sí
-/// tenía política — pero la de revocar. La equivalencia
-/// <c>revocar ↔ reactivar</c> es falsa desde seguridad: una reduce capacidad y
-/// la otra la devuelve. Compartirla dejaba que la parte que RECIBE el acceso
-/// deshiciera la decisión de la parte que lo CONCEDE. Es la misma propiedad que
-/// los otros dos, por eso vive en la misma batería: <b>las mutaciones de la
-/// relación de delegación respetan la autoridad del lado correcto</b>.
+/// Revocar y reactivar la Asignación de Operación de un Operador CAE externo no siguen esta
+/// regla: desde la decisión de producto del 2026-10-26 solo las decide el Gestor CAE del
+/// Operador CAE externo, y sus tests están en <see cref="RevocacionDelegacionTests"/>.
 /// </para>
 /// </summary>
 public class AutorizacionDeDelegacionTests
@@ -294,11 +290,15 @@ public class AutorizacionDeDelegacionTests
                 "la plataforma: ADR-004 § 12.2 pone 'aprueba, modifica y revoca' del lado del Cliente " +
                 "Delegante");
 
-            // Crear y reactivar usan el contexto solo para restringir, después
-            // de resolver la autoridad del Administrador del Tenant propietario.
-            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler)
-                || handler == typeof(ReactivarDelegacionTenantCommandHandler))
+            // Crear usa el contexto solo para restringir, después de resolver la autoridad del
+            // Administrador del Tenant propietario. Reactivar también lo usa solo para restringir,
+            // pero su autoridad es del Gestor CAE del Operador CAE externo (decisión del
+            // 2026-10-26): ya no depende de IAutorizacionDelegacionTenant.
+            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler))
                 dependencias.Should().Contain("IAutorizacionDelegacionTenant");
+            else if (handler == typeof(ReactivarDelegacionTenantCommandHandler))
+                dependencias.Should().NotContain("IAutorizacionDelegacionTenant",
+                    "reactivar no es del Administrador del Tenant propietario");
             else
                 dependencias.Should().NotContain("ITenantActual",
                     $"{handler.Name} debe autorizar contra el tenant que el comando nombra, no contra el workspace " +
@@ -307,231 +307,9 @@ public class AutorizacionDeDelegacionTests
         }
     }
 
-    // ── ReactivarDelegacionTenant: restaurar autoridad no es revocarla ────
-
-    [Fact]
-    public async Task El_administrador_del_cliente_delegante_puede_reactivar()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-        delegacion.Desactivar();
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.EsExitoso.Should().BeTrue();
-        delegacion.Activa.Should().BeTrue();
-    }
-
-    /// <summary>
-    /// Segundo hallazgo de Codex (Alto), ronda 2 sobre el incremento 1b: la exclusión
-    /// del Tenant de plataforma solo vivía en la CREACIÓN (<c>CrearDelegacionTenantCommand</c>)
-    /// y en la consulta de candidato. Una <c>DelegacionTenant</c> heredada con
-    /// <c>TenantClienteId</c> = Tenant de plataforma (por ejemplo, creada antes de ese fix)
-    /// podía reactivarse por esta vía sin pasar por ninguna de las dos, reabriendo
-    /// operación externa sobre TALVEG (ADR-011 § 1). <c>AutorizacionDelegacionFalsa</c>
-    /// dice que sí a propósito: lo que corta aquí es la comprobación de <c>EsPlataforma</c>,
-    /// no la autoridad.
-    /// </summary>
-    [Fact]
-    public async Task No_se_puede_reactivar_una_delegacion_heredada_con_el_tenant_de_plataforma_como_cliente()
-    {
-        var plataforma = new Tenant("TALVEG");
-        plataforma.MarcarComoPlataforma();
-        var delegacion = new DelegacionTenant(Consultora, plataforma.Id);
-        delegacion.Desactivar();
-        var delegaciones = new DelegacionTenantRepositorioFalso();
-        delegaciones.Agregar(delegacion);
-        var tenants = new TenantsQueryContextFalso();
-        tenants.ListaTenants.Add(plataforma);
-        var unitOfWork = new UnitOfWorkFalso();
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants,
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue("TALVEG nunca es Tenant propietario de un Operador CAE externo (ADR-011 § 1)");
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
-        delegacion.Activa.Should().BeFalse();
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    /// <summary>
-    /// Hallazgo de Codex (P1) al integrar <c>origin/main</c> en el incremento 1b: el Tenant
-    /// propietario revoca al Operador CAE externo A y autoriza a B; reactivar A abría una
-    /// segunda operación completa y chocaba con el índice único como <c>DbUpdateException</c>
-    /// sin traducir. Debe rechazarse antes de escribir, igual que al autorizar.
-    /// </summary>
-    [Fact]
-    public async Task No_se_reactiva_un_operador_externo_si_el_propietario_ya_autorizo_a_otro()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-        delegacion.Desactivar();
-        var tenants = new TenantsQueryContextFalso();
-        tenants.ListaDelegacionesTenant.AddRange([delegacion, new DelegacionTenant(Guid.NewGuid(), ClienteDelegante)]);
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants,
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue("solo cabe un Operador CAE externo con la operación completa vigente");
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.OtroOperadorVigente");
-        delegacion.Activa.Should().BeFalse();
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    /// <summary>
-    /// El caso que motiva el cambio, y el que un doble booleano no distinguiría:
-    /// los dos usuarios tienen rol <c>Administrador</c>. Lo que los separa es de
-    /// qué tenant lo son.
-    /// </summary>
-    [Fact]
-    public async Task El_administrador_de_la_consultora_no_puede_deshacer_la_revocacion_del_cliente()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-        delegacion.Desactivar();
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Consultora),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue();
-        delegacion.Activa.Should().BeFalse("la parte que recibe el acceso no revierte la decisión de la que lo concede");
-        unitOfWork.VecesGuardado.Should().Be(0);
-    }
-
-    [Fact]
-    public async Task Un_administrador_de_otro_tenant_no_reactiva_nada()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-        delegacion.Desactivar();
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.EsFallido.Should().BeTrue("tener el rol correcto en el tenant equivocado no es tenerlo");
-        delegacion.Activa.Should().BeFalse();
-    }
-
-    [Fact]
-    public async Task Sin_usuario_identificado_no_se_reactiva_nada()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-        delegacion.Desactivar();
-
-        var handler = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, new AutorizacionDelegacionFalsa(autoriza: true),
-            new CurrentUserServiceFalso(usuarioId: null), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var resultado = await handler.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.SinUsuario");
-        delegacion.Activa.Should().BeFalse();
-    }
-
-    /// <summary>
-    /// La política anterior colgaba del <b>tenant de origen</b>. Este test fija
-    /// que ya no: la decisión sale de quién es el usuario y de qué tenant nombra
-    /// la delegación, y el workspace desde el que se pulse el botón no la mueve
-    /// ni en un sentido ni en el otro.
-    /// </summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public async Task El_workspace_activo_no_altera_la_decision_de_reactivar(bool autorizado)
-    {
-        var decisiones = new List<bool>();
-
-        foreach (var origen in new Guid?[] { Consultora, ClienteDelegante, Guid.NewGuid(), null })
-        {
-            var (delegacion, delegaciones, _, unitOfWork) = Preparar();
-            delegacion.Desactivar();
-
-            var handler = new ReactivarDelegacionTenantCommandHandler(
-                delegaciones,
-                AutorizacionDelegacionFalsa.AdministradorDe(autorizado ? ClienteDelegante : Consultora),
-                new CurrentUserServiceFalso(Usuario, tenantOrigenId: origen),
-                new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-            var resultado = await handler.Handle(
-                new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-            decisiones.Add(resultado.EsExitoso);
-        }
-
-        decisiones.Should().AllBeEquivalentTo(autorizado,
-            "el tenant de origen refleja el workspace desde el que se opera, no la autoridad de quien opera");
-    }
-
-    /// <summary>
-    /// Sin esto, la diferencia entre "ya estaba activa" y "no encontrada" le
-    /// contaría a un tercero si una delegación concreta está revocada ahora
-    /// mismo — sobre un catálogo global que además dice qué Consultora opera
-    /// sobre qué Cliente.
-    /// </summary>
-    [Fact]
-    public async Task La_autorizacion_de_reactivar_corre_antes_que_el_estado_de_la_delegacion()
-    {
-        var (delegacion, delegaciones, _, unitOfWork) = Preparar();   // nace activa
-
-        var ajeno = new ReactivarDelegacionTenantCommandHandler(
-            delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(Guid.NewGuid()),
-            new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
-            new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
-
-        var sinAutoridad = await ajeno.Handle(
-            new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        var conAutoridad = await new ReactivarDelegacionTenantCommandHandler(
-                delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
-                new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
-                new TenantsQueryContextFalso(),
-            new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
-            .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
-
-        // Misma delegación, mismo estado, dos respuestas — y la diferencia la
-        // causa la autoridad, no el estado. Es lo que prueba el orden.
-        sinAutoridad.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
-        conAutoridad.Error.Codigo.Should().Be("DelegacionTenant.YaActiva");
-    }
+    // ── ReactivarDelegacionTenant: desde 2026-10-26 la decide el Gestor CAE del Operador CAE
+    // externo, no el Administrador del Tenant propietario. Sus tests viven en
+    // RevocacionDelegacionTests, junto a los de revocar, porque la regla es la misma.
 
     /// <summary>
     /// Segundo acto excluido del Encargo de administración (decisión D-8, 2026-10-08): autorizar o
@@ -577,13 +355,13 @@ public class AutorizacionDeDelegacionTests
 
         delegacion.Desactivar();
         var reactivacion = await new ReactivarDelegacionTenantCommandHandler(
-                delegaciones, soloMiembroDelOperadorCae, quienAdministraPorEncargo,
+                delegaciones, quienAdministraPorEncargo,
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
                 new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
                 new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        reactivacion.EsFallido.Should().BeTrue("no deshace la retirada que decidió el Tenant propietario");
+        reactivacion.EsFallido.Should().BeTrue("el rol elevado por un encargo no hace Gestor CAE a nadie");
         delegacion.Activa.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }

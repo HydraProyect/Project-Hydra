@@ -68,7 +68,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     private readonly Guid _administrador = Guid.NewGuid();
     private readonly Guid _administradorAjeno = Guid.NewGuid();
-    private readonly Guid _administradorDelPropietario = Guid.NewGuid(); // del Tenant propietario: desactiva y reactiva la delegación
+    private readonly Guid _administradorDelPropietario = Guid.NewGuid(); // del Tenant propietario
     private readonly Guid _coordinador = Guid.NewGuid();
     private readonly Guid _otroCoordinador = Guid.NewGuid();
     private readonly Guid _coordinadorAjeno = Guid.NewGuid();
@@ -917,8 +917,8 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Quien reactiva es el Administrador del Tenant propietario, y RLS no le enseña el organigrama del
-    /// Operador CAE: de sus cuentas solo ve las que ya tienen un vínculo con su Tenant. Un Coordinador CAE
+    /// La reactivación corre con el Tenant propietario como Tenant activo, y desde ahí RLS no enseña el
+    /// organigrama del Operador CAE: de sus cuentas solo ve las que ya tienen un vínculo con ese Tenant. Un Coordinador CAE
     /// que nunca operó sobre él no se puede comprobar, así que no recibe la marca: la operación queda sin
     /// principal, que es el desenlace cerrado, y nunca pasa a un Gestor CAE de apoyo.
     /// </summary>
@@ -990,23 +990,29 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     // ── Arnés ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Como la ejecuta un Gestor CAE del Operador CAE externo desde su propia casa, que es el único que
+    /// puede revocar (decisión del 2026-10-26).
+    /// </summary>
     private Task<Result> DesactivarDelegacion() =>
-        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, _, sp) =>
+        EnArnes(_gestorSinCoordinador, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, sp) =>
             new DesactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
-                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>())
+                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>(),
+                    directorio, contexto)
                 .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
 
     /// <summary>
-    /// Como la ejecuta el Administrador del Tenant propietario, que es quien puede reactivar: su Tenant de
-    /// origen es el propietario, no el del Operador CAE cuyas cuentas y carteras toca la restauración.
+    /// Como la ejecuta un Gestor CAE del Operador CAE externo desde su propia casa, que es el único que
+    /// puede reactivar (decisión del 2026-10-26). El comando abre su transacción con el Tenant propietario
+    /// como Tenant activo, así que lo que ve de las cuentas del Operador CAE es lo que se ve desde ese Tenant.
     /// </summary>
     private Task<Result> ReactivarDelegacion(Pausa? pausa = null) =>
-        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, directorio, sp) =>
+        EnArnes(_gestorSinCoordinador, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, sp) =>
         {
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new ReactivarDelegacionTenantCommandHandler(
-                    new DelegacionTenantRepository(contexto), new AutorizaAlAdministradorDe(_beneficiario.Id), usuario,
+                    new DelegacionTenantRepository(contexto), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
                     new TransaccionDeComando(contexto), pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
                     directorio, directorio, new BloqueoCarteraUsuario(contexto), sp.GetRequiredService<ITenantActual>())
@@ -1023,13 +1029,6 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             .Select(o => o.Id).SingleAsync();
     }
 
-    /// <summary>La autoridad para reactivar no es lo que se mide aquí (lo hace <c>AutorizacionDeDelegacionTests</c>).</summary>
-    private sealed class AutorizaAlAdministradorDe(Guid tenant) : IAutorizacionDelegacionTenant
-    {
-        public Task<bool> PuedeGestionarDelegacionesAsync(
-            Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(tenantClienteDeleganteId == tenant);
-    }
 
     private async Task<List<Guid>> PrincipalesAsync(Guid operacionId)
     {

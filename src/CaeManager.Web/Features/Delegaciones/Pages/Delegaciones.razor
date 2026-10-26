@@ -294,11 +294,16 @@
                                 }
                                 else if (delegacion.Activa)
                                 {
-                                    <Boton Tamano="TamanoBoton.Pequeno"
-                                           Variante="VarianteBoton.Destructivo"
-                                           OnClick="() => { if (!EstaProcesando(delegacion.Id)) { PrepararEntidad(delegacion.Id); _delegacionARevocar = delegacion; } }">
-                                        Revocar acceso
-                                    </Boton>
+                                    @* Solo el Gestor CAE del Operador CAE externo revoca (decisión
+                                       del 2026-10-26): el botón se pinta solo a quien puede usarlo. *@
+                                    @if (PuedeRevocar(delegacion.Id))
+                                    {
+                                        <Boton Tamano="TamanoBoton.Pequeno"
+                                               Variante="VarianteBoton.Destructivo"
+                                               OnClick="() => { if (!EstaProcesando(delegacion.Id)) { PrepararEntidad(delegacion.Id); _delegacionARevocar = delegacion; } }">
+                                            Revocar acceso
+                                        </Boton>
+                                    }
                                 }
                                 else if (PuedeReactivar(delegacion.Id))
                                 {

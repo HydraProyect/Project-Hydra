@@ -5,6 +5,7 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 
@@ -20,8 +21,23 @@ namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 /// (hallazgo N-4 de Project-Hydra-Negocio/seguridad/INFORME-AUDITORIA-2.md), que es justo lo contrario de lo
 /// que promete el titular del ADR — un modelo de delegación reversible — y de
 /// lo que un responsable del tratamiento debe poder garantizar.
+///
+/// <para>
+/// Quién revoca la de un Operador CAE externo: solo su Gestor CAE
+/// (<see cref="GestorCaeDelOperadorCaeExterno"/>, decisión de producto del 2026-10-26). El
+/// Administrador del Tenant propietario no.
+/// </para>
 /// </summary>
 public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
+
+/// <summary>
+/// ¿Puede el usuario actual revocar este acceso ahora? Expone a la pantalla EXACTAMENTE la
+/// autoridad que <see cref="DesactivarDelegacionTenantCommand"/> exige, más que siga activo:
+/// el botón «Revocar acceso» se pinta solo a quien puede usarlo. Solo responde por las de
+/// Operador CAE externo; las de Soporte tienen su propio botón y su propio criterio.
+/// </summary>
+/// <param name="Id">La delegación (Asignación de Operación delegada) sobre la que se pregunta.</param>
+public record PuedeRevocarQuery(Guid Id) : IRequest<bool>;
 
 public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<DesactivarDelegacionTenantCommand>
 {
@@ -33,14 +49,30 @@ public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<Desa
 
 public class DesactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ICurrentUserService currentUserService,
-    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork, ITenantActual tenantActual)
-    : IRequestHandler<DesactivarDelegacionTenantCommand, Result>
+    IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork, ITenantActual tenantActual,
+    IDirectorioUsuariosService directorioUsuarios, ITenantsQueryContext tenantsContext)
+    : IRequestHandler<DesactivarDelegacionTenantCommand, Result>,
+      IRequestHandler<PuedeRevocarQuery, bool>
 {
+    public async Task<bool> Handle(PuedeRevocarQuery request, CancellationToken cancellationToken)
+    {
+        var acceso = await tenantsContext.DelegacionesTenant
+            .Where(d => d.Id == request.Id)
+            .Select(d => new { d.TenantConsultoraId, d.Proposito, d.Activa })
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return acceso is { Proposito: PropositoDelegacion.OperadorExterno, Activa: true }
+               && await GestorCaeDelOperadorCaeExterno.EsAsync(
+                   acceso.TenantConsultoraId, currentUserService, directorioUsuarios, cancellationToken);
+    }
+
     public async Task<Result> Handle(DesactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
         var delegacion = await repositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
 
-        if (delegacion is null || !await DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService))
+        // "No encontrada" y no "no autorizado": confirmar la existencia de la fila ya revelaría
+        // qué Operadores CAE externos operan sobre qué Tenants propietarios.
+        if (delegacion is null || !await PuedeRevocarAsync(delegacion, cancellationToken))
             return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación."));
 
         // Contexto desde el que se revoca: la casa de uno (el Tenant de origen, que
@@ -65,12 +97,11 @@ public class DesactivarDelegacionTenantCommandHandler(
 
         // La revocación escribe datos del Tenant propietario: cerrar su
         // Asignación de Operación y sus carteras. La política WITH CHECK de esa
-        // tabla exige que el Tenant activo sea el propietario, y el Operador CAE
-        // externo que renuncia desde su propia casa tiene activo el suyo. El
+        // tabla exige que el Tenant activo sea el propietario, y el Gestor CAE del
+        // Operador CAE externo que revoca desde su propia casa tiene activo el suyo. El
         // guardado se hace por eso en el ámbito del Tenant propietario, mismo
-        // mecanismo que CrearClienteDeleganteCommand. No amplía la autoridad: las
-        // dos partes ya podían revocar (ver DelegacionAdministrablePorElUsuarioAsync)
-        // y revocar solo reduce capacidad.
+        // mecanismo que CrearClienteDeleganteCommand. No amplía la autoridad, que
+        // ya se decidió arriba (PuedeRevocarAsync), y revocar solo reduce capacidad.
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
             // Solo las de Operador externo tienen operación que cerrar: las de
@@ -88,29 +119,36 @@ public class DesactivarDelegacionTenantCommandHandler(
     }
 
     /// <summary>
-    /// Ambas partes pueden revocar: la Consultora que presta el servicio y el
-    /// Cliente Delegante dueño de los datos. Cortar el acceso es la acción
-    /// protectora — dejarla solo en manos de quien recibe el acceso es
-    /// precisamente el defecto que se está cerrando.
+    /// La de un Operador CAE externo, solo su Gestor CAE
+    /// (<see cref="GestorCaeDelOperadorCaeExterno"/>). La de Soporte TALVEG (plano 3) conserva
+    /// su criterio anterior, las dos partes (<see cref="DelegacionAdministrablePorElUsuarioAsync"/>):
+    /// la decisión del 2026-10-26 habla del Operador CAE externo, y el acceso de Soporte se
+    /// cierra por su propio camino (<c>CerrarAccesoSoporteCommand</c>).
+    /// </summary>
+    private Task<bool> PuedeRevocarAsync(DelegacionTenant delegacion, CancellationToken cancellationToken) =>
+        delegacion.Proposito == PropositoDelegacion.OperadorExterno
+            ? GestorCaeDelOperadorCaeExterno.EsAsync(
+                delegacion.TenantConsultoraId, currentUserService, directorioUsuarios, cancellationToken)
+            : DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService);
+
+    /// <summary>
+    /// Las dos partes: el Tenant de origen del usuario es el que presta el servicio o el
+    /// dueño de los datos, sin mirar rol. <b>Ya no decide la revocación ni la reactivación de
+    /// la Asignación de Operación de un Operador CAE externo</b>: esa es solo de su Gestor CAE
+    /// (<see cref="GestorCaeDelOperadorCaeExterno"/>, decisión del 2026-10-26). Queda para lo
+    /// que la decisión no cubre: revocar una de Soporte (ver <see cref="PuedeRevocarAsync"/>) y
+    /// retirar a una persona concreta sin cortar el acceso entero
+    /// (<c>RevocarAsignacionOperadorDelegadoCommand</c>).
     ///
     /// <para>
-    /// <b>Esta política vale para revocar y solo para revocar.</b> Las
-    /// operaciones que crean o restauran autoridad —crear la delegación,
-    /// asignar un operador, reactivar— exigen ser <c>Administrador</c> del
-    /// Cliente Delegante (<see cref="IAutorizacionDelegacionTenant"/>,
-    /// ADR-004 § 12.2). La simetría revocar/reactivar es falsa desde
-    /// seguridad: una reduce capacidad y la otra la devuelve. La comparte
-    /// <c>RevocarAsignacionOperadorDelegadoCommand</c>, que también corta.
-    /// </para>
-    ///
     /// Se decide con el tenant de <b>origen</b>, nunca con
     /// <c>ITenantActual.TenantId</c>: ese refleja el Delegated Workspace
     /// activo, así que un Operador Delegado que estuviera operando como el
-    /// cliente pasaría por administrador de ese cliente y podría tocar
-    /// delegaciones de terceros sobre él. Administrar delegaciones se hace
-    /// desde la casa de uno (o desde el Tenant propietario): el Tenant activo no
-    /// concede autoridad, el comando solo lo usa después para rechazar el
+    /// cliente pasaría por parte de ese cliente y podría tocar
+    /// delegaciones de terceros sobre él. El Tenant activo no concede
+    /// autoridad; el comando solo lo usa después para rechazar el
     /// Workspace operativo derivado de un tercero.
+    /// </para>
     /// </summary>
     internal static async Task<bool> DelegacionAdministrablePorElUsuarioAsync(
         DelegacionTenant delegacion, ICurrentUserService currentUserService)
