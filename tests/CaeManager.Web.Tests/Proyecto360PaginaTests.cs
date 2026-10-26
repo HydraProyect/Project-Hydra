@@ -220,6 +220,27 @@ public partial class Proyecto360PaginaTests : BunitContext
 
     private readonly MediadorProyecto _mediador = new();
 
+    [Fact]
+    public async Task Cambiar_pestana_con_otra_escritura_pendiente_conserva_los_parametros()
+    {
+        var navigation = new NavegacionRetenida();
+        Services.AddSingleton<NavigationManager>(navigation);
+        var cut = Renderizar(AbiertoId, "?extra=conservar#detalle");
+        navigation.Retener = true;
+
+        await cut.InvokeAsync(() => CaeManager.Web.Components.NavigationManagerExtensions.ActualizarFiltroEnUrl(navigation, "hilo", "pendiente"));
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.Trim() == "Ficha").Click();
+
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navigation.Destinos[^1]).Query);
+        parametros["pestana"].ToString().Should().Be("ficha");
+        parametros["hilo"].ToString().Should().Be("pendiente");
+        parametros["extra"].ToString().Should().Be("conservar");
+        new Uri(navigation.Destinos[^1]).Fragment.Should().Be("#detalle");
+        navigation.Opciones[^1].ReplaceHistoryEntry.Should().BeTrue();
+        navigation.Opciones[^1].ForceLoad.Should().BeFalse();
+        navigation.Opciones[^1].HistoryEntryState.Should().BeNull();
+    }
+
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
     private IRenderedComponent<ProyectoDetalle> Renderizar(Guid proyectoId, string consulta = "")

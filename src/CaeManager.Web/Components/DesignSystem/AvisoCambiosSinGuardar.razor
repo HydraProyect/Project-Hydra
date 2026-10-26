@@ -191,6 +191,9 @@
 
         contexto.PreventNavigation();
         Preguntar(contexto, reanudarRecorrido: null, yaDescartaron: []);
+        // Si era una escritura en la URL sin marca (ctx, pestana), la siguiente escritura no compone sobre ella. Después
+        // de Preguntar, para que los avisos que se adhieren decidan con la cadena tal como la vio este.
+        CaeManager.Web.Components.NavigationManagerExtensions.DescartarEscrituraDetenida(Navegacion, contexto.TargetLocation);
         return Task.CompletedTask;
     }
 
@@ -265,9 +268,14 @@
         // eso: no es una salida. Uno dentro de una pestaña sí se desmonta, así que solo pasa
         // si esa navegación acompaña a un cambio que Pestanas ya confirmó; un enlace o
         // atrás/adelante hacia otra pestaña sigue preguntando.
+        //
+        // Las dos comparaciones parten de la URL de la que sale la navegación, no de Uri: con un filtro anterior aún sin
+        // confirmar, la escritura lo lleva compuesto (NavigationManagerExtensions) y contra Uri parecería parte del cambio.
+        var desde = Navegacion.ToAbsoluteUri(
+            CaeManager.Web.Components.NavigationManagerExtensions.UrlDeLaQueParte(Navegacion, contexto.TargetLocation));
+        var hacia = Navegacion.ToAbsoluteUri(contexto.TargetLocation);
         if ((Ambito is null || Ambito.EnAbandonoAutorizado)
-            && ContextWorkspace.EsSoloCambioDePestana(
-                Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
+            && ContextWorkspace.EsSoloCambioDePestana(desde, hacia))
             return false;
 
         // Un formulario de la ficha del Context Workspace no se desmonta porque la PÁGINA
@@ -275,8 +283,7 @@
         // no es una salida. Sin esto, cambiar de pestaña en una ficha 360 con el panel a
         // medio editar preguntaba sin motivo y «Seguir editando» dejaba la URL desincronizada.
         if (AmbitoFicha is not null
-            && ContextWorkspace.ConservaLaFichaAbierta(
-                Navegacion.ToAbsoluteUri(Navegacion.Uri), Navegacion.ToAbsoluteUri(contexto.TargetLocation)))
+            && ContextWorkspace.ConservaLaFichaAbierta(desde, hacia))
             return false;
 
         return HayCambios();

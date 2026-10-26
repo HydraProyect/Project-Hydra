@@ -17,7 +17,14 @@ internal sealed class NavegacionRetenida : NavigationManager
     /// <summary>Como en el SSR estático, <c>NavigateTo</c> lanza <see cref="NavigationException"/>.</summary>
     public bool Lanzar { get; set; }
 
+    /// <summary>
+    /// Como en Blazor Server, <c>NavigateTo</c> pasa antes por los manejadores de LocationChanging (los de
+    /// <c>AvisoCambiosSinGuardar</c>): si uno la detiene, no se pide ni se confirma. Los de los avisos responden sin esperar.
+    /// </summary>
+    public bool ConAvisos { get; set; }
+
     public List<string> Destinos { get; } = [];
+    public List<NavigationOptions> Opciones { get; } = [];
 
     protected override void SetNavigationLockState(bool value) { }
 
@@ -28,7 +35,15 @@ internal sealed class NavegacionRetenida : NavigationManager
     {
         var destino = ToAbsoluteUri(uri).AbsoluteUri;
         if (Lanzar) throw new NavigationException(destino);
+        if (ConAvisos)
+        {
+            var seguir = NotifyLocationChangingAsync(destino, options.HistoryEntryState, isNavigationIntercepted: false);
+            if (!seguir.IsCompleted)
+                throw new InvalidOperationException("NavegacionRetenida solo admite manejadores de LocationChanging síncronos.");
+            if (!seguir.Result) return;
+        }
         Destinos.Add(destino);
+        Opciones.Add(options);
         if (!Retener) Confirmar(destino);
     }
 
