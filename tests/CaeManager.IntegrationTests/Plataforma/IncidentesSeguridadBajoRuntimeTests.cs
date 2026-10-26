@@ -163,7 +163,7 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         await using var comando = conexion.CreateCommand();
         comando.CommandText = """
             SELECT c.relname, c.relrowsecurity, c.relforcerowsecurity,
-                   (SELECT string_agg(p.polname || ':' || p.polcmd, ',' ORDER BY p.polname) FROM pg_policy p WHERE p.polrelid = c.oid)
+                   (SELECT string_agg(p.polname::text || ':' || p.polcmd::text, ',' ORDER BY p.polname) FROM pg_policy p WHERE p.polrelid = c.oid)
             FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
             WHERE n.nspname = 'public' AND c.relname IN ('IncidentesSeguridadSospechados', 'TransicionesIncidenteSeguridad')
             """;
