@@ -188,7 +188,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var drawerVisita = page.GetByRole(AriaRole.Dialog, new() { Name = "Nueva visita", Exact = true });
         await Expect(drawerVisita).ToBeVisibleAsync();
         var selectCentro = drawerVisita.GetByLabel("Centro", new() { Exact = true });
-        var valorCentro = await selectCentro.GetByRole(AriaRole.Option, new() { Name = CentroB, Exact = true }).GetAttributeAsync("value");
+        var valorCentro = await selectCentro.GetByRole(AriaRole.Option, new() { Name = CentroB }).GetAttributeAsync("value");
         await selectCentro.SelectOptionAsync(new SelectOptionValue { Value = valorCentro! });
         await drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
         await drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
