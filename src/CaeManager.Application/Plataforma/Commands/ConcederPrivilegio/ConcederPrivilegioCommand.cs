@@ -95,7 +95,7 @@ public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPriv
         RuleFor(c => c.TenantObjetivoId).NotEmpty();
         RuleFor(c => c.Capacidad)
             .Must(ConcederPrivilegioCommand.CapacidadesConcedibles.Contains)
-            .WithMessage("Solo se conceden a otra persona el aprovisionamiento y el restablecimiento de la verificación en dos pasos.");
+            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos y la revocación del acceso de un Operador CAE externo.");
 
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
@@ -165,7 +165,7 @@ public class ConcederPrivilegioCommandHandler(
         // Tenant ni se ve (null). Se ata a CapacidadesQuePuedenAbrirSesion y no a
         // una capacidad concreta para que una capacidad concedible nueva que
         // abra sesión herede el control sin que nadie tenga que acordarse; hoy
-        // cubre Aprovisionamiento y RestablecimientoSegundoFactor. Para el
+        // cubre Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno. Para el
         // restablecimiento, la función de base lo vuelve a exigir al ejercerla.
         if (CapacidadesQuePuedenAbrirSesion.Admite(request.Capacidad))
         {
