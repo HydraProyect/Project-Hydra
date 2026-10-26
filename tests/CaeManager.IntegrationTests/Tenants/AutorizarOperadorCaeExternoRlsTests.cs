@@ -536,6 +536,12 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
         {
             var puede = await handler.Handle(new PuedeRevocarQuery(delegacionId), CancellationToken.None);
+            var lote = await new CaeManager.Application.Tenants.PermisosAccesosDelegadosQueryHandler(
+                    contexto, usuarioActual, Directorio(servicios, contexto, tenant, usuarioActual),
+                    new CatalogoIncorporacionCartera(contexto, usuarioActual))
+                .Handle(new CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery([delegacionId]), CancellationToken.None);
+            (lote.TryGetValue(delegacionId, out var permiso) && permiso.PuedeRevocar).Should().Be(puede,
+                "el lote y la consulta individual deben ver y autorizar igual bajo RLS runtime");
             var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacionId), CancellationToken.None);
             AmbitoTenantExplicito.TenantIdActual.Should().Be(workspaceActivo ?? usuario.TenantId, "el ámbito del propietario se restaura al salir");
             return (puede, resultado);
@@ -561,6 +567,11 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
         {
             var puede = await handler.Handle(new PuedeReactivarQuery(delegacionId), CancellationToken.None);
+            var lote = await new CaeManager.Application.Tenants.PermisosAccesosDelegadosQueryHandler(
+                    contexto, usuarioActual, directorio, new CatalogoIncorporacionCartera(contexto, usuarioActual))
+                .Handle(new CaeManager.Application.Tenants.PermisosAccesosDelegadosQuery([delegacionId]), CancellationToken.None);
+            (lote.TryGetValue(delegacionId, out var permiso) && permiso.PuedeReactivar).Should().Be(puede,
+                "el lote y la consulta individual deben ver y autorizar igual bajo RLS runtime");
             var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacionId), CancellationToken.None);
             AmbitoTenantExplicito.TenantIdActual.Should().Be(workspaceActivo ?? usuario.TenantId, "el ámbito del propietario se restaura al salir");
             return (puede, resultado);
