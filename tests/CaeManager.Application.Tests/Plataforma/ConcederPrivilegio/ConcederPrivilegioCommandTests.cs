@@ -15,7 +15,8 @@ public class ConcederPrivilegioCommandValidatorTests
     [Theory]
     [InlineData(CapacidadPrivilegio.Aprovisionamiento)]
     [InlineData(CapacidadPrivilegio.RestablecimientoSegundoFactor)]
-    public void Acepta_las_dos_capacidades_concedibles_a_un_tercero(CapacidadPrivilegio capacidad)
+    [InlineData(CapacidadPrivilegio.RevocacionOperadorCaeExterno)]
+    public void Acepta_las_capacidades_concedibles_a_un_tercero(CapacidadPrivilegio capacidad)
     {
         var validador = new ConcederPrivilegioCommandValidator();
 
