@@ -119,8 +119,18 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         // El título y el pie de la ventana no son botones, pero quien pulsa ahí está usando la
         // ventana: tampoco abren la vista rápida.
-        await lista.Locator(".ventana-contexto-titulo").ClickAsync();
-        await lista.Locator(".ventana-contexto-pie").ClickAsync();
+        //
+        // Los dos clics se despachan en vez de darse con el ratón, como en VisitasFilaSinMenuE2ETests:
+        // lo que aquí se mide es que el oyente de la fila descarta lo que nace dentro de la ventana, no
+        // que la ventana siga a la vista. Con el ratón real el título se pulsaba aún en la entrada del
+        // panel (@starting-style, --motion-base); Playwright lo daba por «not stable», reintentaba
+        // desplazando con alineación forzada y, con el scroll-behavior: smooth de base.css, el
+        // desplazamiento seguía animándose después del clic. El clic en el título deja el foco en el
+        // body, así que solo :hover sostenía la ventana: al alejarse del cursor se cerraba y el pie
+        // quedaba «not visible» hasta el tiempo límite (issue #1726). Despachado, el foco sigue en el
+        // disparador y :focus-within la mantiene abierta.
+        await lista.Locator(".ventana-contexto-titulo").DispatchEventAsync("click");
+        await lista.Locator(".ventana-contexto-pie").DispatchEventAsync("click");
         Assert.Equal(1, await PulsacionesDelNombreAsync(page));
         await Expect(lista).ToBeVisibleAsync();
         await Expect(panel).ToHaveCountAsync(0);
