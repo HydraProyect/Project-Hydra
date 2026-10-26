@@ -103,6 +103,68 @@ public class NavigationManagerExtensionsTests
         navigation.Destinos.Last().Should().Be(esperado + (esperado.Contains('?') ? "&" : "?") + "agrupar=empresa");
     }
 
+    /// <summary>
+    /// La escritura queda sin acuse (el navegador la cancela al atender el clic) y el usuario sale a otra página y
+    /// vuelve con «atrás» a la URL de partida, o pulsa el enlace del menú de la página en la que ya está: la página se
+    /// carga de nuevo sin el filtro, y la siguiente escritura no lo resucita.
+    /// </summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Volver_a_la_url_de_partida_con_una_escritura_sin_acuse_no_resucita_el_filtro(bool pasandoPorOtraPagina)
+    {
+        var navigation = new NavegacionRetenida { Retener = true };
+        navigation.ActualizarFiltroEnUrl("q", "fur");
+
+        if (pasandoPorOtraPagina)
+            navigation.Confirmar("http://localhost/centros");
+        navigation.Confirmar("http://localhost/vehiculos");
+        navigation.ActualizarFiltroEnUrl("orden", "modelo");
+
+        navigation.Destinos.Last().Should().Be("http://localhost/vehiculos?orden=modelo");
+    }
+
+    [Fact]
+    public void Teclear_y_borrar_cierra_la_cadena_con_el_acuse_del_ultimo_destino()
+    {
+        var navigation = new NavegacionRetenida { Retener = true };
+        navigation.ActualizarFiltroEnUrl("q", "x");
+        navigation.ActualizarFiltroEnUrl("q", null);
+        navigation.Destinos.Last().Should().Be("http://localhost/vehiculos");
+        navigation.Confirmar(navigation.Destinos[0]);
+        navigation.Confirmar(navigation.Destinos[1]);
+
+        // Un enlace que lleva justo a la URL intermedia es ajeno: se compone sobre ella, no sobre el último destino.
+        navigation.Confirmar("http://localhost/vehiculos?q=x");
+        navigation.ActualizarFiltroEnUrl("orden", "modelo");
+        navigation.Destinos.Last().Should().Be("http://localhost/vehiculos?q=x&orden=modelo");
+    }
+
+    [Fact]
+    public void Un_NavigateTo_que_lanza_abandona_la_cadena_y_propaga_la_excepcion()
+    {
+        var navigation = new NavegacionRetenida { Retener = true };
+        navigation.ActualizarFiltroEnUrl("q", "furgo");
+
+        navigation.Lanzar = true;
+        var escribir = () => navigation.ActualizarFiltroEnUrl("orden", "modelo");
+        escribir.Should().Throw<Microsoft.AspNetCore.Components.NavigationException>();
+
+        navigation.Lanzar = false;
+        navigation.ActualizarFiltroEnUrl("estado", "Vencido");
+        navigation.Destinos.Last().Should().Be("http://localhost/vehiculos?estado=Vencido");
+    }
+
+    [Fact]
+    public void Mas_escrituras_sin_acuse_que_el_tope_siguen_componiendose_sobre_el_ultimo_destino()
+    {
+        var navigation = new NavegacionRetenida { Retener = true };
+        for (var i = 0; i < 40; i++)
+            navigation.ActualizarFiltroEnUrl($"p{i}", i.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        Parametros(navigation.Destinos.Last()).Should().HaveCount(40).And.ContainKey("p0").And.ContainKey("p39");
+    }
+
     [Fact]
     public void Las_escrituras_pendientes_de_un_circuito_no_alcanzan_a_otro()
     {

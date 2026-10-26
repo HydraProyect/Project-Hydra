@@ -32,8 +32,18 @@ public static class NavigationManagerExtensions
         private string? _destino;
         private readonly HashSet<string> _destinosDeLaCadena = new(StringComparer.Ordinal);
 
-        public EscriturasPendientes(NavigationManager navigation) =>
+        // Última ubicación cuyo LocationChanged ha visto este manejador, y si la cadena empezó sobre una URL cuyo
+        // evento aún no había llegado aquí (la página escribió dentro de él, antes que este manejador).
+        private string _ultimaUbicacionVista;
+        private bool _esperaElEventoDelOrigen;
+
+        public EscriturasPendientes(NavigationManager navigation)
+        {
+            // Se crea en la primera escritura: si ocurre dentro de un LocationChanged, este manejador ya no recibe ese
+            // evento (la lista de suscriptores se fija al dispararlo), así que la ubicación actual cuenta como vista.
+            _ultimaUbicacionVista = navigation.Uri;
             navigation.LocationChanged += (_, args) => AlCambiarUbicacion(args.Location);
+        }
 
         /// <summary>
         /// URL sobre la que componer la siguiente escritura. Solo es el último destino solicitado si la URL actual
@@ -49,13 +59,16 @@ public static class NavigationManagerExtensions
 
             Reiniciar();
             _origen = actual;
+            _esperaElEventoDelOrigen = actual != _ultimaUbicacionVista;
             return actual;
         }
 
         public void Solicitar(string destino)
         {
+            // Con el tope solo se olvidan los acuses intermedios: el origen y el último destino siguen valiendo, y un
+            // acuse intermedio olvidado se tratará como navegación ajena (vuelta a componer sobre Uri).
             if (_destinosDeLaCadena.Count >= MaximoDestinosPorCadena)
-                Reiniciar();
+                _destinosDeLaCadena.Clear();
             _destino = destino;
             _destinosDeLaCadena.Add(destino);
         }
@@ -64,19 +77,34 @@ public static class NavigationManagerExtensions
         {
             _origen = null;
             _destino = null;
+            _esperaElEventoDelOrigen = false;
             _destinosDeLaCadena.Clear();
         }
 
         private void AlCambiarUbicacion(string ubicacion)
         {
-            // El evento de la URL de partida llega aquí tarde cuando la página escribió dentro de él (antes que este
-            // manejador): esa cadena acaba de empezar sobre esta misma URL, no hay nada que abandonar.
-            if (ubicacion == _origen)
-                return;
+            _ultimaUbicacionVista = ubicacion;
 
-            // Un acuse anterior no borra la composición más reciente. El del último destino la da por terminada, y
-            // una navegación ajena (incluidos «atrás» y «adelante») abandona las escrituras pendientes.
-            if (ubicacion == _destino || !_destinosDeLaCadena.Contains(ubicacion))
+            // El acuse del último destino da la cadena por terminada, aunque coincida con la URL de partida (teclear
+            // y borrar).
+            if (ubicacion == _destino)
+            {
+                Reiniciar();
+                return;
+            }
+
+            // El evento de la URL de partida que llega tarde porque la página escribió dentro de él: la cadena acaba
+            // de empezar sobre esa misma URL. Solo una vez: otra navegación a la misma URL (un enlace del menú a la
+            // página en la que ya se está) sí es ajena.
+            if (_esperaElEventoDelOrigen && ubicacion == _origen)
+            {
+                _esperaElEventoDelOrigen = false;
+                return;
+            }
+
+            // Un acuse intermedio no borra la composición más reciente; una navegación ajena (incluidos «atrás» y
+            // «adelante») abandona las escrituras pendientes.
+            if (!_destinosDeLaCadena.Contains(ubicacion))
                 Reiniciar();
         }
     }

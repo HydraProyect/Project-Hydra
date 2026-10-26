@@ -14,6 +14,9 @@ internal sealed class NavegacionRetenida : NavigationManager
 
     public bool Retener { get; set; }
 
+    /// <summary>Como en el SSR estático, <c>NavigateTo</c> lanza <see cref="NavigationException"/>.</summary>
+    public bool Lanzar { get; set; }
+
     public List<string> Destinos { get; } = [];
 
     protected override void SetNavigationLockState(bool value) { }
@@ -24,6 +27,7 @@ internal sealed class NavegacionRetenida : NavigationManager
     protected override void NavigateToCore(string uri, NavigationOptions options)
     {
         var destino = ToAbsoluteUri(uri).AbsoluteUri;
+        if (Lanzar) throw new NavigationException(destino);
         Destinos.Add(destino);
         if (!Retener) Confirmar(destino);
     }
