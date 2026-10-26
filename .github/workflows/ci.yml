@@ -560,7 +560,7 @@ jobs:
   extension-arneses:
     name: Arneses de la extensión de navegador
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 22
     permissions:
       contents: read
     steps:
@@ -669,9 +669,11 @@ jobs:
       # Reintento acotado: una caída puntual del registro npm, de apt o de la
       # CDN de Playwright no debe dejar en rojo una PR que no toca la extensión
       # (build-and-test exige este job). Solo Chromium, sin headless shell.
+      # 14 minutos: en la primera ejecución de la PR las dependencias de apt
+      # tardaron 7 porque el espejo de Azure servía las fuentes a ~60 kB/s.
       - name: Instalar Playwright de npm y Chromium
         working-directory: extension/pruebas
-        timeout-minutes: 8
+        timeout-minutes: 14
         run: |
           for intento in 1 2 3; do
             if npm ci --ignore-scripts --no-audit --no-fund \
