@@ -1615,8 +1615,20 @@ jobs:
           ConnectionStrings__CaeManagerDb="Host=localhost;Port=5432;Database=caemanager_carga;Username=postgres;Password=postgres" \
           DatosPrueba__Activo=true \
           nohup dotnet src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll > app.log 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:5000/salud > /dev/null; then exit 0; fi
+          app_pid=$!
+          # Arranques medidos (#1712): 33-45 s sanos; 68 s en fallos todavía
+          # sembrando DatosPrueba. 180 s deja margen y, si la app muere antes,
+          # el bucle corta en ese segundo y enseña el final de app.log.
+          for i in $(seq 1 180); do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              echo "La app terminó antes de responder /salud:"
+              tail -n 100 app.log
+              exit 1
+            fi
+            if curl -sf --max-time 5 http://127.0.0.1:5000/salud > /dev/null; then
+              echo "/salud respondió en el intento $i (~$i s)."
+              exit 0
+            fi
             sleep 1
           done
           echo "La app no respondió /salud a tiempo:"
