@@ -73,7 +73,8 @@ public partial class BotonCopiar : ComponentBase, IAsyncDisposable
 
     private async Task CopiarAsync()
     {
-        if (_modulo is null) return;
+        // Sin nada que copiar el botón sale deshabilitado; el clic de un botón al que le quitaron `disabled` en el DOM no copia (CWE-602).
+        if (_modulo is null || Deshabilitado) return;
 
         try
         {
