@@ -11,19 +11,41 @@ namespace CaeManager.Application.Tenants;
 /// la pantalla; no abre ningún ámbito ni concede nada: la autoridad la decide después
 /// <see cref="EquipoDelOperadorCaeExterno"/>.
 /// </summary>
+/// <param name="Id">El Id del acceso delegado.</param>
 /// <param name="OperadorTenantId">El Tenant del Operador CAE externo (legacy <c>TenantConsultoraId</c>).</param>
 /// <param name="TenantPropietarioId">El Tenant propietario de los datos (legacy <c>TenantClienteId</c>).</param>
 /// <param name="EsDeOperadorExterno">Si es la Asignación de Operación de un Operador CAE externo y no un acceso de Soporte TALVEG.</param>
 /// <param name="Activa">Si sigue vigente.</param>
+/// <param name="EsTenantPlataforma">Si el Tenant propietario es el Tenant de plataforma, leído en el
+/// Tenant activo y bajo RLS como en <c>PuedeReactivarAsync</c>, en la misma sentencia SQL que el acceso.</param>
 internal sealed record EstadoDeAccesoDelegado(
-    Guid OperadorTenantId, Guid TenantPropietarioId, bool EsDeOperadorExterno, bool Activa)
+    Guid Id, Guid OperadorTenantId, Guid TenantPropietarioId, bool EsDeOperadorExterno, bool Activa, bool EsTenantPlataforma)
 {
-    public static Task<EstadoDeAccesoDelegado?> LeerAsync(
+    internal static bool PermiteReactivar(bool esDeOperadorExterno, bool esTenantPlataforma) =>
+        esDeOperadorExterno && !esTenantPlataforma;
+
+    internal PermisosAccesoDelegadoDto Permisos(bool autorizado) => new(
+        autorizado && EsDeOperadorExterno && Activa,
+        autorizado && !Activa && PermiteReactivar(EsDeOperadorExterno, EsTenantPlataforma));
+
+    public static async Task<EstadoDeAccesoDelegado?> LeerAsync(
         ITenantsQueryContext tenantsContext, Guid id, CancellationToken cancellationToken) =>
+        (await LeerEnLoteAsync(tenantsContext, [id], cancellationToken)).SingleOrDefault();
+
+    internal static Task<List<EstadoDeAccesoDelegado>> LeerEnLoteAsync(
+        ITenantsQueryContext tenantsContext, Guid[] ids, CancellationToken cancellationToken) =>
         tenantsContext.DelegacionesTenant
-            .Where(d => d.Id == id)
-            .Select(d => new EstadoDeAccesoDelegado(
-                d.TenantConsultoraId, d.TenantClienteId,
-                d.Proposito == PropositoDelegacion.OperadorExterno, d.Activa))
-            .SingleOrDefaultAsync(cancellationToken);
+            .Where(d => ids.Contains(d.Id))
+            .Select(d => new
+            {
+                d.Id,
+                OperadorTenantId = d.TenantConsultoraId,
+                TenantPropietarioId = d.TenantClienteId,
+                EsDeOperadorExterno = d.Proposito == PropositoDelegacion.OperadorExterno,
+                d.Activa,
+            })
+            .Select(a => new EstadoDeAccesoDelegado(
+                a.Id, a.OperadorTenantId, a.TenantPropietarioId, a.EsDeOperadorExterno, a.Activa,
+                tenantsContext.Tenants.Any(t => t.Id == a.TenantPropietarioId && t.EsPlataforma)))
+            .ToListAsync(cancellationToken);
 }
