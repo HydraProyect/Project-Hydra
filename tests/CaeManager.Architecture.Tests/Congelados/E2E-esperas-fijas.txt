@@ -22,7 +22,6 @@ tests/CaeManager.E2ETests/FilaSeRefrescaTrasEditarEnPanelE2ETests.cs :: WaitForT
 tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs :: WaitForTimeoutAsync = 4
 tests/CaeManager.E2ETests/FlujoCriticoTests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportacionTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1

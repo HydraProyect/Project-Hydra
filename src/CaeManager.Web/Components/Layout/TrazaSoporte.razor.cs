@@ -37,6 +37,8 @@ public partial class TrazaSoporte : IAsyncDisposable
 
     private DotNetObjectReference<TrazaSoporte>? _referencia;
     private IJSObjectReference? _modulo;
+    private bool _capturaLista;
+    private int _interaccionesRegistradas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -82,6 +84,8 @@ public partial class TrazaSoporte : IAsyncDisposable
         _referencia = DotNetObjectReference.Create(this);
         _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/trazaSoporte.js");
         await _modulo.InvokeVoidAsync("iniciar", _referencia);
+        _capturaLista = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -96,6 +100,11 @@ public partial class TrazaSoporte : IAsyncDisposable
 
         foreach (var descripcion in descripciones)
             await RegistrarAsync(TipoActividadSoporte.Interaccion, descripcion);
+
+        // Solo confirmar el lote después de persistirlo: la recarga al cambiar de Tenant
+        // destruye este circuito y no debe adelantarse a las interacciones pendientes.
+        _interaccionesRegistradas += descripciones.Length;
+        await InvokeAsync(StateHasChanged);
     }
 
     private async void AlCambiarDeUbicacion(object? remitente, LocationChangedEventArgs argumentos)

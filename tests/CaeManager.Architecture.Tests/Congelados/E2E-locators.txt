@@ -49,7 +49,6 @@ tests/CaeManager.E2ETests/FlujoRetencionTests.cs :: FiltroPorTexto = 5
 tests/CaeManager.E2ETests/FlujoRetencionTests.cs :: GetByText = 10
 tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: FiltroPorTexto = 1
 tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: GetByText = 2
-tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: Posicional = 1
 tests/CaeManager.E2ETests/GestionesFase1TecladoTests.cs :: Posicional = 2
 tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: Posicional = 3
 tests/CaeManager.E2ETests/GestorCaeCarteraMultiTenantTests.cs :: FiltroPorTexto = 15
