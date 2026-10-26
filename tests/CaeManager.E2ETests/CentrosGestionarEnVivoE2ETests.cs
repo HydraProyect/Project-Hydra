@@ -68,10 +68,10 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // que evalúa la condición todavía no existe. Con "Condicional" este
         // centro no saldría en falta y el test dejaría de medir lo que mide.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
-        await page.GetByText("+ Nuevo tipo").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo tipo", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
         await drawer.GetByLabel("¿Se pide?").SelectOptionAsync("Si");
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         // Crear un tipo con «Sí, siempre» cambia lo que se pide en todos los
         // centros, así que la pantalla lo confirma antes de guardar.
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar y aplicar" }).ClickAsync();
@@ -83,21 +83,21 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         // Paso 1: "Identificación fiscal *": obligatoria, igual que en el paso 2.
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_602));
-        await page.GetByText("Guardar y continuar").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_601));
-        await page.GetByText("Guardar y continuar a Centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
         await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreCentro);
-        await page.GetByText("Guardar centro").ClickAsync();
-        await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar centro", Exact = true }).ClickAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Terminar aquí", Exact = true })).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // --- Paso 2: Trabajador de esa Empresa, todavía sin documento ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
 
         var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
         await page.WaitForTimeoutAsync(300);
@@ -109,7 +109,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 3: Asignar el Trabajador al Centro (queda Faltante) ---
@@ -143,7 +143,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
             if (!await casilla.IsCheckedAsync()) await casilla.CheckAsync();
             try
             {
-                await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro")
+                await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Asignar a un centro", Exact = true })
                     .ClickAsync(new LocatorClickOptions { Timeout = 3_000 });
                 break;
             }
@@ -156,7 +156,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // algún documento de los que se piden — exactamente el caso de este
         // test, que necesita esa Falta para poder demostrar luego cómo se
         // resuelve.
-        await page.Locator(".modal-pie").GetByText(new System.Text.RegularExpressions.Regex("^Asignar")).ClickAsync();
+        await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex("^Asignar") }).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 4: /centros — buscar, expandir el Centro y el Trabajador, fila del tipo Pendiente ---

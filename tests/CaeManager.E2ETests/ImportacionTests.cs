@@ -84,11 +84,11 @@ public class ImportacionTests(WebAppFixture fixture)
             // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1
             // (elegir plantilla), pero el input de archivo solo existe en el
             // paso 2 — hay que confirmar la plantilla primero.
-            await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar con Importación CAE completa", Exact = true }).ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             await Ayudas.EsperarPlanDeImportacionAsync(page);
-            await page.GetByText("Ver plan de importación").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Ver plan de importación", Exact = true }).ClickAsync();
 
             // --- Paso 3 "Revisar plan": el plan promete 4 altas, incluida la
             // Asignación (Importacion.razor.cs, ClavesPasos — el wizard
@@ -110,9 +110,9 @@ public class ImportacionTests(WebAppFixture fixture)
             await Expect(tablaPlan).ToContainTextAsync("Crear documento");
             await Expect(tablaPlan).ToContainTextAsync("Crear asignación");
 
-            await page.GetByText("Continuar a confirmar").ClickAsync();
-            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
-            await page.GetByText("Importar ahora").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar a confirmar", Exact = true }).ClickAsync();
+            await page.GetByLabel("He revisado el plan y quiero escribir estos datos", new() { Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Importar ahora", Exact = true }).ClickAsync();
             // «Importar ahora» abre el DialogoConfirmacion; escribe su botón.
             await page.GetByRole(AriaRole.Dialog)
                 .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
@@ -217,7 +217,7 @@ public class ImportacionTests(WebAppFixture fixture)
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/importacion");
 
             // Wizard de 5 pasos: "cae" ya viene preseleccionada en el paso 1.
-            await page.GetByText("Continuar con Importación CAE completa").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar con Importación CAE completa", Exact = true }).ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaArchivo);
 
             await Expect(page.Locator(".alerta-formulario")).ToContainTextAsync(
