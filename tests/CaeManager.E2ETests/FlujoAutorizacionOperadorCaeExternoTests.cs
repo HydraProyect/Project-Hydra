@@ -17,11 +17,12 @@ namespace CaeManager.E2ETests;
 /// </para>
 ///
 /// <para>
-/// Revocar ya no es suyo: «Solo el Gestor CAE del Operador CAE externo revoca y reactiva la
-/// Delegación» (decisión de producto del 2026-10-26), así que al Administrador del Tenant
-/// propietario no se le pinta «Revocar acceso». Que el Gestor CAE sí revoque se recorre en
-/// <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el Operador CAE externo recién creado no
-/// tiene ningún Gestor CAE con sesión.
+/// Revocar ya no es suyo: revocan y reactivan el Gestor CAE, el Coordinador CAE, la Dirección
+/// CAE y el Administrador del propio Operador CAE externo con alcance sobre el Tenant
+/// propietario (decisiones de producto del 2026-10-26), así que al Administrador del Tenant
+/// propietario no se le pinta «Revocar acceso». Que el Administrador del Operador CAE externo
+/// sí revoque y reactive se recorre en <c>FlujoAltaYRevocacionDelegacionTests</c>; aquí el
+/// Operador CAE externo recién creado no tiene ninguna cuenta con sesión.
 /// </para>
 /// </summary>
 [Collection("AppCollectionMultiTenant")]
@@ -93,7 +94,7 @@ public class FlujoAutorizacionOperadorCaeExternoTests(WebAppFixtureConSegundoTen
         await tarjetaVinculo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjetaVinculo).ToContainTextAsync("Activa");
 
-        // Autorizó el acceso, pero revocarlo es solo del Gestor CAE del Operador CAE externo.
+        // Autorizó el acceso, pero revocarlo es del equipo del Operador CAE externo, no suyo.
         await Expect(tarjetaVinculo.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }))
             .Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }

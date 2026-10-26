@@ -45,15 +45,14 @@ public static class RelevoDePrincipalDeCartera
     /// </para>
     ///
     /// <para>
-    /// Lo ejecuta el Administrador del Tenant propietario, dentro de su transacción: el ámbito de
-    /// Tenant explícito acota las consultas, pero RLS sigue siendo el de su sesión y de las cuentas
-    /// del Operador CAE solo le deja leer las que ya tienen un vínculo con su Tenant (fila de
-    /// operador delegado o cartera). El anterior principal siempre lo tiene; su Coordinador CAE
-    /// puede no tenerlo, y entonces no se le puede comprobar y no hay relevo. El escalado cuenta
-    /// con esa misma vista parcial, igual que al abrir una operación
-    /// (<see cref="IAsignacionAutomaticaDePrincipal.AlAbrirOperacionAsync"/>): si no ve a nadie, la
-    /// operación queda sin principal y en la alerta del Operador CAE, que la toma con «Asumir».
-    /// No se ensancha RLS para evitarlo.
+    /// Lo ejecuta el equipo del Operador CAE externo (decisiones del 2026-10-26,
+    /// <c>EquipoDelOperadorCaeExterno</c>), dentro de su transacción y con el Tenant propietario como
+    /// Tenant activo: el ámbito de Tenant explícito acota las consultas, pero RLS sigue siendo el de
+    /// su sesión, cuyo Tenant de origen es el del Operador CAE, y la política de cuentas le deja leer
+    /// las de su propia organización. Su Coordinador CAE y los perfiles del escalado se comprueban
+    /// aunque nunca hayan operado sobre ese Tenant. Si no hay relevo ni cuenta única en el escalado,
+    /// la operación queda sin principal y en la alerta del Operador CAE, que la toma con «Asumir».
+    /// No se ensancha RLS para nada de esto.
     /// </para>
     ///
     /// Devuelve <c>false</c> si un guardado perdió una carrera: el comando debe fallar para que la
