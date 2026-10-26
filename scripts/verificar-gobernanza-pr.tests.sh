@@ -175,6 +175,16 @@ echo "=== Regla 2: revisión Codex en el cuerpo (ficheros que no tocan roles-de-
 
 FICHEROS_NEUTROS="$(ficheros "src/Foo.cs")"
 
+# Líneas que toda sección de revisión válida lleva, además del veredicto
+# (endurecimiento del 2026-10-26): las pruebas de "pasa" las incluyen para
+# aislar la propiedad que cada una comprueba.
+REV_LINEA="Revisor: Codex"
+REF_LINEA="Refutación: intenté saltarme el filtro de tenant con un id de otro tenant"
+# Espacio de no separación (U+00A0) y "o" + acento combinante (U+0301, NFD), como bytes:
+# no dependen del locale del runner.
+NBSP=$'\xc2\xa0'
+NFD_O=$'o\xcc\x81'
+
 # #678 real: PR sin sección de revisión Codex -> falla.
 assert_codigo "sin sección de revisión Codex: falla" 1 \
   "$(cuerpo "## Resumen" "Cambio cualquiera.")" \
@@ -211,11 +221,11 @@ assert_codigo "marcador 'TODO': falla" 1 \
 # "todo" en minúsculas es español normal, no marcador — no debe dar falso
 # positivo. Tampoco "independiente" por contener "pendiente" como substring.
 assert_codigo "'todo' en minúsculas (español normal) no es un marcador" 0 \
-  "$(cuerpo "## Revisión Codex" "Codex revisó todo el diff, sin hallazgos.")" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Codex revisó todo el diff, sin hallazgos.")" \
   "$FICHEROS_NEUTROS" \
   ""
 assert_codigo "'independiente' no dispara el marcador 'pendiente'" 0 \
-  "$(cuerpo "## Revisión Codex" "El hallazgo es independiente del diseño actual; sin acción.")" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "El hallazgo es independiente del diseño actual; aceptados 0, rechazados 1.")" \
   "$FICHEROS_NEUTROS" \
   ""
 
@@ -226,22 +236,148 @@ assert_codigo "'independiente' no dispara el marcador 'pendiente'" 0 \
 # principio, no al final), dando un falso positivo sobre una sección ya
 # rellena de verdad.
 assert_codigo "'pendientes' dentro de una frase con contenido real no es un marcador" 0 \
-  "$(cuerpo "## Revisión Codex" "Sin hallazgos nuevos pendientes de esta pasada.")" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Sin hallazgos nuevos pendientes de esta pasada.")" \
   "$FICHEROS_NEUTROS" \
   ""
 
 # Sección presente y con contenido real: pasa, con hallazgos aceptados y
 # rechazados.
 assert_codigo "hallazgos aceptados y rechazados: pasa" 0 \
-  "$(cuerpo "## Revisión Codex" "" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Hallazgos: aceptados 1, rechazados 1" \
             "- Aceptado: falta validar el tenant objetivo en el comando." \
             "- Rechazado: el guardarraíl de RLS ya cubre ese camino (falso positivo).")" \
   "$FICHEROS_NEUTROS" \
   ""
 
-# "sin hallazgos" solo, también es una revisión completa.
-assert_codigo "'sin hallazgos' sola: pasa" 0 \
+# Endurecimiento del 2026-10-26: "sin hallazgos" a secas ya NO basta (antes
+# pasaba, decisión deliberada de entonces). Un veredicto vacío es la forma más
+# barata de cumplir la regla sin haber refutado nada; ahora exige además quién
+# revisó y qué se intentó romper.
+assert_codigo "'sin hallazgos' sola: falla" 1 \
   "$(cuerpo "## Revisión Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_menciona "...y el motivo cita al revisor" "Revisor" \
+  "$(cuerpo "## Revisión Codex" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "revisor, refutación y 'sin hallazgos': pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "recuento 'aceptados 2, rechazados 0': pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Hallazgos: aceptados 2, rechazados 0")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "revisor-puente, viñeta y 'Intentos de refutación': pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "- Revisor: revisor-puente" "- Intentos de refutación: ruta alternativa por el job" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'Refutacion' sin tilde: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "Refutacion: estado degradado sin tenant" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "Codex nombrado en prosa pero sin línea 'Revisor:': falla" 1 \
+  "$(cuerpo "## Revisión Codex" "Lo revisó Codex." "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'Revisor:' que no es revisor-puente ni Codex: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "Revisor: yo mismo" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "negar a Codex en la línea de revisor no cuenta: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "Revisor: no se usó Codex" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "sin línea de refutación: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_menciona "...y el motivo cita la refutación" "refutar" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'Refutación:' vacía: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "Refutación:" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'Refutación:' con solo un comentario HTML: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "Refutación: <!-- luego -->" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "sin veredicto contable: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Todo correcto.")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_menciona "...y el motivo cita el veredicto" "veredicto" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Todo correcto.")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "recuento sin números ('aceptados y rechazados'): falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Hay aceptados y rechazados.")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# --- Endurecimiento: formatos legítimos que deben pasar (revisión adversarial 2026-10-26)
+assert_codigo "negrita en revisor y refutación, con viñeta: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "- **Revisor:** Codex" "- **Refutación:** probé un id de otro tenant" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "negrita con los dos puntos fuera ('**Revisor**: Codex'): pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "**Revisor**: Codex" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "revisor entre comillas invertidas: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" 'Revisor: `Codex`' "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "cita (>) y lista numerada: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "> Revisor: Codex" "1. Refutación: ruta alternativa por el job" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "recuento con el orden invertido: pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Rechazados 1, aceptados 2")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "recuento con números intermedios (gravedad): pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Aceptados: 3 (1 grave), rechazados: 0")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "dos comentarios HTML en la línea de refutación: el texto de en medio cuenta" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "Refutación: <!-- a --> probé el bypass <!-- b -->" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'Refutación' en NFD (o + U+0301): pasa" 0 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "Refutaci${NFD_O}n: estado degradado sin tenant" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "fin de línea CRLF en todas las líneas: pasa" 0 \
+  "$(cuerpo "## Revisión Codex"$'\r' "$REV_LINEA"$'\r' "$REF_LINEA"$'\r' "sin hallazgos"$'\r')" \
+  "$FICHEROS_NEUTROS" \
+  ""
+
+# --- Endurecimiento: lo que debe seguir fallando
+assert_codigo "'Codexx' no es Codex: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "Revisor: Codexx" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "'revisor-puentex' no es revisor-puente: falla" 1 \
+  "$(cuerpo "## Revisión Codex" "Revisor: revisor-puentex" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "refutación en negrita pero vacía ('**Refutación:**'): falla" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "**Refutación:**" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+# NBSP: NO es espacio ASCII ni para grep ni (con la clase explícita) para el espejo
+# PowerShell. Si estos dos casos dejaran de coincidir entre bash y pwsh,
+# preflight-pr.tests.ps1 -ContraSh lo vería, porque tiene los mismos casos.
+assert_codigo "NBSP tras 'Revisor:': falla (no es espacio ASCII)" 1 \
+  "$(cuerpo "## Revisión Codex" "Revisor:${NBSP}Codex" "$REF_LINEA" "sin hallazgos")" \
+  "$FICHEROS_NEUTROS" \
+  ""
+assert_codigo "NBSP dentro de 'sin hallazgos': falla (no es espacio ASCII)" 1 \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "sin${NBSP}hallazgos")" \
   "$FICHEROS_NEUTROS" \
   ""
 
@@ -280,7 +416,7 @@ assert_codigo "sección con solo un comentario HTML: falla (no es contenido real
 # Con contenido real ADEMÁS del comentario, sí pasa — el comentario no debe
 # contaminar el contenido legítimo que lo acompaña.
 assert_codigo "comentario HTML junto a contenido real: pasa" 0 \
-  "$(cuerpo "## Revisión Codex" "<!-- nota interna -->sin hallazgos")" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "<!-- nota interna -->sin hallazgos")" \
   "$FICHEROS_NEUTROS" \
   ""
 
@@ -304,7 +440,7 @@ assert_codigo "marcador 'resultado-abajo' (con guion): falla" 1 \
 # español normal ("Todo el equipo revisó esto."), que es exactamente el
 # falso positivo que el marcador en mayúsculas evita a propósito.
 assert_codigo "'Todo' con solo la inicial en mayúscula no es un marcador" 0 \
-  "$(cuerpo "## Revisión Codex" "Todo el equipo revisó esto, sin hallazgos.")" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "Todo el equipo revisó esto, sin hallazgos.")" \
   "$FICHEROS_NEUTROS" \
   ""
 
@@ -314,18 +450,18 @@ echo "=== Variantes del título de la Regla 2 (defecto sin ficha, turno 2026-09-
 # Caso real: PR #688 tituló su sección "## Revisión de Codex" (con "de") y el
 # check dio rojo con la revisión ya hecha de verdad.
 assert_codigo "'## Revisión de Codex' (con 'de'): pasa" 0 \
-  "$(cuerpo "## Revisión de Codex" "sin hallazgos")" \
+  "$(cuerpo "## Revisión de Codex" "$REV_LINEA" "$REF_LINEA" "sin hallazgos")" \
   "$FICHEROS_NEUTROS" \
   ""
 
 # Variantes sin tilde en "Revisión", con y sin "de" — mismo espíritu que la
 # comparación "producci" para "producción"/"produccion" de la regla 1.
 assert_codigo "'## Revision Codex' (sin tilde): pasa" 0 \
-  "$(cuerpo "## Revision Codex" "sin hallazgos")" \
+  "$(cuerpo "## Revision Codex" "$REV_LINEA" "$REF_LINEA" "sin hallazgos")" \
   "$FICHEROS_NEUTROS" \
   ""
 assert_codigo "'## Revision de Codex' (sin tilde, con 'de'): pasa" 0 \
-  "$(cuerpo "## Revision de Codex" "sin hallazgos")" \
+  "$(cuerpo "## Revision de Codex" "$REV_LINEA" "$REF_LINEA" "sin hallazgos")" \
   "$FICHEROS_NEUTROS" \
   ""
 
@@ -375,7 +511,7 @@ assert_menciona "...y el contador de problemas es 2, no 1" "Problemas: 2" \
 
 # Las dos secciones completas: pasa.
 assert_codigo "las dos secciones completas: pasa" 0 \
-  "$(cuerpo "## Revisión Codex" "sin hallazgos" "" \
+  "$(cuerpo "## Revisión Codex" "$REV_LINEA" "$REF_LINEA" "sin hallazgos" "" \
             "## Paso operativo en servidores" \
             "GRANT en staging y producción antes del despliegue.")" \
   "$(ficheros "deploy/bootstrap/roles-de-cluster.sql" "src/Foo.cs")" \

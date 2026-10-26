@@ -21,6 +21,8 @@
     Gobernanza del cuerpo (-CuerpoPr <fichero>): reimplementa en PowerShell, sin llamar a bash, las reglas
     de scripts/verificar-gobernanza-pr.sh, que sigue siendo la AUTORIDAD (lo ejecuta el CI):
       - existe una seccion "## Revision Codex" (o una de las tres variantes que acepta el .sh) con contenido real;
+      - esa seccion lleva las lineas "Revisor:" (revisor-puente o Codex), "Refutacion:" con contenido y el veredicto
+        ("sin hallazgos" o "aceptados N, rechazados M"), como el .sh;
       - esa seccion no lleva marcadores provisionales: "resultado(s) abajo", la palabra "pendiente" (tambien el
         nombre de estado "Pendiente"; "pendientes" no cuenta) ni TODO/TODOs en mayusculas;
       - si el diff contra origin/main toca deploy/bootstrap/roles-de-cluster.sql, existe la seccion
@@ -162,8 +164,10 @@ function Invoke-GobernanzaCuerpoPr {
     }
     else {
         $seccion = Get-SeccionRevision $lineasCuerpo
+        # Sin comentarios HTML de una sola linea (SECCION_LIMPIA del .sh).
+        $limpia = ((@(Split-Lineas $seccion) | ForEach-Object { $_ -replace '<!--[^>]*-->', '' }) -join "`n")
         if (-not (Test-SeccionConContenido $seccion)) {
-            $lineas.Add("PROBLEMA  Falta la seccion '## Revision Codex' en el cuerpo (o esta vacia): al menos una linea de hallazgos aceptados o rechazados, o 'sin hallazgos'.")
+            $lineas.Add("PROBLEMA  Falta la seccion '## Revision Codex' en el cuerpo (o esta vacia): lineas 'Revisor:', 'Refutacion:' y el veredicto ('sin hallazgos' o 'aceptados N, rechazados M').")
             $problemas++
         }
         elseif (Test-LineaCoincide $seccion 'resultados?[ \t\r\f\v\-]+abajo' $false) {
@@ -178,8 +182,22 @@ function Invoke-GobernanzaCuerpoPr {
             $lineas.Add("PROBLEMA  La seccion 'Revision Codex' tiene el marcador provisional 'TODO'.")
             $problemas++
         }
+        # Espacio = clase ASCII explicita (como el [[:space:]] del .sh): `\s` de .NET casaria ademas con NBSP y
+        # compania, y el veredicto divergiria del .sh. Mismos patrones que el .sh, sin tildes en la prosa.
+        elseif (-not (Test-LineaCoincide $limpia '^[ \t\r\f\v>*_0-9.-]*Revisor[*_]*[ \t\r\f\v]*:[*_]*[ \t\r\f\v]*[`*_]*(revisor-puente|codex)([ \t\r\f\v:;,.()*_`]|$)' $false)) {
+            $lineas.Add("PROBLEMA  La seccion 'Revision Codex' no nombra al revisor: falta una linea 'Revisor: revisor-puente' o 'Revisor: Codex'.")
+            $problemas++
+        }
+        elseif (-not (Test-LineaCoincide $limpia '^[ \t\r\f\v>*_0-9.-]*(intentos[ \t\r\f\v]+de[ \t\r\f\v]+)?refutaci[^: \t\r\f\v]{1,3}n[*_]*[ \t\r\f\v]*:[*_]*[ \t\r\f\v]*[^ \t\r\f\v*_]' $false)) {
+            $lineas.Add("PROBLEMA  La seccion 'Revision Codex' no dice que se intento refutar: falta una linea 'Refutacion: <que se intento romper>' con contenido.")
+            $problemas++
+        }
+        elseif (-not (Test-LineaCoincide $limpia 'sin[ \t\r\f\v]+hallazgos|aceptad[oa]s?[^0-9]*[0-9]+.*rechazad[oa]s?[^0-9]*[0-9]+|rechazad[oa]s?[^0-9]*[0-9]+.*aceptad[oa]s?[^0-9]*[0-9]+' $false)) {
+            $lineas.Add("PROBLEMA  La seccion 'Revision Codex' no da el veredicto contable: falta 'sin hallazgos' o 'aceptados N, rechazados M' (con numeros, en una sola linea).")
+            $problemas++
+        }
         else {
-            $lineas.Add("OK        Seccion 'Revision Codex' presente, con contenido y sin marcadores provisionales.")
+            $lineas.Add("OK        Seccion 'Revision Codex' presente, con revisor, refutacion y veredicto, y sin marcadores provisionales.")
         }
     }
 
