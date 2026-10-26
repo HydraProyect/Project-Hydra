@@ -58,6 +58,17 @@ public partial class ImportarClientesGen2Tests
     }
 
     [Fact]
+    public async Task ContinuarAConfirmar_forzado_en_la_revision_sin_plan_no_avanza()
+    {
+        var cut = await LlegarAlPasoAsync(3);
+        typeof(PaginaImportacion).GetField("_planSimple", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cut.Instance, null);
+
+        InvocarSinResultado(cut.Instance, "ContinuarAConfirmar");
+
+        Campo<int>(cut.Instance, "_step").Should().Be(3, "sin plan analizado no hay nada que confirmar, aunque el paso de origen sea el correcto");
+    }
+
+    [Fact]
     public async Task ContinuarAConfirmar_forzado_desde_el_paso_del_archivo_aunque_haya_plan_no_se_salta_la_revision()
     {
         var escenario = new Escenario();

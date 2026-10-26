@@ -35,8 +35,8 @@ public class BotonesDelKitReafirmanElDeshabilitadoEnElServidorTests
     private static readonly Regex AtributoDisabled = new(@"\sdisabled=""@\(?([^""]*?)\)?""", RegexOptions.Compiled);
     private static readonly Regex ManejadorMetodo = new(@"@onclick=""@?([A-Za-z_]\w*)""", RegexOptions.Compiled);
     private static readonly Regex Identificador = new(@"\b[A-Za-z_]\w*\b", RegexOptions.Compiled);
-    private static readonly Regex ParametroBoolDeshabilitado = new(@"\[Parameter\][^\n]*\bbool\s+(\w*(?:Deshabilitad|Habilitad)\w*)", RegexOptions.Compiled);
-    private static readonly Regex ParametroEventCallback = new(@"\[Parameter\][^\n]*\bEventCallback(?:<[^>\n]+>)?\s+(\w+)", RegexOptions.Compiled);
+    private static readonly Regex ParametroBoolDeshabilitado = new(@"\[Parameter[^\]\n]*\][^\n]*\bbool\s+(\w*(?:Deshabilitad|Habilitad)\w*)", RegexOptions.Compiled);
+    private static readonly Regex ParametroEventCallback = new(@"\[Parameter[^\]\n]*\][^\n]*\bEventCallback(?:<[^>\n]+>)?\s+(\w+)", RegexOptions.Compiled);
 
     private static IEnumerable<(string Nombre, string Razor, string Codigo)> Componentes()
     {
