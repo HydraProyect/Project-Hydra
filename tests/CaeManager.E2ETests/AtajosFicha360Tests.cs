@@ -105,13 +105,13 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new() { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(empresa);
-        // «(opcional)» en la etiqueta, pero CrearEmpresaCommand exige la identificación fiscal (como en AltaGuiadaTests).
-        await page.GetByLabel("Identificación fiscal (opcional)", new() { Exact = true })
+        // La identificación fiscal es obligatoria (etiqueta con asterisco), como en AltaGuiadaTests.
+        await page.GetByLabel("Identificación fiscal *", new() { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif));
         await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(clienteEmpresarial);
-        await page.GetByLabel("Identificación fiscal", new() { Exact = true })
+        await page.GetByLabel("Identificación fiscal *", new() { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif + 1));
         await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "3. Centro" }).WaitForAsync();
@@ -125,7 +125,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
         await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(subcontrata);
-        await drawer.GetByLabel("Identificación fiscal", new() { Exact = true })
+        await drawer.GetByLabel("Identificación fiscal *", new() { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif + 2));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", clienteEmpresarial);
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();

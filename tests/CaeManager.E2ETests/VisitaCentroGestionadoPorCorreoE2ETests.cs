@@ -53,12 +53,12 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
-        await page.GetByLabel("Identificación fiscal (opcional)", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_702));
+        await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_702));
         await page.GetByText("Guardar y continuar").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
-        await page.GetByLabel("Identificación fiscal", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_701));
+        await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_701));
         await page.GetByText("Guardar y continuar a Centro").ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();

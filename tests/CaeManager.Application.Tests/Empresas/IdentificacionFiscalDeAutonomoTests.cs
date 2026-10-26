@@ -38,6 +38,24 @@ public class IdentificacionFiscalDeAutonomoTests
     public static TheoryData<string> IdentificacionesRechazadas() =>
         new() { DniConControlIncorrecto, SoporteTie, "123456789", "B12345670" };
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Todos_los_comandos_de_identidad_exigen_identificacion_fiscal(string? cif)
+    {
+        ValidationResult[] resultados = [
+            new CrearEmpresaCommandValidator().Validate(new CrearEmpresaCommand("Empresa de prueba", cif, [])),
+            new EditarEmpresaCommandValidator().Validate(new EditarEmpresaCommand(Id, "Empresa de prueba", cif, [])),
+            new CrearClienteCommandValidator().Validate(new CrearClienteCommand("Empresa de prueba", cif!, false, null)),
+            new EditarClienteCommandValidator().Validate(new EditarClienteCommand(Id, "Empresa de prueba", cif!, false, null)),
+            new CrearSubcontrataCommandValidator().Validate(new CrearSubcontrataCommand("Empresa de prueba", cif, [], [])),
+            new EditarSubcontrataCommandValidator().Validate(new EditarSubcontrataCommand(Id, "Empresa de prueba", cif, [], []))];
+        foreach (var resultado in resultados)
+            resultado.Errors.Should().Contain(e => e.PropertyName == "Cif"
+                && e.ErrorMessage == "La identificaci\u00f3n fiscal es obligatoria.");
+    }
+
     // --- Alta y edición de Empresa -------------------------------------
 
     [Theory]
@@ -80,12 +98,13 @@ public class IdentificacionFiscalDeAutonomoTests
     }
 
     [Fact]
-    public void EditarEmpresa_sigue_admitiendo_una_empresa_sin_identificacion_fiscal()
+    public void EditarEmpresa_exige_identificacion_fiscal()
     {
         var resultado = new EditarEmpresaCommandValidator()
             .Validate(new EditarEmpresaCommand(Id, "Limpiezas del Norte S.L.", null, []));
 
-        resultado.IsValid.Should().BeTrue("hay Empresas legacy sin ella y editar otro campo no debe forzar su relleno");
+        resultado.Errors.Should().Contain(e => e.PropertyName == "Cif"
+            && e.ErrorMessage == "La identificación fiscal es obligatoria.");
     }
 
     // --- Alta y edición de Cliente empresarial --------------------------

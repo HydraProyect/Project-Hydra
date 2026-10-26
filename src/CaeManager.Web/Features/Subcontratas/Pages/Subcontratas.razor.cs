@@ -765,7 +765,9 @@ public partial class Subcontratas : CaeManager.Web.Components.PaginaInteractiva,
             var empresaIds = _empresaIdsSeleccionados.ToList();
             var cif = string.IsNullOrWhiteSpace(_cif) ? null : _cif;
 
-            var resultado = await Mediator.Send(new CrearSubcontrataCommand(_razonSocial, cif, clienteIds, empresaIds));
+            var comando = new CrearSubcontrataCommand(_razonSocial, cif, clienteIds, empresaIds);
+            new CrearSubcontrataCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;

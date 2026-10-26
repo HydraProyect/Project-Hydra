@@ -319,7 +319,7 @@
                  HayErroresDeCampo="@(_erroresCampo.Count > 0)" OnGuardar="GuardarAsync"
                  TextoGuardar="@Textos["BotonGuardar"]" TextoCancelar="@Textos["BotonCancelar"]">
     <CampoTexto Etiqueta="@Textos["RotuloRazonSocial"]" Valor="@_razonSocial" ValorChanged="v => _razonSocial = v" OnBlur="ValidarRazonSocialAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.RazonSocial))" />
-    <CampoTexto Etiqueta="@Textos["RotuloIdentificacionFiscal"]" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
+    <CampoTexto aria-required="true" Etiqueta="@(Textos["RotuloIdentificacionFiscal"] + " *")" Placeholder="@Textos["PlaceholderIdentificacionFiscal"]" Valor="@_cif" ValorChanged="v => _cif = v" OnBlur="ValidarCifAsync" MensajeError="@ObtenerError(nameof(CrearSubcontrataCommand.Cif))" />
 
     <SelectorMultiple Etiqueta="@Textos["EtiquetaClientesQueLaContrataron"]"
                        Elementos="@_clientesDisponiblesSelector"

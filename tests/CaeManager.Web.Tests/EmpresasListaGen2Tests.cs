@@ -1027,6 +1027,9 @@ public partial class EmpresasListaGen2Tests : BunitContext
         var cut = Renderizar(mediador);
 
         await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nueva empresa").ClickAsync(new MouseEventArgs());
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Raz\u00f3n social").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Identificaci\u00f3n fiscal *").Instance.ValorChanged.InvokeAsync("B10380186"));
+
         var primero = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
         var segundo = cut.FindAll(".drawer-pie button.boton-espera-boton").Single() /* mientras guarda, su texto es «Guardando…» */.ClickAsync(new MouseEventArgs());
 

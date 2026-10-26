@@ -99,7 +99,9 @@ public partial class FormularioRapidoEmpresa : ComponentBase
                 ? Array.Empty<Guid>()
                 : [ClienteIdParaVincular.Value];
 
-            var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds));
+            var comando = new CrearEmpresaCommand(_razonSocial, cif, clienteIds);
+            new CrearEmpresaCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             if (resultado.EsFallido)
             {
                 _mensajeError = resultado.Error.Mensaje;

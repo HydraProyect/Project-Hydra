@@ -162,7 +162,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorIdentidad</div>
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialEditada" ValorChanged="v => _razonSocialEditada = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
+                    <CampoTexto aria-required="true" Etiqueta="Identificación fiscal *" Placeholder="CIF, DNI o NIE" Valor="@_cifEditado" ValorChanged="v => _cifEditado = v" MensajeError="@ObtenerErrorIdentidad(nameof(EditarClienteCommand.Cif))" />
                     <label class="campo-checkbox">
                         <input type="checkbox" @bind="_esCriticoEditado" /> Cliente crítico
                     </label>
@@ -816,8 +816,10 @@ else
 
         try
         {
-            var resultado = await Mediator.Send(new EditarClienteCommand(
-                detalle.Id, _razonSocialEditada, _cifEditado, _esCriticoEditado, detalle.Notas, detalle.Version));
+            var comando = new EditarClienteCommand(
+                detalle.Id, _razonSocialEditada, _cifEditado, _esCriticoEditado, detalle.Notas, detalle.Version);
+            new EditarClienteCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
             // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
             if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Cliente, detalle.Id);

@@ -899,7 +899,9 @@ public partial class Empresas : CaeManager.Web.Components.PaginaInteractiva, IDi
             var cnae = string.IsNullOrWhiteSpace(_cnae) ? null : _cnae;
             var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicable) ? null : _convenioAplicable;
 
-            var resultado = await Mediator.Send(new CrearEmpresaCommand(_razonSocial, cif, clienteIds, cnae, convenioAplicable, _esActividadAnexoI));
+            var comando = new CrearEmpresaCommand(_razonSocial, cif, clienteIds, cnae, convenioAplicable, _esActividadAnexoI);
+            new CrearEmpresaCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;

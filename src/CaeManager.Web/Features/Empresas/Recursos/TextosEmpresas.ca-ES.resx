@@ -163,6 +163,9 @@
   <data name="DatoIdentificacionFiscal" xml:space="preserve">
     <value>Identificació fiscal</value>
   </data>
+  <data name="RotuloIdentificacionFiscalObligatoria" xml:space="preserve">
+    <value>Identificació fiscal *</value>
+  </data>
   <data name="SelloApoyo" xml:space="preserve">
     <value>El segell de l'empresa s'estampa en les signatures en camp dels seus documents. Puja una foto nítida sobre fons clar.</value>
   </data>

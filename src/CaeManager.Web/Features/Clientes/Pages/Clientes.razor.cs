@@ -1108,7 +1108,9 @@ public partial class Clientes : CaeManager.Web.Components.PaginaInteractiva, IDi
         try
         {
             var notas = string.IsNullOrWhiteSpace(_notas) ? null : _notas;
-            var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas));
+            var comando = new CrearClienteCommand(_razonSocial, _cif, _esCritico, notas);
+            new CrearClienteCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             if (resultado.EsFallido)
             {
                 _mensajeErrorFormulario = resultado.Error.Mensaje;

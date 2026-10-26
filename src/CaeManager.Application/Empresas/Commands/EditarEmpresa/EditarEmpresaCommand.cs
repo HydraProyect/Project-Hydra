@@ -31,10 +31,8 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
-        // A diferencia del alta (CrearEmpresaCommand), aquí la identificación
-        // fiscal sigue siendo opcional: hay Empresas legacy sin ella (ver
-        // Empresa.Cif) y editar otro campo no debe forzar retroactivamente su
-        // relleno.
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("La identificación fiscal es obligatoria.");
+
         RuleFor(c => c.Cif)
             .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
             .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)

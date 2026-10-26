@@ -44,15 +44,23 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
     /// </summary>
     private sealed class MediatorPorTipo : IMediator
     {
+        public int Escrituras { get; private set; }
+
         public required IReadOnlyList<EmpresaSelectorDto> Catalogo { get; init; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            Task.FromResult((TResponse)(object)(request switch
+            Registrar(request, (TResponse)(object)(request switch
             {
                 ObtenerEmpresasParaSelectorQuery => Catalogo,
                 ObtenerClientesParaSelectorQuery => (object)(IReadOnlyList<ClienteSelectorDto>)[],
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             }));
+
+        private Task<T> Registrar<T>(object request, T respuesta)
+        {
+            if (request.GetType().Name.EndsWith("Command", StringComparison.Ordinal)) Escrituras++;
+            return Task.FromResult(respuesta);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -92,6 +100,20 @@ public class AltaGuiadaCatalogoEmpresasVacioTests : BunitContext
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("1. Empresa"));
         cut.Find("input[type=checkbox]").Change(true);
         return cut;
+    }
+
+    [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var cut = RenderizarEnPaso1ConCatalogo();
+        cut.Find("input[type=checkbox]").Change(false);
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().First().Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Placeholder == "CIF, DNI o NIE");
+        await cut.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await cut.FindAll("button").Single(b => b.TextContent.Contains("Guardar y continuar")).ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        ((MediatorPorTipo)Services.GetRequiredService<IMediator>()).Escrituras.Should().Be(0);
     }
 
     [Fact]

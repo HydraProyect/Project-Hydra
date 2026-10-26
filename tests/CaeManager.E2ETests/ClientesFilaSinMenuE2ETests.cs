@@ -35,7 +35,7 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var drawer = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Nuevo Cliente", Exact = true });
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
-        await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
+        await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(semillaCif));
         await drawer.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });

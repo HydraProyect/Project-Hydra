@@ -127,11 +127,11 @@ public partial class Cliente360Gen2Tests : BunitContext
     private static ClienteDetalleDto Detalle(
         Guid id, string razonSocial, bool esCritico = false, string? notas = null,
         Guid? gestorCae = null, Guid? version = null) => new(
-        id, razonSocial, "A-48.220.917", esCritico, notas,
+        id, razonSocial, "B10380186", esCritico, notas,
         new DateTime(2019, 3, 4, 0, 0, 0, DateTimeKind.Utc), gestorCae, version ?? Guid.NewGuid());
 
     private static ResumenClienteDto Resumen(Guid id, int centros, int trabajadores) => new(
-        id, "Refrielectric S.A.", "A-48.220.917", false,
+        id, "Refrielectric S.A.", "B10380186", false,
         new DateTime(2019, 3, 4, 0, 0, 0, DateTimeKind.Utc), null, centros, trabajadores);
 
     private IRenderedComponent<ClienteWorkspacePanel> Renderizar(
@@ -169,6 +169,21 @@ public partial class Cliente360Gen2Tests : BunitContext
     private Task InvokeAsync(Action accion) => Renderer.Dispatcher.InvokeAsync(accion);
 
     // ─────────── Cabecera ───────────
+
+    [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediatorFalso());
+        m.Detalles[id] = Detalle(id, "Empresa de prueba");
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.AtributosAdicionales?.ContainsKey("aria-required") == true);
+        await cut.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        m.Enviadas.OfType<EditarClienteCommand>().Should().BeEmpty();
+    }
 
     [Fact]
     public void La_cabecera_dice_que_es_un_Cliente_empresarial_y_cuantos_centros_y_trabajadores_tiene()
@@ -308,7 +323,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         var cut = Renderizar(id);
 
         Celda(cut, "Razón social").Should().Be("Refrielectric S.A.");
-        Celda(cut, "Identificación fiscal").Should().Be("A-48.220.917");
+        Celda(cut, "Identificación fiscal").Should().Be("B10380186");
         Celda(cut, "Crítico").Should().Be("Sí");
         Celda(cut, "Alta").Should().Be("04/03/2019");
 
@@ -382,7 +397,7 @@ public partial class Cliente360Gen2Tests : BunitContext
         var comando = mediador.Enviadas.OfType<EditarClienteCommand>().Should().ContainSingle().Subject;
         comando.Notas.Should().Be("El acceso al Centro Norte exige formación de altura.");
         comando.RazonSocial.Should().Be("Refrielectric S.A.", "no hay comando de nota: guardar la nota no puede pisar la identidad");
-        comando.Cif.Should().Be("A-48.220.917");
+        comando.Cif.Should().Be("B10380186");
         comando.EsCritico.Should().BeTrue();
         comando.Version.Should().Be(version);
         Services.GetRequiredService<ToastService>().Mensajes.Should()
