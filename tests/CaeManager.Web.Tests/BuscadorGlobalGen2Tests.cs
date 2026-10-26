@@ -547,6 +547,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [];
         public int? VencenEstaSemana { get; set; }
         public Exception? FalloDeBusqueda { get; set; }
+        public CaeManager.Domain.Common.Result ResultadoDeRegistro { get; set; } = CaeManager.Domain.Common.Result.Exito();
 
         public TaskCompletionSource<object> Retener(Func<object, bool> criterio)
         {
@@ -576,6 +577,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 BuscarGlobalQuery => Resultado,
                 ContarVencenEstaSemanaDeEmpresaQuery => VencenEstaSemana,
+                RegistrarUsoRecienteCommand => ResultadoDeRegistro,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             })!;
         }
@@ -1385,6 +1387,27 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         mediador.TokensRecibidos.Should().OnlyContain(t => t.CanBeCanceled,
             "un CancellationToken.None significa que esa llamada no se cancela nunca, ni siquiera al destruirse el componente");
+    }
+
+    [Fact]
+    public async Task El_rechazo_del_registro_no_impide_volver_a_usar_el_buscador()
+    {
+        var mediador = new MediadorControlado
+        {
+            Resultado = UnClienteEmpresarial,
+            ResultadoDeRegistro = CaeManager.Domain.Common.Result.Fallo(
+                CaeManager.Domain.Common.Error.Crear("Reciente.UrlDestinoInvalida", "El destino debe ser una ruta local segura."))
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+        await Input(cut).TeclaAsync("Enter");
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+        await Input(cut).EscribirAsync("refri");
+        await Input(cut).TeclaAsync("Enter");
+
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().HaveCount(2);
     }
 
     /// <summary>
