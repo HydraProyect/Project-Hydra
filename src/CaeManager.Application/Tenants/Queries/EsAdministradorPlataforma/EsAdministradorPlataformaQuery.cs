@@ -24,10 +24,20 @@ namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 /// </summary>
 public record EsAdministradorPlataformaQuery : IRequest<bool>;
 
-public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma autorizacion, ICurrentUserService currentUserService)
+public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma autorizacion, ICurrentUserService currentUserService,
+    ITenantActual? tenantActual = null, MemoAdministradorPlataforma? memo = null)
     : IRequestHandler<EsAdministradorPlataformaQuery, bool>
 {
     public async Task<bool> Handle(EsAdministradorPlataformaQuery request, CancellationToken cancellationToken)
+    {
+        if (memo is not null && tenantActual is not null
+            && await ClaveContextoMemo.ResolverAsync(currentUserService, tenantActual) is { } clave)
+            return await memo.ObtenerOCalcularAsync(clave, CalcularAsync, cancellationToken);
+
+        return await CalcularAsync(cancellationToken);
+    }
+
+    private async Task<bool> CalcularAsync(CancellationToken cancellationToken)
     {
         // EXACTAMENTE el mismo predicado que CrearClienteDeleganteCommand. Si
         // divergieran, el botón diría una cosa y el comando otra: o aparece para
@@ -41,3 +51,10 @@ public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma 
         return await autorizacion.PuedeGlobalmenteAsync(usuarioId.Value, cancellationToken);
     }
 }
+
+/// <summary>
+/// Señal de interfaz Scoped, con la caducidad e invalidación de las lecturas del layout.
+/// No sustituye la comprobación vigente de capacidad que realiza cada operación de plataforma.
+/// La concesión global no depende de la Sesión Privilegiada (IAutorizacionAdminPlataforma).
+/// </summary>
+public sealed class MemoAdministradorPlataforma(TimeProvider? reloj = null) : MemoPorContexto<bool>(reloj);

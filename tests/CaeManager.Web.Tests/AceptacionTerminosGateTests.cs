@@ -1,5 +1,6 @@
 using AngleSharp.Dom;
 using Bunit;
+using Bunit.TestDoubles;
 using System.Globalization;
 using CaeManager.Application.Common;
 using CaeManager.Application.Cumplimiento.Commands.AceptarTerminos;
@@ -20,8 +21,11 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class AceptacionTerminosGateTests : BunitContext
 {
+    private readonly BunitPersistentComponentState _estadoPersistente;
+
     public AceptacionTerminosGateTests()
     {
+        _estadoPersistente = this.AddBunitPersistentComponentState();
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
     }
@@ -29,13 +33,18 @@ public class AceptacionTerminosGateTests : BunitContext
     /// <summary>El usuario tiene que aceptar; aceptar falla con una excepción inesperada.</summary>
     private sealed class MediatorConGatePendiente : IMediator
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            request switch
+        public int Consultas { get; private set; }
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerEstadoAceptacionTerminosQuery) Consultas++;
+            return request switch
             {
                 ObtenerEstadoAceptacionTerminosQuery => Task.FromResult((TResponse)(object)true),
                 AceptarTerminosCommand => throw new InvalidOperationException("fallo simulado"),
                 _ => throw new NotSupportedException(request.GetType().Name),
             };
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             throw new NotSupportedException();
@@ -55,10 +64,64 @@ public class AceptacionTerminosGateTests : BunitContext
             where TNotification : INotification => Task.CompletedTask;
     }
 
+    private sealed class UsuarioFalso : ICurrentUserService
+    {
+        public Guid Id { get; set; } = Guid.Parse("dddddddd-0000-0000-0000-000000000001");
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Id);
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("Administrador");
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(Guid.Parse("dddddddd-0000-0000-0000-0000000000aa"));
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    private readonly UsuarioFalso _usuario = new();
+
+    private MediatorConGatePendiente Preparar()
+    {
+        var mediador = new MediatorConGatePendiente();
+        Services.AddSingleton<IMediator>(mediador);
+        Services.AddSingleton<ICurrentUserService>(_usuario);
+        return mediador;
+    }
+
+    [Fact]
+    public void El_prerenderizado_pinta_el_modal_y_el_circuito_lo_reutiliza_sin_consultar_otra_vez()
+    {
+        var estado = _estadoPersistente;
+        var mediador = Preparar();
+        var prerender = Render<AceptacionTerminosGate>();
+        prerender.Find(".texto-consentimiento");
+        estado.TriggerOnPersisting();
+        prerender.Dispose();
+
+        var circuito = Render<AceptacionTerminosGate>();
+
+        mediador.Consultas.Should().Be(1, "el circuito reutiliza lo que leyó el prerenderizado del mismo usuario");
+        circuito.Find(".texto-consentimiento");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Un_estado_caducado_o_de_otro_usuario_no_se_reutiliza(bool caducado)
+    {
+        var estado = _estadoPersistente;
+        var mediador = Preparar();
+        estado.Persist("gate-terminos-estado-v1", new AceptacionTerminosGate.EstadoGate(
+            caducado ? _usuario.Id : Guid.NewGuid(),
+            DateTimeOffset.UtcNow - (caducado ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
+            DebeAceptar: false));
+
+        var gate = Render<AceptacionTerminosGate>();
+
+        mediador.Consultas.Should().Be(1);
+        gate.Find(".texto-consentimiento");
+    }
+
     [Fact]
     public void El_gate_muestra_la_formula_de_consentimiento_de_los_recursos()
     {
-        Services.AddScoped<IMediator, MediatorConGatePendiente>();
+        Preparar();
 
         var gate = Render<AceptacionTerminosGate>();
 
@@ -75,7 +138,7 @@ public class AceptacionTerminosGateTests : BunitContext
     [Fact]
     public void Si_aceptar_falla_muestra_el_error_de_los_recursos()
     {
-        Services.AddScoped<IMediator, MediatorConGatePendiente>();
+        Preparar();
 
         var gate = Render<AceptacionTerminosGate>();
         IElement BotonAceptar() => gate.FindAll("button").Single(b => b.TextContent.Trim() == "Aceptar y continuar");
@@ -100,7 +163,7 @@ public class AceptacionTerminosGateTests : BunitContext
         CultureInfo.CurrentCulture = CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("ca-ES");
         try
         {
-            Services.AddScoped<IMediator, MediatorConGatePendiente>();
+            Preparar();
 
             var gate = Render<AceptacionTerminosGate>();
 

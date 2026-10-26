@@ -50,6 +50,7 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
     private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
     private readonly object _cerrojo = new();
     private readonly Dictionary<ClaveContextoMemo, Entrada> _entradas = new();
+    private readonly Dictionary<ClaveContextoMemo, TaskCompletionSource<TValor>> _enCurso = new();
 
     // Cambia en cada Invalidar. Un cálculo que empezó antes de una invalidación se devuelve a quien lo pidió, pero
     // no se guarda: podría haberse leído antes de la escritura que la provocó.
@@ -61,41 +62,105 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
     /// El valor memoizado para <paramref name="clave"/> si sigue vigente; si no, lo calcula con
     /// <paramref name="calcular"/> y lo guarda. El valor se comparte entre llamadas: lo que guarda es lo que
     /// devuelve <see cref="Congelar"/>.
+    /// Las llamadas simultáneas con la misma clave y generación comparten el cálculo en curso.
+    /// Una invalidación separa también esos cálculos; los errores y las cancelaciones no se guardan.
+    /// El token de quien inicia gobierna el cálculo; los demás pueden cancelar solo su espera. Si el cálculo
+    /// compartido se cancela por el token de quien lo inició y el del que espera sigue vivo, este lo repite por su
+    /// cuenta: nunca recibe una cancelación que no pidió.
     /// </summary>
     public async Task<TValor> ObtenerOCalcularAsync(
         ClaveContextoMemo clave,
         Func<CancellationToken, Task<TValor>> calcular,
         CancellationToken cancellationToken)
     {
-        long generacion;
-        long inicio;
-        lock (_cerrojo)
+        while (true)
         {
-            if (_entradas.TryGetValue(clave, out var entrada))
+            long generacion;
+            long inicio;
+            TaskCompletionSource<TValor>? pendiente;
+            bool calcularAhora;
+            lock (_cerrojo)
             {
-                if (_reloj.GetElapsedTime(entrada.Inicio) < MemoPorContexto.Caducidad) return entrada.Valor;
-                _entradas.Remove(clave);
+                if (_entradas.TryGetValue(clave, out var entrada))
+                {
+                    if (_reloj.GetElapsedTime(entrada.Inicio) < MemoPorContexto.Caducidad) return entrada.Valor;
+                    _entradas.Remove(clave);
+                }
+
+                generacion = _generacion;
+                inicio = _reloj.GetTimestamp();
+                calcularAhora = !_enCurso.TryGetValue(clave, out pendiente);
+                if (calcularAhora || pendiente is null)
+                {
+                    pendiente = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                    _enCurso[clave] = pendiente;
+                    calcularAhora = true;
+                }
             }
 
-            generacion = _generacion;
-            inicio = _reloj.GetTimestamp();
-        }
-
-        var valor = Congelar(await calcular(cancellationToken));
-
-        lock (_cerrojo)
-        {
-            if (generacion == _generacion)
+            if (calcularAhora)
             {
-                // Sin crecer sin límite en un circuito largo: fuera lo caducado de otras claves.
-                foreach (var caducada in _entradas.Where(e => _reloj.GetElapsedTime(e.Value.Inicio) >= MemoPorContexto.Caducidad)
-                             .Select(e => e.Key).ToList())
-                    _entradas.Remove(caducada);
-                _entradas[clave] = new Entrada(inicio, valor);
+                _ = CompletarAsync(clave, calcular, generacion, inicio, pendiente, cancellationToken);
+                // El iniciador observa siempre el resultado del cálculo, incluso si este ignora la cancelación.
+                // Así un fallo posterior no queda sin observar cuando todos los demás lectores cancelan su espera.
+                return await pendiente.Task;
+            }
+
+            try
+            {
+                return await pendiente.Task.WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Lo canceló el token de quien inició el cálculo, no el de este lector. El cálculo cancelado ya se
+                // retiró de los que están en curso: la vuelta siguiente lee lo guardado, se une a otro o calcula.
             }
         }
+    }
 
-        return valor;
+    private async Task CompletarAsync(
+        ClaveContextoMemo clave,
+        Func<CancellationToken, Task<TValor>> calcular,
+        long generacion,
+        long inicio,
+        TaskCompletionSource<TValor> pendiente,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var valor = Congelar(await calcular(cancellationToken));
+
+            lock (_cerrojo)
+            {
+                if (generacion == _generacion)
+                {
+                    // Sin crecer sin límite en un circuito largo: fuera lo caducado de otras claves.
+                    foreach (var caducada in _entradas.Where(e => _reloj.GetElapsedTime(e.Value.Inicio) >= MemoPorContexto.Caducidad)
+                                 .Select(e => e.Key).ToList())
+                        _entradas.Remove(caducada);
+                    _entradas[clave] = new Entrada(inicio, valor);
+                }
+                RetirarCalculo(clave, pendiente);
+            }
+            pendiente.TrySetResult(valor);
+        }
+        catch (OperationCanceledException ex)
+        {
+            RetirarCalculo(clave, pendiente);
+            pendiente.TrySetCanceled(ex.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            RetirarCalculo(clave, pendiente);
+            pendiente.TrySetException(ex);
+        }
+    }
+
+    private void RetirarCalculo(ClaveContextoMemo clave, TaskCompletionSource<TValor> pendiente)
+    {
+        lock (_cerrojo)
+            if (_enCurso.TryGetValue(clave, out var actual) && ReferenceEquals(actual, pendiente))
+                _enCurso.Remove(clave);
     }
 
     /// <summary>
@@ -111,6 +176,8 @@ public abstract class MemoPorContexto<TValor>(TimeProvider? reloj = null) : IMem
         {
             _generacion++;
             _entradas.Clear();
+            // Los lectores anteriores conservan su tarea; los nuevos no se unen a una lectura obsoleta.
+            _enCurso.Clear();
         }
     }
 }

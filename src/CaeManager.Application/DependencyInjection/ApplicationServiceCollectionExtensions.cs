@@ -92,6 +92,8 @@ public static class ApplicationServiceCollectionExtensions
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual.MemoPerfilVocabularioActual>(services);
         AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona.MemoRotulosPrimeraPersona>(services);
         AgregarMemoPorContexto<CaeManager.Application.Operaciones.IncorporacionCartera.Queries.MemoParticipaEnIncorporacionCartera>(services);
+        AgregarMemoPorContexto<CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio.MemoAvatarPropio>(services);
+        AgregarMemoPorContexto<CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma.MemoAdministradorPlataforma>(services);
         // Frescura del estado materializado (diseño § 5): el aviso es uno por proceso; la caché, una por circuito
         // (Scoped, nunca singleton) y no caduca por tiempo sino por la versión del Tenant.
         services.TryAddSingleton<CaeManager.Application.EstadoMaterializado.Frescura.INotificadorEstadoTenant,

@@ -12,10 +12,15 @@
 @using CaeManager.Application.Cumplimiento.Commands.AceptarTerminos
 @using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos
 @using CaeManager.Web.Features.Cumplimiento.Recursos
+@using CaeManager.Application.Common
 @using MediatR
+@using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
+@implements IDisposable
 @inject IMediator Mediator
 @inject IStringLocalizer<TextosCumplimiento> Textos
+@inject PersistentComponentState EstadoPersistente
+@inject IServiceProvider Servicios
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
@@ -50,12 +55,34 @@
     private bool _marcado;
     private bool _aceptando;
     private string? _error;
+    private PersistingComponentStateSubscription _persistencia;
+    private EstadoGate? _estado;
+    private const string ClavePersistencia = "gate-terminos-estado-v1";
+
+    /// <summary>
+    /// Lo que el prerenderizado deja al circuito para no repetir la consulta: de qué usuario es y cuándo se leyó.
+    /// El prerenderizado sigue pintando el modal bloqueante; el circuito solo lo reutiliza para el mismo usuario
+    /// y dentro de la caducidad de las lecturas del layout.
+    /// </summary>
+    public sealed record EstadoGate(Guid Usuario, DateTimeOffset Creado, bool DebeAceptar);
 
     protected override async Task OnInitializedAsync()
     {
         try
         {
-            _debeAceptar = await Mediator.Send(new ObtenerEstadoAceptacionTerminosQuery());
+            var usuario = Servicios.GetService<ICurrentUserService>() is { } actual
+                ? await actual.ObtenerUsuarioActualIdAsync() : null;
+            if (EstadoPersistente.TryTakeFromJson<EstadoGate>(ClavePersistencia, out var anterior)
+                && anterior is not null && usuario is { } id && anterior.Usuario == id
+                && DateTimeOffset.UtcNow - anterior.Creado is var edad && edad >= TimeSpan.Zero
+                && edad < MemoPorContexto.Caducidad)
+                _debeAceptar = anterior.DebeAceptar;
+            else
+            {
+                _debeAceptar = await Mediator.Send(new ObtenerEstadoAceptacionTerminosQuery());
+                if (usuario is { } leido)
+                    _estado = new(leido, DateTimeOffset.UtcNow, _debeAceptar);
+            }
         }
         catch (Exception)
         {
@@ -65,7 +92,17 @@
             // la siguiente navegación/render.
             _debeAceptar = false;
         }
+        _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirAsync);
     }
+
+    private Task PersistirAsync()
+    {
+        if (_estado is { } estado)
+            EstadoPersistente.PersistAsJson(ClavePersistencia, estado);
+        return Task.CompletedTask;
+    }
+
+    public void Dispose() => _persistencia.Dispose();
 
     private async Task AceptarAsync()
     {

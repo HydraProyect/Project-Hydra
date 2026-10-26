@@ -1,12 +1,16 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.DependencyInjection;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
+using CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 using CaeManager.Application.Tenants.Queries.ObtenerPerfilVocabularioActual;
 using CaeManager.Application.Tenants.Queries.UsaRotulosPrimeraPersona;
 using CaeManager.Application.Tests.Comercial;
 using CaeManager.Application.Tests.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Tenants;
 using FluentAssertions;
@@ -26,6 +30,79 @@ namespace CaeManager.Application.Tests.Common;
 /// </summary>
 public class MemosDelLayoutTests
 {
+    [Fact]
+    public async Task Cancelar_un_lector_seguidor_no_cancela_el_calculo_compartido()
+    {
+        var memo = new MemoAvatarPropio();
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        var resultado = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var cancelacion = new CancellationTokenSource();
+        var veces = 0;
+        CancellationToken tokenCalculo = default;
+        Task<string?> Calcular(CancellationToken token)
+        {
+            veces++;
+            tokenCalculo = token;
+            return resultado.Task;
+        }
+
+        var iniciador = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        var seguidor = memo.ObtenerOCalcularAsync(clave, Calcular, cancelacion.Token);
+        cancelacion.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => seguidor);
+        tokenCalculo.IsCancellationRequested.Should().BeFalse();
+        iniciador.IsCompleted.Should().BeFalse();
+        resultado.SetResult("avatar");
+        (await iniciador).Should().Be("avatar");
+        (await memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None)).Should().Be("avatar");
+        veces.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cancelar_el_iniciador_no_cancela_al_seguidor_que_recalcula_por_su_cuenta()
+    {
+        var memo = new MemoAvatarPropio();
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        using var cancelacion = new CancellationTokenSource();
+        var veces = 0;
+        async Task<string?> Calcular(CancellationToken token)
+        {
+            veces++;
+            if (veces > 1) return "nuevo-avatar";
+            await Task.Delay(Timeout.Infinite, token);
+            return "inaccesible";
+        }
+
+        var iniciador = memo.ObtenerOCalcularAsync(clave, Calcular, cancelacion.Token);
+        var seguidor = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        cancelacion.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => iniciador);
+        (await seguidor).Should().Be("nuevo-avatar", "el seguidor no pidió cancelar: repite el cálculo con su token");
+        (await memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None)).Should().Be("nuevo-avatar");
+        veces.Should().Be(2, "la tercera lectura sale de lo que guardó el seguidor");
+    }
+
+    [Fact]
+    public async Task Un_fallo_del_calculo_no_se_guarda_y_permite_reintentar()
+    {
+        var memo = new MemoAvatarPropio();
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        var fallo = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var veces = 0;
+        Task<string?> Calcular(CancellationToken _) => ++veces == 1 ? fallo.Task : Task.FromResult<string?>("avatar-recuperado");
+
+        var iniciador = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        var seguidor = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        fallo.SetException(new InvalidOperationException("fallo de lectura"));
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => iniciador);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => seguidor);
+        (await memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None)).Should().Be("avatar-recuperado");
+        veces.Should().Be(2);
+    }
+
     private sealed class TenantMutable(Guid? tenantId) : ITenantActual
     {
         public Guid? TenantId { get; set; } = tenantId;
@@ -218,6 +295,176 @@ public class MemosDelLayoutTests
 
     // ---- Composición ------------------------------------------------------------------------------------------
 
+    private sealed class AvataresContador : IAvatarDeCuentas
+    {
+        public int Lecturas { get; private set; }
+        public string? Clave { get; set; } = "rana-verde";
+
+        public Task<string?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+        {
+            Lecturas++;
+            return Task.FromResult(Clave);
+        }
+
+        public Task<Result> GuardarAsync(Guid usuarioId, string? clave, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    private sealed class AutorizacionContador : IAutorizacionAdminPlataforma
+    {
+        public int Lecturas { get; private set; }
+        public bool Permitido { get; set; } = true;
+
+        public Task<bool> PuedeGlobalmenteAsync(Guid usuarioId, CancellationToken cancellationToken = default)
+        {
+            Lecturas++;
+            return Task.FromResult(Permitido);
+        }
+
+        public Task<bool> PuedeSobreTenantAsync(Guid usuarioId, Guid tenantObjetivoId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
+    }
+
+    [Fact]
+    public async Task Avatar_reutiliza_el_contexto_y_recalcula_al_cambiar_Tenant_efectivo_o_tras_Command()
+    {
+        var origen = Guid.NewGuid();
+        var tenant = new TenantMutable(origen);
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", origen);
+        var avatares = new AvataresContador();
+        var memo = new MemoAvatarPropio();
+        Task<string?> Preguntar() => new ObtenerAvatarPropioQueryHandler(usuario, avatares, tenant, memo)
+            .Handle(new ObtenerAvatarPropioQuery(), CancellationToken.None);
+
+        (await Preguntar()).Should().Be("rana-verde");
+        avatares.Clave = "zorro-azul";
+        (await Preguntar()).Should().Be("rana-verde");
+        avatares.Lecturas.Should().Be(1);
+
+        tenant.TenantId = Guid.NewGuid();
+        (await Preguntar()).Should().Be("zorro-azul");
+        avatares.Lecturas.Should().Be(2);
+
+        avatares.Clave = null;
+        await InvalidarConComando(memo);
+        (await Preguntar()).Should().BeNull();
+        avatares.Lecturas.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Administrador_plataforma_reutiliza_el_contexto_y_recalcula_al_cambiar_Tenant_efectivo_o_tras_Command()
+    {
+        var origen = Guid.NewGuid();
+        var tenant = new TenantMutable(origen);
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", origen);
+        var autorizacion = new AutorizacionContador();
+        var memo = new MemoAdministradorPlataforma();
+        Task<bool> Preguntar() => new EsAdministradorPlataformaQueryHandler(autorizacion, usuario, tenant, memo)
+            .Handle(new EsAdministradorPlataformaQuery(), CancellationToken.None);
+
+        (await Preguntar()).Should().BeTrue();
+        autorizacion.Permitido = false;
+        (await Preguntar()).Should().BeTrue();
+        autorizacion.Lecturas.Should().Be(1);
+
+        tenant.TenantId = Guid.NewGuid();
+        (await Preguntar()).Should().BeFalse();
+        autorizacion.Lecturas.Should().Be(2);
+
+        autorizacion.Permitido = true;
+        await InvalidarConComando(memo);
+        (await Preguntar()).Should().BeTrue();
+        autorizacion.Lecturas.Should().Be(3);
+    }
+
+    [Fact]
+    public async Task Avatar_y_administrador_plataforma_otro_circuito_vuelve_a_leer()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddApplication();
+        await using var proveedor = servicios.BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true });
+        await using var circuito = proveedor.CreateAsyncScope();
+        await using var otroCircuito = proveedor.CreateAsyncScope();
+        var origen = Guid.NewGuid();
+        var tenant = new TenantMutable(origen);
+        var usuario = new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae", origen);
+        var avatares = new AvataresContador();
+        var autorizacion = new AutorizacionContador();
+
+        async Task Preguntar(IServiceProvider scope)
+        {
+            await new ObtenerAvatarPropioQueryHandler(usuario, avatares, tenant,
+                    scope.GetRequiredService<MemoAvatarPropio>())
+                .Handle(new ObtenerAvatarPropioQuery(), CancellationToken.None);
+            await new EsAdministradorPlataformaQueryHandler(autorizacion, usuario, tenant,
+                    scope.GetRequiredService<MemoAdministradorPlataforma>())
+                .Handle(new EsAdministradorPlataformaQuery(), CancellationToken.None);
+        }
+
+        await Preguntar(circuito.ServiceProvider);
+        await Preguntar(circuito.ServiceProvider);
+        avatares.Lecturas.Should().Be(1);
+        autorizacion.Lecturas.Should().Be(1);
+
+        await Preguntar(otroCircuito.ServiceProvider);
+        avatares.Lecturas.Should().Be(2, "el segundo circuito no hereda la entrada del primero");
+        autorizacion.Lecturas.Should().Be(2, "el segundo circuito no hereda la entrada del primero");
+    }
+
+    [Fact]
+    public async Task Avatar_dos_lecturas_concurrentes_comparten_el_calculo_en_curso()
+    {
+        var memo = new MemoAvatarPropio();
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        var pendiente = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var veces = 0;
+        Task<string?> Calcular(CancellationToken _)
+        {
+            veces++;
+            return pendiente.Task;
+        }
+
+        var primera = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        var segunda = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+
+        veces.Should().Be(1, "las dos lecturas de la misma clave esperan la misma consulta");
+        primera.IsCompleted.Should().BeFalse();
+        segunda.IsCompleted.Should().BeFalse();
+        pendiente.SetResult("rana-verde");
+
+        (await Task.WhenAll(primera, segunda)).Should().Equal("rana-verde", "rana-verde");
+        (await memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None)).Should().Be("rana-verde");
+        veces.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Avatar_invalidar_durante_calculo_inicia_otro_y_el_anterior_no_pisa_el_nuevo()
+    {
+        var memo = new MemoAvatarPropio();
+        var clave = new ClaveContextoMemo(Guid.NewGuid(), Guid.NewGuid(), "GestorCae", Guid.NewGuid(), null);
+        var anterior = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var nuevo = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var veces = 0;
+        Task<string?> Calcular(CancellationToken _) => ++veces == 1 ? anterior.Task : nuevo.Task;
+
+        var primera = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        memo.Invalidar();
+        var segunda = memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None);
+        veces.Should().Be(2, "la invalidación separa las generaciones aunque el cálculo siga pendiente");
+
+        nuevo.SetResult("zorro-azul");
+        (await segunda).Should().Be("zorro-azul");
+        anterior.SetResult("rana-verde");
+        (await primera).Should().Be("rana-verde", "quien inició la lectura conserva su resultado");
+
+        (await memo.ObtenerOCalcularAsync(clave, Calcular, CancellationToken.None)).Should().Be("zorro-azul");
+        veces.Should().Be(2, "el cálculo antiguo no reemplaza la entrada vigente");
+    }
+
+    private static Task<Result> InvalidarConComando(IMemoPorContexto memo) =>
+        new InvalidacionAlcanceBehavior<ComandoFalso, Result>(new InvalidadorAlcanceInerte(), [memo])
+            .Handle(new ComandoFalso(), _ => Task.FromResult(Result.Exito()), CancellationToken.None);
+
     private sealed record ComandoFalso : ICommand;
 
     private static readonly Type[] TiposDeMemo =
@@ -226,6 +473,8 @@ public class MemosDelLayoutTests
         typeof(MemoPerfilVocabularioActual),
         typeof(MemoRotulosPrimeraPersona),
         typeof(MemoParticipaEnIncorporacionCartera),
+        typeof(MemoAvatarPropio),
+        typeof(MemoAdministradorPlataforma),
     ];
 
     /// <summary>
