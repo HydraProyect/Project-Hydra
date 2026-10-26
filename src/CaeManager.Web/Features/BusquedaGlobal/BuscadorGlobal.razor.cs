@@ -781,7 +781,8 @@ public partial class BuscadorGlobal
                 a.Titulo,
                 null,
                 a.Ruta == MarcadorGuardarFiltro
-                    ? Navigation.GetUriWithQueryParameter("accion", "guardar-filtro")
+                    ? new Uri(Navigation.GetUriWithQueryParameter("accion", "guardar-filtro"))
+                        .GetComponents(UriComponents.PathAndQuery | UriComponents.Fragment, UriFormat.UriEscaped)
                     : a.Ruta))
             .ToList();
     }
@@ -977,7 +978,7 @@ public partial class BuscadorGlobal
             // contexto que ya no existe: llegan tarde y no se pintan.
             if (apertura != _generacionApertura) return;
 
-            _recientes = recientes;
+            _recientes = recientes.Where(r => EsRutaLocal(r.UrlDestino)).ToList();
             StateHasChanged();
         }
         catch (OperationCanceledException)
@@ -1095,12 +1096,14 @@ public partial class BuscadorGlobal
     /// </summary>
     private void Seleccionar(ItemBusquedaDto item, string? tipo)
     {
+        if (!EsRutaLocal(item.UrlDestino)) return;
         if (_navegando) return;
         _navegando = true;
 
         RegistrarUsoReciente(tipo, item);
         Cerrar();
-        Navigation.NavigateTo(item.UrlDestino, forceLoad: RequiereNavegacionCompleta(item.UrlDestino));
+        var destino = RedireccionLocal.Sanear(item.UrlDestino);
+        Navigation.NavigateTo(destino, forceLoad: RequiereNavegacionCompleta(destino));
     }
 
     /// <summary>

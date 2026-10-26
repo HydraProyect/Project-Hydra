@@ -47,6 +47,70 @@ public class BuscadorGlobalGen2Tests : BunitContext
     public BuscadorGlobalGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     [Theory]
+    [InlineData("https://evil.example")]
+    [InlineData("//evil.example")]
+    [InlineData("/\\evil.example")]
+    public async Task Un_reciente_externo_se_descarta_y_Enter_no_navega_a_el(string ruta)
+    {
+        var mediador = new MediadorControlado
+        {
+            Recientes = [new("Centro", null, "Reciente manipulado", null, ruta)]
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        cut.FindAll("a.buscador-item").Should().NotContain(a =>
+            a.TextContent.Contains("Reciente manipulado", StringComparison.Ordinal) ||
+            a.GetAttribute("href") == ruta);
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var inicial = navegacion.Uri;
+        await Input(cut).TeclaAsync("Enter");
+        navegacion.Uri.Should().Be(inicial);
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("https://evil.example")]
+    [InlineData("//evil.example")]
+    [InlineData("/\\evil.example")]
+    public async Task Un_resultado_con_destino_externo_no_navega_ni_registra_uso_y_su_href_cae_a_la_raiz(string ruta)
+    {
+        var mediador = new MediadorControlado
+        {
+            Resultado = new ResultadoBusquedaGlobalDto(
+                [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", ruta)], [], [], [])
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+
+        var fila = cut.FindAll("a.buscador-item")
+            .Single(a => a.QuerySelector(".buscador-item-titulo")!.TextContent.Contains("Refrielectric", StringComparison.Ordinal));
+        fila.GetAttribute("href").Should().Be("/");
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var inicial = navegacion.Uri;
+        await fila.ClickAsync(new MouseEventArgs());
+        await Input(cut).TeclaAsync("Enter");
+        navegacion.Uri.Should().Be(inicial);
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Guardar_filtro_actual_navega_a_una_ruta_local_con_la_consulta_y_la_accion()
+    {
+        var cut = Renderizar(new MediadorControlado(), conEscritura: true);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("documentos?estado=vencido");
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+
+        var fila = cut.FindAll("a.buscador-item")
+            .Single(a => a.QuerySelector(".buscador-item-titulo")!.TextContent.Trim() == "Guardar filtro actual");
+        fila.GetAttribute("href").Should().Be("/documentos?estado=vencido&accion=guardar-filtro");
+
+        await fila.ClickAsync(new MouseEventArgs());
+        navegacion.Uri.Should().EndWith("/documentos?estado=vencido&accion=guardar-filtro");
+    }
+
+    [Theory]
     [InlineData("12345678A", "12345678Z")]
     [InlineData("X1234567A", "X1234567L")]
     public async Task Una_letra_incorrecta_muestra_correccion_y_no_consulta(string valor, string corregido)
