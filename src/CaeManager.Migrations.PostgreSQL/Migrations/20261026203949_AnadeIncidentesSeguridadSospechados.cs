@@ -87,9 +87,28 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // tampoco deduplicar consultándolos. La función toma un cerrojo transaccional por (señal, sujeto),
             // suma una detección al incidente no descartado de la misma señal y sujeto nacido dentro de la
             // ventana (acotada a [60 s, 24 h]) o crea uno nuevo en Sospechado con su primera transición, y
-            // devuelve solo el identificador. EXECUTE para los tres roles de la aplicación: una señal que
-            // nace dentro de una Sesión Privilegiada (conexión cae_app_soporte o cae_app_aprovisionamiento)
-            // tiene que quedar registrada igual, y la función no deja leer ni modificar nada más.
+            // devuelve solo el identificador.
+            //
+            // EXECUTE para los tres roles de la aplicación. El adaptador (RegistroIncidentesSeguridadEnBase)
+            // abre su propio ámbito de DI y su propia conexión, y TenantRlsConnectionInterceptor le pone el
+            // rol al abrirla: dentro de una Sesión Privilegiada, cae_app_soporte; y si la señal nace dentro
+            // de un ámbito de elevación de Aprovisionamiento (PD-A3), que es un AsyncLocal y fluye al ámbito
+            // nuevo, cae_app_aprovisionamiento. Una señal nacida ahí (p. ej. una exportación masiva del
+            // Actor real) tiene que quedar registrada. EXECUTE no da a ninguno de los dos más que esto:
+            // ninguno lee ni escribe las tablas.
+            //
+            // Límites de entrada, porque la llaman roles que no leen la tabla: como mucho 50 Tenants
+            // (IncidenteSeguridadSospechado.MaximoTenantsAfectados; al agrupar, la unión se corta en 50 y
+            // la evidencia lo dice), evidencia de 8 KB como mucho, señal y sujeto con su longitud de
+            // columna. El sujeto se contrasta con app_ctx_usuario_id(), la identidad del contexto RLS
+            // firmado, cuando existe: si no coincide, el registro no se rechaza, se marca en la evidencia
+            // (sujeto_distinto_del_contexto y contexto_usuario_id). Rechazar perdería señales legítimas:
+            // en una Sesión Privilegiada el sujeto es el Actor real y el contexto, el Usuario simulado; y
+            // la persona titular puede confirmar «No he sido yo» desde un navegador con otra sesión
+            // abierta. Un incidente nace Sospechado y exige confirmación humana: la marca basta para que
+            // un registro forzado se vea como tal. Y la deduplicación nunca mezcla un registro marcado con
+            // uno sin marcar: si lo hiciera, un incidente plantado sobre el sujeto de otra persona
+            // absorbería su señal real dentro de la ventana y suprimiría su alerta.
             //
             // Como app_purgar_inicios_sesion, depende de que su propietario (el rol de las migraciones) sea
             // superusuario o tenga BYPASSRLS: con FORCE, sin eso el INSERT chocaría con RLS. Lo comprueba y
@@ -123,6 +142,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     v_existente uuid;
                     v_ventana integer;
                     v_tenants uuid[];
+                    v_ctx_usuario uuid;
+                    v_distinto boolean;
+                    v_evidencia jsonb;
+                    v_union uuid[];
                 BEGIN
                     IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles
                                     WHERE rolname = current_user AND (rolsuper OR rolbypassrls)) THEN
@@ -131,6 +154,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     IF p_incidente_id IS NULL OR p_transicion_id IS NULL OR p_senal IS NULL OR p_sujeto IS NULL
                        OR p_evidencia IS NULL OR pg_catalog.jsonb_typeof(p_evidencia) <> 'object' THEN
                         RAISE EXCEPTION 'Registro de incidente de seguridad incompleto' USING ERRCODE = '22004';
+                    END IF;
+                    IF pg_catalog.length(p_senal) > 40 OR pg_catalog.length(p_sujeto) > 80 THEN
+                        RAISE EXCEPTION 'Señal o sujeto del incidente de seguridad demasiado largos' USING ERRCODE = '22001';
+                    END IF;
+                    IF pg_catalog.cardinality(COALESCE(p_tenants, '{}'::uuid[])) > 50 THEN
+                        RAISE EXCEPTION 'Más de 50 Tenants afectados en un registro de incidente de seguridad' USING ERRCODE = '22023';
+                    END IF;
+                    IF pg_catalog.octet_length(p_evidencia::text) > 8192 THEN
+                        RAISE EXCEPTION 'Evidencia del incidente de seguridad de más de 8 KB' USING ERRCODE = '22001';
+                    END IF;
+
+                    v_ctx_usuario := public.app_ctx_usuario_id();
+                    v_distinto := v_ctx_usuario IS NOT NULL AND p_sujeto <> 'usuario:' || v_ctx_usuario::text;
+                    v_evidencia := p_evidencia;
+                    IF v_distinto THEN
+                        v_evidencia := v_evidencia || pg_catalog.jsonb_build_object(
+                            'sujeto_distinto_del_contexto', true, 'contexto_usuario_id', v_ctx_usuario::text);
                     END IF;
 
                     v_ventana := LEAST(GREATEST(COALESCE(p_ventana_segundos, 3600), 60), 86400);
@@ -143,14 +183,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                       FROM public."IncidentesSeguridadSospechados" i
                      WHERE i."Senal" = p_senal AND i."SujetoClave" = p_sujeto AND i."Estado" <> 'Descartado'
                        AND i."DetectadoEnUtc" >= pg_catalog.now() - pg_catalog.make_interval(secs => v_ventana)
+                       AND (i."Evidencia" ? 'sujeto_distinto_del_contexto') = v_distinto
                      ORDER BY i."DetectadoEnUtc" DESC
                      LIMIT 1;
 
                     IF v_existente IS NOT NULL THEN
+                        SELECT ARRAY(SELECT DISTINCT t FROM pg_catalog.unnest(i."TenantsAfectados" || v_tenants) AS t ORDER BY t)
+                          INTO v_union
+                          FROM public."IncidentesSeguridadSospechados" i WHERE i."Id" = v_existente;
+
                         UPDATE public."IncidentesSeguridadSospechados" i
                            SET "Detecciones" = i."Detecciones" + 1,
                                "UltimaDeteccionEnUtc" = pg_catalog.now(),
-                               "TenantsAfectados" = ARRAY(SELECT DISTINCT t FROM pg_catalog.unnest(i."TenantsAfectados" || v_tenants) AS t ORDER BY t)
+                               "TenantsAfectados" = v_union[1:50],
+                               "Evidencia" = i."Evidencia"
+                                   || CASE WHEN pg_catalog.cardinality(v_union) > 50
+                                           THEN pg_catalog.jsonb_build_object('tenants_afectados_truncados', true)
+                                           ELSE '{}'::jsonb END
                          WHERE i."Id" = v_existente;
                         RETURN QUERY SELECT v_existente, false;
                         RETURN;
@@ -160,7 +209,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         ("Id", "Senal", "SujetoClave", "DetectadoEnUtc", "UltimaDeteccionEnUtc", "Detecciones",
                          "TenantsAfectados", "Evidencia", "Estado", "ConfirmadoEnUtc")
                     VALUES (p_incidente_id, p_senal, p_sujeto, pg_catalog.now(), pg_catalog.now(), 1,
-                            v_tenants, p_evidencia, 'Sospechado', NULL);
+                            v_tenants, v_evidencia, 'Sospechado', NULL);
 
                     INSERT INTO public."TransicionesIncidenteSeguridad"
                         ("Id", "IncidenteId", "EstadoAnterior", "EstadoNuevo", "OcurridoEnUtc", "ActorUsuarioId", "Motivo")

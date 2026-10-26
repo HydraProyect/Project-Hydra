@@ -196,17 +196,24 @@ public static class InfrastructureServiceCollectionExtensions
 
         // Incidentes de seguridad sospechados (plano de Plataforma): señales de alta certeza,
         // registro por la función app_registrar_incidente_seguridad y alerta saliente al
-        // propietario. Sin IncidentesSeguridad:UrlAlertaSaliente el canal es el nulo y la alerta
-        // cae a IAlertaOperativa (Sentry); el incidente se registra igual.
-        services.Configure<CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad>(
-            configuration.GetSection(CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion));
+        // guardia de TALVEG. Sin IncidentesSeguridad:UrlAlertaSaliente el canal es el nulo y la alerta
+        // cae a IAlertaOperativa (Sentry); el incidente se registra igual. La configuración se valida
+        // al arrancar (umbrales positivos, URL https).
+        services.AddOptions<CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad>()
+            .Bind(configuration.GetSection(CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion))
+            .Validate(o => o.Validar().Count == 0,
+                "La sección IncidentesSeguridad no es válida: los umbrales tienen que ser positivos y UrlAlertaSaliente, una URL absoluta https.")
+            .ValidateOnStart();
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(services, TimeProvider.System);
         if (string.IsNullOrWhiteSpace(configuration[CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion + ":UrlAlertaSaliente"]))
             services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadNulo>();
         else
         {
             services.AddHttpClient(CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp.NombreCliente,
-                cliente => cliente.Timeout = TimeSpan.FromSeconds(15));
+                cliente => cliente.Timeout = TimeSpan.FromSeconds(15))
+                // La URL lleva el token del canal: los registradores por defecto del HttpClient
+                // escribirían la URI de cada petición en el log.
+                .RemoveAllLoggers();
             services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp>();
         }
         services.AddSingleton<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>();

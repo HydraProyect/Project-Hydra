@@ -19,7 +19,7 @@ public interface IRegistroIncidentesSeguridad
 }
 
 /// <summary>
-/// Alerta al propietario de que hay un incidente nuevo. Solo lleva el identificador
+/// Alerta a la guardia de TALVEG (responsable de seguridad y persona sustituta) de que hay un incidente nuevo. Solo lleva el identificador
 /// del incidente y el enlace a su página de Plataforma, nunca datos personales ni
 /// nombres de Tenant. <see cref="Encolar"/> no bloquea ni lanza: el envío, con sus
 /// reintentos, ocurre en segundo plano y nunca rompe la operación que disparó la señal.

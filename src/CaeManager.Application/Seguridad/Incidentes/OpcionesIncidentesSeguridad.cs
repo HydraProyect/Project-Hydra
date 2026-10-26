@@ -1,13 +1,31 @@
 namespace CaeManager.Application.Seguridad.Incidentes;
 
 /// <summary>
-/// Umbrales de las señales de incidente de seguridad y canal de alerta al propietario
-/// (sección <c>IncidentesSeguridad</c>). Los umbrales por defecto son la propuesta
+/// Umbrales de las señales de incidente de seguridad y canal de alerta a la guardia de
+/// TALVEG (sección <c>IncidentesSeguridad</c>). Los umbrales por defecto son la propuesta
 /// inicial del incremento 1, ajustables por configuración sin desplegar código.
+/// <see cref="Validar"/> se comprueba al arrancar: un umbral no positivo apagaría la
+/// señal en silencio y una URL de alerta sin https expondría su token.
 /// </summary>
 public sealed class OpcionesIncidentesSeguridad
 {
     public const string Seccion = "IncidentesSeguridad";
+
+    /// <summary>Errores de configuración; vacío si es válida.</summary>
+    public IReadOnlyList<string> Validar()
+    {
+        var errores = new List<string>();
+        if (UmbralFilasExportadas <= 0)
+            errores.Add($"{Seccion}:{nameof(UmbralFilasExportadas)} tiene que ser positivo.");
+        if (UmbralDocumentosSensibles <= 0)
+            errores.Add($"{Seccion}:{nameof(UmbralDocumentosSensibles)} tiene que ser positivo.");
+        if (UmbralRechazosOtroTenant <= 0)
+            errores.Add($"{Seccion}:{nameof(UmbralRechazosOtroTenant)} tiene que ser positivo.");
+        if (!string.IsNullOrWhiteSpace(UrlAlertaSaliente)
+            && !(Uri.TryCreate(UrlAlertaSaliente, UriKind.Absolute, out var url) && url.Scheme == Uri.UriSchemeHttps))
+            errores.Add($"{Seccion}:{nameof(UrlAlertaSaliente)} tiene que ser una URL absoluta https.");
+        return errores;
+    }
 
     /// <summary>
     /// Ventana de deduplicación: la misma señal sobre el mismo sujeto dentro de ella

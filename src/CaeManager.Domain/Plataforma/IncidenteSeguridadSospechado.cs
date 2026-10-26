@@ -60,6 +60,12 @@ public class IncidenteSeguridadSospechado : Entity
 {
     public const int LongitudMaximaSujeto = 80;
 
+    /// <summary>Tope de Tenants afectados por incidente; la función de registro rechaza más.</summary>
+    public const int MaximoTenantsAfectados = 50;
+
+    /// <summary>Tope, en bytes, de la evidencia serializada; la función de registro rechaza más.</summary>
+    public const int MaximoBytesEvidencia = 8 * 1024;
+
     public SenalIncidenteSeguridad Senal { get; private set; }
 
     /// <summary>Sobre quién recae la señal, seudónimo (p. ej. <c>usuario:{guid}</c>). Clave de la deduplicación junto a la señal.</summary>
@@ -80,7 +86,7 @@ public class IncidenteSeguridadSospechado : Entity
 
     public EstadoIncidenteSeguridad Estado { get; private set; }
 
-    /// <summary>Hora en que el propietario confirma la violación: desde aquí cuentan las 24 y las 36 horas.</summary>
+    /// <summary>Hora en que el Actor de Plataforma TALVEG de guardia confirma la violación: desde aquí cuentan las 24 y las 36 horas.</summary>
     public DateTime? ConfirmadoEnUtc { get; private set; }
 
     public List<TransicionIncidenteSeguridad> Transiciones { get; private set; } = [];

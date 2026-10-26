@@ -45,24 +45,47 @@ public sealed class VentanaDeslizantePorSujeto
                 return false;
         }
 
-        var ventana = _ventanas.GetOrAdd(sujeto, _ => new Ventana());
-        lock (ventana)
+        while (true)
         {
-            while (ventana.Entradas.Count > 0 && ahoraUtc - ventana.Entradas.Peek().Momento > duracion)
-                ventana.Suma -= ventana.Entradas.Dequeue().Peso;
+            var ventana = _ventanas.GetOrAdd(sujeto, _ => new Ventana());
+            lock (ventana)
+            {
+                // La poda pudo retirarla entre GetOrAdd y el lock: sumar aquí perdería el
+                // peso en una ventana que ya no está en el diccionario. Se vuelve a pedir.
+                if (ventana.Retirada)
+                    continue;
 
-            ventana.Entradas.Enqueue((ahoraUtc, peso, etiqueta));
-            ventana.Suma += peso;
-            ventana.UltimaUtc = ahoraUtc;
+                while (ventana.Entradas.Count > 0 && ahoraUtc - ventana.Entradas.Peek().Momento > duracion)
+                    ventana.Suma -= ventana.Entradas.Dequeue().Peso;
 
-            if (ventana.Suma < umbral)
-                return false;
-            if (ventana.AvisadaHastaUtc is { } hasta && ahoraUtc < hasta)
-                return false;
+                ventana.Entradas.Enqueue((ahoraUtc, peso, etiqueta));
+                ventana.Suma += peso;
+                ventana.UltimaUtc = ahoraUtc;
 
-            ventana.AvisadaHastaUtc = ahoraUtc + duracion;
-            return true;
+                if (ventana.Suma < umbral)
+                    return false;
+                if (ventana.AvisadaHastaUtc is { } hasta && ahoraUtc < hasta)
+                    return false;
+
+                ventana.AvisadaHastaUtc = ahoraUtc + duracion;
+                return true;
+            }
         }
+    }
+
+    /// <summary>
+    /// Acorta la marca de «avisada» del sujeto porque el registro del incidente falló y
+    /// la señal no puede perderse: la primera operación a partir de
+    /// <paramref name="reintentarDesdeUtc"/> que mantenga la suma en el umbral vuelve a
+    /// saltar y reintenta el registro. El enfriamiento evita que, con la base caída,
+    /// cada operación siguiente pague la espera de otro fallo.
+    /// </summary>
+    public void Desmarcar(string sujeto, DateTime reintentarDesdeUtc)
+    {
+        if (!_ventanas.TryGetValue(sujeto, out var ventana))
+            return;
+        lock (ventana)
+            ventana.AvisadaHastaUtc = reintentarDesdeUtc;
     }
 
     /// <summary>Suma actual del sujeto dentro de la ventana (para la evidencia).</summary>
@@ -92,8 +115,8 @@ public sealed class VentanaDeslizantePorSujeto
         {
             lock (ventana)
             {
-                if (ahoraUtc - ventana.UltimaUtc > duracion)
-                    _ventanas.TryRemove(sujeto, out _);
+                if (ahoraUtc - ventana.UltimaUtc > duracion && _ventanas.TryRemove(sujeto, out _))
+                    ventana.Retirada = true;
             }
         }
     }
@@ -104,5 +127,8 @@ public sealed class VentanaDeslizantePorSujeto
         public long Suma { get; set; }
         public DateTime UltimaUtc { get; set; }
         public DateTime? AvisadaHastaUtc { get; set; }
+
+        /// <summary>La poda la sacó del diccionario: nadie más suma en ella.</summary>
+        public bool Retirada { get; set; }
     }
 }

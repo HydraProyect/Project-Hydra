@@ -178,7 +178,7 @@ public class SenalesIncidenteSeguridadTests
     }
 
     [Fact]
-    public async Task Los_rechazos_a_otro_Tenant_registran_al_quinto_con_todos_los_Tenants_pedidos()
+    public async Task Los_rechazos_a_otro_Tenant_registran_al_quinto_con_el_Tenant_de_origen_como_afectado()
     {
         var senales = Crear();
         var usuario = Guid.NewGuid();
@@ -192,9 +192,71 @@ public class SenalesIncidenteSeguridadTests
         await senales.AccesoAOtroTenantRechazadoAsync(usuario, origen, objetivos[4]);
         var llamada = _registro.Llamadas.Should().ContainSingle().Subject;
         llamada.Senal.Should().Be(SenalIncidenteSeguridad.AccesoRepetidoAOtroTenant);
-        llamada.Tenants.Should().BeEquivalentTo(objetivos);
-        llamada.Tenants.Should().NotContain(origen, "el Tenant de origen no es el afectado: va en la evidencia");
-        llamada.Evidencia.Should().Contain(origen.ToString("D"));
+        llamada.Tenants.Should().Equal([origen],
+            "los Tenants pedidos los elige quien envía la petición: si fueran los afectados, cualquiera dirigiría el aviso a Tenants ajenos");
+        using var evidencia = JsonDocument.Parse(llamada.Evidencia);
+        evidencia.RootElement.GetProperty("tenants_objetivo_ids").EnumerateArray().Select(e => Guid.Parse(e.GetString()!))
+            .Should().BeEquivalentTo(objetivos, "los Tenants pedidos solo van a la evidencia");
+    }
+
+    [Fact]
+    public async Task Si_el_registro_falla_la_ventana_se_desmarca_y_la_operacion_siguiente_lo_reintenta()
+    {
+        _opciones.UmbralDocumentosSensibles = 2;
+        var senales = Crear();
+        var usuario = Guid.NewGuid();
+        await senales.DocumentoSensibleAbiertoAsync(usuario, Guid.NewGuid());
+
+        _registro.Fallar = true;
+        await senales.DocumentoSensibleAbiertoAsync(usuario, Guid.NewGuid());
+        _registro.Llamadas.Should().HaveCount(1);
+
+        _registro.Fallar = false;
+        await senales.DocumentoSensibleAbiertoAsync(usuario, Guid.NewGuid());
+        _registro.Llamadas.Should().HaveCount(1, "dentro del enfriamiento no se reintenta");
+
+        _reloj.Ahora += SenalesIncidenteSeguridad.EsperaTrasFallo + TimeSpan.FromSeconds(1);
+        await senales.DocumentoSensibleAbiertoAsync(usuario, Guid.NewGuid());
+        _registro.Llamadas.Should().HaveCount(2, "sin desmarcar, la ventana seguiría avisada una hora y la señal se perdería");
+        _alerta.Encolados.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Mas_de_cincuenta_Tenants_se_cortan_y_la_evidencia_guarda_el_total()
+    {
+        _opciones.UmbralDocumentosSensibles = 60;
+        var senales = Crear();
+        var usuario = Guid.NewGuid();
+
+        for (var i = 0; i < 60; i++)
+            await senales.DocumentoSensibleAbiertoAsync(usuario, Guid.NewGuid());
+
+        var llamada = _registro.Llamadas.Should().ContainSingle().Subject;
+        llamada.Tenants.Should().HaveCount(IncidenteSeguridadSospechado.MaximoTenantsAfectados);
+        llamada.Evidencia.Should().Contain("\"tenants_afectados_total\":60");
+    }
+
+    [Theory]
+    [InlineData(0, 300, 5, null)]
+    [InlineData(5_000, -1, 5, null)]
+    [InlineData(5_000, 300, 0, null)]
+    [InlineData(5_000, 300, 5, "http://alertas.example/token")]
+    [InlineData(5_000, 300, 5, "alertas.example/token")]
+    public void La_configuracion_rechaza_umbrales_no_positivos_y_una_url_de_alerta_sin_https(
+        int filas, int documentos, int rechazos, string? url)
+        => new OpcionesIncidentesSeguridad
+        {
+            UmbralFilasExportadas = filas,
+            UmbralDocumentosSensibles = documentos,
+            UmbralRechazosOtroTenant = rechazos,
+            UrlAlertaSaliente = url,
+        }.Validar().Should().NotBeEmpty();
+
+    [Fact]
+    public void La_configuracion_por_defecto_y_una_url_https_son_validas()
+    {
+        new OpcionesIncidentesSeguridad().Validar().Should().BeEmpty();
+        new OpcionesIncidentesSeguridad { UrlAlertaSaliente = "https://alertas.example/token" }.Validar().Should().BeEmpty();
     }
 
     [Fact]
@@ -257,6 +319,8 @@ public class SenalesIncidenteSeguridadTests
 
     private sealed class RelojFijo(DateTimeOffset ahora) : TimeProvider
     {
-        public override DateTimeOffset GetUtcNow() => ahora;
+        public DateTimeOffset Ahora { get; set; } = ahora;
+
+        public override DateTimeOffset GetUtcNow() => Ahora;
     }
 }

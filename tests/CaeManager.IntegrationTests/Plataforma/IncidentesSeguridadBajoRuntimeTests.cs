@@ -1,9 +1,12 @@
+using CaeManager.Application.Seguridad.Incidentes;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
+using CaeManager.Infrastructure.Seguridad.Incidentes;
 using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Xunit;
 
@@ -175,21 +178,196 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         filas.Should().OnlyContain(f => f.Rls && f.Force && f.Politicas == "actor_de_plataforma_lee:r");
     }
 
-    private static async Task<(Guid Id, bool Nuevo)> RegistrarAsync(NpgsqlConnection conexion, string senal, string sujeto, Guid[] tenants)
+    [Fact]
+    public async Task Fuera_de_la_ventana_de_deduplicacion_la_misma_senal_abre_otro_incidente()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        var (primero, _) = await RegistrarAsync(conexion, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        await EjecutarComoSuperusuarioAsync(
+            """UPDATE "IncidentesSeguridadSospechados" SET "DetectadoEnUtc" = now() - interval '61 minutes' WHERE "Id" = @id""", primero);
+
+        var (segundo, nuevo) = await RegistrarAsync(conexion, "ExtraccionMasiva", sujeto, [_tenantA]);
+        nuevo.Should().BeTrue("el incidente abierto nació hace más de los 60 minutos de la ventana");
+        segundo.Should().NotBe(primero);
+    }
+
+    [Fact]
+    public async Task Registros_concurrentes_de_la_misma_senal_y_sujeto_abren_un_solo_incidente()
+    {
+        const int Concurrentes = 8;
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        var conexiones = new List<NpgsqlConnection>();
+        for (var i = 0; i < Concurrentes; i++)
+            conexiones.Add(await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA));
+
+        try
+        {
+            var resultados = await Task.WhenAll(conexiones.Select(c => RegistrarAsync(c, "ExtraccionMasiva", sujeto, [_tenantA])));
+
+            resultados.Count(r => r.Nuevo).Should().Be(1, "el cerrojo por señal y sujeto serializa la deduplicación");
+            resultados.Select(r => r.Id).Distinct().Should().ContainSingle();
+            (await DeteccionesAsync(resultados[0].Id)).Should().Be(Concurrentes);
+        }
+        finally
+        {
+            foreach (var c in conexiones)
+                await c.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public async Task El_adaptador_real_registra_por_la_funcion_bajo_cae_app_runtime_y_deduplica()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var servicios = new ServiceCollection();
+        servicios.AddScoped(_ => new CaeManagerDbContext(
+            new DbContextOptionsBuilder<CaeManagerDbContext>().UseNpgsql(conexion).Options,
+            new EphemeralDataProtectionProvider(), new TenantActualAmbiental { TenantId = _tenantA }));
+        await using var proveedor = servicios.BuildServiceProvider();
+        var adaptador = new RegistroIncidentesSeguridadEnBase(proveedor.GetRequiredService<IServiceScopeFactory>());
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+        var evidencia = new EvidenciaIncidenteSeguridad().Con("usuario_id", _usuarioDelTenant).Con("filas", 5_000L);
+
+        var primero = await adaptador.RegistrarAsync(SenalIncidenteSeguridad.ExtraccionMasiva, sujeto, [_tenantA], evidencia, TimeSpan.FromHours(1));
+        var segundo = await adaptador.RegistrarAsync(SenalIncidenteSeguridad.ExtraccionMasiva, sujeto, [_tenantB], evidencia, TimeSpan.FromHours(1));
+
+        primero.EsNuevo.Should().BeTrue();
+        segundo.Should().Be(new IncidenteRegistrado(primero.IncidenteId, false));
+        await using var superusuario = await AbrirAsync();
+        await using var consulta = superusuario.CreateCommand();
+        consulta.CommandText = """SELECT "Senal", "TenantsAfectados", "Evidencia"->>'filas' FROM "IncidentesSeguridadSospechados" WHERE "Id" = @id""";
+        consulta.Parameters.AddWithValue("id", primero.IncidenteId);
+        await using var lector = await consulta.ExecuteReaderAsync();
+        (await lector.ReadAsync()).Should().BeTrue();
+        lector.GetString(0).Should().Be("ExtraccionMasiva");
+        lector.GetFieldValue<Guid[]>(1).Should().BeEquivalentTo([_tenantA, _tenantB]);
+        lector.GetString(2).Should().Be("5000");
+    }
+
+    [Theory]
+    [InlineData("cae_app_soporte", "IncidentesSeguridadSospechados")]
+    [InlineData("cae_app_soporte", "TransicionesIncidenteSeguridad")]
+    [InlineData("cae_app_aprovisionamiento", "IncidentesSeguridadSospechados")]
+    [InlineData("cae_app_aprovisionamiento", "TransicionesIncidenteSeguridad")]
+    public async Task Los_roles_de_Sesion_Privilegiada_registran_por_la_funcion_pero_no_leen_las_tablas(string rol, string tabla)
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_adminPlataformaGlobal, _tenantA, rol);
+
+        var (_, nuevo) = await RegistrarAsync(conexion, "ExtraccionMasiva", $"usuario:{_adminPlataformaGlobal:D}", [_tenantA]);
+        nuevo.Should().BeTrue("una señal nacida en una Sesión Privilegiada tiene que quedar registrada");
+
+        var leer = () => ContarAsync(conexion, tabla);
+        (await leer.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+    }
+
+    [Fact]
+    public async Task Un_incidente_plantado_sobre_otro_sujeto_no_absorbe_su_senal_real()
+    {
+        var victima = Guid.NewGuid();
+        var sujeto = $"usuario:{victima:D}";
+        await using (var otro = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA))
+            await RegistrarAsync(otro, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        await using var propia = await AbrirRestringidaComoAsync(victima, _tenantA);
+        var (_, nuevo) = await RegistrarAsync(propia, "ExtraccionMasiva", sujeto, [_tenantA]);
+
+        nuevo.Should().BeTrue("la señal real abre su incidente y su alerta, no se agrupa en el marcado");
+    }
+
+    [Fact]
+    public async Task Una_concesion_AdminPlataforma_global_caducada_no_lee_los_incidentes()
+    {
+        var caducado = Guid.NewGuid();
+        var ahora = DateTime.UtcNow;
+        await using (var contexto = CrearContexto())
+        {
+            contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(caducado, ahora.AddHours(-5), ahora.AddHours(-1)));
+            await contexto.SaveChangesAsync();
+        }
+        await using (var disparo = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA))
+            await RegistrarAsync(disparo, "InicioSesionNoReconocido", $"usuario:{_usuarioDelTenant:D}", [_tenantA]);
+
+        await using var conexion = await AbrirRestringidaComoAsync(caducado, tenantId: null);
+        (await ContarAsync(conexion, "IncidentesSeguridadSospechados")).Should().Be(0, "la concesión ya no está vigente");
+    }
+
+    [Fact]
+    public async Task La_funcion_rechaza_mas_de_cincuenta_Tenants_y_una_evidencia_de_mas_de_8_KB()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+        var sujeto = $"usuario:{_usuarioDelTenant:D}";
+
+        var muchosTenants = () => RegistrarAsync(conexion, "ExtraccionMasiva", sujeto, Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray());
+        (await muchosTenants.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.InvalidParameterValue);
+
+        var evidenciaGrande = () => RegistrarAsync(conexion, "ExtraccionMasiva", sujeto, [_tenantA],
+            $$"""{"relleno": "{{new string('x', 9_000)}}"}""");
+        (await evidenciaGrande.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be(PostgresErrorCodes.StringDataRightTruncation);
+    }
+
+    [Fact]
+    public async Task Un_sujeto_distinto_del_usuario_del_contexto_queda_marcado_en_la_evidencia()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_usuarioDelTenant, _tenantA);
+
+        var (propio, _) = await RegistrarAsync(conexion, "ExtraccionMasiva", $"usuario:{_usuarioDelTenant:D}", [_tenantA]);
+        var otro = Guid.NewGuid();
+        var (ajeno, nuevo) = await RegistrarAsync(conexion, "ExtraccionMasiva", $"usuario:{otro:D}", [_tenantA]);
+
+        nuevo.Should().BeTrue("no se rechaza: una Sesión Privilegiada registra al Actor real con el Usuario simulado en el contexto");
+        (await EvidenciaAsync(propio, "sujeto_distinto_del_contexto")).Should().BeNull();
+        (await EvidenciaAsync(ajeno, "sujeto_distinto_del_contexto")).Should().Be("true");
+        (await EvidenciaAsync(ajeno, "contexto_usuario_id")).Should().Be(_usuarioDelTenant.ToString("D"));
+    }
+
+    private static async Task<(Guid Id, bool Nuevo)> RegistrarAsync(
+        NpgsqlConnection conexion, string senal, string sujeto, Guid[] tenants, string evidencia = """{"recuento": 1}""")
     {
         await using var comando = conexion.CreateCommand();
         comando.CommandText = """
             SELECT incidente_id, es_nuevo
-            FROM app_registrar_incidente_seguridad(@id, @transicion, @senal, @sujeto, @tenants, '{"recuento": 1}'::jsonb, 3600)
+            FROM app_registrar_incidente_seguridad(@id, @transicion, @senal, @sujeto, @tenants, @evidencia::jsonb, 3600)
             """;
         comando.Parameters.AddWithValue("id", Guid.NewGuid());
         comando.Parameters.AddWithValue("transicion", Guid.NewGuid());
         comando.Parameters.AddWithValue("senal", senal);
         comando.Parameters.AddWithValue("sujeto", sujeto);
         comando.Parameters.AddWithValue("tenants", tenants);
+        comando.Parameters.AddWithValue("evidencia", evidencia);
         await using var lector = await comando.ExecuteReaderAsync();
         (await lector.ReadAsync()).Should().BeTrue();
         return (lector.GetGuid(0), lector.GetBoolean(1));
+    }
+
+    private async Task EjecutarComoSuperusuarioAsync(string sql, Guid id)
+    {
+        await using var superusuario = await AbrirAsync();
+        await using var comando = superusuario.CreateCommand();
+        comando.CommandText = sql;
+        comando.Parameters.AddWithValue("id", id);
+        await comando.ExecuteNonQueryAsync();
+    }
+
+    private async Task<int> DeteccionesAsync(Guid id)
+    {
+        await using var superusuario = await AbrirAsync();
+        await using var consulta = superusuario.CreateCommand();
+        consulta.CommandText = """SELECT "Detecciones" FROM "IncidentesSeguridadSospechados" WHERE "Id" = @id""";
+        consulta.Parameters.AddWithValue("id", id);
+        return (int)(await consulta.ExecuteScalarAsync())!;
+    }
+
+    private async Task<string?> EvidenciaAsync(Guid id, string clave)
+    {
+        await using var superusuario = await AbrirAsync();
+        await using var consulta = superusuario.CreateCommand();
+        consulta.CommandText = """SELECT "Evidencia"->>@clave FROM "IncidentesSeguridadSospechados" WHERE "Id" = @id""";
+        consulta.Parameters.AddWithValue("id", id);
+        consulta.Parameters.AddWithValue("clave", clave);
+        var valor = await consulta.ExecuteScalarAsync();
+        return valor is DBNull or null ? null : (string)valor;
     }
 
     private async Task<NpgsqlConnection> AbrirAsync()
@@ -199,14 +377,14 @@ public class IncidentesSeguridadBajoRuntimeTests : IAsyncLifetime
         return conexion;
     }
 
-    private async Task<NpgsqlConnection> AbrirRestringidaComoAsync(Guid? usuarioId, Guid? tenantId)
+    private async Task<NpgsqlConnection> AbrirRestringidaComoAsync(Guid? usuarioId, Guid? tenantId, string rol = "cae_app_runtime")
     {
         var conexion = await AbrirAsync();
         await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId, usuarioId: usuarioId);
 
         // Sin SET ROLE seguiríamos siendo superusuario y las políticas no se evaluarían.
         await using var setRol = conexion.CreateCommand();
-        setRol.CommandText = "SET ROLE cae_app_runtime;";
+        setRol.CommandText = $"SET ROLE {rol};";
         await setRol.ExecuteNonQueryAsync();
         return conexion;
     }
