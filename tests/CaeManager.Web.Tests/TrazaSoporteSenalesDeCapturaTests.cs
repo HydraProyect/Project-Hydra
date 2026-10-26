@@ -145,6 +145,79 @@ public class TrazaSoporteSenalesDeCapturaTests : BunitContext
     }
 
     [Fact]
+    public async Task Detener_lleva_un_tope_para_no_retener_el_desmontaje()
+    {
+        var aviso = Render<TrazaSoporte>();
+        aviso.WaitForAssertion(() => _modulo.VerifyInvoke("iniciar", 1));
+
+        await DisposeComponentsAsync();
+
+        (_captura.Invocations["detener"].Single().CancellationToken ?? CancellationToken.None).CanBeCanceled.Should()
+            .BeTrue("un navegador que no contesta no puede retener el desmontaje del circuito");
+    }
+
+    [Fact]
+    public async Task Si_liberar_la_captura_falla_el_modulo_se_libera_igual()
+    {
+        var espia = new ModuloEspiado(JSInterop.JSRuntime);
+        Services.AddSingleton<IJSRuntime>(espia);
+        var aviso = Render<TrazaSoporte>();
+        aviso.WaitForAssertion(() =>
+            aviso.Find(".aviso-sesion-soporte").GetAttribute("data-captura-lista").Should().Be("true"));
+        var referencia = (DotNetObjectReference<TrazaSoporte>)_modulo.Invocations["iniciar"].Single().Arguments[0]!;
+
+        var desmontar = DisposeComponentsAsync;
+
+        await desmontar.Should().NotThrowAsync();
+        _captura.VerifyInvoke("detener", 1);
+        espia.ModuloLiberado.Should().BeTrue("cada referencia JS se libera aunque falle la anterior");
+        var liberada = () => referencia.Value;
+        liberada.Should().Throw<ObjectDisposedException>();
+    }
+
+    /// <summary>Envuelve el módulo importado para saber si se libera, con una captura que falla al liberarse.</summary>
+    private sealed class ModuloEspiado(IJSRuntime interno) : IJSRuntime
+    {
+        public bool ModuloLiberado { get; private set; }
+        public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+            InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+        public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+        {
+            var resultado = await interno.InvokeAsync<TValue>(identifier, cancellationToken, args);
+            return identifier == "import"
+                ? (TValue)(object)new Modulo((IJSObjectReference)resultado!, () => ModuloLiberado = true)
+                : resultado;
+        }
+
+        private sealed class Modulo(IJSObjectReference interno, Action alLiberar) : IJSObjectReference
+        {
+            public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+                InvokeAsync<TValue>(identifier, CancellationToken.None, args);
+            public async ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args)
+            {
+                var resultado = await interno.InvokeAsync<TValue>(identifier, cancellationToken, args);
+                return identifier == "iniciar"
+                    ? (TValue)(object)new CapturaQueFallaAlLiberar((IJSObjectReference)resultado!)
+                    : resultado;
+            }
+            public ValueTask DisposeAsync()
+            {
+                alLiberar();
+                return interno.DisposeAsync();
+            }
+        }
+
+        private sealed class CapturaQueFallaAlLiberar(IJSObjectReference interno) : IJSObjectReference
+        {
+            public ValueTask<TValue> InvokeAsync<TValue>(string identifier, object?[]? args) =>
+                interno.InvokeAsync<TValue>(identifier, args);
+            public ValueTask<TValue> InvokeAsync<TValue>(string identifier, CancellationToken cancellationToken, object?[]? args) =>
+                interno.InvokeAsync<TValue>(identifier, cancellationToken, args);
+            public ValueTask DisposeAsync() => throw new JSException("El navegador no pudo liberar la captura.");
+        }
+    }
+
+    [Fact]
     public async Task Desmontar_con_la_importacion_en_vuelo_no_engancha_nada()
     {
         var retenido = new ImportacionRetenida(JSInterop.JSRuntime);
