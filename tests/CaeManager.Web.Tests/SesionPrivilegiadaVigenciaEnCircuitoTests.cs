@@ -50,6 +50,28 @@ public sealed class SesionPrivilegiadaVigenciaEnCircuitoTests : IAsyncLifetime
     private SesionPrivilegiadaActual _resolutor = null!;
     private RevalidacionCircuitoActivoHandler? _handler;
 
+    [Theory]
+    [InlineData(1, false)]
+    [InlineData(2, false)]
+    [InlineData(1, true)]
+    [InlineData(2, true)]
+    public async Task Un_fallo_al_revalidar_se_reintenta_una_vez_y_solo_se_conserva_el_contexto_si_se_comprueba(
+        int fallos, bool cancelacionDelProveedor)
+    {
+        await AbrirCircuitoConSesionAsync(SesionPrivilegiada.VentanaMaxima);
+        var consultasAntes = _plataforma.ConsultasDeSesion;
+        _plataforma.FallosPendientes = fallos;
+        _plataforma.CancelacionDelProveedor = cancelacionDelProveedor;
+
+        // Ejecuta un ciclo completo, sin depender de cuándo termina el tick en segundo plano.
+        var revalidar = typeof(RevalidacionCircuitoActivoHandler).GetMethod("RevalidarAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        await (Task)revalidar.Invoke(_handler, [CancellationToken.None])!;
+
+        _plataforma.ConsultasDeSesion.Should().Be(consultasAntes + 2, "hay exactamente un reintento");
+        _seleccion.TenantIdSeleccionado.Should().Be(fallos == 1 ? _tenantVisitado : null);
+    }
+
     [Fact]
     public async Task El_tick_del_circuito_corta_la_lectura_cuando_la_sesion_caduca()
     {
@@ -262,6 +284,8 @@ public sealed class SesionPrivilegiadaVigenciaEnCircuitoTests : IAsyncLifetime
         public List<SesionPrivilegiada> Sesiones { get; } = [];
 
         public int ConsultasDeSesion => Volatile.Read(ref _consultasDeSesion);
+        public int FallosPendientes { get; set; }
+        public bool CancelacionDelProveedor { get; set; }
 
         public IQueryable<EstadoBootstrapPlataforma> EstadoBootstrapPlataforma =>
             new ConsultaAsincrona<EstadoBootstrap>(Enumerable.Empty<EstadoBootstrap>().AsQueryable());
@@ -274,6 +298,12 @@ public sealed class SesionPrivilegiadaVigenciaEnCircuitoTests : IAsyncLifetime
             get
             {
                 Interlocked.Increment(ref _consultasDeSesion);
+                if (FallosPendientes > 0)
+                {
+                    FallosPendientes--;
+                    if (CancelacionDelProveedor) throw new OperationCanceledException("Tiempo de espera del proveedor");
+                    throw new InvalidOperationException("Fallo de consulta");
+                }
                 return new ConsultaAsincrona<SesionPrivilegiada>(Sesiones.ToList().AsQueryable());
             }
         }

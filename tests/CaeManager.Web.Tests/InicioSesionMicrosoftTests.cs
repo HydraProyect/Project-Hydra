@@ -4,6 +4,8 @@ using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.Account;
 using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.WebUtilities;
@@ -21,6 +23,87 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class InicioSesionMicrosoftTests
 {
+    [Theory]
+    [InlineData("sin-mfa", false)]
+    [InlineData("sin-cuenta", false)]
+    [InlineData("invitada", false)]
+    [InlineData("sin-mfa", true)]
+    [InlineData("sin-cuenta", true)]
+    [InlineData("invitada", true)]
+    public async Task El_callback_rechaza_la_cookie_externa_de_prueba_o_manipulada(string caso, bool manipulada)
+    {
+        var usuarios = new UsuariosConVinculos
+        {
+            DuenaDeLaIdentidad = caso == "sin-cuenta" ? null : new ApplicationUser { TenantId = TenantDestino }
+        };
+        var vigilancia = new VigilanciaDePrueba();
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        builder.Logging.ClearProviders();
+        builder.Services.AddAuthentication(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ApplicationScheme)
+            .AddCookie(IdentityConstants.ExternalScheme)
+            .AddCookie(IdentityConstants.TwoFactorUserIdScheme);
+        builder.Services.AddIdentityCore<ApplicationUser>().AddSignInManager();
+        builder.Services.AddSingleton<UserManager<ApplicationUser>>(usuarios);
+        builder.Services.Configure<AzureAdOptions>(o => o.TenantHydraId = TenantDestino);
+        builder.Services.AddSingleton<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion>(vigilancia);
+        await using var app = builder.Build();
+        app.UseAuthentication();
+        app.MapIdentityEndpoints();
+        // Solo el arnés emite esta cookie sintética; el callback y su autenticación son reales.
+        app.MapGet("/externa-de-prueba", async (HttpContext contexto) =>
+        {
+            var principal = Externo((ClaimTypes.NameIdentifier, "sub-prueba"),
+                (ClaimTypes.Email, "prueba@ejemplo.test"), ("amr", "pwd"),
+                ("acct", caso == "invitada" ? "1" : "0"));
+            var propiedades = new AuthenticationProperties();
+            propiedades.Items["LoginProvider"] = IdentityEndpointsExtensions.EsquemaMicrosoft;
+            await contexto.SignInAsync(IdentityConstants.ExternalScheme, principal, propiedades);
+        });
+        await app.StartAsync();
+        using var cliente = new HttpClient(new HttpClientHandler
+        {
+            AllowAutoRedirect = false, UseCookies = false, UseProxy = false
+        }) { BaseAddress = new Uri(app.Urls.Single()) };
+        using var emision = await cliente.GetAsync("/externa-de-prueba");
+        var cookie = emision.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
+        if (manipulada) cookie = cookie[..(cookie.IndexOf('=') + 1)] + "cookie-falsa-manipulada";
+        using var peticion = new HttpRequestMessage(HttpMethod.Get, "/cuenta/microsoft-callback?returnUrl=%2Fdocumentos");
+        peticion.Headers.Add("Cookie", cookie);
+
+        using var respuesta = await cliente.SendAsync(peticion);
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
+        var error = manipulada || caso == "invitada" ? "fallo" : caso;
+        respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
+        usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
+        respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
+        (cookies ?? []).Should().NotContain(c =>
+            c.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal)
+            && !c.StartsWith(".AspNetCore.Identity.Application=;", StringComparison.Ordinal),
+            "ningún rechazo emite una sesión de aplicación");
+        vigilancia.Resultados.Should().Equal(manipulada ? [] :
+            [caso == "sin-mfa" ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
+        await app.StopAsync();
+    }
+
+    private sealed class VigilanciaDePrueba : CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion
+    {
+        public List<CaeManager.Domain.Seguridad.ResultadoInicioSesion> Resultados { get; } = [];
+        public Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RegistrarAsync(Guid? usuarioId, Guid? tenantId, CaeManager.Domain.Seguridad.MetodoInicioSesion metodo,
+            CaeManager.Domain.Seguridad.ResultadoInicioSesion resultado,
+            CaeManager.Domain.Seguridad.SenalesInicioSesion senalesConocidas = CaeManager.Domain.Seguridad.SenalesInicioSesion.Ninguna,
+            CancellationToken ct = default)
+        {
+            Resultados.Add(resultado);
+            return Task.CompletedTask;
+        }
+        public Task<CaeManager.Infrastructure.Seguridad.ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(
+            string usuarioId, string codigo, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
     [Theory]
     [InlineData("acct", "1", false, false)]
     [InlineData("acct", "1", true, true)]
@@ -474,6 +557,10 @@ public class InicioSesionMicrosoftTests
 
         public override Task<ApplicationUser?> FindByLoginAsync(string loginProvider, string providerKey) =>
             Task.FromResult(DuenaDeLaIdentidad);
+
+        public override Task<ApplicationUser?> FindByEmailAsync(string email) => Task.FromResult<ApplicationUser?>(null);
+
+        public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(false);
 
         public override Task<IdentityResult> AddLoginAsync(ApplicationUser user, UserLoginInfo login)
         {
