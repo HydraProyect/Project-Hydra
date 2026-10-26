@@ -131,7 +131,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
     /// </summary>
     private async Task<string> MensajePortalAjenoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
     {
-        const string generico = "Este documento es de otra plataforma CAE: no se puede anotar como enviado en este portal.";
+        const string generico = "Este documento es de otra Plataforma CAE: no se puede anotar como enviado en este portal.";
 
         var proveedorId = await centrosContext.CanalesGestionDocumental
             .Where(c => c.Id == canalGestionDocumentalId)
@@ -146,7 +146,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
 
         return string.IsNullOrWhiteSpace(nombre)
             ? generico
-            : $"Este documento es de otra plataforma CAE: debe subirse en la Plataforma CAE {nombre}, no se puede anotar como enviado en este portal.";
+            : $"Este documento es de otra Plataforma CAE: debe subirse en la Plataforma CAE {nombre}, no se puede anotar como enviado en este portal.";
     }
 
     private async Task<bool> ProveedorActivoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)

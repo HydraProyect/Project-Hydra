@@ -90,6 +90,7 @@ globalThis.fetch = async (url, opciones = {}) => {
         return async () => {
           if (leido) throw new Error("El cuerpo ya se consumió");
           leido = true;
+          if (estadoDeLaSubida >= 300 && problemaDeLaSubida === null) throw new SyntaxError("cuerpo no JSON");
           return estadoDeLaSubida < 300 ? { cambioId: CAMBIO, version: VERSION } : problemaDeLaSubida;
         };
       })(),
@@ -328,6 +329,22 @@ for (const plataforma of [undefined, "Twind"]) {
   estadoDeLaSubida = 200;
   const reintentado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
   comprobar("PortalAjeno permite confirmar al reintentar", reintentado?.ok === true);
+}
+
+// Cualquier otro 409 (título por defecto, otro código, sin título o con cuerpo que no es JSON) sigue borrando el pendiente.
+for (const problema of [{ title: "Conflict", detail: "Este conector está desactivado temporalmente." },
+                        { title: "Acreditacion.ConectorInactivo", detail: "Conector apagado." },
+                        { detail: "Sin título." }, null]) {
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 409;
+  problemaDeLaSubida = problema;
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar(`un 409 distinto de PortalAjeno (${problema === null ? "cuerpo no JSON" : problema.title ?? "sin título"}) sigue borrando el pendiente`,
+    pendientes?.pendientes?.length === 0);
+  estadoDeLaSubida = 200;
+  problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
 }
 
 // Un 404 elimina el pendiente incluso si el cuerpo lleva el título PortalAjeno.

@@ -164,7 +164,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
         var resultado = await e.Confirmar.Handle(new ConfirmarSubidaDesdeExtensionCommand(e.Acreditacion.Id, "app.nalandaglobal.com"), CancellationToken.None);
 
         resultado.Error.Mensaje.Should().Be(
-            "Este documento es de otra plataforma CAE: debe subirse en la Plataforma CAE Dokify, no se puede anotar como enviado en este portal.");
+            "Este documento es de otra Plataforma CAE: debe subirse en la Plataforma CAE Dokify, no se puede anotar como enviado en este portal.");
         resultado.Error.Mensaje.Should().NotContain(e.Acreditacion.Id.ToString()).And.NotContain(e.Documento.Id.ToString());
     }
 
@@ -209,6 +209,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno);
+        resultado.Error.Mensaje.Should().Contain("Plataforma CAE Dokify").And.NotContain("CTAIMA",
+            "el nombre es el del Proveedor del canal de la acreditación, no el dueño del host declarado");
     }
     [Theory]
     [InlineData(null)]
