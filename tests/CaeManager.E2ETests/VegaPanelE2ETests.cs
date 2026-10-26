@@ -5,8 +5,28 @@ using static Microsoft.Playwright.Assertions;
 
 namespace CaeManager.E2ETests;
 
-[Collection("AppCollection")]
-public class VegaPanelE2ETests(WebAppFixture fixture)
+/// <summary>
+/// Instancia propia con el doble del chat de Vega (AsistenteDePruebasExtensions): sustituye
+/// IAsistenteIaService por un doble sin red. Exige Development y DatosPrueba:Activo, que fija la
+/// fixture base; fuera de ese entorno la app se niega a arrancar con esta clave activa.
+/// <para>
+/// No va en "AppCollection" porque con un proveedor de consultas disponible se pintan en todas las
+/// páginas el botón flotante de Vega y su pista de primera vez, abajo a la derecha y por encima del
+/// contenido: en CI taparon el botón «He avisado a la organización» de FlujoRetencionTests. El
+/// resto de la suite se queda sin Vega, como hasta ahora; el coste es un arranque más por run.
+/// </para>
+/// </summary>
+public sealed class WebAppFixtureConVega : WebAppFixture
+{
+    protected override IReadOnlyDictionary<string, string> VariablesDeEntornoAdicionales() =>
+        new Dictionary<string, string> { ["AsistenteIa__ProveedorFalsoActivo"] = "true" };
+}
+
+[CollectionDefinition("AppCollectionVega")]
+public class AppCollectionVega : ICollectionFixture<WebAppFixtureConVega>;
+
+[Collection("AppCollectionVega")]
+public class VegaPanelE2ETests(WebAppFixtureConVega fixture)
 {
     [Fact]
     public async Task La_consulta_del_panel_llega_al_doble_con_el_DNI_enmascarado()

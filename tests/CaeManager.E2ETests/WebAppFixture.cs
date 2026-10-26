@@ -122,11 +122,6 @@ public class WebAppFixture : IAsyncLifetime
         // así que compartirlo en "AppCollection" no afecta a ningún otro test.
         infoInicio.Environment["DocumentosIa__ProveedorFalsoActivo"] = "true";
 
-        // Chat de Vega sin IA real (VegaPanelE2ETests): AsistenteDePruebasExtensions sustituye
-        // IAsistenteIaService por un doble sin red. Exige Development y DatosPrueba:Activo, los dos
-        // fijados arriba; fuera de ese entorno la app se niega a arrancar con esta clave activa.
-        infoInicio.Environment["AsistenteIa__ProveedorFalsoActivo"] = "true";
-
         // El rate limiting de /cuenta/* (P0-2: fuerza bruta) limita los POST
         // anónimos a 10/min POR IP — y toda esta suite llega desde 127.0.0.1
         // haciendo logins reales en serie, donde cada login del Administrador
