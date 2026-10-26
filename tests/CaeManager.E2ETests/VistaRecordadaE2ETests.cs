@@ -64,8 +64,9 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 
             var buscador = page.GetByPlaceholder(placeholder);
             var nombres = page.Locator("tbody .celda-vehiculo .enlace-nombre-fila");
-            // Se prueba qué recuerda la vista, no el tecleo: entrar con q evita que la navegación
-            // de la búsqueda sustituya la página justo mientras se está eligiendo el orden.
+            // Se prueba qué recuerda la vista, no el tecleo (lo cubre el recorrido de Centros y los de
+            // ListadosFase1): entrar con q deja la URL ya asentada antes de elegir el orden, porque cada
+            // NavigateTo de la página lee la URL aún sin el cambio del anterior y se pisan (#1685).
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?q={Uri.EscapeDataString(prefijo)}");
             await CircuitoAtendiendoAsync(page, pastilla);
             await EsperarVistaEnLaUrlAsync(page, ("q", prefijo));
