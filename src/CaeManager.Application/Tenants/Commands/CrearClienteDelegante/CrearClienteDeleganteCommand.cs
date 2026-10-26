@@ -58,7 +58,7 @@ public class CrearClienteDeleganteCommandHandler(
     IAutorizacionAdminPlataforma autorizacion,
     ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork, ITransaccionDeComando transaccion)
     : IRequestHandler<CrearClienteDeleganteCommand, Result<Guid>>
 {
     /// <summary>
@@ -123,49 +123,58 @@ public class CrearClienteDeleganteCommandHandler(
         // con SingleAsync() y falla si no existe.
         using (AmbitoTenantExplicito.Establecer(tenantCliente.Id))
         {
-            tenantRepositorio.Agregar(tenantCliente);
-            parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
+            // Ambos guardados firman el mismo Tenant: no hay cambio de identidad
+            // RLS dentro de la conexión. La transacción revierte también el alta
+            // si falla la operación delegada o su primera cartera.
+            var escrita = await transaccion.EjecutarAsync(async ct =>
+            {
+                tenantRepositorio.Agregar(tenantCliente);
+                parametroSistemaRepositorio.Agregar(new ParametroSistema(UmbralAmbarDiasPorDefecto, UmbralRojoDiasPorDefecto));
 
-            // Todo tenant nace con su operación raíz: es su derecho a operarse
-            // a sí mismo y el ancla de sus carteras internas. Sin ella, el día
-            // que este cliente internalice su gestión no habría dónde colgar la
-            // cartera de su propio equipo.
-            await asignacionesWriter.AsegurarOperacionRaizAsync(
-                tenantCliente.Id, tenantCliente.CreadoEnUtc, cancellationToken);
+                // Todo tenant nace con su operación raíz: es su derecho a operarse
+                // a sí mismo y el ancla de sus carteras internas. Sin ella, el día
+                // que este cliente internalice su gestión no habría dónde colgar la
+                // cartera de su propio equipo.
+                await asignacionesWriter.AsegurarOperacionRaizAsync(
+                    tenantCliente.Id, tenantCliente.CreadoEnUtc, ct);
 
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.SaveChangesAsync(ct);
 
-            // Dentro del mismo ámbito, y no fuera: la AsignacionOperacion delegada
-            // y su cartera son datos del Tenant propietario recién creado
-            // (PropietarioTenantId = tenantCliente.Id), y la política WITH CHECK
-            // de la tabla de Asignaciones de Operación exige que ese sea el
-            // Tenant activo al guardar. Fuera del ámbito el Tenant activo sería el de origen de
-            // quien ejecuta y RLS rechazaría la inserción. La autoridad sigue
-            // siendo la concesión global validada arriba; el ámbito solo fija
-            // dónde se escribe. DelegacionTenant y AsignacionOperadorDelegado son
-            // catálogo global (Entity, no EntidadConTenant): el ámbito no las sella.
-            var delegacion = new DelegacionTenant(tenantOrigenId!.Value, tenantCliente.Id);
-            delegacionRepositorio.Agregar(delegacion);
+                // Dentro del mismo ámbito, y no fuera: la AsignacionOperacion delegada
+                // y su cartera son datos del Tenant propietario recién creado
+                // (PropietarioTenantId = tenantCliente.Id), y la política WITH CHECK
+                // de la tabla de Asignaciones de Operación exige que ese sea el
+                // Tenant activo al guardar. Fuera del ámbito el Tenant activo sería el de origen de
+                // quien ejecuta y RLS rechazaría la inserción. La autoridad sigue
+                // siendo la concesión global validada arriba; el ámbito solo fija
+                // dónde se escribe. DelegacionTenant y AsignacionOperadorDelegado son
+                // catálogo global (Entity, no EntidadConTenant): el ámbito no las sella.
+                var delegacion = new DelegacionTenant(tenantOrigenId!.Value, tenantCliente.Id);
+                delegacionRepositorio.Agregar(delegacion);
 
-            // Sin esto, la delegación quedaría creada pero inservible: nadie
-            // podría operarla hasta un segundo paso manual que además hoy no
-            // tiene UI propia (Delegaciones.razor solo revoca/reactiva).
-            asignacionRepositorio.Agregar(new AsignacionOperadorDelegado(delegacion.Id, usuarioId.Value, RolInicialOperadorDelegado));
+                // Sin esto, la delegación quedaría creada pero inservible: nadie
+                // podría operarla hasta un segundo paso manual que además hoy no
+                // tiene UI propia (Delegaciones.razor solo revoca/reactiva).
+                asignacionRepositorio.Agregar(new AsignacionOperadorDelegado(delegacion.Id, usuarioId.Value, RolInicialOperadorDelegado));
 
-            // Doble escritura de la delegación y de su primer operador. Este
-            // comando escribe por repositorios directos, sin pasar por los comandos
-            // que sirven de fachada, así que necesita su propia llamada — es
-            // justamente el camino que un inventario superficial habría dejado
-            // fuera.
-            // La operación se usa por instancia, no se vuelve a buscar: acaba de
-            // añadirse al contexto y todavía no está guardada, así que una consulta
-            // no la encontraría y la cartera se perdería en silencio.
-            var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
-                tenantCliente.Id, tenantOrigenId.Value, delegacion.CreadoEnUtc, vigenciaHasta: null, cancellationToken);
-            await asignacionesWriter.AbrirCarteraOperadorAsync(
-                operacion, usuarioId.Value, RolInicialOperadorDelegado, cancellationToken);
+                // Doble escritura de la delegación y de su primer operador. Este
+                // comando escribe por repositorios directos, sin pasar por los comandos
+                // que sirven de fachada, así que necesita su propia llamada — es
+                // justamente el camino que un inventario superficial habría dejado
+                // fuera.
+                // La operación se usa por instancia, no se vuelve a buscar: acaba de
+                // añadirse al contexto y todavía no está guardada, así que una consulta
+                // no la encontraría y la cartera se perdería en silencio.
+                var operacion = await asignacionesWriter.AbrirOperacionDelegadaAsync(
+                    tenantCliente.Id, tenantOrigenId.Value, delegacion.CreadoEnUtc, vigenciaHasta: null, ct);
+                await asignacionesWriter.AbrirCarteraOperadorAsync(
+                    operacion, usuarioId.Value, RolInicialOperadorDelegado, ct);
 
-            await unitOfWork.SaveChangesAsync(cancellationToken);
+                await unitOfWork.SaveChangesAsync(ct);
+                return Result.Exito();
+            }, cancellationToken);
+            if (escrita.EsFallido)
+                return Result.Fallo<Guid>(escrita.Error);
         }
 
         return Result.Exito(tenantCliente.Id);

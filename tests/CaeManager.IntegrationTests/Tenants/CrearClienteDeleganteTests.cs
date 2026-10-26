@@ -88,7 +88,7 @@ public class CrearClienteDeleganteTests : IAsyncLifetime
             // cartera del operador — la doble escritura de este camino.
             new AsignacionesOperativasWriter(
                 contexto, _tenantActual, new CurrentUserServiceFalso(tenantOrigenId, usuarioId)),
-            contexto);
+            contexto, new TransaccionDeComando(contexto));
 
     [Fact]
     public async Task Un_administrador_de_plataforma_crea_el_tenant_la_delegacion_activa_y_su_propia_asignacion()

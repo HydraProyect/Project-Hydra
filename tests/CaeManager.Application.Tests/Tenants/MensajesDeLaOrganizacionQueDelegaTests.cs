@@ -191,7 +191,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             tenantRepositorio: null!, delegacionRepositorio: null!, asignacionRepositorio: null!,
             parametroSistemaRepositorio: null!, AutorizacionAdminPlataformaFalsa.SinNada(),
             new CurrentUserServiceFalso(_usuario, tenantOrigenId: _operador.Id),
-            asignacionesWriter: null!, unitOfWork: null!);
+            asignacionesWriter: null!, unitOfWork: null!, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
 
         var resultado = await handler.Handle(
             new CrearClienteDeleganteCommand("Constructora Boreal"), CancellationToken.None);

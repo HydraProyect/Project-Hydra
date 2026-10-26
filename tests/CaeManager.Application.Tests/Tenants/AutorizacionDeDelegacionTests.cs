@@ -259,8 +259,9 @@ public class AutorizacionDeDelegacionTests
 
     /// <summary>
     /// La autoridad sobre la Delegación se conserva en su servicio específico.
-    /// CrearDelegacionTenant recibe ITenantActual solo para rechazar un contexto de
-    /// escritura ajeno, después de autorizar contra el Tenant propietario de la petición.
+    /// CrearDelegacionTenant y ReactivarDelegacionTenant reciben ITenantActual solo para
+    /// rechazar un contexto de escritura ajeno, después de autorizar contra el Tenant
+    /// propietario de la petición.
     /// Los tests de comportamiento comprueban ambos predicados por separado.
     /// </summary>
     [Fact]
@@ -293,7 +294,10 @@ public class AutorizacionDeDelegacionTests
                 "la plataforma: ADR-004 § 12.2 pone 'aprueba, modifica y revoca' del lado del Cliente " +
                 "Delegante");
 
-            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler))
+            // Crear y reactivar usan el contexto solo para restringir, después
+            // de resolver la autoridad del Administrador del Tenant propietario.
+            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler)
+                || handler == typeof(ReactivarDelegacionTenantCommandHandler))
                 dependencias.Should().Contain("IAutorizacionDelegacionTenant");
             else
                 dependencias.Should().NotContain("ITenantActual",
@@ -316,7 +320,7 @@ public class AutorizacionDeDelegacionTests
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
             new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -352,7 +356,7 @@ public class AutorizacionDeDelegacionTests
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id),
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants,
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -381,7 +385,7 @@ public class AutorizacionDeDelegacionTests
             delegaciones, AutorizacionDelegacionFalsa.AdministradorDe(ClienteDelegante),
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork, tenants,
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -408,7 +412,7 @@ public class AutorizacionDeDelegacionTests
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
             new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -429,7 +433,7 @@ public class AutorizacionDeDelegacionTests
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
             new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -449,7 +453,7 @@ public class AutorizacionDeDelegacionTests
             new CurrentUserServiceFalso(usuarioId: null), new AsignacionesOperativasWriterFalso(), unitOfWork,
             new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -482,7 +486,7 @@ public class AutorizacionDeDelegacionTests
                 new CurrentUserServiceFalso(Usuario, tenantOrigenId: origen),
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -510,7 +514,7 @@ public class AutorizacionDeDelegacionTests
             new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
             new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso());
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var sinAutoridad = await ajeno.Handle(
             new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
@@ -520,7 +524,7 @@ public class AutorizacionDeDelegacionTests
                 new CurrentUserServiceFalso(Usuario), new AsignacionesOperativasWriterFalso(), unitOfWork,
                 new TenantsQueryContextFalso(),
             new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso())
+            new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         // Misma delegación, mismo estado, dos respuestas — y la diferencia la
@@ -576,7 +580,7 @@ public class AutorizacionDeDelegacionTests
                 delegaciones, soloMiembroDelOperadorCae, quienAdministraPorEncargo,
                 new AsignacionesOperativasWriterFalso(), unitOfWork, new TenantsQueryContextFalso(),
                 new TransaccionDeComandoFalsa(), new CatalogoIncorporacionCarteraFalso(),
-                new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso())
+                new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(), new BloqueoCarteraUsuarioFalso(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
         reactivacion.EsFallido.Should().BeTrue("no deshace la retirada que decidió el Tenant propietario");
