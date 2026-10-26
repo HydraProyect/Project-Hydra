@@ -48,9 +48,12 @@ public class WebhooksAutenticacionHttpTests
         resultado.Llamadas.Should().NotContain("get_Tenants");
         resultado.Llamadas.Should().NotContain("ParticionarPorPhoneNumberId");
         resultado.Llamadas.Should().NotContain("ResolverPorPhoneNumberIdAsync");
+        resultado.Llamadas.Should().NotContain("AmbitoTenantAntesDeVerificar");
         if (proveedor == "microsoft365")
             resultado.Llamadas.Count(x => x == "VerificarAsync").Should().Be(credencial == "ausente" ? 0 : 1);
         resultado.Logs.Should().NotContain(Secreto).And.NotContain(SecretoAjeno);
+        // La excepción del SDK de Stripe no se registra: ni su mensaje ni su traza.
+        resultado.Logs.Should().NotContain("Stripe.StripeException").And.NotContain("   at ");
     }
 
     [Theory]
@@ -63,6 +66,7 @@ public class WebhooksAutenticacionHttpTests
         var resultado = await EnviarAsync(proveedor, "valida");
 
         resultado.Estado.Should().Be(esperado);
+        resultado.Llamadas.Should().NotContain("AmbitoTenantAntesDeVerificar");
         if (proveedor != "stripe")
         {
             resultado.Llamadas.Count(x => x == "Agregar").Should().Be(1);
@@ -97,8 +101,14 @@ public class WebhooksAutenticacionHttpTests
         // El resolver criptográfico de Graph se prueba aparte: aquí se observa que el
         // endpoint respeta su resultado antes de persistir o establecer el Tenant.
         builder.Services.AddSingleton<IWebhookTenantResolver>(Crear<IWebhookTenantResolver>(llamadas,
-            (_, argumentos) => Task.FromResult(new VerificacionWebhookDto(
-                (string)argumentos![1]! == Secreto, tenantId))));
+            (_, argumentos) =>
+            {
+                // Ningún ámbito de Tenant puede estar abierto antes de verificar.
+                if (AmbitoTenantExplicito.TenantIdActual is not null)
+                    llamadas.Enqueue("AmbitoTenantAntesDeVerificar");
+                return Task.FromResult(new VerificacionWebhookDto(
+                    (string)argumentos![1]! == Secreto, tenantId));
+            }));
         builder.Services.AddSingleton<IMicrosoft365GraphClient>(Crear<IMicrosoft365GraphClient>(llamadas,
             (metodo, argumentos) =>
             {

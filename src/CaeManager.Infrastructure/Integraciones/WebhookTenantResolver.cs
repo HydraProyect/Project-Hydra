@@ -29,18 +29,27 @@ public class WebhookTenantResolver(CaeManagerDbContext dbContext) : IWebhookTena
     public async Task<VerificacionWebhookDto> VerificarAsync(
         Guid conexionIntegracionId, string clientStateRecibido, string? subscriptionIdRecibido, CancellationToken cancellationToken)
     {
-        var fila = await dbContext.SuscripcionesWebhook
+        // Take(2), no FirstOrDefault: el índice único es (TenantId,
+        // ConexionIntegracionId), así que la base admitiría dos filas de Tenants
+        // distintos para la misma conexión. Si las hubiera, el Tenant resuelto
+        // dependería del orden de la consulta; se rechaza en vez de elegir.
+        var filas = await dbContext.SuscripcionesWebhook
             .IgnoreQueryFilters()
             .Where(s => s.ConexionIntegracionId == conexionIntegracionId)
             .Select(s => new { s.TenantId, s.ClientState, s.GraphSubscriptionId, s.FechaExpiracionUtc })
-            .FirstOrDefaultAsync(cancellationToken);
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        var fila = filas.Count == 1 ? filas[0] : null;
 
         // Caducidad (auditoría módulo 6): una notificación puede llegar tras
         // vencer la suscripción local por desfase de reloj o por un fallo de
         // renovación — Graph todavía la considerara viva unos minutos más.
         // Sin esto, clientState + subscriptionId de una suscripción ya
         // caducada localmente se seguían aceptando indefinidamente.
+        // Un ClientState vacío en la fila (dato heredado o corrupto) también
+        // rechaza: FixedTimeEquals de dos secuencias vacías daría true.
         if (fila is null || string.IsNullOrWhiteSpace(clientStateRecibido) ||
+            string.IsNullOrWhiteSpace(fila.ClientState) ||
             !CryptographicOperations.FixedTimeEquals(
                 Encoding.UTF8.GetBytes(fila.ClientState), Encoding.UTF8.GetBytes(clientStateRecibido)) ||
             string.IsNullOrWhiteSpace(subscriptionIdRecibido) || fila.GraphSubscriptionId != subscriptionIdRecibido ||

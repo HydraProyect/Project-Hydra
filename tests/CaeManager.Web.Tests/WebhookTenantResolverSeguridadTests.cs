@@ -52,6 +52,39 @@ public class WebhookTenantResolverSeguridadTests
         (await contexto.SuscripcionesWebhook.IgnoreQueryFilters().CountAsync()).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Un_ClientState_vacio_guardado_no_se_acepta_con_un_clientState_vacio_recibido()
+    {
+        await using var contexto = await CrearContexto();
+        var suscripcion = await contexto.SuscripcionesWebhook.IgnoreQueryFilters().SingleAsync();
+        contexto.Entry(suscripcion).Property(s => s.ClientState).CurrentValue = "";
+        await contexto.SaveChangesAsync();
+
+        var resultado = await new WebhookTenantResolver(contexto).VerificarAsync(
+            suscripcion.ConexionIntegracionId, "", "suscripcion-de-prueba", default);
+
+        resultado.Verificado.Should().BeFalse();
+        resultado.TenantId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Dos_suscripciones_de_Tenants_distintos_para_la_misma_conexion_rechazan_en_vez_de_elegir()
+    {
+        await using var contexto = await CrearContexto();
+        var suscripcion = await contexto.SuscripcionesWebhook.IgnoreQueryFilters().SingleAsync();
+        var duplicada = new SuscripcionWebhook(suscripcion.ConexionIntegracionId, "suscripcion-de-prueba",
+            "secreto-de-prueba", DateTime.UtcNow.AddDays(1));
+        contexto.SuscripcionesWebhook.Add(duplicada);
+        contexto.Entry(duplicada).Property(s => s.TenantId).CurrentValue = Guid.NewGuid();
+        await contexto.SaveChangesAsync();
+
+        var resultado = await new WebhookTenantResolver(contexto).VerificarAsync(
+            suscripcion.ConexionIntegracionId, "secreto-de-prueba", "suscripcion-de-prueba", default);
+
+        resultado.Verificado.Should().BeFalse();
+        resultado.TenantId.Should().BeNull();
+    }
+
     private static async Task<ContextoSuscripciones> CrearContexto(bool caducada = false)
     {
         var conexion = new SqliteConnection("Data Source=:memory:");
