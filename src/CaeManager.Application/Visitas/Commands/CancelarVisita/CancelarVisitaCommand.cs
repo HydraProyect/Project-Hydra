@@ -11,8 +11,8 @@ namespace CaeManager.Application.Visitas.Commands.CancelarVisita;
 /// deja en estado Cancelada, reversible con <c>ReactivarVisitaCommand</c>. Antes
 /// era un borrado lógico sin estado ni restauración, y en Outbound —donde la
 /// Visita es la gestión de ingreso ante la plataforma destino— su historia se
-/// perdía. El motivo es opcional para el comando (API y datos antiguos); desde la maqueta «Flujos 06
-/// Visitas» (2026-10-21) la interfaz web lo exige y desactiva el botón sin él.
+/// perdía. El motivo es obligatorio al cancelar, tanto en el servidor como en la interfaz web.
+/// Los datos antiguos pueden conservar un motivo nulo.
 /// <para>
 /// Devuelve el recibo de la cancelación (<see cref="VisitaCanceladaDto"/>): la versión en la que
 /// dejó la Visita es lo que el aviso «Deshacer» devuelve a <c>ReactivarVisitaCommand</c>, que
@@ -29,7 +29,10 @@ public class CancelarVisitaCommandValidator : AbstractValidator<CancelarVisitaCo
     public CancelarVisitaCommandValidator()
     {
         RuleFor(c => c.Id).NotEmpty();
-        RuleFor(c => c.Motivo).MaximumLength(Visita.LongitudMaximaMotivo);
+        RuleFor(c => c.Motivo)
+            .NotEmpty().WithMessage("Indica el motivo de la cancelación.")
+            .MaximumLength(Visita.LongitudMaximaMotivo)
+            .WithMessage($"El motivo no puede superar los {Visita.LongitudMaximaMotivo} caracteres.");
     }
 }
 
