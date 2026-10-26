@@ -175,8 +175,9 @@ CONTENIDO=(CaeManager.dump dataprotection-keys documentos)
 # `documentos/<tenant>/<guid de 32 hex><extensión>.tmp-<guid de 32 hex>`, y no un
 # `*.tmp-*` genérico: la extensión sale del nombre del adjunto, que puede venir de
 # fuera (correo, WhatsApp), y un documento legítimo `<guid>.tmp-1` debe entrar.
-# Hueco residual conocido: un adjunto cuya extensión sea exactamente
-# `.tmp-<32 hex>` es indistinguible por el nombre de un temporal y no entra.
+# GuardarAsync reserva los sufijos `.tmp-*` a temporales en nuevas escrituras.
+# Los definitivos antiguos terminados en `.tmp-<32 hex>` siguen siendo
+# indistinguibles por el nombre y quedan excluidos; no se migran aquí.
 # Un documento que se publique durante la copia entra en el archivo de
 # mañana; el volcado de la BD de esta noche se hizo ANTES (paso 1/4), así que
 # ninguna fila suya apunta a un fichero publicado después. Un fichero borrado
