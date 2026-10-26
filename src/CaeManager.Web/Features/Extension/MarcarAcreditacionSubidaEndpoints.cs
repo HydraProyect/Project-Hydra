@@ -97,6 +97,9 @@ public static class MarcarAcreditacionSubidaEndpoints
     {
         // Un portal que no es el de la Plataforma CAE del canal también es un 409 (existe, pero no se puede anotar ahí);
         // sin portal declarado es una petición mal formada (400).
+        // Solo PortalAjeno lleva su código como `title` del problema: extension/background.js lo lee para conservar el envío
+        // pendiente (con su caducidad original) mientras la persona abre, en la misma pestaña, el portal correcto. El resto
+        // de fallos conserva el título por defecto y la extensión los trata como definitivos.
         var statusCode = error.Codigo switch
         {
             ConfirmarSubidaDesdeExtensionCommandHandler.CodigoConectorInactivo
@@ -107,7 +110,9 @@ public static class MarcarAcreditacionSubidaEndpoints
             ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalNoDeclarado => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status404NotFound,
         };
-        return Results.Problem(error.Mensaje, statusCode: statusCode);
+        return Results.Problem(error.Mensaje, statusCode: statusCode,
+            title: error.Codigo == ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno
+                ? error.Codigo : null);
     }
 
     private static RouteHandlerBuilder ConEntradaDeExtension(this RouteHandlerBuilder ruta) => ruta

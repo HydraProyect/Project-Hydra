@@ -150,9 +150,22 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno);
+        resultado.Error.Mensaje.Should().Contain("Plataforma CAE Dokify", "el detalle nombra la Plataforma CAE del catálogo a la que sí pertenece el documento");
         e.Acreditacion.Estado.Should().Be(EstadoAcreditacion.PendienteDeSubir);
         e.Acreditacion.CambiosEstado.Should().BeEmpty();
         e.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_detalle_de_portal_ajeno_solo_lleva_el_nombre_de_la_plataforma_del_catalogo()
+    {
+        var e = Crear();
+
+        var resultado = await e.Confirmar.Handle(new ConfirmarSubidaDesdeExtensionCommand(e.Acreditacion.Id, "app.nalandaglobal.com"), CancellationToken.None);
+
+        resultado.Error.Mensaje.Should().Be(
+            "Este documento es de otra Plataforma CAE: debe subirse en la Plataforma CAE Dokify, no se puede anotar como enviado en este portal.");
+        resultado.Error.Mensaje.Should().NotContain(e.Acreditacion.Id.ToString()).And.NotContain(e.Documento.Id.ToString());
     }
 
     [Fact]
@@ -196,6 +209,8 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno);
+        resultado.Error.Mensaje.Should().Contain("Plataforma CAE Dokify").And.NotContain("CTAIMA",
+            "el nombre es el del Proveedor del canal de la acreditación, no el dueño del host declarado");
     }
     [Theory]
     [InlineData(null)]
@@ -233,6 +248,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandlerTests
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno);
+        resultado.Error.Mensaje.Should().NotContain("Plataforma CAE Dokify", "sin Proveedor en el canal no hay nombre de catálogo que dar");
         e.UnitOfWork.VecesGuardado.Should().Be(0);
     }
 
