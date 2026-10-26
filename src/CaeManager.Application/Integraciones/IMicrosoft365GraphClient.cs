@@ -143,7 +143,11 @@ public interface IMicrosoft365GraphClient
     /// devuelve sin cambios en cada notificación (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8,
     /// tercer modo). El endpoint del webhook lo compara contra el secreto
     /// guardado en <c>SuscripcionWebhook</c> antes de confiar en nada más
-    /// del payload. Null si el payload no trae ninguna notificación válida.
+    /// del payload. Null si el payload no trae ninguna notificación válida, o
+    /// si alguna notificación del lote no trae el mismo <c>clientState</c> y
+    /// el mismo <c>subscriptionId</c> que la primera: la ingesta procesa todos
+    /// los mensajes del lote, así que ninguno puede colarse detrás de una
+    /// primera notificación verificada.
     /// </summary>
     string? ExtraerClientStateDeNotificacion(string payloadJson);
 
@@ -153,8 +157,8 @@ public interface IMicrosoft365GraphClient
     /// comprobación además del <c>clientState</c> (auditoría módulo 6): si un
     /// <c>clientState</c> llegara a filtrarse, exigir también que coincida
     /// con la suscripción activa de <c>SuscripcionWebhook</c> reduce lo que
-    /// un payload fabricado puede hacer aceptar. Null si el payload no trae
-    /// ninguna notificación válida.
+    /// un payload fabricado puede hacer aceptar. Null en los mismos casos que
+    /// <see cref="ExtraerClientStateDeNotificacion"/>, lote heterogéneo incluido.
     /// </summary>
     string? ExtraerSubscriptionIdDeNotificacion(string payloadJson);
 }
