@@ -199,6 +199,15 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Persistence/Repositories/RegistroAccesoDocumentoSensibleRepository.cs",
             ".SqlQuery<string>(")] = 1,
 
+        // Incidentes de seguridad sospechados (plano de Plataforma): ningún rol de la
+        // aplicación tiene INSERT ni UPDATE sobre IncidentesSeguridadSospechados, y quien
+        // dispara la señal no puede leerlos para deduplicar. La única puerta es la función
+        // SECURITY DEFINER app_registrar_incidente_seguridad (migración
+        // AnadeIncidentesSeguridadSospechados), que deduplica bajo cerrojo y devuelve solo el
+        // identificador. Los siete valores van parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Seguridad/Incidentes/RegistroIncidentesSeguridadEnBase.cs",
+            ".SqlQuery<FilaIncidenteRegistrado>(")] = 1,
+
         // Anonimizar a un Trabajador enmascara sus datos personales en el historial de
         // auditoría (decisión de Chris, 2026-10-15). RegistrosAuditoria es de solo
         // inserción para cae_app_runtime; la única reescritura es la función SECURITY

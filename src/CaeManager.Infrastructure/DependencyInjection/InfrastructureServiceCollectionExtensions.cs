@@ -194,6 +194,28 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
         services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
 
+        // Incidentes de seguridad sospechados (plano de Plataforma): señales de alta certeza,
+        // registro por la función app_registrar_incidente_seguridad y alerta saliente al
+        // propietario. Sin IncidentesSeguridad:UrlAlertaSaliente el canal es el nulo y la alerta
+        // cae a IAlertaOperativa (Sentry); el incidente se registra igual.
+        services.Configure<CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad>(
+            configuration.GetSection(CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion));
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(services, TimeProvider.System);
+        if (string.IsNullOrWhiteSpace(configuration[CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion + ":UrlAlertaSaliente"]))
+            services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadNulo>();
+        else
+        {
+            services.AddHttpClient(CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp.NombreCliente,
+                cliente => cliente.Timeout = TimeSpan.FromSeconds(15));
+            services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp>();
+        }
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>();
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IAlertaIncidenteSeguridad>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>());
+        services.AddHostedService(sp => sp.GetRequiredService<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>());
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IRegistroIncidentesSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.RegistroIncidentesSeguridadEnBase>();
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad, CaeManager.Application.Seguridad.Incidentes.SenalesIncidenteSeguridad>();
+
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
         // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.

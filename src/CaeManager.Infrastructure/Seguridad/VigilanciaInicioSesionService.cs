@@ -93,7 +93,8 @@ public sealed class VigilanciaInicioSesionService(
     RafagaFallosPorIp rafagas,
     IActorAuditoria actorAuditoria,
     IOptions<OpcionesInicioSesionSeguro> opciones,
-    ILogger<VigilanciaInicioSesionService> logger) : IVigilanciaInicioSesion
+    ILogger<VigilanciaInicioSesionService> logger,
+    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente) : IVigilanciaInicioSesion
 {
     /// <summary>Cookie con el identificador aleatorio del navegador (estrictamente necesaria, de seguridad).</summary>
     public const string CookieDispositivo = "talveg_dispositivo";
@@ -252,6 +253,10 @@ public sealed class VigilanciaInicioSesionService(
         //    (Sesion:IntervaloRevalidacionSegundos). También invalida este enlace.
         await userManager.UpdateSecurityStampAsync(usuario);
         logger.LogWarning("«No he sido yo» confirmado: contraseña invalidada y sesiones cerradas para la cuenta {UsuarioId}.", usuario.Id);
+
+        // Señal de incidente de seguridad sospechado (plano de Plataforma): la persona titular
+        // dice que alguien entró con su cuenta. No lanza ni espera a la alerta.
+        await senalesIncidente.InicioSesionNoReconocidoAsync(usuario.Id, usuario.TenantId, teniaContrasena, ct);
 
         // 3. Enlace para crear la contraseña nueva, al mismo buzón. Solo si la
         //    cuenta tenía contraseña: a una cuenta que entra con Microsoft no se
