@@ -5,7 +5,6 @@ using CaeManager.Domain.Operaciones;
 using CaeManager.Domain.Tenants;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 
@@ -23,9 +22,10 @@ namespace CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 /// lo que un responsable del tratamiento debe poder garantizar.
 ///
 /// <para>
-/// Quién revoca la de un Operador CAE externo: solo su Gestor CAE
-/// (<see cref="GestorCaeDelOperadorCaeExterno"/>, decisión de producto del 2026-10-26). El
-/// Administrador del Tenant propietario no.
+/// Quién revoca la de un Operador CAE externo: su propio equipo con alcance sobre ese Tenant
+/// propietario (<see cref="EquipoDelOperadorCaeExterno"/>, decisiones de producto del
+/// 2026-10-26). El Administrador del Tenant propietario no: su salida la hace Soporte TALVEG
+/// con Sesión Privilegiada.
 /// </para>
 /// </summary>
 public record DesactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
@@ -50,21 +50,23 @@ public class DesactivarDelegacionTenantCommandValidator : AbstractValidator<Desa
 public class DesactivarDelegacionTenantCommandHandler(
     IDelegacionTenantRepository repositorio, ICurrentUserService currentUserService,
     IAsignacionesOperativasWriter asignacionesWriter, IUnitOfWork unitOfWork, ITenantActual tenantActual,
-    IDirectorioUsuariosService directorioUsuarios, ITenantsQueryContext tenantsContext)
+    IDirectorioUsuariosService directorioUsuarios, ITenantsQueryContext tenantsContext,
+    ICatalogoIncorporacionCartera catalogo)
     : IRequestHandler<DesactivarDelegacionTenantCommand, Result>,
       IRequestHandler<PuedeRevocarQuery, bool>
 {
     public async Task<bool> Handle(PuedeRevocarQuery request, CancellationToken cancellationToken)
     {
-        var acceso = await tenantsContext.DelegacionesTenant
-            .Where(d => d.Id == request.Id)
-            .Select(d => new { d.TenantConsultoraId, d.Proposito, d.Activa })
-            .SingleOrDefaultAsync(cancellationToken);
+        var acceso = await EstadoDeAccesoDelegado.LeerAsync(tenantsContext, request.Id, cancellationToken);
 
-        return acceso is { Proposito: PropositoDelegacion.OperadorExterno, Activa: true }
-               && await GestorCaeDelOperadorCaeExterno.EsAsync(
-                   acceso.TenantConsultoraId, currentUserService, directorioUsuarios, cancellationToken);
+        return acceso is { EsDeOperadorExterno: true, Activa: true }
+               && await EquipoDelOperadorCaeExterno.PuedeAsync(
+                   acceso.OperadorTenantId, acceso.TenantPropietarioId,
+                   currentUserService, directorioUsuarios, catalogo, cancellationToken);
     }
+
+    private static readonly Error NoEncontrada =
+        Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación.");
 
     public async Task<Result> Handle(DesactivarDelegacionTenantCommand request, CancellationToken cancellationToken)
     {
@@ -72,8 +74,23 @@ public class DesactivarDelegacionTenantCommandHandler(
 
         // "No encontrada" y no "no autorizado": confirmar la existencia de la fila ya revelaría
         // qué Operadores CAE externos operan sobre qué Tenants propietarios.
-        if (delegacion is null || !await PuedeRevocarAsync(delegacion, cancellationToken))
-            return Result.Fallo(Error.Crear("DelegacionTenant.NoEncontrada", "No encontramos esa delegación."));
+        if (delegacion is null)
+            return Result.Fallo(NoEncontrada);
+
+        // El propósito se mira una sola vez y decide las dos cosas: quién revoca y si hay
+        // operación que cerrar. La de un Operador CAE externo, su equipo con alcance sobre el
+        // Tenant propietario (EquipoDelOperadorCaeExterno, decisiones del 2026-10-26). La de Soporte
+        // TALVEG (plano 3) conserva su criterio anterior, las dos partes
+        // (DelegacionAdministrablePorElUsuarioAsync): la decisión habla del Operador CAE
+        // externo, y el acceso de Soporte se cierra por su propio camino (CerrarAccesoSoporteCommand).
+        var deOperadorExterno = delegacion.Proposito == PropositoDelegacion.OperadorExterno;
+        var autorizado = deOperadorExterno
+            ? await EquipoDelOperadorCaeExterno.PuedeAsync(
+                delegacion.TenantConsultoraId, delegacion.TenantClienteId,
+                currentUserService, directorioUsuarios, catalogo, cancellationToken)
+            : await DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService);
+        if (!autorizado)
+            return Result.Fallo(NoEncontrada);
 
         // Contexto desde el que se revoca: la casa de uno (el Tenant de origen, que
         // la autoridad de arriba ya exige que sea una de las dos partes) o el
@@ -97,17 +114,17 @@ public class DesactivarDelegacionTenantCommandHandler(
 
         // La revocación escribe datos del Tenant propietario: cerrar su
         // Asignación de Operación y sus carteras. La política WITH CHECK de esa
-        // tabla exige que el Tenant activo sea el propietario, y el Gestor CAE del
-        // Operador CAE externo que revoca desde su propia casa tiene activo el suyo. El
+        // tabla exige que el Tenant activo sea el propietario, y quien revoca desde la casa
+        // del Operador CAE externo tiene activo el suyo. El
         // guardado se hace por eso en el ámbito del Tenant propietario, mismo
         // mecanismo que CrearClienteDeleganteCommand. No amplía la autoridad, que
-        // ya se decidió arriba (PuedeRevocarAsync), y revocar solo reduce capacidad.
+        // ya se decidió arriba, y revocar solo reduce capacidad.
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
             // Solo las de Operador externo tienen operación que cerrar: las de
             // Soporte son plano 3 y conservan su mecánica propia hasta su fase
             // (ADR-011 § 8.6). Cerrar la operación arrastra sus carteras.
-            if (delegacion.Proposito == PropositoDelegacion.OperadorExterno)
+            if (deOperadorExterno)
                 await asignacionesWriter.CerrarOperacionDelegadaAsync(
                     tenantPropietarioId, delegacion.TenantConsultoraId,
                     MotivoCierreAsignacion.Revocada, cancellationToken);
@@ -119,24 +136,11 @@ public class DesactivarDelegacionTenantCommandHandler(
     }
 
     /// <summary>
-    /// La de un Operador CAE externo, solo su Gestor CAE
-    /// (<see cref="GestorCaeDelOperadorCaeExterno"/>). La de Soporte TALVEG (plano 3) conserva
-    /// su criterio anterior, las dos partes (<see cref="DelegacionAdministrablePorElUsuarioAsync"/>):
-    /// la decisión del 2026-10-26 habla del Operador CAE externo, y el acceso de Soporte se
-    /// cierra por su propio camino (<c>CerrarAccesoSoporteCommand</c>).
-    /// </summary>
-    private Task<bool> PuedeRevocarAsync(DelegacionTenant delegacion, CancellationToken cancellationToken) =>
-        delegacion.Proposito == PropositoDelegacion.OperadorExterno
-            ? GestorCaeDelOperadorCaeExterno.EsAsync(
-                delegacion.TenantConsultoraId, currentUserService, directorioUsuarios, cancellationToken)
-            : DelegacionAdministrablePorElUsuarioAsync(delegacion, currentUserService);
-
-    /// <summary>
     /// Las dos partes: el Tenant de origen del usuario es el que presta el servicio o el
     /// dueño de los datos, sin mirar rol. <b>Ya no decide la revocación ni la reactivación de
-    /// la Asignación de Operación de un Operador CAE externo</b>: esa es solo de su Gestor CAE
-    /// (<see cref="GestorCaeDelOperadorCaeExterno"/>, decisión del 2026-10-26). Queda para lo
-    /// que la decisión no cubre: revocar una de Soporte (ver <see cref="PuedeRevocarAsync"/>) y
+    /// la Asignación de Operación de un Operador CAE externo</b>: esa es de su equipo
+    /// (<see cref="EquipoDelOperadorCaeExterno"/>, decisiones del 2026-10-26). Queda para lo
+    /// que la decisión no cubre: revocar una de Soporte (ver el comando) y
     /// retirar a una persona concreta sin cortar el acceso entero
     /// (<c>RevocarAsignacionOperadorDelegadoCommand</c>).
     ///

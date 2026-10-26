@@ -146,7 +146,7 @@ public class CrearDelegacionTenantCommandHandler(
                 cancellationToken))
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.OtroOperadorVigente",
-                "Tu organización ya tiene otro Operador CAE externo activo. Revoca su acceso antes de autorizar uno nuevo."));
+                "Tu organización ya tiene otro Operador CAE externo activo. Para cambiar de Operador CAE externo, pide a Soporte TALVEG que retire su acceso."));
 
         // La delegación, su operación y el principal por escalado (ADR-011 § 2.7, enmienda
         // 2026-10-08, punto 4) se confirman juntos: la operación nace sin carteras y, si el

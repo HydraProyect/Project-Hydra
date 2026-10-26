@@ -37,7 +37,7 @@
     <value>Cap Operador CAE extern no es diu «{0}». Comprova el nom exacte: TALVEG no pot crear aquesta organització per tu.</value>
   </data>
   <data name="NotaPropiedad" xml:space="preserve">
-    <value>La propietat de les teves dades no canvia: l'Operador CAE extern passa a operar-les. Ningú del seu equip no queda com a Gestor CAE fins que l'Operador n'assigni la cartera, i pots revocar l'accés quan vulguis.</value>
+    <value>La propietat de les teves dades no canvia: l'Operador CAE extern passa a operar-les. Ningú del seu equip no queda com a Gestor CAE fins que l'Operador n'assigni la cartera, i si li vols retirar l'accés, Suport TALVEG ho fa a petició teva.</value>
   </data>
   <data name="Cancelar" xml:space="preserve">
     <value>Cancel·lar</value>

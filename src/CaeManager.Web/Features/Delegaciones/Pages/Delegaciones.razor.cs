@@ -69,8 +69,9 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     /// Por acceso de Operador CAE externo revocado: ¿puede el usuario actual reactivarlo?
     /// EXACTAMENTE el predicado de <c>ReactivarDelegacionTenantCommand</c> (vía
     /// <c>PuedeReactivarQuery</c>) — nunca <see cref="OperandoWorkspaceAjeno"/>, que aquí no
-    /// basta: reactivar es solo del Gestor CAE del Operador CAE externo (decisión del
-    /// 2026-10-26), no de cualquiera que opere desde el Tenant de origen correcto.
+    /// basta: reactivar es del equipo del Operador CAE externo con alcance sobre ese Tenant
+    /// propietario (decisiones del 2026-10-26), no de cualquiera que opere desde el Tenant de
+    /// origen correcto.
     /// </summary>
     private readonly Dictionary<Guid, bool> _puedeReactivarPorEntidad = [];
 

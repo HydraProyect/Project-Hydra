@@ -991,15 +991,15 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     // ── Arnés ─────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Como la ejecuta un Gestor CAE del Operador CAE externo desde su propia casa, que es el único que
-    /// puede revocar (decisión del 2026-10-26).
+    /// Como la ejecuta un Gestor CAE del Operador CAE externo con cartera sobre el Tenant propietario,
+    /// desde su propia casa (decisiones del 2026-10-26).
     /// </summary>
     private Task<Result> DesactivarDelegacion() =>
         EnArnes(_gestorSinCoordinador, Roles.GestorCae, _operador.Id, (usuario, contexto, directorio, sp) =>
             new DesactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>(),
-                    directorio, contexto)
+                    directorio, contexto, new CatalogoIncorporacionCartera(contexto, usuario))
                 .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
 
     /// <summary>

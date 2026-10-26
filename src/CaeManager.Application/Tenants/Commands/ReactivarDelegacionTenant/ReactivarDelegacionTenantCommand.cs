@@ -17,9 +17,9 @@ namespace CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 /// (ADR-004 § 5.5).
 ///
 /// <para>
-/// Quién reactiva: solo el Gestor CAE del Operador CAE externo
-/// (<see cref="GestorCaeDelOperadorCaeExterno"/>, decisión de producto del 2026-10-26), la
-/// misma persona que revoca. El Administrador del Tenant propietario no.
+/// Quién reactiva: el equipo del Operador CAE externo con alcance sobre ese Tenant propietario
+/// (<see cref="EquipoDelOperadorCaeExterno"/>, decisiones de producto del 2026-10-26), el
+/// mismo que revoca. El Administrador del Tenant propietario no.
 /// </para>
 /// </summary>
 public record ReactivarDelegacionTenantCommand(Guid DelegacionTenantId) : ICommand;
@@ -62,8 +62,8 @@ public class ReactivarDelegacionTenantCommandHandler(
     /// Único punto de verdad — ver el doc-comment de <see cref="PuedeReactivarQuery"/>.
     ///
     /// <para>
-    /// Solo la de un Operador CAE externo, y solo su Gestor CAE
-    /// (<see cref="GestorCaeDelOperadorCaeExterno"/>). Una de Soporte no se reactiva por aquí:
+    /// Solo la de un Operador CAE externo, y solo su equipo con alcance sobre el Tenant propietario
+    /// (<see cref="EquipoDelOperadorCaeExterno"/>). Una de Soporte no se reactiva por aquí:
     /// se abre con motivo y ventana (<c>DelegacionTenant.Reactivar</c> lo rechaza).
     /// </para>
     ///
@@ -77,12 +77,13 @@ public class ReactivarDelegacionTenantCommandHandler(
     /// </para>
     /// </summary>
     internal async Task<bool> PuedeReactivarAsync(
-        Guid operadorTenantId, Guid tenantPropietarioId, PropositoDelegacion proposito,
+        Guid operadorTenantId, Guid tenantPropietarioId, bool esDeOperadorExterno,
         CancellationToken cancellationToken)
     {
-        if (proposito != PropositoDelegacion.OperadorExterno
-            || !await GestorCaeDelOperadorCaeExterno.EsAsync(
-                operadorTenantId, currentUserService, directorioUsuarios, cancellationToken))
+        if (!esDeOperadorExterno
+            || !await EquipoDelOperadorCaeExterno.PuedeAsync(
+                operadorTenantId, tenantPropietarioId,
+                currentUserService, directorioUsuarios, catalogo, cancellationToken))
             return false;
 
         var esPlataforma = await tenantsContext.Tenants
@@ -95,14 +96,11 @@ public class ReactivarDelegacionTenantCommandHandler(
 
     public async Task<bool> Handle(PuedeReactivarQuery request, CancellationToken cancellationToken)
     {
-        var acceso = await tenantsContext.DelegacionesTenant
-            .Where(d => d.Id == request.Id)
-            .Select(d => new { d.TenantConsultoraId, d.TenantClienteId, d.Proposito, d.Activa })
-            .SingleOrDefaultAsync(cancellationToken);
+        var acceso = await EstadoDeAccesoDelegado.LeerAsync(tenantsContext, request.Id, cancellationToken);
 
         return acceso is { Activa: false }
                && await PuedeReactivarAsync(
-                   acceso.TenantConsultoraId, acceso.TenantClienteId, acceso.Proposito, cancellationToken);
+                   acceso.OperadorTenantId, acceso.TenantPropietarioId, acceso.EsDeOperadorExterno, cancellationToken);
     }
 
     internal static readonly Error CambioMientrasReactivabas = Error.Crear(
@@ -129,16 +127,17 @@ public class ReactivarDelegacionTenantCommandHandler(
         var delegacion = await repositorio.ObtenerPorIdAsync(request.DelegacionTenantId, cancellationToken);
 
         // Reactivar RESTAURA capacidad —reabre la operación y las carteras de todo el equipo—,
-        // así que se autoriza con la misma regla estrecha que revocar: solo el Gestor CAE del
-        // Operador CAE externo (decisión del 2026-10-26). El Administrador del Tenant
-        // propietario no.
+        // así que se autoriza con la misma regla que revocar: el equipo del Operador CAE externo
+        // con alcance sobre el Tenant propietario (decisiones del 2026-10-26). El Administrador
+        // del Tenant propietario no.
         //
         // Se comprueba ANTES del estado de la delegación: si no, denegar con
         // "ya estaba activa" frente a "no encontrada" contaría a un tercero si
         // esa delegación está revocada ahora mismo.
         if (delegacion is null ||
             !await PuedeReactivarAsync(
-                delegacion.TenantConsultoraId, delegacion.TenantClienteId, delegacion.Proposito, cancellationToken))
+                delegacion.TenantConsultoraId, delegacion.TenantClienteId,
+                delegacion.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken))
             // "No encontrada" y no "no autorizado", igual que revocar: confirmar
             // la existencia de la fila ya revelaría qué consultoras operan sobre
             // qué clientes.
@@ -165,20 +164,23 @@ public class ReactivarDelegacionTenantCommandHandler(
         // (otro Operador CAE externo vigente, operación, carteras, principal) se hacen con el
         // Tenant firmado al abrirla. Por eso el ámbito del Tenant propietario se abre ANTES de
         // la transacción, no dentro: así la transacción entera ve lo mismo que veía cuando
-        // reactivaba desde el propio Tenant propietario, y la comprobación de
-        // OtroOperadorVigente no queda ciega por RLS a los demás Operadores CAE externos. No
+        // reactivaba desde el propio Tenant propietario, y la comprobación de otro Operador CAE
+        // externo vigente no queda ciega por RLS a los demás. No
         // amplía la autoridad, que ya se decidió arriba.
         using (AmbitoTenantExplicito.Establecer(tenantPropietarioId))
         {
             return await transaccion.EjecutarAsync(
-                ct => ReactivarAsync(request.DelegacionTenantId, tenantPropietarioId, ct), cancellationToken);
+                ct => ReactivarAsync(delegacion.Id, tenantPropietarioId, ct), cancellationToken);
         }
     }
 
     private async Task<Result> ReactivarAsync(Guid id, Guid tenantPropietarioId, CancellationToken cancellationToken)
     {
-        // Se vuelve a leer dentro de la transacción: un reintento de la estrategia de
-        // ejecución empieza con el contexto limpio.
+        // Se vuelve a pedir dentro de la transacción porque un reintento de la estrategia de
+        // ejecución empieza con el contexto limpio. En el primer intento el contexto ya rastrea la
+        // fila leída arriba y devuelve esa misma instancia: no es una relectura del estado.
+        // Lo que la autoridad miró (Operador CAE externo, Tenant propietario y propósito) no
+        // cambia nunca en una DelegacionTenant (private set, solo al crearla).
         var delegacion = await repositorio.ObtenerPorIdAsync(id, cancellationToken);
         if (delegacion is null || delegacion.TenantClienteId != tenantPropietarioId)
             return Result.Fallo(NoEncontrada);
@@ -186,24 +188,24 @@ public class ReactivarDelegacionTenantCommandHandler(
         if (delegacion.Activa)
             return Result.Fallo(Error.Crear("DelegacionTenant.YaActiva", "Esta delegación ya estaba activa."));
 
-        // Misma regla que CrearDelegacionTenantCommand (OtroOperadorVigente): si,
+        // Misma regla que CrearDelegacionTenantCommand (un solo Operador CAE externo vigente): si,
         // entre revocar a este Operador CAE externo y reactivarlo, el Tenant
         // propietario autorizó a otro, reabrir aquí la operación completa chocaría
         // con el índice único IX_AsignacionesOperacion_DelegacionTotalVigente y
         // saldría como DbUpdateException sin traducir (hallazgo de Codex, P1, al
         // integrar origin/main en el incremento 1b). Se rechaza antes de escribir,
-        // con el mismo código que la autorización. Va después de la autoridad y del
-        // estado.
-        if (delegacion.Proposito == PropositoDelegacion.OperadorExterno &&
-            await tenantsContext.DelegacionesTenant.AnyAsync(
+        // después de la autoridad y del estado (la autoridad ya exigió que sea de Operador CAE
+        // externo). Con un error genérico (decisión del 2026-10-26): quien reactiva es el Operador
+        // CAE externo, y no debe saber si el Tenant propietario trabaja con otro.
+        if (await tenantsContext.DelegacionesTenant.AnyAsync(
                 d => d.TenantClienteId == delegacion.TenantClienteId
                      && d.Id != delegacion.Id
                      && d.Activa
                      && d.Proposito == PropositoDelegacion.OperadorExterno,
                 cancellationToken))
             return Result.Fallo(Error.Crear(
-                "DelegacionTenant.OtroOperadorVigente",
-                "Esa organización ya trabaja con otro Operador CAE externo. Mientras siga activo, este acceso no se puede reactivar."));
+                "DelegacionTenant.NoReactivable",
+                "No se puede reactivar esta Delegación; contacta con el Tenant propietario."));
 
         delegacion.Reactivar();
 

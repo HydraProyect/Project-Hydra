@@ -149,17 +149,23 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
             await Ayudas.IniciarSesionAsync(paginaGestor, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
             await Ayudas.NavegarYEsperarAsync(paginaGestor, $"{fixture.BaseUrl}/delegaciones");
             await Ayudas.AbrirDetalleDeDelegacionAsync(paginaGestor, nombreClienteDelegante);
-            var tarjetaDelGestor = paginaGestor.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
-            await tarjetaDelGestor.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
+            // En este contexto solo está desplegado ese detalle, así que sus botones se buscan por
+            // rol y nombre en la página; el estado, en la fila de la lista que abre ese detalle
+            // (mismo localizador que Ayudas.AbrirDetalleDeDelegacionAsync).
+            var filaDelGestor = paginaGestor.Locator("tr.delegaciones-fila").Filter(new LocatorFilterOptions
+            {
+                Has = paginaGestor.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = nombreClienteDelegante }),
+            });
+            await paginaGestor.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
 
             var modalRevocar = paginaGestor.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
             await modalRevocar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             await modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true }).ClickAsync();
             await modalRevocar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-            await Expect(tarjetaDelGestor).ToContainTextAsync("Revocada");
+            await Expect(filaDelGestor).ToContainTextAsync("Revocada");
             // Reactivar también es suyo.
-            await Expect(tarjetaDelGestor.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Reactivar", Exact = true }))
+            await Expect(paginaGestor.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Reactivar", Exact = true }))
                 .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         }
 

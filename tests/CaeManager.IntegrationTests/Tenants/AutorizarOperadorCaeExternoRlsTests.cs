@@ -227,13 +227,16 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             .Should().BeFalse("el contexto ajeno se rechaza antes de crear el vínculo");
     }
 
-    // ── Revocar y reactivar: solo el Gestor CAE del Operador CAE externo ───
-    // Decisión de producto del 2026-10-26: «Solo el Gestor CAE del Operador CAE externo revoca y
-    // reactiva la Delegación». Cada persona actúa desde su propio Workspace activo, como en
-    // producción, y la regla se lee en Identity real (GestorCaeDelOperadorCaeExterno).
+    // ── Revocar y reactivar: el equipo del Operador CAE externo, con alcance ───
+    // Decisiones de producto del 2026-10-26: revocan y reactivan el Gestor CAE, el Coordinador
+    // CAE, la Dirección CAE y el Administrador del propio Operador CAE externo, con alcance sobre
+    // ese Tenant propietario (Asignación de Cartera viva propia, o un rol que alcanza toda la
+    // organización). No pueden el Administrador del Tenant propietario ni nadie de otro Operador
+    // CAE. Cada persona actúa desde su propio Workspace activo, como en producción, y la regla se
+    // lee en Identity y en las carteras reales (EquipoDelOperadorCaeExterno).
 
     [Fact]
-    public async Task El_Gestor_CAE_del_Operador_CAE_externo_revoca_y_reactiva_desde_su_casa_y_la_operacion_y_su_cartera_se_reabren_bajo_RLS()
+    public async Task El_Gestor_CAE_con_cartera_revoca_y_despues_reactiva_el_Administrador_del_Operador_bajo_RLS()
     {
         // Flujo de FlujoAltaYRevocacionDelegacionTests, ahora bajo cae_app_runtime: el
         // Gestor CAE del Operador CAE externo revoca con su propio Tenant activo. La
@@ -253,7 +256,15 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((false, 0, 1, 0),
             "la operación delegada se cierra, no se borra, y arrastra su cartera");
 
-        var reactivar = await ReactivarAsync(gestorOperador, Roles.GestorCae, delegacionId);
+        // Consecuencia aceptada (decisión (c) del 2026-10-26): su cartera se cerró con la
+        // revocación, así que ya no tiene alcance para reactivar.
+        var delGestor = await ReactivarAsync(gestorOperador, Roles.GestorCae, delegacionId);
+        delGestor.Puede.Should().BeFalse("sin cartera viva no se le pinta «Reactivar»");
+        delGestor.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+
+        // El Administrador del Operador CAE externo alcanza toda la organización.
+        var administradorOperador = await SembrarUsuarioAsync("admin-operador", _operador, Roles.Administrador);
+        var reactivar = await ReactivarAsync(administradorOperador, Roles.Administrador, delegacionId);
         reactivar.Puede.Should().BeTrue("la pantalla le pinta «Reactivar»");
         reactivar.Resultado.EsExitoso.Should().BeTrue(reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
         (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((true, 1, 2, 1),
@@ -261,10 +272,28 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     }
 
     [Theory]
+    [InlineData(Roles.CoordinadorCae, true)]
+    [InlineData(Roles.DireccionCae, false)]
+    [InlineData(Roles.Administrador, false)]
+    public async Task Cada_rol_del_equipo_del_Operador_CAE_externo_con_alcance_revoca_bajo_RLS(string rol, bool conCartera)
+    {
+        var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
+        alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
+        var persona = await SembrarUsuarioAsync($"equipo-{rol.ToLowerInvariant()}", _operador, rol);
+        if (conCartera) await SembrarCarteraAsync(alta.Valor, persona.Id, rol);
+
+        var revocar = await RevocarAsync(persona, rol, alta.Valor);
+
+        revocar.Puede.Should().BeTrue($"la pantalla le pinta «Revocar acceso» a {rol}");
+        revocar.Resultado.EsExitoso.Should().BeTrue(revocar.Resultado.EsFallido ? revocar.Resultado.Error.Codigo : string.Empty);
+        (await EstadoAsync(alta.Valor, persona.Id)).Activa.Should().BeFalse();
+    }
+
+    [Theory]
     [InlineData("administrador-del-tenant-propietario")]
     [InlineData("gestor-cae-de-otro-operador-cae-externo")]
-    [InlineData("administrador-del-operador-cae-externo")]
-    public async Task Quien_no_es_Gestor_CAE_del_Operador_CAE_externo_no_revoca_ni_reactiva_y_no_escribe_bajo_RLS(string quien)
+    [InlineData("gestor-cae-del-operador-sin-cartera")]
+    public async Task Quien_no_es_del_equipo_con_alcance_no_revoca_ni_reactiva_y_no_escribe_bajo_RLS(string quien)
     {
         var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
         alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : string.Empty);
@@ -275,14 +304,14 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         var (intruso, rol) = quien switch
         {
             // El Administrador del Tenant propietario, desde su casa: autorizó el acceso, pero
-            // revocarlo y reactivarlo ya no es suyo.
+            // revocarlo y reactivarlo no es suyo (su salida la hace Soporte TALVEG).
             "administrador-del-tenant-propietario" => (_administradorPropietario, Roles.Administrador),
             // Un Gestor CAE de verdad, pero de otro Operador CAE externo.
             "gestor-cae-de-otro-operador-cae-externo" => (await SembrarUsuarioAsync(
                 "gestor-otro-operador", await SembrarOtroOperadorCaeExternoAsync(), Roles.GestorCae), Roles.GestorCae),
-            // Del propio Operador CAE externo, pero sin rol GestorCae.
-            "administrador-del-operador-cae-externo" => (await SembrarUsuarioAsync(
-                "admin-operador", _operador, Roles.Administrador), Roles.Administrador),
+            // Del propio Operador CAE externo y Gestor CAE, pero sin cartera sobre ese Tenant propietario.
+            "gestor-cae-del-operador-sin-cartera" => (await SembrarUsuarioAsync(
+                "gestor-sin-cartera", _operador, Roles.GestorCae), Roles.GestorCae),
             _ => throw new ArgumentOutOfRangeException(nameof(quien)),
         };
 
@@ -291,7 +320,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         revocar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
         (await EstadoAsync(delegacionId, gestorOperador.Id)).Should().Be((true, 1, 1, 1), "no se escribe nada");
 
-        // Control: el Gestor CAE del Operador CAE externo sí revoca.
+        // Control: el Gestor CAE con cartera sí revoca.
         (await RevocarAsync(gestorOperador, Roles.GestorCae, delegacionId)).Resultado.EsExitoso.Should().BeTrue();
 
         var reactivar = await ReactivarAsync(intruso, rol, delegacionId);
@@ -307,19 +336,19 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     {
         var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
         alta.EsExitoso.Should().BeTrue();
-        var gestorOperador = await SembrarUsuarioAsync("gestor-operador", _operador, Roles.GestorCae);
-        (await RevocarAsync(gestorOperador, Roles.GestorCae, alta.Valor)).Resultado.EsExitoso.Should().BeTrue();
+        var direccionOperador = await SembrarUsuarioAsync("direccion-operador", _operador, Roles.DireccionCae);
+        (await RevocarAsync(direccionOperador, Roles.DireccionCae, alta.Valor)).Resultado.EsExitoso.Should().BeTrue();
 
-        // El Gestor CAE del Operador CAE externo, con autoridad, pero desde el Workspace operativo
-        // derivado de un tercero: se rechaza con un error propio antes de escribir.
+        // La Dirección CAE del Operador CAE externo, con autoridad, pero desde el Workspace
+        // operativo derivado de un tercero: se rechaza con un error propio antes de escribir.
         var reactivar = await ReactivarAsync(
-            gestorOperador, Roles.GestorCae, alta.Valor, contextoAjeno ? _otroPropietario : null);
+            direccionOperador, Roles.DireccionCae, alta.Valor, contextoAjeno ? _otroPropietario : null);
         if (contextoAjeno)
             reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
         else
             reactivar.Resultado.EsExitoso.Should().BeTrue(reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
 
-        var estado = await EstadoAsync(alta.Valor, gestorOperador.Id);
+        var estado = await EstadoAsync(alta.Valor, direccionOperador.Id);
         estado.Activa.Should().Be(!contextoAjeno);
         estado.OperacionesVigentes.Should().Be(contextoAjeno ? 0 : 1);
         estado.Operaciones.Should().Be(contextoAjeno ? 1 : 2);
@@ -501,7 +530,8 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         var handler = new DesactivarDelegacionTenantCommandHandler(
             new DelegacionTenantRepository(contexto), usuarioActual,
             new AsignacionesOperativasWriter(contexto, tenant, usuarioActual), contexto, tenant,
-            Directorio(servicios, contexto, tenant, usuarioActual), contexto);
+            Directorio(servicios, contexto, tenant, usuarioActual), contexto,
+            new CatalogoIncorporacionCartera(contexto, usuarioActual));
 
         using (AmbitoTenantExplicito.Establecer(workspaceActivo ?? usuario.TenantId))
         {
@@ -554,7 +584,7 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
     /// La Asignación de Cartera de un Gestor CAE sobre la operación vigente, con su fila de
     /// operador delegado: lo que la revocación cierra en cascada y la reactivación repone.
     /// </summary>
-    private async Task SembrarCarteraAsync(Guid delegacionId, Guid gestorId)
+    private async Task SembrarCarteraAsync(Guid delegacionId, Guid gestorId, string rol = Roles.GestorCae)
     {
         await using var propietarioDeLaBase = ContextoPropietarioDeLaBase();
         var operacion = await propietarioDeLaBase.AsignacionesOperacion.SingleAsync(o =>
@@ -562,9 +592,9 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
             && o.Estado == EstadoAsignacion.Vigente);
         var ahora = DateTime.UtcNow;
         propietarioDeLaBase.AsignacionesCartera.Add(AsignacionCartera.Externa(
-            operacion, gestorId, Roles.GestorCae, AmbitoAsignacion.Universal, ahora, null, ahora));
+            operacion, gestorId, rol, AmbitoAsignacion.Universal, ahora, null, ahora));
         propietarioDeLaBase.AsignacionesOperadorDelegadoConRevocadas.Add(
-            new AsignacionOperadorDelegado(delegacionId, gestorId, Roles.GestorCae));
+            new AsignacionOperadorDelegado(delegacionId, gestorId, rol));
         await propietarioDeLaBase.SaveChangesAsync();
     }
 

@@ -294,8 +294,9 @@
                                 }
                                 else if (delegacion.Activa)
                                 {
-                                    @* Solo el Gestor CAE del Operador CAE externo revoca (decisión
-                                       del 2026-10-26): el botón se pinta solo a quien puede usarlo. *@
+                                    @* Revoca el equipo del Operador CAE externo con alcance sobre el Tenant
+                                       propietario (decisiones del 2026-10-26): el botón se pinta solo a
+                                       quien puede usarlo. *@
                                     @if (PuedeRevocar(delegacion.Id))
                                     {
                                         <Boton Tamano="TamanoBoton.Pequeno"

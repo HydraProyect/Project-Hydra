@@ -1,4 +1,6 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Operaciones;
+using CaeManager.Application.Tenants;
 using CaeManager.Application.Tenants.Commands.DesactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.ReactivarDelegacionTenant;
 using CaeManager.Application.Tenants.Commands.RevocarAsignacionOperadorDelegado;
@@ -21,11 +23,16 @@ namespace CaeManager.Application.Tests.Tenants;
 ///
 /// <para>
 /// Lo que estos tests fijan, además de que revocar y reactivar funcionen, es <b>quién</b>
-/// puede hacerlo con la Asignación de Operación de un Operador CAE externo. Decisión de
-/// producto del 2026-10-26: «Solo el Gestor CAE del Operador CAE externo revoca y reactiva
-/// la Delegación». El Administrador del Tenant propietario no; tampoco un Gestor CAE de otro
-/// Operador CAE, ni el Administrador, la Dirección CAE o el Coordinador CAE del propio
-/// Operador CAE externo, ni una sesión sin rol de negocio (Sesión Privilegiada de plataforma).
+/// puede hacerlo con la Asignación de Operación de un Operador CAE externo. Decisiones de
+/// producto del 2026-10-26: revocan y reactivan el Gestor CAE, el Coordinador CAE, la Dirección
+/// CAE y el Administrador del propio Operador CAE externo, con alcance sobre ese Tenant
+/// propietario (Asignación de Cartera viva propia, o un rol que alcanza toda la organización).
+/// No pueden el Administrador del Tenant propietario, nadie de otro Operador CAE, una sesión
+/// limitada a Consulta ni una sesión sin rol de negocio (Sesión Privilegiada de plataforma).
+/// La salida a petición del Tenant propietario la hace Soporte TALVEG con Sesión Privilegiada;
+/// hoy no existe ese camino para la de un Operador CAE externo (<c>CerrarAccesoSoporteCommand</c>
+/// solo cierra las de Soporte) y este comando lo rechaza (ver
+/// <see cref="Sin_rol_de_negocio_en_la_sesion_no_se_revoca_nada"/>): queda como seguimiento.
 /// </para>
 ///
 /// <para>
@@ -40,11 +47,17 @@ public class RevocacionDelegacionTests
     private static readonly Guid GestorCae = Guid.NewGuid();
 
     private readonly DirectorioRolesEnOrigen _cuentas = new();
+    private readonly CatalogoIncorporacionCarteraFalso _catalogo = new();
 
     public RevocacionDelegacionTests()
     {
         _cuentas.Asignar(GestorCae, OperadorCae, "GestorCae");
+        DarCartera(GestorCae, "GestorCae", TenantPropietario);
     }
+
+    private void DarCartera(Guid usuarioId, string rol, Guid tenantPropietarioId, Guid? operadorTenantId = null) =>
+        _catalogo.CarterasVivas.Add((operadorTenantId ?? OperadorCae, new CarteraVivaDeOperacion(
+            Guid.NewGuid(), tenantPropietarioId, "Tenant propietario", usuarioId, rol, EsPrincipal: false, VigenciaHasta: null)));
 
     private static CurrentUserServiceFalso ElGestorCae() => new(GestorCae, "GestorCae", OperadorCae);
 
@@ -121,22 +134,96 @@ public class RevocacionDelegacionTests
         unitOfWork.VecesGuardado.Should().Be(0);
     }
 
+    /// <summary>
+    /// Decisión (b) y (c) del 2026-10-26: cada rol del equipo del Operador CAE externo revoca,
+    /// el Gestor CAE y el Coordinador CAE con una Asignación de Cartera viva propia sobre ese
+    /// Tenant propietario, el Administrador y la Dirección CAE sin ella (alcanzan toda la
+    /// organización).
+    /// </summary>
     [Theory]
-    [InlineData("Administrador")]
-    [InlineData("DireccionCae")]
-    [InlineData("CoordinadorCae")]
-    public async Task Otro_rol_del_propio_Operador_CAE_externo_no_revoca(string rol)
+    [InlineData("GestorCae", true)]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("DireccionCae", false)]
+    [InlineData("Administrador", false)]
+    public async Task Cada_rol_del_equipo_del_Operador_CAE_externo_con_alcance_revoca(string rol, bool conCartera)
     {
         var persona = Guid.NewGuid();
         _cuentas.Asignar(persona, OperadorCae, rol);
+        if (conCartera) DarCartera(persona, rol, TenantPropietario);
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = Desactivar(
             repositorio, new CurrentUserServiceFalso(persona, rol, OperadorCae), OperadorCae, unitOfWork: unitOfWork);
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada", $"{rol} no es Gestor CAE");
+        resultado.EsExitoso.Should().BeTrue($"{rol} es del equipo del Operador CAE externo");
+        delegacion.Activa.Should().BeFalse();
+    }
+
+    /// <summary>
+    /// Sin Asignación de Cartera viva propia sobre ESE Tenant propietario, el Gestor CAE y el
+    /// Coordinador CAE no tienen alcance: ni sin cartera, ni con la cartera de otro Tenant
+    /// propietario, ni con una cartera sobre él que sea de otro Operador CAE.
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae", "ninguna")]
+    [InlineData("CoordinadorCae", "ninguna")]
+    [InlineData("GestorCae", "otro-tenant")]
+    [InlineData("GestorCae", "otro-operador")]
+    public async Task El_Gestor_CAE_o_el_Coordinador_CAE_sin_cartera_sobre_ese_Tenant_propietario_no_revoca(
+        string rol, string cartera)
+    {
+        var persona = Guid.NewGuid();
+        _cuentas.Asignar(persona, OperadorCae, rol);
+        if (cartera == "otro-tenant") DarCartera(persona, rol, Guid.NewGuid());
+        if (cartera == "otro-operador") DarCartera(persona, rol, TenantPropietario, operadorTenantId: Guid.NewGuid());
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        var handler = Desactivar(
+            repositorio, new CurrentUserServiceFalso(persona, rol, OperadorCae), OperadorCae, unitOfWork: unitOfWork);
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
         delegacion.Activa.Should().BeTrue();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// El rol que cuenta es el de la sesión en origen, y la cuenta tiene que tenerlo en
+    /// Identity: una sesión limitada a Consulta (login local) no revoca aunque la cuenta sea
+    /// Gestor CAE —la pantalla no ofrece lo que AutorizacionEscrituraBehavior denegaría—, y un
+    /// claim de rol que la cuenta ya no tiene tampoco.
+    /// </summary>
+    [Theory]
+    [InlineData("Consulta", "GestorCae")]
+    [InlineData("Administrador", "GestorCae")]
+    public async Task El_rol_de_la_sesion_tiene_que_ser_del_equipo_y_coincidir_con_la_cuenta(
+        string rolDeSesion, string rolDeCuenta)
+    {
+        var persona = Guid.NewGuid();
+        _cuentas.Asignar(persona, OperadorCae, rolDeCuenta);
+        DarCartera(persona, rolDeCuenta, TenantPropietario);
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        var handler = Desactivar(
+            repositorio, new CurrentUserServiceFalso(persona, rolDeSesion, OperadorCae), OperadorCae,
+            unitOfWork: unitOfWork);
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        delegacion.Activa.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Los_roles_del_equipo_son_los_codigos_reales_de_Identity()
+    {
+        // Application no puede referenciar Infrastructure.Identity.Roles: si un código cambiara
+        // allí, la regla dejaría de reconocer a ese rol en silencio.
+        new[]
+        {
+            EquipoDelOperadorCaeExterno.Administrador, EquipoDelOperadorCaeExterno.DireccionCae,
+            EquipoDelOperadorCaeExterno.CoordinadorCae, EquipoDelOperadorCaeExterno.GestorCae,
+        }.Should().Equal("Administrador", "DireccionCae", "CoordinadorCae", "GestorCae");
     }
 
     [Fact]
@@ -298,13 +385,15 @@ public class RevocacionDelegacionTests
     }
 
     [Theory]
-    [InlineData("Administrador")]
-    [InlineData("DireccionCae")]
-    [InlineData("CoordinadorCae")]
-    public async Task Otro_rol_del_propio_Operador_CAE_externo_no_reactiva(string rol)
+    [InlineData("GestorCae", true)]
+    [InlineData("CoordinadorCae", true)]
+    [InlineData("DireccionCae", false)]
+    [InlineData("Administrador", false)]
+    public async Task Cada_rol_del_equipo_del_Operador_CAE_externo_con_alcance_reactiva(string rol, bool conCartera)
     {
         var persona = Guid.NewGuid();
         _cuentas.Asignar(persona, OperadorCae, rol);
+        if (conCartera) DarCartera(persona, rol, TenantPropietario);
         var (delegacion, repositorio, unitOfWork) = Preparar();
         delegacion.Desactivar();
         var handler = Reactivar(
@@ -312,8 +401,58 @@ public class RevocacionDelegacionTests
 
         var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada", $"{rol} no es Gestor CAE");
+        resultado.EsExitoso.Should().BeTrue($"{rol} es del equipo del Operador CAE externo");
+        delegacion.Activa.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("GestorCae")]
+    [InlineData("CoordinadorCae")]
+    public async Task El_Gestor_CAE_o_el_Coordinador_CAE_sin_cartera_sobre_ese_Tenant_propietario_no_reactiva(string rol)
+    {
+        var persona = Guid.NewGuid();
+        _cuentas.Asignar(persona, OperadorCae, rol);
+        DarCartera(persona, rol, Guid.NewGuid());
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        delegacion.Desactivar();
+        var handler = Reactivar(
+            repositorio, new CurrentUserServiceFalso(persona, rol, OperadorCae), OperadorCae, unitOfWork: unitOfWork);
+
+        var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
         delegacion.Activa.Should().BeFalse();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    /// <summary>
+    /// Consecuencia aceptada de la decisión (c) del 2026-10-26: revocar cierra las carteras en
+    /// cascada, así que después el Gestor CAE que revocó ya no tiene alcance y no reactiva. Sí
+    /// el Administrador del Operador CAE externo (alcanza toda la organización); si no hay
+    /// ninguno, la reactivación queda en manos de Soporte TALVEG.
+    /// </summary>
+    [Fact]
+    public async Task Tras_revocar_y_cerrarse_las_carteras_el_Gestor_CAE_no_reactiva_y_el_Administrador_del_Operador_si()
+    {
+        var administradorDelOperador = Guid.NewGuid();
+        _cuentas.Asignar(administradorDelOperador, OperadorCae, "Administrador");
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        (await Desactivar(repositorio, ElGestorCae(), OperadorCae, unitOfWork: unitOfWork)
+                .Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None))
+            .EsExitoso.Should().BeTrue();
+        _catalogo.CarterasVivas.Clear();   // el cierre en cascada de la operación
+
+        var delGestor = await Reactivar(repositorio, ElGestorCae(), OperadorCae, unitOfWork: unitOfWork)
+            .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+        delGestor.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        delegacion.Activa.Should().BeFalse();
+
+        var delAdministrador = await Reactivar(
+                repositorio, new CurrentUserServiceFalso(administradorDelOperador, "Administrador", OperadorCae),
+                OperadorCae, unitOfWork: unitOfWork)
+            .Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+        delAdministrador.EsExitoso.Should().BeTrue();
+        delegacion.Activa.Should().BeTrue();
     }
 
     [Fact]
@@ -412,8 +551,11 @@ public class RevocacionDelegacionTests
 
         var resultado = await handler.Handle(new ReactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
-        resultado.Error.Codigo.Should().Be("DelegacionTenant.OtroOperadorVigente");
-        resultado.Error.Mensaje.Should().NotContain("Tenant");
+        // Mensaje genérico (decisión del 2026-10-26): quien reactiva es el Operador CAE externo,
+        // y ni el código ni el texto le dicen que el Tenant propietario trabaja con otro.
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoReactivable");
+        resultado.Error.Mensaje.Should().Be("No se puede reactivar esta Delegación; contacta con el Tenant propietario.");
+        resultado.Error.Mensaje.Should().NotContainAny("otro", "Operador");
         delegacion.Activa.Should().BeFalse();
         unitOfWork.VecesGuardado.Should().Be(0);
     }
@@ -448,8 +590,12 @@ public class RevocacionDelegacionTests
         var administrador = Guid.NewGuid();
         _cuentas.Asignar(administrador, TenantPropietario, "Administrador");
         var activa = new DelegacionTenant(OperadorCae, TenantPropietario);
-        var revocada = new DelegacionTenant(OperadorCae, Guid.NewGuid());
+        var revocada = new DelegacionTenant(OperadorCae, TenantPropietario);
         revocada.Desactivar();
+        var gestorSinCartera = Guid.NewGuid();
+        _cuentas.Asignar(gestorSinCartera, OperadorCae, "GestorCae");
+        var direccionDelOperador = Guid.NewGuid();
+        _cuentas.Asignar(direccionDelOperador, OperadorCae, "DireccionCae");
         var tenants = new TenantsQueryContextFalso();
         tenants.ListaDelegacionesTenant.AddRange([activa, revocada]);
 
@@ -466,6 +612,10 @@ public class RevocacionDelegacionTests
         }
 
         (await Preguntar(ElGestorCae())).Should().Be((true, false, true, false));
+        (await Preguntar(new CurrentUserServiceFalso(direccionDelOperador, "DireccionCae", OperadorCae)))
+            .Should().Be((true, false, true, false), "la Dirección CAE alcanza toda la organización");
+        (await Preguntar(new CurrentUserServiceFalso(gestorSinCartera, "GestorCae", OperadorCae)))
+            .Should().Be((false, false, false, false), "sin cartera sobre ese Tenant propietario no tiene alcance");
         (await Preguntar(new CurrentUserServiceFalso(administrador, "Administrador", TenantPropietario)))
             .Should().Be((false, false, false, false), "el Administrador del Tenant propietario no revoca ni reactiva");
         (await Preguntar(new CurrentUserServiceFalso()))
@@ -520,7 +670,7 @@ public class RevocacionDelegacionTests
         AsignacionesOperativasWriterFalso? writer = null, IUnitOfWork? unitOfWork = null,
         TenantsQueryContextFalso? tenants = null) =>
         new(repositorio, quien, writer ?? new AsignacionesOperativasWriterFalso(), unitOfWork ?? new UnitOfWorkFalso(),
-            new TenantActualFijo(tenantActivo), _cuentas, tenants ?? new TenantsQueryContextFalso());
+            new TenantActualFijo(tenantActivo), _cuentas, tenants ?? new TenantsQueryContextFalso(), _catalogo);
 
     private ReactivarDelegacionTenantCommandHandler Reactivar(
         DelegacionTenantRepositorioFalso repositorio, CurrentUserServiceFalso quien, Guid? tenantActivo,
@@ -528,7 +678,7 @@ public class RevocacionDelegacionTests
         TenantsQueryContextFalso? tenants = null, ITransaccionDeComando? transaccion = null) =>
         new(repositorio, quien, writer ?? new AsignacionesOperativasWriterFalso(), unitOfWork ?? new UnitOfWorkFalso(),
             tenants ?? new TenantsQueryContextFalso(), transaccion ?? new TransaccionDeComandoFalsa(),
-            new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), _cuentas,
+            _catalogo, new DirectorioDestinosCarteraFalso(null), _cuentas,
             new BloqueoCarteraUsuarioFalso(), new TenantActualFijo(tenantActivo));
 
     private static (DelegacionTenant, DelegacionTenantRepositorioFalso, UnitOfWorkFalso) Preparar()
