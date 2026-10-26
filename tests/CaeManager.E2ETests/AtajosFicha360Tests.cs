@@ -97,7 +97,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         var centro = $"Atajos Centro {sufijo}";
         var subcontrata = $"Atajos Subcontrata {sufijo}";
         var drawer = page.Locator(".drawer-panel");
-        // Dos CIF distintos y propios de esta ejecución, por encima de las siembras (7_000_000, 7_500_000) y
+        // Tres CIF distintos y propios de esta ejecución, por encima de las siembras (7_000_000, 7_500_000) y
         // por debajo de las constantes fijas (9_99x_xxx) de los demás E2E.
         var semillaCif = Random.Shared.Next(9_000_000, 9_500_000);
 
@@ -105,11 +105,14 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes/alta-guiada");
         await page.GetByRole(AriaRole.Heading, new() { Name = "1. Empresa" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(empresa);
+        // «(opcional)» en la etiqueta, pero CrearEmpresaCommand exige la identificación fiscal (como en AltaGuiadaTests).
+        await page.GetByLabel("Identificación fiscal (opcional)", new() { Exact = true })
+            .FillAsync(Ayudas.GenerarCifValido(semillaCif));
         await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(clienteEmpresarial);
         await page.GetByLabel("Identificación fiscal", new() { Exact = true })
-            .FillAsync(Ayudas.GenerarCifValido(semillaCif));
+            .FillAsync(Ayudas.GenerarCifValido(semillaCif + 1));
         await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Heading, new() { Name = "3. Centro" }).WaitForAsync();
         await page.GetByLabel("Nombre", new() { Exact = true }).FillAsync(centro);
@@ -123,7 +126,7 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(subcontrata);
         await drawer.GetByLabel("Identificación fiscal", new() { Exact = true })
-            .FillAsync(Ayudas.GenerarCifValido(semillaCif + 1));
+            .FillAsync(Ayudas.GenerarCifValido(semillaCif + 2));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", clienteEmpresarial);
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new() { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
