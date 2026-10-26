@@ -107,7 +107,9 @@ public static class MarcarAcreditacionSubidaEndpoints
             ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalNoDeclarado => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status404NotFound,
         };
-        return Results.Problem(error.Mensaje, statusCode: statusCode);
+        return Results.Problem(error.Mensaje, statusCode: statusCode,
+            title: error.Codigo == ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno
+                ? error.Codigo : null);
     }
 
     private static RouteHandlerBuilder ConEntradaDeExtension(this RouteHandlerBuilder ruta) => ruta

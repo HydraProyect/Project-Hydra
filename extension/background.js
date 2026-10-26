@@ -470,9 +470,11 @@ async function obtenerEnviosPendientes(idPestana) {
   };
 }
 
-async function leerDetalleDelProblema(respuesta) {
+async function leerDetalleDelProblema(respuesta, alLeerProblema) {
   try {
-    return (await respuesta.json())?.detail;
+    const problema = await respuesta.json();
+    alLeerProblema?.(problema);
+    return problema?.detail;
   } catch {
     return undefined; // cuerpo no JSON (o vacío): el llamador usa su mensaje genérico.
   }
@@ -501,11 +503,13 @@ async function confirmarEnvio({ acreditacionId }, idPestana, urlDeLaPestana) {
   // conectar mientras no pasen los 30 min. Solo el «Desconectar» del popup lo borra.
   if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {
-    // Un 409 es un conector inactivo o un rechazo posterior a la lista: no se
-    // arregla reintentando, así que deja de estar pendiente. Se muestra el
-    // detalle real en vez de un genérico «TALVEG no aceptó».
-    const detalle = await leerDetalleDelProblema(marcado.respuesta);
-    if (marcado.respuesta.status === 409 || marcado.respuesta.status === 404)
+    // PortalAjeno permite reintentar en el portal correcto sin renovar la caducidad.
+    // Los demás 409 y los 404 dejan de estar pendientes.
+    let portalAjeno = false;
+    const detalle = await leerDetalleDelProblema(marcado.respuesta, problema => {
+      portalAjeno = problema?.title === "Acreditacion.PortalAjeno";
+    });
+    if ((marcado.respuesta.status === 409 && !portalAjeno) || marcado.respuesta.status === 404)
       await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, undefined);
     return { ok: false, error: detalle ?? `TALVEG no aceptó anotarlo (${marcado.respuesta.status}).` };
   }

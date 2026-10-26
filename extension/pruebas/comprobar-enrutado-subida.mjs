@@ -74,6 +74,7 @@ let listaFalla = false;
 let dominiosDelProveedor = ["nalandaglobal.com"];
 let solapadosDelProveedor = [];
 let estadoDeLaSubida = 200;
+let problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
 const llamadas = []; // {url, metodo, cuerpo}
 const CAMBIO = "33333333-3333-3333-3333-333333333333";
 const VERSION = "44444444-4444-4444-4444-444444444444";
@@ -84,7 +85,14 @@ globalThis.fetch = async (url, opciones = {}) => {
   if (String(url).endsWith("/subida"))
     return {
       ok: estadoDeLaSubida < 300, status: estadoDeLaSubida, type: "basic",
-      json: async () => estadoDeLaSubida < 300 ? { cambioId: CAMBIO, version: VERSION } : { detail: "Este conector está desactivado temporalmente." },
+      json: (() => {
+        let leido = false;
+        return async () => {
+          if (leido) throw new Error("El cuerpo ya se consumió");
+          leido = true;
+          return estadoDeLaSubida < 300 ? { cambioId: CAMBIO, version: VERSION } : problemaDeLaSubida;
+        };
+      })(),
     };
   return {
   ok: !(listaFalla && String(url).includes("acreditaciones-pendientes")),
@@ -300,6 +308,38 @@ const postsDeDeshacer = () => llamadas.filter((l) => l.metodo === "POST" && l.ur
   comprobar("un 409 muestra el detalle del servidor", rechazado?.ok === false && rechazado.error.includes("desactivado"));
   const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
   comprobar("y deja de estar pendiente", pendientes?.pendientes?.length === 0);
+}
+
+// PortalAjeno conserva el intento para reintentar, con su caducidad original.
+for (const plataforma of [undefined, "Twind"]) {
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  const pendienteOriginal = structuredClone(almacen.enviosPendientes["7"][ACREDITACION]);
+  estadoDeLaSubida = 409;
+  problemaDeLaSubida = {
+    title: "Acreditacion.PortalAjeno",
+    detail: plataforma ? `Este documento debe subirse en la Plataforma CAE ${plataforma}.` : "Este documento es de otra plataforma CAE.",
+  };
+  const rechazado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("PortalAjeno muestra el detalle completo de la Plataforma CAE",
+    rechazado?.ok === false && rechazado.error === problemaDeLaSubida.detail);
+  comprobar("PortalAjeno mantiene el pendiente sin renovar los 30 min",
+    JSON.stringify(almacen.enviosPendientes?.["7"]?.[ACREDITACION]) === JSON.stringify(pendienteOriginal));
+  estadoDeLaSubida = 200;
+  const reintentado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("PortalAjeno permite confirmar al reintentar", reintentado?.ok === true);
+}
+
+// Un 404 elimina el pendiente incluso si el cuerpo lleva el título PortalAjeno.
+{
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 404;
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("un 404 sigue borrando el pendiente", pendientes?.pendientes?.length === 0);
+  estadoDeLaSubida = 200;
+  problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
 }
 
 // El «Desconectar» que pide la persona (popup) borra lo pendiente: no se ofrece a quien conecte después.

@@ -165,6 +165,27 @@ public class EntradasExternasAntiforgeryTests
         respuesta.StatusCode.Should().Be(esperado);
     }
 
+    [Theory]
+    [InlineData(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno, true)]
+    [InlineData(ConfirmarSubidaDesdeExtensionCommandHandler.CodigoConectorInactivo, false)]
+    [InlineData("Acreditacion.NoEncontrada", false)]
+    public async Task Solo_el_portal_ajeno_lleva_su_codigo_como_titulo_del_problema(string codigo, bool llevaCodigo)
+    {
+        var mediador = new Mediador { Fallo = Error.Crear(codigo, "Detalle de prueba") };
+        await using var app = await ArrancarAsync(mediador);
+        using var cliente = Cliente(app);
+        cliente.DefaultRequestHeaders.Add("Authorization", "Extension valido");
+
+        using var respuesta = await cliente.PostAsync(Subida,
+            new StringContent("""{"dominioPortal":"app.dokify.net"}""", System.Text.Encoding.UTF8, "application/json"));
+
+        using var cuerpo = System.Text.Json.JsonDocument.Parse(await respuesta.Content.ReadAsStringAsync());
+        cuerpo.RootElement.GetProperty("detail").GetString().Should().Be("Detalle de prueba");
+        var titulo = cuerpo.RootElement.GetProperty("title").GetString();
+        if (llevaCodigo) titulo.Should().Be(codigo);
+        else titulo.Should().NotBe(codigo);
+    }
+
     private static HttpClient Cliente(WebApplication app) => new(new HttpClientHandler { AllowAutoRedirect = false })
     {
         BaseAddress = new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First()),

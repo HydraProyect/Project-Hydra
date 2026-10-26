@@ -97,7 +97,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
 
         if (!await PortalEsDelProveedorAsync(acreditacion.CanalGestionDocumentalId, host, cancellationToken))
             return Result.Fallo<CambioEstadoAnotadoDto>(Error.Crear(
-                CodigoPortalAjeno, "Este documento es de otra plataforma CAE: no se puede anotar como enviado en este portal."));
+                CodigoPortalAjeno, await MensajePortalAjenoAsync(acreditacion.CanalGestionDocumentalId, cancellationToken)));
 
         var cambio = acreditacion.ConfirmarEnvioDesdeExtension(
             DiaDeNegocio.Hoy(), await currentUserService.ObtenerUsuarioActualIdAsync(), DateTime.UtcNow);
@@ -122,6 +122,31 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
             .ToListAsync(cancellationToken);
 
         return dominios.Any(dominio => ResolucionProveedorPlataformaCaeService.CoincideHost(host, dominio));
+    }
+
+    /// <summary>
+    /// El detalle que ve la persona al anotar en un portal que no es el de su documento. Nombra la Plataforma CAE
+    /// correcta solo con el nombre del catálogo global (<c>ProveedorPlataformaCae</c>): nada de la acreditación,
+    /// del Trabajador ni del Tenant. Sin Proveedor de catálogo en el canal no hay nombre que dar y sale el genérico.
+    /// </summary>
+    private async Task<string> MensajePortalAjenoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
+    {
+        const string generico = "Este documento es de otra plataforma CAE: no se puede anotar como enviado en este portal.";
+
+        var proveedorId = await centrosContext.CanalesGestionDocumental
+            .Where(c => c.Id == canalGestionDocumentalId)
+            .Select(c => c.ProveedorPlataformaCaeId)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (proveedorId is null) return generico;
+
+        var nombre = await proveedoresContext.ProveedoresPlataformaCae
+            .Where(p => p.Id == proveedorId.Value)
+            .Select(p => p.Nombre)
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return string.IsNullOrWhiteSpace(nombre)
+            ? generico
+            : $"Este documento es de otra plataforma CAE: debe subirse en la Plataforma CAE {nombre}, no se puede anotar como enviado en este portal.";
     }
 
     private async Task<bool> ProveedorActivoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
