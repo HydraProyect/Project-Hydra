@@ -202,7 +202,7 @@ public class AutorizacionDeDelegacionTests
 
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             delegaciones, tenantsContext: null!, writer,
-            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
+            new AutorizacionDelegacionFalsa(autoriza: false), new CurrentUserServiceFalso(Usuario), unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -229,7 +229,7 @@ public class AutorizacionDeDelegacionTests
         var handler = new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
-            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
+            autorizacion, new CurrentUserServiceFalso(Usuario), new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora));
 
         await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -248,7 +248,7 @@ public class AutorizacionDeDelegacionTests
             new DelegacionTenantRepositorioFalso(), tenantsContext: null!,
             new AsignacionesOperativasWriterFalso(),
             new AutorizacionDelegacionFalsa(autoriza: true), new CurrentUserServiceFalso(usuarioId: null),
-            new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
+            new UnitOfWorkFalso(), new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(
             new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
@@ -258,22 +258,13 @@ public class AutorizacionDeDelegacionTests
     }
 
     /// <summary>
-    /// La tercera ruta que hay que dejar atrapada, y esta no se puede probar por
-    /// comportamiento: que el tenant autorizador <b>no</b> se derive de
-    /// <c>ITenantActual</c>.
-    ///
-    /// Sería la sustitución tentadora justamente aquí, porque estas operaciones
-    /// se ejecutan desde una pantalla que puede estar dentro de un workspace
-    /// delegado — y entonces <c>ITenantActual</c> es el del propietario, que a
-    /// veces coincidiría con el Cliente Delegante y daría la respuesta correcta
-    /// <i>por casualidad</i>. Un test de comportamiento pasaría, y la autoridad
-    /// quedaría mal fundada.
-    ///
-    /// Se congela por la forma: ninguno de los dos handlers recibe
-    /// <c>ITenantActual</c>, así que no puede derivarlo aunque quisiera.
+    /// La autoridad sobre la Delegación se conserva en su servicio específico.
+    /// CrearDelegacionTenant recibe ITenantActual solo para rechazar un contexto de
+    /// escritura ajeno, después de autorizar contra el Tenant propietario de la petición.
+    /// Los tests de comportamiento comprueban ambos predicados por separado.
     /// </summary>
     [Fact]
-    public void Ningun_handler_de_delegacion_deriva_la_autoridad_del_tenant_activo()
+    public void Los_handlers_conservan_las_dependencias_de_autorizacion_de_delegacion()
     {
         var handlers = new[]
         {
@@ -302,10 +293,13 @@ public class AutorizacionDeDelegacionTests
                 "la plataforma: ADR-004 § 12.2 pone 'aprueba, modifica y revoca' del lado del Cliente " +
                 "Delegante");
 
-            dependencias.Should().NotContain("ITenantActual",
-                $"{handler.Name} debe autorizar contra el tenant que el comando nombra, no contra el workspace " +
-                "activo: dentro de un workspace delegado ITenantActual es el del propietario y daría la " +
-                "respuesta correcta por casualidad");
+            if (handler == typeof(Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler))
+                dependencias.Should().Contain("IAutorizacionDelegacionTenant");
+            else
+                dependencias.Should().NotContain("ITenantActual",
+                    $"{handler.Name} debe autorizar contra el tenant que el comando nombra, no contra el workspace " +
+                    "activo: dentro de un workspace delegado ITenantActual es el del propietario y daría la " +
+                    "respuesta correcta por casualidad");
         }
     }
 
@@ -556,7 +550,7 @@ public class AutorizacionDeDelegacionTests
         var guardadoDelAlta = new UnitOfWorkFalso();
         var alta = await new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommandHandler(
                 delegacionesNuevas, tenantsContext: null!, writerDelAlta, soloMiembroDelOperadorCae,
-                quienAdministraPorEncargo, guardadoDelAlta, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+                quienAdministraPorEncargo, guardadoDelAlta, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante))
             .Handle(new Application.Tenants.Commands.CrearDelegacionTenant.CrearDelegacionTenantCommand(
                 Guid.NewGuid(), ClienteDelegante), CancellationToken.None);
 
