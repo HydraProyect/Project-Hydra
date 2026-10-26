@@ -648,11 +648,40 @@ jobs:
       # 127.0.0.1. Hueco conocido: el listado opcional de documentos no se
       # cubre, porque page.route no intercepta las peticiones del service
       # worker.
+      # La igualdad de versiones es una invariante, no un comentario: Dependabot
+      # sube Microsoft.Playwright (NuGet) pero no conoce este package.json, así
+      # que una subida de NuGet sin la de npm se para aquí y las dos van juntas.
+      - name: Playwright de npm y de NuGet en la misma versión
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const csproj = fs.readFileSync("tests/CaeManager.E2ETests/CaeManager.E2ETests.csproj", "utf8");
+            const nuget = csproj.match(/Include="Microsoft\.Playwright"\s+Version="([^"]+)"/)?.[1];
+            const lock = JSON.parse(fs.readFileSync("extension/pruebas/package-lock.json", "utf8"));
+            const npm = lock.packages["node_modules/playwright"]?.version;
+            const core = lock.packages["node_modules/playwright-core"]?.version;
+            console.log(`NuGet ${nuget} · npm playwright ${npm} · playwright-core ${core}`);
+            if (!nuget || nuget !== npm || npm !== core) {
+              console.error("::error::Playwright de npm (extension/pruebas) y Microsoft.Playwright deben ir en la misma versión exacta");
+              process.exit(1);
+            }'
+
+      # Reintento acotado: una caída puntual del registro npm, de apt o de la
+      # CDN de Playwright no debe dejar en rojo una PR que no toca la extensión
+      # (build-and-test exige este job). Solo Chromium, sin headless shell.
       - name: Instalar Playwright de npm y Chromium
         working-directory: extension/pruebas
+        timeout-minutes: 8
         run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npx --no-install playwright install --with-deps chromium
+          for intento in 1 2 3; do
+            if npm ci --ignore-scripts --no-audit --no-fund \
+              && npx --no-install playwright install --with-deps --no-shell chromium; then
+              exit 0
+            fi
+            echo "::warning::Instalación de Playwright fallida (intento $intento de 3)"
+            sleep $((intento * 15))
+          done
+          exit 1
 
       - name: Extensión MV3 en Chromium real (headless nuevo)
         working-directory: extension/pruebas
