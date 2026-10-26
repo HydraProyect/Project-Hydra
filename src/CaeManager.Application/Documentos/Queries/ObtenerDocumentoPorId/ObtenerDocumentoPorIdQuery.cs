@@ -128,18 +128,18 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
             ? (AmbitoAplicacion.Trabajador, await trabajadoresContext.Trabajadores
                 .Where(t => t.Id == documento.TrabajadorId)
                 .Select(t => t.Nombre + " " + t.Apellidos)
-                .FirstAsync(cancellationToken))
+                .FirstOrDefaultAsync(cancellationToken))
             : documento.ClienteId is not null
                 // Documento.ClienteId ya apunta a Empresas (F3).
                 ? (AmbitoAplicacion.Cliente, await empresasContext.Empresas
                     .Where(e => e.Id == documento.ClienteId)
                     .Select(e => e.RazonSocial)
-                    .FirstAsync(cancellationToken))
+                    .FirstOrDefaultAsync(cancellationToken))
                 : documento.VehiculoId is not null
                     ? (AmbitoAplicacion.Vehiculo, await vehiculosContext.Vehiculos
                         .Where(v => v.Id == documento.VehiculoId)
                         .Select(v => v.Nombre + " (" + v.NumeroPlaca + ")")
-                        .FirstAsync(cancellationToken))
+                        .FirstOrDefaultAsync(cancellationToken))
                     : documento.ProyectoId is not null
                         ? (AmbitoAplicacion.Proyecto, await proyectosContext.Proyectos
                             .Where(p => p.Id == documento.ProyectoId)
@@ -148,7 +148,9 @@ public class ObtenerDocumentoPorIdQueryHandler(IDocumentosQueryContext documento
                         : (AmbitoAplicacion.Empresa, await empresasContext.Empresas
                             .Where(e => e.Id == documento.EmpresaId)
                             .Select(e => e.RazonSocial)
-                            .FirstAsync(cancellationToken));
+                            .FirstOrDefaultAsync(cancellationToken));
+
+        if (propietarioNombre is null) return null;
 
         var nombreEnArchivo = documento.TrabajadorId is not null
             ? await trabajadoresContext.Trabajadores
