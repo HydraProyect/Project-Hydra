@@ -472,7 +472,11 @@ public class TerminologiaCanonicaTests
         // no renombran nada. Queda solo el texto visible del título de la pantalla en el recurso, que es la rotulación
         // actual y no se cambia aquí.
         // 355 → 348 (2026-10-23): la misma rebaja de −7 de arriba, medida sobre main con las claves de API ya integradas.
-        ["Delegacion"] = 348,
+        // 348 → 347 (2026-10-26, revocan y reactivan el equipo del Operador CAE externo con alcance): −1 sin
+        // renombrar nada. EstadoDeAccesoDelegado lee la fila una vez para las dos consultas de la pantalla
+        // (+2), Delegaciones.razor.cs deja de proyectar a mano qué filas reactivar, y Reactivar pierde la rama
+        // de propósito no externo (la autoridad ya lo exige) y compara con el Tenant propietario ya comprobado.
+        ["Delegacion"] = 347,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

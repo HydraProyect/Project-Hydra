@@ -325,13 +325,15 @@ public class UsosDeEsPlataformaCongeladosTests
                 "es Tenant propietario de un Operador CAE externo (ADR-011 § 1) — mitad negativa de un fallo " +
                 "cerrado"),
         ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
-            new(2, CategoriaUso.Guarda,
-                "un comentario y :EsPlataforma real, proyectado sobre el TenantClienteId antes de autorizar la " +
-                "reactivación. Ronda 2 de Codex sobre el delta del incremento 1b (commit 2830297e), mismo " +
-                "patrón que AutorizarOperadorCaeExternoQueries.cs: PuedeGestionarDelegacionesAsync no excluye " +
-                "por sí sola el Tenant de plataforma, así que una DelegacionTenant heredada con el Tenant de " +
-                "plataforma como Cliente Delegante podía reactivarse. Se corta DESPUÉS de la autoridad (mismo " +
-                "orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
+            new(1, CategoriaUso.Guarda,
+                "un :EsPlataforma real en PuedeReactivarAsync, proyectado sobre el Tenant propietario " +
+                "(TenantClienteId) de la delegación. Nació en la ronda 2 de Codex sobre el delta del " +
+                "incremento 1b (commit 2830297e); desde las decisiones del 2026-10-26 la autoridad es " +
+                "EquipoDelOperadorCaeExterno, que mira el Tenant de origen del Operador CAE externo y no " +
+                "excluye por sí sola el Tenant de plataforma como Tenant propietario, así que una " +
+                "DelegacionTenant heredada sobre TALVEG podría reactivarse sin este corte. El comentario que " +
+                "lo explica ya no nombra el campo, por eso el recuento es 1. Se corta DESPUÉS de la autoridad " +
+                "(mismo orden que el resto de la cadena). TALVEG nunca es Tenant propietario de un Operador CAE " +
                 "externo (ADR-011 § 1) — mitad negativa de un fallo cerrado, defensa en profundidad junto a " +
                 "CrearDelegacionTenantCommand.cs y AutorizarOperadorCaeExternoQueries.cs"),
         ["src/CaeManager.Application/Tenants/Commands/CrearAsignacionOperadorDelegado/CrearAsignacionOperadorDelegadoCommand.cs"] =

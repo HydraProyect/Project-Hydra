@@ -219,10 +219,15 @@ public class RestaurarPrincipalAlReactivarTests
             },
         };
         var transaccion = new TransaccionDeComandoFalsa();
+        // Reactiva la Dirección CAE del Operador CAE externo, desde su casa (decisiones del 2026-10-26):
+        // alcanza a toda la organización sin cartera propia. Un Gestor CAE no podría, porque revocar le
+        // cerró la cartera en cascada.
+        var quienReactiva = Guid.NewGuid();
+        _cuentas.Asignar(quienReactiva, Operador, "DireccionCae");
         var handler = new ReactivarDelegacionTenantCommandHandler(
-            repositorio, AutorizacionDelegacionFalsa.AdministradorDe(Propietario),
-            new CurrentUserServiceFalso(Guid.NewGuid()), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
-            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
+            repositorio,
+            new CurrentUserServiceFalso(quienReactiva, "DireccionCae", Operador), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
+            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Operador));
 
         return (handler, delegacion, transaccion);
     }
