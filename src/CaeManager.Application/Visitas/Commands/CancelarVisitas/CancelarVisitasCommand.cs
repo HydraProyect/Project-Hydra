@@ -22,7 +22,10 @@ public class CancelarVisitasCommandValidator : AbstractValidator<CancelarVisitas
     public CancelarVisitasCommandValidator()
     {
         RuleFor(c => c.Ids).NotEmpty();
-        RuleFor(c => c.Motivo).MaximumLength(Visita.LongitudMaximaMotivo);
+        RuleFor(c => c.Motivo)
+            .NotEmpty().WithMessage("Indica el motivo de la cancelación.")
+            .MaximumLength(Visita.LongitudMaximaMotivo)
+            .WithMessage($"El motivo no puede superar los {Visita.LongitudMaximaMotivo} caracteres.");
     }
 }
 

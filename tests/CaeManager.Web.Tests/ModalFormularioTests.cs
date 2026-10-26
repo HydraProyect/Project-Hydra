@@ -568,5 +568,36 @@ public class ModalFormularioTests : BunitContext
         }
     }
 
+    // ---- CWE-602: el estado deshabilitado es del servidor. Quitar `disabled` en el DOM del navegador no puede guardar ----
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_deshabilitado_no_llama_a_OnGuardar_aunque_el_clic_llegue_sin_el_atributo_disabled(bool porCarga)
+    {
+        var cut = Renderizar(p =>
+        {
+            if (porCarga) p.Add(x => x.Cargando, true);
+            else p.Add(x => x.MotivoGuardarDeshabilitado, "Espera a que termine la subida del archivo.");
+        });
+        var guardar = cut.Find(".modal-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue("el botón sale deshabilitado: es el punto de partida del ataque");
+
+        guardar.RemoveAttribute("disabled");
+        await guardar.ClickAsync(new MouseEventArgs());
+
+        _guardados.Should().Be(0, "el servidor vuelve a comprobar el motivo de deshabilitado y no confía en el DOM del cliente");
+    }
+
+    [Fact]
+    public async Task Guardar_habilitado_si_llama_a_OnGuardar()
+    {
+        var cut = Renderizar();
+
+        await cut.Find(".modal-pie .boton-primario").ClickAsync(new MouseEventArgs());
+
+        _guardados.Should().Be(1);
+    }
+
     private static RenderFragment NotaFija(string texto) => b => b.AddMarkupContent(0, $"<p class=\"nota-fija\">{texto}</p>");
 }

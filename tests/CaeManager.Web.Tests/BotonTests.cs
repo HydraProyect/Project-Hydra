@@ -1,6 +1,8 @@
 using Bunit;
 using CaeManager.Web.Components.DesignSystem;
 using FluentAssertions;
+using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 namespace CaeManager.Web.Tests;
 
@@ -34,5 +36,67 @@ public class BotonTests : BunitContext
         var boton = cut.Find("button");
 
         boton.GetAttribute("class").Should().Contain("boton").And.Contain("clase-extra");
+    }
+
+    // CWE-602 («validación solo en el cliente»): en Blazor Server, quien quita `disabled` en el DOM del navegador consigue que el
+    // clic llegue al servidor. El estado deshabilitado (o cargando) es del servidor y el clic no sale hacia el llamador.
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task Un_boton_deshabilitado_o_cargando_no_llama_a_OnClick_aunque_el_clic_llegue_sin_el_atributo_disabled(bool deshabilitado, bool cargando)
+    {
+        var clics = 0;
+        var cut = Render<Boton>(parametros => parametros
+            .Add(x => x.Variante, VarianteBoton.Secundario)
+            .Add(x => x.Deshabilitado, deshabilitado)
+            .Add(x => x.Cargando, cargando)
+            .Add(x => x.OnClick, EventCallback.Factory.Create(this, () => clics++)));
+        var boton = cut.Find("button");
+        boton.HasAttribute("disabled").Should().BeTrue();
+
+        boton.RemoveAttribute("disabled");
+        await boton.ClickAsync(new MouseEventArgs());
+
+        clics.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Un_boton_habilitado_llama_a_OnClick()
+    {
+        var clics = 0;
+        var cut = Render<Boton>(parametros => parametros
+            .Add(x => x.Variante, VarianteBoton.Secundario)
+            .Add(x => x.OnClick, EventCallback.Factory.Create(this, () => clics++)));
+
+        await cut.Find("button").ClickAsync(new MouseEventArgs());
+
+        clics.Should().Be(1);
+    }
+
+    [Theory]
+    [InlineData(true, 0)]
+    [InlineData(false, 1)]
+    public async Task VentanaContextoElemento_solo_avisa_al_llamador_si_esta_habilitado(bool deshabilitado, int esperados)
+    {
+        var avisos = 0;
+        var cut = Render<VentanaContextoElemento>(parametros => parametros
+            .AddChildContent("Incidencia")
+            .Add(x => x.Deshabilitado, deshabilitado)
+            .Add(x => x.AlPulsar, EventCallback.Factory.Create(this, () => avisos++)));
+        var elemento = cut.Find("button");
+        elemento.HasAttribute("disabled").Should().Be(deshabilitado);
+
+        elemento.RemoveAttribute("disabled");
+        await elemento.ClickAsync(new MouseEventArgs());
+
+        avisos.Should().Be(esperados);
+    }
+
+    [Fact]
+    public void Sin_OnClick_el_boton_no_registra_manejador_de_clic()
+    {
+        var cut = Render<Boton>(parametros => parametros.Add(x => x.Variante, VarianteBoton.Secundario));
+
+        cut.Markup.Should().NotContain("blazor:onclick", "un botón sin OnClick (de envío de formulario, por ejemplo) no manda clics de balde al circuito");
     }
 }

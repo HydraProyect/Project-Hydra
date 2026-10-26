@@ -10,12 +10,25 @@ namespace CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
 /// </summary>
 public record ObtenerAvatarPropioQuery : IRequest<string?>;
 
-public class ObtenerAvatarPropioQueryHandler(ICurrentUserService currentUserService, IAvatarDeCuentas avatares)
+public class ObtenerAvatarPropioQueryHandler(ICurrentUserService currentUserService, IAvatarDeCuentas avatares,
+    ITenantActual? tenantActual = null, MemoAvatarPropio? memo = null)
     : IRequestHandler<ObtenerAvatarPropioQuery, string?>
 {
     public async Task<string?> Handle(ObtenerAvatarPropioQuery request, CancellationToken cancellationToken)
+    {
+        if (memo is not null && tenantActual is not null
+            && await ClaveContextoMemo.ResolverAsync(currentUserService, tenantActual) is { } clave)
+            return await memo.ObtenerOCalcularAsync(clave, CalcularAsync, cancellationToken);
+
+        return await CalcularAsync(cancellationToken);
+    }
+
+    private async Task<string?> CalcularAsync(CancellationToken cancellationToken)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         return usuarioId is null ? null : await avatares.ObtenerAsync(usuarioId.Value, cancellationToken);
     }
 }
+
+/// <summary>Lectura Scoped del avatar; cada Command invalida también esta preferencia.</summary>
+public sealed class MemoAvatarPropio(TimeProvider? reloj = null) : MemoPorContexto<string?>(reloj);

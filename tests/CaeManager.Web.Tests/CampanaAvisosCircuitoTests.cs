@@ -1,5 +1,13 @@
 using Bunit;
 using CaeManager.Application.Common;
+using CaeManager.Domain.Common;
+using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes;
+using CaeManager.Application.Operaciones.ApoyoCartera;
+using CaeManager.Application.Operaciones.ApoyoCartera.Queries;
+using CaeManager.Application.Operaciones.IncorporacionCartera;
+using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
+using CaeManager.Application.Usuarios.Queries.ObtenerOperacionesSinPrincipal;
+using CaeManager.Application.VigilanciaNormativa.Queries.ObtenerAvisosRevisionNormativa;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Features.Notificaciones;
@@ -66,10 +74,25 @@ public class CampanaAvisosCircuitoTests : BunitContext
             Entradas.Add((logLevel, formatter(state, exception)));
     }
 
-    private sealed class MediatorQueFalla(Exception excepcion) : IMediator
+    private sealed class MediatorQueFalla(Exception? excepcion) : IMediator
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            throw excepcion;
+        public List<Type> Consultas { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            Consultas.Add(request.GetType());
+            if (excepcion is not null) throw excepcion;
+            object respuesta = request switch
+            {
+                ObtenerNotificacionesPendientesQuery => (IReadOnlyList<NotificacionDto>)[],
+                ObtenerAvisosRevisionNormativaQuery => (IReadOnlyList<AvisoRevisionNormativaDto>)[],
+                ObtenerSolicitudesIncorporacionCarteraQuery => Result.Exito(new BandejaIncorporacionCarteraDto(false, [], [], [])),
+                ObtenerPropuestasApoyoPendientesQuery => new PropuestasApoyoPendientesDto([], []),
+                ObtenerOperacionesSinPrincipalQuery => AlertaDePrincipal.Ninguna,
+                _ => throw new NotSupportedException(request.GetType().Name),
+            };
+            return Task.FromResult((TResponse)respuesta);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default) where TRequest : IRequest =>
             Task.CompletedTask;
@@ -94,6 +117,34 @@ public class CampanaAvisosCircuitoTests : BunitContext
         Services.AddScoped<IMediator>(_ => new MediatorQueFalla(excepcionDeMediator));
         // Después de registrar: SetRendererInfo ya resuelve servicios. El aviso del límite lo lee.
         SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", isInteractive: true));
+    }
+
+    [Fact]
+    public void El_prerenderizado_no_consulta_las_fuentes_de_avisos()
+    {
+        var mediador = new MediatorQueFalla(null);
+        Services.AddSingleton<IMediator>(mediador);
+        SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Static", isInteractive: false));
+
+        Render<CampanaAvisos>();
+
+        mediador.Consultas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void El_circuito_carga_cada_fuente_una_vez_y_no_repite_al_repintar()
+    {
+        var mediador = new MediatorQueFalla(null);
+        Services.AddSingleton<IMediator>(mediador);
+        SetRendererInfo(new Microsoft.AspNetCore.Components.RendererInfo("Server", isInteractive: true));
+
+        var campana = Render<CampanaAvisos>();
+        campana.Render();
+
+        mediador.Consultas.Should().Equal(
+            typeof(ObtenerNotificacionesPendientesQuery), typeof(ObtenerAvisosRevisionNormativaQuery),
+            typeof(ObtenerSolicitudesIncorporacionCarteraQuery), typeof(ObtenerPropuestasApoyoPendientesQuery),
+            typeof(ObtenerOperacionesSinPrincipalQuery));
     }
 
     [Fact]

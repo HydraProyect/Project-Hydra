@@ -62,10 +62,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // para encontrarlo por muchos tipos que hayan creado otros tests de
         // "AppCollection".
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/tipos-documento");
-        await page.GetByText("+ Nuevo tipo").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo tipo", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Nombre").FillAsync(nombreTipoDocumento);
         await drawer.GetByLabel("Orden").FillAsync("0");
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         var filaTipo = page.Locator("tr", new PageLocatorOptions { HasText = nombreTipoDocumento });
@@ -106,24 +106,24 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         // Paso 1: "Identificación fiscal *": obligatoria, igual que en el paso 2.
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_502));
-        await page.GetByText("Guardar y continuar").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_501));
-        await page.GetByText("Guardar y continuar a Centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
 
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
         await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreCentro);
-        await page.GetByText("Guardar centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar centro", Exact = true }).ClickAsync();
         // "Terminar aquí" solo se pinta con _centrosCreados == 0 (ver
         // AltaGuiada.razor) — que desaparezca es la señal de que el Centro
         // se guardó de verdad, mismo criterio que AltaGuiadaTests.
-        await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Terminar aquí", Exact = true })).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // --- Paso 2: Trabajador de esa Empresa ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
 
         // DDL-076 (resolución en silencio con una única Empresa) vs. selector
         // real cuando ya hay varias — "AppCollection" acumula Empresas de
@@ -140,12 +140,13 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // El alta de Trabajador es un panel de pasos: en el primero el primario es «Siguiente» y «Guardar y terminar» guarda ya.
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 3 (Subida): Documento del Trabajador, vencimiento a 10 días ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByText("+ Nuevo documento").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).First.ClickAsync();
 
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
@@ -161,7 +162,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         {
             await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
         finally
@@ -233,7 +234,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Selección múltiple", Exact = true }).ClickAsync();
         await filaTrabajador.Locator("input[type=\"checkbox\"]").CheckAsync();
 
-        await page.Locator(".barra-acciones-lote").GetByText("Asignar a un centro").ClickAsync();
+        await page.Locator(".barra-acciones-lote").GetByRole(AriaRole.Button, new() { Name = "Asignar a un centro", Exact = true }).ClickAsync();
         // Sin Exact/scope, GetByLabel("Centro") también resuelve el propio
         // <div role="dialog"> del modal: su nombre accesible viene de
         // aria-labelledby → "Asignar 1 trabajador a un centro", que
@@ -258,7 +259,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // — este Trabajador de
         // prueba solo tiene el Documento de este test, así que casi seguro
         // los tiene: se acepta cualquiera de los dos textos.
-        await page.Locator(".modal-pie").GetByText(new Regex("^Asignar")).ClickAsync();
+        await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Asignar") }).ClickAsync();
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?pestana=reclamaciones");
@@ -276,10 +277,10 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // alta sin salir de la pantalla (ModalContactoAgenda,
         // PredeterminadoPorDefecto=true), que es justo lo que hace falta para
         // que la agenda resuelva un destinatario.
-        await tarjetaCliente.GetByText("Añadir contacto").First.ClickAsync();
+        await tarjetaCliente.GetByRole(AriaRole.Button, new() { Name = "Añadir contacto", Exact = true }).First.ClickAsync();
         await page.Locator(".modal-cuerpo").GetByLabel("Nombre").FillAsync(nombreContacto);
         await page.Locator(".modal-cuerpo").GetByLabel("Email").FillAsync(emailContacto);
-        await page.Locator(".modal-pie").GetByText("Guardar").ClickAsync();
+        await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
 
         // Contacto predeterminado ⇒ ya sale marcado en _contactosPorCliente
         // al recargar (ver ReclamacionesTab.razor) — no hace falta marcar
@@ -338,7 +339,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // badge cambie de verdad a "Vigente" y no se quede en "Próximo".
         await drawer.GetByLabel("Fecha de emisión", new LocatorGetByLabelOptions { Exact = true }).FillAsync(hoy.ToString("yyyy-MM-dd"));
         await drawer.GetByLabel("Fecha de vencimiento").FillAsync(hoy.AddDays(400).ToString("yyyy-MM-dd"));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);

@@ -46,15 +46,17 @@ namespace CaeManager.Application.Common;
 /// de soporte es de solo lectura, sin excepción implícita— se escribe aquí y se
 /// prueba aquí.
 ///
-/// <b>Dos excepciones, cada una atada a su capacidad y a su propia lista de
-/// comandos.</b> La primera, ADR-011 § 8.7, punto 3: una sesión con capacidad
-/// <c>RestablecimientoSegundoFactor</c> deja pasar solo un
-/// <see cref="IComandoDeRestablecimientoSegundoFactor"/> y solo en su Tenant
-/// objetivo. No es camino de escritura —la conexión sigue con el rol de solo
+/// <b>Tres excepciones, cada una atada a su capacidad y a su propia lista de
+/// comandos.</b> Las dos primeras, capacidades de acción acotada de ADR-011 § 8.7,
+/// punto 3: una sesión con capacidad <c>RestablecimientoSegundoFactor</c> deja pasar
+/// solo un <see cref="IComandoDeRestablecimientoSegundoFactor"/>, y una con
+/// <c>RevocacionOperadorCaeExterno</c> solo un
+/// <see cref="IComandoDeRevocacionOperadorCaeExterno"/>, cada una solo en su Tenant
+/// objetivo. Ninguna es camino de escritura —la conexión sigue con el rol de solo
 /// lectura—: el acto lo ejecuta una función de la base que repite las
 /// comprobaciones.
 ///
-/// <b>La segunda, PD-A3, con tres condiciones a la vez, no una.</b>
+/// <b>La tercera, PD-A3, con tres condiciones a la vez, no una.</b>
 /// Una sesión con <c>TieneCaminoDeEscritura</c> (hoy solo <c>Aprovisionamiento</c>
 /// — <c>BreakGlass</c> permite escribir en el modelo pero su fase todavía no
 /// existe) deja pasar el comando solo si además es
@@ -151,6 +153,25 @@ public class AutorizacionEscrituraBehavior<TRequest, TResponse>(
                 if (tenantActual.TenantId != sesion.TenantObjetivoId)
                     return CrearRespuestaFallo<TResponse>(Error.Crear(
                         "Autorizacion.RestablecimientoFueraDelTenantObjetivo",
+                        "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
+
+                return await next(cancellationToken);
+            }
+
+            // Misma forma para la segunda capacidad acotada (enmienda de ADR-004 § 12.2 del
+            // 2026-10-26): revocar la Delegación de un Operador CAE externo a petición del
+            // Tenant propietario. Un solo comando, solo en el Tenant objetivo, y la escritura
+            // la hace app_revocar_operador_cae_externo_por_soporte, no esta conexión.
+            if (sesion.Capacidad == CapacidadPrivilegio.RevocacionOperadorCaeExterno)
+            {
+                if (request is not IComandoDeRevocacionOperadorCaeExterno)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.ComandoFueraDeLaRevocacion",
+                        "Esta sesión solo permite revocar el acceso de un Operador CAE externo."));
+
+                if (tenantActual.TenantId != sesion.TenantObjetivoId)
+                    return CrearRespuestaFallo<TResponse>(Error.Crear(
+                        "Autorizacion.RevocacionFueraDelTenantObjetivo",
                         "Esta sesión solo puede actuar en la organización sobre la que se abrió."));
 
                 return await next(cancellationToken);

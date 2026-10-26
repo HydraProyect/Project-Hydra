@@ -476,7 +476,11 @@ public class TerminologiaCanonicaTests
         // renombrar nada. EstadoDeAccesoDelegado lee la fila una vez para las dos consultas de la pantalla
         // (+2), Delegaciones.razor.cs deja de proyectar a mano qué filas reactivar, y Reactivar pierde la rama
         // de propósito no externo (la autoridad ya lo exige) y compara con el Tenant propietario ya comprobado.
-        ["Delegacion"] = 347,
+        // 347 → 351 (2026-10-26, Soporte TALVEG revoca la Delegación de un Operador CAE externo): +4, todos referencias a la
+        // entidad ya existente. RevocarOperadorCaeExternoPorSoporteCommand nombra su parámetro DelegacionTenantId (+3:
+        // declaración, validador y handler) porque es el Id de esa entidad, y RevocacionOperadorCaeExternoPorSoporte desengancha
+        // DelegacionTenant del ChangeTracker tras la escritura por SQL (+1). Los tipos nuevos usan el nombre canónico.
+        ["Delegacion"] = 351,
         // 72 (antes 71): el selector de empresa gestionada también se ofrece en el cajón de navegación
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un

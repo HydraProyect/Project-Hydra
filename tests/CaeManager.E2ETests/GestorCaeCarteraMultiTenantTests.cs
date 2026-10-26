@@ -127,7 +127,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
 
         // Con más de una organización autorizada, el menú lleva a la cola de toda la cartera.
-        await Expect(page.Locator("nav a.nav-item", new() { HasText = "Mi trabajo" })).ToHaveAttributeAsync("href", "mi-trabajo");
+        await Expect(page.Locator("nav").GetByRole(AriaRole.Link, new() { Name = "Mi trabajo", Exact = true })).ToHaveAttributeAsync("href", "mi-trabajo");
 
         // El Tenant beneficiario A queda activo con el selector real; B es el no activo.
         await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
@@ -165,7 +165,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var tipoDocumento = (await filaAcreditacion.Locator(".plataforma-documento-tipo").InnerTextAsync()).Trim();
         await filaAcreditacion.GetByRole(AriaRole.Button, new() { Name = "Subir versión corregida", Exact = true }).ClickAsync();
         var drawer = page.Locator(".drawer-panel");
-        await Expect(drawer.GetByText("Renovar documento")).ToBeVisibleAsync();
+        await Expect(drawer.GetByRole(AriaRole.Heading, new() { Name = "Renovar documento", Exact = true })).ToBeVisibleAsync();
         await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(Ayudas.GenerarPdfDePruebaEnDisco("formacion-corregida.pdf"));
         await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync();
         // Subir un archivo nuevo reinicia las fechas (renovar es emitir otro documento): la emisión se escribe después.
@@ -188,7 +188,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         var drawerVisita = page.GetByRole(AriaRole.Dialog, new() { Name = "Nueva visita", Exact = true });
         await Expect(drawerVisita).ToBeVisibleAsync();
         var selectCentro = drawerVisita.GetByLabel("Centro", new() { Exact = true });
-        var valorCentro = await selectCentro.Locator("option", new() { HasText = CentroB }).GetAttributeAsync("value");
+        var valorCentro = await selectCentro.GetByRole(AriaRole.Option, new() { Name = CentroB }).GetAttributeAsync("value");
         await selectCentro.SelectOptionAsync(new SelectOptionValue { Value = valorCentro! });
         await drawerVisita.GetByLabel("Fecha de inicio", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));
         await drawerVisita.GetByLabel("Fecha de fin", new() { Exact = true }).FillAsync(fechaVisita.ToString("yyyy-MM-dd"));

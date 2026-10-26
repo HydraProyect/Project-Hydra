@@ -251,11 +251,15 @@
         ? string.Empty
         : TextosApoyo["ConfirmarRechazarMensaje", _aRechazar.Solicitante ?? string.Empty, _aRechazar.Empresa ?? string.Empty];
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        // El prerenderizado y el circuito tienen ámbitos distintos: cargar solo en el circuito.
+        if (!firstRender || !RendererInfo.IsInteractive) return;
+
         _token = AntiforgeryStateProvider.GetAntiforgeryToken();
         await CargarAsync();
         IniciarRefresco();
+        StateHasChanged();
     }
 
     private async Task AlCambiarAbiertoAsync(bool abierto)

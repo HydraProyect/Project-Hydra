@@ -49,7 +49,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/retencion");
 
         // --- Detectar ---
-        await page.GetByText("Buscar datos que hayan cumplido plazo").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Buscar datos que hayan cumplido plazo", Exact = true }).ClickAsync();
 
         var tabla = page.Locator(".tabla-datos");
         await tabla.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
@@ -64,39 +64,39 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         Assert.Contains("Pendiente de revisar", await filaTrabajadores.InnerTextAsync());
 
         // --- Avisar (solo la fila de Documentos sigue el camino completo) ---
-        await filaDocumentos.GetByText("He avisado a la organización").ClickAsync();
+        await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "He avisado a la organización", Exact = true }).ClickAsync();
         await AsegurarTextoEnFilaAsync(filaDocumentos, "Organización avisada");
 
         // --- Autorizar, con fecha de ejecución de hoy mismo para poder
         // ejecutar en el mismo test sin esperar 30 días ---
-        await filaDocumentos.GetByText("Autorizar").ClickAsync();
+        await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
 
         var modalAutorizar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Autorizar la destrucción" });
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
-        await modalAutorizar.Locator(".modal-pie").GetByText("Autorizar").ClickAsync();
+        await modalAutorizar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await AsegurarTextoEnFilaAsync(filaDocumentos, "Lista para ejecutar");
 
         // --- Ejecutar ---
-        await filaDocumentos.GetByText("Ejecutar ahora").ClickAsync();
+        await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "Ejecutar ahora", Exact = true }).ClickAsync();
 
         var modalEjecutar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Ejecutar la destrucción" });
         await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-        await modalEjecutar.Locator(".modal-pie").GetByText("Destruir definitivamente").ClickAsync();
+        await modalEjecutar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Destruir definitivamente", Exact = true }).ClickAsync();
         await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await AsegurarTextoEnFilaAsync(filaDocumentos, "Ejecutada el");
 
         // --- La otra propuesta se descarta en vez de ejecutarse — camino
         // alternativo, no todo lo detectado termina en destrucción ---
-        await filaTrabajadores.GetByText("Descartar").ClickAsync();
+        await filaTrabajadores.GetByRole(AriaRole.Button, new() { Name = "Descartar", Exact = true }).ClickAsync();
 
         var modalDescartar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Descartar la propuesta" });
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalDescartar.GetByLabel("Motivo").FillAsync("E2E: la organización conserva estos registros por política interna (P1-19)");
-        await modalDescartar.Locator(".modal-pie").GetByText("Descartar").ClickAsync();
+        await modalDescartar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Descartar", Exact = true }).ClickAsync();
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         await AsegurarTextoEnFilaAsync(filaTrabajadores, "Descartada");
@@ -130,7 +130,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
 
         // Evidencia positiva: la página de Retención del Tenant beneficiario, con el control que
         // abre el ciclo, y no la de acceso denegado.
-        await Assertions.Expect(page.GetByText("Buscar datos que hayan cumplido plazo"))
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new() { Name = "Buscar datos que hayan cumplido plazo", Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
         Assert.DoesNotContain("/acceso-denegado", page.Url);
         await Assertions.Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync(

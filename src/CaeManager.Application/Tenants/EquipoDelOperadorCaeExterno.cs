@@ -61,28 +61,43 @@ public static class EquipoDelOperadorCaeExterno
         ICatalogoIncorporacionCartera catalogo,
         CancellationToken cancellationToken)
     {
+        var autorizados = await PuedeEnLoteAsync(
+            [(operadorTenantId, tenantPropietarioId)], currentUserService, directorioUsuarios, catalogo, cancellationToken);
+        return autorizados.Contains((operadorTenantId, tenantPropietarioId));
+    }
+
+    internal static async Task<HashSet<(Guid OperadorTenantId, Guid TenantPropietarioId)>> PuedeEnLoteAsync(
+        IReadOnlyCollection<(Guid OperadorTenantId, Guid TenantPropietarioId)> destinos,
+        ICurrentUserService currentUserService, IDirectorioUsuariosService directorioUsuarios,
+        ICatalogoIncorporacionCartera catalogo, CancellationToken cancellationToken)
+    {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var origen = await currentUserService.ObtenerTenantOrigenIdAsync();
-        if (usuarioId is null || origen is null || origen.Value != operadorTenantId)
-            return false;
+        if (usuarioId is null || origen is null)
+            return [];
 
-        // Las cuentas y las carteras del Operador CAE externo se leen desde su propia casa,
-        // mismo criterio que ContextoOperadorCae y AutoridadSobreCarteraDeGestorCae: la
-        // política RLS de las carteras solo deja leer las del Operador CAE de la sesión.
+        var propietarios = destinos.Where(d => d.OperadorTenantId == origen.Value)
+            .Select(d => d.TenantPropietarioId).ToHashSet();
+        if (propietarios.Count == 0)
+            return [];
+
+        // La autoridad se comprueba en la casa del Operador CAE externo, nunca en el Tenant activo.
         using (AmbitoTenantExplicito.Establecer(origen.Value))
         {
             var rol = await currentUserService.ObtenerRolEfectivoAsync();
             if (rol is not (Administrador or DireccionCae or CoordinadorCae or GestorCae)
                 || !await directorioUsuarios.EsCuentaActivaConRolAsync(
                     usuarioId.Value, origen.Value, rol, cancellationToken))
-                return false;
+                return [];
 
             if (rol is Administrador or DireccionCae)
-                return true;
+                return propietarios.Select(p => (origen.Value, p)).ToHashSet();
 
             var carteras = await catalogo.ObtenerCarterasVivasAsync(
-                operadorTenantId, tenantPropietarioId, cancellationToken);
-            return carteras.Any(c => c.UsuarioId == usuarioId.Value);
+                origen.Value, propietarios.Count == 1 ? propietarios.Single() : null, cancellationToken);
+            propietarios.IntersectWith(carteras.Where(c => c.UsuarioId == usuarioId.Value)
+                .Select(c => c.PropietarioTenantId));
+            return propietarios.Select(p => (origen.Value, p)).ToHashSet();
         }
     }
 }

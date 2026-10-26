@@ -335,6 +335,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<IAuditoriaExtraccionIaRepository, AuditoriaExtraccionIaRepository>();
         services.AddSingleton<IClasificadorDocumentoService, PdfSharpClasificadorDocumentoService>();
         services.AddSingleton<IExtractorTextoDigitalService, PdfSharpExtractorTextoDigitalService>();
+        services.AddSingleton<CaeManager.Application.Trabajadores.Extraccion.IExtractorPalabrasPdf, PdfPigExtractorPalabrasPdf>();
         services.AddSingleton<IRasterizadorPaginasPdfService, PdfToPngRasterizadorPaginasPdfService>();
         services.AddSingleton(AlmacenConfianzaFirmas.AdministracionEspanola());
         services.AddSingleton<IVerificadorFirmaPdfService, VerificadorFirmaPdfService>();
@@ -552,6 +553,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Application.Usuarios.IDirectorioEquipoCoordinador>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae.IDirectorioCompanerosGestorCae>(sp => sp.GetRequiredService<DirectorioUsuariosTenant>());
         services.AddScoped<CaeManager.Application.Usuarios.ISegundoFactorDeCuentas, SegundoFactorDeCuentasIdentity>();
+        services.AddScoped<CaeManager.Application.Plataforma.IRevocacionOperadorCaeExternoPorSoporte,
+            CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.
@@ -744,9 +747,17 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
-        services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
+        // El cliente de Anthropic es ahora el respaldo: el servicio que ve Application es el compositor
+        // que prueba primero el parser local (ITA/RNT/TC2 con texto digital) y solo si el documento no
+        // cuadra llama a este cliente. Por eso se registra por su tipo concreto, no por la interfaz.
+        services.AddHttpClient<AnthropicExtraccionTrabajadoresIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
+        services.AddTransient<IExtraccionTrabajadoresIaService>(proveedor =>
+            new CaeManager.Application.Trabajadores.Extraccion.ExtraccionTrabajadoresConParserLocalService(
+                proveedor.GetRequiredService<CaeManager.Application.Trabajadores.Extraccion.IExtractorTrabajadoresLocal>(),
+                proveedor.GetRequiredService<AnthropicExtraccionTrabajadoresIaService>(),
+                proveedor.GetRequiredService<Microsoft.Extensions.Logging.ILogger<CaeManager.Application.Trabajadores.Extraccion.ExtraccionTrabajadoresConParserLocalService>>()));
         services.AddHttpClient<IDeteccionVisitaCorreoService, AnthropicDeteccionVisitaCorreoService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));

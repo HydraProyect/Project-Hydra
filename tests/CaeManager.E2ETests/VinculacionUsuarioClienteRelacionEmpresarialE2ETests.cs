@@ -43,52 +43,52 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Cliente real (creado hoy: solo existe como Empresa, nunca en la tabla legacy Clientes) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_001));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Un segundo Cliente, ajeno — control negativo ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialOtroCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_004));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Empresa propia que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaPropia);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_002));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialCliente);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Empresa ajena que sirve solo al OTRO Cliente — control negativo ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaAjena);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_005));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialOtroCliente);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Subcontrata que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
-        await page.GetByText("+ Nueva subcontrata").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrata);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_003));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", razonSocialCliente);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- El comportamiento que F4.2a corrige: vincular un usuario de
         // portal Cliente por CIF a esa Empresa, vía el flujo real de
         // Usuarios.razor (BuscarEmpresaPorCifQuery, no BuscarClientePorCifQuery). ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/usuarios");
-        await page.GetByText("+ Nuevo usuario").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo usuario", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Correo").FillAsync(emailPortal);
         await drawer.GetByLabel("Nombre completo").FillAsync($"Portal {razonSocialCliente}");
         await drawer.GetByLabel("Rol").SelectOptionAsync(new SelectOptionValue { Value = "Cliente" });
@@ -115,7 +115,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // Este «Guardar» es el que falló 16 veces en 7 días de CI sin que se supiera por qué: si vuelve a
         // pasar, el mensaje trae el estado del DOM (ver PulsarGuardarDelDrawerAsync).
-        await Ayudas.PulsarGuardarDelDrawerAsync(page, drawer.Locator(".drawer-pie").GetByText("Crear y enviar enlace"));
+        await Ayudas.PulsarGuardarDelDrawerAsync(page, drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Crear y enviar enlace", Exact = true }));
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Activación: el usuario establece SU contraseña desde el enlace ---
