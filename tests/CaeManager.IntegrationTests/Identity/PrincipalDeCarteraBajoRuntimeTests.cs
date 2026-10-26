@@ -1009,7 +1009,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
                     new DelegacionTenantRepository(contexto), new AutorizaAlAdministradorDe(_beneficiario.Id), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
                     new TransaccionDeComando(contexto), pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
-                    directorio, directorio, new BloqueoCarteraUsuario(contexto))
+                    directorio, directorio, new BloqueoCarteraUsuario(contexto), sp.GetRequiredService<ITenantActual>())
                 .Handle(new ReactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);
         });
 

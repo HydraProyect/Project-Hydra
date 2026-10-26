@@ -267,7 +267,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -333,7 +333,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -450,7 +450,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);
@@ -490,7 +490,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -543,7 +543,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
