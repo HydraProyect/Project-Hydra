@@ -147,7 +147,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
 
         public PlanImportacionCombinadaDto PlanCombinado(string contenido, IEnumerable<ClienteImportadoDto> clientes)
         {
-            var plan = new PlanImportacionCombinadaDto([.. clientes], [], [], [], [], []);
+            var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(), [.. clientes], [], [], [], [], []);
             PlanesCombinados[contenido] = plan;
             return plan;
         }

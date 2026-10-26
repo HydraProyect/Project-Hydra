@@ -4,6 +4,7 @@
 @inject MediatR.IMediator Mediator
 @inject NavigationManager Navigation
 @using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal
+@using CaeManager.Web.Components.Account
 @inherits CaeManager.Web.Components.IsloteInteractivo
 
 <LimiteDeErrores Islote="this">
@@ -72,7 +73,7 @@
                                        id="buscador-item-@indiceItem"
                                        role="option"
                                        aria-selected="@(activo ? "true" : "false")"
-                                       href="@fila.Item.UrlDestino"
+                                       href="@RedireccionLocal.Sanear(fila.Item.UrlDestino)"
                                        @onclick="() => Seleccionar(fila.Item, fila.TipoHistorial)"
                                        @onclick:preventDefault="true">
                                         <span class="buscador-item-icono" aria-hidden="true">

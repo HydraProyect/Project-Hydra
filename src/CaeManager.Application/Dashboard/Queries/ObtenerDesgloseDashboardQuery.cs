@@ -115,6 +115,8 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
         var documentosAtencion = documentosEnAtencion
             .OrderBy(d => d.Estado == EstadoDocumento.Vencido ? 0 : 1)
             .ThenBy(d => d.FechaVencimiento)
+            .ThenBy(d => d.TrabajadorNombre, StringComparer.Ordinal)
+            .ThenBy(d => d.Id)
             .Take(MaximoFilas)
             .Select(d => new DocumentoAtencionDto(d.Id, d.TrabajadorNombre, d.TipoDocumentoNombre, d.FechaVencimiento, d.Estado))
             .ToList();
@@ -128,6 +130,8 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
                 g.Count(d => d.Estado == EstadoDocumento.Urgente)))
             .OrderByDescending(e => e.DocumentosVencidos)
             .ThenByDescending(e => e.DocumentosUrgentes)
+            .ThenBy(e => e.EmpresaRazonSocial, StringComparer.Ordinal)
+            .ThenBy(e => e.EmpresaId)
             .Take(MaximoFilas)
             .ToList();
 
@@ -155,12 +159,16 @@ public class ObtenerDesgloseDashboardQueryHandler(IAsignacionesQueryContext asig
                 g.Count(x => x.Estado == EstadoDocumento.Urgente)))
             .OrderByDescending(c => c.DocumentosVencidos)
             .ThenByDescending(c => c.DocumentosUrgentes)
+            .ThenBy(c => c.CentroNombre, StringComparer.Ordinal)
+            .ThenBy(c => c.CentroId)
             .Take(MaximoFilas)
             .ToList();
 
         var proximoVencimiento = filas
             .Where(f => f.FechaVencimiento != null && f.FechaVencimiento.Value >= hoy)
             .OrderBy(f => f.FechaVencimiento)
+            .ThenBy(f => f.TrabajadorNombre, StringComparer.Ordinal)
+            .ThenBy(f => f.Id)
             .Select(f => new ProximoVencimientoDto(
                 f.TrabajadorNombre,
                 f.TipoDocumentoNombre,

@@ -46,27 +46,29 @@ public class ObtenerOperadoresCaeExternosQueryHandler(
 
         if (operadores.Count == 0) return [];
 
-        var operadorIds = operadores.Select(o => o.Id).ToList();
+        // DelegacionesTenant tiene RLS por sus dos extremos y el Actor de Plataforma no es ninguno
+        // de ellos: tras la autorización de arriba, cada Operador se lee situándose en su propio
+        // Tenant, igual que ObtenerActividadSoporteQuery se sitúa en el Tenant visitado.
+        var resultado = new List<OperadorCaeExternoDto>(operadores.Count);
+        foreach (var operador in operadores)
+        {
+            List<TenantPropietarioOperadoDto> operados;
+            using (AmbitoTenantExplicito.Establecer(operador.Id))
+            {
+                operados = await (
+                    from vinculo in dbContext.DelegacionesTenant
+                    join propietario in dbContext.Tenants on vinculo.TenantClienteId equals propietario.Id
+                    where vinculo.Activa
+                          && vinculo.Proposito == PropositoDelegacion.OperadorExterno
+                          && vinculo.TenantConsultoraId == operador.Id
+                    orderby propietario.Nombre
+                    select new TenantPropietarioOperadoDto(propietario.Id, propietario.Nombre))
+                    .ToListAsync(cancellationToken);
+            }
 
-        var operados = await (
-            from vinculo in dbContext.DelegacionesTenant
-            join propietario in dbContext.Tenants on vinculo.TenantClienteId equals propietario.Id
-            where vinculo.Activa
-                  && vinculo.Proposito == PropositoDelegacion.OperadorExterno
-                  && operadorIds.Contains(vinculo.TenantConsultoraId)
-            orderby propietario.Nombre
-            select new { vinculo.TenantConsultoraId, PropietarioId = propietario.Id, propietario.Nombre })
-            .ToListAsync(cancellationToken);
+            resultado.Add(new OperadorCaeExternoDto(operador.Id, operador.Nombre, operador.CreadoEnUtc, operados));
+        }
 
-        var porOperador = operados
-            .GroupBy(x => x.TenantConsultoraId)
-            .ToDictionary(
-                g => g.Key,
-                g => (IReadOnlyList<TenantPropietarioOperadoDto>)g
-                    .Select(x => new TenantPropietarioOperadoDto(x.PropietarioId, x.Nombre)).ToList());
-
-        return operadores
-            .Select(o => new OperadorCaeExternoDto(o.Id, o.Nombre, o.CreadoEnUtc, porOperador.GetValueOrDefault(o.Id, [])))
-            .ToList();
+        return resultado;
     }
 }

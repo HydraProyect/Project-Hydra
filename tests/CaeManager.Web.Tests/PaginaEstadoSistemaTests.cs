@@ -92,6 +92,46 @@ public class PaginaEstadoSistemaTests : BunitContext
         cut.Markup.Should().NotContain("Reintentar");
     }
 
+    [Theory]
+    [InlineData("/%09/evil.example", "/%09/evil.example")]
+    [InlineData("/\t/evil.example", null)]
+    [InlineData("/\n/evil.example", null)]
+    [InlineData("/\r\n/evil.example", null)]
+    [InlineData("/\\evil.example", null)]
+    [InlineData("\\evil.example", null)]
+    [InlineData("//evil.example", null)]
+    [InlineData("https://evil.example", null)]
+    [InlineData("/%2F/evil.example", "/%2F/evil.example")]
+    [InlineData("/", "/")]
+    [InlineData("/documentos", "/documentos")]
+    [InlineData("/centros/123?x=1", "/centros/123?x=1")]
+    public void Reintentar_solo_publica_destinos_locales_sin_controles(string entrada, string? esperado)
+    {
+        var cut = Renderizar(TipoEstadoSistema.Error, rutaReintentar: entrada);
+        var enlaces = cut.FindAll("a").Where(a => a.TextContent == "Reintentar").ToArray();
+
+        if (esperado is null)
+            enlaces.Should().BeEmpty();
+        else
+            enlaces.Should().ContainSingle().Which.GetAttribute("href").Should().Be(esperado);
+    }
+
+    [Theory]
+    [InlineData("/%09/evil.example", null)]
+    [InlineData("/%2F/evil.example", null)]
+    [InlineData("/centros/123?x=1", "/centros/123?x=1")]
+    public void Error_decodifica_la_consulta_antes_de_validar_el_enlace(string valorConsulta, string? esperado)
+    {
+        ConfigurarServicios(null, true);
+        Services.GetRequiredService<Microsoft.AspNetCore.Components.NavigationManager>().NavigateTo("/Error?ruta=" + valorConsulta);
+        var cut = Render<Error>();
+        var enlaces = cut.FindAll("a").Where(a => a.TextContent == "Reintentar").ToArray();
+
+        if (esperado is null)
+            enlaces.Should().BeEmpty();
+        else
+            enlaces.Should().ContainSingle().Which.GetAttribute("href").Should().Be(esperado);
+    }
     // ------------------------------------------------------- Acceso denegado
 
     [Fact]

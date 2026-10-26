@@ -305,7 +305,7 @@ public sealed class DescargasEntreTenantsFixture : IAsyncLifetime
             "/subcontratas/verificaciones/{id:guid}/evidencia" =>
                 await SubcontratasEndpoints.ServirEvidenciaAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), ct),
             "/auditoria/{id:guid}/archivo-anterior" =>
-                await AuditoriaEndpoints.ServirArchivoAnteriorAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), ct),
+                await AuditoriaEndpoints.ServirArchivoAnteriorAsync(id, contexto, Mediador(), Almacen(), Registro(), Registros(), sp.GetRequiredService<IAlcanceDatosService>(), ct),
             "/visitas/{id:guid}/paquete-documental.zip" =>
                 await VisitasEndpoints.ServirPaqueteAsync(id, contexto, Mediador(), Registros(), ct),
             "/empresas/{id:guid}/sello/archivo" =>

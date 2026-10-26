@@ -268,8 +268,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el usuario de Refrielectric {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el usuario de Refrielectric {Rol}{Indice}: {Errores}",
+                    rol, indice, string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -339,8 +339,7 @@ public static class DelegacionDemoSeeder
         await CrearAsync(Roles.Consulta, 1, "Consulta");
 
         logger.LogInformation(
-            "Usuarios de Refrielectric sembrados (contraseña «{Contrasena}» para todos, email {Prefijo}<rol><n>@caemanager.local).",
-            credenciales.Contrasena, PrefijoEmailRefrielectric);
+            "Usuarios de Refrielectric sembrados con contraseña de demo fijada; consulta la configuración.");
 
         return gestores;
     }
@@ -440,15 +439,16 @@ public static class DelegacionDemoSeeder
             dbContext, userManager, credenciales, logger, tenantConsultoraId, "prueba.operador.consulta1@caemanager.local",
             "Operador Consultora Consulta (prueba)", Roles.Consulta, cancellationToken);
 
-        var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
-                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
-        var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
-            d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
-                 && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
-
+        // También las lecturas de autorización se hacen desde el extremo Operador CAE.
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            var delegacionDemo1 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo1Id
+                     && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
+            var delegacionDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
+                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteDemo2Id
+                     && d.Proposito == PropositoDelegacion.OperadorExterno, cancellationToken);
+
             if (operadorGestor is not null && delegacionDemo1 is not null &&
                 !await dbContext.AsignacionesOperadorDelegado.AnyAsync(
                     a => a.DelegacionTenantId == delegacionDemo1.Id && a.UsuarioId == operadorGestor.Id, cancellationToken))
@@ -506,8 +506,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el operador de consultora {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el operador de consultora: {Errores}",
+                    string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -555,8 +555,8 @@ public static class DelegacionDemoSeeder
             var resultado = await userManager.CreateAsync(usuario, credenciales.Contrasena);
             if (!resultado.Succeeded)
             {
-                logger.LogWarning("No se pudo crear el usuario de variante de identidad {Email}: {Errores}",
-                    email, string.Join(", ", resultado.Errors.Select(e => e.Description)));
+                logger.LogWarning("No se pudo crear el usuario de variante de identidad: {Errores}",
+                    string.Join(", ", resultado.Errors.Select(e => e.Description)));
                 return null;
             }
 
@@ -732,18 +732,18 @@ public static class DelegacionDemoSeeder
     private static async Task CrearDelegacionRevocadaAsync(
         CaeManagerDbContext dbContext, Guid tenantConsultoraId, Guid tenantClienteId, ILogger logger, CancellationToken cancellationToken)
     {
-        if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
-                cancellationToken))
-        {
-            return;
-        }
-
-        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
-        delegacion.Desactivar();
-
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            if (await dbContext.DelegacionesTenant.AnyAsync(
+                    d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
+            delegacion.Desactivar();
+
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
@@ -846,17 +846,17 @@ public static class DelegacionDemoSeeder
         string nombreTenantCliente,
         CancellationToken cancellationToken)
     {
-        if (await dbContext.DelegacionesTenant.AnyAsync(
-                d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
-                cancellationToken))
-        {
-            return;
-        }
-
-        var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
-
         using (AmbitoTenantExplicito.Establecer(tenantConsultoraId))
         {
+            if (await dbContext.DelegacionesTenant.AnyAsync(
+                    d => d.TenantConsultoraId == tenantConsultoraId && d.TenantClienteId == tenantClienteId,
+                    cancellationToken))
+            {
+                return;
+            }
+
+            var delegacion = new DelegacionTenant(tenantConsultoraId, tenantClienteId);
+
             dbContext.DelegacionesTenant.Add(delegacion);
             await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -867,6 +867,6 @@ public static class DelegacionDemoSeeder
 
         logger.LogInformation(
             "Delegated Workspace de demo sembrado: {Administrador} puede operar {TenantCliente} como {Rol}.",
-            administradorConsultora.Email, nombreTenantCliente, RolOperadorDelegadoDemo);
+            administradorConsultora.Id, nombreTenantCliente, RolOperadorDelegadoDemo);
     }
 }

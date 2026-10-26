@@ -214,6 +214,70 @@ function arrayBufferABase64(buffer) {
   return btoa(binario);
 }
 
+// ¿Es `host` el dominio del Proveedor o uno de sus subdominios? Misma regla que
+// content.js (hostCoincide) y que el servidor (CoincideHost): exacto o por sufijo
+// con punto delimitador.
+function hostCoincide(host, dominio) {
+  if (typeof host !== "string" || typeof dominio !== "string") return false;
+  const h = host.trim().toLowerCase();
+  const d = dominio.trim().toLowerCase();
+  if (!h || !d) return false;
+  return h === d || h.endsWith("." + d);
+}
+
+// La longitud del dominio más largo de la lista que casa con el host; 0 si ninguno.
+function largoDelDominioQueCasa(host, dominios) {
+  let largo = 0;
+  for (const dominio of dominios ?? [])
+    if (hostCoincide(host, dominio)) largo = Math.max(largo, dominio.trim().length);
+  return largo;
+}
+
+// ¿Es este el portal del Proveedor? Misma regla que content.js (resolverPortal):
+// gana el Proveedor cuyo dominio casa con más caracteres; si empatan con otro,
+// `empate` trae a todos los empatados y no se elige a ciegas.
+function resolverPortal(proveedor, host) {
+  const largoPropio = largoDelDominioQueCasa(host, proveedor.dominios);
+  if (largoPropio === 0) return { esDeEstePortal: false, empate: [] };
+
+  const empatados = [];
+  for (const otro of proveedor.proveedoresSolapados ?? []) {
+    const largoAjeno = largoDelDominioQueCasa(host, otro.dominios);
+    if (largoAjeno > largoPropio) return { esDeEstePortal: false, empate: [] };
+    if (largoAjeno === largoPropio) empatados.push({ id: otro.proveedorPlataformaCaeId, nombre: otro.nombre });
+  }
+
+  return {
+    esDeEstePortal: true,
+    empate: empatados.length === 0
+      ? []
+      : [{ id: proveedor.proveedorPlataformaCaeId, nombre: proveedor.proveedorNombre }, ...empatados],
+  };
+}
+// El host de la pestaña donde va el documento. Desde el panel, la URL la da el
+// remitente del mensaje (la propia pestaña); el popup no tiene pestaña propia, así
+// que se pregunta por la pestaña elegida. Sin host legible devuelve null y no se
+// sube nada.
+async function hostDeLaPestana(idPestana, urlDelRemitente) {
+  let url = urlDelRemitente;
+  if (!url) {
+    try {
+      url = (await chrome.tabs.get(idPestana))?.url;
+    } catch {
+      return null;
+    }
+  }
+  return hostDeUnaUrl(url);
+}
+
+function hostDeUnaUrl(url) {
+  try {
+    return new URL(url).hostname || null;
+  } catch {
+    return null;
+  }
+}
+
 // Ritmo humano (MVP2 § 14.5): esta función descarga UN documento e inyecta
 // UN archivo por invocación — nunca un bucle sobre varios. Hay DOS formas de
 // llamarla, y las dos nacen del clic real del Gestor CAE sobre un documento
@@ -225,7 +289,16 @@ function arrayBufferABase64(buffer) {
 // por gesto de usuario (un "subir todos", un reintento automático en bucle...):
 // es la base del argumento "lo hace el gestor, no un bot" frente a las
 // plataformas externas.
-async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pestanaQueLoPidio) {
+async function subirDocumento({ documentoId, acreditacionId, nombreArchivo, proveedorElegidoId }, pestanaQueLoPidio, urlDelRemitente) {
+  // El host de la pestaña se lee antes de descargar nada: sin él no hay forma de
+  // saber de qué portal se trata y todo lo demás sería trabajo perdido.
+  const idPestanaDestino =
+    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+  if (!idPestanaDestino) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  const dominioPortal = await hostDeLaPestana(idPestanaDestino, urlDelRemitente);
+  if (!dominioPortal)
+    return { ok: false, error: "No pudimos saber en qué portal está esta pestaña, así que no se pone el documento." };
+
   const descarga = await peticionAutenticada(`/documentos/${documentoId}/archivo`);
   if (!descarga.ok) return descarga;
   if (!descarga.respuesta.ok) return { ok: false, error: `No pudimos descargar el PDF de TALVEG (${descarga.respuesta.status}).` };
@@ -241,9 +314,8 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   // El popup no tiene pestaña propia (`remitente.tab` es undefined), así que
   // para él sigue valiendo la activa: es la que el Gestor está mirando mientras
   // el popup está abierto.
-  const idPestana =
-    pestanaQueLoPidio ?? (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
-  if (!idPestana) return { ok: false, error: "No hay ninguna pestaña activa donde inyectar el archivo." };
+  // (La pestaña y su host se fijaron arriba, antes de descargar.)
+  const idPestana = idPestanaDestino;
 
   // Revalidar después de descargar y antes de entregar nada al formulario.
   const pendientes = await listarPendientes();
@@ -257,10 +329,32 @@ async function subirDocumento({ documentoId, acreditacionId, nombreArchivo }, pe
   if (!dueno)
     return { ok: false, error: "Esta acreditaci\u00f3n ya no se puede subir. Actualiza la lista en TALVEG; si fue rechazada, renueva el documento." };
 
+  // Un documento solo entra en el portal de SU Plataforma CAE. El panel ya no
+  // ofrece los de otras, pero el popup lista todo, así que la comprobación que
+  // cierra de verdad la puerta está aquí, antes de entregar nada al formulario.
+  // Sin dominios en la respuesta no hay forma de saberlo: no se sube.
+  const portal = resolverPortal(dueno, dominioPortal);
+  if (!portal.esDeEstePortal)
+    return { ok: false, error: "Este documento es de otra plataforma CAE: no se puede poner en este portal." };
+  // Un portal que casa con dos Proveedores a la vez: solo se sigue si la persona
+  // eligió en el panel justo el Proveedor de este documento. El popup no pregunta,
+  // así que aquí se detiene.
+  if (portal.empate.length > 0 && proveedorElegidoId !== dueno.proveedorPlataformaCaeId)
+    return {
+      ok: false,
+      error: `Este portal puede ser de ${portal.empate.map((o) => o.nombre).join(" o ")}. Ábrelo desde el panel de la página y elige cuál es antes de poner el documento.`,
+    };
+
   let respuestaContenido;
   try {
+    // La pestaña pudo navegar a otro portal entre la lectura del host (antes de
+    // descargar) y ahora. Por eso se envía `hostEsperado`: el content script lo
+    // compara con SU host en el instante de inyectar y se niega si ya no coincide.
+    // Releer la URL desde aquí no valdría (chrome.tabs.get no da la URL sin el
+    // permiso «tabs») y dejaría igualmente una ventana entre la lectura y el mensaje.
     respuestaContenido = await chrome.tabs.sendMessage(idPestana, {
       accion: "inyectarArchivo",
+      hostEsperado: dominioPortal,
       base64,
       nombreArchivo: nombreArchivo || "documento.pdf",
       tipoMime: "application/pdf",
@@ -376,9 +470,11 @@ async function obtenerEnviosPendientes(idPestana) {
   };
 }
 
-async function leerDetalleDelProblema(respuesta) {
+async function leerDetalleDelProblema(respuesta, alLeerProblema) {
   try {
-    return (await respuesta.json())?.detail;
+    const problema = await respuesta.json();
+    alLeerProblema?.(problema);
+    return problema?.detail;
   } catch {
     return undefined; // cuerpo no JSON (o vacío): el llamador usa su mensaje genérico.
   }
@@ -387,23 +483,33 @@ async function leerDetalleDelProblema(respuesta) {
 // «Lo he enviado»: la ÚNICA llamada que anota «Subida» en TALVEG. El servidor
 // deja un cambio de estado con origen Extensión (Historial del Centro) y
 // devuelve lo que pide el «Deshacer».
-async function confirmarEnvio({ acreditacionId }, idPestana) {
+async function confirmarEnvio({ acreditacionId }, idPestana, urlDeLaPestana) {
   if (!idPestana) return { ok: false, error: "Esta confirmación solo se hace desde la pestaña de la plataforma." };
   const pendientes = await vigentesDePestana(CLAVE_ENVIOS_PENDIENTES, idPestana);
   if (!pendientes[acreditacionId])
     return { ok: false, error: "Ya no hay nada que confirmar aquí. Si lo enviaste, anótalo en Centro 360." };
 
-  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, { method: "POST" });
+  // El servidor vuelve a comprobar que este portal es el de la Plataforma CAE del
+  // canal (segunda línea tras la puerta de subirDocumento, por si un cliente
+  // desactualizado se la saltó). El host sale de la URL que Chrome pone al
+  // mensaje de ESTA pestaña, no del contenido del mensaje.
+  const marcado = await peticionAutenticada(`/extension/acreditaciones/${acreditacionId}/subida`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ dominioPortal: hostDeUnaUrl(urlDeLaPestana) }),
+  });
   // Sin conexión, o con la conexión caducada (peticionAutenticada desconecta
   // sola, sin borrar los envíos): sigue pendiente, para reintentar al volver a
   // conectar mientras no pasen los 30 min. Solo el «Desconectar» del popup lo borra.
   if (!marcado.ok) return marcado;
   if (!marcado.respuesta.ok) {
-    // Un 409 es un conector inactivo o un rechazo posterior a la lista: no se
-    // arregla reintentando, así que deja de estar pendiente. Se muestra el
-    // detalle real en vez de un genérico «TALVEG no aceptó».
-    const detalle = await leerDetalleDelProblema(marcado.respuesta);
-    if (marcado.respuesta.status === 409 || marcado.respuesta.status === 404)
+    // PortalAjeno permite reintentar en el portal correcto sin renovar la caducidad.
+    // Los demás 409 y los 404 dejan de estar pendientes.
+    let portalAjeno = false;
+    const detalle = await leerDetalleDelProblema(marcado.respuesta, problema => {
+      portalAjeno = problema?.title === "Acreditacion.PortalAjeno";
+    });
+    if ((marcado.respuesta.status === 409 && !portalAjeno) || marcado.respuesta.status === 404)
       await cambiarEnPestana(CLAVE_ENVIOS_PENDIENTES, idPestana, acreditacionId, undefined);
     return { ok: false, error: detalle ?? `TALVEG no aceptó anotarlo (${marcado.respuesta.status}).` };
   }
@@ -473,10 +579,12 @@ chrome.runtime.onMessage.addListener((mensaje, remitente, enviarRespuesta) => {
     // El «Desconectar» del popup: el único que borra también los envíos sin confirmar.
     desconectar: () => desconectar({ borrarEnvios: true }),
     listarPendientes: () => listarPendientes(),
-    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id),
+    // `remitente.url` solo es la de la pestaña cuando escribe un content script; la
+    // del popup es la de su propia página de la extensión.
+    subirDocumento: (m) => subirDocumento(m, remitente?.tab?.id, remitente?.tab ? remitente.url : undefined),
     // Solo desde el content script de una pestaña: remitente.tab lo pone Chrome.
     obtenerEnviosPendientes: () => obtenerEnviosPendientes(remitente?.tab?.id),
-    confirmarEnvio: (m) => confirmarEnvio(m, remitente?.tab?.id),
+    confirmarEnvio: (m) => confirmarEnvio(m, remitente?.tab?.id, remitente?.url),
     descartarEnvio: (m) => descartarEnvio(m, remitente?.tab?.id),
     deshacerEnvio: (m) => deshacerEnvio(m, remitente?.tab?.id),
   };

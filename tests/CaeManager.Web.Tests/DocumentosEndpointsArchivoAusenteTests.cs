@@ -6,6 +6,7 @@ using CaeManager.Web.Features.Auditoria;
 using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Visitas;
 using System.Data.Common;
+using System.Reflection;
 using System.Text;
 using CaeManager.Application.Auditoria;
 using CaeManager.Application.Common;
@@ -16,6 +17,8 @@ using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Diagnostics;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -180,7 +183,7 @@ public class DocumentosEndpointsArchivoAusenteTests
             "evidencia" => SubcontratasEndpoints.ServirEvidenciaAsync(DocumentoId, contexto, mediator, almacen,
                 registro, avisos, CancellationToken.None),
             "auditoria" => AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto, mediator, almacen,
-                registro, avisos, CancellationToken.None),
+                registro, avisos, DispatchProxy.Create<IAlcanceDatosService, AlcanceTotalProxy>(), CancellationToken.None),
             _ => VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto, mediator, avisos, CancellationToken.None)
         });
         await resultado.ExecuteAsync(contexto);
@@ -222,7 +225,7 @@ public class DocumentosEndpointsArchivoAusenteTests
             "auditoria" => AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
                 new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
                     "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
-                almacen, registro, avisos, CancellationToken.None),
+                almacen, registro, avisos, DispatchProxy.Create<IAlcanceDatosService, AlcanceTotalProxy>(), CancellationToken.None),
             _ => VisitasEndpoints.ServirPaqueteAsync(DocumentoId, contexto, new MediatorFalso(causa),
                 avisos, CancellationToken.None)
         };
@@ -309,7 +312,7 @@ public class DocumentosEndpointsArchivoAusenteTests
             : AuditoriaEndpoints.ServirArchivoAnteriorAsync(idDeLaRuta, contexto,
                 new MediatorFalso(new RegistroAuditoriaDto(idDeLaRuta, "Documento", DocumentoId,
                     "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
-                new AlmacenSinElFichero(), registro, avisos, CancellationToken.None));
+                new AlmacenSinElFichero(), registro, avisos, DispatchProxy.Create<IAlcanceDatosService, AlcanceTotalProxy>(), CancellationToken.None));
         await resultado.ExecuteAsync(contexto);
 
         contexto.Response.StatusCode.Should().Be(404);
@@ -337,7 +340,7 @@ public class DocumentosEndpointsArchivoAusenteTests
             : AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
                 new MediatorFalso(new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
                     "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null)),
-                new AlmacenConElFichero(), registro, avisos, CancellationToken.None);
+                new AlmacenConElFichero(), registro, avisos, DispatchProxy.Create<IAlcanceDatosService, AlcanceTotalProxy>(), CancellationToken.None);
 
         await servir.Should().ThrowAsync<FileNotFoundException>();
         avisos.Entradas.Should().BeEmpty();
@@ -361,6 +364,96 @@ public class DocumentosEndpointsArchivoAusenteTests
         LeerCuerpo(contexto).Should().Be(error.Mensaje);
         contexto.Response.Headers.ContentDisposition.Should().BeEmpty();
         avisos.Entradas.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Auditoria_no_abre_el_almacen_si_el_registro_es_ajeno_o_el_Documento_esta_fuera_del_ambito(bool otroTenant)
+    {
+        var contexto = Contexto();
+        var registro = new RegistroDeAccesosEspia();
+        var respuesta = otroTenant ? null : new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+            "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null);
+        var mediator = new MediatorFalso(respuesta);
+
+        var resultado = await AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto, mediator,
+            new AlmacenQueNoSeToca(), registro, new FabricaDeRegistroEspia(),
+            DispatchProxy.Create<IAlcanceDatosService, AlcanceRestringidoProxy>(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(404);
+        registro.Accesos.Should().BeEmpty();
+        mediator.DocumentosConsultados.Should().Equal(otroTenant ? [] : new[] { DocumentoId });
+    }
+
+    [Fact]
+    public async Task Auditoria_con_ambito_restringido_abre_el_historico_solo_si_el_Documento_es_visible()
+    {
+        var contexto = Contexto();
+        var respuesta = new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+            "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null);
+        var mediator = new MediatorFalso(respuesta, Documento());
+        var resultado = await AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto, mediator,
+            new AlmacenConElFichero(), new RegistroDeAccesosEspia(), new FabricaDeRegistroEspia(),
+            DispatchProxy.Create<IAlcanceDatosService, AlcanceRestringidoProxy>(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(200);
+        mediator.DocumentosConsultados.Should().Equal(DocumentoId);
+    }
+
+    [Fact]
+    public async Task Auditoria_con_ambito_restringido_y_un_42501_al_consultar_el_Documento_responde_403_antes_de_abrir()
+    {
+        var causa = new FalloBaseDatos("42501", false);
+        var contexto = Contexto();
+        contexto.Features.Set<IStatusCodePagesFeature>(new StatusCodePagesFeature());
+        var registro = new RegistroDeAccesosEspia();
+        var avisos = new FabricaDeRegistroEspia();
+        var respuesta = new RegistroAuditoriaDto(Guid.NewGuid(), "Documento", DocumentoId,
+            "Modificado", null, DateTime.UtcNow, "{\"ArchivoUrl\":\"" + ClaveDelFichero + "\"}", null);
+        var resultado = await AuditoriaEndpoints.ServirArchivoAnteriorAsync(DocumentoId, contexto,
+            new MediatorFalso(respuesta, causa), new AlmacenQueNoSeToca(), registro, avisos,
+            DispatchProxy.Create<IAlcanceDatosService, AlcanceRestringidoProxy>(), CancellationToken.None);
+        await resultado.ExecuteAsync(contexto);
+
+        contexto.Response.StatusCode.Should().Be(403);
+        registro.Accesos.Should().BeEmpty();
+        avisos.Excepciones.Should().ContainSingle().Which.Should().BeSameAs(causa);
+    }
+
+    [Fact]
+    public async Task Auditoria_rechaza_un_nombre_con_puntos_antes_de_llegar_al_almacen()
+    {
+        var builder = WebApplication.CreateSlimBuilder();
+        builder.Services.AddSingleton<IMediator>(new MediatorFalso(null));
+        builder.Services.AddSingleton<IFileStorageService>(new AlmacenQueNoSeToca());
+        builder.Services.AddSingleton<IRegistroAccesoDocumentoSensibleService>(new RegistroDeAccesosEspia());
+        builder.Services.AddSingleton(DispatchProxy.Create<IAlcanceDatosService, AlcanceRestringidoProxy>());
+        builder.Services.AddSingleton<Microsoft.AspNetCore.Identity.UserManager<CaeManager.Infrastructure.Identity.ApplicationUser>>(
+            _ => throw new NotSupportedException("La exportación no se ejecuta en esta prueba."));
+        await using var app = builder.Build();
+        app.MapAuditoriaEndpoints();
+        var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>()
+            .Single(e => e.RoutePattern.RawText == "/auditoria/{id:guid}/archivo-anterior");
+        endpoint.RoutePattern.Parameters.Single().ParameterPolicies.Single().Content.Should().Be("guid");
+        var contexto = new DefaultHttpContext { RequestServices = app.Services };
+        contexto.Request.RouteValues["id"] = "../secreto.pdf";
+        contexto.Response.Body = new MemoryStream();
+
+        // Ejecuta el binding del endpoint sin host ni red; el router también exige {id:guid}.
+        await endpoint.RequestDelegate!(contexto);
+
+        contexto.Response.StatusCode.Should().Be(400);
+    }
+
+    public class AlcanceRestringidoProxy : DispatchProxy
+    {
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod!.Name == nameof(IAlcanceDatosService.TieneAccesoTotalAsync)
+                ? Task.FromResult(false)
+                : throw new NotSupportedException();
     }
 
     // ── Andamiaje ─────────────────────────────────────────────────────────
@@ -526,10 +619,27 @@ public class DocumentosEndpointsArchivoAusenteTests
         }
     }
 
-    private sealed class MediatorFalso(object? respuesta) : IMediator
+    public class AlcanceTotalProxy : DispatchProxy
     {
-        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default) =>
-            respuesta is Exception ex ? Task.FromException<TResponse>(ex) : Task.FromResult((TResponse)respuesta!);
+        protected override object? Invoke(MethodInfo? targetMethod, object?[]? args) =>
+            targetMethod!.Name == nameof(IAlcanceDatosService.TieneAccesoTotalAsync)
+                ? Task.FromResult(true)
+                : throw new NotSupportedException();
+    }
+
+    private sealed class MediatorFalso(object? respuesta, object? documentoVisible = null) : IMediator
+    {
+        public List<Guid> DocumentosConsultados { get; } = [];
+
+        public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
+        {
+            if (request is ObtenerDocumentoPorIdQuery consulta && respuesta is RegistroAuditoriaDto)
+            {
+                DocumentosConsultados.Add(consulta.Id);
+                return documentoVisible is Exception fallo ? Task.FromException<TResponse>(fallo) : Task.FromResult((TResponse)documentoVisible!);
+            }
+            return respuesta is Exception ex ? Task.FromException<TResponse>(ex) : Task.FromResult((TResponse)respuesta!);
+        }
 
         public Task Send<TRequest>(TRequest request, CancellationToken cancellationToken = default)
             where TRequest : IRequest => Task.CompletedTask;

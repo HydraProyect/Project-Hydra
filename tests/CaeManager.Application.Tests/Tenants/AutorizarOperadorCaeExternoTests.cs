@@ -71,8 +71,8 @@ public class AutorizarOperadorCaeExternoTests
         return plataforma;
     }
 
-    private CrearDelegacionTenantCommandHandler HandlerComo(AutorizacionDelegacionFalsa autorizacion) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _transaccion, _asignacionAutomatica);
+    private CrearDelegacionTenantCommandHandler HandlerComo(AutorizacionDelegacionFalsa autorizacion, Guid? tenantActivo = null) =>
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, _transaccion, _asignacionAutomatica, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id));
 
     private void NoSeEscribioNada()
     {
@@ -197,7 +197,7 @@ public class AutorizarOperadorCaeExternoTests
         // —quien escribe de verdad— no debe crear una DelegacionTenant cuyo Cliente
         // Delegante sea el Tenant de plataforma. No depende de que la consulta se
         // comporte bien.
-        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_plataforma.Id)).Handle(
+        var resultado = await HandlerComo(AutorizacionDelegacionFalsa.AdministradorDe(_plataforma.Id), _plataforma.Id).Handle(
             new CrearDelegacionTenantCommand(_operador.Id, _plataforma.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");

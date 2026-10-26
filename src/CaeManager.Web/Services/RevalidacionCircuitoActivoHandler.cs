@@ -73,6 +73,16 @@ namespace CaeManager.Web.Services;
 /// y retira la selección si caducó (DEC-43, 4 h como máximo), si su concesión
 /// se revocó o si se cerró desde otra pestaña: el corte llega como tarde en el
 /// tick siguiente.
+///
+/// Un error al revalidar falla cerrado, igual que en
+/// <see cref="ProveedorAutenticacionRevalidada"/>: si la comprobación lanza (también
+/// con un tiempo de espera del proveedor que llegue como cancelación con un token
+/// que no es el del circuito) y vuelve a lanzar al repetirla una sola vez en el
+/// acto, no se puede afirmar que el Workspace operativo derivado siga autorizado y
+/// se invalida la selección, con un aviso en el log que solo lleva el tipo de la
+/// excepción. Un «no» de la comprobación no se repite. Dentro de la comprobación,
+/// solo el cierre del circuito (su token cancelado o la
+/// <see cref="PuertaAccesoDatos"/> cerrada) termina el ciclo sin invalidar nada.
 /// </summary>
 public class RevalidacionCircuitoActivoHandler(
     IClienteActivoSeleccionado clienteActivoSeleccionado,
@@ -94,6 +104,9 @@ public class RevalidacionCircuitoActivoHandler(
     /// una Asignación de Cartera. Fijado en test: subirlo alarga la ventana.
     /// </summary>
     public const int IntervaloPorDefectoSegundos = 60;
+
+    /// <summary>Comprobaciones por ciclo antes de dar la selección por no autorizada ante un error.</summary>
+    private const int IntentosPorCiclo = 2;
 
     private CancellationTokenSource? _cts;
     private Task? _bucle;
@@ -202,31 +215,36 @@ public class RevalidacionCircuitoActivoHandler(
             return; // Sin Workspace operativo derivado activo, nada que revalidar.
 
         bool sigueAutorizado;
-        try
+        for (var intento = 1; ; intento++)
         {
-            // Por la puerta de acceso a datos del circuito: el tick consulta el mismo
-            // DbContext scoped que el renderizado, y un DbContext no admite dos
-            // operaciones en vuelo. Con la puerta cerrada (el circuito se cierra)
-            // lanza OperationCanceledException, que termina el bucle.
-            sigueAutorizado = await puertaAccesoDatos.EjecutarAsync(async () =>
-                await RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync(
-                    clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
-                    tenantSeleccionado, cancellationToken)
-                && !await ElEncargoDelCircuitoDejoDeElevarAsync(), cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            // Mejor esfuerzo: un fallo transitorio (p. ej. de base de datos)
-            // no debe expulsar a un usuario legítimo en cada intento fallido.
-            // La petición HTTP siguiente, y el próximo tick de este mismo
-            // temporizador, vuelven a intentarlo — el middleware sigue siendo
-            // el backstop que sí falla cerrado ante un token inválido.
-            logger.LogWarning(ex, "No se pudo revalidar el Workspace operativo derivado del circuito; se reintentará en el próximo ciclo.");
-            return;
+            try
+            {
+                // Serializa con el DbContext scoped del renderizado. Una puerta
+                // cerrada indica que el circuito se está cerrando.
+                sigueAutorizado = await puertaAccesoDatos.EjecutarAsync(async () =>
+                    await RevalidacionClienteActivoMiddleware.SigueAutorizadoAsync(
+                        clienteActivoSeleccionado, currentUserService, dbContext, operacionesContext, sesionPrivilegiadaActual,
+                        tenantSeleccionado, cancellationToken)
+                    && !await ElEncargoDelCircuitoDejoDeElevarAsync(), cancellationToken);
+                break;
+            }
+            catch (Exception) when (cancellationToken.IsCancellationRequested || puertaAccesoDatos.Cerrada)
+            {
+                // El circuito se está cerrando; no es un fallo de la comprobación.
+                throw new OperationCanceledException(cancellationToken);
+            }
+            catch (Exception) when (intento < IntentosPorCiclo)
+            {
+                // Un fallo transitorio se repite una sola vez en el acto.
+            }
+            catch (Exception ex)
+            {
+                // El mensaje de la excepción puede contener datos de la consulta.
+                logger.LogWarning("No se pudo revalidar el Workspace operativo derivado del circuito ({TipoError}); se invalida la selección.",
+                    ex.GetType().Name);
+                sigueAutorizado = false;
+                break;
+            }
         }
 
         if (!sigueAutorizado && clienteActivoSeleccionado is ClienteActivoSeleccionado seleccion)

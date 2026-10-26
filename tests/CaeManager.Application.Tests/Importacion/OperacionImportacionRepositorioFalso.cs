@@ -17,6 +17,9 @@ internal sealed class OperacionImportacionRepositorioFalso : IOperacionImportaci
     private readonly HashSet<Guid> _confirmadas = [];
     private Guid? _pendiente;
 
+    /// <summary>Veces que el handler descartó lo pendiente: un fallo a mitad de construir tiene que llegar aquí.</summary>
+    public int VecesDescartado { get; private set; }
+
     public Task<bool> ExisteAsync(Guid operacionId, CancellationToken cancellationToken = default) =>
         Task.FromResult(_confirmadas.Contains(operacionId));
 
@@ -33,5 +36,9 @@ internal sealed class OperacionImportacionRepositorioFalso : IOperacionImportaci
         return Task.FromResult(true);
     }
 
-    public void DescartarPendientes() => _pendiente = null;
+    public void DescartarPendientes()
+    {
+        VecesDescartado++;
+        _pendiente = null;
+    }
 }

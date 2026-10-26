@@ -22,6 +22,9 @@ public class RedireccionLocalTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("   ")]
+    [InlineData("https://evil")]
+    [InlineData("//evil")]
+    [InlineData("/\\evil")]
     [InlineData("https://atacante.com")]
     [InlineData("/	/atacante.com")]
     [InlineData("http://atacante.com/phish")]
@@ -41,6 +44,9 @@ public class RedireccionLocalTests
     [InlineData("")]
     [InlineData("/")]
     [InlineData("//atacante.com")]
+    [InlineData("https://evil")]
+    [InlineData("//evil")]
+    [InlineData("/\\evil")]
     [InlineData("https://atacante.com")]
     [InlineData("/	/atacante.com")]
     public void El_destino_tras_login_sin_returnUrl_propio_es_Inicio_con_la_marca(string? entrada)
@@ -67,6 +73,12 @@ public class RedireccionLocalTests
     [InlineData("/\0/atacante.com")]
     [InlineData("/documentos\t")]
     [InlineData("/doc\numents")]
+    [InlineData("\u0085//evil.example")]
+    [InlineData("\u0000//evil.example")]
+    [InlineData("\u007F//evil.example")]
+    [InlineData("/\u0085//evil.example")]
+    [InlineData("/\u0000//evil.example")]
+    [InlineData("/\u007F//evil.example")]
     public void Los_caracteres_de_control_caen_a_la_raiz_aunque_el_resto_parezca_local(string entrada)
         => RedireccionLocal.Sanear(entrada).Should().Be("/");
 
@@ -116,6 +128,9 @@ public class RedireccionLocalTests
     [InlineData("/\\atacante.com")]
     [InlineData("/\t/atacante.com")]
     [InlineData("/?desde=login\t")]
+    [InlineData("https://evil")]
+    [InlineData("//evil")]
+    [InlineData("/\\evil")]
     [InlineData("https://atacante.com")]
     [InlineData("https://atacante.com/?desde=login")]
     [InlineData("javascript:alert(1)")]

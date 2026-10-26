@@ -121,12 +121,13 @@
     "Reintentar"/"Reanudar" de rutina.
 */
 #components-reconnect-modal #components-reconnect-rejected-button {
-    background-color: var(--color-danger-500);
-    border-color: var(--color-danger-500);
+    background-color: var(--color-destructivo-fondo);
+    border-color: var(--color-destructivo-fondo);
 }
 
     #components-reconnect-modal #components-reconnect-rejected-button:hover {
-        opacity: 0.9;
+        background-color: var(--color-destructivo-fondo-hover);
+        border-color: var(--color-destructivo-fondo-hover);
     }
 
 .components-rejoining-animation {

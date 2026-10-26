@@ -73,6 +73,23 @@ public static class IdentityEndpointsExtensions
             if (infoExterna is null)
                 return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
 
+            // Cuenta invitada B2B del directorio (acct = 1): se rechaza salvo
+            // AzureAd:PermitirInvitados, antes de buscar la cuenta, así que el
+            // rechazo no depende de si existe en TALVEG ni lo revela. Sin cuenta
+            // resuelta, se registra como «sin cuenta previa» (D-3): Fallido para
+            // la ráfaga por IP, y en el log de auditoría con la clave de la
+            // identidad de Microsoft (un identificador, no el correo).
+            if (!InicioSesionMicrosoft.PermiteCuenta(infoExterna.Principal, opcionesAzureAd.Value))
+            {
+                loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                    .LogWarning("Login de Microsoft rechazado: la identidad {ClaveIdentidad} es una cuenta invitada (B2B) y AzureAd:PermitirInvitados está desactivada.",
+                        infoExterna.ProviderKey);
+                await vigilancia.RegistrarAsync(null, opcionesAzureAd.Value.TenantDestino,
+                    MetodoInicioSesion.Microsoft, ResultadoInicioSesion.Fallido);
+                await signInManager.SignOutAsync();
+                return Results.LocalRedirect("/cuenta/iniciar-sesion?errorSso=fallo");
+            }
+
             var email = infoExterna.Principal.FindFirstValue(ClaimTypes.Email)
                 ?? infoExterna.Principal.FindFirstValue("preferred_username");
 

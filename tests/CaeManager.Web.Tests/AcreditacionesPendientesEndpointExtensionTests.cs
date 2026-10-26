@@ -42,6 +42,9 @@ public class AcreditacionesPendientesEndpointExtensionTests
             ((int)respuesta.StatusCode).Should().Be(200);
             mediador.Consulta.Should().NotBeNull();
             mediador.Consulta!.SoloSubiblesExtension.Should().BeTrue();
+            // Sin los dominios (y los Proveedores que los comparten) la extensión no puede filtrar por
+            // Plataforma CAE ni preguntar en un empate: no es un detalle opcional de la respuesta.
+            mediador.Consulta!.IncluirDominios.Should().BeTrue();
         }
         finally
         {

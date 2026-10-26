@@ -25,7 +25,7 @@ public static class AcreditacionesPendientesEndpoints
         endpoints.MapGet("/extension/acreditaciones-pendientes", async (
             IMediator mediator, CancellationToken cancellationToken) =>
         {
-            var proveedores = await mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true), cancellationToken);
+            var proveedores = await mediator.Send(new ObtenerAcreditacionesPorProveedorQuery(SoloSubiblesExtension: true, IncluirDominios: true), cancellationToken);
             return Results.Ok(proveedores);
         })
         // Misma política que /documentos/{id}/archivo (PR #484): sesión

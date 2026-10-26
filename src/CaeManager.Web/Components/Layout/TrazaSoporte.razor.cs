@@ -37,6 +37,11 @@ public partial class TrazaSoporte : IAsyncDisposable
 
     private DotNetObjectReference<TrazaSoporte>? _referencia;
     private IJSObjectReference? _modulo;
+    private IJSObjectReference? _captura;
+    private Task? _inicializacion;
+    private bool _desmontado;
+    private bool _capturaLista;
+    private int _interaccionesRegistradas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -74,14 +79,35 @@ public partial class TrazaSoporte : IAsyncDisposable
     /// captura de interacciones del técnico no arrancaba, y el rastro
     /// quedaba con las navegaciones pero sin una sola <c>Interaccion</c>.
     /// Mudo por completo: nada fallaba, simplemente faltaba media auditoría.
+    ///
+    /// <para>Tampoco basta con mirar <c>_modulo</c>: queda a <c>null</c> mientras
+    /// la importación está en vuelo, y un render en ese hueco (el propio
+    /// <c>StateHasChanged</c> del aviso, por ejemplo) lanzaba una segunda
+    /// importación y un segundo <c>iniciar</c> — dos listeners, y cada clic
+    /// anotado dos veces en la traza. La tarea se asigna antes del primer
+    /// <c>await</c>, así que el render siguiente ya la ve.</para>
     /// </summary>
-    protected override async Task OnAfterRenderAsync(bool firstRender)
+    protected override Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!_esSesionDeSoporte || _modulo is not null) return;
+        if (!_esSesionDeSoporte || _inicializacion is not null || _desmontado) return Task.CompletedTask;
 
+        _inicializacion = IniciarCapturaAsync();
+        return _inicializacion;
+    }
+
+    private async Task IniciarCapturaAsync()
+    {
         _referencia = DotNetObjectReference.Create(this);
         _modulo = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/trazaSoporte.js");
-        await _modulo.InvokeVoidAsync("iniciar", _referencia);
+        if (_desmontado) return;
+
+        // Se guarda aunque el componente se desmonte mientras tanto: DisposeAsync espera
+        // a esta tarea y usa la captura para vaciar el lote y desenganchar.
+        _captura = await _modulo.InvokeAsync<IJSObjectReference>("iniciar", _referencia);
+        if (_desmontado) return;
+
+        _capturaLista = true;
+        await InvokeAsync(StateHasChanged);
     }
 
     /// <summary>
@@ -96,6 +122,12 @@ public partial class TrazaSoporte : IAsyncDisposable
 
         foreach (var descripcion in descripciones)
             await RegistrarAsync(TipoActividadSoporte.Interaccion, descripcion);
+
+        // Solo confirmar el lote después de persistirlo: la recarga al cambiar de Tenant
+        // destruye este circuito y no debe adelantarse a las interacciones pendientes.
+        _interaccionesRegistradas += descripciones.Length;
+        if (!_desmontado)
+            await InvokeAsync(StateHasChanged);
     }
 
     private async void AlCambiarDeUbicacion(object? remitente, LocationChangedEventArgs argumentos)
@@ -121,21 +153,67 @@ public partial class TrazaSoporte : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _desmontado = true;
         if (_esSesionDeSoporte)
             NavigationManager.LocationChanged -= AlCambiarDeUbicacion;
 
-        if (_modulo is not null)
+        try
         {
-            try
+            if (_inicializacion is not null)
             {
-                await _modulo.DisposeAsync();
+                try
+                {
+                    await _inicializacion;
+                }
+                catch (Exception e) when (EsFalloDeInterop(e))
+                {
+                    // Ya se notificó en OnAfterRenderAsync; aquí solo se libera lo que exista.
+                }
             }
-            catch (JSDisconnectedException)
-            {
-                // El circuito ya se cerró: no hay módulo que liberar.
-            }
-        }
 
-        _referencia?.Dispose();
+            // detener() envía el lote pendiente y no resuelve hasta que
+            // RegistrarInteraccionesAsync ha guardado ese lote y los que ya iban
+            // en vuelo: la referencia .NET no puede liberarse antes, o el último
+            // tramo de clics se perdería. Con tope, porque un navegador que ya no
+            // contesta no puede retener el desmontaje del circuito.
+            if (_captura is not null)
+            {
+                try
+                {
+                    using var tope = new CancellationTokenSource(TopeDetener);
+                    await _captura.InvokeVoidAsync("detener", tope.Token);
+                }
+                catch (Exception e) when (EsFalloDeInterop(e))
+                {
+                    // Circuito caído o navegador sin respuesta: el lote es tan
+                    // irrecuperable como al cerrar la pestaña sin pagehide.
+                }
+            }
+
+            await LiberarAsync(_captura);
+            await LiberarAsync(_modulo);
+        }
+        finally
+        {
+            _referencia?.Dispose();
+        }
+    }
+
+    private static readonly TimeSpan TopeDetener = TimeSpan.FromSeconds(10);
+
+    private static bool EsFalloDeInterop(Exception e) =>
+        e is JSException or JSDisconnectedException or OperationCanceledException;
+
+    private static async ValueTask LiberarAsync(IJSObjectReference? referencia)
+    {
+        if (referencia is null) return;
+        try
+        {
+            await referencia.DisposeAsync();
+        }
+        catch (Exception e) when (EsFalloDeInterop(e))
+        {
+            // El circuito ya se cerró: no hay nada que liberar en el navegador.
+        }
     }
 }

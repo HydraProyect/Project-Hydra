@@ -74,14 +74,40 @@ namespace CaeManager.Application.Documentos.Queries.ObtenerAcreditacionesPorProv
 /// «Plataformas» de Empresa 360. Es el mismo alcance de gestión de siempre, más la comprobación de que la Empresa es visible;
 /// una Empresa fuera de alcance devuelve la lista vacía, igual que el resto de consultas de Empresa 360.
 /// </param>
+/// <param name="IncluirDominios">
+/// Rellena <see cref="ProveedorAcreditacionesDto.Dominios"/>. Solo lo pide la extensión, que filtra por el
+/// portal abierto; el resto de consumidores (Bandeja, Mi trabajo, drill-down) no los usan y así no pagan una
+/// consulta más a la base (el presupuesto de consultas de Mi trabajo está medido al límite).
+/// </param>
 public record ObtenerAcreditacionesPorProveedorQuery(
     bool IncluirAceptadas = false, bool IncluirSubidas = false, bool IncluirVencidasEnPlataforma = false,
-    Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false)
+    Guid? SoloDocumentosDeEmpresaId = null, bool SoloSubiblesExtension = false, bool IncluirDominios = false)
     : IRequest<IReadOnlyList<ProveedorAcreditacionesDto>>;
 
+/// <param name="Dominios">
+/// Los dominios del portal del Proveedor (<c>DominioProveedorPlataformaCae</c>,
+/// sin protocolo ni ruta; cada uno vale también para sus subdominios). La
+/// extensión los compara con el host de la pestaña para ofrecer en un portal solo
+/// los documentos de SU Plataforma CAE: sin esto, un documento acreditado en
+/// una plataforma podía ponerse en el formulario de otra. Vacía si el catálogo
+/// no registra ningún dominio del Proveedor: entonces la extensión no ofrece
+/// nada de él en ningún portal (ante la duda, no se divulga). También vacía, o
+/// <c>null</c>, cuando la consulta no pide <c>IncluirDominios</c>.
+/// </param>
+/// <param name="ProveedoresSolapados">Los demás Proveedores con dominios que se solapan con los de este (ver <see cref="ProveedorSolapadoDto"/>).</param>
 public record ProveedorAcreditacionesDto(
     Guid ProveedorPlataformaCaeId, string ProveedorNombre, string ProveedorCodigo,
-    IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true);
+    IReadOnlyList<ClienteAcreditacionesDto> Clientes, bool ProveedorActivo = true,
+    IReadOnlyList<string>? Dominios = null,
+    IReadOnlyList<ProveedorSolapadoDto>? ProveedoresSolapados = null);
+
+/// <summary>
+/// Otro Proveedor del catálogo con un dominio igual o solapado (uno subdominio del otro) a alguno de los del Proveedor
+/// que lo lista: Sabentis y Quirón Prevención comparten «quironprevencion.com» a propósito, y Twind posee «ctaima.com».
+/// La extensión lo necesita aunque ese Proveedor no tenga documentos pendientes: en un portal que casa con los dos,
+/// gana el dominio más largo y, si empatan, pregunta a la persona cuál es en vez de elegir a ciegas.
+/// </summary>
+public record ProveedorSolapadoDto(Guid ProveedorPlataformaCaeId, string Nombre, IReadOnlyList<string> Dominios);
 
 public record ClienteAcreditacionesDto(Guid ClienteId, string ClienteNombre, IReadOnlyList<AcreditacionDrillDownDto> Documentos);
 
@@ -185,6 +211,24 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
             .Where(p => proveedorIds.Contains(p.Id))
             .ToDictionaryAsync(p => p.Id, p => (p.Nombre, p.Codigo, p.Activo), cancellationToken);
 
+        // Los dominios de TODO el catálogo (es global y pequeño): hace falta saber también qué otros Proveedores
+        // comparten o solapan los dominios de cada uno, para que la extensión no elija a ciegas entre dos.
+        var dominiosDelCatalogo = request.IncluirDominios
+            ? (await proveedoresContext.DominiosProveedorPlataformaCae
+                    .Select(d => new { d.ProveedorPlataformaCaeId, d.Dominio })
+                    .ToListAsync(cancellationToken))
+                .GroupBy(d => d.ProveedorPlataformaCaeId)
+                .ToDictionary(g => g.Key, g => (IReadOnlyList<string>)g.Select(d => d.Dominio).Distinct().OrderBy(d => d, StringComparer.Ordinal).ToList())
+            : new Dictionary<Guid, IReadOnlyList<string>>();
+
+        var solapadosPorProveedor = proveedorIds.ToDictionary(
+            id => id, id => ResolucionProveedorPlataformaCaeService.ProveedoresSolapados(id, dominiosDelCatalogo));
+        var nombresDeSolapados = new Dictionary<Guid, string>();
+        var idsSolapados = solapadosPorProveedor.Values.SelectMany(v => v).Distinct().ToList();
+        if (idsSolapados.Count > 0)
+            nombresDeSolapados = await proveedoresContext.ProveedoresPlataformaCae
+                .Where(p => idsSolapados.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, p => p.Nombre, cancellationToken);
         // Centro.ClienteId ya apunta a Empresas (F3): el "Cliente" dueño del Centro
         // se resuelve contra Empresas, no contra la tabla Clientes congelada.
         var clienteIds = filas.Select(f => f.ClienteId).Distinct().ToList();
@@ -240,7 +284,13 @@ public class ObtenerAcreditacionesPorProveedorQueryHandler(
                     .OrderBy(c => c.ClienteNombre)
                     .ToList();
 
-                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo);
+                return new ProveedorAcreditacionesDto(porProveedor.Key, nombreProveedor, codigoProveedor, porCliente, proveedorActivo,
+                    dominiosDelCatalogo.GetValueOrDefault(porProveedor.Key) ?? [],
+                    solapadosPorProveedor.GetValueOrDefault(porProveedor.Key, [])
+                        .Where(nombresDeSolapados.ContainsKey)
+                        .Select(id => new ProveedorSolapadoDto(id, nombresDeSolapados[id], dominiosDelCatalogo[id]))
+                        .OrderBy(s => s.Nombre, StringComparer.Ordinal)
+                        .ToList());
             })
             .OrderByDescending(p => p.Clientes.Sum(c => c.Documentos.Count(d => d.Estado == EstadoAcreditacion.PendienteDeSubir)))
             .ToList();

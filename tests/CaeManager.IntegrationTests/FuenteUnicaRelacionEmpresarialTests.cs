@@ -472,7 +472,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
     [Fact]
     public async Task EjecutarImportacionCombinadaCommand_es_idempotente_ejecutado_dos_veces()
     {
-        var plan = new PlanImportacionCombinadaDto(
+        var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(),
             Clientes: [new ClienteImportadoDto("Cliente Import Fuente Unica S.A.", "B10380327", false, YaExiste: false)],
             Empresas: [new EmpresaCombinadaImportadaDto("Empresa Import Fuente Unica S.L.", ["Cliente Import Fuente Unica S.A."], YaExiste: false)],
             Centros: [], Trabajadores: [], Advertencias: [], Omitidos: []);
@@ -481,13 +481,38 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
         primeraEjecucion.ClientesCreados.Should().Be(1);
         primeraEjecucion.EmpresasCreadas.Should().Be(1);
 
-        var segundaEjecucion = await EjecutarImportacionAsync(plan);
+        // Otro análisis del mismo archivo = otra operación: lo que evita duplicar aquí son las claves naturales,
+        // no la marca de operación (esa la cubren EjecutarImportacionCombinadaIdempotenciaTests).
+        var segundaEjecucion = await EjecutarImportacionAsync(plan with { OperacionId = Guid.NewGuid() });
         segundaEjecucion.ClientesCreados.Should().Be(0, "el cliente ya existe — la segunda ejecución no debe recrearlo");
         segundaEjecucion.EmpresasCreadas.Should().Be(0);
 
         await using var verificacion = CrearContexto();
         (await verificacion.RelacionesEmpresariales.CountAsync()).Should().Be(1,
             "ejecutar la misma importación dos veces no debe duplicar la relación");
+    }
+
+    /// <summary>
+    /// Confirmar dos veces el MISMO plan (misma <c>OperacionId</c>: doble clic, reintento) escribe una sola vez:
+    /// la segunda lo encuentra ya confirmado en <c>OperacionesImportacion</c> y no crea ni omite nada más.
+    /// </summary>
+    [Fact]
+    public async Task EjecutarImportacionCombinadaCommand_con_la_misma_operacion_dos_veces_escribe_una_sola_vez()
+    {
+        var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(),
+            Clientes: [new ClienteImportadoDto("Cliente Operacion Fuente Unica S.A.", "B10380368", false, YaExiste: false, Fila: 5)],
+            Empresas: [], Centros: [], Trabajadores: [], Advertencias: [], Omitidos: []);
+
+        var primera = await EjecutarImportacionAsync(plan);
+        primera.ClientesCreados.Should().Be(1);
+
+        var segunda = await EjecutarImportacionAsync(plan);
+        segunda.ClientesCreados.Should().Be(0);
+        segunda.Omitidos.Should().ContainSingle().Which.Motivo.Should().Contain("ya se había confirmado antes");
+
+        await using var verificacion = CrearContexto();
+        (await verificacion.OperacionesImportacion.CountAsync(o => o.OperacionId == plan.OperacionId)).Should().Be(1);
+        (await verificacion.Empresas.CountAsync(e => e.RazonSocial == "Cliente Operacion Fuente Unica S.A.")).Should().Be(1);
     }
 
     /// <summary>
@@ -500,7 +525,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
     [Fact]
     public async Task EjecutarImportacionCombinadaCommand_dos_filas_del_mismo_par_en_un_plan_crean_una_sola_arista()
     {
-        var plan = new PlanImportacionCombinadaDto(
+        var plan = new PlanImportacionCombinadaDto(Guid.NewGuid(),
             Clientes: [new ClienteImportadoDto("Cliente Repetido Fuente Unica S.A.", "B10380335", false, YaExiste: false)],
             Empresas:
             [
@@ -672,7 +697,7 @@ public class FuenteUnicaRelacionEmpresarialTests : IAsyncLifetime
             new RelacionEmpresarialRepository(contexto),
             new CentroRepository(contexto),
             new TrabajadorRepository(contexto),
-            contexto, contexto, contexto, contexto,
+            contexto, contexto, contexto, new OperacionImportacionRepository(contexto),
             new AutorizacionEscrituraEfectivaFalsa());
 
         var resultado = await handler.Handle(new EjecutarImportacionCombinadaCommand(plan, ReemplazarExistentes: false), CancellationToken.None);

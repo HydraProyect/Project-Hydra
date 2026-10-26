@@ -13,6 +13,7 @@ using CaeManager.Application.Vehiculos.Commands.EliminarVehiculos;
 using CaeManager.Application.Vehiculos.Commands.RestaurarVehiculo;
 using CaeManager.Application.Vehiculos.Queries.ObtenerVehiculos;
 using CaeManager.Domain.Common;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using CaeManager.Web.Features.Vehiculos.Pages;
@@ -32,6 +33,43 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public class VehiculosConcurrenciaTests : BunitContext
 {
+    [Fact]
+    public async Task Buscar_y_ordenar_con_navegacion_pendiente_conserva_ambos_parametros_y_descarta_la_respuesta_vieja()
+    {
+        var navigation = new NavegacionRetenida();
+        Services.AddSingleton<NavigationManager>(navigation);
+        var (cut, m) = Renderizar(Vehiculo("Inicial"));
+        navigation.Retener = true;
+        var espera = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        m.ResultadosPorBusqueda["furgo"] = ([Vehiculo("Respuesta vieja")], 99);
+        m.Retener = x => x is ObtenerVehiculosQuery { Busqueda: "furgo" } q && q.OrdenarPor != "Modelo" ? espera.Task : null;
+        var caja = cut.FindComponents<CampoTexto>().First(c => c.Instance.Placeholder?.StartsWith("Filtrar esta pantalla") == true);
+        var buscar = cut.InvokeAsync(() => caja.Instance.ValorChanged.InvokeAsync("furgo"));
+        try
+        {
+            cut.WaitForAssertion(() => m.Enviadas.OfType<ObtenerVehiculosQuery>().Should().Contain(q => q.Busqueda == "furgo"));
+            buscar.IsCompleted.Should().BeFalse("la primera respuesta sigue retenida");
+            m.ResultadosPorBusqueda["furgo"] = ([Vehiculo("Respuesta vigente")], 1);
+            await CabeceraVehiculoFase1(cut, "Modelo").QuerySelector("button.col-title")!.ClickAsync(new MouseEventArgs());
+            var destino = navigation.Destinos.Last();
+            var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(destino).Query);
+            parametros["q"].ToString().Should().Be("furgo");
+            parametros["orden"].ToString().Should().Be("modelo");
+            UltimoOrdenVehiculoFase1(m).Busqueda.Should().Be("furgo");
+            await cut.InvokeAsync(() => navigation.Confirmar(navigation.Destinos[^2]));
+            await cut.InvokeAsync(() => navigation.Confirmar(destino));
+            navigation.Uri.Should().Be(destino);
+            m.ResultadosPorBusqueda["furgo"] = ([Vehiculo("Respuesta vieja")], 99);
+        }
+        finally
+        {
+            espera.TrySetResult();
+            await buscar;
+        }
+        cut.Markup.Should().Contain("Respuesta vigente").And.NotContain("Respuesta vieja");
+        cut.Find(".paginador-texto").TextContent.Should().Contain("Mostrando 1 de 1");
+    }
+
     public VehiculosConcurrenciaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

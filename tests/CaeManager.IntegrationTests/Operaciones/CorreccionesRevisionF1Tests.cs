@@ -242,7 +242,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var desactivar = new DesactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
                 new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, new TenantActualAmbiental { TenantId = _propietario });
             (await desactivar.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -267,7 +267,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -311,7 +311,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var desactivar = new DesactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
                 new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, new TenantActualAmbiental { TenantId = _propietario });
             (await desactivar.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -333,7 +333,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -425,7 +425,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var handler = new DesactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
                 new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, new TenantActualAmbiental { TenantId = _propietario });
 
             var resultado = await handler.Handle(
                 new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);
@@ -450,7 +450,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);
@@ -475,7 +475,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var handler = new DesactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
                 new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -490,7 +490,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -528,7 +528,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
             var handler = new DesactivarDelegacionTenantCommandHandler(
                 new DelegacionTenantRepository(contexto),
                 new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+                CrearWriter(contexto), contexto, new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -543,7 +543,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 new TransaccionDeComando(contexto),
                 new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
                 new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+                new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }

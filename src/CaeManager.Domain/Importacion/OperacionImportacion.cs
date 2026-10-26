@@ -4,8 +4,8 @@ namespace CaeManager.Domain.Importacion;
 
 /// <summary>
 /// Marca que una operación de importación (identificada por <see cref="OperacionId"/>,
-/// generada al analizar el archivo y transportada en <c>PlanImportacionDto</c>) ya se
-/// confirmó — REC-108, DEC-20.
+/// generada al analizar el archivo y transportada en <c>PlanImportacionDto</c> o en
+/// <c>PlanImportacionCombinadaDto</c>) ya se confirmó — REC-108, DEC-20.
 ///
 /// La unicidad de <c>(TenantId, OperacionId)</c> (ver
 /// OperacionImportacionConfiguration) es lo único que hace idempotente confirmar dos

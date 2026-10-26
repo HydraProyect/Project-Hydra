@@ -83,7 +83,9 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         /// <summary>
         /// El TenantId es el objetivo explícito de una operación administrativa
         /// de plataforma, verificada contra el modelo de concesiones de ADR-011
-        /// § 4bis (<c>IAutorizacionAdminPlataforma.PuedeSobreTenantAsync</c>) —
+        /// § 4bis (<c>IAutorizacionAdminPlataforma.PuedeSobreTenantAsync</c>, o
+        /// <c>PuedeGlobalmenteAsync</c> cuando la operación recorre todos los
+        /// Tenants y abre el ámbito de cada uno) —
         /// no una Delegación ni un Cliente cargado, sino la capacidad
         /// AdminPlataforma sobre ESE tenant concreto, comprobada antes de la
         /// línea que abre el ámbito.
@@ -304,6 +306,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
+        ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al Administrador del Tenant propietario en origen y validar que el contexto es su casa o el Tenant propietario; guarda la operación y las carteras restauradas"),
+        ["src/CaeManager.Application/Tenants/Commands/DesactivarDelegacionTenant/DesactivarDelegacionTenantCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargarla y comprobar que el Tenant de origen es una de sus dos partes (DelegacionAdministrablePorElUsuarioAsync) y que el Tenant activo es esa casa o el propietario; solo guarda el cierre de la Asignación de Operación del Tenant propietario al revocar"),
         ["src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "tenantCliente.Id, del Tenant recién creado por el propio comando en la misma transacción"),
         ["src/CaeManager.Application/Tenants/Commands/CrearOperadorCaeExterno/CrearOperadorCaeExternoCommand.cs"] =
@@ -357,6 +363,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
                 "ObtenerTenantOrigenIdAsync() del propio Coordinador CAE, para leer su rol en Identity y la lista de su equipo en la propia organización; no ensancha nada (mismo criterio que ContextoOperadorCae)"),
         ["src/CaeManager.Application/Tenants/Queries/ObtenerActividadSoporte/ObtenerActividadSoporteQuery.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, en OR con la vía del cliente visitado (ver UsosDeEsPlataformaCongeladosTests)"),
+        ["src/CaeManager.Application/Tenants/Queries/ObtenerOperadoresCaeExternos/ObtenerOperadoresCaeExternosQuery.cs"] =
+            new(Categoria.AdminPlataformaVerificadoPorConcesion, "operador.Id de cada Operador CAE externo que la propia consulta enumera (Tenants con PuedeActuarComoOperadorCaeExterno), solo tras IAutorizacionAdminPlataforma.PuedeGlobalmenteAsync, la capacidad global que cubre a todos ellos; solo lee las delegaciones OperadorExterno de ese Operador bajo la RLS de DelegacionesTenant"),
 
         // ── JOB DE FONDO SOBRE ENUMERACIÓN PROPIA (Infrastructure, HostedServices) ──
         ["src/CaeManager.Infrastructure/Alertas/EnvioAlertasVencimientoHostedService.cs"] =
@@ -418,7 +426,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "12 llamadas — todas sobre Ids de tenants de demo que el propio seeder crea o localiza (3 de ellas, desde P1-M1, para buscar por correo cuentas de esos Tenants bajo la RLS de AspNetUsers)"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] =
-            new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder"),
+            new(Categoria.BootstrapOSiembra, "6 llamadas — Ids del tenant de plataforma y de tenants de demo, todos resueltos por el propio seeder; dos de ellas, sobre el tenant de plataforma, para leer bajo la RLS de DelegacionesTenant las delegaciones de soporte que el propio seeder reconcilia"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "4 llamadas — Ids del tenant del Operador CAE de la demo y de cada tenant propietario, todos aprovisionados o localizados por el propio seeder por nombre"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/Fichas360DemoSeeder.cs"] =
@@ -571,7 +579,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerSerieCuadroDireccionQuery.cs"] = 2,
             ["src/CaeManager.Application/Dashboard/Queries/ObtenerEmpresasGestionadasDelMesQuery.cs"] = 1,
             ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionDemoSeeder.cs"] = 12,
-            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 4,
+            ["src/CaeManager.Infrastructure/Persistence/Seed/DelegacionesSoporteSeeder.cs"] = 6,
             ["src/CaeManager.Infrastructure/Persistence/Seed/SegundoTenantSeeder.cs"] = 3,
             ["src/CaeManager.Infrastructure/Persistence/Seed/GestorCaeCarteraMultiTenantSeeder.cs"] = 2,
             ["src/CaeManager.Infrastructure/Persistence/Seed/EscenariosDireccionDemoSeeder.cs"] = 4,

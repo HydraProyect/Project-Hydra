@@ -7,6 +7,7 @@ using CaeManager.Infrastructure.Autenticacion;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Antiforgery;
 using MediatR;
+using System.Text.Json;
 
 namespace CaeManager.Web.Features.Extension;
 
@@ -32,15 +33,38 @@ public static class MarcarAcreditacionSubidaEndpoints
     /// <summary>Lo que el «Deshacer» de la extensión devuelve tal cual lo recibió de la confirmación.</summary>
     public sealed record DeshacerSubidaPeticion(Guid CambioId, Guid Version);
 
+    /// <param name="DominioPortal">El host de la pestaña donde la extensión puso el documento (p. ej. «app.dokify.net»).</param>
+    public sealed record ConfirmarSubidaPeticion(string? DominioPortal);
+
+    private static async Task<ConfirmarSubidaPeticion?> LeerPeticionAsync(HttpRequest solicitud, CancellationToken cancellationToken)
+    {
+        if (!solicitud.HasJsonContentType()) return null;
+
+        try
+        {
+            return await solicitud.ReadFromJsonAsync<ConfirmarSubidaPeticion>(cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return null; // cuerpo mal formado: se trata como «sin portal declarado».
+        }
+    }
+
     public static IEndpointRouteBuilder MapMarcarAcreditacionSubidaEndpoints(this IEndpointRouteBuilder endpoints)
     {
         endpoints.MapPost("/extension/acreditaciones/{id:guid}/subida", async (
-            Guid id, IMediator mediator, CancellationToken cancellationToken) =>
+            Guid id, HttpRequest solicitud, IMediator mediator, CancellationToken cancellationToken) =>
         {
             // Un id vacío no es ninguna acreditación: el mismo 404 que "no existe", sin llegar al comando.
             if (id == Guid.Empty)
                 return Results.NotFound();
-            var resultado = await mediator.Send(new ConfirmarSubidaDesdeExtensionCommand(id), cancellationToken);
+            // El cuerpo se lee a mano, y no como parámetro enlazado, para que el filtro antifalsificación de abajo
+            // siga siendo lo primero que responde (un parámetro de cuerpo respondería 415 a un POST de formulario antes
+            // de llegar al filtro) y para que una petición sin cuerpo o sin JSON siga llegando al comando, que es quien
+            // dice «no declaraste el portal».
+            var peticion = await LeerPeticionAsync(solicitud, cancellationToken);
+            var resultado = await mediator.Send(
+                new ConfirmarSubidaDesdeExtensionCommand(id, peticion?.DominioPortal), cancellationToken);
             return resultado.EsFallido
                 ? Fallo(resultado.Error)
                 : Results.Ok(new { cambioId = resultado.Valor.CambioId, version = resultado.Valor.Version });
@@ -71,13 +95,24 @@ public static class MarcarAcreditacionSubidaEndpoints
     // que el Gestor CAE confundiría con un documento inexistente.
     private static IResult Fallo(Error error)
     {
-        var statusCode = error.Codigo is ConfirmarSubidaDesdeExtensionCommandHandler.CodigoConectorInactivo
+        // Un portal que no es el de la Plataforma CAE del canal también es un 409 (existe, pero no se puede anotar ahí);
+        // sin portal declarado es una petición mal formada (400).
+        // Solo PortalAjeno lleva su código como `title` del problema: extension/background.js lo lee para conservar el envío
+        // pendiente (con su caducidad original) mientras la persona abre, en la misma pestaña, el portal correcto. El resto
+        // de fallos conserva el título por defecto y la extensión los trata como definitivos.
+        var statusCode = error.Codigo switch
+        {
+            ConfirmarSubidaDesdeExtensionCommandHandler.CodigoConectorInactivo
                 or MarcarAcreditacionSubidaCommandHandler.CodigoRechazadaSinVersionNueva
                 or DeshacerSubidaDesdeExtensionCommandHandler.CodigoYaNoSePuedeDeshacer
-                or ConcurrenciaOptimista.CodigoConflicto
-            ? StatusCodes.Status409Conflict
-            : StatusCodes.Status404NotFound;
-        return Results.Problem(error.Mensaje, statusCode: statusCode);
+                or ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno
+                or ConcurrenciaOptimista.CodigoConflicto => StatusCodes.Status409Conflict,
+            ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalNoDeclarado => StatusCodes.Status400BadRequest,
+            _ => StatusCodes.Status404NotFound,
+        };
+        return Results.Problem(error.Mensaje, statusCode: statusCode,
+            title: error.Codigo == ConfirmarSubidaDesdeExtensionCommandHandler.CodigoPortalAjeno
+                ? error.Codigo : null);
     }
 
     private static RouteHandlerBuilder ConEntradaDeExtension(this RouteHandlerBuilder ruta) => ruta

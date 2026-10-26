@@ -16,6 +16,12 @@ namespace CaeManager.E2ETests;
 public static class Ayudas
 {
     public const string EmailAdministrador = "admin@caemanager.local";
+
+    /// <summary>Razón social que la configuración E2E (<c>WebAppFixture</c>) da a la hoja «Empleados» de la plantilla CAE completa.</summary>
+    public const string EmpresaDeHojaEmpleadosImportacion = "Empresa Matriz E2E S.A.";
+
+    /// <summary>Razón social que la configuración E2E da a la hoja «Trabajadores de la filial» de la plantilla CAE completa.</summary>
+    public const string EmpresaDeHojaFilialImportacion = "Empresa Filial E2E GmbH";
     public const string ContrasenaAdministrador = "CaeManager#2026";
 
     /// <summary>
@@ -179,7 +185,7 @@ public static class Ayudas
     /// pedido el documento de destino (el GET de la redirección): <c>FrameNavigated</c> también salta con un
     /// <c>replaceState</c> de la pantalla vieja, que no pide documento y no debe contar como recarga.</para>
     /// </summary>
-    private static async Task<IResponse> EnviarCambioDeTenantYEsperarRecargaAsync(IPage page, Func<Task> enviar)
+    internal static async Task<IResponse> EnviarCambioDeTenantYEsperarRecargaAsync(IPage page, Func<Task> enviar)
     {
         var recargada = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var destinoPedido = false;

@@ -52,6 +52,9 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
         try
         {
             await OlvidarLoRecordadoAsync(page, conUnaVista, pastilla);
+            await Expect(page).ToHaveURLAsync(new Regex("/vehiculos/?$"));
+            var tabla = page.Locator("table.vehiculos-rejilla-propia");
+            await Ayudas.EsperarListaListaAsync(tabla);
 
             // --- Una vista propia: dos vehículos del test, buscados por su prefijo y ordenados por matrícula, de mayor a menor. ---
             var prefijo = $"VR-{Guid.NewGuid().ToString("N")[..8]}";
@@ -61,7 +64,13 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
 
             var buscador = page.GetByPlaceholder(placeholder);
             var nombres = page.Locator("tbody .celda-vehiculo .enlace-nombre-fila");
-            await buscador.FillAsync(prefijo);
+            // Se prueba qué recuerda la vista, no el tecleo (lo cubre el recorrido de Centros y los de
+            // ListadosFase1): entrar con q deja la URL ya asentada antes de elegir el orden, porque cada
+            // NavigateTo de la página lee la URL aún sin el cambio del anterior y se pisan (#1685).
+            await Ayudas.NavegarYEsperarAsync(page, $"{listado}?q={Uri.EscapeDataString(prefijo)}");
+            await CircuitoAtendiendoAsync(page, pastilla);
+            await EsperarVistaEnLaUrlAsync(page, ("q", prefijo));
+            await Ayudas.EsperarListaListaAsync(tabla);
             await Expect(nombres).ToHaveCountAsync(2);
 
             // El botón de orden es el nativo de QuickGrid; la dirección vigente la dice la clase de su cabecera.
@@ -73,22 +82,30 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
                 .SelectOptionAsync("Matrícula");
             await cabeceraMatricula.Locator(".col-options").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden });
             await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-asc\b"));
+            // La cabecera cambia antes de que termine la consulta: esperar también URL y filas.
+            await EsperarVistaEnLaUrlAsync(page, ("q", prefijo), ("orden", "matricula"));
+            await Ayudas.EsperarListaListaAsync(tabla);
+            await Expect(nombres).ToHaveTextAsync([alfa, beta]);
             await ordenarPorMatricula.ClickAsync();
             await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-desc\b"));
-            await Expect(nombres).ToHaveTextAsync([beta, alfa]);
             await EsperarVistaEnLaUrlAsync(page, ("q", prefijo), ("orden", "matricula-desc"));
+            await Ayudas.EsperarListaListaAsync(tabla);
+            await Expect(nombres).ToHaveTextAsync([beta, alfa]);
 
             // --- Salir por el menú escribe la vista en el acto; al volver sin parámetros, está el orden
             //     y no la búsqueda, que no se recuerda. ---
             await SalirAOtraPantallaAsync(page, placeholder);
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await EsperarVistaEnLaUrlAsync(page, ("orden", "matricula-desc"));
+            await CircuitoAtendiendoAsync(page, pastilla);
+            await Ayudas.EsperarListaListaAsync(tabla);
             await Expect(cabeceraMatricula).ToHaveClassAsync(new Regex(@"\bcol-sort-desc\b"));
             await Expect(buscador).ToHaveValueAsync(string.Empty);
 
             // --- Con parámetros manda la URL: ni se añade el orden recordado ni se cambia la búsqueda. ---
             await Ayudas.NavegarYEsperarAsync(page, $"{listado}?q={Uri.EscapeDataString(alfa)}");
             await CircuitoAtendiendoAsync(page, pastilla);
+            await Ayudas.EsperarListaListaAsync(tabla);
             await Expect(nombres).ToHaveTextAsync([alfa]);
             Assert.Equal(new Dictionary<string, string> { ["q"] = alfa }, ParametrosDe(page.Url));
 
@@ -96,12 +113,14 @@ public class VistaRecordadaE2ETests(WebAppFixtureListados fixture)
             await RestablecerVistaAsync(page);
             await Expect(EnlaceRestablecer(page)).ToHaveCountAsync(0);
             await Expect(page).ToHaveURLAsync(new Regex("/vehiculos/?$"));
+            await Ayudas.EsperarListaListaAsync(tabla);
             await Expect(buscador).ToHaveValueAsync(string.Empty);
 
             // --- Salir y volver sin parámetros: ya no hay nada que restaurar. ---
             await SalirAOtraPantallaAsync(page, placeholder);
             await Ayudas.NavegarYEsperarAsync(page, listado);
             await CircuitoAtendiendoAsync(page, pastilla);
+            await Ayudas.EsperarListaListaAsync(tabla);
             Assert.Empty(ParametrosDe(page.Url));
             await Expect(EnlaceRestablecer(page)).ToHaveCountAsync(0);
             await Expect(buscador).ToHaveValueAsync(string.Empty);

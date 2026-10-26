@@ -3,6 +3,7 @@ using CaeManager.Domain.Empresas;
 using CaeManager.Infrastructure.Importacion;
 using ClosedXML.Excel;
 using FluentAssertions;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace CaeManager.IntegrationTests.Importacion;
@@ -23,6 +24,9 @@ namespace CaeManager.IntegrationTests.Importacion;
 public class ClosedXmlImportacionParserTests
 {
     private const string DniValido = "12345678Z";
+    private const string HojaFilial = "Trabajadores de la filial";
+    private const string EmpresaMatriz = "Empresa Matriz de Prueba S.A.";
+    private const string EmpresaFilial = "Empresa Filial de Prueba GmbH";
     private const string TipoDocumentoConocido = "Certificado de aptitud médica"; // Columna G (7) — ver ColumnasDocumentos.
 
     [Fact]
@@ -308,6 +312,103 @@ public class ClosedXmlImportacionParserTests
     }
 
     /// <summary>
+    /// La Empresa de cada hoja de Trabajadores sale de la configuración, no del código: cada Trabajador
+    /// y cada alta de Empresa llevan la razón social y la fila real de la hoja de la que salen.
+    /// </summary>
+    [Fact]
+    public async Task La_Empresa_de_cada_hoja_de_Trabajadores_sale_de_la_configuracion_y_la_fila_viaja_en_el_plan()
+    {
+        var libro = NuevoLibroBase();
+        var hojaEmpleados = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hojaEmpleados, fila: 4);
+        EscribirTrabajadorValido(hojaEmpleados, fila: 5, nombre: "Luis", apellidos: "Mora");
+        hojaEmpleados.Cell(5, 4).Value = "99999999R";
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet(HojaFilial), fila: 4, nombre: "Pedro", apellidos: "Soler");
+        libro.Worksheets.Worksheet(HojaFilial).Cell(4, 4).Value = "11111111H";
+
+        var plan = await AnalizarAsync(libro);
+
+        plan.Empresas.Select(e => (e.RazonSocial, e.Hoja, e.Fila)).Should().BeEquivalentTo(
+            new[] { (EmpresaMatriz, "Empleados", 4), (EmpresaFilial, HojaFilial, 4) });
+        plan.Trabajadores.Select(t => (t.RazonSocialEmpresa, t.Hoja, t.Fila)).Should().BeEquivalentTo(
+            new[] { (EmpresaMatriz, "Empleados", 4), (EmpresaMatriz, "Empleados", 5), (EmpresaFilial, HojaFilial, 4) });
+    }
+
+    [Fact]
+    public async Task Los_documentos_y_las_asignaciones_del_plan_llevan_la_fila_real_de_su_hoja()
+    {
+        var libro = NuevoLibroBase();
+        ConfigurarUnCentro(libro, "Centro Norte");
+        var hojaEmpleados = libro.Worksheets.Worksheet("Empleados");
+        EscribirTrabajadorValido(hojaEmpleados, fila: 4, nombre: "Ana", apellidos: "García");
+        hojaEmpleados.Cell(4, 7).Value = CaeManager.Domain.Common.DiaDeNegocio.Hoy().ToDateTime(TimeOnly.MinValue).AddDays(-30);
+        var hojaAsignaciones = libro.Worksheets.Worksheet("Asignaciones");
+        hojaAsignaciones.Cell(5, 1).Value = 1;
+        hojaAsignaciones.Cell(5, 2).Value = "Ana";
+        hojaAsignaciones.Cell(5, 3).Value = "García";
+        hojaAsignaciones.Cell(5, 4).Value = "X";
+        var tipos = new TiposDocumentoQueryContextFalso();
+        tipos.ListaTiposDocumento.Add(new CaeManager.Domain.Documentos.TipoDocumento(
+            TipoDocumentoConocido, vigenciaMeses: null, aplicaVencimientoAutomatico: false, orden: 1,
+            ambitoAplicacion: CaeManager.Domain.Documentos.AmbitoAplicacion.Trabajador));
+
+        var plan = await AnalizarAsync(libro, new EmpresasQueryContextFalso(), tipos);
+
+        plan.Documentos.Should().ContainSingle().Which.Should().Match<CaeManager.Application.Importacion.DocumentoImportadoDto>(
+            d => d.Hoja == "Empleados" && d.Fila == 4);
+        plan.Asignaciones.Should().ContainSingle().Which.Should().Match<CaeManager.Application.Importacion.AsignacionImportadaDto>(
+            a => a.Hoja == "Asignaciones" && a.Fila == 5);
+        plan.ClientesCentros.Should().ContainSingle().Which.Fila.Should().Be(5);
+    }
+
+    /// <summary>Sin Empresa declarada el lector no inventa una: lo dice y no lee Trabajadores.</summary>
+    [Fact]
+    public async Task Sin_hojas_de_Trabajadores_configuradas_no_se_lee_ningun_Trabajador_y_se_dice_en_Omitidos()
+    {
+        var libro = NuevoLibroBase();
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet("Empleados"), fila: 4);
+
+        var plan = await AnalizarAsync(libro, new EmpresasQueryContextFalso(), opciones: new OpcionesPlantillaCaeCompleta());
+
+        plan.Trabajadores.Should().BeEmpty();
+        plan.Empresas.Should().BeEmpty();
+        var omitido = plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Configuración").Subject;
+        omitido.Motivo.Should().Contain("no tiene configuradas").And.Contain("Trabajadores");
+    }
+
+    [Fact]
+    public async Task Una_entrada_de_configuracion_sin_razon_social_no_se_lee()
+    {
+        var libro = NuevoLibroBase();
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet("Empleados"), fila: 4);
+        var opciones = new OpcionesPlantillaCaeCompleta { HojasTrabajadores = [new() { Hoja = "Empleados", RazonSocialEmpresa = "  " }] };
+
+        var plan = await AnalizarAsync(libro, new EmpresasQueryContextFalso(), opciones: opciones);
+
+        plan.Trabajadores.Should().BeEmpty();
+        plan.Omitidos.Should().ContainSingle(o => o.Hoja == "Configuración");
+    }
+
+    [Fact]
+    public async Task Dos_hojas_de_la_misma_Empresa_dan_una_sola_alta_de_Empresa()
+    {
+        var libro = NuevoLibroBase();
+        EscribirTrabajadorValido(libro.Worksheets.Worksheet("Empleados"), fila: 4);
+        var hojaFilial = libro.Worksheets.Worksheet(HojaFilial);
+        EscribirTrabajadorValido(hojaFilial, fila: 4, nombre: "Pedro", apellidos: "Soler");
+        hojaFilial.Cell(4, 4).Value = "99999999R";
+        var opciones = new OpcionesPlantillaCaeCompleta
+        {
+            HojasTrabajadores = [new() { Hoja = "Empleados", RazonSocialEmpresa = EmpresaMatriz }, new() { Hoja = HojaFilial, RazonSocialEmpresa = EmpresaMatriz.ToUpperInvariant() }],
+        };
+
+        var plan = await AnalizarAsync(libro, new EmpresasQueryContextFalso(), opciones: opciones);
+
+        plan.Empresas.Should().ContainSingle();
+        plan.Trabajadores.Should().HaveCount(2);
+    }
+
+    /// <summary>
     /// Las cuatro hojas que <see cref="ClosedXmlImportacionParser.AnalizarAsync"/>
     /// espera siempre, vacías: sin esto, la ausencia de cualquiera de ellas
     /// registraría su propio "Hoja completa no encontrada" en Omitidos y
@@ -318,7 +419,7 @@ public class ClosedXmlImportacionParserTests
         var libro = new XLWorkbook();
         libro.Worksheets.Add("Centros_Plataformas");
         libro.Worksheets.Add("Empleados");
-        libro.Worksheets.Add("Extranjeros (Ibertec GmbH)");
+        libro.Worksheets.Add(HojaFilial);
         libro.Worksheets.Add("Asignaciones");
         return libro;
     }
@@ -347,15 +448,27 @@ public class ClosedXmlImportacionParserTests
         hojaAsignaciones.Cell(4, 5).Value = "TOTAL CENTROS";
     }
 
+    /// <summary>Las dos hojas de Trabajadores del libro base, cada una con la razón social que declara la configuración.</summary>
+    private static OpcionesPlantillaCaeCompleta OpcionesDePrueba() => new()
+    {
+        HojasTrabajadores =
+        [
+            new() { Hoja = "Empleados", RazonSocialEmpresa = EmpresaMatriz },
+            new() { Hoja = HojaFilial, RazonSocialEmpresa = EmpresaFilial },
+        ],
+    };
+
     private static Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(XLWorkbook libro) =>
         AnalizarAsync(libro, new EmpresasQueryContextFalso());
 
     private static async Task<CaeManager.Application.Importacion.PlanImportacionDto> AnalizarAsync(
-        XLWorkbook libro, EmpresasQueryContextFalso empresas, TiposDocumentoQueryContextFalso? tipos = null)
+        XLWorkbook libro, EmpresasQueryContextFalso empresas, TiposDocumentoQueryContextFalso? tipos = null,
+        OpcionesPlantillaCaeCompleta? opciones = null)
     {
         var parser = new ClosedXmlImportacionParser(
             new AsignacionesQueryContextFalso(), new CentrosQueryContextFalso(), new DocumentosQueryContextFalso(),
-            empresas, tipos ?? new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso());
+            empresas, tipos ?? new TiposDocumentoQueryContextFalso(), new TrabajadoresQueryContextFalso(),
+            Options.Create(opciones ?? OpcionesDePrueba()));
 
         using var flujo = new MemoryStream();
         libro.SaveAs(flujo);
