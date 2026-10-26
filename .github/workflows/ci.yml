@@ -105,6 +105,15 @@ jobs:
   tests-integracion:
     name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    # Techo del job entero, preparación incluida. Medido en los runs verdes
+    # del 2026-10-26: 8 a 18 min por bloque, pero uno tardó 37,2 min porque
+    # «Instalar LibreOffice» se quedó 27,7 min en apt. Con 40 ese run se
+    # habría cortado sin culpa; 75 cubre esa preparación lenta más los 40 del
+    # paso «Ejecutar el bloque». El cuelgue de un test lo corta antes
+    # --blame-hang (ver ese paso). Sin esto, el techo es el de GitHub, 6 h: el
+    # 2026-10-26 (PR #1729) el bloque 1 estuvo 78 min colgado en ese paso
+    # hasta que alguien canceló a mano.
+    timeout-minutes: 75
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     permissions:
@@ -288,13 +297,42 @@ jobs:
       #
       # 8 y no mas porque el siguiente escalon exige tocar max_connections del
       # servicio, que es otro cambio y merece su propia medicion.
+      #
+      # CUELGUES (2026-10-26, PR #1729: 78 min colgado sin saber en qué test).
+      # --blame-hang mata el testhost cuando pasan 10 min sin que EMPIECE ni
+      # TERMINE ningún test: el temporizador arranca con el testhost y se
+      # reinicia con cada test, así que con 8 hilos solo salta si el bloque
+      # entero está parado. Ensayado en local con el mismo SDK, xunit 2.9.3,
+      # Test.Sdk 18.10.1, coverlet, trx y --results-directory:
+      #   - test colgado en un await: la consola dice «Prueba en ejecución
+      #     cuando se produjo el bloqueo: <test>», y quedan el .trx, el
+      #     Sequence_*.xml y la cobertura en --results-directory;
+      #   - fixture de clase colgada en InitializeAsync, sin test en curso:
+      #     también corta, pero sin nombre de test ni Sequence («Todas las
+      #     pruebas han terminado de ejecutarse»). Ahí la pista es qué clases
+      #     no llegaron a imprimir sus tests en la consola, y el log de
+      #     PostgreSQL de abajo;
+      #   - `none` no mata los procesos hijos del testhost: los limpia el
+      #     runner al terminar el job.
+      # Volcado `none`: lo que hace falta es el nombre del test; un volcado
+      # `full` del testhost pesa GB y uno `mini` no incluye el heap, que es
+      # donde están las máquinas de estado de los await, así que en un
+      # cuelgue asíncrono no diría nada más. Medido en el run 40282022954: el
+      # cierre del colector de cobertura tras el último test tarda 1 a 4 s;
+      # si volviera a tardar minutos (ver coverlet.runsettings) y pasara de
+      # 10, este corte daría un rojo falso. No cambia qué tests corren.
+      # El timeout del paso (40 min, ~2,7× el bloque más lento medido, 14,7)
+      # es la red si blame no llega a cortar; al ser del paso y no del job,
+      # los pasos de diagnóstico con failure() de abajo sí se ejecutan.
       - name: Ejecutar el bloque
+        timeout-minutes: 40
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
           --settings tests/CaeManager.IntegrationTests/coverlet.runsettings
+          --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
           -- xUnit.MaxParallelThreads=8
 
       # Diagnostico para la PROXIMA vez que un bloque falle con algo raro
@@ -346,6 +384,23 @@ jobs:
           path: postgres-bloque-${{ matrix.bloque }}.log
           retention-days: 7
           if-no-files-found: ignore
+
+      # El .trx y, tras un cuelgue cortado por --blame-hang, el Sequence_*.xml
+      # con los tests que estaban en curso. Artefacto aparte, y no la
+      # cobertura con always(), para que esta siga subiéndose solo de un
+      # bloque verde (la consume el agregador). El intento va en el nombre
+      # porque «Re-run failed jobs» repite el bloque en la misma ejecución y
+      # dos artefactos no pueden llamarse igual.
+      - name: Publicar los resultados del bloque si falló o se cortó
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: resultados-integracion-bloque-${{ matrix.bloque }}-intento-${{ github.run_attempt }}
+          path: |
+            coverage/integration/**/*.trx
+            coverage/integration/**/Sequence_*.xml
+          retention-days: 7
+          if-no-files-found: warn
 
       # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
       # el filtro haya CASADO con algo: `dotnet test` con un patron que no
@@ -1122,6 +1177,12 @@ jobs:
   e2e-bloques:
     name: Tests E2E (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    # Techo del job entero, preparación incluida. Medido en los runs verdes
+    # del 2026-10-26: 9 a 19,2 min por bloque; el de 19,2 pasó 7,6 min en
+    # «Instalar navegadores de Playwright», que suele tardar 0,4. Mismo
+    # criterio que en tests-integracion: 60 para no cortar una preparación
+    # lenta, y el cuelgue de un test lo corta antes el paso «Tests E2E».
+    timeout-minutes: 60
     # Ver el bloque ALCANCE sobre el job `alcance`: los bloques solo se saltan
     # fuera de `merge_group` y con un `false` explícito de `alcance`. Que ese
     # salto sea legítimo lo decide el agregador `e2e-tests`.
@@ -1238,11 +1299,21 @@ jobs:
           filtro=$(LISTADO_DE_TESTS=reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto-e2e/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-e2e-por-coleccion.sh 4 ${{ matrix.bloque }})
           echo "FILTRO_E2E=$filtro" >> "$GITHUB_ENV"
 
+      # CUELGUES: mismo criterio que «Ejecutar el bloque» de tests-integracion
+      # (ver su comentario). --blame-hang corta tras 10 min sin que empiece ni
+      # termine ningún test y deja en el log y en
+      # TestResults/<guid>/Sequence_*.xml qué test estaba en curso; volcado
+      # `none` por la misma razón. CaeManager.Web y el navegador, hijos del
+      # testhost, no los mata blame: los limpia el runner al acabar. El paso
+      # «Tests E2E» más lento medido el 2026-10-26 tardó 8,7 min; 30 es la red
+      # si blame no llega a cortar.
       - name: Tests E2E
+        timeout-minutes: 30
         run: >
           dotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E"
           --logger "console;verbosity=normal"
           --logger "trx;LogFileName=e2e-bloque-${{ matrix.bloque }}.trx"
+          --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
 
       # `dotnet test --filter` con un patrón que no casa con nada termina en
       # 0 sin ejecutar un solo test: un bloque mudo se leería como uno que
@@ -1313,14 +1384,18 @@ jobs:
             || echo "TestResults no existe en tests/CaeManager.E2ETests (¿el logger trx no llegó a escribir?)" \
             >> /tmp/diagnostico-e2e/manifiesto.txt
 
+      # TestResults entero, no solo el .trx: tras un cuelgue cortado por
+      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
+      # cancelled() se suma a failure() para cubrir también el job cortado
+      # por su timeout-minutes o cancelado a mano, como el del 2026-10-26.
       - name: Publicar logs de CaeManager.Web si el E2E falla
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-caemanager-web-e2e-bloque-${{ matrix.bloque }}
           path: |
             src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
-            tests/CaeManager.E2ETests/TestResults/e2e-bloque-${{ matrix.bloque }}.trx
+            tests/CaeManager.E2ETests/TestResults/
             /tmp/diagnostico-e2e/manifiesto.txt
           retention-days: 7
           if-no-files-found: warn
