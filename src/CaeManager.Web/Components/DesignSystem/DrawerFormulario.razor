@@ -255,6 +255,8 @@
 
     private async Task PrimariaAsync()
     {
+        // Misma condición que deshabilita el botón (CWE-602): «Siguiente» deshabilitado tampoco avanza aunque el clic llegue.
+        if (PrimariaDeshabilitada) return;
         if (!PasoIntermedio)
         {
             await GuardarAsync();
@@ -344,7 +346,9 @@
     {
         // Guarda de doble clic en el kit: un segundo «Guardar» antes de que el botón se pinte deshabilitado daría de alta el mismo
         // registro dos veces. Antes lo escribía cada pantalla (`if (_guardando) return;`) o no lo escribía.
-        if (_guardadoEnCurso || Guardando) return;
+        // El botón «Guardar» deshabilitado se reafirma aquí (CWE-602): quitar `disabled` en el DOM del navegador deja pasar el clic
+        // hasta este manejador, y el estado del servidor es el que manda, como en DialogoConfirmacion.
+        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado) return;
         _guardadoEnCurso = true;
         try
         {

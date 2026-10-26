@@ -77,5 +77,26 @@ public enum CapacidadPrivilegio
     /// No convierte a Soporte TALVEG en Administrador, Gestor CAE ni Operador CAE
     /// del Tenant: dentro de la sesión su rol efectivo sigue siendo nulo.
     /// </summary>
-    RestablecimientoSegundoFactor = 5
+    RestablecimientoSegundoFactor = 5,
+
+    /// <summary>
+    /// Soporte TALVEG revoca la Delegación de un Operador CAE externo sobre un Tenant
+    /// propietario <b>a petición de ese Tenant propietario</b> (enmienda de ADR-004 § 12.2
+    /// del 2026-10-26: el Administrador del Tenant propietario no la revoca él mismo; la
+    /// revocan el equipo del Operador CAE externo o Soporte TALVEG). Segunda capacidad de
+    /// acción acotada de ADR-011 § 8.7, punto 3, con el mismo régimen que
+    /// <see cref="RestablecimientoSegundoFactor"/>:
+    /// <list type="bullet">
+    /// <item>concesión por Tenant, nunca global, y solo por <c>ConcederPrivilegioCommand</c>
+    /// (de un AdminPlataforma a otro usuario de plataforma);</item>
+    /// <item>se ejerce desde una <see cref="SesionPrivilegiada"/> abierta sobre ese Tenant
+    /// propietario, que sigue leyendo con el rol de solo lectura;</item>
+    /// <item>el único comando que admite es <c>RevocarOperadorCaeExternoPorSoporteCommand</c>,
+    /// con motivo obligatorio, y la escritura la hace una función de la base que vuelve a
+    /// comprobar la sesión, la concesión y la delegación
+    /// (<c>app_revocar_operador_cae_externo_por_soporte</c>).</item>
+    /// </list>
+    /// No convierte a Soporte TALVEG en Gestor CAE, Operador CAE ni Administrador del Tenant.
+    /// </summary>
+    RevocacionOperadorCaeExterno = 6
 }

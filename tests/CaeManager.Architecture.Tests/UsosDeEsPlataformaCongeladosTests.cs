@@ -428,6 +428,10 @@ public class UsosDeEsPlataformaCongeladosTests
         // restablecimiento de 2FA en su versión final (comentario y predicado, que solo
         // restringen). El backfill de AgregarCapacidadOperadorCaeExternoATenant no corre
         // sobre una base nueva y desaparece con la compactación.
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261026120000_SoporteRevocaOperadorCaeExterno.cs"] =
+            new(3, CategoriaUso.MigracionManual,
+                "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
+                "ADR-004 § 12.2 del 2026-10-26; ADR-011 § 8.7.3): el actor de la Sesión Privilegiada debe pertenecer a un Tenant de plataforma. Solo restringe, como el segundo factor"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 ":217 comentario y :221 predicado de app_restablecer_segundo_factor_por_soporte (ADR-011 § 8.7.3, " +

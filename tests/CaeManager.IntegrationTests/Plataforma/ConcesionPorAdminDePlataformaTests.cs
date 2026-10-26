@@ -138,12 +138,26 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
     }
 
+    [Fact]
+    public async Task Un_admin_concede_RevocacionOperadorCaeExterno_a_un_tercero_por_el_mismo_camino()
+    {
+        // Enmienda de ADR-004 § 12.2 (2026-10-26): la revocación por Soporte TALVEG es otra
+        // capacidad acotada, concedible con las mismas condiciones. Fija el ALTER POLICY de
+        // 20261026120000_SoporteRevocaOperadorCaeExterno: sin él, este INSERT da 42501.
+        await using var conexion = await AbrirRestringidaComoAsync(_admin);
+
+        var concesionId = await InsertarConcesionAsync(
+            conexion, _beneficiario, "RevocacionOperadorCaeExterno", esAlcanceGlobal: false, concedidaPor: _admin);
+
+        (await InsertarAlcanceAsync(conexion, concesionId, _tenantCubierto)).Should().Be(1);
+    }
+
     [Theory]
     [InlineData("AdminPlataforma")]
     [InlineData("BreakGlass")]
     [InlineData("Impersonacion")]
     [InlineData("SoporteLectura")]
-    public async Task No_se_puede_conceder_otra_capacidad_que_Aprovisionamiento_o_RestablecimientoSegundoFactor(
+    public async Task No_se_puede_conceder_otra_capacidad_que_las_acotadas(
         string capacidad)
     {
         await using var conexion = await AbrirRestringidaComoAsync(_admin);
@@ -154,7 +168,7 @@ VALUES (gen_random_uuid(), @concesion, @tenant);";
         (await accion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
                 "un admin no puede acuñar más AdminPlataforma ni BreakGlass por esta vía, " +
-                "solo Aprovisionamiento y RestablecimientoSegundoFactor");
+                "solo Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno");
     }
 
     [Fact]

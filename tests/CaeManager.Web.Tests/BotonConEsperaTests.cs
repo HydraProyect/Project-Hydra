@@ -273,6 +273,28 @@ public class BotonConEsperaTests : BunitContext
         Boton(cut).GetAttribute("title").Should().Be("Falta el nombre", "los atributos sueltos (el motivo) llegan al botón");
     }
 
+    [Fact]
+    public async Task Deshabilitado_por_la_pantalla_no_llama_a_OnClick_aunque_el_clic_llegue_sin_el_atributo_disabled()
+    {
+        // CWE-602: en Blazor Server, quitar `disabled` en el DOM del navegador deja pasar el clic; el estado deshabilitado es del servidor.
+        var cut = Renderizar(p => p.Add(x => x.Deshabilitado, true));
+        Boton(cut).RemoveAttribute("disabled");
+
+        await Boton(cut).ClickAsync(new MouseEventArgs());
+
+        _clics.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Habilitado_llama_a_OnClick()
+    {
+        var cut = Renderizar();
+
+        await Boton(cut).ClickAsync(new MouseEventArgs());
+
+        _clics.Should().Be(1);
+    }
+
     // ---- Hoja de estilos ----
 
     [Fact]

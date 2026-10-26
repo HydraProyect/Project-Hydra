@@ -1,6 +1,8 @@
 using CaeManager.Application.Usuarios.Queries.ObtenerAvatarPropio;
 using System.Security.Claims;
 using Bunit;
+using Bunit.TestDoubles;
+using CaeManager.Application.Common;
 using CaeManager.Application.Notificaciones.Commands.MarcarNotificacionLeida;
 using CaeManager.Application.Notificaciones.Queries.ObtenerNotificacionesPendientes;
 using CaeManager.Application.Operaciones.ApoyoCartera;
@@ -46,9 +48,11 @@ namespace CaeManager.Web.Tests;
 public class CabeceraRedisenadaTests : BunitContext
 {
     private static readonly Guid Marta = Guid.Parse("11111111-1111-1111-1111-111111111111");
+    private readonly BunitPersistentComponentState _estadoPersistente;
 
     public CabeceraRedisenadaTests()
     {
+        _estadoPersistente = this.AddBunitPersistentComponentState();
         Services.AddLocalization();
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
@@ -269,6 +273,51 @@ public class CabeceraRedisenadaTests : BunitContext
 
     // ---- Migas (propuesta 03) ----
 
+    private sealed class UsuarioMigas(Guid tenantOrigen) : ICurrentUserService
+    {
+        public Task<Guid?> ObtenerUsuarioActualIdAsync() => Task.FromResult<Guid?>(Marta);
+        public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult<Guid?>(tenantOrigen);
+        public Task<string?> ObtenerRolEfectivoAsync() => Task.FromResult<string?>("GestorCae");
+        public Task<string?> ObtenerRolOrigenAsync() => ObtenerRolEfectivoAsync();
+        public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    }
+
+    [Theory]
+    [InlineData("vigente", 0)]
+    [InlineData("otro-tenant", 1)]
+    [InlineData("otro-perfil", 1)]
+    [InlineData("caducada", 1)]
+    [InlineData("otro-usuario", 1)]
+    [InlineData("otro-origen", 1)]
+    public void Las_migas_reutilizan_solo_la_presentacion_vigente_del_mismo_contexto(string escenario, int consultasEsperadas)
+    {
+        var origen = Guid.NewGuid();
+        var efectivo = Guid.NewGuid();
+        var consultas = 0;
+        Services.AddSingleton<ICurrentUserService>(new UsuarioMigas(origen));
+        Services.AddSingleton<ITenantActual>(new SeleccionEmpresaGestionadaDePrueba(efectivo));
+        Services.AddSingleton<IMediator>(new MediatorFalso(request =>
+        {
+            if (request is not UsaRotulosPrimeraPersonaQuery)
+                throw new NotSupportedException(request.GetType().Name);
+            consultas++;
+            return false;
+        }));
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/empresas");
+        var clave = new ClaveContextoMemo(
+            escenario == "otro-usuario" ? Guid.NewGuid() : Marta,
+            escenario == "otro-origen" ? Guid.NewGuid() : origen,
+            escenario == "otro-perfil" ? "Consulta" : "GestorCae",
+            escenario == "otro-tenant" ? Guid.NewGuid() : efectivo, null);
+        _estadoPersistente.Persist("layout-migas-presentacion-v1", new MigasPagina.PresentacionMigas(
+            clave, DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero), true));
+
+        var cut = Render<MigasPagina>();
+
+        consultas.Should().Be(consultasEsperadas);
+        cut.Find("li.miga-actual").TextContent.Should().Be(escenario == "vigente" ? "Mi empresa" : "Empresas");
+    }
+
     private IRenderedComponent<MigasPagina> RenderMigas(string ruta, bool primeraPersona = false)
     {
         Services.AddSingleton<IMediator>(new MediatorFalso(request => request switch
@@ -448,6 +497,7 @@ public class CabeceraRedisenadaTests : BunitContext
         });
         Services.AddSingleton<IMediator>(mediador);
         Services.AddSingleton<ToastService>();
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         return mediador;
     }
 
@@ -672,6 +722,7 @@ public class CabeceraRedisenadaTests : BunitContext
         });
         Services.AddSingleton<IMediator>(mediador);
         Services.AddSingleton<ToastService>();
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         var cut = Render<CampanaAvisos>();
         cut.FindAll("[data-aviso^=cartera]").Should().ContainSingle("control positivo");
 

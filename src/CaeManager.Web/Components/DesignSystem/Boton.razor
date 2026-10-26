@@ -11,7 +11,7 @@ else
     <button type="@Type"
             class="@ClaseCompleta"
             disabled="@(Deshabilitado || Cargando)"
-            @onclick="OnClick"
+            @onclick="ManejadorClic"
             @attributes="AtributosSinClase">
         @if (Cargando)
         {
@@ -63,6 +63,13 @@ else
     /// </summary>
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }
+
+    // El clic llega al llamador solo si el botón está habilitado (CWE-602, «validación solo en el cliente»): en Blazor Server quien
+    // quita `disabled` en el DOM del navegador consigue que el clic llegue al servidor, y el estado deshabilitado es del servidor.
+    // Sin OnClick no se registra manejador (como antes con el EventCallback sin delegado), para no mandar clics al circuito de balde.
+    private EventCallback ManejadorClic => OnClick.HasDelegate ? EventCallback.Factory.Create(this, AlPulsarAsync) : default;
+
+    private Task AlPulsarAsync() => Deshabilitado || Cargando ? Task.CompletedTask : OnClick.InvokeAsync();
 
     private string ClaseVariante => Variante.ToString().ToLowerInvariant();
     private string ClaseTamano => Tamano.ToString().ToLowerInvariant();
