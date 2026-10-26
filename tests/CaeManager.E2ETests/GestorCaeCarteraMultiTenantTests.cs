@@ -462,11 +462,17 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         await Expect(filtro).ToHaveValueAsync(texto);
         // El valor del input cambia antes de que @oninput escriba la URL. Esa navegación
         // puede sustituir el DOM: no pulsar el formulario de una fila de la página anterior.
+        // Un texto vacío quita q= de la URL: este ayudante es para filtrar, no para limpiar.
+        Assert.False(string.IsNullOrWhiteSpace(texto), "FiltrarColaAsync espera un texto de búsqueda no vacío.");
         await Expect(page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(
             @"[?&]q=" + System.Text.RegularExpressions.Regex.Escape(Uri.EscapeDataString(texto)) + @"(&|$)"),
             new() { Timeout = 30_000 });
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0);
+        // Con búsqueda activa la página no pinta «Plegar/Expandir todas» (MiTrabajo.razor): desaparece en el mismo
+        // lote de render que las filas filtradas, así que es la barrera de «el DOM ya es el filtrado».
+        await Expect(page.Locator(".mi-trabajo-plegar-todas")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
+        // Una cola que aún consulta otra Empresa de la cartera (arranque en frío) no ha terminado de pintar.
+        await Expect(page.Locator(".mi-trabajo-progreso")).ToHaveCountAsync(0, new() { Timeout = 30_000 });
         await Expect(filtro).ToHaveValueAsync(texto);
     }
 
