@@ -212,7 +212,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddSingleton<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>();
         services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IAlertaIncidenteSeguridad>(
             sp => sp.GetRequiredService<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>());
-        services.AddHostedService(sp => sp.GetRequiredService<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>());
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.Incidentes.EnvioAlertasIncidenteSeguridadHostedService>();
         services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IRegistroIncidentesSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.RegistroIncidentesSeguridadEnBase>();
         services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad, CaeManager.Application.Seguridad.Incidentes.SenalesIncidenteSeguridad>();
 

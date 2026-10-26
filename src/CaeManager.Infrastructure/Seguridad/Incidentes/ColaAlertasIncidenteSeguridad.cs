@@ -1,7 +1,6 @@
 using System.Threading.Channels;
 using CaeManager.Application.Common;
 using CaeManager.Application.Seguridad.Incidentes;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Seguridad.Incidentes;
@@ -16,10 +15,11 @@ namespace CaeManager.Infrastructure.Seguridad.Incidentes;
 /// de encolar) y la alerta cae al segundo camino: <see cref="IAlertaOperativa"/> en nivel
 /// crítico (Sentry, que también llega a la guardia) y el log como error. El mensaje solo
 /// lleva el identificador del incidente. Un proceso que muere con alertas en la cola las
-/// pierde, no los incidentes: la página de Plataforma (incremento 3) los lista igual.
+/// pierde, no los incidentes, que quedan en la base sin alerta (deuda anotada para el incremento 3:
+/// marca de alerta enviada y barrido al arrancar). El lector es <see cref="EnvioAlertasIncidenteSeguridadHostedService"/>.
 /// </para>
 /// </summary>
-public sealed class ColaAlertasIncidenteSeguridad : BackgroundService, IAlertaIncidenteSeguridad
+public sealed class ColaAlertasIncidenteSeguridad : IAlertaIncidenteSeguridad
 {
     /// <summary>Esperas entre intentos: cuatro intentos en algo más de seis minutos.</summary>
     public static readonly TimeSpan[] EsperasEntreIntentos = [TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(5)];
@@ -28,7 +28,7 @@ public sealed class ColaAlertasIncidenteSeguridad : BackgroundService, IAlertaIn
 
     private readonly Channel<Guid> _cola = Channel.CreateBounded<Guid>(new BoundedChannelOptions(Capacidad)
     {
-        FullMode = BoundedChannelFullMode.DropWrite,
+        FullMode = BoundedChannelFullMode.Wait, // con Wait, TryWrite devuelve false si está llena y se avisa
         SingleReader = true,
     });
 
@@ -80,18 +80,8 @@ public sealed class ColaAlertasIncidenteSeguridad : BackgroundService, IAlertaIn
         }
     }
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        try
-        {
-            await foreach (var incidenteId in _cola.Reader.ReadAllAsync(stoppingToken))
-                await EnviarConReintentosAsync(incidenteId, stoppingToken);
-        }
-        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-        {
-            // Parada ordenada.
-        }
-    }
+    /// <summary>Lado lector de la cola, para el servicio de fondo que envía.</summary>
+    public ChannelReader<Guid> Lector => _cola.Reader;
 
     /// <summary>Envía con reintentos; devuelve si salió. Nunca lanza salvo cancelación de la parada.</summary>
     public async Task<bool> EnviarConReintentosAsync(Guid incidenteId, CancellationToken ct)
