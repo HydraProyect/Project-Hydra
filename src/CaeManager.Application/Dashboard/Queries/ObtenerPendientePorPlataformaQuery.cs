@@ -86,15 +86,18 @@ public class ObtenerPendientePorPlataformaQueryHandler(
             .Select(p => new { p.Id, p.Nombre, p.Codigo })
             .ToDictionaryAsync(p => p.Id, p => p, cancellationToken);
 
-        return conteosPorProveedor
+        return Ordenar(conteosPorProveedor
             .Select(c => new PendientePorPlataformaDto(
                 c.ProveedorPlataformaCaeId,
                 proveedores.GetValueOrDefault(c.ProveedorPlataformaCaeId)?.Nombre ?? "—",
                 c.PendientesDeSubir,
                 c.Rechazadas,
-                proveedores.GetValueOrDefault(c.ProveedorPlataformaCaeId)?.Codigo ?? string.Empty))
-            .OrderByDescending(d => d.PendientesDeSubir + d.Rechazadas)
-            .ThenBy(d => d.ProveedorNombre)
+                proveedores.GetValueOrDefault(c.ProveedorPlataformaCaeId)?.Codigo ?? string.Empty)))
             .ToList();
     }
+
+    internal static IOrderedEnumerable<PendientePorPlataformaDto> Ordenar(IEnumerable<PendientePorPlataformaDto> filas) =>
+        filas.OrderByDescending(d => d.PendientesDeSubir + d.Rechazadas)
+            .ThenBy(d => d.ProveedorNombre, StringComparer.Ordinal)
+            .ThenBy(d => d.ProveedorPlataformaCaeId);
 }

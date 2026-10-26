@@ -131,6 +131,7 @@ public static class CalculosFacturacionOperadorCae
         var moneda = filas.Where(f => !f.SinTarifa && f.Moneda is not null)
             .GroupBy(f => f.Moneda!)
             .OrderByDescending(g => g.Count())
+            .ThenBy(g => g.Key, StringComparer.Ordinal)
             .Select(g => g.Key)
             .FirstOrDefault() ?? "EUR";
         var conTarifa = filas.Where(f => !f.SinTarifa && f.Moneda == moneda).ToList();
