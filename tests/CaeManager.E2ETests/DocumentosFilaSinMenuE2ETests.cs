@@ -104,9 +104,12 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1440, 900);
-        // El Administrador, como AtajosFicha360Tests: ve el Tenant sin alcance de cartera, así que la
-        // Empresa que se busca abajo está a la vista sea cual sea la cartera del Gestor CAE de prueba.
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
+        // El Administrador propio del Tenant de los datos de prueba (el de FlujoRetencionTests): ve ese
+        // Tenant sin alcance de cartera, así que la Empresa que se busca abajo está a la vista sea cual
+        // sea la cartera del Gestor CAE de prueba. No el de plataforma (admin@caemanager.local): vive en
+        // el Tenant #1, que no tiene datos operativos (DelegacionDemoSeeder siembra en otro Tenant).
+        var administradorDelTenant = Ayudas.EmailPrueba("administrador", 1);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, administradorDelTenant, Ayudas.ContrasenaUsuariosPrueba);
         var panel = page.Locator(".workspace-panel");
 
         // La ventana de contexto solo existe en los documentos con acreditaciones en plataformas. La
@@ -129,7 +132,7 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             ORDER BY d."EmpresaId"
             LIMIT 1
             """,
-            ("email", Ayudas.EmailAdministrador));
+            ("email", administradorDelTenant));
         await Ayudas.NavegarYEsperarAsync(page,
             $"{fixture.BaseUrl}/documentos?Ambito=Empresa&Propietario={empresaConAcreditaciones}");
         // Como en VistaRecordadaE2ETests: abrir y cerrar una pastilla confirma que
