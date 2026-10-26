@@ -44,7 +44,7 @@ public sealed class ExtraccionTrabajadoresConParserLocalService(
             // Sin el mensaje de la excepción en el log: viene de un PDF de un tercero.
             logger.LogWarning(
                 "El parser local de Trabajadores falló ({TipoExcepcion}); se usa la IA.", ex.GetType().Name);
-            local = ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.PdfNoLegible);
+            local = ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.ErrorInterno);
         }
 
         if (local.Cuadra)

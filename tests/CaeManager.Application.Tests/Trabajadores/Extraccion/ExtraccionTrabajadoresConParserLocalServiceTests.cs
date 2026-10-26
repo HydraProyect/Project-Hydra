@@ -118,7 +118,7 @@ public class ExtraccionTrabajadoresConParserLocalServiceTests
     public void Anadir_un_motivo_obliga_a_decidir_aqui_que_documento_lo_provoca()
     {
         // Cada motivo tiene su caso en ExtractorTrabajadoresLocalServiceTests; al añadir uno, súbelo aquí y allí.
-        Enum.GetValues<MotivoNoCuadra>().Should().HaveCount(10);
+        Enum.GetValues<MotivoNoCuadra>().Should().HaveCount(13);
     }
 
     public static IEnumerable<object[]> TodosLosMotivos() =>

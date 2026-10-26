@@ -17,40 +17,45 @@ namespace CaeManager.Application.Trabajadores.Extraccion;
 /// <b>Cuándo «cuadra»</b> (todas a la vez; la primera que falle fija el
 /// <see cref="MotivoNoCuadra"/>):
 /// <list type="number">
-/// <item>Todas las páginas tienen texto digital (ninguna sin palabras ni cubierta por una imagen).</item>
+/// <item>Todas las páginas tienen texto digital (ninguna sin palabras, cubierta por una imagen o con
+/// su texto girado), y el PDF respeta los topes de <see cref="LimitesLecturaPalabrasPdf"/>.</item>
 /// <item>Todo lo que tiene forma de DNI/NIE (8 dígitos y letra, o X/Y/Z, 7 dígitos y letra) tiene
 /// la letra de control correcta: uno solo erróneo invalida el documento, no se «corrige».</item>
-/// <item>Todo DNI/NIE está en una fila posterior a una cabecera de tabla (línea con una etiqueta de
-/// nombre y otra de documento de identidad), tiene un único DNI/NIE y su nombre sale de la
-/// columna de nombre de esa cabecera, de la misma línea.</item>
-/// <item>El nombre se separa sin adivinar: con coma («GARCIA LOPEZ, JUAN»), o en dos columnas
-/// «Apellidos» y «Nombre». Un nombre sin coma en una sola columna no se parte.</item>
-/// <item>Ninguna fila posterior a la cabecera tiene nombre en la columna de nombre y número de
-/// afiliación (9 o más dígitos) pero no DNI/NIE: sería un Trabajador con pasaporte o un DNI mal
-/// impreso que el parser no vería.</item>
+/// <item>Cada página tiene una sola cabecera de tabla (línea con una etiqueta de nombre y otra de
+/// documento de identidad) y ningún texto que mencione bajas. La cabecera vale solo para su página:
+/// un membrete o una firma de otra página no se leen con la cabecera de la anterior, y una
+/// continuación sin cabecera repetida cae a la IA.</item>
+/// <item>Todo DNI/NIE está en una fila posterior a esa cabecera, es el único de su fila y su nombre
+/// sale de la zona de la columna de nombre (entre la columna vecina anterior y la siguiente de la
+/// cabecera), de la misma línea.</item>
+/// <item>El nombre se separa sin adivinar: con coma («GARCIA LOPEZ, JUAN») bajo «Apellidos y nombre»,
+/// o en dos columnas «Apellidos» y «Nombre». Un nombre sin coma, bajo «Nombre y apellidos» (el
+/// orden real de los datos no es seguro) o que continúa en la línea de debajo no se parte.</item>
+/// <item>Ninguna línea sin DNI/NIE, bajo la cabecera, tiene aspecto de fila de Trabajador: nombre en
+/// la zona de nombre con coma (o con apellidos y nombre en sus dos columnas) o con un número de 9 o
+/// más dígitos, aunque venga partido en grupos; y, en cualquier columna, nombre con coma o con
+/// número largo por encima de la última fila de la página (dentro de la tabla, no en un pie). Sería
+/// un Trabajador con pasaporte o un DNI mal impreso que el parser no vería.</item>
 /// <item>El mismo DNI/NIE no sale con dos nombres distintos, y hay al menos un Trabajador.</item>
 /// </list>
-/// Límites conocidos: un nombre partido en dos líneas se lee con la primera; una tabla de bajas
-/// bajo otra cabecera igual se leería como altas. Los dos los acota la revisión del Gestor CAE,
-/// que ya existe sobre el resultado de la IA.
+/// Límite conocido y no mitigado: una tabla de bajas con la misma cabecera que la de altas y sin
+/// ninguna mención a «baja» en el texto se leería como altas. Un baja leído como presente no genera
+/// ninguna detección, así que ahí tampoco habría nada que revisar para el Gestor CAE.
 /// </summary>
 public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabrasPdf palabras) : IExtractorTrabajadoresLocal
 {
-    internal const int MaximoPaginas = 300;
-    internal const int MaximoPalabrasEnTotal = 300_000;
-
     /// <summary>Páginas cuya imagen mayor cubre más de esta fracción se consideran escaneadas.</summary>
     internal const double ProporcionImagenDePaginaEscaneada = 0.5;
 
-    private const int MinimoDigitosDeNumeroDeAfiliacion = 9;
+    private const int MinimoDigitosDeNumeroLargo = 9;
 
     /// <summary>Separación horizontal, en alturas de letra, a partir de la cual dos palabras son columnas distintas.</summary>
     private const double SeparacionDeColumna = 0.8;
 
-    /// <summary>Holgura, en alturas de letra, al comparar el rango de una cabecera con el de un tramo de la fila.</summary>
-    private const double HolguraDeColumna = 0.5;
-
     private const double ToleranciaDeLinea = 0.4;
+
+    /// <summary>Una línea sin DNI/NIE a menos de esta distancia (en alturas) bajo una fila continúa su nombre.</summary>
+    private const double DistanciaDeContinuacion = 1.6;
 
     public ResultadoExtraccionLocal Extraer(byte[] contenidoPdf)
     {
@@ -59,20 +64,33 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
             return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.PdfNoLegible);
 
         var paginas = lectura.Valor;
-        if (paginas.Count > MaximoPaginas || paginas.Sum(p => (long)p.Palabras.Count) > MaximoPalabrasEnTotal)
+        if (paginas.Count > LimitesLecturaPalabrasPdf.MaximoPaginas
+            || paginas.Sum(p => (long)p.Palabras.Count) > LimitesLecturaPalabrasPdf.MaximoPalabrasEnTotal)
+        {
             return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.PdfNoLegible);
+        }
 
-        if (paginas.Count == 0 || paginas.All(p => p.Palabras.Count == 0))
+        if (paginas.Count == 0 || paginas.All(p => p.Palabras.Count == 0 && p.PalabrasNoHorizontales == 0))
             return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.SinTexto);
 
         if (paginas.Any(p => p.Palabras.Count == 0 || p.ProporcionImagen > ProporcionImagenDePaginaEscaneada))
             return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.PaginaSinTextoDigital);
 
+        if (paginas.Any(p => p.PalabrasNoHorizontales > LimitesLecturaPalabrasPdf.MaximoPalabrasNoHorizontalesPorPagina
+            || p.PalabrasNoHorizontales > p.Palabras.Count))
+        {
+            return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.TextoNoHorizontal);
+        }
+
         var porIdentificador = new Dictionary<string, TrabajadorExtraidoDto>(StringComparer.Ordinal);
-        Cabecera? cabecera = null;
 
         foreach (var pagina in paginas.OrderBy(p => p.Numero))
         {
+            // La cabecera y la última fila valen solo dentro de su página.
+            Cabecera? cabecera = null;
+            double? centroDeLaUltimaFila = null;
+            var candidatasInteriores = new List<double>();
+
             foreach (var linea in AgruparEnLineas(pagina.Palabras))
             {
                 var candidatos = BuscarIdentificadores(linea);
@@ -81,17 +99,23 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
                 {
                     if (EsCabecera(linea))
                     {
+                        if (cabecera is not null)
+                            return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.TablaAmbigua);
+
                         cabecera = ConstruirCabecera(linea);
                         continue;
                     }
 
-                    if (cabecera is not null && TieneNumeroDeAfiliacion(linea))
+                    if (MencionaBajas(linea))
+                        return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.TablaAmbigua);
+
+                    if (cabecera is not null)
                     {
-                        var posibleNombre = LeerNombre(linea, cabecera, []);
-                        // Solo cuenta como fila perdida si hay algo en la columna de nombre: una línea de
-                        // pie o de membrete con un número largo no tiene nombre ahí.
-                        if (posibleNombre.Resultado != ResultadoLectura.SinTramos)
-                            return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.FilaSinIdentificador);
+                        if (SospechaDeFilaPerdida(linea, cabecera, centroDeLaUltimaFila) is { } motivoDeSospecha)
+                            return ResultadoExtraccionLocal.NoCuadra(motivoDeSospecha);
+
+                        if (EsCandidataInterior(linea))
+                            candidatasInteriores.Add(linea.CentroY);
                     }
 
                     continue;
@@ -119,6 +143,7 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
 
                 var identificador = candidatos[0].Texto;
                 var trabajador = new TrabajadorExtraidoDto(nombre.Nombre!, nombre.Apellidos!, identificador);
+                centroDeLaUltimaFila = linea.CentroY;
 
                 if (porIdentificador.TryGetValue(identificador, out var existente))
                 {
@@ -130,6 +155,12 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
                     porIdentificador.Add(identificador, trabajador);
                 }
             }
+
+            // Una línea sin DNI/NIE con aspecto de fila, por encima de la última fila leída de la página (o en una
+            // página sin ninguna), está dentro de la tabla y no es un pie: es un Trabajador que no se ha leído,
+            // aunque su nombre quede fuera de la zona de la columna.
+            if (candidatasInteriores.Any(y => centroDeLaUltimaFila is not { } ultima || y > ultima))
+                return ResultadoExtraccionLocal.NoCuadra(MotivoNoCuadra.FilaSinIdentificador);
         }
 
         if (porIdentificador.Count == 0)
@@ -140,7 +171,7 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
 
     // ---- Líneas -----------------------------------------------------------------------
 
-    private sealed record Linea(IReadOnlyList<PalabraPdf> Palabras, double Alto);
+    private sealed record Linea(IReadOnlyList<PalabraPdf> Palabras, double Alto, double CentroY);
 
     private static List<Linea> AgruparEnLineas(IReadOnlyList<PalabraPdf> palabrasDePagina)
     {
@@ -165,7 +196,7 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
             .Select(g =>
             {
                 var ordenadas = g.Palabras.OrderBy(p => p.Izquierda).ToList();
-                return new Linea(ordenadas, ordenadas.Average(p => p.Alto));
+                return new Linea(ordenadas, ordenadas.Average(p => p.Alto), ordenadas.Average(p => p.CentroY));
             })
             .ToList();
     }
@@ -214,12 +245,40 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
         return analisis.EsValido && analisis.Tipo is TipoIdentificacion.Dni or TipoIdentificacion.Nie;
     }
 
-    private static bool TieneNumeroDeAfiliacion(Linea linea) =>
-        linea.Palabras.Any(p =>
+    /// <summary>
+    /// ¿Hay en la línea un número de 9 o más dígitos (NAF, cuenta de cotización), aunque venga partido en
+    /// grupos («28 12345678 90») o con barras? Cuenta como un solo número las palabras numéricas contiguas.
+    /// </summary>
+    private static bool TieneNumeroLargo(Linea linea)
+    {
+        var digitos = 0;
+        PalabraPdf? anterior = null;
+
+        foreach (var palabra in linea.Palabras)
         {
-            var digitos = p.Texto.Where(c => c is not '/' and not '-' and not ' ').ToArray();
-            return digitos.Length >= MinimoDigitosDeNumeroDeAfiliacion && digitos.All(char.IsAsciiDigit);
-        });
+            var texto = palabra.Texto.Trim();
+            var esNumerica = texto.Length > 0 && texto.Any(char.IsAsciiDigit) && texto.All(c => char.IsAsciiDigit(c) || c is '/' or '-');
+
+            if (!esNumerica)
+            {
+                digitos = 0;
+                anterior = null;
+                continue;
+            }
+
+            var contiguo = anterior is { } previa && palabra.Izquierda - previa.Derecha <= linea.Alto;
+            digitos = (contiguo ? digitos : 0) + texto.Count(char.IsAsciiDigit);
+            anterior = palabra;
+
+            if (digitos >= MinimoDigitosDeNumeroLargo)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static bool MencionaBajas(Linea linea) =>
+        linea.Palabras.Any(p => Etiqueta(p.Texto) is "BAJA" or "BAJAS");
 
     // ---- Cabecera ---------------------------------------------------------------------
 
@@ -230,7 +289,9 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
         Invalido,
     }
 
-    private sealed record ColumnaDeNombre(bool Apellidos, bool Nombre, bool NombrePrimero, double Izquierda, double Derecha);
+    /// <param name="ZonaIzquierda">Punto medio entre la columna vecina anterior de la cabecera y esta (−∞ si no hay).</param>
+    /// <param name="ZonaDerecha">Punto medio entre esta columna y la vecina siguiente de la cabecera (+∞ si no hay).</param>
+    private sealed record ColumnaDeNombre(bool Apellidos, bool Nombre, bool NombrePrimero, double ZonaIzquierda, double ZonaDerecha);
 
     private sealed record Cabecera(EsquemaDeNombre Esquema, IReadOnlyList<ColumnaDeNombre> Columnas);
 
@@ -259,53 +320,53 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
         return etiquetas.Any(EsEtiquetaDeNombre) && etiquetas.Any(EsEtiquetaDeDocumento);
     }
 
+    /// <summary>
+    /// Agrupa las etiquetas de la cabecera por columnas (huecos de columna entre grupos) y, para cada
+    /// una con etiqueta de nombre, fija su zona: de la mitad del hueco con la columna vecina anterior a la
+    /// mitad del hueco con la siguiente. Las zonas no se solapan, y son lo que se compara con el texto de
+    /// cada fila (por su centro), porque una etiqueta centrada sobre una columna ancha no queda sobre un
+    /// nombre corto y un tramo no puede contar en dos columnas.
+    /// </summary>
     private static Cabecera ConstruirCabecera(Linea linea)
     {
-        var columnas = new List<ColumnaDeNombre>();
-        List<PalabraPdf>? grupo = null;
-
-        void Cerrar()
-        {
-            if (grupo is null)
-                return;
-
-            var deNombre = grupo.Where(p => EsEtiquetaDeNombre(Etiqueta(p.Texto))).ToList();
-            if (deNombre.Count > 0)
-            {
-                var etiquetas = deNombre.Select(p => Etiqueta(p.Texto)).ToList();
-                var apellidos = etiquetas.Any(e => e is "APELLIDOS" or "APELLIDO");
-                var nombre = etiquetas.Any(e => e is "NOMBRE" or "NOMBRES");
-                var trabajador = etiquetas.Contains("TRABAJADOR");
-
-                // «Trabajador» solo, o con «nombre»/«apellidos», es una columna que lleva el nombre completo.
-                // Si la etiqueta dice «Nombre y apellidos», el orden de los datos es el de la etiqueta.
-                var primeraDeNombre = deNombre.Where(p => Etiqueta(p.Texto) is "NOMBRE" or "NOMBRES").Select(p => p.Izquierda).DefaultIfEmpty(double.MaxValue).Min();
-                var primeraDeApellidos = deNombre.Where(p => Etiqueta(p.Texto) is "APELLIDOS" or "APELLIDO").Select(p => p.Izquierda).DefaultIfEmpty(double.MaxValue).Min();
-
-                columnas.Add(new ColumnaDeNombre(
-                    Apellidos: apellidos || trabajador,
-                    Nombre: nombre || trabajador,
-                    NombrePrimero: nombre && apellidos && primeraDeNombre < primeraDeApellidos,
-                    deNombre.Min(p => p.Izquierda),
-                    deNombre.Max(p => p.Derecha)));
-            }
-
-            grupo = null;
-        }
-
+        var grupos = new List<List<PalabraPdf>>();
         foreach (var palabra in linea.Palabras)
         {
-            if (grupo is not null && palabra.Izquierda - grupo[^1].Derecha > SeparacionDeColumna * linea.Alto)
-                Cerrar();
-
-            (grupo ??= []).Add(palabra);
+            if (grupos.Count > 0 && palabra.Izquierda - grupos[^1][^1].Derecha <= SeparacionDeColumna * linea.Alto)
+                grupos[^1].Add(palabra);
+            else
+                grupos.Add([palabra]);
         }
 
-        Cerrar();
+        var columnas = new List<ColumnaDeNombre>();
+
+        for (var i = 0; i < grupos.Count; i++)
+        {
+            var deNombre = grupos[i].Where(p => EsEtiquetaDeNombre(Etiqueta(p.Texto))).ToList();
+            if (deNombre.Count == 0)
+                continue;
+
+            var etiquetas = deNombre.Select(p => Etiqueta(p.Texto)).ToList();
+            var apellidos = etiquetas.Any(e => e is "APELLIDOS" or "APELLIDO");
+            var nombre = etiquetas.Any(e => e is "NOMBRE" or "NOMBRES");
+            var trabajador = etiquetas.Contains("TRABAJADOR");
+
+            // Si la etiqueta dice «Nombre y apellidos», el orden real de los datos no es seguro
+            // (se imprime a menudo «APELLIDOS, NOMBRE» bajo esa etiqueta): ese caso no se resuelve.
+            var primeraDeNombre = deNombre.Where(p => Etiqueta(p.Texto) is "NOMBRE" or "NOMBRES").Select(p => p.Izquierda).DefaultIfEmpty(double.MaxValue).Min();
+            var primeraDeApellidos = deNombre.Where(p => Etiqueta(p.Texto) is "APELLIDOS" or "APELLIDO").Select(p => p.Izquierda).DefaultIfEmpty(double.MaxValue).Min();
+
+            columnas.Add(new ColumnaDeNombre(
+                Apellidos: apellidos || trabajador,
+                Nombre: nombre || trabajador,
+                NombrePrimero: nombre && apellidos && primeraDeNombre < primeraDeApellidos,
+                ZonaIzquierda: i > 0 ? (grupos[i - 1].Max(p => p.Derecha) + grupos[i].Min(p => p.Izquierda)) / 2 : double.NegativeInfinity,
+                ZonaDerecha: i < grupos.Count - 1 ? (grupos[i].Max(p => p.Derecha) + grupos[i + 1].Min(p => p.Izquierda)) / 2 : double.PositiveInfinity));
+        }
 
         var esquema = columnas switch
         {
-            [{ Apellidos: true, Nombre: true }] => EsquemaDeNombre.Combinado,
+            [{ Apellidos: true, Nombre: true, NombrePrimero: false }] => EsquemaDeNombre.Combinado,
             [{ Apellidos: true, Nombre: false }, { Apellidos: false, Nombre: true }] => EsquemaDeNombre.Separado,
             [{ Apellidos: false, Nombre: true }, { Apellidos: true, Nombre: false }] => EsquemaDeNombre.Separado,
             _ => EsquemaDeNombre.Invalido,
@@ -325,16 +386,24 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
 
     private readonly record struct NombreLeido(ResultadoLectura Resultado, string? Nombre, string? Apellidos);
 
-    private sealed record Tramo(string Texto, double Izquierda, double Derecha);
+    private sealed record Tramo(string Texto, double Izquierda, double Derecha)
+    {
+        public double Centro => (Izquierda + Derecha) / 2;
+    }
+
+    /// <summary>Para cada columna de nombre de la cabecera, los tramos de la línea cuyo centro cae en su zona.</summary>
+    private static List<List<Tramo>> TramosPorColumna(Linea linea, Cabecera cabecera, HashSet<int> excluidos)
+    {
+        var tramos = ConstruirTramos(linea, excluidos);
+
+        return cabecera.Columnas
+            .Select(columna => tramos.Where(t => t.Centro >= columna.ZonaIzquierda && t.Centro <= columna.ZonaDerecha).ToList())
+            .ToList();
+    }
 
     private static NombreLeido LeerNombre(Linea linea, Cabecera cabecera, HashSet<int> excluidos)
     {
-        var tramos = ConstruirTramos(linea, excluidos);
-        var holgura = HolguraDeColumna * linea.Alto;
-
-        var porColumna = cabecera.Columnas
-            .Select(columna => tramos.Where(t => t.Derecha >= columna.Izquierda - holgura && t.Izquierda <= columna.Derecha + holgura).ToList())
-            .ToList();
+        var porColumna = TramosPorColumna(linea, cabecera, excluidos);
 
         if (porColumna.All(t => t.Count == 0))
             return new NombreLeido(ResultadoLectura.SinTramos, null, null);
@@ -344,14 +413,12 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
 
         if (cabecera.Esquema == EsquemaDeNombre.Combinado)
         {
-            var texto = porColumna[0][0].Texto;
-            var partes = texto.Split(',');
+            var partes = porColumna[0][0].Texto.Split(',');
             if (partes.Length != 2)
                 return new NombreLeido(ResultadoLectura.Ambiguo, null, null);
 
-            var primero = Limpiar(partes[0]);
-            var segundo = Limpiar(partes[1]);
-            var (apellidos, nombre) = cabecera.Columnas[0].NombrePrimero ? (segundo, primero) : (primero, segundo);
+            var apellidos = Limpiar(partes[0]);
+            var nombre = Limpiar(partes[1]);
             return apellidos.Length == 0 || nombre.Length == 0
                 ? new NombreLeido(ResultadoLectura.Ambiguo, null, null)
                 : new NombreLeido(ResultadoLectura.Correcto, nombre, apellidos);
@@ -363,6 +430,48 @@ public sealed partial class ExtractorTrabajadoresLocalService(IExtractorPalabras
         return apellidosTexto.Length == 0 || nombreTexto.Length == 0 || apellidosTexto.Contains(',') || nombreTexto.Contains(',')
             ? new NombreLeido(ResultadoLectura.Ambiguo, null, null)
             : new NombreLeido(ResultadoLectura.Correcto, nombreTexto, apellidosTexto);
+    }
+
+    /// <summary>
+    /// Una línea bajo la cabecera sin DNI/NIE que, aun así, podría ser un Trabajador o parte de uno.
+    /// Devuelve el motivo si lo parece, o <c>null</c> si es otra cosa (pie, membrete, línea en blanco).
+    /// </summary>
+    private static MotivoNoCuadra? SospechaDeFilaPerdida(Linea linea, Cabecera cabecera, double? centroDeLaUltimaFila)
+    {
+        var porColumna = TramosPorColumna(linea, cabecera, []);
+        if (porColumna.All(t => t.Count == 0))
+            return null;
+
+        var pareceFila = TieneNumeroLargo(linea) || cabecera.Esquema switch
+        {
+            EsquemaDeNombre.Combinado => porColumna[0].Any(t => t.Texto.Contains(',')),
+            EsquemaDeNombre.Separado => porColumna.All(t => t.Count > 0),
+            _ => false,
+        };
+
+        if (pareceFila)
+            return MotivoNoCuadra.FilaSinIdentificador;
+
+        // Justo debajo de una fila, con texto en la columna de nombre y sin aspecto de fila propia: es la
+        // continuación de un nombre partido en dos líneas, y la fila ya leída lleva solo la primera mitad.
+        if (centroDeLaUltimaFila is { } ultimo)
+        {
+            var distancia = ultimo - linea.CentroY;
+            if (distancia > 0 && distancia <= DistanciaDeContinuacion * linea.Alto)
+                return MotivoNoCuadra.NombreAmbiguo;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Línea sin DNI/NIE con nombre y número largo, o con un nombre con coma, en cualquier columna. Sola no
+    /// prueba nada (un pie las tiene); lo prueba estar por encima de la última fila de la página.
+    /// </summary>
+    private static bool EsCandidataInterior(Linea linea)
+    {
+        var tramos = ConstruirTramos(linea, []);
+        return tramos.Count > 0 && (TieneNumeroLargo(linea) || tramos.Any(t => t.Texto.Contains(',')));
     }
 
     /// <summary>Palabras de nombre contiguas (sin hueco de columna entre ellas) de la línea, dejando fuera el identificador.</summary>
