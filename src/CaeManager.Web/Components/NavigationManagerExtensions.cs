@@ -73,6 +73,17 @@ public static class NavigationManagerExtensions
             _destinosDeLaCadena.Add(destino);
         }
 
+        /// <summary>
+        /// La navegación a <paramref name="destino"/> no llegará (la detuvo el aviso de cambios sin guardar). Si era el
+        /// último destino pedido, la cadena se abandona: componer la siguiente escritura sobre él resucitaría, sin
+        /// preguntar, lo que el usuario decidió no hacer. La siguiente escritura vuelve a componer sobre Uri.
+        /// </summary>
+        public void DescartarSiEsElUltimo(string destino)
+        {
+            if (_destino is not null && destino == new Uri(_destino).AbsoluteUri)
+                Reiniciar();
+        }
+
         public void Reiniciar()
         {
             _origen = null;
@@ -123,7 +134,8 @@ public static class NavigationManagerExtensions
     /// tecla). Un valor vacío o en blanco quita el parámetro en vez de
     /// dejarlo como cadena vacía en la URL.
     /// <paramref name="estadoHistorial"/> permite conservar la ausencia de marca en escrituras de contexto o pestaña
-    /// que deben seguir pasando por el aviso de cambios sin guardar.
+    /// que deben seguir pasando por el aviso de cambios sin guardar. Si el aviso las detiene, avisa con
+    /// <see cref="DescartarEscrituraDetenida"/> y la cadena no compone sobre ellas.
     /// </summary>
     public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor,
         string? estadoHistorial = EstadoEscrituraDeFiltros) =>
@@ -154,5 +166,16 @@ public static class NavigationManagerExtensions
             pendientes.Reiniciar();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Lo llama <c>AvisoCambiosSinGuardar</c> al detener una navegación: si era la última escritura pedida en la URL de
+    /// este <see cref="NavigationManager"/>, deja de ser la base de la siguiente (ver
+    /// <see cref="EscriturasPendientes.DescartarSiEsElUltimo"/>).
+    /// </summary>
+    internal static void DescartarEscrituraDetenida(this NavigationManager navigation, string destino)
+    {
+        if (Pendientes.TryGetValue(navigation, out var pendientes))
+            pendientes.DescartarSiEsElUltimo(navigation.ToAbsoluteUri(destino).AbsoluteUri);
     }
 }

@@ -54,7 +54,13 @@ public class QueriesSobreLaUriActualSinElAyudanteTests
         var cantidad = 0;
         foreach (Match llamada in Regex.Matches(fuente, @"\b(GetUriWithQueryParameters?)\s*\("))
         {
-            if (SyntaxFactory.ParseExpression(fuente[llamada.Index..]) is not InvocationExpressionSyntax invocacion)
+            // La expresión que empieza en el nombre puede seguir (…).ToString() o + "x": la llamada es la primera
+            // invocación con ese nombre, no la raíz.
+            var invocacion = SyntaxFactory.ParseExpression(fuente[llamada.Index..])
+                .DescendantNodesAndSelf().OfType<InvocationExpressionSyntax>()
+                .FirstOrDefault(i => i.Expression is IdentifierNameSyntax { Identifier.ValueText: var nombre }
+                                     && nombre == llamada.Groups[1].Value);
+            if (invocacion is null)
                 continue;
 
             var argumentos = invocacion.ArgumentList.Arguments;
@@ -81,6 +87,16 @@ public class QueriesSobreLaUriActualSinElAyudanteTests
     [InlineData("Navigation.GetUriWithQueryParameters(RutaErrorDelSistema, parametros);", 0)]
     [InlineData("Navigation.NavigateTo($\"/visitas?centroId={id}\");", 0)]
     [InlineData("Navigation.ActualizarFiltroEnUrl(\"pestana\", p, estadoHistorial: null);", 0)]
+    [InlineData("var ruta = new Uri(Navigation.GetUriWithQueryParameters(parametros).ToString());", 1)]
+    [InlineData("var ruta = Navigation.GetUriWithQueryParameters(Navigation.Uri, parametros).Trim();", 1)]
     public void El_detector_distingue_la_URL_actual_de_otra_pagina(string fuente, int esperado) =>
         Contar(fuente).Should().Be(esperado);
+
+    [Theory]
+    [InlineData("// Navigation.GetUriWithQueryParameter(\"q\", valor)\nvar x = 1;", false, 0)]
+    [InlineData("/// <c>Navigation.GetUriWithQueryParameter</c>(\"q\", valor)\nvar x = 1;", false, 0)]
+    [InlineData("@* Navigation.GetUriWithQueryParameter(\"q\", valor) *@\n<p>Hola</p>", true, 0)]
+    [InlineData("<a href=\"@Navigation.GetUriWithQueryParameter(\"q\", valor)\">Q</a>", true, 1)]
+    public void Los_comentarios_no_cuentan_y_el_codigo_si(string fuente, bool razor, int esperado) =>
+        Contar(LimpiadorDeComentarios.Quitar(fuente, razor)).Should().Be(esperado);
 }

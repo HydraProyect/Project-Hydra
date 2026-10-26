@@ -190,6 +190,8 @@
             return Task.CompletedTask;
 
         contexto.PreventNavigation();
+        // Si era una escritura en la URL sin marca (ctx, pestana), la siguiente escritura no compone sobre ella.
+        CaeManager.Web.Components.NavigationManagerExtensions.DescartarEscrituraDetenida(Navegacion, contexto.TargetLocation);
         Preguntar(contexto, reanudarRecorrido: null, yaDescartaron: []);
         return Task.CompletedTask;
     }
