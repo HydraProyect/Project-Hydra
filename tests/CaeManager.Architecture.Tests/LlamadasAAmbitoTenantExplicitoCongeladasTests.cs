@@ -306,6 +306,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
         ["src/CaeManager.Application/Tenants/Commands/CerrarAccesoSoporte/CerrarAccesoSoporteCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargar y autorizar la Delegación de soporte"),
+        ["src/CaeManager.Application/Tenants/Commands/ReactivarDelegacionTenant/ReactivarDelegacionTenantCommand.cs"] =
+            new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras autorizar al Administrador del Tenant propietario en origen y validar que el contexto es su casa o el Tenant propietario; guarda la operación y las carteras restauradas"),
         ["src/CaeManager.Application/Tenants/Commands/DesactivarDelegacionTenant/DesactivarDelegacionTenantCommand.cs"] =
             new(Categoria.DelegacionOClienteYaValidado, "delegacion.TenantClienteId, tras cargarla y comprobar que el Tenant de origen es una de sus dos partes (DelegacionAdministrablePorElUsuarioAsync) y que el Tenant activo es esa casa o el propietario; solo guarda el cierre de la Asignación de Operación del Tenant propietario al revocar"),
         ["src/CaeManager.Application/Tenants/Commands/CrearClienteDelegante/CrearClienteDeleganteCommand.cs"] =

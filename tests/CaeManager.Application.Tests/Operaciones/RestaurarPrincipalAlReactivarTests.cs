@@ -222,7 +222,7 @@ public class RestaurarPrincipalAlReactivarTests
         var handler = new ReactivarDelegacionTenantCommandHandler(
             repositorio, AutorizacionDelegacionFalsa.AdministradorDe(Propietario),
             new CurrentUserServiceFalso(Guid.NewGuid()), escritor, new UnitOfWorkFalso(), new TenantsQueryContextFalso(),
-            transaccion, _catalogo, _destinos, _cuentas, _bloqueo);
+            transaccion, _catalogo, _destinos, _cuentas, _bloqueo, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Propietario));
 
         return (handler, delegacion, transaccion);
     }
