@@ -80,7 +80,8 @@ namespace CaeManager.Web.Services;
 /// que no es el del circuito) y vuelve a lanzar al repetirla una sola vez en el
 /// acto, no se puede afirmar que el Workspace operativo derivado siga autorizado y
 /// se invalida la selección, con un aviso en el log que solo lleva el tipo de la
-/// excepción. Solo el cierre del circuito (su token cancelado o la
+/// excepción. Un «no» de la comprobación no se repite. Dentro de la comprobación,
+/// solo el cierre del circuito (su token cancelado o la
 /// <see cref="PuertaAccesoDatos"/> cerrada) termina el ciclo sin invalidar nada.
 /// </summary>
 public class RevalidacionCircuitoActivoHandler(
@@ -103,6 +104,9 @@ public class RevalidacionCircuitoActivoHandler(
     /// una Asignación de Cartera. Fijado en test: subirlo alarga la ventana.
     /// </summary>
     public const int IntervaloPorDefectoSegundos = 60;
+
+    /// <summary>Comprobaciones por ciclo antes de dar la selección por no autorizada ante un error.</summary>
+    private const int IntentosPorCiclo = 2;
 
     private CancellationTokenSource? _cts;
     private Task? _bucle;
@@ -229,7 +233,7 @@ public class RevalidacionCircuitoActivoHandler(
                 // El circuito se está cerrando; no es un fallo de la comprobación.
                 throw new OperationCanceledException(cancellationToken);
             }
-            catch (Exception) when (intento < 2)
+            catch (Exception) when (intento < IntentosPorCiclo)
             {
                 // Un fallo transitorio se repite una sola vez en el acto.
             }

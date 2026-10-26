@@ -25,16 +25,20 @@ public class InicioSesionMicrosoftTests
 {
     [Theory]
     [InlineData("sin-mfa", false)]
+    [InlineData("sin-mfa-vinculo-nuevo", false)]
     [InlineData("sin-cuenta", false)]
     [InlineData("invitada", false)]
     [InlineData("sin-mfa", true)]
-    [InlineData("sin-cuenta", true)]
-    [InlineData("invitada", true)]
     public async Task El_callback_rechaza_la_cookie_externa_de_prueba_o_manipulada(string caso, bool manipulada)
     {
+        // «sin-mfa-vinculo-nuevo»: la cuenta del Tenant destino se halla por correo y no
+        // tiene identidad de Microsoft, así que el callback llega a VincularCuentaExistente.
+        // Es el único caso en que guardar el vínculo antes del segundo factor sería posible.
+        var cuenta = new ApplicationUser { TenantId = TenantDestino };
         var usuarios = new UsuariosConVinculos
         {
-            DuenaDeLaIdentidad = caso == "sin-cuenta" ? null : new ApplicationUser { TenantId = TenantDestino }
+            DuenaDeLaIdentidad = caso is "sin-mfa" or "invitada" ? cuenta : null,
+            CuentaPorCorreo = caso == "sin-mfa-vinculo-nuevo" ? cuenta : null,
         };
         var vigilancia = new VigilanciaDePrueba();
         var builder = WebApplication.CreateSlimBuilder();
@@ -62,29 +66,37 @@ public class InicioSesionMicrosoftTests
             await contexto.SignInAsync(IdentityConstants.ExternalScheme, principal, propiedades);
         });
         await app.StartAsync();
-        using var cliente = new HttpClient(new HttpClientHandler
-        {
-            AllowAutoRedirect = false, UseCookies = false, UseProxy = false
-        }) { BaseAddress = new Uri(app.Urls.Single()) };
+        using var manejador = new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false };
+        using var cliente = new HttpClient(manejador) { BaseAddress = new Uri(app.Urls.Single()) };
         using var emision = await cliente.GetAsync("/externa-de-prueba");
         var cookie = emision.Headers.GetValues("Set-Cookie").Single().Split(';')[0];
-        if (manipulada) cookie = cookie[..(cookie.IndexOf('=') + 1)] + "cookie-falsa-manipulada";
+        if (manipulada)
+        {
+            // Un solo carácter cambiado en mitad del valor protegido: la cookie deja de
+            // descifrarse y el callback la trata como ausente.
+            var inicioValor = cookie.IndexOf('=') + 1;
+            var posicion = inicioValor + (cookie.Length - inicioValor) / 2;
+            cookie = cookie[..posicion] + (cookie[posicion] == 'A' ? 'B' : 'A') + cookie[(posicion + 1)..];
+        }
         using var peticion = new HttpRequestMessage(HttpMethod.Get, "/cuenta/microsoft-callback?returnUrl=%2Fdocumentos");
         peticion.Headers.Add("Cookie", cookie);
 
         using var respuesta = await cliente.SendAsync(peticion);
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
-        var error = manipulada || caso == "invitada" ? "fallo" : caso;
+        var error = manipulada || caso == "invitada" ? "fallo" : caso == "sin-mfa-vinculo-nuevo" ? "sin-mfa" : caso;
         respuesta.Headers.Location!.OriginalString.Should().Be($"/cuenta/iniciar-sesion?errorSso={error}");
         usuarios.LlamadasAlta.Should().Be(0, "ningún rechazo puede guardar el vínculo");
         respuesta.Headers.TryGetValues("Set-Cookie", out var cookies);
+        // También los trozos (.AspNetCore.Identity.ApplicationC1=…) de una sesión grande.
         (cookies ?? []).Should().NotContain(c =>
-            c.StartsWith(".AspNetCore.Identity.Application=", StringComparison.Ordinal)
-            && !c.StartsWith(".AspNetCore.Identity.Application=;", StringComparison.Ordinal),
+            c.StartsWith(".AspNetCore.Identity.Application", StringComparison.Ordinal)
+            && c.Split(';')[0].Split('=', 2)[1].Length > 0,
             "ningún rechazo emite una sesión de aplicación");
         vigilancia.Resultados.Should().Equal(manipulada ? [] :
-            [caso == "sin-mfa" ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
+            [caso.StartsWith("sin-mfa", StringComparison.Ordinal)
+                ? CaeManager.Domain.Seguridad.ResultadoInicioSesion.Rechazado
+                : CaeManager.Domain.Seguridad.ResultadoInicioSesion.Fallido]);
         await app.StopAsync();
     }
 
@@ -558,7 +570,9 @@ public class InicioSesionMicrosoftTests
         public override Task<ApplicationUser?> FindByLoginAsync(string loginProvider, string providerKey) =>
             Task.FromResult(DuenaDeLaIdentidad);
 
-        public override Task<ApplicationUser?> FindByEmailAsync(string email) => Task.FromResult<ApplicationUser?>(null);
+        public ApplicationUser? CuentaPorCorreo { get; init; }
+
+        public override Task<ApplicationUser?> FindByEmailAsync(string email) => Task.FromResult(CuentaPorCorreo);
 
         public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(false);
 

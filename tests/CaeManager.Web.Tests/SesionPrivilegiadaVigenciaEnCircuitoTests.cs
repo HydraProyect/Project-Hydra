@@ -63,13 +63,56 @@ public sealed class SesionPrivilegiadaVigenciaEnCircuitoTests : IAsyncLifetime
         _plataforma.FallosPendientes = fallos;
         _plataforma.CancelacionDelProveedor = cancelacionDelProveedor;
 
-        // Ejecuta un ciclo completo, sin depender de cuándo termina el tick en segundo plano.
-        var revalidar = typeof(RevalidacionCircuitoActivoHandler).GetMethod("RevalidarAsync",
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        await (Task)revalidar.Invoke(_handler, [CancellationToken.None])!;
+        await RevalidarUnCicloAsync(CancellationToken.None);
 
         _plataforma.ConsultasDeSesion.Should().Be(consultasAntes + 2, "hay exactamente un reintento");
         _seleccion.TenantIdSeleccionado.Should().Be(fallos == 1 ? _tenantVisitado : null);
+    }
+
+    [Fact]
+    public async Task Un_rechazo_real_al_revalidar_no_se_reintenta()
+    {
+        await AbrirCircuitoConSesionAsync(SesionPrivilegiada.VentanaMaxima);
+        var consultasAntes = _plataforma.ConsultasDeSesion;
+        _concesion.Revocar(Ahora());
+
+        await RevalidarUnCicloAsync(CancellationToken.None);
+
+        _plataforma.ConsultasDeSesion.Should().Be(consultasAntes + 1, "el reintento es solo para un error, no para un «no»");
+        _seleccion.TenantIdSeleccionado.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Con_el_circuito_cerrandose_un_fallo_termina_el_ciclo_sin_reintentar_ni_invalidar(bool puertaCerrada)
+    {
+        await AbrirCircuitoConSesionAsync(SesionPrivilegiada.VentanaMaxima);
+        var consultasAntes = _plataforma.ConsultasDeSesion;
+        _plataforma.FallosPendientes = 2;
+        using var cts = new CancellationTokenSource();
+        if (puertaCerrada)
+            (await _puerta.CerrarAsync(TimeSpan.FromSeconds(1))).Should().BeTrue();
+        else
+            await cts.CancelAsync();
+
+        var ciclo = () => RevalidarUnCicloAsync(cts.Token);
+
+        await ciclo.Should().ThrowAsync<OperationCanceledException>("el bucle del circuito reconoce así su cierre");
+        _plataforma.ConsultasDeSesion.Should().Be(consultasAntes, "un circuito que se cierra no vuelve a la base");
+        _seleccion.TenantIdSeleccionado.Should().Be(_tenantVisitado,
+            "el cierre del circuito no es un fallo de la comprobación y no dispara la retirada de la selección");
+    }
+
+    /// <summary>
+    /// Un ciclo completo de revalidación, sin depender de cuándo termina el tick en segundo plano (el reloj manual no
+    /// avanza, así que el temporizador no dispara a la vez).
+    /// </summary>
+    private Task RevalidarUnCicloAsync(CancellationToken cancellationToken)
+    {
+        var revalidar = typeof(RevalidacionCircuitoActivoHandler).GetMethod("RevalidarAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        return (Task)revalidar.Invoke(_handler, [cancellationToken])!;
     }
 
     [Fact]
