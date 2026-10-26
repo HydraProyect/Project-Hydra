@@ -119,8 +119,9 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     }
 
     [Fact]
-    public async Task NoReparaUnaReferenciaEliminadaSinNingunaVigente()
+    public async Task ReparaTambienUnaReferenciaEliminadaSinNingunaVigente()
     {
+        // La papelera puede restaurarla: su blob tiene que entrar en la copia de seguridad.
         await using var db = await CrearContexto();
         var eliminada = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 10, 26), VigenciaDocumento.NoCaduca, Temporal);
         eliminada.MarcarComoEliminado(Guid.NewGuid());
@@ -129,8 +130,41 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
         await db.SaveChangesAsync();
         await Escribir(Temporal);
 
-        Assert.Empty(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+
+        Assert.False(File.Exists(Ruta(Temporal)));
+        Assert.Equal("contenido intacto", await File.ReadAllTextAsync(Ruta(Definitivo)));
+        db.ChangeTracker.Clear();
+        Assert.Equal(Definitivo, (await db.Documentos.IgnoreQueryFilters().SingleAsync()).ArchivoUrl);
+    }
+
+    [Fact]
+    public async Task ReanudaSiElDestinoYaGuardaElContenidoYSoloActualizaLaReferencia()
+    {
+        await using var db = await CrearContexto(Temporal);
+        await Escribir(Definitivo);
+
+        var reparado = Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+
+        Assert.True(reparado.DestinoOcupado);
+        Assert.Equal("contenido intacto", await File.ReadAllTextAsync(Ruta(Definitivo)));
+        db.ChangeTracker.Clear();
+        Assert.Equal(Definitivo, (await db.Adjuntos.SingleAsync()).ArchivoUrl);
+    }
+
+    [Fact]
+    public async Task ReanudaConAmbasRutasDelMismoContenidoSinBorrarNinguna()
+    {
+        await using var db = await CrearContexto(Temporal);
+        await Escribir(Temporal);
+        await Escribir(Definitivo);
+
+        Assert.Single(await new ReparacionAdjuntosTemporales(db).EjecutarAsync(raiz, true));
+
         Assert.True(File.Exists(Ruta(Temporal)));
+        Assert.True(File.Exists(Ruta(Definitivo)));
+        db.ChangeTracker.Clear();
+        Assert.Equal(Definitivo, (await db.Adjuntos.SingleAsync()).ArchivoUrl);
     }
 
     [Fact]
@@ -191,14 +225,23 @@ public sealed class ReparacionAdjuntosTemporalesTests : IDisposable
     }
 
     [Fact]
-    public async Task InformaReferenciaAusenteYAplicarFallaSinActualizar()
+    public async Task InformaReferenciaAusenteYAplicarLaDejaIntactaSinDetenerElResto()
     {
-        await using var db = await CrearContexto(Temporal);
-        var servicio = new ReparacionAdjuntosTemporales(db);
-        Assert.False(Assert.Single(await servicio.EjecutarAsync(raiz)).ExisteEnDisco);
-        await Assert.ThrowsAsync<FileNotFoundException>(() => servicio.EjecutarAsync(raiz, true));
+        const string otra = "tenant/otro.pdf.tmp-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        await using var db = await CrearContexto(Temporal, otra);
+        await Escribir(otra);
+        var avisos = new RegistroAvisos();
+        var servicio = new ReparacionAdjuntosTemporales(db, avisos);
+        Assert.False(Assert.Single(await servicio.EjecutarAsync(raiz), r => r.RutaAnterior == Temporal).ExisteEnDisco);
+
+        var aplicados = await servicio.EjecutarAsync(raiz, true);
+
+        Assert.Equal(2, aplicados.Count);
+        Assert.Contains(avisos.Mensajes, m => m.Contains("sin fichero en disco"));
         db.ChangeTracker.Clear();
-        Assert.Equal(Temporal, (await db.Adjuntos.SingleAsync()).ArchivoUrl);
+        var rutas = (await db.Adjuntos.ToListAsync()).Select(a => a.ArchivoUrl).ToList();
+        Assert.Contains(Temporal, rutas);
+        Assert.Contains("tenant/otro.pdf", rutas);
     }
 
     [Theory]

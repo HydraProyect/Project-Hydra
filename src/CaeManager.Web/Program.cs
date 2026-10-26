@@ -683,7 +683,7 @@ if (args.Contains(CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTempor
         var resultados = await new CaeManager.Infrastructure.FileStorage.ReparacionAdjuntosTemporales(contextoReparacion, registroReparacion)
             .EjecutarAsync(raizAlmacen, aplicar);
         foreach (var resultado in resultados)
-            Console.WriteLine($"{(aplicar ? "Aplicado" : "Simulación")}: {resultado.RutaAnterior} -> {resultado.RutaNueva}; existe={resultado.ExisteEnDisco}; extensionRecuperada={resultado.ExtensionRecuperada}");
+            Console.WriteLine($"{(aplicar ? "Aplicado" : "Simulación")}: {resultado.RutaAnterior} -> {resultado.RutaNueva}; existe={resultado.ExisteEnDisco}; destinoOcupado={resultado.DestinoOcupado}; extensionRecuperada={resultado.ExtensionRecuperada}");
         Console.WriteLine($"{resultados.Count} adjuntos definitivos con nombre temporal.");
     }
     catch (Exception ex)

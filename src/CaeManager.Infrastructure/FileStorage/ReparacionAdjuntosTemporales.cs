@@ -21,13 +21,21 @@ public sealed record AdjuntoTemporalDefinitivo(string RutaAnterior, string RutaN
     /// el definitivo queda sin extensión, igual que lo dejaría hoy <c>GuardarAsync</c>.
     /// </summary>
     public bool ExtensionRecuperada { get; init; } = true;
+
+    /// <summary>
+    /// <c>true</c> cuando ya existe un fichero con el nombre definitivo. Si el origen falta o tiene
+    /// el mismo contenido, es una reparación interrumpida y solo se actualiza la referencia;
+    /// si el contenido difiere, aplicar se detiene sin sobrescribir nada.
+    /// </summary>
+    public bool DestinoOcupado { get; init; }
 }
 
 /// <summary>
 /// Mantenimiento administrativo explícito, con el contexto de bootstrap y la aplicación detenida.
 /// No modifica RLS. Solo considera referencias persistidas; nunca enumera ni elimina huérfanos.
 /// Disco y PostgreSQL no comparten transacción: ante un error se compensan los renombrados.
-/// Una interrupción del proceso durante la operación exige revisar las rutas antes de reintentar.
+/// Tras una interrupción basta con relanzarlo: un destino que ya guarda el contenido se reanuda
+/// actualizando solo la referencia. Una referencia sin fichero en disco se informa y no se toca.
 /// Nunca inventa una extensión: si no puede recuperarse, el definitivo queda sin ella y se
 /// registra un aviso con el tipo y el id de cada registro afectado, sin nombres de fichero.
 /// </summary>
@@ -77,10 +85,8 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
         {
             foreach (var grupo in referencias.GroupBy(p => (string)p.CurrentValue!, StringComparer.Ordinal))
             {
-                // Las referencias eliminadas no activan una reparación, pero se actualizan
-                // junto a la vigente si comparten el mismo blob, para permitir restaurarlas.
-                if (!grupo.Any(p => EsVigente(p.EntityEntry)))
-                    continue;
+                // También las referencias eliminadas o sustituidas: la papelera puede restaurarlas
+                // y su blob debe entrar en la copia de seguridad igual que el de una vigente.
                 var anterior = grupo.Key;
                 if (!Sufijo.IsMatch(anterior)) continue;
                 var nombre = Path.GetFileName(anterior);
@@ -96,17 +102,32 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
                 var nueva = anterior[..^(Path.GetFileName(anterior).Length)] + nombre;
                 var origen = Resolver(raiz, anterior);
                 var destino = Resolver(raiz, nueva);
-                resultado.Add(new(anterior, nueva, File.Exists(origen)) { ExtensionRecuperada = extension.Length > 0 });
+                var existeOrigen = File.Exists(origen);
+                var existeDestino = File.Exists(destino);
+                resultado.Add(new(anterior, nueva, existeOrigen)
+                {
+                    ExtensionRecuperada = extension.Length > 0,
+                    DestinoOcupado = existeDestino,
+                });
                 if (extension.Length == 0)
-                    foreach (var propiedad in grupo)
-                        _logger.LogWarning(
-                            "Adjunto definitivo sin extensión original recuperable: {Entidad} {Id}. Se deja sin extensión.",
-                            propiedad.EntityEntry.Metadata.ClrType.Name, propiedad.EntityEntry.Property("Id").CurrentValue);
+                    Avisar(grupo, "Adjunto definitivo sin extensión original recuperable: {Entidad} {Id}. Se deja sin extensión.");
+                if (!existeOrigen && !existeDestino)
+                {
+                    // Sin fichero que renombrar: la referencia no se toca y el resto sigue.
+                    Avisar(grupo, "Adjunto definitivo sin fichero en disco: {Entidad} {Id}. No se modifica la referencia.");
+                    continue;
+                }
                 if (!aplicar) continue;
 
-                // Move sin sobrescritura: una colisión o un origen ausente falla antes del UPDATE.
-                File.Move(origen, destino);
-                movidos.Add((origen, destino));
+                // Reanudación: el destino ya guarda el contenido (renombrado previo sin UPDATE
+                // confirmado). Solo se actualiza la referencia; el origen, si queda, no se borra.
+                var reanudacion = existeDestino && (!existeOrigen || MismoContenido(origen, destino));
+                if (!reanudacion)
+                {
+                    // Move sin sobrescritura: una colisión con otro contenido falla antes del UPDATE.
+                    File.Move(origen, destino);
+                    movidos.Add((origen, destino));
+                }
                 foreach (var delTenant in grupo.GroupBy(p => TenantPropietario(p.EntityEntry)))
                 {
                     using var ambito = AmbitoTenantExplicito.Establecer(delTenant.Key);
@@ -179,9 +200,29 @@ public sealed class ReparacionAdjuntosTemporales(DbContext db, ILogger? logger =
             ? id
             : throw new InvalidOperationException($"{entidad.Metadata.ClrType.Name} no declara Tenant propietario.");
 
-    private static bool EsVigente(EntityEntry entidad) =>
-        (entidad.Metadata.FindProperty("EstaEliminado") is null || entidad.Property("EstaEliminado").CurrentValue is false)
-        && (entidad.Metadata.FindProperty("SustituidoEnUtc") is null || entidad.Property("SustituidoEnUtc").CurrentValue is null);
+    // Solo tipo e id: nunca nombres de fichero ni rutas, que pueden contener datos personales.
+    private void Avisar(IEnumerable<PropertyEntry> grupo, string plantilla)
+    {
+        foreach (var propiedad in grupo)
+            _logger.LogWarning(plantilla,
+                propiedad.EntityEntry.Metadata.ClrType.Name, propiedad.EntityEntry.Property("Id").CurrentValue);
+    }
+
+    private static bool MismoContenido(string a, string b)
+    {
+        using var primero = File.OpenRead(a);
+        using var segundo = File.OpenRead(b);
+        if (primero.Length != segundo.Length) return false;
+        var bufferA = new byte[81920];
+        var bufferB = new byte[81920];
+        int leidos;
+        while ((leidos = primero.ReadAtLeast(bufferA, bufferA.Length, throwOnEndOfStream: false)) > 0)
+        {
+            segundo.ReadExactly(bufferB, 0, leidos);
+            if (!bufferA.AsSpan(0, leidos).SequenceEqual(bufferB.AsSpan(0, leidos))) return false;
+        }
+        return true;
+    }
 
     private static readonly StringComparison ComparacionRutas =
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
