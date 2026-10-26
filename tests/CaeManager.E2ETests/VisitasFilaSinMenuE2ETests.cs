@@ -88,7 +88,12 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
                 continue;
             }
 
-            await page.Keyboard.PressAsync("j");
+            // Con la clase pero sin foco, «j» pasaría a la fila siguiente (solo avanza): se devuelve el
+            // foco a la fila, como hace enfocarFilaActiva de atajos-lista.js.
+            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
+                await fila.FocusAsync();
+            else
+                await page.Keyboard.PressAsync("j");
             await page.WaitForTimeoutAsync(250);
         }
 
