@@ -127,8 +127,9 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
         ["--color-danger-500"] =
             "acento del icono de EstadoVacio (AcentoIcono, vía Razor) sobre --color-danger-50, que sí tiene "
             + "variante: 3,44:1 en claro y 4,55:1 en oscuro, por encima del 3:1 de componente gráfico en los "
-            + "dos temas sin necesitar variante propia. Y es además el rojo saturado de .toast-error y "
-            + ".boton-destructivo bajo texto blanco fijo, el caso que #690 ya documentó: darle variante por "
+            + "dos temas sin necesitar variante propia. Y es además el rojo saturado de los fondos con "
+            + "texto blanco fijo que quedan (banda de error del framework, límite de error de Blazor, "
+            + "contador de avisos), el caso que #690 ya documentó: darle variante por "
             + "tema no arreglaría nada y rompería ese otro papel.",
 
         ["--color-success-500"] =
@@ -169,7 +170,7 @@ public class TokensDeTextoConVarianteEnAmbosTemasTests
         ["--color-primary-500"] = "rellenos sin letra (barras, pistas de interruptor) y paso actual de Importación (letra --color-surface); no medido par a par",
         ["--color-success-700"] = "círculo del stepper completado: la letra ya tiene token propio (--color-exito-solido-texto); el relleno sigue siendo el token de texto",
         ["--color-warning-700"] = "punto de la leyenda del donut: 5,02:1 en claro, 1,67:1 en oscuro",
-        ["--color-danger-500"] = "toast de error y botón destructivo: 3,76:1 en los dos temas",
+        ["--color-danger-500"] = "banda de error del framework y límite de error de Blazor, con letra blanca: 3,76:1 en los dos temas",
         ["--color-success-500"] = "toast de éxito: 2,28:1 en los dos temas",
     };
 

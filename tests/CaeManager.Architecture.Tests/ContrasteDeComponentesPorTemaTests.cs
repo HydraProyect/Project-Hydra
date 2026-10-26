@@ -44,12 +44,14 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Deuda declarada, no cerrada: rellenos de color semántico con letra blanca.</b>
-/// <c>--color-danger-500</c> (#ef4444, banda de error del framework,
-/// contador de avisos) da 3,76:1 con blanco en los DOS temas (también en claro). Arreglarlo
-/// exige otro color de fondo (o letra oscura), y eso cambia el tema claro: es decisión de
-/// producto (sistema de diseño), no de este incremento. Mientras tanto cada par lleva un mínimo
+/// <c>--color-danger-500</c> (#ef4444, banda de error del framework y límite de error de
+/// Blazor) da 3,76:1 con blanco en los DOS temas (también en claro). Arreglarlo exige otro
+/// color de fondo (o letra oscura), y eso cambia el tema claro: es decisión de producto
+/// (sistema de diseño). Mientras tanto cada entrada de <c>DeudaConocida</c> lleva un mínimo
 /// rebajado a su valor de hoy para que no empeore, y el test de deuda falla en cuanto cumpla AA.
-/// (Los toasts salieron de esta deuda el 2026-10-17: fondo inverso <c>--color-toast-fondo</c>.)
+/// (Los toasts salieron de esta deuda el 2026-10-17: fondo inverso <c>--color-toast-fondo</c>.
+/// El botón destructivo y el de descartar trabajo del modal de reconexión salieron después:
+/// fondo <c>--color-destructivo-fondo</c> #dc2626, 4,83:1 con blanco, y #b91c1c en hover.)
 /// </para>
 ///
 /// <para>
