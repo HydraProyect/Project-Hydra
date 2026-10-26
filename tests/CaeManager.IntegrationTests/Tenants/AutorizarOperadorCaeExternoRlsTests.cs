@@ -354,6 +354,78 @@ public class AutorizarOperadorCaeExternoRlsTests : IAsyncLifetime
         estado.Operaciones.Should().Be(contextoAjeno ? 1 : 2);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Reactivar_desde_el_Tenant_del_Operador_CAE_externo_respeta_otro_acceso_vigente_y_la_cartera_bajo_RLS(
+        bool otroOperadorVigente)
+    {
+        var alta = await EjecutarAsync(_administradorPropietario, _operador, _propietario);
+        alta.EsExitoso.Should().BeTrue();
+        var administradorOperador = await SembrarUsuarioAsync("admin-reactivacion", _operador, Roles.Administrador);
+        var gestor = await SembrarUsuarioAsync("gestor-reactivacion", _operador, Roles.GestorCae);
+        await SembrarCarteraAsync(alta.Valor, gestor.Id);
+        (await RevocarAsync(administradorOperador, Roles.Administrador, alta.Valor)).Resultado.EsExitoso.Should().BeTrue();
+        (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((false, 0, 1, 0));
+
+        Guid? otraDelegacionId = null;
+        if (otroOperadorVigente)
+        {
+            var otroOperador = await SembrarOtroOperadorCaeExternoAsync();
+            var otraAlta = await EjecutarAsync(_administradorPropietario, otroOperador, _propietario);
+            otraAlta.EsExitoso.Should().BeTrue();
+            otraDelegacionId = otraAlta.Valor;
+        }
+
+        // La revocación cerró la Asignación de Cartera del Gestor CAE. Incluso cuando
+        // hay otro acceso vigente, la denegación debe preceder al estado de negocio.
+        await using var verificacion = ContextoPropietarioDeLaBase();
+        var auditoriaPrevia = await verificacion.RegistrosAuditoria.IgnoreQueryFilters()
+            .Where(r => r.EntidadTipo == nameof(DelegacionTenant) && r.EntidadId == alta.Valor)
+            .Select(r => r.Id).ToListAsync();
+        var sinCartera = await ReactivarAsync(gestor, Roles.GestorCae, alta.Valor);
+        sinCartera.Puede.Should().BeFalse();
+        sinCartera.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoEncontrada");
+        (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((false, 0, 1, 0));
+
+        // El Administrador del Operador CAE externo tiene autoridad organizativa.
+        // Actúa desde su Tenant de origen, no desde el Tenant propietario: la
+        // consulta del otro acceso debe verlo pese a esa diferencia bajo RLS.
+        var reactivar = await ReactivarAsync(administradorOperador, Roles.Administrador, alta.Valor);
+        reactivar.Puede.Should().BeTrue();
+        if (otroOperadorVigente)
+        {
+            reactivar.Resultado.Error.Codigo.Should().Be("DelegacionTenant.NoReactivable");
+            reactivar.Resultado.Error.Mensaje.Should().Be(
+                "No se puede reactivar este acceso. Habla con la organización propietaria de los datos.");
+            (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((false, 0, 1, 0));
+            (await verificacion.DelegacionesTenant.AsNoTracking()
+                .SingleAsync(d => d.Id == otraDelegacionId)).Activa.Should().BeTrue();
+        }
+        else
+        {
+            reactivar.Resultado.EsExitoso.Should().BeTrue(
+                reactivar.Resultado.EsFallido ? reactivar.Resultado.Error.Codigo : string.Empty);
+            (await EstadoAsync(alta.Valor, gestor.Id)).Should().Be((true, 1, 2, 1));
+        }
+
+        var auditoriaNueva = await verificacion.RegistrosAuditoria.IgnoreQueryFilters().AsNoTracking()
+            .Where(r => r.EntidadTipo == nameof(DelegacionTenant) && r.EntidadId == alta.Valor
+                        && !auditoriaPrevia.Contains(r.Id)).ToListAsync();
+        if (otroOperadorVigente)
+            auditoriaNueva.Should().BeEmpty("ningún intento rechazado modifica la Asignación de Operación delegada");
+        else
+        {
+            var registro = auditoriaNueva.Should().ContainSingle().Subject;
+            registro.ActorRealUsuarioId.Should().Be(administradorOperador.Id);
+            registro.UsuarioId.Should().Be(administradorOperador.Id);
+            using var antes = System.Text.Json.JsonDocument.Parse(registro.DatosAntes!);
+            using var despues = System.Text.Json.JsonDocument.Parse(registro.DatosDespues!);
+            antes.RootElement.GetProperty(nameof(DelegacionTenant.Activa)).GetBoolean().Should().BeFalse();
+            despues.RootElement.GetProperty(nameof(DelegacionTenant.Activa)).GetBoolean().Should().BeTrue();
+        }
+    }
+
     [Fact]
     public async Task El_segundo_guardado_fallido_no_deja_un_Tenant_huerfano_bajo_RLS()
     {
