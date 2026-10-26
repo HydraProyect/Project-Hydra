@@ -126,7 +126,8 @@ public partial class TrazaSoporte : IAsyncDisposable
         // Solo confirmar el lote después de persistirlo: la recarga al cambiar de Tenant
         // destruye este circuito y no debe adelantarse a las interacciones pendientes.
         _interaccionesRegistradas += descripciones.Length;
-        await InvokeAsync(StateHasChanged);
+        if (!_desmontado)
+            await InvokeAsync(StateHasChanged);
     }
 
     private async void AlCambiarDeUbicacion(object? remitente, LocationChangedEventArgs argumentos)
@@ -164,31 +165,55 @@ public partial class TrazaSoporte : IAsyncDisposable
                 {
                     await _inicializacion;
                 }
-                catch (JSException)
+                catch (Exception e) when (EsFalloDeInterop(e))
                 {
                     // Ya se notificó en OnAfterRenderAsync; aquí solo se libera lo que exista.
                 }
             }
 
             // detener() envía el lote pendiente y no resuelve hasta que
-            // RegistrarInteraccionesAsync lo ha guardado: la referencia .NET no
-            // puede liberarse antes, o el último tramo de clics se perdería.
+            // RegistrarInteraccionesAsync ha guardado ese lote y los que ya iban
+            // en vuelo: la referencia .NET no puede liberarse antes, o el último
+            // tramo de clics se perdería. Con tope, porque un navegador que ya no
+            // contesta no puede retener el desmontaje del circuito.
             if (_captura is not null)
             {
-                await _captura.InvokeVoidAsync("detener");
-                await _captura.DisposeAsync();
+                try
+                {
+                    using var tope = new CancellationTokenSource(TopeDetener);
+                    await _captura.InvokeVoidAsync("detener", tope.Token);
+                }
+                catch (Exception e) when (EsFalloDeInterop(e))
+                {
+                    // Circuito caído o navegador sin respuesta: el lote es tan
+                    // irrecuperable como al cerrar la pestaña sin pagehide.
+                }
             }
 
-            if (_modulo is not null)
-                await _modulo.DisposeAsync();
-        }
-        catch (JSDisconnectedException)
-        {
-            // El circuito ya se cerró: no hay módulo que liberar.
+            await LiberarAsync(_captura);
+            await LiberarAsync(_modulo);
         }
         finally
         {
             _referencia?.Dispose();
+        }
+    }
+
+    private static readonly TimeSpan TopeDetener = TimeSpan.FromSeconds(10);
+
+    private static bool EsFalloDeInterop(Exception e) =>
+        e is JSException or JSDisconnectedException or OperationCanceledException;
+
+    private static async ValueTask LiberarAsync(IJSObjectReference? referencia)
+    {
+        if (referencia is null) return;
+        try
+        {
+            await referencia.DisposeAsync();
+        }
+        catch (Exception e) when (EsFalloDeInterop(e))
+        {
+            // El circuito ya se cerró: no hay nada que liberar en el navegador.
         }
     }
 }

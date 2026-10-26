@@ -119,6 +119,31 @@ public class TrazaSoporteSenalesDeCapturaTests : BunitContext
         liberada.Should().Throw<ObjectDisposedException>("la referencia se libera solo después de vaciar el lote");
     }
 
+    [Theory]
+    [InlineData("cancelado")]
+    [InlineData("js")]
+    [InlineData("desconectado")]
+    public async Task Si_detener_falla_el_desmontaje_no_lanza_y_libera_la_referencia(string fallo)
+    {
+        var aviso = Render<TrazaSoporte>();
+        aviso.WaitForAssertion(() =>
+            aviso.Find(".aviso-sesion-soporte").GetAttribute("data-captura-lista").Should().Be("true"));
+        var referencia = (DotNetObjectReference<TrazaSoporte>)_modulo.Invocations["iniciar"].Single().Arguments[0]!;
+        var detener = _captura.SetupVoid("detener");
+        switch (fallo)
+        {
+            case "cancelado": detener.SetCanceled(); break;
+            case "js": detener.SetException(new JSException("El navegador no pudo detener la captura.")); break;
+            default: detener.SetException(new JSDisconnectedException("Circuito cerrado.")); break;
+        }
+
+        var desmontar = DisposeComponentsAsync;
+
+        await desmontar.Should().NotThrowAsync("un navegador caído o lento no puede derribar el desmontaje del circuito");
+        var liberada = () => referencia.Value;
+        liberada.Should().Throw<ObjectDisposedException>();
+    }
+
     [Fact]
     public async Task Desmontar_con_la_importacion_en_vuelo_no_engancha_nada()
     {

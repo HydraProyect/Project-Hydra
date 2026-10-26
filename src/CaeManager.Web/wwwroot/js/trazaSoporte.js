@@ -50,22 +50,25 @@ export function iniciar(referencia) {
     let pendientes = [];
     let temporizador = null;
     let activa = true;
+    const enVuelo = new Set();
 
     function enviar() {
         if (temporizador) {
             clearTimeout(temporizador);
             temporizador = null;
         }
-        if (pendientes.length === 0) return Promise.resolve();
+        if (pendientes.length === 0) return;
 
         const lote = pendientes;
         pendientes = [];
 
-        return referencia.invokeMethodAsync('RegistrarInteraccionesAsync', lote).catch(() => {
+        const envio = referencia.invokeMethodAsync('RegistrarInteraccionesAsync', lote).catch(() => {
             // Circuito caído o navegación en curso. No se reintenta: perder una
             // anotación de interacción no puede romper la sesión de quien está
             // atendiendo una incidencia.
         });
+        enVuelo.add(envio);
+        envio.then(() => enVuelo.delete(envio));
     }
 
     function programarEnvio() {
@@ -102,18 +105,19 @@ export function iniciar(referencia) {
          * Al desmontar el componente. El lote pendiente se toma y se envía
          * antes de quitar los listeners, en el mismo turno síncrono, así que
          * ningún clic queda entre medias sin anotar; cancelar el temporizador
-         * no pierde nada porque ese mismo envío se adelanta ahora. Devuelve la
-         * promesa del envío para que .NET espere a que el lote quede guardado
-         * antes de liberar la DotNetObjectReference.
+         * no pierde nada porque ese mismo envío se adelanta ahora. Resuelve
+         * cuando han terminado ese envío y los que ya iban en vuelo (del
+         * temporizador o de un lote lleno), para que .NET no libere la
+         * DotNetObjectReference con un lote todavía sin guardar.
          */
         detener() {
             if (!activa) return Promise.resolve();
             activa = false;
 
-            const envio = enviar();
+            enviar();
             document.removeEventListener('click', alPulsar, true);
             window.removeEventListener('pagehide', alAbandonar);
-            return envio;
+            return Promise.all([...enVuelo]).then(() => undefined);
         }
     };
 }
