@@ -13,7 +13,10 @@
 # Requisitos: borg en el host, el repo Borg ya inicializado
 # (`borg init --encryption=repokey-blake2 "$BORG_REPO"`) y los contenedores
 # caemanager-db del compose levantado y al menos una ranura de la app
-# (caemanager-app-azul / -verde) creada.
+# (caemanager-app-azul / -verde) creada. Corre como root (el cron sale de
+# /etc/caemanager-backup.env, solo-root): lee documentos/ en el punto de montaje
+# del volumen, bajo /var/lib/docker, con `unshare --mount` y `mount --bind`
+# (util-linux), sin copiarlos al disco del host (paso 3/4).
 #
 # Uso (cron diario recomendado, ver Project-Hydra-Negocio/tecnico/RUNBOOK-DESPLIEGUE-LOCAL.md § Backups):
 #   BORG_REPO='ssh://uXXXXXX@uXXXXXX.your-storagebox.de:23/./backups/caemanager' \
@@ -66,11 +69,12 @@ docker exec caemanager-db pg_dump -U postgres --format=custom caemanager \
     > "$DIR_TRABAJO/CaeManager.dump"
 [ -s "$DIR_TRABAJO/CaeManager.dump" ] || { echo "ERROR: el dump salió vacío"; exit 1; }
 
-echo "==> 2/4 Copiando dataprotection-keys/ y documentos/ del volumen..."
+echo "==> 2/4 Copiando dataprotection-keys/ y localizando documentos/ en el volumen..."
 # P1-F2: la app de producción corre en dos ranuras (caemanager-app-azul y
 # -verde, deploy/relevo-app.sh) y no hay un nombre fijo. Todas montan el mismo
 # volumen caemanager-data —también el contenedor único anterior a P1-F2—, y
-# `docker cp` lee también de un contenedor parado: vale cualquiera que exista.
+# tanto `docker cp` como el punto de montaje del volumen sirven también con el
+# contenedor parado: vale cualquiera que exista.
 CONTENEDOR_DATOS=""
 for candidato in caemanager-app-azul caemanager-app-verde caemanager-app; do
     if docker inspect "$candidato" > /dev/null 2>&1; then CONTENEDOR_DATOS="$candidato"; break; fi
@@ -81,9 +85,35 @@ docker cp "$CONTENEDOR_DATOS":/data/dataprotection-keys "$DIR_TRABAJO/dataprotec
 # Sin claves no hay backup válido.
 ls "$DIR_TRABAJO/dataprotection-keys"/*.xml >/dev/null 2>&1 \
     || { echo "ERROR: dataprotection-keys/ no contiene ninguna clave XML — ver Project-Hydra-Negocio/tecnico/RUNBOOK-CLAVES.md"; exit 1; }
-# documentos/ puede no existir aún (nadie subió un PDF todavía) — eso sí es válido.
-docker cp "$CONTENEDOR_DATOS":/data/documentos "$DIR_TRABAJO/documentos" 2>/dev/null \
-    || mkdir "$DIR_TRABAJO/documentos"
+
+# documentos/ NO se copia al host: hasta 2026-10 se hacía `docker cp` de todo
+# /data/documentos a este directorio temporal, y el disco del servidor tenía que
+# tener sitio para los documentos dos veces cada noche. Ahora Borg los lee en
+# su sitio, en el punto de montaje del volumen /data de la ranura (paso 3/4).
+VOLUMEN_DATOS=$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/data"}}{{if eq .Type "volume"}}{{.Name}}{{end}}{{end}}{{end}}' "$CONTENEDOR_DATOS")
+[ -n "$VOLUMEN_DATOS" ] \
+    || { echo "ERROR: /data de $CONTENEDOR_DATOS no es un volumen Docker con nombre; no se sabe de dónde leer documentos/"; exit 1; }
+# Solo un volumen `local` sin opciones guarda sus datos en el propio punto de
+# montaje. Uno con driver_opts (nfs, bind) u otro driver solo está montado ahí
+# mientras un contenedor lo usa: con la ranura parada se vería vacío y daría un
+# backup sin documentos y en verde.
+TIPO_VOLUMEN=$(docker volume inspect -f '{{ .Driver }} {{ len .Options }}' "$VOLUMEN_DATOS")
+[ "$TIPO_VOLUMEN" = "local 0" ] \
+    || { echo "ERROR: el volumen $VOLUMEN_DATOS no es un volumen local sin opciones ('$TIPO_VOLUMEN'); su punto de montaje puede no tener los documentos"; exit 1; }
+ORIGEN_DATOS=$(docker volume inspect -f '{{ .Mountpoint }}' "$VOLUMEN_DATOS")
+# /var/lib/docker solo lo atraviesa root: si esto falla, el cron no corre como root.
+[ -n "$ORIGEN_DATOS" ] && [ -d "$ORIGEN_DATOS" ] \
+    || { echo "ERROR: el punto de montaje del volumen $VOLUMEN_DATOS ('$ORIGEN_DATOS') no es un directorio accesible (¿el guion corre como root?)"; exit 1; }
+# documentos/ puede no existir aún (nadie subió un PDF todavía) — eso sí es
+# válido: el archivo lleva entonces un documentos/ vacío, como antes.
+mkdir "$DIR_TRABAJO/documentos"
+ORIGEN_DOCUMENTOS=""
+if [ -d "$ORIGEN_DATOS/documentos" ]; then
+    ORIGEN_DOCUMENTOS="$ORIGEN_DATOS/documentos"
+    echo "    documentos/ se lee en caliente de $ORIGEN_DOCUMENTOS (volumen $VOLUMEN_DATOS), sin copia temporal"
+else
+    echo "    el volumen $VOLUMEN_DATOS aún no tiene documentos/: el archivo lleva un documentos/ vacío"
+fi
 
 # El .env de producción (contraseña de PostgreSQL, la del rol cae_app_runtime,
 # DSN de Sentry, claves de IA y demás secretos) entra en el MISMO archivo Borg
@@ -122,8 +152,54 @@ ARCHIVO="caemanager-$(date -u +%Y-%m-%dT%H-%M-%S)"
 echo "==> 3/4 borg create ::$ARCHIVO ..."
 CONTENIDO=(CaeManager.dump dataprotection-keys documentos)
 [ -f "$DIR_TRABAJO/env-produccion" ] && CONTENIDO+=(env-produccion)
-(cd "$DIR_TRABAJO" && borg create --stats --compression zstd \
-    "::$ARCHIVO" "${CONTENIDO[@]}")
+# Rutas dentro del archivo, iguales que cuando documentos/ se copiaba aquí:
+# borg corre con el directorio de trabajo como cwd y rutas relativas, así que el
+# archivo lleva `CaeManager.dump`, `dataprotection-keys/<clave>.xml`,
+# `documentos/<tenantId>/...` y `env-produccion` en la raíz. La restauración
+# (scripts/ensayo-restauracion-borg.sh: `borg extract` en un directorio vacío)
+# no distingue los archivos de antes de los de después.
+#
+# documentos/ entra por un bind de SOLO LECTURA del punto de montaje del volumen
+# sobre $DIR_TRABAJO/documentos, hecho dentro de un espacio de nombres de montaje
+# privado (`unshare --mount`): el montaje solo lo ve este borg y desaparece con
+# él, aunque muera de un kill -9. Así no queda nunca un montaje colgado y el
+# `rm -rf "$DIR_TRABAJO"` de al_salir, que corre fuera de ese espacio, solo ve un
+# directorio vacío: no puede llegar a los documentos de producción.
+#
+# Copia «en caliente», sin parar la app, y basta: DiskFileStorageService escribe
+# cada documento en un temporal `<ruta>.tmp-<guid>` de la misma carpeta y lo
+# publica con un rename atómico, sin sobrescribir nunca un fichero existente
+# (renovar un documento crea otro fichero). Lo que Borg ve en la ruta final está
+# completo y no cambia; los temporales (escrituras a medias o huérfanas) se
+# excluyen. El patrón es el nombre exacto que les da GuardarAsync,
+# `documentos/<tenant>/<guid de 32 hex><extensión>.tmp-<guid de 32 hex>`, y no un
+# `*.tmp-*` genérico: la extensión sale del nombre del adjunto, que puede venir de
+# fuera (correo, WhatsApp), y un documento legítimo `<guid>.tmp-1` debe entrar.
+# Hueco residual conocido: un adjunto cuya extensión sea exactamente
+# `.tmp-<32 hex>` es indistinguible por el nombre de un temporal y no entra.
+# Un documento que se publique durante la copia entra en el archivo de
+# mañana; el volcado de la BD de esta noche se hizo ANTES (paso 1/4), así que
+# ninguna fila suya apunta a un fichero publicado después. Un fichero borrado
+# entre el volcado y la lectura falta en el archivo, igual que con el `docker cp`
+# de antes (mismo orden); si se borra mientras Borg lo lee, Borg avisa (código 1)
+# y el guion falla con /fail, como ante cualquier otro aviso de borg create: el
+# archivo queda hecho, pero esa noche no hay prune ni compact (igual que hasta
+# ahora), para que un archivo con avisos no saque de la retención a uno bueno.
+EXCLUIR_TEMPORALES='re:^documentos/[^/]+/[0-9a-f]{32}[^/]*\.tmp-[0-9a-f]{32}$'
+OPCIONES_CREATE=(--stats --compression zstd --exclude "$EXCLUIR_TEMPORALES")
+if [ -n "$ORIGEN_DOCUMENTOS" ]; then
+    unshare --mount --propagation private -- bash -eu -c '
+        origen="$1"; trabajo="$2"; shift 2
+        mount --bind "$origen" "$trabajo/documentos"
+        mount -o remount,bind,ro "$trabajo/documentos"
+        cd "$trabajo"
+        exec borg create "$@"
+    ' montar-documentos "$ORIGEN_DOCUMENTOS" "$DIR_TRABAJO" \
+        "${OPCIONES_CREATE[@]}" "::$ARCHIVO" "${CONTENIDO[@]}"
+else
+    (cd "$DIR_TRABAJO" && borg create "${OPCIONES_CREATE[@]}" \
+        "::$ARCHIVO" "${CONTENIDO[@]}")
+fi
 
 echo "==> 4/4 borg prune (7 diarios / 4 semanales / 6 mensuales) + compact..."
 borg prune --glob-archives 'caemanager-*' \
