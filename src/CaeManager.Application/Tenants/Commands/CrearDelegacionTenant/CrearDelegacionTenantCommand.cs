@@ -56,7 +56,7 @@ public class CrearDelegacionTenantCommandHandler(
     IAsignacionesOperativasWriter asignacionesWriter,
     IAutorizacionDelegacionTenant autorizacion, ICurrentUserService currentUserService,
     IUnitOfWork unitOfWork, ITransaccionDeComando transaccion,
-    IAsignacionAutomaticaDePrincipal asignacionAutomatica)
+    IAsignacionAutomaticaDePrincipal asignacionAutomatica, ITenantActual tenantActual)
     : IRequestHandler<CrearDelegacionTenantCommand, Result<Guid>>
 {
     public static readonly Error PrincipalNoAsignado = Error.Crear(
@@ -83,6 +83,11 @@ public class CrearDelegacionTenantCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "DelegacionTenant.NoAutorizado",
                 "Solo un administrador de la organización que delega puede autorizar el acceso a sus datos."));
+
+        if (tenantActual.TenantId != request.TenantClienteId)
+            return Result.Fallo<Guid>(Error.Crear(
+                "DelegacionTenant.NoAutorizado",
+                "Para autorizar el acceso, entra en la organización que delega."));
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         // Tenant es catálogo global (Entity, no EntidadConTenant): la consulta
@@ -162,14 +167,13 @@ public class CrearDelegacionTenantCommandHandler(
             // perdedora sale como DbUpdateException sin traducir (hallazgo E de la
             // revisión puente del incremento 1b, Baja). NO se traduce aquí a
             // propósito: Application no puede depender de Npgsql.PostgresException
-            // para distinguir esa carrera de otro DbUpdateException real —el que
-            // lanza RLS cuando el workspace activo no es el Tenant propietario— sin
-            // cruzar la frontera de capas (FronterasDeCapaTests). Un catch (DbUpdateException)
-            // sin esa distinción tapaba ese segundo caso: Desde_el_workspace_de_otro_tenant_RLS_no_deja_escribir_la_operacion
-            // dejó de ver la excepción que RLS lanza aposta. Traducirlo bien exige
-            // mover la comprobación de ConstraintName a Infrastructure (mismo
-            // patrón que OperacionImportacionRepository/ExpiracionAsignacionesHostedService) —
-            // incremento aparte. La transacción explícita no cambia esto: la excepción sale igual.
+            // para distinguirla de otro DbUpdateException real sin cruzar la
+            // frontera de capas (FronterasDeCapaTests); traducirla exige mover la
+            // comprobación de ConstraintName a Infrastructure, incremento aparte.
+            // El Workspace operativo derivado ajeno ya no llega hasta aquí: se
+            // rechaza arriba con DelegacionTenant.NoAutorizado, antes de escribir.
+            // La política WITH CHECK de AsignacionesOperacion sigue siendo la
+            // defensa de fondo si esa guarda faltara.
             await unitOfWork.SaveChangesAsync(ct);
 
             // Quien ejecuta es el Administrador del Tenant propietario: la RLS de cuentas no le

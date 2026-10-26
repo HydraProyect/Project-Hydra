@@ -26,12 +26,52 @@ public class RevocacionDelegacionTests
     private static readonly Guid Consultora = Guid.NewGuid();
     private static readonly Guid ClienteDelegante = Guid.NewGuid();
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Desactivar_desde_un_contexto_ajeno_o_sin_Tenant_no_modifica_la_delegacion(bool sinTenant)
+    {
+        var (delegacion, repositorio, unitOfWork) = Preparar();
+        var writer = new AsignacionesOperativasWriterFalso();
+        var handler = new DesactivarDelegacionTenantCommandHandler(
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), writer, unitOfWork,
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(sinTenant ? null : Guid.NewGuid()));
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
+        resultado.Error.Mensaje.Should().Contain("organización que delega").And.NotContain("Tenant");
+        delegacion.Activa.Should().BeTrue();
+        writer.OperacionesCerradas.Should().BeEmpty();
+        unitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Una_delegacion_de_Soporte_se_revoca_sin_exigir_el_Tenant_propietario_activo()
+    {
+        // Las de Soporte no escriben en AsignacionesOperacion: la guarda de contexto
+        // existe por la política WITH CHECK de esa tabla y no debe alcanzarlas.
+        var delegacion = DelegacionTenant.ParaSoporte(Consultora, ClienteDelegante);
+        delegacion.ActivarParaSoporte("Incidencia abierta por el Tenant propietario", DateTime.UtcNow.AddHours(1), DateTime.UtcNow);
+        var repositorio = new DelegacionTenantRepositorioFalso();
+        repositorio.Agregar(delegacion);
+        var unitOfWork = new UnitOfWorkFalso();
+        var handler = new DesactivarDelegacionTenantCommandHandler(
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork,
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(Consultora));
+
+        var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        delegacion.Activa.Should().BeFalse();
+    }
+
     [Fact]
     public async Task La_consultora_puede_renunciar_al_acceso()
     {
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -46,7 +86,7 @@ public class RevocacionDelegacionTests
         // poder cortar sin depender de la buena voluntad de quien los trata.
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: ClienteDelegante), new AsignacionesOperativasWriterFalso(), unitOfWork, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -59,7 +99,7 @@ public class RevocacionDelegacionTests
     {
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Guid.NewGuid()), new AsignacionesOperativasWriterFalso(), unitOfWork, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -79,7 +119,7 @@ public class RevocacionDelegacionTests
         // (ADR-004 § 6): fuera de un circuito autenticado no hay origen.
         var (delegacion, repositorio, unitOfWork) = Preparar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(), new AsignacionesOperativasWriterFalso(), unitOfWork, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
@@ -93,7 +133,7 @@ public class RevocacionDelegacionTests
         var (delegacion, repositorio, unitOfWork) = Preparar();
         delegacion.Desactivar();
         var handler = new DesactivarDelegacionTenantCommandHandler(
-            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork);
+            repositorio, new CurrentUserServiceFalso(tenantOrigenId: Consultora), new AsignacionesOperativasWriterFalso(), unitOfWork, new CaeManager.Application.Tests.Configuracion.TenantActualFijo(ClienteDelegante));
 
         var resultado = await handler.Handle(new DesactivarDelegacionTenantCommand(delegacion.Id), CancellationToken.None);
 
