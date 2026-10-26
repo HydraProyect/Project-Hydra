@@ -33,8 +33,14 @@ public class VegaPanelE2ETests(WebAppFixture fixture)
         await PlegarAsync(page);
     }
 
+    /// <summary>
+    /// El borrador vive en el circuito (AsistenteIa.razor.cs), no en el navegador: sobrevive a plegar y
+    /// abrir, y el cambio de Tenant activo, que recarga la página y abre un circuito nuevo, no lo arrastra.
+    /// Lo que fija la segunda mitad es que nada (vega.js, sessionStorage, localStorage) lo persiste
+    /// fuera del circuito; no prueba el cambio de Tenant efectivo dentro de un mismo circuito.
+    /// </summary>
     [Fact]
-    public async Task El_borrador_se_conserva_al_plegar_y_no_se_filtra_a_otro_Tenant_propietario()
+    public async Task El_borrador_se_conserva_al_plegar_y_no_sobrevive_al_cambio_de_Tenant_activo()
     {
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -59,10 +65,28 @@ public class VegaPanelE2ETests(WebAppFixture fixture)
     private static ILocator Panel(IPage page) => page.GetByRole(AriaRole.Complementary, new() { Name = "Vega", Exact = true });
     private static ILocator Campo(IPage page) => Panel(page).GetByRole(AriaRole.Textbox, new() { Name = "Mensaje para Vega" });
 
+    /// <summary>
+    /// El botón es un islote interactivo: un clic antes de que el circuito conecte no hace nada, así que
+    /// se repite hasta que el panel aparece (mismo criterio que Ayudas.AbrirSelectorTenantAsync).
+    /// </summary>
     private static async Task AbrirAsync(IPage page)
     {
-        await page.GetByRole(AriaRole.Button, new() { NameRegex = new("^Abrir Vega, el asistente de ") }).ClickAsync();
-        await Expect(Panel(page)).ToBeVisibleAsync();
+        var boton = page.GetByRole(AriaRole.Button, new() { NameRegex = new("^Abrir Vega, el asistente de ") });
+        var panel = Panel(page);
+        for (var intento = 0; intento < 20 && !await panel.IsVisibleAsync(); intento++)
+        {
+            await boton.ClickAsync();
+            try
+            {
+                await panel.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = 1_500 });
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                // El circuito aún no había conectado: se vuelve a pulsar.
+            }
+        }
+
+        await Expect(panel).ToBeVisibleAsync();
     }
 
     private static async Task PlegarAsync(IPage page)
