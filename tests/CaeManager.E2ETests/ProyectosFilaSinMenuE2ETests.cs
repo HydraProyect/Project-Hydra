@@ -115,6 +115,10 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await ventana.Locator(".ventana-contexto-disparador").ClickAsync();
         var lista = ventana.GetByRole(AriaRole.Group, new LocatorGetByRoleOptions { Name = "Técnicos activos", Exact = true });
         await Expect(lista).ToBeVisibleAsync();
+        // La entrada del panel (@starting-style, --motion-base) ha terminado: el clic con ratón en un
+        // técnico, más abajo, ya no lo encuentra en movimiento («not stable»), que es lo que hacía a
+        // Playwright reintentar con un desplazamiento forzado.
+        await Expect(lista).ToHaveCSSAsync("opacity", "1");
         await Expect(panel).ToHaveCountAsync(0);
 
         // El título y el pie de la ventana no son botones, pero quien pulsa ahí está usando la
@@ -128,7 +132,8 @@ public class ProyectosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // desplazamiento seguía animándose después del clic. El clic en el título deja el foco en el
         // body, así que solo :hover sostenía la ventana: al alejarse del cursor se cerraba y el pie
         // quedaba «not visible» hasta el tiempo límite (issue #1726). Despachado, el foco sigue en el
-        // disparador y :focus-within la mantiene abierta.
+        // disparador y :focus-within la mantiene abierta. Que el panel recibe el puntero lo sigue
+        // comprobando el clic con ratón en un técnico.
         await lista.Locator(".ventana-contexto-titulo").DispatchEventAsync("click");
         await lista.Locator(".ventana-contexto-pie").DispatchEventAsync("click");
         Assert.Equal(1, await PulsacionesDelNombreAsync(page));
