@@ -105,13 +105,14 @@
 }
 
 .boton-destructivo {
-    background-color: var(--color-danger-500);
-    border-color: var(--color-danger-500);
+    background-color: var(--color-destructivo-fondo);
+    border-color: var(--color-destructivo-fondo);
     color: var(--color-neutral-0);
 }
 
 .boton-destructivo:not(:disabled):hover {
-    opacity: 0.9;
+    background-color: var(--color-destructivo-fondo-hover);
+    border-color: var(--color-destructivo-fondo-hover);
     transform: translateY(-1px);
 }
 

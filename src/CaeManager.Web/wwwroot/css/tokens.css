@@ -49,6 +49,9 @@
   --color-warning-700: #b45309;
   --color-danger-50: #fef2f2;
   --color-danger-500: #ef4444;
+  /* Fondos de botón con letra blanca, iguales en claro y oscuro (AA). */
+  --color-destructivo-fondo: #dc2626;
+  --color-destructivo-fondo-hover: #b91c1c;
   --color-danger-700: #991b1b;
   /* «En tolerancia» (EstadoDocumento.EnTolerancia, decisión de Chris 2026-10-04):
      un tono propio entre el ámbar de Próximo / Sin confirmar y el rojo de Vencido,
