@@ -324,25 +324,14 @@ authenticationBuilder.AddScheme<ExtensionAuthenticationSchemeOptions, ExtensionA
 // local sigue siendo el único camino y se comporta exactamente igual que
 // hoy (mismo principio "inerte por defecto" que Sentry/Backups/Anthropic).
 var azureAd = builder.Configuration.GetSection(AzureAdOptions.SeccionConfiguracion).Get<AzureAdOptions>() ?? new AzureAdOptions();
-builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd,
-    "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
+builder.Services.AvisarSiConfiguracionAMedias(AzureAdOptions.SeccionConfiguracion, azureAd, azureAd.EstaConfigurado
+    ? "El login con Microsoft Entra ID está registrado pero rechaza a todo el mundo hasta que se configure su Tenant destino; la restricción del login local sigue activa."
+    : "El login con Microsoft Entra ID NO se ha registrado: el botón «Iniciar sesión con Microsoft» no aparece y el login local es el único camino.");
 
 if (azureAd.EstaConfigurado)
 {
-    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)", options =>
-    {
-        options.Authority = $"{azureAd.Instance}{azureAd.TenantId}/v2.0";
-        options.ClientId = azureAd.ClientId;
-        options.ClientSecret = azureAd.ClientSecret;
-        options.ResponseType = OpenIdConnectResponseType.Code;
-        options.CallbackPath = "/signin-microsoft";
-        options.SignInScheme = IdentityConstants.ExternalScheme;
-        options.SaveTokens = false;
-        options.Scope.Clear();
-        options.Scope.Add("openid");
-        options.Scope.Add("profile");
-        options.Scope.Add("email");
-    });
+    authenticationBuilder.AddOpenIdConnect(IdentityEndpointsExtensions.EsquemaMicrosoft, "Microsoft (empresa)",
+        options => InicioSesionMicrosoft.Configurar(options, azureAd));
 }
 
 // Intervalo con el que la cookie y el circuito de Blazor vuelven a preguntar
@@ -657,8 +646,8 @@ builder.Services.AddHealthChecks()
     .AddNpgSql(
         sp => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(builder.Configuration, builder.Environment),
         name: "postgresql")
-    // P6: clave del contexto RLS firmado. Degraded, nunca Unhealthy, en la
-    // fase «expandir» (ver ClaveContextoRlsHealthCheck).
+    // P6: clave del contexto RLS firmado. Desde «contraer», Unhealthy sin clave
+    // descifrable y Degraded si caduca pronto (ver ClaveContextoRlsHealthCheck).
     .Add(new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckRegistration(
         "contexto-rls-clave",
         sp => new CaeManager.Infrastructure.Persistence.ContextoRls.ClaveContextoRlsHealthCheck(
@@ -1026,7 +1015,7 @@ using (var scope = app.Services.CreateScope())
     {
         logger.LogWarning(
             "[AVISO] Sin ConnectionStrings:CaeManagerDbRuntime, el tráfico conecta con el rol propietario " +
-            "de las tablas, al que PostgreSQL no somete a RLS ni con FORCE ROW LEVEL SECURITY. El " +
+            "de las tablas, exento de RLS (superusuario o BYPASSRLS, y si no lo es, solo lo ata FORCE). El " +
             "aislamiento por tenant descansa hoy solo en el filtro global de EF Core, que no cubre SQL " +
             "crudo, IgnoreQueryFilters ni las tablas de Identity. Entorno: {Entorno}. Ver " +
             "deploy/bootstrap/roles-de-cluster.sql para aprovisionar cae_app_runtime.",

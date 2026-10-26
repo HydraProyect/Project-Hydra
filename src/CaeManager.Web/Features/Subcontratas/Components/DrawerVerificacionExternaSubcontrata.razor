@@ -26,6 +26,7 @@
 @using CaeManager.Application.Subcontratas.Queries.ObtenerSupervisionSubcontrata
 @using CaeManager.Application.TiposDocumento.Queries.ObtenerTiposDocumento
 @using CaeManager.Domain.Documentos
+@using CaeManager.Domain.Common
 @using CaeManager.Domain.Subcontratas
 @using CaeManager.Web.Features.Subcontratas.Recursos
 @using CaeManager.Web.Services
@@ -320,16 +321,34 @@
             // Sin token: retirar la página no deshace un registro que el usuario ya pidió.
             var observaciones = string.IsNullOrWhiteSpace(_observaciones) ? null : _observaciones;
             var anterior = _editando;
-            var resultado = anterior is null
-                ? await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
+            Guid versionGuardada = default;
+            Result resultado;
+            if (anterior is null)
+                resultado = await Mediator.Send(new RegistrarVerificacionExternaSubcontrataCommand(
                     subcontrataId, centroId, tipoId, fecha, resultadoVerificacion, validoHasta, observaciones,
-                    _evidenciaContenido, _evidenciaNombre))
-                : await Mediator.Send(new ActualizarVerificacionExternaSubcontrataCommand(
-                    anterior.Id, fecha, resultadoVerificacion, validoHasta, observaciones,
                     _evidenciaContenido, _evidenciaNombre));
+            else
+            {
+                var edicion = await Mediator.Send(new ActualizarVerificacionExternaSubcontrataCommand(
+                    anterior.Id, fecha, resultadoVerificacion, validoHasta, observaciones,
+                    _evidenciaContenido, _evidenciaNombre, anterior.Version));
+                resultado = edicion;
+                if (edicion.EsExitoso) versionGuardada = edicion.Valor;
+            }
 
             if (resultado.EsFallido)
             {
+                // La verificación cambió desde que se abrió el formulario: se avisa, se cierra y se relee la supervisión para que
+                // «Editar» parta de lo que hay ahora; con la copia vieja el mismo conflicto se repetiría sin salida.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                {
+                    ToastService.MostrarError(resultado.Error);
+                    if (subcontrataId != SubcontrataId) return;
+                    _visible = false;
+                    await OnRegistrada.InvokeAsync();
+                    return;
+                }
+
                 _mensajeError = resultado.Error.Mensaje;
                 return;
             }
@@ -340,7 +359,7 @@
             // «Deshacer» de una edición devuelve los valores anteriores; con archivo nuevo no se ofrece (ver el comentario de arriba).
             if (anterior is not null && _evidenciaContenido is null)
                 ToastService.Mostrar(Textos["ToastVerificacionGuardada", nombreTipo], TonoToast.Exito,
-                    Textos["ToastAccionDeshacer"].Value, () => DeshacerEdicionAsync(anterior, nombreTipo));
+                    Textos["ToastAccionDeshacer"].Value, () => DeshacerEdicionAsync(anterior, nombreTipo, versionGuardada));
             else
                 ToastService.Mostrar(Textos["ToastVerificacionGuardada", nombreTipo], TonoToast.Exito);
             // La página pudo pasar a otra subcontrata con el registro en vuelo: su supervisión no es la de esta.
@@ -363,16 +382,19 @@
     }
 
     /// <summary>«Deshacer» del aviso de una edición: devuelve fecha, resultado, validez y observaciones de antes; la evidencia no cambió.</summary>
-    private async Task DeshacerEdicionAsync(UltimaVerificacionDto anterior, string nombreTipo)
+    private async Task DeshacerEdicionAsync(UltimaVerificacionDto anterior, string nombreTipo, Guid versionGuardada)
     {
         try
         {
             var resultado = await Mediator.Send(new ActualizarVerificacionExternaSubcontrataCommand(
-                anterior.Id, anterior.FechaVerificacion, anterior.Resultado, anterior.ValidoHasta, anterior.Observaciones));
+                anterior.Id, anterior.FechaVerificacion, anterior.Resultado, anterior.ValidoHasta, anterior.Observaciones, Version: versionGuardada));
 
             if (resultado.EsFallido)
             {
                 ToastService.MostrarError(resultado.Error);
+                // Otra persona la cambió después de guardar: se relee para que la fila muestre lo que hay ahora.
+                if (resultado.Error.Codigo == ConcurrenciaOptimista.CodigoConflicto)
+                    await OnRegistrada.InvokeAsync();
                 return;
             }
 

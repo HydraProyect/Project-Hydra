@@ -11,9 +11,51 @@
        cambie. Actualizar una dependencia sigue siendo `dotnet restore` con
        el flag de reevaluación forzada, ahora con el lock file como diff
        explícito en el PR en vez de un cambio invisible en el árbol de
-       paquetes. -->
+       paquetes.
+
+       El lock file solo protege mientras sigue siendo válido (2026-10-25).
+       Basta con tocar un csproj o, con toda probabilidad, con compilar con
+       otro SDK (el lock de Web guarda una dependencia implícita cuya versión
+       pone el SDK), para que ese proyecto vuelva a resolver sus comodines y
+       suba a lo último publicado mientras sus vecinos siguen en lo de su
+       lock. Medido en la cola de fusión: Identity.UI 10.0.13 frente a
+       10.0.14 en Web.Tests, MSB3277 con -warnaserror.
+       Por eso los PackageReference de este repositorio no llevan comodín
+       (a esa fecha, la única excepción es Npgsql "10.*" en
+       CaeManager.E2ETests, que no tiene vecinos con los que desalinearse).
+       Una versión sin comodín es un suelo: NuGet elige esa salvo que un
+       transitivo exija más. Por eso los que tienen que ir a la par (ASP.NET
+       Core y EF Core de una misma publicación de .NET) se suben juntos en el
+       grupo `dotnet-10` de .github/dependabot.yml; un transitivo de fuera
+       del grupo que pida un suelo mayor puede reabrir el desfase. -->
   <PropertyGroup>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+  </PropertyGroup>
+
+  <!-- Modo bloqueado en CI (2026-10-25). Sin él, un lock que no cuadra con
+       el proyecto no da error: NuGet lo descarta, reevalúa el grafo entero
+       con los comodines (10.* resuelve lo último publicado) y reescribe el
+       lock en el runner. Así entró EF Core 10.0.14 en Web el día de su
+       publicación mientras IntegrationTests seguía en 10.0.13 por su lock
+       (MSB3277 en la cola de fusión).
+
+       La causa del desajuste fue el SDK, no los csproj: un proyecto con
+       .razor recibe del SDK la referencia implícita
+       Microsoft.AspNetCore.App.Internal.Assets, versionada con el ASP.NET
+       Core que trae ese SDK (KnownAspNetCorePack en
+       Microsoft.NETCoreSdk.BundledVersions.props: 10.0.10 en el SDK 10.0.302,
+       10.0.11 en el 10.0.400), y queda escrita en el lock de
+       CaeManager.Web. Por eso global.json fija el SDK exacto, y cambiar de SDK
+       obliga a regenerar ese lock en la misma PR (y a mover a la par la
+       imagen sdk del Dockerfile).
+
+       GitHub Actions define CI=true en el entorno y MSBuild lo lee como
+       propiedad. En local no se bloquea, a propósito: un SDK distinto
+       reescribe el lock y el cambio aparece en el diff; ese diff es el aviso.
+       Actualizar dependencias sigue siendo el restore con reevaluación
+       forzada de arriba, en local y con el SDK de global.json. -->
+  <PropertyGroup Condition="'$(CI)' == 'true'">
+    <RestoreLockedMode>true</RestoreLockedMode>
   </PropertyGroup>
 
 </Project>

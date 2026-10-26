@@ -66,13 +66,21 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private bool _esTenantOrigenPlataforma;
 
     /// <summary>
-    /// Por delegación con criterio de reactivación cargado: ¿puede el usuario
-    /// actual reactivarla? EXACTAMENTE el predicado de <c>ReactivarDelegacionTenantCommand</c>
-    /// (vía <c>PuedeReactivarQuery</c>) — nunca <see cref="OperandoWorkspaceAjeno"/>, que
-    /// aquí no basta: reactivar exige ser Administrador del Cliente Delegante,
-    /// no solo operar desde el tenant de origen correcto.
+    /// Por acceso de Operador CAE externo revocado: ¿puede el usuario actual reactivarlo?
+    /// EXACTAMENTE el predicado de <c>ReactivarDelegacionTenantCommand</c> (vía
+    /// <c>PuedeReactivarQuery</c>) — nunca <see cref="OperandoWorkspaceAjeno"/>, que aquí no
+    /// basta: reactivar es del equipo del Operador CAE externo con alcance sobre ese Tenant
+    /// propietario (decisiones del 2026-10-26), no de cualquiera que opere desde el Tenant de
+    /// origen correcto.
     /// </summary>
     private readonly Dictionary<Guid, bool> _puedeReactivarPorEntidad = [];
+
+    /// <summary>
+    /// Por acceso de Operador CAE externo activo: ¿puede el usuario actual revocarlo? Mismo
+    /// criterio que <see cref="_puedeReactivarPorEntidad"/>, con el predicado de
+    /// <c>DesactivarDelegacionTenantCommand</c> (vía <c>PuedeRevocarQuery</c>).
+    /// </summary>
+    private readonly Dictionary<Guid, bool> _puedeRevocarPorEntidad = [];
 
     private bool _cargando = true;
     private bool _error;
@@ -196,7 +204,7 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
     private string MensajeRevocacion => _delegacionARevocar is not { } aRevocar
         ? string.Empty
         : $"Se retirará el acceso de «{TituloDe(aRevocar.SomosLaConsultora, aRevocar.ClienteNombre, aRevocar.ConsultoraNombre)}». " +
-          "Los datos no se borran y la delegación se puede reactivar.";
+          "Los datos no se borran. Podrán reactivarlo el Administrador o la Dirección CAE de tu organización.";
 
     private string MensajeRetirada
     {
@@ -241,8 +249,8 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
             var delegaciones = await Mediator.Send(new ObtenerDelegacionesQuery(TenantSeleccionado), token);
             await CargarNombresDeOperadoresAsync(
                 delegaciones.SelectMany(d => d.Operadores.Select(o => (o, d.EsSoporte, d.OperacionDelTenantEntero))), token);
-            await CargarCriteriosDeReactivacionAsync(
-                delegaciones.Where(e => !e.EsSoporte && !e.Activa).Select(e => (e.Id, e.TenantClienteId)), token);
+            await CargarCriteriosDeRevocacionYReactivacionAsync(
+                delegaciones.Where(e => !e.EsSoporte).Select(e => (e.Id, e.Activa)), token);
             if (_desechado || version != _versionCarga)
             {
                 return;
@@ -510,19 +518,21 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
         });
 
     /// <summary>
-    /// Solo para las entidades con botón "Reactivar" visible hoy (no vigentes
-    /// de soporte quedan fuera del cálculo: usan otro criterio, ver
-    /// <see cref="_esTenantOrigenPlataforma"/>). Fallo cerrado: una entidad sin
-    /// entrada en <see cref="_puedeReactivarPorEntidad"/> se trata como "no
-    /// autorizado" en <see cref="PuedeReactivar"/>, nunca como "sí".
+    /// Solo para los accesos de Operador CAE externo, que son los que llevan «Revocar
+    /// acceso» o «Reactivar» (los de soporte usan otro criterio, ver
+    /// <see cref="_esTenantOrigenPlataforma"/>): el activo pregunta si se puede revocar y el
+    /// revocado si se puede reactivar. Fallo cerrado: un acceso sin entrada en el diccionario
+    /// se trata como "no autorizado" en <see cref="PuedeRevocar"/> y
+    /// <see cref="PuedeReactivar"/>, nunca como "sí".
     /// </summary>
-    private Task CargarCriteriosDeReactivacionAsync(IEnumerable<(Guid Id, Guid TenantClienteId)> entidades, CancellationToken token) =>
+    private Task CargarCriteriosDeRevocacionYReactivacionAsync(IEnumerable<(Guid Id, bool Activa)> entidades, CancellationToken token) =>
         PuertaAccesoDatos.EjecutarAsync(async () =>
         {
-            foreach (var (id, tenantClienteId) in entidades)
+            foreach (var (id, activa) in entidades)
             {
                 token.ThrowIfCancellationRequested();
-                _puedeReactivarPorEntidad[id] = await Mediator.Send(new PuedeReactivarQuery(tenantClienteId), token);
+                _puedeRevocarPorEntidad[id] = activa && await Mediator.Send(new PuedeRevocarQuery(id), token);
+                _puedeReactivarPorEntidad[id] = !activa && await Mediator.Send(new PuedeReactivarQuery(id), token);
             }
         });
 
@@ -532,6 +542,9 @@ public partial class Delegaciones : CaeManager.Web.Components.PaginaIntegrableCo
 
     private bool PuedeReactivar(Guid entidadId) =>
         _puedeReactivarPorEntidad.GetValueOrDefault(entidadId);
+
+    private bool PuedeRevocar(Guid entidadId) =>
+        _puedeRevocarPorEntidad.GetValueOrDefault(entidadId);
 
     private string NombreDeUsuario(Guid usuarioId) =>
         _nombresPorUsuarioId.GetValueOrDefault(usuarioId, "…");

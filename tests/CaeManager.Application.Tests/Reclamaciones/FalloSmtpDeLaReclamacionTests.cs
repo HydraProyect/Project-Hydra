@@ -53,7 +53,9 @@ public class FalloSmtpDeLaReclamacionTests
             new CorreoDelActorRealFalso(),
             new MediatorSinUsoFalso(),
             NullLogger<RegistroEnvioReclamacionService>.Instance,
-            unitOfWork);
+            unitOfWork,
+            new EnvioReclamacionRepositorioFalso(),
+            new DescarteCambiosPendientesFalso());
 
         return new Entorno(servicio, repositorio, unitOfWork);
     }
@@ -77,7 +79,7 @@ public class FalloSmtpDeLaReclamacionTests
         resultado.EsFallido.Should().BeTrue("nadie recibió la reclamación; darla por enviada engaña al Gestor CAE");
         resultado.Error.Codigo.Should().Be("Reclamacion.EnvioFallido");
         entorno.Repositorio.Agregadas.Should().BeEmpty();
-        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(1, "solo el registro previo del envío, guardado antes del correo; la reclamación no");
     }
 
     [Fact]
@@ -103,7 +105,7 @@ public class FalloSmtpDeLaReclamacionTests
         resultado.Error.Mensaje.Should().Contain(Prl).And.Contain(Contacto);
         entorno.Repositorio.Agregadas.Should().ContainSingle()
             .Which.DestinatarioEmail.Should().Be(Contacto, "el historial cuenta lo que pasó: solo Contacto la recibió");
-        entorno.UnitOfWork.VecesGuardado.Should().Be(1);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(3, "registro previo, la entrega a Contacto en cuanto salió y la reclamación");
     }
 
     [Fact]
@@ -128,7 +130,7 @@ public class FalloSmtpDeLaReclamacionTests
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Reclamacion.EnvioFallido");
         entorno.Repositorio.Agregadas.Should().BeEmpty();
-        entorno.UnitOfWork.VecesGuardado.Should().Be(0);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(1, "solo el registro previo del envío, guardado antes del correo; la reclamación no");
     }
 
     [Fact]
@@ -144,7 +146,7 @@ public class FalloSmtpDeLaReclamacionTests
         resultado.Error.Mensaje.Should().Contain(Prl);
         entorno.Repositorio.Agregadas.Should().ContainSingle()
             .Which.DestinatarioEmail.Should().Be(Contacto);
-        entorno.UnitOfWork.VecesGuardado.Should().Be(1);
+        entorno.UnitOfWork.VecesGuardado.Should().Be(3, "registro previo, la entrega a Contacto en cuanto salió y la reclamación");
     }
 
     private sealed class EmailServiceQueLanzaPara(IReadOnlyCollection<string> destinatariosQueLanzan) : IEmailService

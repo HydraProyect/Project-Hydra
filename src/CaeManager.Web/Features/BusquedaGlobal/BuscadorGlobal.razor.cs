@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.Account;
 using CaeManager.Application.BusquedaGlobal.Commands.RegistrarUsoReciente;
 using CaeManager.Application.BusquedaGlobal.Queries.BuscarGlobal;
 using CaeManager.Application.BusquedaGlobal.Queries.ContarVencenEstaSemana;
@@ -420,7 +421,7 @@ public partial class BuscadorGlobal
         $"/trabajadores/{trabajadorId}?pestana=documentacion&accion=subir";
 
     private static bool EsRutaLocal(string url) =>
-        url.StartsWith('/') && !url.StartsWith("//", StringComparison.Ordinal) && !url.Contains('\\');
+        string.Equals(url, RedireccionLocal.Sanear(url), StringComparison.Ordinal) && !url.Contains('\\');
 
     /// <summary>
     /// Una fila del palette, ya resuelta para pintar: el DTO, el tipo con el
@@ -780,7 +781,8 @@ public partial class BuscadorGlobal
                 a.Titulo,
                 null,
                 a.Ruta == MarcadorGuardarFiltro
-                    ? Navigation.GetUriWithQueryParameter("accion", "guardar-filtro")
+                    ? new Uri(Navigation.GetUriWithQueryParameter("accion", "guardar-filtro"))
+                        .GetComponents(UriComponents.PathAndQuery | UriComponents.Fragment, UriFormat.UriEscaped)
                     : a.Ruta))
             .ToList();
     }
@@ -976,7 +978,7 @@ public partial class BuscadorGlobal
             // contexto que ya no existe: llegan tarde y no se pintan.
             if (apertura != _generacionApertura) return;
 
-            _recientes = recientes;
+            _recientes = recientes.Where(r => EsRutaLocal(r.UrlDestino)).ToList();
             StateHasChanged();
         }
         catch (OperationCanceledException)
@@ -1094,12 +1096,14 @@ public partial class BuscadorGlobal
     /// </summary>
     private void Seleccionar(ItemBusquedaDto item, string? tipo)
     {
+        if (!EsRutaLocal(item.UrlDestino)) return;
         if (_navegando) return;
         _navegando = true;
 
         RegistrarUsoReciente(tipo, item);
         Cerrar();
-        Navigation.NavigateTo(item.UrlDestino, forceLoad: RequiereNavegacionCompleta(item.UrlDestino));
+        var destino = RedireccionLocal.Sanear(item.UrlDestino);
+        Navigation.NavigateTo(destino, forceLoad: RequiereNavegacionCompleta(destino));
     }
 
     /// <summary>

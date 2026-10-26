@@ -3,6 +3,7 @@ using CaeManager.Application.AsistenteIa.Tareas;
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Commands.AplicarDeteccionIaDocumento;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
+using CaeManager.Application.Facturacion;
 using CaeManager.Application.Operaciones.IncorporacionCartera;
 using CaeManager.Application.Plantillas.Commands.GenerarDocumentoIndividual;
 using CaeManager.Application.Plataforma;
@@ -149,6 +150,8 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         "Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler",
         "Documentos.MarcarAcreditacionRechazadaCommandHandler",
         "Documentos.MarcarAcreditacionSubidaCommandHandler",
+        "Documentos.ConfirmarSubidaDesdeExtensionCommandHandler",
+        "Documentos.DeshacerSubidaDesdeExtensionCommandHandler",
         "Documentos.RenovarDocumentoCommandHandler",
         "Documentos.ResolverRevisionIaDocumentoCommandHandler",
         "Documentos.RestaurarAnotacionAcreditacionCommandHandler",
@@ -326,6 +329,10 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     private static readonly Guarda[] SoloAdministrador =
         [new(typeof(ICurrentUserService), nameof(ICurrentUserService.ObtenerRolEfectivoAsync))];
 
+    /// <summary>Rol efectivo Administrador o Dirección CAE para las tarifas (plano Comercial).</summary>
+    private static readonly Guarda[] TarifasPorRol =
+        [new(typeof(AutorizacionTarifasCliente), nameof(AutorizacionTarifasCliente.PuedeGestionarTarifasAsync))];
+
     private static readonly Guarda[] TareaDeLaPersona =
         [new(typeof(ModificacionTareaAsistente), nameof(ModificacionTareaAsistente.AplicarAsync))];
 
@@ -409,6 +416,16 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "cada ítem del lote se genera con GenerarDocumentoIndividualCommand, que comprueba la cartera del " +
             "Trabajador o Cliente empresarial ítem a ítem", DelegaEn: typeof(GenerarDocumentoIndividualCommand)),
 
+        // ── Plano Comercial: tarifas por rol, no por cartera ────────────────────────────────────
+        ["Facturacion.CrearTarifaClienteCommandHandler"] = new(
+            "tarifa de un Cliente empresarial: plano Comercial, solo rol efectivo Administrador o Dirección CAE " +
+            "(AutorizacionTarifasCliente), no se acota por Asignación de Cartera; la carpeta entra en la población " +
+            "porque las lecturas de Facturación sí comprueban ClienteVisibleAsync", Guardas: TarifasPorRol),
+        ["Facturacion.ActualizarTarifaClienteCommandHandler"] = new(
+            "mismo motivo que CrearTarifaClienteCommandHandler", Guardas: TarifasPorRol),
+        ["Facturacion.EliminarTarifaClienteCommandHandler"] = new(
+            "mismo motivo que CrearTarifaClienteCommandHandler", Guardas: TarifasPorRol),
+
         // ── Configuración del Tenant, no filas de una cartera ───────────────────────────────────
         ["TiposDocumento.ActualizarDeteccionTrabajadoresGlobalCommandHandler"] = new(
             "interruptor de un Tipo de documento para todo el Tenant; solo rol Administrador, que no tiene " +
@@ -466,7 +483,7 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
     /// Tope de <see cref="Exentos"/>: una exención nueva tiene que subir este número en el diff, para que
     /// la revisión la vea. Si bajan, baja también.
     /// </summary>
-    private const int MaximoDeExentos = 34;
+    private const int MaximoDeExentos = 37;
 
     /// <summary>De <see cref="Exentos"/>, los que no tienen nada verificable: solo su motivo escrito.</summary>
     private const int MaximoDeExentosSoloConMotivo = 4;
@@ -496,9 +513,6 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
         ["Cumplimiento"] =
             "aceptación de términos de la propia persona (autoservicio) e instrucción de tratamiento de IA del " +
             "Tenant propietario: plano de Propiedad, autorizado por IAutorizacionAdminPlataforma o rol Administrador",
-        ["Facturacion"] =
-            "tarifas del Cliente empresarial: plano Comercial, solo rol Administrador (AutorizacionTarifasCliente); " +
-            "su red está en EscriturasSobreEntidadesConCarteraTests",
         ["Importacion"] =
             "alta masiva solo para Administrador, que no tiene restricción de cartera; su red está en " +
             "EscriturasSobreEntidadesConCarteraTests (ComandosDeImportacion)",

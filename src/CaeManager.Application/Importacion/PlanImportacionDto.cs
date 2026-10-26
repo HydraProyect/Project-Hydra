@@ -34,16 +34,28 @@ public record ItemImportacionDto(string Hoja, int Fila, string Descripcion, stri
 /// columna de texto libre, sin separador fiable) — ver nota en
 /// Project-Hydra-Negocio/tecnico/ROADMAP.md sobre esta simplificación deliberada.
 /// </summary>
+/// <param name="Hoja">Hoja del Excel de la que salió la fila: la de la plantilla que se analizó.</param>
+/// <param name="Fila">
+/// Número de fila del Excel (el que ve el usuario) de la que salió. Todas las filas del plan lo
+/// llevan para que un omitido detectado al ESCRIBIR se reporte con su fila real y no con 0;
+/// 0 solo significa «sin fila de origen» (un plan que no viene de un archivo).
+/// </param>
 public record ClienteCentroImportadoDto(
     string Nombre,
     bool EsCritico,
     string? Direccion,
     string? Contacto,
     bool YaExisteCliente,
-    bool YaExisteCentro);
+    bool YaExisteCentro,
+    string Hoja = "Centros_Plataformas",
+    int Fila = 0);
 
-public record EmpresaImportadaDto(string RazonSocial, bool YaExiste);
+/// <param name="Hoja">Hoja del Excel de la que salió la fila.</param>
+/// <param name="Fila">Número de fila del Excel de origen (ver <see cref="ClienteCentroImportadoDto"/>).</param>
+public record EmpresaImportadaDto(string RazonSocial, bool YaExiste, string Hoja = "Empleados", int Fila = 0);
 
+/// <param name="Hoja">Hoja del Excel de la que salió la fila.</param>
+/// <param name="Fila">Número de fila del Excel de origen (ver <see cref="ClienteCentroImportadoDto"/>).</param>
 public record TrabajadorImportadoDto(
     string RazonSocialEmpresa,
     string Nombre,
@@ -51,7 +63,9 @@ public record TrabajadorImportadoDto(
     string Dni,
     DateOnly? FechaNacimiento,
     string? Email,
-    bool YaExiste);
+    bool YaExiste,
+    string Hoja = "Empleados",
+    int Fila = 0);
 
 /// <param name="Hoja">
 /// Hoja del Excel de la que salió la fila, para que un documento que se omita al
@@ -59,11 +73,15 @@ public record TrabajadorImportadoDto(
 /// Documentos, la hoja de trabajadores correspondiente en la plantilla CAE
 /// completa. El valor por defecto es la hoja de trabajadores de la plantilla CAE.
 /// </param>
+/// <param name="Fila">Número de fila del Excel de origen (ver <see cref="ClienteCentroImportadoDto"/>).</param>
 public record DocumentoImportadoDto(
     string Dni,
     string NombreTipoDocumento,
     DateOnly FechaEmision,
     bool YaExiste,
-    string Hoja = "Empleados");
+    string Hoja = "Empleados",
+    int Fila = 0);
 
-public record AsignacionImportadaDto(string Dni, string NombreCentro, bool YaExiste);
+/// <param name="Hoja">Hoja del Excel de la que salió la fila.</param>
+/// <param name="Fila">Número de fila del Excel de origen, la del trabajador (ver <see cref="ClienteCentroImportadoDto"/>).</param>
+public record AsignacionImportadaDto(string Dni, string NombreCentro, bool YaExiste, string Hoja = "Asignaciones", int Fila = 0);

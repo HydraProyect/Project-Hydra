@@ -103,13 +103,8 @@ public class AislamientoRlsPostgresTests : IAsyncLifetime
         return conexion;
     }
 
-    private static async Task FijarTenantDeSesionAsync(NpgsqlConnection conexion, Guid? tenantId)
-    {
-        await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT set_config('app.tenant_id', @valor, false);";
-        comando.Parameters.AddWithValue("valor", tenantId?.ToString() ?? string.Empty);
-        await comando.ExecuteNonQueryAsync();
-    }
+    private static Task FijarTenantDeSesionAsync(NpgsqlConnection conexion, Guid? tenantId) =>
+        ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenantId);
 
     private static async Task<long> ContarEmpresasAsync(NpgsqlConnection conexion)
     {

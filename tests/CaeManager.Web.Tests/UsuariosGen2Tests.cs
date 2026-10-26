@@ -38,6 +38,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using ApplicationUser = CaeManager.Infrastructure.Identity.ApplicationUser;
@@ -705,6 +706,7 @@ public partial class UsuariosGen2Tests : BunitContext
         Services.AddLocalization();
         Services.AddSingleton<IMediator>(_mediador);
         Services.AddSingleton<IEmailService>(_correo);
+        Services.TryAddSingleton(TimeProvider.System); // la página inyecta el reloj; un test que lo controla lo registra antes
         Services.AddSingleton<UserManager<ApplicationUser>>(_identidad);
         Services.AddSingleton<ITenantActual>(new TenantActualFalso());
         Services.AddScoped<AuthenticationStateProvider>(
@@ -1134,11 +1136,17 @@ public partial class UsuariosGen2Tests : BunitContext
     [Fact]
     public async Task Si_el_correo_no_contesta_nunca_la_pagina_lo_da_por_fallido_al_vencer_su_tope()
     {
+        // Reloj manual: el tope solo vence cuando el test lo avanza. Con el reloj real, 150 ms podían
+        // agotarse antes de la aserción intermedia en una máquina cargada.
+        var reloj = new RelojManual();
+        Services.AddSingleton<TimeProvider>(reloj);
         _fuente.TopeEnvioCorreo = TimeSpan.FromMilliseconds(150);
 
         var cut = await AltaConCorreoQueNoContestaAsync();
 
         cut.Find(".modal-header h2").TextContent.Trim().Should().Be("Enviando el correo…");
+        reloj.TemporizadoresVivos.Should().BeGreaterThan(0, "el tope de la página está armado mientras el correo no contesta");
+        reloj.Avanzar(_fuente.TopeEnvioCorreo);
         cut.WaitForAssertion(
             () => cut.Find(".modal-header h2").TextContent.Trim().Should().Be("No pudimos enviar el correo"),
             TimeSpan.FromSeconds(5));

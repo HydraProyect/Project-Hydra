@@ -79,9 +79,40 @@ public class SignInManagerCuentaDesactivada(
         return await base.ValidateSecurityStampAsync(user, securityStamp);
     }
 
+    /// <summary>Lo pone <see cref="RefreshSignInAsync"/> mientras refresca una sesión que entró por Microsoft.</summary>
+    private bool _conservarMarcaSso;
+
+    /// <summary>
+    /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor) reemite la cookie
+    /// conservando solo <c>amr</c> y el método de autenticación: perdía la marca
+    /// <see cref="RestriccionLoginLocalClaimsTransformation.MetodoLoginSso"/> y un Gestor CAE del Tenant
+    /// declarado que había entrado por Microsoft quedaba en Consulta. Se conserva solo si la cookie
+    /// autenticada de esta petición ya la traía y es de la misma cuenta; nunca se crea donde no estaba.
+    /// </summary>
+    public override async Task RefreshSignInAsync(ApplicationUser user)
+    {
+        var autenticada = await Context.AuthenticateAsync(AuthenticationScheme);
+        _conservarMarcaSso = autenticada.Principal is { } actual
+            && actual.HasClaim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
+                RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)
+            && UserManager.GetUserId(actual) == user.Id.ToString();
+        try
+        {
+            await base.RefreshSignInAsync(user);
+        }
+        finally
+        {
+            _conservarMarcaSso = false;
+        }
+    }
+
     public override Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
+        if (_conservarMarcaSso && !additionalClaims.Any(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin))
+            additionalClaims = additionalClaims.Append(new Claim(
+                RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+
         if (user.EstaDesactivada(DateTimeOffset.UtcNow))
         {
             // No se lanza: quien llega aquí desde CambiarContrasena o desde el
@@ -91,7 +122,26 @@ public class SignInManagerCuentaDesactivada(
             return Task.CompletedTask;
         }
 
-        return base.SignInWithClaimsAsync(user, authenticationProperties, additionalClaims);
+        return base.SignInWithClaimsAsync(user, authenticationProperties, ConMarcaDeInicioConMicrosoft(additionalClaims));
+    }
+
+    /// <summary>
+    /// Una sesión que Identity emite con el proveedor externo de Microsoft (tras el TOTP
+    /// de TALVEG del inicio con Microsoft, D-2, o al refrescarla) lleva la marca de
+    /// inicio con SSO, como la que emite directamente el callback. Sin ella,
+    /// <see cref="RestriccionLoginLocalClaimsTransformation"/> la trataría como un
+    /// inicio con contraseña. El proveedor solo lo escribe la cookie de dos pasos que
+    /// firma el callback, o la propia sesión al refrescarse.
+    /// </summary>
+    public static IEnumerable<Claim> ConMarcaDeInicioConMicrosoft(IEnumerable<Claim> claims)
+    {
+        ArgumentNullException.ThrowIfNull(claims);
+        var lista = claims.ToList();
+        var porMicrosoft = lista.Any(c => c.Type == ClaimTypes.AuthenticationMethod && c.Value == AzureAdOptions.Esquema);
+        var yaMarcada = lista.Any(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin);
+        if (porMicrosoft && !yaMarcada)
+            lista.Add(new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+        return lista;
     }
 
     // ── Registro de inicios de sesión y bloqueo por país ─────────────────────

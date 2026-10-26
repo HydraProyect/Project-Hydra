@@ -104,13 +104,55 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await page.SetViewportSizeAsync(1440, 900);
-        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailPrueba("gestorcae", 1), Ayudas.ContrasenaUsuariosPrueba);
+        // El Administrador propio del Tenant de los datos de prueba (el de FlujoRetencionTests): ve ese
+        // Tenant sin alcance de cartera, así que la Empresa que se busca abajo está a la vista sea cual
+        // sea la cartera del Gestor CAE de prueba. No el de plataforma (admin@caemanager.local): vive en
+        // el Tenant #1, que no tiene datos operativos (DelegacionDemoSeeder siembra en otro Tenant).
+        var administradorDelTenant = Ayudas.EmailPrueba("administrador", 1);
+        await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, administradorDelTenant, Ayudas.ContrasenaUsuariosPrueba);
         var panel = page.Locator(".workspace-panel");
 
-        // La ventana de contexto solo existe en los documentos con acreditaciones en plataformas,
-        // que la siembra pone en documentos de Empresa: se acota a ese ámbito y, si aun así hay
-        // más de una página, se pide el tamaño de página mayor para no depender del orden.
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos?Ambito=Empresa");
+        // La ventana de contexto solo existe en los documentos con acreditaciones en plataformas. La
+        // siembra (CicloDocumentalDatosPruebaSeeder.SembrarAcreditacionesAsync) las pone en cinco
+        // documentos de UNA Empresa, y esa Empresa compite con el resto: con «?Ambito=Empresa» a secas
+        // entran los tipos obligatorios de las 24 empresas de la siembra, que pueden pasar de los 100
+        // de la página mayor; el orden por severidad desempata por Id (UUIDv7, distinto en cada
+        // siembra) y los cinco podían quedar fuera de esa página (#1700; inferido del código, el total
+        // no queda en los artefactos). Se acota a esa Empresa por su Id, leído de la propia base como en
+        // AsumirPrincipalDeOperacionE2ETests: la página trae entonces todos sus documentos. La lectura
+        // pide lo mismo que el listado (DocumentoOperativo): ni eliminado ni sustituido.
+        var empresaConAcreditaciones = await fixture.LeerValorSqlAsync(
+            """
+            SELECT d."EmpresaId"::text
+            FROM "AcreditacionesDocumentoPlataforma" a
+            JOIN "Documentos" d ON d."Id" = a."DocumentoId"
+            JOIN "AspNetUsers" u ON u."TenantId" = d."TenantId"
+            WHERE u."NormalizedEmail" = upper(@email) AND d."EmpresaId" IS NOT NULL
+              AND NOT d."EstaEliminado" AND d."SustituidoEnUtc" IS NULL
+            ORDER BY d."EmpresaId"
+            LIMIT 1
+            """,
+            ("email", administradorDelTenant));
+        await Ayudas.NavegarYEsperarAsync(page,
+            $"{fixture.BaseUrl}/documentos?Ambito=Empresa&Propietario={empresaConAcreditaciones}");
+        // Como en VistaRecordadaE2ETests: abrir y cerrar una pastilla confirma que
+        // el listado ya atiende por el circuito, sin cambiar la consulta.
+        var agrupar = page.Locator(".barra-filtros-pastillas")
+            .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { NameRegex = new Regex("^Agrupar:") });
+        await Ayudas.AbrirMenuAccionesAsync(agrupar);
+        await agrupar.PressAsync("Escape");
+        await Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false");
+        // El oyente delegado se registra por JS en OnAfterRenderAsync, después
+        // del prerender. Espera su contador real antes de probar su exclusión. El predicado
+        // es síncrono sobre el módulo ya importado: WaitForFunctionAsync no espera a una
+        // promesa (una función async es truthy al instante y la espera no esperaría nada).
+        var atajosContexto = await page.EvaluateHandleAsync("import('/js/atajos-contexto.js')");
+        await page.WaitForFunctionAsync("modulo => modulo.atajosDeLista.activos > 0", atajosContexto);
+        // NetworkIdle no observa la consulta de QuickGrid por SignalR. Tras confirmar el
+        // circuito, se espera su estado de carga y la tabla visible: durante la consulta
+        // Documentos oculta su cuerpo y muestra EstadoCargando con aria-busy.
+        await Expect(page.Locator("main [aria-busy='true']")).ToHaveCountAsync(0);
+        await Expect(page.Locator("table.documentos-tabla-visible")).ToBeVisibleAsync();
         await Expect(page.Locator("table tbody tr.fila-pulsable")).Not.ToHaveCountAsync(0);
         // El pie ofrece los tamaños de página como botones 20 · 50 · 100.
         var mayor = page.Locator(".paginador-pie-listado .paginador-opciones-tamano")
@@ -123,6 +165,8 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
             var filasEsperadas = Math.Min(100, int.Parse(recuento.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture));
             await mayor.ClickAsync();
             await Expect(mayor).ToHaveAttributeAsync("aria-pressed", "true");
+            await Expect(page.Locator("main [aria-busy='true']")).ToHaveCountAsync(0);
+            await Expect(page.Locator("table.documentos-tabla-visible")).ToBeVisibleAsync();
             // Barrera de datos: las filas reales, excluidas las de relleno de QuickGrid,
             // deben corresponder al tamaño nuevo y al total de esta consulta.
             await Expect(page.Locator("table tbody tr.fila-pulsable")).ToHaveCountAsync(filasEsperadas);

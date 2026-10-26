@@ -22,12 +22,14 @@ namespace CaeManager.IntegrationTests.Tenants;
 /// como <c>cae_app_runtime</c> (no con <c>SET ROLE</c> desde el propietario).
 ///
 /// <para>
-/// La base del test se migra y después se le aplica
-/// <see cref="ReescrituraPoliticasContextoRls"/>, que en la fase «expandir» no
-/// corre en ningún entorno: es el estado al que llegará la fase «contraer», y
-/// lo que aquí se demuestra es que, llegado ese estado, las cuatro propiedades
-/// del encargo se cumplen y la reescritura cubre todas las políticas que
-/// existen hoy.
+/// La base del test se migra hasta la última migración, así que ya está en la
+/// fase «contraer»: <c>ContraeContextoRlsFirmado</c> aplicó
+/// <see cref="ReescrituraPoliticasContextoRls"/> a todas las políticas y
+/// funciones. Aquí se demuestra que en ese estado las cuatro propiedades del
+/// encargo se cumplen y que la reescritura cubre todo lo que leía GUC sueltas.
+/// Que su <c>Down</c> devuelve el catálogo al estado anterior lo prueba
+/// <c>Migraciones/ContraeContextoRlsFirmadoTests</c>, que maneja el migrador y
+/// por eso parte de una base sin crear en vez de un clon ya migrado.
 /// </para>
 ///
 /// <para>
@@ -41,7 +43,6 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
 {
     private readonly string _cadenaPropietario = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly List<Guid> _tenants = [];
-    private int _politicasConGucAntesDeReescribir;
     private readonly FirmanteContextoRls _firmante = BaseDatosPostgresDePruebas.FirmanteContextoRls;
     private readonly Guid _actorPlataforma = Guid.NewGuid();
 
@@ -67,10 +68,6 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
             await contexto.SaveChangesAsync();
             await AsignacionesOperativasBackfillSeeder.SeedAsync(contexto, NullLogger.Instance);
         }
-
-        _politicasConGucAntesDeReescribir = (await ExpresionesDePoliticasAsync())
-            .Count(e => e.Expresion.Contains("current_setting('app.", StringComparison.Ordinal));
-        await EjecutarComoPropietarioAsync(ReescrituraPoliticasContextoRls.Sql);
     }
 
     public Task DisposeAsync() => BaseDatosPostgresDePruebas.EliminarAsync(_cadenaPropietario);
@@ -355,11 +352,11 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
 
     /// <summary>
     /// <c>/salud</c> de la clave, con la identidad de tráfico: Healthy con una
-    /// clave vigente de 30 días; Degraded (nunca Unhealthy en «expandir») si le
-    /// quedan 7 días o menos, o si ninguna se deja descifrar.
+    /// clave vigente de 30 días; Degraded si le quedan 7 días o menos o si falla la
+    /// lectura; Unhealthy, desde «contraer», si ninguna se deja descifrar.
     /// </summary>
     [Fact]
-    public async Task El_health_check_de_la_clave_avisa_sin_cortar_el_trafico()
+    public async Task El_health_check_de_la_clave_es_Unhealthy_sin_clave_descifrable_y_Degraded_si_caduca()
     {
         var cadenaRuntime = BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaPropietario);
         ClaveContextoRlsHealthCheck Chequeo(IDataProtectionProvider anillo) => new(
@@ -370,8 +367,8 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         await RegistrarClaveAsync();
         (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Healthy,
             "control: clave vigente de 30 días que el proceso sabe descifrar");
-        (await EstadoAsync(new EphemeralDataProtectionProvider())).Should().Be(HealthStatus.Degraded,
-            "con otro anillo no hay clave descifrable");
+        (await EstadoAsync(new EphemeralDataProtectionProvider())).Should().Be(HealthStatus.Unhealthy,
+            "con otro anillo no hay clave descifrable y, desde «contraer», RLS no deja ver ninguna fila");
 
         await EjecutarComoPropietarioAsync("UPDATE app_privado.claves_contexto SET valida_hasta = now() + interval '5 days';");
         (await EstadoAsync(BaseDatosPostgresDePruebas.ProteccionDePruebas)).Should().Be(HealthStatus.Degraded,
@@ -414,18 +411,94 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     // ── La reescritura: cubre todas las políticas que existen hoy ────────
 
     [Fact]
-    public async Task Tras_la_reescritura_ninguna_politica_lee_las_GUC_sueltas()
+    public async Task Tras_contraer_ninguna_politica_ni_funcion_lee_las_GUC_sueltas()
     {
         var expresiones = await ExpresionesDePoliticasAsync();
 
         expresiones.Should().NotBeEmpty("control del instrumento: la consulta tiene que ver las políticas");
         expresiones.Where(e => e.Expresion.Contains("current_setting('app.", StringComparison.Ordinal))
-            .Select(e => e.Politica).Should().BeEmpty();
-        _politicasConGucAntesDeReescribir.Should().BeGreaterThan(0,
-            "control del instrumento: antes de reescribir tiene que haber políticas leyendo app.*");
+            .Select(e => $"{e.Tabla}.{e.Politica}").Should().BeEmpty();
         expresiones.Count(e => e.Expresion.Contains("app_ctx_", StringComparison.Ordinal))
-            .Should().Be(_politicasConGucAntesDeReescribir,
-                "cada política que leía una GUC suelta pasa al contexto validado, ni una menos");
+            .Should().BeGreaterThan(100, "control positivo: las políticas leen el contexto validado");
+
+        var funciones = await DefinicionesDeFuncionesAsync();
+        funciones.Where(f => f.Value.Contains("current_setting('app.tenant", StringComparison.Ordinal)
+                             || f.Value.Contains("current_setting('app.usuario", StringComparison.Ordinal))
+            .Select(f => f.Key).Should().BeEmpty("una función SECURITY DEFINER que leyera la GUC suelta la creería");
+        funciones["app_enmascarar_auditoria_de_trabajador_anonimizado(uuid)"].Should().Contain(
+            "public.app_ctx_tenant_id() " + ReescrituraPoliticasContextoRls.MarcaFuncion);
+    }
+
+    [Fact]
+    public async Task El_enmascarado_de_auditoria_no_cree_una_GUC_de_Tenant_falsificada()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.tenant_id", _tenants[0].ToString());
+
+        var falsificada = () => EnmascararAsync(conexion);
+        (await falsificada.Should().ThrowAsync<PostgresException>()).Which.MessageText
+            .Should().Contain("Sin Tenant en la sesión", "sin token, la función no ve ningún Tenant");
+
+        await FijarContextoAsync(conexion, Contexto(_tenants[0]));
+        (await EnmascararAsync(conexion)).Should().Be(0,
+            "control positivo: con el contexto firmado la función sí ve el Tenant (y no hay Trabajador que enmascarar)");
+    }
+
+    /// <summary>
+    /// Requisito P2 de la revisión de #887: si la base deja de tener la clave con
+    /// que firma el proceso, el primer comando falla con 42501 «clave
+    /// desconocida» y el siguiente ya firma con la clave nueva, en vez de seguir
+    /// fallando hasta la siguiente relectura.
+    /// </summary>
+    [Fact]
+    public async Task Tras_retirar_la_clave_el_siguiente_comando_firma_con_la_nueva()
+    {
+        var firmante = new FirmanteContextoRls(
+            BaseDatosPostgresDePruebas.CadenaDeMantenimientoSinPool(), BaseDatosPostgresDePruebas.ProteccionDePruebas,
+            TimeProvider.System, FirmanteContextoRls.TtlPorDefecto, FirmanteContextoRls.RotacionPorDefecto);
+        await using var contexto = CrearContextoRuntime(_tenants[0], firmante);
+        await contexto.Database.OpenConnectionAsync();
+        try
+        {
+            (await contexto.AsignacionesOperacion.CountAsync(a => a.EsRaiz)).Should().Be(1, "control positivo");
+
+            await EjecutarComoPropietarioAsync("DELETE FROM app_privado.claves_contexto;");
+            await RegistrarClaveAsync();
+
+            var conClaveRetirada = () => contexto.AsignacionesOperacion.CountAsync(a => a.EsRaiz);
+            await DebeFallarCon42501Async(conClaveRetirada, "clave desconocida");
+
+            (await contexto.AsignacionesOperacion.CountAsync(a => a.EsRaiz)).Should().Be(1,
+                "el fallo descartó la clave en memoria y el token se volvió a firmar con la vigente");
+        }
+        finally
+        {
+            await contexto.Database.CloseConnectionAsync();
+        }
+    }
+
+    private static async Task<int> EnmascararAsync(NpgsqlConnection conexion)
+    {
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT public.app_enmascarar_auditoria_de_trabajador_anonimizado(@id);";
+        comando.Parameters.AddWithValue("id", Guid.NewGuid());
+        return Convert.ToInt32(await comando.ExecuteScalarAsync());
+    }
+
+    private async Task<Dictionary<string, string>> DefinicionesDeFuncionesAsync()
+    {
+        await using var conexion = new NpgsqlConnection(_cadenaPropietario);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"
+SELECT p.oid::regprocedure::text, pg_get_functiondef(p.oid)
+  FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+ WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p');";
+        var resultado = new Dictionary<string, string>();
+        await using var lector = await comando.ExecuteReaderAsync();
+        while (await lector.ReadAsync())
+            resultado[lector.GetString(0)] = lector.GetString(1);
+        return resultado;
     }
 
     [Theory]
@@ -730,10 +803,10 @@ SELECT cl.relname, pol.polname,
         return conexion;
     }
 
-    private CaeManagerDbContext CrearContextoPropietario()
+    private CaeManagerDbContext CrearContextoPropietario(string? cadena = null)
     {
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
-            .UseNpgsql(_cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .UseNpgsql(cadena ?? _cadenaPropietario, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .Options;
 
         return new CaeManagerDbContext(opciones, new EphemeralDataProtectionProvider(), new TenantActualAmbiental());

@@ -315,40 +315,157 @@ async function cargarPendientesEnPanelAsync(cuerpo, campo) {
     return;
   }
 
-  const filas = aplanarDocumentos(resultado.proveedores);
-  if (filas.length === 0) {
-    const vacio = document.createElement("p");
-    vacio.className = "vacio";
-    vacio.textContent = "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
-    cuerpo.appendChild(vacio);
-    return;
-  }
+  // Pinta la lista para el host de la pestaña. Con un portal que casa con dos
+  // Proveedores a la vez (mismo dominio más largo), NO se ofrece ningún documento
+  // hasta que la persona dice cuál es: elegir a ciegas pondría el documento de una
+  // Plataforma CAE en el formulario de otra.
+  const pintar = (proveedorElegidoId) => {
+    cuerpo.replaceChildren();
+    const { filas, deOtrasPlataformas, opcionesDeEmpate } = aplanarDocumentos(
+      resultado.proveedores, location.hostname, proveedorElegidoId);
 
-  let grupoActual = null;
-  for (const fila of filas) {
-    if (fila.grupo !== grupoActual) {
-      grupoActual = fila.grupo;
-      const encabezado = document.createElement("p");
-      encabezado.className = "grupo";
-      encabezado.textContent = grupoActual;
-      cuerpo.appendChild(encabezado);
+    if (proveedorElegidoId === undefined && opcionesDeEmpate.length > 0) {
+      pintarPreguntaDeEmpate(cuerpo, opcionesDeEmpate, pintar);
+      return;
     }
 
-    cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo));
+    if (filas.length === 0) {
+      const vacio = document.createElement("p");
+      vacio.className = "vacio";
+      vacio.textContent = deOtrasPlataformas > 0
+        ? "No tienes documentos pendientes de subir a esta plataforma. Si el portal te pide otra cosa, búscala en tu equipo."
+        : "No tienes documentos pendientes de subir. Si el portal te pide otra cosa, búscala en tu equipo.";
+      cuerpo.appendChild(vacio);
+      anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+      return;
+    }
+
+    let grupoActual = null;
+    for (const fila of filas) {
+      if (fila.grupo !== grupoActual) {
+        grupoActual = fila.grupo;
+        const encabezado = document.createElement("p");
+        encabezado.className = "grupo";
+        encabezado.textContent = grupoActual;
+        cuerpo.appendChild(encabezado);
+      }
+
+      cuerpo.appendChild(construirFila(fila.documento, fila.proveedorActivo, campo, proveedorElegidoId));
+    }
+
+    anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas);
+  };
+
+  pintar(undefined);
+}
+
+function pintarPreguntaDeEmpate(cuerpo, opciones, alElegir) {
+  const pregunta = document.createElement("p");
+  pregunta.className = "aviso";
+  pregunta.textContent = "Este portal puede ser de más de una plataforma. ¿De cuál es?";
+  cuerpo.appendChild(pregunta);
+
+  for (const opcion of opciones) {
+    const fila = document.createElement("div");
+    fila.className = "fila";
+    const nombre = document.createElement("span");
+    nombre.textContent = opcion.nombre;
+    const boton = document.createElement("button");
+    boton.type = "button";
+    boton.textContent = "Es esta";
+    boton.addEventListener("click", () => alElegir(opcion.id));
+    fila.append(nombre, boton);
+    cuerpo.appendChild(fila);
   }
+}
+// Lo que no se ofrece aquí no desaparece sin decir nada: el Gestor CAE ve cuántos
+// documentos suyos son de otra Plataforma CAE y entiende por qué faltan.
+function anadirRecuentoDeOtrasPlataformas(cuerpo, deOtrasPlataformas) {
+  if (!(deOtrasPlataformas > 0)) return;
+  const nota = document.createElement("p");
+  nota.className = "vacio";
+  nota.textContent = `${deOtrasPlataformas} de otras plataformas: no se ofrecen en este portal.`;
+  cuerpo.appendChild(nota);
+}
+
+// ¿Es `host` el dominio del Proveedor o uno de sus subdominios? Exacto o por
+// sufijo con punto delimitador: «cliente1.ergasia.es» coincide con «ergasia.es»,
+// «notergasia.es» no. Es la misma regla que aplica el servidor
+// (ResolucionProveedorPlataformaCaeService.CoincideHost) cuando comprueba el
+// portal declarado al registrar la subida; si se cambia una, se cambia la otra.
+function hostCoincide(host, dominio) {
+  if (typeof host !== "string" || typeof dominio !== "string") return false;
+  const h = host.trim().toLowerCase();
+  const d = dominio.trim().toLowerCase();
+  if (!h || !d) return false;
+  return h === d || h.endsWith("." + d);
+}
+
+// La longitud del dominio más largo de la lista que casa con el host; 0 si ninguno.
+function largoDelDominioQueCasa(host, dominios) {
+  let largo = 0;
+  for (const dominio of dominios ?? [])
+    if (hostCoincide(host, dominio)) largo = Math.max(largo, dominio.trim().length);
+  return largo;
+}
+
+// ¿Es este el portal del Proveedor? Un documento solo se ofrece en el portal de SU
+// Plataforma CAE: el Proveedor del canal en el que está pendiente tiene que tener
+// un dominio que case con el host de la pestaña. Sin dominios en la respuesta
+// —catálogo sin ellos o servidor que aún no los manda— no casa con nada: ante la
+// duda, no se divulga un documento a un tercero.
+//
+// Dos Proveedores pueden casar con el mismo host (Sabentis y Quirón Prevención
+// comparten «quironprevencion.com»; Twind posee «ctaima.com»). Gana el que casa con
+// el dominio MÁS LARGO. Si empatan, `empate` trae a todos los empatados (también a
+// este Proveedor) para preguntar a la persona; nunca se elige uno a ciegas. Los
+// demás Proveedores con dominios solapados llegan en `proveedoresSolapados`, aunque
+// no tengan documentos pendientes. Misma regla en background.js (resolverPortal).
+function resolverPortal(proveedor, host) {
+  const largoPropio = largoDelDominioQueCasa(host, proveedor.dominios);
+  if (largoPropio === 0) return { esDeEstePortal: false, empate: [] };
+
+  const empatados = [];
+  for (const otro of proveedor.proveedoresSolapados ?? []) {
+    const largoAjeno = largoDelDominioQueCasa(host, otro.dominios);
+    if (largoAjeno > largoPropio) return { esDeEstePortal: false, empate: [] };
+    if (largoAjeno === largoPropio) empatados.push({ id: otro.proveedorPlataformaCaeId, nombre: otro.nombre });
+  }
+
+  return {
+    esDeEstePortal: true,
+    empate: empatados.length === 0
+      ? []
+      : [{ id: proveedor.proveedorPlataformaCaeId, nombre: proveedor.proveedorNombre }, ...empatados],
+  };
 }
 
 // Aplana proveedores → clientes → documentos conservando el orden, y trae de
 // cada nivel lo que hace falta para decidir: el rótulo del grupo y si el
 // conector sigue activo (kill switch remoto, MVP2 § 14.5 — misma comprobación
 // que hace el popup, y por el mismo motivo: si TALVEG apagó ese conector, ni
-// se ofrece el botón).
-function aplanarDocumentos(proveedores) {
+// se ofrece el botón). Los documentos de otras plataformas no entran en `filas`:
+// solo se cuentan. Con un empate de Proveedores sin resolver (`proveedorElegidoId`
+// indefinido) no entra ninguna fila y `opcionesDeEmpate` dice entre quiénes elegir;
+// resuelto, solo entran los documentos del Proveedor elegido.
+function aplanarDocumentos(proveedores, host, proveedorElegidoId) {
   const filas = [];
+  const opcionesDeEmpate = [];
+  let deOtrasPlataformas = 0;
 
   for (const proveedor of proveedores ?? []) {
+    const { esDeEstePortal, empate } = resolverPortal(proveedor, host);
+    for (const opcion of empate)
+      if (!opcionesDeEmpate.some((o) => o.id === opcion.id)) opcionesDeEmpate.push(opcion);
+    const sinElegir = empate.length > 0 && proveedorElegidoId !== proveedor.proveedorPlataformaCaeId;
+
     for (const cliente of proveedor.clientes ?? []) {
       for (const documento of cliente.documentos ?? []) {
+        if (!esDeEstePortal || sinElegir) {
+          deOtrasPlataformas++;
+          continue;
+        }
+
         filas.push({
           grupo: `${proveedor.proveedorNombre} · ${cliente.clienteNombre}`,
           proveedorActivo: proveedor.proveedorActivo !== false,
@@ -358,10 +475,9 @@ function aplanarDocumentos(proveedores) {
     }
   }
 
-  return filas;
+  return { filas, deOtrasPlataformas, opcionesDeEmpate };
 }
-
-function construirFila(documento, proveedorActivo, campo) {
+function construirFila(documento, proveedorActivo, campo, proveedorElegidoId) {
   const fila = document.createElement("div");
   fila.className = "fila";
 
@@ -380,13 +496,13 @@ function construirFila(documento, proveedorActivo, campo) {
   boton.className = "principal";
   boton.textContent = "Poner aquí";
   boton.disabled = !proveedorActivo;
-  boton.addEventListener("click", () => elegirDocumentoAsync(documento, boton, fila, campo));
+  boton.addEventListener("click", () => elegirDocumentoAsync(documento, boton, fila, campo, proveedorElegidoId));
   fila.appendChild(boton);
 
   return fila;
 }
 
-async function elegirDocumentoAsync(documento, boton, fila, campo) {
+async function elegirDocumentoAsync(documento, boton, fila, campo, proveedorElegidoId) {
   boton.disabled = true;
   boton.textContent = "Poniendo…";
 
@@ -402,6 +518,8 @@ async function elegirDocumentoAsync(documento, boton, fila, campo) {
       documentoId: documento.documentoId,
       acreditacionId: documento.acreditacionId,
       nombreArchivo: `${documento.tipoDocumentoNombre}.pdf`,
+      // Solo si la persona tuvo que elegir entre Proveedores empatados; background.js lo exige entonces.
+      proveedorElegidoId,
     });
   } catch (error) {
     resultado = { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
@@ -420,8 +538,177 @@ async function elegirDocumentoAsync(documento, boton, fila, campo) {
   fila.after(aviso);
 }
 
-// --- Depositar el fichero -------------------------------------------------
+// --- «Lo he enviado» (E1) -------------------------------------------------
+//
+// Poner el archivo en el formulario no es subirlo: la persona aún lo revisa y
+// pulsa Enviar en la plataforma, o no. Por eso, tras ponerlo, una barra fija
+// pregunta por cada documento «Lo he enviado» / «No lo he enviado», y solo el
+// primero anota en TALVEG «Pendiente de validar» (con «Deshacer» unos
+// segundos). Lo pendiente lo guarda el service worker por pestaña: si la
+// plataforma recarga la página al enviar, esta barra vuelve a salir. El panel
+// no decide qué acreditación se anota; solo responde por las que el service
+// worker dice que puso en ESTA pestaña.
+//
+// Patrón visual provisional (el del panel) hasta que llegue la maqueta.
 
+const SEGUNDOS_PARA_DESHACER = 10;
+let anfitrionBarra = null;
+let listaBarra = null;
+const filasDeEnvio = new Map(); // acreditacionId -> fila
+
+const ESTILOS_BARRA = `
+  :host { all: initial; }
+  .barra {
+    position: fixed; right: 16px; bottom: 16px; z-index: 2147483647;
+    width: min(420px, calc(100vw - 32px)); background: #fff; color: #15191b;
+    border: 1px solid #e3e2dc; border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    font: 14px/1.4 system-ui, sans-serif;
+  }
+  .envio { padding: 12px 16px; border-top: 1px solid #e3e2dc; }
+  .envio:first-child { border-top: 0; }
+  .envio p { margin: 0 0 8px; font-size: 13.5px; }
+  .acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 6px;
+    border: 1px solid #c9c8c0; background: #fff; color: #15191b; cursor: pointer;
+  }
+  button.principal { background: #1d5b57; border-color: #1d5b57; color: #fff; }
+  button:disabled { opacity: .55; cursor: default; }
+  .aviso { color: #8a4718; }
+`;
+
+function asegurarBarra() {
+  if (anfitrionBarra?.isConnected) return;
+  anfitrionBarra = document.createElement("div");
+  const raiz = anfitrionBarra.attachShadow({ mode: "closed" });
+  const estilos = document.createElement("style");
+  estilos.textContent = ESTILOS_BARRA;
+  raiz.appendChild(estilos);
+  listaBarra = document.createElement("div");
+  listaBarra.className = "barra";
+  listaBarra.setAttribute?.("role", "status");
+  raiz.appendChild(listaBarra);
+  document.documentElement.appendChild(anfitrionBarra);
+}
+
+function quitarFilaDeEnvio(acreditacionId) {
+  filasDeEnvio.get(acreditacionId)?.remove();
+  filasDeEnvio.delete(acreditacionId);
+  if (filasDeEnvio.size === 0) {
+    anfitrionBarra?.remove();
+    anfitrionBarra = null;
+    listaBarra = null;
+  }
+}
+
+function boton(texto, principal, alPulsar) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.textContent = texto;
+  if (principal) b.className = "principal";
+  b.addEventListener("click", alPulsar);
+  return b;
+}
+
+function pintarPregunta(fila, { acreditacionId, documento }) {
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = `«${documento}» está puesto en el formulario. Revísalo y pulsa Enviar en la plataforma; el estado en TALVEG no cambia hasta que lo confirmes.`;
+  const acciones = document.createElement("div");
+  acciones.className = "acciones";
+  const enviado = boton("Lo he enviado", true, () => confirmarEnvioAsync(acreditacionId, fila, enviado, noEnviado));
+  const noEnviado = boton("No lo he enviado", false, () => descartarEnvioAsync(acreditacionId, fila));
+  acciones.append(enviado, noEnviado);
+  fila.append(texto, acciones);
+}
+
+function pintarMensaje(fila, acreditacionId, mensaje, segundos) {
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = mensaje;
+  fila.appendChild(texto);
+  setTimeout(() => quitarFilaDeEnvio(acreditacionId), segundos * 1000);
+}
+
+async function preguntarAlServiceWorker(mensaje) {
+  try {
+    return await chrome.runtime.sendMessage(mensaje);
+  } catch (error) {
+    return { ok: false, error: `No pudimos hablar con la extensión (${error.message}).` };
+  }
+}
+
+async function confirmarEnvioAsync(acreditacionId, fila, enviado, noEnviado) {
+  enviado.disabled = true;
+  noEnviado.disabled = true;
+  enviado.textContent = "Anotando…";
+  const resultado = await preguntarAlServiceWorker({ accion: "confirmarEnvio", acreditacionId });
+
+  if (!resultado?.ok) {
+    enviado.disabled = false;
+    noEnviado.disabled = false;
+    enviado.textContent = "Lo he enviado";
+    fila.querySelector?.(".aviso")?.remove();
+    const aviso = document.createElement("p");
+    aviso.className = "aviso";
+    aviso.textContent = resultado?.error ?? "No pudimos anotarlo en TALVEG.";
+    fila.appendChild(aviso);
+    return;
+  }
+
+  fila.replaceChildren();
+  const texto = document.createElement("p");
+  texto.textContent = "Anotado en TALVEG: Pendiente de validar.";
+  fila.appendChild(texto);
+  if (resultado.puedeDeshacer) {
+    const acciones = document.createElement("div");
+    acciones.className = "acciones";
+    const deshacer = boton("Deshacer", false, () => deshacerEnvioAsync(acreditacionId, fila, deshacer));
+    acciones.appendChild(deshacer);
+    fila.appendChild(acciones);
+  }
+  // Pasado el plazo, el aviso se va solo: ya se corrige desde Centro 360.
+  fila.plazoDeshacer = setTimeout(() => quitarFilaDeEnvio(acreditacionId), SEGUNDOS_PARA_DESHACER * 1000);
+}
+
+async function deshacerEnvioAsync(acreditacionId, fila, deshacer) {
+  clearTimeout(fila.plazoDeshacer);
+  deshacer.disabled = true;
+  const resultado = await preguntarAlServiceWorker({ accion: "deshacerEnvio", acreditacionId });
+  pintarMensaje(
+    fila,
+    acreditacionId,
+    resultado?.ok ? "Deshecho: en TALVEG vuelve a estar como antes." : (resultado?.error ?? "No pudimos deshacerlo."),
+    resultado?.ok ? 4 : 8
+  );
+}
+
+async function descartarEnvioAsync(acreditacionId, fila) {
+  await preguntarAlServiceWorker({ accion: "descartarEnvio", acreditacionId });
+  pintarMensaje(fila, acreditacionId, "De acuerdo, no hemos anotado nada.", 4);
+}
+
+// Pregunta al service worker qué hay pendiente de confirmar en esta pestaña y
+// añade a la barra lo que aún no tenga. Se llama al cargar la página y cuando
+// el service worker avisa de que acaba de poner un documento.
+async function mostrarEnviosPendientesAsync() {
+  const resultado = await preguntarAlServiceWorker({ accion: "obtenerEnviosPendientes" });
+  if (!resultado?.ok || !Array.isArray(resultado.pendientes)) return;
+
+  for (const pendiente of resultado.pendientes) {
+    if (typeof pendiente?.acreditacionId !== "string" || filasDeEnvio.has(pendiente.acreditacionId)) continue;
+    asegurarBarra();
+    const fila = document.createElement("div");
+    fila.className = "envio";
+    pintarPregunta(fila, { acreditacionId: pendiente.acreditacionId, documento: String(pendiente.documento ?? "Documento") });
+    listaBarra.appendChild(fila);
+    filasDeEnvio.set(pendiente.acreditacionId, fila);
+  }
+}
+
+mostrarEnviosPendientesAsync();
+
+// --- Depositar el fichero -------------------------------------------------
 chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
   // El service worker avisa al conectar y al desconectar. Sin esto, quien se
   // conecta con la pestaña del portal ya abierta tendría que recargarla para
@@ -442,9 +729,28 @@ chrome.runtime.onMessage.addListener((mensaje, _remitente, enviarRespuesta) => {
     return true;
   }
 
+  if (mensaje?.accion === "pedirConfirmacionEnvio") {
+    mostrarEnviosPendientesAsync();
+    enviarRespuesta({ ok: true });
+    return true;
+  }
+
   if (mensaje?.accion !== "inyectarArchivo") return false;
 
   try {
+    // La comprobación de Plataforma CAE se hizo en background.js con el host que
+    // tenía la pestaña al empezar. Si la pestaña ha navegado desde entonces, el
+    // archivo ya no se pone: el host se compara aquí, en el instante de inyectar.
+    // Sin `hostEsperado` tampoco se inyecta (falla cerrado).
+    const hostActual = String(location.hostname ?? "").toLowerCase();
+    if (typeof mensaje.hostEsperado !== "string" || mensaje.hostEsperado.toLowerCase() !== hostActual) {
+      enviarRespuesta({
+        ok: false,
+        error: "La pestaña ha cambiado de portal mientras se descargaba el documento, así que no se pone. Vuelve a elegirlo.",
+      });
+      return true;
+    }
+
     // Sin respaldo al primer input de la página. Un formulario CAE tiene una
     // fila por tipo de documento, así que «el primero que haya» es casi
     // siempre el equivocado, y equivocarse aquí no da error: el portal acepta

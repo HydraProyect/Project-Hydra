@@ -168,6 +168,132 @@ public class RlsAspNetUsersBajoRuntimeTests
         (await altaEnOtro.Should().ThrowAsync<PostgresException>()).Which.SqlState.Should().Be("42501");
     }
 
+    // ── Inicio de sesión con Microsoft: con qué cuenta entra una identidad ──
+    // CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync con el
+    // UserManager real, sin Tenant y dentro del ámbito de identificación, como en el
+    // callback. El destino declarado (AzureAd:TenantHydraId) es X en todos.
+
+    [Fact]
+    public async Task Microsoft_no_abre_por_correo_una_cuenta_de_otro_Tenant_ni_la_de_Soporte()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            foreach (var victima in new[] { e.AjenaY, e.SoporteP })
+            {
+                var (decision, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                    usuarios, IdentidadMicrosoft("clave-atacante"), victima.Email!, e.TenantX);
+
+                decision.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant,
+                    $"el correo de {victima.UserName} no abre su cuenta desde el directorio de X");
+                cuenta!.Id.Should().Be(victima.Id, "el rechazo se registra en la vigilancia del Tenant de la cuenta");
+                (await usuarios.GetLoginsAsync(victima)).Should().BeEmpty("no se vincula nada");
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Microsoft_vincula_por_correo_en_el_Tenant_destino_y_despues_manda_el_vinculo()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var (primera, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), e.PropiaX.Email!, e.TenantX);
+            primera.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.VincularCuentaExistente);
+            (await usuarios.AddLoginAsync(cuenta!, IdentidadMicrosoft("clave-propia"))).Succeeded.Should().BeTrue();
+
+            // El vínculo manda aunque el correo de Entra cambie.
+            var (segunda, cuentaVinculada) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), "otro-correo@ejemplo.test", e.TenantX);
+            segunda.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.EntrarConCuentaVinculada);
+            cuentaVinculada!.Id.Should().Be(e.PropiaX.Id);
+
+            // Otra identidad con el mismo correo no se añade como segundo vínculo.
+            var (tercera, _) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-atacante"), e.PropiaX.Email!, e.TenantX);
+            tercera.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaVinculadaAOtraIdentidad);
+        }
+    }
+
+    [Fact]
+    public async Task Microsoft_no_entra_con_un_vinculo_de_otro_Tenant()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var ajena = await usuarios.FindByEmailAsync(e.AjenaY.Email!);
+            (await usuarios.AddLoginAsync(ajena!, IdentidadMicrosoft("clave-de-y"))).Succeeded.Should().BeTrue();
+
+            var (decision, _) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-de-y"), e.AjenaY.Email!, e.TenantX);
+            decision.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDeOtroTenant);
+        }
+    }
+
+    [Fact]
+    public async Task Microsoft_sin_cuenta_previa_en_el_Tenant_destino_rechaza_y_no_crea_nada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        const string correoNuevo = "sin-alta@ejemplo.test";
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var (decision, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-sin-alta"), correoNuevo, e.TenantX);
+
+            decision.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarSinCuentaPrevia,
+                "invitación previa (D-3): el inicio con Microsoft no da de alta a nadie");
+            cuenta.Should().BeNull();
+            (await usuarios.FindByEmailAsync(correoNuevo)).Should().BeNull("no se creó ninguna cuenta");
+            (await usuarios.FindByLoginAsync(IdentityEndpointsExtensionsEsquema, "clave-sin-alta")).Should().BeNull("ni ningún vínculo");
+        }
+    }
+
+    [Fact]
+    public async Task Microsoft_no_entra_ni_vincula_una_cuenta_desactivada()
+    {
+        await using var e = await CrearEscenarioAsync();
+        using var ambito = e.Arnes.Servicios.CreateScope();
+        var usuarios = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        using (AmbitoIdentificacionSinTenant.Abrir())
+        {
+            var propia = await usuarios.FindByEmailAsync(e.PropiaX.Email!);
+            propia!.Desactivar();
+            (await usuarios.UpdateAsync(propia)).Succeeded.Should().BeTrue();
+
+            // Sin vínculo: el correo encuentra la cuenta, pero no se vincula.
+            var (porCorreo, cuenta) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), e.PropiaX.Email!, e.TenantX);
+            porCorreo.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDesactivada);
+            cuenta!.Id.Should().Be(e.PropiaX.Id, "el rechazo se registra en la vigilancia de su Tenant");
+
+            // Con vínculo previo, tampoco entra.
+            (await usuarios.AddLoginAsync(propia, IdentidadMicrosoft("clave-propia"))).Succeeded.Should().BeTrue();
+            var (porVinculo, _) = await CaeManager.Web.Components.Account.InicioSesionMicrosoft.ResolverCuentaAsync(
+                usuarios, IdentidadMicrosoft("clave-propia"), e.PropiaX.Email!, e.TenantX);
+            porVinculo.Should().Be(CaeManager.Web.Components.Account.DecisionCuentaMicrosoft.RechazarCuentaDesactivada);
+        }
+    }
+
+    private static string IdentityEndpointsExtensionsEsquema =>
+        CaeManager.Web.Components.Account.IdentityEndpointsExtensions.EsquemaMicrosoft;
+
+    private static UserLoginInfo IdentidadMicrosoft(string clave) =>
+        new(CaeManager.Web.Components.Account.IdentityEndpointsExtensions.EsquemaMicrosoft, clave, "Microsoft (empresa)");
+
     [Fact]
     public async Task Sin_Tenant_ni_ambito_de_identificacion_Identity_no_encuentra_la_cuenta()
     {
@@ -378,14 +504,7 @@ public class RlsAspNetUsersBajoRuntimeTests
         await using (var identidad = new NpgsqlCommand("SELECT current_user", conexion))
             ((string)(await identidad.ExecuteScalarAsync())!).Should().Be("cae_app_runtime");
 
-        await using var fijar = new NpgsqlCommand(
-            "SELECT set_config('app.tenant_id', @t, false), set_config('app.tenant_origen_id', @o, false), " +
-            "set_config('app.usuario_id', @u, false);",
-            conexion);
-        fijar.Parameters.AddWithValue("t", tenant?.ToString() ?? string.Empty);
-        fijar.Parameters.AddWithValue("o", origen?.ToString() ?? string.Empty);
-        fijar.Parameters.AddWithValue("u", usuario?.ToString() ?? string.Empty);
-        await fijar.ExecuteNonQueryAsync();
+        await ContextoRlsDePruebas.FijarAsync(conexion, tenantId: tenant, tenantOrigenId: origen, usuarioId: usuario);
         return conexion;
     }
 

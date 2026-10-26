@@ -29,6 +29,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 {
     private readonly string _cadenaConexion = BaseDatosPostgresDePruebas.CadenaConexionUnica();
     private readonly Guid _gestorConsultora = Guid.NewGuid();
+    private readonly Guid _direccionConsultora = Guid.NewGuid();
     private readonly Guid _gestorPropietario = Guid.NewGuid();
     private Guid _consultora;
     private Guid _propietario;
@@ -239,10 +240,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var desactivar = new DesactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+            var desactivar = CrearDesactivar(contexto);
             (await desactivar.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -259,15 +257,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                 await contexto.AsignacionesCartera.ExecuteUpdateAsync(
                     s => s.SetProperty(c => c.EraPrincipalAlCerrarsePorCascada, false));
 
-            var reactivar = new ReactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new AutorizacionAdministradorDe(_propietario),
-                new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto, contexto,
-                new TransaccionDeComando(contexto),
-                new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
-                new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+            var reactivar = CrearReactivar(contexto);
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -308,10 +298,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var desactivar = new DesactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+            var desactivar = CrearDesactivar(contexto);
             (await desactivar.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -325,15 +312,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
                     .ExecuteDeleteAsync())
                 .Should().Be(1, "control: había una fila que revocar");
 
-            var reactivar = new ReactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new AutorizacionAdministradorDe(_propietario),
-                new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto, contexto,
-                new TransaccionDeComando(contexto),
-                new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
-                new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+            var reactivar = CrearReactivar(contexto);
             (await reactivar.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -422,10 +401,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // Desactivar cierra la operación y sus carteras en cascada.
         await using (var contexto = CrearContexto(_propietario))
         {
-            var handler = new DesactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+            var handler = CrearDesactivar(contexto);
 
             var resultado = await handler.Handle(
                 new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);
@@ -438,19 +414,11 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
         // la operación: el operador entraba al workspace y no veía un dato.
         await using (var contexto = CrearContexto(_propietario))
         {
-            // Reactivar exige ser Administrador del Cliente Delegante, no de la
-            // Consultora: restaurar acceso es potestad de quien lo concede.
-            // Lo que este test comprueba es otra cosa —que reactivar devuelva
-            // también las carteras—, así que entra con la autoridad correcta.
-            var handler = new ReactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new AutorizacionAdministradorDe(_propietario),
-                new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto, contexto,
-                new TransaccionDeComando(contexto),
-                new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
-                new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+            // Reactivar exige ser Gestor CAE del Operador CAE externo (decisión
+            // del 2026-10-26). Lo que este test comprueba es otra cosa —que
+            // reactivar devuelva también las carteras—, así que entra con la
+            // autoridad correcta.
+            var handler = CrearReactivar(contexto);
 
             var resultado = await handler.Handle(
                 new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None);
@@ -472,25 +440,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var handler = new DesactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+            var handler = CrearDesactivar(contexto);
             (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var handler = new ReactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new AutorizacionAdministradorDe(_propietario),
-                new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto, contexto,
-                new TransaccionDeComando(contexto),
-                new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
-                new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+            var handler = CrearReactivar(contexto);
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -525,25 +482,14 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var handler = new DesactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new CurrentUserServiceFalso(tenantOrigenId: _consultora),
-                CrearWriter(contexto), contexto);
+            var handler = CrearDesactivar(contexto);
             (await handler.Handle(new DesactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
 
         await using (var contexto = CrearContexto(_propietario))
         {
-            var handler = new ReactivarDelegacionTenantCommandHandler(
-                new DelegacionTenantRepository(contexto),
-                new AutorizacionAdministradorDe(_propietario),
-                new CurrentUserServiceFalso(Guid.NewGuid()),
-                CrearWriter(contexto), contexto, contexto,
-                new TransaccionDeComando(contexto),
-                new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
-                new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
-                new BloqueoCarteraUsuario(contexto));
+            var handler = CrearReactivar(contexto);
             (await handler.Handle(new ReactivarDelegacionTenantCommand(_delegacionId), CancellationToken.None))
                 .EsExitoso.Should().BeTrue();
         }
@@ -704,9 +650,31 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     }
 
     /// <summary>
+    /// Revoca y reactiva quien puede: la Dirección CAE de la Consultora (el Operador CAE externo), que alcanza
+    /// a toda la organización sin Asignación de Cartera propia, desde el Tenant propietario. Un Gestor CAE no
+    /// serviría para reactivar: revocar le cierra la cartera en cascada (decisiones del 2026-10-26). Quién puede y quién no se mide bajo RLS real en <c>AutorizarOperadorCaeExternoRlsTests</c>.
+    /// </summary>
+    private DesactivarDelegacionTenantCommandHandler CrearDesactivar(CaeManagerDbContext contexto) =>
+        new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(), CrearWriter(contexto), contexto,
+            new TenantActualAmbiental { TenantId = _propietario }, new CuentasQueSiguenSiendoGestorCae(), contexto,
+            new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())));
+
+    private ReactivarDelegacionTenantCommandHandler CrearReactivar(CaeManagerDbContext contexto) =>
+        new(new DelegacionTenantRepository(contexto), DireccionDeLaConsultora(),
+            CrearWriter(contexto), contexto, contexto,
+            new TransaccionDeComando(contexto),
+            new CatalogoIncorporacionCartera(contexto, new CurrentUserServiceFalso(Guid.NewGuid())),
+            new SinDirectorioDeDestinos(), new CuentasQueSiguenSiendoGestorCae(),
+            new BloqueoCarteraUsuario(contexto), new TenantActualAmbiental { TenantId = _propietario });
+
+    private CurrentUserServiceFalso DireccionDeLaConsultora() => new(_direccionConsultora, Roles.DireccionCae, _consultora);
+
+    /// <summary>
     /// Estos tests miden qué carteras repone la reactivación, con el contexto del propietario de la base.
-    /// La cuenta del anterior principal se da por válida aquí; que una cuenta desactivada o de otro rol no
-    /// recupere la marca, y el relevo, se prueban con Identity real en <c>PrincipalDeCarteraBajoRuntimeTests</c>.
+    /// La cuenta del anterior principal (Gestor CAE) se da por válida aquí, y la de quien revoca o reactiva
+    /// (Dirección CAE) también; que
+    /// una cuenta desactivada o de otro rol no recupere la marca, y el relevo, se prueban con Identity real
+    /// en <c>PrincipalDeCarteraBajoRuntimeTests</c>.
     /// </summary>
     private sealed class CuentasQueSiguenSiendoGestorCae : Application.Common.IDirectorioUsuariosService
     {
@@ -722,7 +690,7 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
 
         public Task<bool> EsCuentaActivaConRolAsync(
             Guid usuarioId, Guid tenantId, string rol, CancellationToken cancellationToken = default) =>
-            Task.FromResult(rol == Roles.GestorCae);
+            Task.FromResult(rol is Roles.GestorCae or Roles.DireccionCae);
 
         // Sin nadie en los perfiles de escalado: sin Coordinador CAE la operación queda sin principal.
         public Task<IReadOnlyList<Guid>> ObtenerCuentasActivasConRolAsync(
@@ -734,17 +702,5 @@ public class CorreccionesRevisionF1Tests : IAsyncLifetime
     {
         public Task<Application.Clientes.DestinoCartera?> ObtenerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
             Task.FromResult<Application.Clientes.DestinoCartera?>(null);
-    }
-
-    /// <summary>
-    /// Doble de <see cref="IAutorizacionDelegacionTenant"/> que responde como un
-    /// <c>Administrador</c> del tenant indicado: la implementación real exige rol
-    /// y pertenencia, así que solo autoriza cuando le preguntan por su tenant.
-    /// </summary>
-    private sealed class AutorizacionAdministradorDe(Guid tenant) : IAutorizacionDelegacionTenant
-    {
-        public Task<bool> PuedeGestionarDelegacionesAsync(
-            Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default)
-            => Task.FromResult(tenantClienteDeleganteId == tenant);
     }
 }

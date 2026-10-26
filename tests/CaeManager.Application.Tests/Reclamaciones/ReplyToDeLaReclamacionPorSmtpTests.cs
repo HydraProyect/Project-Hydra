@@ -72,7 +72,9 @@ public class ReplyToDeLaReclamacionPorSmtpTests
             new CorreoDelActorRealFalso(correoDelActorReal),
             mediator,
             NullLogger<RegistroEnvioReclamacionService>.Instance,
-            new UnitOfWorkFalso());
+            new UnitOfWorkFalso(),
+            new EnvioReclamacionRepositorioFalso(),
+            new DescarteCambiosPendientesFalso());
 
         return new Entorno(servicio, correo, integraciones, mediator);
     }

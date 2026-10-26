@@ -41,16 +41,17 @@ public sealed record ConsultaEstadoEnCache<TFila>(
 /// con <c>IAlcanceDatosService</c> y su caducidad, en cada lectura (diseño § 5.2, revisión A2).</item>
 /// <item><b>Suscripción.</b> El circuito se suscribe en <see cref="INotificadorEstadoTenant"/> solo a los Tenants cuya fila de
 /// versión ha leído con su propio contexto RLS, y se da de baja al liberarse el ámbito (cierre del circuito).</item>
+/// <item><b>Retirada de la selección.</b> Si la selección de Tenant beneficiario se retira en caliente
+/// (<see cref="IAvisoSeleccionRetirada"/>), la caché suelta en ese momento la suscripción, las entradas y los avisos del
+/// Tenant retirado, y no lo vuelve a admitir en lo que le queda al ámbito (dentro de un circuito una selección retirada no
+/// vuelve: elegir otra recarga la página): una lectura que estuviera en vuelo con su versión no lo vuelve a suscribir ni
+/// guarda nada, y un aviso suyo que ya estuviera publicándose se descarta porque su suscripción ya no consta. Los demás
+/// Tenants (el de origen, los leídos con <c>AmbitoTenantExplicito</c>) siguen igual.</item>
 /// </list>
 ///
 /// Lo cacheado no autoriza nada: la relectura pasa por el filtro global de EF y por la RLS forzada como cualquier lectura.
 /// </summary>
-public sealed class CacheEstadoCircuito(
-    ICurrentUserService currentUser,
-    ITenantActual tenantActual,
-    ILectorVersionEstadoTenant lectorVersion,
-    INotificadorEstadoTenant notificador,
-    TimeProvider? reloj = null) : IDisposable
+public sealed class CacheEstadoCircuito : IDisposable
 {
     /// <summary>Entradas como mucho por circuito; por encima se descarta la usada hace más tiempo.</summary>
     public const int MaximoEntradas = 64;
@@ -61,13 +62,43 @@ public sealed class CacheEstadoCircuito(
     /// <summary>Entidades como mucho en una relectura parcial; con más, se relee entero.</summary>
     public const int MaximoEntidadesEnRelecturaParcial = 500;
 
-    private readonly TimeProvider _reloj = reloj ?? TimeProvider.System;
+    private readonly ICurrentUserService currentUser;
+    private readonly ITenantActual tenantActual;
+    private readonly ILectorVersionEstadoTenant lectorVersion;
+    private readonly INotificadorEstadoTenant notificador;
+    private readonly IAvisoSeleccionRetirada? _avisoRetirada;
+    private readonly TimeProvider _reloj;
     private readonly object _cerrojo = new();
     private readonly Dictionary<ClaveEntrada, Entrada> _entradas = new();
     private readonly Dictionary<Guid, SortedDictionary<long, HashSet<Guid>>> _avisosPorTenant = new();
     private readonly Dictionary<Guid, IDisposable> _suscripciones = new();
     private long _uso;
     private bool _liberada;
+
+    /// <summary>Tenants beneficiarios cuya selección se retiró en este ámbito: ni se suscriben ni se guardan.</summary>
+    private readonly HashSet<Guid> _tenantsRetirados = new();
+
+    /// <param name="tenantActual">
+    /// El Tenant del ámbito. Si además avisa de la retirada de la selección (<see cref="IAvisoSeleccionRetirada"/>, como el
+    /// de la aplicación web), la caché se da de baja del Tenant retirado en ese momento; si no (fuera de un circuito, dobles
+    /// de pruebas), se comporta como antes y solo suelta las suscripciones al liberarse.
+    /// </param>
+    public CacheEstadoCircuito(
+        ICurrentUserService currentUser,
+        ITenantActual tenantActual,
+        ILectorVersionEstadoTenant lectorVersion,
+        INotificadorEstadoTenant notificador,
+        TimeProvider? reloj = null)
+    {
+        this.currentUser = currentUser;
+        this.tenantActual = tenantActual;
+        this.lectorVersion = lectorVersion;
+        this.notificador = notificador;
+        _reloj = reloj ?? TimeProvider.System;
+        _avisoRetirada = tenantActual as IAvisoSeleccionRetirada;
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado += AlRetirarseLaSeleccion;
+    }
 
     private readonly record struct ClaveEntrada(ClaveContextoMemo Contexto, string Consulta, Guid TenantId);
 
@@ -88,6 +119,12 @@ public sealed class CacheEstadoCircuito(
     /// <summary>Avisos aceptados (de Tenants suscritos).</summary>
     public int AvisosRecibidos { get; private set; }
 
+    /// <summary>Entradas guardadas ahora de <paramref name="tenantId"/> (para los tests de la retirada de la selección).</summary>
+    internal int EntradasDe(Guid tenantId)
+    {
+        lock (_cerrojo) return _entradas.Keys.Count(c => c.TenantId == tenantId);
+    }
+
     /// <summary>
     /// Las filas de <paramref name="consulta"/> para el contexto actual, de la caché si siguen al día. Sin usuario, sin
     /// Tenant de origen o sin fila de versión visible, lee directamente y no guarda nada.
@@ -103,7 +140,7 @@ public sealed class CacheEstadoCircuito(
         // versión con que se guardan, y la siguiente lectura las vuelve a pedir. Al revés, se guardarían filas viejas con
         // una versión nueva.
         var version = await lectorVersion.LeerAsync(cancellationToken);
-        return await ObtenerDeVersionAsync(consulta, contexto.Value, version, cancellationToken);
+        return await ObtenerDeVersionAsync(consulta, contexto.Value, version, entidadesPedidas: null, cancellationToken);
     }
 
     /// <summary>
@@ -123,16 +160,23 @@ public sealed class CacheEstadoCircuito(
         if (contexto is null || versionLeida is null)
             return await consulta.LeerDeEntidades(entidadesPedidas, cancellationToken);
 
-        return await ObtenerDeVersionAsync(consulta, contexto.Value, versionLeida, cancellationToken);
+        return await ObtenerDeVersionAsync(consulta, contexto.Value, versionLeida, entidadesPedidas, cancellationToken);
     }
 
     private async Task<IReadOnlyList<TFila>> ObtenerDeVersionAsync<TFila>(
-        ConsultaEstadoEnCache<TFila> consulta, ClaveContextoMemo contexto, VersionEstadoLeida? version, CancellationToken cancellationToken)
+        ConsultaEstadoEnCache<TFila> consulta, ClaveContextoMemo contexto, VersionEstadoLeida? version,
+        IReadOnlyCollection<Guid>? entidadesPedidas, CancellationToken cancellationToken)
     {
         if (version is null)
             return await consulta.LeerTodas(cancellationToken);
 
-        Suscribir(version.TenantId);
+        // Una versión de un Tenant que este ámbito ya no admite (la selección se retiró mientras la lectura estaba en vuelo):
+        // ni se suscribe ni se guarda; se lee con el contexto que haya ahora, como sin versión (solo lo pedido, si se sabe).
+        if (!Suscribir(version.TenantId))
+            return entidadesPedidas is null
+                ? await consulta.LeerTodas(cancellationToken)
+                : await consulta.LeerDeEntidades(entidadesPedidas, cancellationToken);
+
         var dia = DiaDeNegocio.Hoy(_reloj);
         var clave = new ClaveEntrada(contexto, consulta.Nombre, version.TenantId);
 
@@ -225,6 +269,9 @@ public sealed class CacheEstadoCircuito(
     /// <summary>Se cerró el circuito: fuera las suscripciones y lo guardado.</summary>
     public void Dispose()
     {
+        if (_avisoRetirada is not null)
+            _avisoRetirada.TenantSeleccionadoRetirado -= AlRetirarseLaSeleccion;
+
         IDisposable[] suscripciones;
         lock (_cerrojo)
         {
@@ -241,13 +288,47 @@ public sealed class CacheEstadoCircuito(
             suscripcion.Dispose();
     }
 
-    private void Suscribir(Guid tenantId)
+    /// <summary>
+    /// La selección de Tenant beneficiario <paramref name="retirado"/> se retiró en caliente: fuera, ya, su suscripción, sus
+    /// entradas y sus avisos, y desde aquí no se admite. Corre en el hilo de quien retira la selección, por eso todo el
+    /// estado se toca con el cerrojo; la suscripción se suelta fuera de él, como en <see cref="Dispose"/>, pero sale del
+    /// diccionario dentro, así que un aviso que llegue mientras tanto ya se descarta.
+    /// </summary>
+    private void AlRetirarseLaSeleccion(Guid retirado)
+    {
+        IDisposable? suelta;
+        lock (_cerrojo)
+        {
+            if (_liberada)
+                return;
+
+            _tenantsRetirados.Add(retirado);
+            _suscripciones.Remove(retirado, out suelta);
+            foreach (var clave in _entradas.Keys.Where(c => c.TenantId == retirado).ToList())
+                _entradas.Remove(clave);
+            _avisosPorTenant.Remove(retirado);
+        }
+
+        suelta?.Dispose();
+    }
+
+    /// <summary>Con el cerrojo tomado: un Tenant cuya selección se retiró en este ámbito no se admite.</summary>
+    private bool Admite(Guid tenantId) => !_tenantsRetirados.Contains(tenantId);
+
+    /// <summary>
+    /// Suscribe este ámbito a <paramref name="tenantId"/> si aún no lo está. Devuelve <c>false</c> si el ámbito ya no admite
+    /// ese Tenant (se retiró la selección): entonces ni se suscribe ni hay que guardar nada de él.
+    /// </summary>
+    private bool Suscribir(Guid tenantId)
     {
         lock (_cerrojo)
         {
+            if (!Admite(tenantId))
+                return false;
             if (_liberada || _suscripciones.ContainsKey(tenantId))
-                return;
+                return true;
             _suscripciones[tenantId] = notificador.Suscribir(tenantId, RecibirAviso);
+            return true;
         }
     }
 
@@ -277,7 +358,8 @@ public sealed class CacheEstadoCircuito(
     {
         lock (_cerrojo)
         {
-            if (_liberada)
+            // La selección se retiró entre la suscripción y aquí: lo leído con el Tenant anterior no se guarda.
+            if (_liberada || !Admite(clave.TenantId))
                 return;
 
             // Dos lecturas a la vez de la misma clave: gana la de versión más alta (si la versión bajó de verdad, ObtenerAsync

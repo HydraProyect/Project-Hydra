@@ -25,6 +25,8 @@ public class EditarSubcontrataCommandValidator : AbstractValidator<EditarSubcont
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("La identificación fiscal es obligatoria.");
+
         RuleFor(c => c.Cif)
             .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
             .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)
@@ -53,8 +55,11 @@ public class EditarSubcontrataCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Subcontrata.RazonSocialDuplicada", "Ya existe una subcontrata con esta razón social."));
 
-        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Subcontrata.CifDuplicado", "Ya existe una subcontrata con este CIF."));
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, request.Id, "Subcontrata.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, request.Id, "Subcontrata.CifDuplicado", cancellationToken) is { } duplicadoCif)
+            return Result.Fallo(duplicadoCif);
 
         subcontrata.ActualizarComoSubcontrata(request.RazonSocial, request.Cif);
 

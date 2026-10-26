@@ -44,12 +44,14 @@ namespace CaeManager.Architecture.Tests;
 ///
 /// <para>
 /// <b>Deuda declarada, no cerrada: rellenos de color semántico con letra blanca.</b>
-/// <c>--color-danger-500</c> (#ef4444, botón destructivo, banda de error del framework,
-/// contador de avisos) da 3,76:1 con blanco en los DOS temas (también en claro). Arreglarlo
-/// exige otro color de fondo (o letra oscura), y eso cambia el tema claro: es decisión de
-/// producto (sistema de diseño), no de este incremento. Mientras tanto cada par lleva un mínimo
+/// <c>--color-danger-500</c> (#ef4444, banda de error del framework y límite de error de
+/// Blazor) da 3,76:1 con blanco en los DOS temas (también en claro). Arreglarlo exige otro
+/// color de fondo (o letra oscura), y eso cambia el tema claro: es decisión de producto
+/// (sistema de diseño). Mientras tanto cada entrada de <c>DeudaConocida</c> lleva un mínimo
 /// rebajado a su valor de hoy para que no empeore, y el test de deuda falla en cuanto cumpla AA.
-/// (Los toasts salieron de esta deuda el 2026-10-17: fondo inverso <c>--color-toast-fondo</c>.)
+/// (Los toasts salieron de esta deuda el 2026-10-17: fondo inverso <c>--color-toast-fondo</c>.
+/// El botón destructivo y el de descartar trabajo del modal de reconexión salieron después:
+/// fondo <c>--color-destructivo-fondo</c> #dc2626, 4,83:1 con blanco, y #b91c1c en hover.)
 /// </para>
 ///
 /// <para>
@@ -96,9 +98,8 @@ public class ContrasteDeComponentesPorTemaTests
         new("Botón secundario, hover", Boton, [".boton-secundario", ".boton-secundario:not(:disabled):hover"]),
         new("Botón fantasma", Boton, [".boton-fantasma"]),
         new("Botón fantasma, hover", Boton, [".boton-fantasma", ".boton-fantasma:not(:disabled):hover"]),
-        // DEUDA (ver resumen): #ef4444 con letra blanca = 3,76:1 en claro y en oscuro.
-        new("Botón destructivo (deuda: 3,76:1 en los dos temas)", Boton, [".boton-destructivo"], Minimo: 3.7),
-        new("Botón destructivo, hover (deuda)", Boton, [".boton-destructivo", ".boton-destructivo:not(:disabled):hover"], Minimo: 3.7),
+        new("Botón destructivo", Boton, [".boton-destructivo"]),
+        new("Botón destructivo, hover", Boton, [".boton-destructivo", ".boton-destructivo:not(:disabled):hover"]),
         new("Botón 360", "Components/DesignSystem/Boton360.razor.css", [".boton-360"]),
         new("Botón 360, hover", "Components/DesignSystem/Boton360.razor.css", [".boton-360", ".boton-360:hover"]),
 
@@ -179,6 +180,11 @@ public class ContrasteDeComponentesPorTemaTests
             ["#components-reconnect-modal button", "#components-reconnect-modal button:hover"]),
         new("Reconectar, activo", "Components/Layout/ReconnectModal.razor.css",
             ["#components-reconnect-modal button", "#components-reconnect-modal button:active"]),
+        new("Reconectar, descartar trabajo", "Components/Layout/ReconnectModal.razor.css",
+            ["#components-reconnect-modal button", "#components-reconnect-modal #components-reconnect-rejected-button"]),
+        new("Reconectar, descartar trabajo, hover", "Components/Layout/ReconnectModal.razor.css",
+            ["#components-reconnect-modal button", "#components-reconnect-modal #components-reconnect-rejected-button",
+                "#components-reconnect-modal #components-reconnect-rejected-button:hover"]),
         new("Mensaje del usuario (Asistente IA)", "Features/AsistenteIa/AsistenteIa.razor.css",
             [".asistente-mensaje-usuario"]),
         new("Enviar (Asistente IA)", "Features/AsistenteIa/AsistenteIa.razor.css", [".asistente-boton-enviar"]),
@@ -248,8 +254,6 @@ public class ContrasteDeComponentesPorTemaTests
     /// </summary>
     private static readonly Dictionary<string, (double Minimo, string Motivo)> DeudaConocida = new(StringComparer.Ordinal)
     {
-        ["Components/DesignSystem/Boton.razor.css|.boton-destructivo"] =
-            (3.7, "#ef4444 con letra blanca, 3,76:1 en claro y en oscuro: otro rojo cambia el tema claro (decisión de producto)"),
         ["Components/Layout/MainLayout.razor.css|#blazor-error-ui"] =
             (3.7, "banda de error del framework, mismo rojo --color-danger-500 con letra blanca (3,76:1)"),
         ["wwwroot/app.css|.blazor-error-boundary"] =

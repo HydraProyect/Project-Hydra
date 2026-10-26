@@ -45,10 +45,17 @@ public static class DelegacionesSoporteSeeder
 
         if (tenantIds.Count == 0) return;
 
-        var yaAprovisionados = await dbContext.DelegacionesTenant
-            .Where(d => d.TenantConsultoraId == tenantPlataforma.Id && d.Proposito == PropositoDelegacion.Soporte)
-            .Select(d => d.TenantClienteId)
-            .ToListAsync(cancellationToken);
+        // DelegacionesTenant tiene RLS por sus dos extremos: sin Tenant activo esta lectura no
+        // vería ninguna delegación y la guarda de abajo duplicaría todas. Se lee desde el extremo
+        // plataforma, el mismo ámbito con el que se guardan.
+        List<Guid> yaAprovisionados;
+        using (AmbitoTenantExplicito.Establecer(tenantPlataforma.Id))
+        {
+            yaAprovisionados = await dbContext.DelegacionesTenant
+                .Where(d => d.TenantConsultoraId == tenantPlataforma.Id && d.Proposito == PropositoDelegacion.Soporte)
+                .Select(d => d.TenantClienteId)
+                .ToListAsync(cancellationToken);
+        }
 
         var pendientes = tenantIds.Except(yaAprovisionados).ToList();
         if (pendientes.Count > 0)
@@ -56,10 +63,10 @@ public static class DelegacionesSoporteSeeder
             foreach (var tenantId in pendientes)
                 dbContext.DelegacionesTenant.Add(DelegacionTenant.ParaSoporte(tenantPlataforma.Id, tenantId));
 
-            // DelegacionTenant es catálogo global (no extiende EntidadConTenant),
-            // pero el interceptor de sellado exige un tenant resuelto para
-            // cualquier guardado — al arrancar no hay sesión, así que se establece
-            // explícitamente, mismo patrón que el resto de seeders.
+            // DelegacionTenant no extiende EntidadConTenant, pero el interceptor
+            // de sellado exige un tenant resuelto para cualquier guardado y su
+            // política RLS exige que el Tenant activo sea un extremo — al arrancar
+            // no hay sesión, así que se establece el de plataforma explícitamente.
             using (AmbitoTenantExplicito.Establecer(tenantPlataforma.Id))
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
@@ -98,6 +105,9 @@ public static class DelegacionesSoporteSeeder
         if (demo2 is null || demo3 is null)
             return;
 
+        // Desde aquí hasta el final, el extremo plataforma: la RLS de DelegacionesTenant no deja
+        // ver estas delegaciones sin Tenant activo. Los ámbitos anidados de abajo lo restauran.
+        using var ambitoPlataforma = AmbitoTenantExplicito.Establecer(tenantPlataformaId);
         var soporteDemo2 = await dbContext.DelegacionesTenant.FirstOrDefaultAsync(
             d => d.TenantConsultoraId == tenantPlataformaId && d.TenantClienteId == demo2.Id
                  && d.Proposito == PropositoDelegacion.Soporte, cancellationToken);

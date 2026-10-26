@@ -112,6 +112,33 @@ public class PlataformaGen2Tests : BunitContext
         Guid.Parse("11111111-1111-1111-1111-111111111111"), null,
         TipoViaAcceso.Normal, null, null);
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task El_boton_de_cierre_solo_aparece_para_el_actor_de_la_concesion(bool esSuya)
+    {
+        var usuario = Guid.NewGuid();
+        var sesion = Guid.NewGuid();
+        var mediator = new MediatorRegistrador(peticion => peticion switch
+        {
+            PuedeInicializarPlataformaQuery => false,
+            ObtenerIdentidadPlataformaQuery => new IdentidadPlataformaDto(usuario, null, TipoViaAcceso.Normal, null, null),
+            CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId.ObtenerSesionPrivilegiadaPorIdQuery =>
+                new CaeManager.Application.Plataforma.Queries.ObtenerSesionPrivilegiadaPorId.SesionPrivilegiadaDetalleDto(
+                    sesion, Guid.NewGuid(), CapacidadPrivilegio.SoporteLectura, "Incidencia", null,
+                    DateTime.UtcNow, DateTime.UtcNow.AddHours(1), esSuya ? usuario : Guid.NewGuid()),
+            _ => throw new NotSupportedException()
+        });
+        Services.AddScoped<IMediator>(_ => mediator);
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/plataforma?sesionParaCerrar={sesion}");
+        var cut = Render<Plataforma>();
+        await cut.InvokeAsync(() => CargarDirectamente(cut.Instance));
+
+        cut.Markup.Should().Contain("Incidencia",
+            "control: el detalle de la sesión se pinta en los dos casos; solo cambia el formulario");
+        cut.FindAll("form[action='/cuenta/soporte/cerrar']").Count.Should().Be(esSuya ? 1 : 0);
+    }
+
     [Fact]
     public void La_puerta_disponible_explica_el_acto_y_ofrece_solo_las_dos_rutas_globales_dibujadas()
     {

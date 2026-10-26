@@ -85,6 +85,38 @@ public class CurrentUserServiceTests
     }
 
     /// <summary>
+    /// EquipoDelOperadorCaeExterno (quién revoca y reactiva el acceso de un Operador CAE externo)
+    /// pregunta el rol con el ámbito del Tenant de origen abierto. Ese ámbito no puede devolverle
+    /// a una Sesión Privilegiada el rol de su casa: Soporte TALVEG no es Gestor CAE ni Operador CAE.
+    /// Control positivo: sin Sesión Privilegiada, el mismo ámbito devuelve el rol de origen.
+    /// </summary>
+    [Fact]
+    public async Task El_ambito_del_tenant_de_origen_no_devuelve_rol_a_una_sesion_privilegiada()
+    {
+        var tenantOrigen = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        ClaimsPrincipal EnSuOrigen() => new(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.NameIdentifier, UsuarioIdDeEjemplo.ToString()),
+            new Claim(ClaimTypes.Role, "Administrador"),
+            new Claim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimTenantId, tenantOrigen.ToString()),
+        ], "prueba"));
+        var privilegiada = new CurrentUserService(
+            new AuthenticationStateProviderFalso(EnSuOrigen()),
+            new HttpContextAccessorFalso(null),
+            new ClienteActivoSeleccionadoConSesionPrivilegiadaFalso(),
+            new ServiceCollection().BuildServiceProvider());
+        var normal = CrearServicio(
+            new AuthenticationStateProviderFalso(EnSuOrigen()),
+            new HttpContextAccessorFalso(null));
+
+        using (AmbitoTenantExplicito.Establecer(tenantOrigen))
+        {
+            (await privilegiada.ObtenerRolEfectivoAsync()).Should().BeNull();
+            (await normal.ObtenerRolEfectivoAsync()).Should().Be("Administrador");
+        }
+    }
+
+    /// <summary>
     /// Sin Delegated Workspace seleccionado, que es el caso de todo usuario
     /// que no es Operador Delegado: <c>ObtenerRolEfectivoAsync</c> devuelve el
     /// rol de la sesión en origen —el claim de rol, mientras ningún middleware

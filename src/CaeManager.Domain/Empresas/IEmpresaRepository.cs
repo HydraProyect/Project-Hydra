@@ -4,7 +4,14 @@ public interface IEmpresaRepository
 {
     Task<Empresa?> ObtenerPorIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    /// <summary>Regla de los comandos de alta y edición: Empresa activa con la misma razón social sin distinguir mayúsculas.</summary>
     Task<bool> ExisteConRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Busca también bajas, solo en el Tenant propietario actual, con el CIF normalizado como Empresa.</summary>
+    Task<Empresa?> ObtenerDuplicadaPorCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>Lo que compara IX_Empresas_TenantId_RazonSocial: incluye bajas del Tenant propietario actual y compara la razón social recortada, sin cambiar mayúsculas.</summary>
+    Task<Empresa?> ObtenerDuplicadaPorRazonSocialAsync(string razonSocial, Guid? excluirId = null, CancellationToken cancellationToken = default);
 
     Task<bool> ExisteConCifAsync(string cif, Guid? excluirId = null, CancellationToken cancellationToken = default);
 

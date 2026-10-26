@@ -91,7 +91,7 @@ public class EventosEnFacturacionYKpiPostgresTests : IAsyncLifetime
     public async Task La_pantalla_de_facturacion_solo_cuenta_la_obra()
     {
         using var ambito = AmbitoTenantExplicito.Establecer(_tenant);
-        var handler = new ObtenerResumenFacturacionQueryHandler(_contexto, _contexto, _contexto, _contexto, _contexto, _contexto, _contexto, _contexto);
+        var handler = new ObtenerResumenFacturacionQueryHandler(_contexto, _contexto, _contexto, _contexto, _contexto, _contexto, _contexto, _contexto, new AlcanceDatosServiceFalso());
 
         var resumen = await handler.Handle(new ObtenerResumenFacturacionQuery(_cliente, 2026, 3), CancellationToken.None);
 

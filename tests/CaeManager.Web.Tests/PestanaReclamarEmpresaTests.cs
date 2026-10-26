@@ -330,7 +330,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     }
 
     [Fact]
-    public void Mientras_carga_pinta_el_estado_de_carga_y_no_el_al_dia()
+    public async Task Mientras_carga_pinta_el_estado_de_carga_y_no_el_al_dia()
     {
         var puerta = new TaskCompletionSource<ReclamacionPreventivaEmpresaDto>();
         var (cut, _) = Renderizar(new Escenario { Preventiva = _ => puerta.Task });
@@ -338,7 +338,11 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.FindComponents<EstadoCargando>().Should().ContainSingle();
         cut.Markup.Should().NotContain("Nada que reclamar");
 
-        puerta.SetResult(new ReclamacionPreventivaEmpresaDto([], [], [], []));
+        // La puerta se abre dentro del Dispatcher del renderer: la carga que la espera capturó ese contexto, y abierta
+        // desde el hilo del test su continuación se encola a la espera de un hilo del pool (la causa probable del rojo
+        // de la cola, donde no llegó dentro del segundo de WaitForAssertion). Así la continuación y el render corren
+        // dentro de InvokeAsync, como en AuditoriaPantallaTests.
+        await cut.InvokeAsync(() => puerta.SetResult(new ReclamacionPreventivaEmpresaDto([], [], [], [])));
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("Nada que reclamar a esta Empresa"));
     }
 
@@ -462,7 +466,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         await Boton(cut, "Reclamar lo visible").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
         cut.Markup.Should().NotContain("Reclamar en lote");
 
-        puerta.SetResult(escenario.Dto(LotesDeMuestra()));
+        await cut.InvokeAsync(() => puerta.SetResult(escenario.Dto(LotesDeMuestra())));
         cut.WaitForAssertion(() => Boton(cut, "Reclamar lo visible").HasAttribute("disabled").Should().BeFalse());
     }
 
@@ -491,7 +495,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
     }
 
     [Fact]
-    public void Mientras_se_vuelve_a_pedir_los_filtros_que_piden_al_servidor_quedan_deshabilitados_y_despues_se_liberan()
+    public async Task Mientras_se_vuelve_a_pedir_los_filtros_que_piden_al_servidor_quedan_deshabilitados_y_despues_se_liberan()
     {
         var puerta = new TaskCompletionSource<ReclamacionPreventivaEmpresaDto>();
         var llamadas = 0;
@@ -507,7 +511,7 @@ public class PestanaReclamarEmpresaTests : BunitContext
         cut.Find("select[aria-label='Delegación']").HasAttribute("disabled").Should().BeTrue();
         cut.Find("select[aria-label='Estado']").HasAttribute("disabled").Should().BeFalse("el estado se filtra en cliente");
 
-        puerta.SetResult(escenario.Dto(LotesDeMuestra()));
+        await cut.InvokeAsync(() => puerta.SetResult(escenario.Dto(LotesDeMuestra())));
         cut.WaitForAssertion(() => cut.Find("select[aria-label='Oficio']").HasAttribute("disabled").Should().BeFalse());
     }
 

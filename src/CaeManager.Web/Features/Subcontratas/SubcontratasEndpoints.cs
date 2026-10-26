@@ -1,3 +1,4 @@
+using CaeManager.Web.Services;
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
@@ -18,33 +19,49 @@ namespace CaeManager.Web.Features.Subcontratas;
 /// </summary>
 public static class SubcontratasEndpoints
 {
+    public static async Task<IResult> ServirEvidenciaAsync(Guid id, HttpContext contexto, IMediator mediator, IFileStorageService almacenamiento,
+            IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro, CancellationToken cancellationToken)
+    {
+        var evidencia = await mediator.Send(new ObtenerEvidenciaVerificacionParaDescargaQuery(id), cancellationToken);
+        if (evidencia is null)
+            return Results.NotFound();
+
+        // DEC-36 (REC-099): a diferencia de un adjunto de correo o una
+        // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
+        // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
+        // abrir la PR — la exclusión original asumía lo contrario).
+        Stream flujo;
+        try
+        {
+            flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return ErroresLecturaSensible.ArchivoAusente(id,
+                fabricaRegistro.CreateLogger(typeof(SubcontratasEndpoints).FullName!));
+        }
+        // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
+        try
+        {
+            await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            await flujo.DisposeAsync();
+            return ErroresLecturaSensible.Responder(contexto, ex, id,
+                fabricaRegistro.CreateLogger(typeof(SubcontratasEndpoints).FullName!));
+        }
+        catch
+        {
+            await flujo.DisposeAsync();
+            throw;
+        }
+        return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
+    }
+
     public static IEndpointRouteBuilder MapSubcontratasEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", async (
-            Guid id, IMediator mediator, IFileStorageService almacenamiento,
-            IRegistroAccesoDocumentoSensibleService registroAcceso, CancellationToken cancellationToken) =>
-        {
-            var evidencia = await mediator.Send(new ObtenerEvidenciaVerificacionParaDescargaQuery(id), cancellationToken);
-            if (evidencia is null)
-                return Results.NotFound();
-
-            // DEC-36 (REC-099): a diferencia de un adjunto de correo o una
-            // plantilla en blanco, la evidencia de VerificacionExternaSubcontrata
-            // SÍ tiene un TipoDocumentoId real (Codex lo detectó antes de
-            // abrir la PR — la exclusión original asumía lo contrario).
-            var flujo = await almacenamiento.AbrirAsync(evidencia.ArchivoRuta, cancellationToken);
-            // Falla en cerrado: sin registro no sale el contenido, y el flujo se cierra.
-            try
-            {
-                await registroAcceso.RegistrarSiSensibleAsync(id, evidencia.TipoDocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
-            }
-            catch
-            {
-                await flujo.DisposeAsync();
-                throw;
-            }
-            return Results.File(flujo, TipoContenidoDe(evidencia.NombreArchivo), evidencia.NombreArchivo, enableRangeProcessing: true);
-        });
+        endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", ServirEvidenciaAsync);
 
         // Mismo patrón de referencia que ClientesEndpoints.
         endpoints.MapGet("/subcontratas/exportar.xlsx", async (

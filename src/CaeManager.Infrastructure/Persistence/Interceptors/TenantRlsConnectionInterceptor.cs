@@ -196,6 +196,20 @@ public class TenantRlsConnectionInterceptor(
     /// <c>SET app.x = '...'</c> interpolado) para no construir SQL a partir de un
     /// valor variable, aunque hoy ese valor sea siempre un <see cref="Guid"/>
     /// generado por el propio sistema.
+    ///
+    /// <para>
+    /// <b>Desde P6 «contraer» (migración <c>ContraeContextoRlsFirmado</c>) ninguna
+    /// política ni función lee esas tres GUC sueltas</b>: leen
+    /// <c>app_ctx_tenant_id()</c>, <c>app_ctx_tenant_origen_id()</c> y
+    /// <c>app_ctx_usuario_id()</c>, que solo creen el token firmado de
+    /// <c>app.contexto</c>. Las tres siguen fijándose con el mismo valor que el
+    /// token por dos motivos: el <c>Down</c> de esa migración devuelve las
+    /// políticas a las GUC y una base revertida tiene que seguir funcionando con
+    /// esta versión, y el estado materializado aún lee <c>app.tenant_id</c> como
+    /// coordenada (no como autoridad: lo que escribe lo filtra el WITH CHECK
+    /// firmado). Quien las cambie a mano no gana nada. Retirarlas es el paso
+    /// siguiente, cuando nada las lea.
+    /// </para>
     /// </summary>
     private async Task FijarVariablesDeSesionAsync(NpgsqlConnection connection, CancellationToken cancellationToken)
     {
@@ -286,6 +300,20 @@ public class TenantRlsConnectionInterceptor(
     {
         await RenovarFueraDeTransaccionAsync(command, cancellationToken);
         return result;
+    }
+
+    void IDbCommandInterceptor.CommandFailed(DbCommand command, CommandErrorEventData eventData)
+    {
+        if (FirmanteContextoRls.EsClaveDesconocida(eventData.Exception) && command.Connection is { } conexion)
+            firmante.InvalidarClave(conexion);
+    }
+
+    Task IDbCommandInterceptor.CommandFailedAsync(
+        DbCommand command, CommandErrorEventData eventData, CancellationToken cancellationToken)
+    {
+        if (FirmanteContextoRls.EsClaveDesconocida(eventData.Exception) && command.Connection is { } conexion)
+            firmante.InvalidarClave(conexion);
+        return Task.CompletedTask;
     }
 
     InterceptionResult<DbTransaction> IDbTransactionInterceptor.TransactionStarting(

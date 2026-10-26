@@ -127,7 +127,16 @@ public static class DocumentosEndpoints
         IRegistroAccesoDocumentoSensibleService registroAcceso, ILoggerFactory fabricaRegistro,
         CancellationToken cancellationToken)
     {
-        var documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
+        DocumentoDetalleDto? documento;
+        try
+        {
+            documento = await mediator.Send(new ObtenerDocumentoPorIdQuery(id), cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsContextoNoAutorizado(ex))
+        {
+            return ErroresLecturaSensible.Responder(contexto, ex, id,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
+        }
         if (documento?.ArchivoUrl is null)
             return Results.NotFound();
 
@@ -156,11 +165,16 @@ public static class DocumentosEndpoints
             return Results.NotFound();
         }
 
-        // Falla en cerrado: si el acceso no queda registrado, la excepción corta la respuesta y
-        // el contenido no sale; el flujo ya abierto se cierra antes de propagarla.
+        // Falla en cerrado: ningún rechazo ni fallo de registro entrega contenido.
         try
         {
             await registroAcceso.RegistrarSiSensibleAsync(documento.Id, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        }
+        catch (Exception ex) when (ErroresLecturaSensible.EsMapeable(ex))
+        {
+            await flujo.DisposeAsync();
+            return ErroresLecturaSensible.Responder(contexto, ex, documento.Id,
+                fabricaRegistro.CreateLogger(typeof(DocumentosEndpoints).FullName!));
         }
         catch
         {
@@ -198,4 +212,5 @@ public static class DocumentosEndpoints
         // bloques, pendiente de decisión.
         return Results.File(flujo, "application/pdf", enableRangeProcessing: true);
     }
+
 }

@@ -310,6 +310,7 @@ public class AltaDeUsuarioDesdeContextWorkspaceDelegadoTests : IAsyncLifetime
         EscribirPropiedad(pagina, "ToastService", new ToastService());
         EscribirPropiedad(pagina, "Logger", NullLogger<PaginaUsuarios>.Instance);
         EscribirPropiedad(pagina, "EmailService", new EmailServiceNulo());
+        EscribirPropiedad(pagina, "Reloj", TimeProvider.System);
         EscribirPropiedad(pagina, "NavigationManager", new NavigationManagerFalsa());
         // Con URL pública configurada: sin ella la página no crea la cuenta y la regla de
         // Context Workspace que estos tests observan ni se llegaría a ejercer.

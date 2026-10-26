@@ -169,7 +169,7 @@ public class IngestaWebhookWhatsAppHostedService(
                     // Compensación best-effort (auditoría módulo 6) — ver
                     // CompensacionBlobsHuerfanosIngesta e IngestaWebhookHostedService.
                     await CompensacionBlobsHuerfanosIngesta.EliminarSiOrfanosAsync(
-                        ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
+                        evento.Id, ingesta.ArchivosGuardados, ambito.ServiceProvider.GetRequiredService<IFileStorageService>(), logger);
                     throw;
                 }
 

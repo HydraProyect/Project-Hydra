@@ -212,6 +212,10 @@
     <value>Identificación fiscal</value>
     <comment>Dato de Información: CIF, copiable.</comment>
   </data>
+  <data name="RotuloIdentificacionFiscalObligatoria" xml:space="preserve">
+    <value>Identificación fiscal *</value>
+    <comment>Etiqueta del campo CIF, DNI o NIE de los formularios de Empresa: obligatorio, con asterisco.</comment>
+  </data>
   <data name="SelloApoyo" xml:space="preserve">
     <value>El sello de la empresa se estampa en las firmas en campo de sus documentos. Sube una foto nítida sobre fondo claro.</value>
     <comment>Texto bajo el título de la sección Sello de la pestaña Ficha.</comment>

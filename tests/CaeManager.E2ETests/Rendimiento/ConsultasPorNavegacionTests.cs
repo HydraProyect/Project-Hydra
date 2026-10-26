@@ -72,7 +72,7 @@ public class ConsultasPorNavegacionTests(WebAppFixtureConConsultasSql fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Email, Ayudas.ContrasenaUsuariosPrueba);
         await Ayudas.NavegarYEsperarAsync(page, fixture.BaseUrl);
 
-        var medidor = new MedidorConsultasSql(fixture);
+        var medidor = new MedidorConsultasSql(fixture.DirectorioLogs, fixture.PatronFicheroLog);
         await medidor.EsperarSilencioAsync(TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(30));
 
         // Solo prerender: GET crudo, sin circuito.

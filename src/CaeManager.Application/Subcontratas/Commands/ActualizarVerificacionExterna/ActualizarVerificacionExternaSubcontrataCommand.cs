@@ -19,7 +19,7 @@ public record ActualizarVerificacionExternaSubcontrataCommand(
     DateOnly? ValidoHasta,
     string? Observaciones,
     byte[]? EvidenciaContenido = null,
-    string? EvidenciaNombreArchivo = null) : ICommand;
+    string? EvidenciaNombreArchivo = null, Guid Version = default) : ICommand<Guid>;
 
 public class ActualizarVerificacionExternaSubcontrataCommandValidator
     : AbstractValidator<ActualizarVerificacionExternaSubcontrataCommand>
@@ -27,6 +27,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandValidator
     public ActualizarVerificacionExternaSubcontrataCommandValidator()
     {
         RuleFor(c => c.Id).NotEmpty();
+        RuleFor(c => c.Version).NotEmpty();
         RuleFor(c => c.Resultado).IsInEnum();
 
         RuleFor(c => c.FechaVerificacion)
@@ -53,9 +54,9 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandler(
     IAlcanceDatosService alcanceDatos,
     IFileStorageService fileStorage,
     IUnitOfWork unitOfWork)
-    : IRequestHandler<ActualizarVerificacionExternaSubcontrataCommand, Result>
+    : IRequestHandler<ActualizarVerificacionExternaSubcontrataCommand, Result<Guid>>
 {
-    public async Task<Result> Handle(
+    public async Task<Result<Guid>> Handle(
         ActualizarVerificacionExternaSubcontrataCommand request, CancellationToken cancellationToken)
     {
         // La verificación es de la Subcontrata EN un Centro: hacen falta las dos gestiones, igual que para
@@ -64,13 +65,16 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandler(
         if (verificacion is null
             || !await alcanceDatos.SubcontrataParaGestionVisibleAsync(verificacion.SubcontrataId, cancellationToken)
             || !await alcanceDatos.CentroParaGestionVisibleAsync(verificacion.CentroId, cancellationToken))
-            return Result.Fallo(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
+            return Result.Fallo<Guid>(Error.Crear("VerificacionExterna.NoEncontrada", "No encontramos esta verificación."));
+
+        if (ConcurrenciaOptimista.Verificar(verificacion, request.Version, "esta verificación") is { } conflicto)
+            return Result.Fallo<Guid>(conflicto);
 
         if (request.EvidenciaContenido is not null)
         {
             var validacion = ValidacionEvidenciaVerificacionExterna.Validar(request.EvidenciaContenido, request.EvidenciaNombreArchivo);
             if (validacion.EsFallido)
-                return validacion;
+                return Result.Fallo<Guid>(validacion.Error);
         }
 
         verificacion.Actualizar(request.FechaVerificacion, request.Resultado, request.ValidoHasta, request.Observaciones);
@@ -84,6 +88,6 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandler(
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
-        return Result.Exito();
+        return Result.Exito(verificacion.Version);
     }
 }

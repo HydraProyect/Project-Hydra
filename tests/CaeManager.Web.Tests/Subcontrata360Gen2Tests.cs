@@ -163,7 +163,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
     private static SubcontrataDetalleDto Detalle(
         Guid id, string razonSocial, NivelServicioSubcontrata nivel = NivelServicioSubcontrata.Gestionada,
         Guid[]? clientes = null, Guid[]? empresas = null) => new(
-        id, razonSocial, "A-48.007.615", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
+        id, razonSocial, "B10380186", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
         clientes ?? [], empresas ?? [], Guid.NewGuid(), nivel, Notas: null, NotaInternaVisible: true);
 
     private static TrabajadorListaDto Trabajador(string nombre, string apellidos, EstadoDocumento? estado = null) =>
@@ -202,6 +202,21 @@ public partial class Subcontrata360Gen2Tests : BunitContext
             .Where(c => c.QuerySelector("span")?.TextContent.Trim() == rotulo)
             .Select(c => c.QuerySelector("strong")?.TextContent.Trim() ?? string.Empty)
             .Should().ContainSingle($"la rejilla tiene que tener exactamente una celda «{rotulo}»").Subject;
+
+    [Fact]
+    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var id = Guid.NewGuid(); var m = Registrar(new MediatorFalso());
+        m.Detalles[id] = Detalle(id, "Empresa de prueba");
+        var cut = Renderizar(id);
+        await Boton(cut, "Editar identidad").ClickAsync(new MouseEventArgs());
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.AtributosAdicionales?.ContainsKey("aria-required") == true);
+        await cut.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await Boton(cut, "Guardar").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        m.Enviadas.OfType<EditarSubcontrataCommand>().Should().BeEmpty();
+    }
 
     /// <summary>
     /// El panel sustituye a la vista previa de la lista (patrón de listados sin menú «⋯»), así
@@ -335,7 +350,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
     private static SubcontrataListaDto Fila(
         Guid id, int? cumplimiento,
         IReadOnlyList<IncidenciaSubcontrataDto>? vencidas = null, IReadOnlyList<IncidenciaSubcontrataDto>? proximas = null) => new(
-        id, "Pinturas Lauburu S.A.", "A-48.007.615", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
+        id, "Pinturas Lauburu S.A.", "B10380186", new DateTime(2026, 7, 2, 0, 0, 0, DateTimeKind.Utc),
         NivelServicioSubcontrata.Gestionada, cumplimiento, new RecuentosSubcontrataDto(vencidas ?? [], proximas ?? []));
 
     [Fact]
@@ -730,7 +745,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         Celda(cut, "Clientes para los que trabaja").Should().Be("Refrielectric S.A. y 1 más",
             "un Id cuyo nombre no llega se cuenta, no se omite ni se inventa");
         Celda(cut, "Empresas a las que presta servicio").Should().Be("Montajes Ebro S.L.");
-        Celda(cut, "Identificación fiscal").Should().Be("A-48.007.615");
+        Celda(cut, "Identificación fiscal").Should().Be("B10380186");
     }
 
     [Fact]
@@ -1091,7 +1106,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         var cut = await AbrirEdicionAsync(escena);
 
         await Control(cut, "Razón social").InputAsync(new ChangeEventArgs { Value = "Pinturas Lauburu Norte S.A." });
-        await Control(cut, "Identificación fiscal").InputAsync(new ChangeEventArgs { Value = "A-48.007.616" });
+        await Control(cut, "Identificación fiscal *").InputAsync(new ChangeEventArgs { Value = "B12345674" });
         await Casilla(cut, "Talleres Arrasate S.Coop.").ChangeAsync(new ChangeEventArgs { Value = true });
         await Casilla(cut, "Montajes Ebro S.L.").ChangeAsync(new ChangeEventArgs { Value = true });
         // Lo que devolverá la cabecera al volver a pedirla.
@@ -1102,7 +1117,7 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         var comando = escena.Mediador.Enviadas.OfType<EditarSubcontrataCommand>().Should().ContainSingle().Subject;
         comando.Id.Should().Be(escena.Original.Id);
         comando.RazonSocial.Should().Be("Pinturas Lauburu Norte S.A.");
-        comando.Cif.Should().Be("A-48.007.616");
+        comando.Cif.Should().Be("B12345674");
         comando.ClienteIds.Should().BeEquivalentTo([escena.Refrielectric, escena.Arrasate], "se conserva el que tenía y se añade el marcado");
         comando.EmpresaIds.Should().BeEquivalentTo([escena.Montajes]);
         comando.Version.Should().Be(escena.Original.Version, "la versión leída es la que protege contra una edición concurrente");

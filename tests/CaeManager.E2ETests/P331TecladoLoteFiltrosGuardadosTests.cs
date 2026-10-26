@@ -57,7 +57,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         {
             await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
-            await drawer.GetByLabel("Identificación fiscal", new LocatorGetByLabelOptions { Exact = true })
+            await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true })
                 .FillAsync(Ayudas.GenerarCifValido(razonSocial == razonSocialA ? 9_998_801 : 9_998_802));
             await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });

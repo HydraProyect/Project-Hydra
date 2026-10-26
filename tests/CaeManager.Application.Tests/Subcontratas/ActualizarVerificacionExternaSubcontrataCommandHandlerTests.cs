@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Commands.ActualizarVerificacionExterna;
 using CaeManager.Application.Tests.Clientes;
 using CaeManager.Application.Tests.Common;
@@ -23,6 +24,23 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         return (new ActualizarVerificacionExternaSubcontrataCommandHandler(repositorio, alcance ?? new AlcanceDatosServiceFalso(), archivos, uow), uow, archivos);
     }
 
+    [Fact]
+    public async Task Version_antigua_rechaza_la_edicion_sin_guardar_ni_subir_evidencia()
+    {
+        var verificacion = CrearVerificacion(Guid.NewGuid());
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var (handler, uow, archivos) = Crear(repositorio);
+        var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
+            verificacion.Id, Antes, ResultadoVerificacionExterna.NoValido, null, "Cambio",
+            "%PDF-1.7\n%%EOF"u8.ToArray(), "nueva.pdf", Guid.NewGuid()), CancellationToken.None);
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(ConcurrenciaOptimista.CodigoConflicto);
+        verificacion.Observaciones.Should().Be("Original");
+        uow.VecesGuardado.Should().Be(0);
+        archivos.ArchivosGuardados.Should().Be(0);
+    }
+
     [Theory]
     [InlineData("evidencia.pdf", "MZejecutable")]
     [InlineData("evidencia.docx", "PK\u0003\u0004resto")]
@@ -36,7 +54,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
             verificacion.Id, Antes.AddDays(1), ResultadoVerificacionExterna.NoValido, null, "Cambio",
-            System.Text.Encoding.Latin1.GetBytes(contenido), nombre), CancellationToken.None);
+            System.Text.Encoding.Latin1.GetBytes(contenido), nombre, verificacion.Version), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("VerificacionExterna.EvidenciaFormatoNoValido");
@@ -59,9 +77,10 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         var (handler, uow, archivos) = Crear(repositorio);
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
-            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, new DateOnly(2027, 1, 1), "Corregida"), CancellationToken.None);
+            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, new DateOnly(2027, 1, 1), "Corregida", Version: verificacion.Version), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be(verificacion.Version);
         verificacion.FechaVerificacion.Should().Be(new DateOnly(2026, 2, 2));
         verificacion.Resultado.Should().Be(ResultadoVerificacionExterna.NoValido);
         verificacion.ValidoHasta.Should().Be(new DateOnly(2027, 1, 1));
@@ -74,6 +93,34 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
     }
 
     [Fact]
+    public async Task Devuelve_la_Version_que_queda_tras_guardar_y_no_la_que_llego_en_el_comando()
+    {
+        var verificacion = CrearVerificacion(Guid.NewGuid());
+        var repositorio = new VerificacionExternaSubcontrataRepositorioFalso();
+        repositorio.Agregar(verificacion);
+        var versionVista = verificacion.Version;
+        var uow = new UnitOfWorkQueRenuevaLaVersion(verificacion);
+        var handler = new ActualizarVerificacionExternaSubcontrataCommandHandler(
+            repositorio, new AlcanceDatosServiceFalso(), new FileStorageServiceFalso(), uow);
+
+        var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
+            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, null, "Corregida", Version: versionVista), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().NotBe(versionVista, "el Deshacer del aviso se manda con este token: el de antes del guardado ya no es el vigente");
+        resultado.Valor.Should().Be(verificacion.Version);
+    }
+
+    /// <summary>Hace lo que el interceptor de concurrencia al guardar una entidad modificada: renovar su Version.</summary>
+    private sealed class UnitOfWorkQueRenuevaLaVersion(VerificacionExternaSubcontrata verificacion) : IUnitOfWork
+    {
+        public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+        {
+            typeof(EntidadBase).GetProperty(nameof(EntidadBase.Version))!.SetValue(verificacion, Guid.NewGuid());
+            return Task.FromResult(1);
+        }
+    }
+    [Fact]
     public async Task Sustituye_la_evidencia_cuando_llega_una_nueva()
     {
         var verificacion = CrearVerificacion(Guid.NewGuid());
@@ -83,9 +130,10 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         var (handler, _, archivos) = Crear(repositorio);
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
-            verificacion.Id, Antes, ResultadoVerificacionExterna.Valido, null, null, "%PDF-1.7\n%%EOF"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
+            verificacion.Id, Antes, ResultadoVerificacionExterna.Valido, null, null, "%PDF-1.7\n%%EOF"u8.ToArray(), "nueva.pdf", verificacion.Version), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
+        resultado.Valor.Should().Be(verificacion.Version);
         verificacion.EvidenciaNombreArchivo.Should().Be("nueva.pdf");
         verificacion.EvidenciaArchivoRuta.Should().NotBe("ruta-1");
         archivos.ArchivosGuardados.Should().Be(1);
@@ -115,7 +163,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
             new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], subcontrataIdsParaGestion: []));
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
-            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, null, null), CancellationToken.None);
+            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, null, null, Version: Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("VerificacionExterna.NoEncontrada");
@@ -134,7 +182,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
             new AlcanceDatosServiceFalso(tieneAccesoTotal: false, subcontrataIdsVisibles: [subcontrataId], centroIdsVisibles: [Guid.NewGuid()]));
 
         var resultado = await handler.Handle(new ActualizarVerificacionExternaSubcontrataCommand(
-            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, null, null), CancellationToken.None);
+            verificacion.Id, new DateOnly(2026, 2, 2), ResultadoVerificacionExterna.NoValido, null, null, Version: Guid.NewGuid()), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("VerificacionExterna.NoEncontrada");
@@ -148,10 +196,19 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
         var validador = new ActualizarVerificacionExternaSubcontrataCommandValidator();
 
         validador.Validate(new ActualizarVerificacionExternaSubcontrataCommand(
-            Guid.NewGuid(), DiaDeNegocio.Hoy().AddDays(1), ResultadoVerificacionExterna.Valido, null, null)).IsValid.Should().BeFalse();
+            Guid.NewGuid(), DiaDeNegocio.Hoy().AddDays(1), ResultadoVerificacionExterna.Valido, null, null, Version: Guid.NewGuid())).IsValid.Should().BeFalse();
         validador.Validate(new ActualizarVerificacionExternaSubcontrataCommand(
-            Guid.NewGuid(), Antes, ResultadoVerificacionExterna.Valido, null, null, [1], null)).IsValid.Should().BeFalse();
+            Guid.NewGuid(), Antes, ResultadoVerificacionExterna.Valido, null, null, [1], null, Guid.NewGuid())).IsValid.Should().BeFalse();
         validador.Validate(new ActualizarVerificacionExternaSubcontrataCommand(
-            Guid.NewGuid(), Antes, ResultadoVerificacionExterna.Valido, null, null, [1], "a.pdf")).IsValid.Should().BeTrue();
+            Guid.NewGuid(), Antes, ResultadoVerificacionExterna.Valido, null, null, [1], "a.pdf", Guid.NewGuid())).IsValid.Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_validador_exige_la_Version_vista_en_pantalla()
+    {
+        var validador = new ActualizarVerificacionExternaSubcontrataCommandValidator();
+
+        validador.Validate(new ActualizarVerificacionExternaSubcontrataCommand(
+            Guid.NewGuid(), Antes, ResultadoVerificacionExterna.Valido, null, null)).IsValid.Should().BeFalse();
     }
 }

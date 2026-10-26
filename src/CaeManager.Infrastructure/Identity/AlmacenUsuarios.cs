@@ -51,7 +51,7 @@ namespace CaeManager.Infrastructure.Identity;
 /// <see cref="AmbitoTenantExplicito"/>: bajo la política de su propio Tenant, igual
 /// que <c>ApiKeyAuthenticationHandler</c> con <c>app_tenant_de_clave_api</c>. Las
 /// escrituras de esos caminos (el contador de intentos fallidos, el restablecimiento
-/// de la contraseña, el alta por SSO) corren en el Tenant de la cuenta que se
+/// de la contraseña, el vínculo de la identidad de Microsoft) corren en el Tenant de la cuenta que se
 /// escribe. Fuera de ese ámbito, o con Tenant, el almacén se comporta como el de
 /// Identity y la política decide.
 /// </para>
@@ -125,7 +125,7 @@ public class AlmacenUsuarios(
 
     /// <summary>
     /// Una cuenta que un camino sin Tenant ya tiene delante (la cargó por su clave
-    /// dentro del mismo ámbito, o la está dando de alta el SSO) se escribe en su
+    /// dentro del mismo ámbito, o le está vinculando el SSO su identidad) se escribe en su
     /// propio Tenant. Con Tenant en el contexto, o fuera del ámbito, decide la
     /// política con el contexto que haya.
     /// </summary>

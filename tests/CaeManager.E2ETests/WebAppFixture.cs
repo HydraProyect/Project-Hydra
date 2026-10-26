@@ -103,6 +103,13 @@ public class WebAppFixture : IAsyncLifetime
         infoInicio.Environment["ConnectionStrings__CaeManagerDb"] = _cadenaConexion;
         infoInicio.Environment["DatosPrueba__Activo"] = "true";
 
+        // La plantilla CAE completa no trae la Empresa de cada hoja de Trabajadores en el código: la declara la
+        // configuración (Importacion:PlantillaCaeCompleta). ImportacionTests sube un libro con estas dos hojas.
+        infoInicio.Environment["Importacion__PlantillaCaeCompleta__HojasTrabajadores__0__Hoja"] = "Empleados";
+        infoInicio.Environment["Importacion__PlantillaCaeCompleta__HojasTrabajadores__0__RazonSocialEmpresa"] = Ayudas.EmpresaDeHojaEmpleadosImportacion;
+        infoInicio.Environment["Importacion__PlantillaCaeCompleta__HojasTrabajadores__1__Hoja"] = "Trabajadores de la filial";
+        infoInicio.Environment["Importacion__PlantillaCaeCompleta__HojasTrabajadores__1__RazonSocialEmpresa"] = Ayudas.EmpresaDeHojaFilialImportacion;
+
         // Horizonte 1.6 (ciclo documental E2E): registra ProveedorFalsoDocumentAI
         // como IDocumentAIProvider primario (ver InfrastructureServiceCollectionExtensions)
         // en vez de depender de Anthropic/Gemini/Mistral reales — que en este

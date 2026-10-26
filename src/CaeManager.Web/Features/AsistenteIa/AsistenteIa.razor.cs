@@ -66,6 +66,7 @@ public partial class AsistenteIa : IDisposable
     [Inject] private Microsoft.Extensions.Options.IOptions<CaeManager.Application.AsistenteIa.AsistenteConsultaOptions> LimitesConsulta { get; set; } = default!;
     [Inject] private ISanitizadorHtmlService Sanitizador { get; set; } = default!;
     [Inject] private DisponibilidadAsistente Disponibilidad { get; set; } = default!;
+    [Inject] private IActorAuditoria ActorAuditoria { get; set; } = default!;
     [Inject] private ICurrentUserService UsuarioActual { get; set; } = default!;
     /// <summary>El Tenant efectivo del circuito (claim firmado más la Empresa gestionada elegida y vigente).</summary>
     [Inject] private ITenantActual TenantActual { get; set; } = default!;
@@ -91,6 +92,7 @@ public partial class AsistenteIa : IDisposable
     /// </summary>
     private string _valorMostrado = string.Empty;
 
+    private bool _sesionPrivilegiada = true;
     private bool _enviando;
     private string? _mensajeError;
 
@@ -194,6 +196,7 @@ public partial class AsistenteIa : IDisposable
 
     protected override async Task OnInitializedAsync()
     {
+        _sesionPrivilegiada = (await ActorAuditoria.ObtenerAsync()).Via == TipoViaAcceso.SesionPrivilegiada;
         _tenantOrigenId = await UsuarioActual.ObtenerTenantOrigenIdAsync();
         if (PantallaCompleta)
             await CargarEmpresaAsync();
@@ -461,7 +464,7 @@ public partial class AsistenteIa : IDisposable
     private async Task EnviarAsync()
     {
         var texto = _pregunta.Trim();
-        if (texto.Length == 0 || _enviando) return;
+        if (texto.Length == 0 || _enviando || _sesionPrivilegiada) return;
 
         // Si el Tenant efectivo cambió, el hilo anterior ya se ha vaciado y este texto tampoco
         // sale: se escribió viendo otra Empresa. Se queda en la caja para revisarlo.

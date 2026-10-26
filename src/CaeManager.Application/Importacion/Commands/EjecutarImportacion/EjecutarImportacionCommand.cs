@@ -213,7 +213,7 @@ public class EjecutarImportacionCommandHandler(
             if (!clientesPorNombre.ContainsKey(fila.Nombre))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros_Plataformas", 0, fila.Nombre,
+                    fila.Hoja, fila.Fila, fila.Nombre,
                     "Este Cliente no existe todavía. Ahora requiere un CIF, que esta plantilla no recoge — créalo manualmente en Clientes."));
                 continue;
             }
@@ -223,7 +223,7 @@ public class EjecutarImportacionCommandHandler(
             if (!centrosPorNombre.ContainsKey(fila.Nombre))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Centros_Plataformas", 0, fila.Nombre,
+                    fila.Hoja, fila.Fila, fila.Nombre,
                     "Este centro no existe todavía. Ahora requiere una Empresa asociada, que esta plantilla no recoge — créalo manualmente en Centros."));
             }
         }
@@ -237,8 +237,20 @@ public class EjecutarImportacionCommandHandler(
                 // la prometía y apareció entre analizar y confirmar.
                 if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Empleados", 0, fila.RazonSocial,
+                        fila.Hoja, fila.Fila, fila.RazonSocial,
                         $"La empresa «{fila.RazonSocial}» ya existía al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza la que ya había en vez de duplicarla."));
+                continue;
+            }
+
+            // La razón social de una Empresa dada de baja (o activa, con otros espacios
+            // exteriores) del Tenant propietario haría fallar el SaveChangesAsync final por
+            // IX_Empresas_TenantId_RazonSocial y, con él, el archivo entero. Se omite solo
+            // esta fila, con su causa; un return a mitad del plan dejaría en el DbContext del
+            // circuito las altas ya añadidas.
+            if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(empresaRepositorio, fila.RazonSocial,
+                cancellationToken: cancellationToken) is { } razonSocialOcupada)
+            {
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, razonSocialOcupada.Mensaje));
                 continue;
             }
 
@@ -251,7 +263,7 @@ public class EjecutarImportacionCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Empleados", 0, fila.RazonSocial, ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, fila.RazonSocial, ex.Message));
             }
         }
 
@@ -262,7 +274,7 @@ public class EjecutarImportacionCommandHandler(
                 // Reutilización anunciada por el análisis (ver nota de la clase).
                 if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Empleados", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                        fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
                         $"Ya existía un trabajador con el DNI {fila.Dni} al confirmar la importación, aunque no existía al analizar el archivo; se reutiliza el que ya había en vez de duplicarlo."));
                 continue;
             }
@@ -272,7 +284,7 @@ public class EjecutarImportacionCommandHandler(
                 // Dependencia dentro del propio archivo: la Empresa del trabajador
                 // ni existía antes ni pudo crearse en esta importación.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Empleados", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
+                    fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})",
                     $"La empresa «{fila.RazonSocialEmpresa}» no existe y no pudo crearse al importar este archivo; un trabajador no puede darse de alta sin la empresa a la que pertenece."));
                 continue;
             }
@@ -287,7 +299,7 @@ public class EjecutarImportacionCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Empleados", 0, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, $"{fila.Nombre} {fila.Apellidos} ({fila.Dni})", ex.Message));
             }
         }
 
@@ -305,7 +317,7 @@ public class EjecutarImportacionCommandHandler(
                 // El documento se queda sin titular: su trabajador no existía ni
                 // pudo crearse (su propia fila se omitió más arriba, con su motivo).
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; su documento no tiene a quién asociarse."));
                 continue;
             }
@@ -316,7 +328,7 @@ public class EjecutarImportacionCommandHandler(
                 // del caso anterior, este archivo nunca pudo crearla — el catálogo
                 // de tipos de documento no se alimenta desde la importación.
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                     $"El tipo de documento «{fila.NombreTipoDocumento}» no existe en el catálogo del sistema y la importación no lo crea; da de alta el tipo en Tipos de documento y vuelve a importar."));
                 continue;
             }
@@ -326,7 +338,7 @@ public class EjecutarImportacionCommandHandler(
                 // Reutilización anunciada por el análisis (ver nota de la clase).
                 if (!fila.YaExiste)
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}",
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}",
                         $"El trabajador {fila.Dni} ya tenía un documento de tipo «{fila.NombreTipoDocumento}» al confirmar la importación, aunque no lo tenía al analizar el archivo; se conserva el que ya había en vez de duplicarlo."));
                 continue;
             }
@@ -345,7 +357,7 @@ public class EjecutarImportacionCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, 0, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreTipoDocumento}", ex.Message));
             }
         }
 
@@ -382,7 +394,7 @@ public class EjecutarImportacionCommandHandler(
             if (!trabajadoresPorDni.TryGetValue(fila.Dni, out var trabajadorId))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                     $"El trabajador con DNI {fila.Dni} no existe y no pudo crearse al importar este archivo; sin él la asignación al centro «{fila.NombreCentro}» no puede crearse."));
                 continue;
             }
@@ -403,7 +415,7 @@ public class EjecutarImportacionCommandHandler(
                     : $"El centro «{fila.NombreCentro}» no existe en el sistema y este archivo no lo declara en la hoja Centros_Plataformas; sin él la asignación no puede crearse.";
 
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", motivoCentro));
                 continue;
             }
 
@@ -417,12 +429,12 @@ public class EjecutarImportacionCommandHandler(
                     // y solo cabe una): se registra para que los contadores cuadren,
                     // con su causal, no con la de la reaparición entre pasos.
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                         $"Esta asignación del trabajador {fila.Dni} al centro «{fila.NombreCentro}» ya venía antes en este mismo archivo; se registra una sola vez."));
                 else if (!fila.YaExiste)
                     // Reutilización que el análisis NO llegó a anunciar (ver nota de la clase).
                     omitidosEnEscritura.Add(new ItemImportacionDto(
-                        "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                        fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                         $"El trabajador {fila.Dni} ya estaba asignado al centro «{fila.NombreCentro}» al confirmar la importación, aunque no lo estaba al analizar el archivo; se conserva la asignación activa que ya había en vez de duplicarla."));
                 continue;
             }
@@ -437,7 +449,7 @@ public class EjecutarImportacionCommandHandler(
             if (clavesAsignacionesSolapanConCerrada.Contains(clave))
             {
                 omitidosEnEscritura.Add(new ItemImportacionDto(
-                    "Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}",
+                    fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}",
                     $"El trabajador {fila.Dni} tuvo antes una asignación al centro «{fila.NombreCentro}» cuyo periodo de vigencia se solapa con la fecha de alta de hoy; revisa las fechas del historial antes de reintentar."));
                 continue;
             }
@@ -456,7 +468,7 @@ public class EjecutarImportacionCommandHandler(
             }
             catch (ArgumentException ex)
             {
-                omitidosEnEscritura.Add(new ItemImportacionDto("Asignaciones", 0, $"{fila.Dni} — {fila.NombreCentro}", ex.Message));
+                omitidosEnEscritura.Add(new ItemImportacionDto(fila.Hoja, fila.Fila, $"{fila.Dni} — {fila.NombreCentro}", ex.Message));
             }
         }
 

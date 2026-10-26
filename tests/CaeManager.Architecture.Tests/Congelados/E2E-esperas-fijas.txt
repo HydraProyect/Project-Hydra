@@ -22,7 +22,6 @@ tests/CaeManager.E2ETests/FilaSeRefrescaTrasEditarEnPanelE2ETests.cs :: WaitForT
 tests/CaeManager.E2ETests/FlujoBandejaPriorizadaTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/FlujoCicloDocumentalTests.cs :: WaitForTimeoutAsync = 4
 tests/CaeManager.E2ETests/FlujoCriticoTests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/FlujoSoporteTests.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/GestionesFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportacionTests.cs :: WaitForTimeoutAsync = 2
 tests/CaeManager.E2ETests/ImportarClientesTests.cs :: WaitForTimeoutAsync = 1
@@ -30,7 +29,6 @@ tests/CaeManager.E2ETests/P331TecladoLoteFiltrosGuardadosTests.cs :: WaitForTime
 tests/CaeManager.E2ETests/RecorridoFichas360.cs :: WaitForTimeoutAsync = 1
 tests/CaeManager.E2ETests/Rendimiento/MedidorConsultasSql.cs :: Task.Delay = 1
 tests/CaeManager.E2ETests/SubidaMasivaTests.cs :: WaitForTimeoutAsync = 1
-tests/CaeManager.E2ETests/VisitaCentroGestionadoPorCorreoE2ETests.cs :: WaitForTimeoutAsync = 5
 tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: WaitForTimeoutAsync = 2
 # Pausa del bucle que espera a que la aplicación recién arrancada acepte conexiones.
 tests/CaeManager.E2ETests/WebAppFixture.cs :: Task.Delay = 1

@@ -145,6 +145,9 @@ public static class ApplicationServiceCollectionExtensions
         // Va por fuera de AutorizacionEscrituraBehavior y del handler: ambos autorizan con el
         // alcance recién resuelto, no con el que memoizó el circuito.
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(InvalidacionAlcanceBehavior<,>));
+        // La instantánea queda dentro de la puerta y envuelve todos los resultados de fallo.
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(RestauracionCambiosDeComandoBehavior<,>));
+        services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(CaeManager.Application.Empresas.DuplicadosEmpresaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(ConcurrenciaBehavior<,>));
         services.AddTransient(typeof(MediatR.IPipelineBehavior<,>), typeof(AutorizacionEscrituraBehavior<,>));
         // GateComercialTenantBehavior va justo después: un Command ya

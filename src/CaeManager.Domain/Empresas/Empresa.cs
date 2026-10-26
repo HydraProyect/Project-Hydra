@@ -62,12 +62,14 @@ public class Empresa : EntidadBase
     /// el nombre <c>Cif</c> se conserva por sus consumidores, no porque el
     /// campo siga siendo solo un CIF.
     /// <para>
-    /// Sigue siendo opcional — hay Empresas ya creadas (sembradas o
-    /// importadas) sin identificación, y las plantillas de importación
-    /// tampoco la recogen todavía. El alta nueva (CrearEmpresaCommand) sí la
-    /// exige para MVP-1 (Escenario 2, Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 2): sin
-    /// ella no se puede emitir un F-22 válido — va en cabecera y en la
-    /// cláusula RGPD.
+    /// Decisión de producto (2026-10-26): la identificación fiscal de una Empresa es
+    /// obligatoria. Las altas y ediciones de Empresa, Cliente y Subcontrata la exigen
+    /// en sus Commands (alta y edición); sin ella no se puede emitir un F-22 válido —
+    /// va en cabecera y en la cláusula RGPD (Escenario 2,
+    /// Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 2). Esta propiedad sigue
+    /// siendo anulable en el modelo porque hay Empresas ya creadas (sembradas o
+    /// importadas) sin ella, y la importación masiva crea Empresas con solo la razón
+    /// social: esas fichas no se pueden editar hasta completarla.
     /// </para>
     /// </summary>
     public string? Cif { get; private set; }
@@ -180,8 +182,9 @@ public class Empresa : EntidadBase
 
     /// <summary>
     /// F3b-Subcontrata — alta de la contraparte antes llamada Subcontrata. A
-    /// diferencia de <see cref="CrearComoCliente"/>, el CIF es opcional
-    /// (mismo criterio que tenía <c>Subcontrata.EstablecerCif</c>).
+    /// diferencia de <see cref="CrearComoCliente"/>, el dominio admite CIF nulo
+    /// (mismo criterio que tenía <c>Subcontrata.EstablecerCif</c>); la
+    /// obligatoriedad la imponen los Commands de alta y edición de Subcontrata.
     /// <paramref name="nivelServicio"/> se recibe ya como texto (no como el
     /// enum <c>NivelServicioSubcontrata</c>) por el mismo motivo que
     /// <see cref="NivelServicio"/> es <c>string?</c>: evitar acoplar

@@ -29,9 +29,10 @@ namespace CaeManager.Infrastructure.Persistence.ContextoRls;
 /// <b>Falla cerrado.</b> Si no hay clave vigente o ninguna se deja descifrar,
 /// no se firma: el token es la cadena vacía, <c>app.contexto</c> queda vacío y
 /// las funciones <c>app_ctx_*()</c> devuelven NULL. Se registra como error y
-/// <c>/salud</c> lo muestra (<c>ClaveContextoRlsHealthCheck</c>). En la fase
-/// «expandir» eso no corta el tráfico, porque ninguna política lee todavía el
-/// contexto firmado; en «contraer» dejará esa conexión sin filas.
+/// <c>/salud</c> lo muestra (<c>ClaveContextoRlsHealthCheck</c>). Desde la fase
+/// «contraer» (migración <c>ContraeContextoRlsFirmado</c>) todas las políticas
+/// leen el contexto firmado, así que una conexión sin firmar no ve ni escribe
+/// ninguna fila bajo RLS: el fallo cierra el tráfico, no lo deja pasar.
 /// </para>
 ///
 /// <para>
@@ -214,6 +215,32 @@ public sealed class FirmanteContextoRls
 
     /// <summary>Olvida el contexto de la conexión (se llama al cerrarla).</summary>
     public static void Olvidar(DbConnection conexion) => EstadoPorConexion.Remove(conexion);
+
+    /// <summary>
+    /// La base rechazó el token de esta conexión porque no conoce su clave
+    /// (42501 «clave desconocida o retirada»: tabla de claves restaurada de una
+    /// copia, borrada a mano o de otra base). Requisito P2 de la revisión de
+    /// #887 para «contraer»: sin esto, la clave en memoria seguiría firmando
+    /// tokens que la base rechaza hasta la siguiente relectura (hasta
+    /// <see cref="Rotacion"/>), y desde «contraer» eso es tráfico sin filas.
+    /// Se descarta la clave de esa base y se marca el token de la conexión como
+    /// vencido, para que el siguiente comando fuera de transacción lo vuelva a
+    /// firmar con la clave que lea de nuevo. El comando que falló no se repite.
+    /// </summary>
+    public void InvalidarClave(DbConnection conexion)
+    {
+        if (conexion is not NpgsqlConnection npgsql)
+            return;
+
+        _clavePorBase.TryRemove($"{npgsql.Host}:{npgsql.Port}/{npgsql.Database}", out _);
+        if (EstadoPorConexion.TryGetValue(conexion, out var estado))
+            EstadoPorConexion.AddOrUpdate(conexion, estado with { FirmadoEn = DateTimeOffset.MinValue });
+    }
+
+    /// <summary>¿Es el rechazo de la base a un token firmado con una clave que ya no tiene?</summary>
+    public static bool EsClaveDesconocida(Exception? error) =>
+        error is PostgresException { SqlState: PostgresErrorCodes.InsufficientPrivilege } pg
+        && pg.MessageText.Contains("clave desconocida", StringComparison.Ordinal);
 
     private async Task<string?> ConstruirAsync(NpgsqlConnection conexion, ContextoSesionRls contexto, CancellationToken ct)
     {

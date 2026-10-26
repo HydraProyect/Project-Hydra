@@ -23,7 +23,14 @@ function comprobar(nombre, condicion, detalle = "") {
 let almacen = {};
 let pestanaActiva = 99;
 const entregas = [];   // {idPestana, accion}
+const urlsDePestanas = {};
 let manejadorDeMensajes = null;
+let alCerrarPestana = null;
+
+// Reloj adelantable: la caducidad de lo pendiente (30 min) y la ventana del «Deshacer» (15 s) se miden con Date.now.
+const ahoraReal = Date.now;
+let desfaseMs = 0;
+Date.now = () => ahoraReal() + desfaseMs;
 
 globalThis.chrome = {
   runtime: {
@@ -40,7 +47,8 @@ globalThis.chrome = {
       clear: async () => (almacen = {}),
     },
     session: {
-      get: async (clave) => (typeof clave === "string" ? { [clave]: almacen[clave] } : { ...almacen }),
+      // Copia, como el chrome real: devolver la referencia ocultaría las escrituras que se pisan.
+      get: async (clave) => structuredClone(typeof clave === "string" ? { [clave]: almacen[clave] } : { ...almacen }),
       set: async (obj) => Object.assign(almacen, obj),
       remove: async (claves) => [].concat(claves).forEach((c) => delete almacen[c]),
     },
@@ -48,10 +56,13 @@ globalThis.chrome = {
   tabs: {
     query: async (criterio) =>
       criterio?.active ? [{ id: pestanaActiva }] : [{ id: 1 }, { id: 2 }, { id: pestanaActiva }],
+    // La URL de cada pestaña; por defecto, el portal de la Plataforma CAE de la lista.
+    get: async (id) => ({ id, url: urlsDePestanas[id] ?? "https://app.nalandaglobal.com/documentos" }),
     sendMessage: async (idPestana, mensaje) => {
-      entregas.push({ idPestana, accion: mensaje.accion });
+      entregas.push({ idPestana, accion: mensaje.accion, hostEsperado: mensaje.hostEsperado });
       return { ok: true };
     },
+    onRemoved: { addListener: (fn) => (alCerrarPestana = fn) },
   },
 };
 
@@ -60,17 +71,42 @@ let subible = true;
 let proveedorActivo = true;
 let documentoDeLaLista = "11111111-1111-1111-1111-111111111111";
 let listaFalla = false;
-globalThis.fetch = async (url) => ({
+let dominiosDelProveedor = ["nalandaglobal.com"];
+let solapadosDelProveedor = [];
+let estadoDeLaSubida = 200;
+let problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
+const llamadas = []; // {url, metodo, cuerpo}
+const CAMBIO = "33333333-3333-3333-3333-333333333333";
+const VERSION = "44444444-4444-4444-4444-444444444444";
+globalThis.fetch = async (url, opciones = {}) => {
+  llamadas.push({ url: String(url), metodo: opciones.method ?? "GET", cuerpo: opciones.body });
+  if (String(url).endsWith("/subida/deshacer"))
+    return { ok: true, status: 204, type: "basic", json: async () => { throw new Error("sin cuerpo"); } };
+  if (String(url).endsWith("/subida"))
+    return {
+      ok: estadoDeLaSubida < 300, status: estadoDeLaSubida, type: "basic",
+      json: (() => {
+        let leido = false;
+        return async () => {
+          if (leido) throw new Error("El cuerpo ya se consumió");
+          leido = true;
+          if (estadoDeLaSubida >= 300 && problemaDeLaSubida === null) throw new SyntaxError("cuerpo no JSON");
+          return estadoDeLaSubida < 300 ? { cambioId: CAMBIO, version: VERSION } : problemaDeLaSubida;
+        };
+      })(),
+    };
+  return {
   ok: !(listaFalla && String(url).includes("acreditaciones-pendientes")),
   status: 200,
   type: "basic",
   arrayBuffer: async () => new TextEncoder().encode("%PDF-falso").buffer,
-  json: async () => subible ? [{ proveedorActivo, clientes: [{ documentos: [{
+  json: async () => subible ? [{ proveedorPlataformaCaeId: "t-1", proveedorNombre: "Twind", proveedorActivo, dominios: dominiosDelProveedor, proveedoresSolapados: solapadosDelProveedor, clientes: [{ documentos: [{
     acreditacionId: "22222222-2222-2222-2222-222222222222",
     documentoId: documentoDeLaLista,
   }] }] }] : [],
   text: async () => "",
-});
+  };
+};
 
 const fuente = readFileSync(process.argv[2], "utf8");
 (0, eval)(fuente);
@@ -86,7 +122,7 @@ function conectar(expiraEnUtc) {
 const dentroDeOchoHoras = new Date(Date.now() + 8 * 3600e3).toISOString();
 const ayer = new Date(Date.now() - 24 * 3600e3).toISOString();
 
-function pedirSubida(remitente) {
+function pedirSubida(remitente, extra = {}) {
   return new Promise((resolver) =>
     manejadorDeMensajes(
       {
@@ -94,6 +130,7 @@ function pedirSubida(remitente) {
         documentoId: "11111111-1111-1111-1111-111111111111",
         acreditacionId: "22222222-2222-2222-2222-222222222222",
         nombreArchivo: "Reconocimiento medico.pdf",
+        ...extra,
       },
       remitente,
       resolver
@@ -119,6 +156,11 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
     "el documento va a la pestaña que lo pidió, no a la activa",
     inyecciones[0]?.idPestana === 7,
     `fue a la ${inyecciones[0]?.idPestana}`
+  );
+  comprobar(
+    "y lleva el host comprobado para que la pestaña verifique que no ha navegado",
+    inyecciones[0]?.hostEsperado === "app.nalandaglobal.com",
+    String(inyecciones[0]?.hostEsperado)
   );
 }
 
@@ -199,6 +241,337 @@ console.log(`\nbackground.js — ${process.argv[2]}\n`);
   listaFalla = false;
 }
 
+// --- «Lo he enviado» (E1, D-4): poner el archivo NO anota nada en TALVEG ----
+
+function mensaje(accion, remitente, extra = {}) {
+  return new Promise((resolver) => manejadorDeMensajes({ accion, ...extra }, remitente, resolver));
+}
+const ACREDITACION = "22222222-2222-2222-2222-222222222222";
+const postsDeSubida = () => llamadas.filter((l) => l.metodo === "POST" && l.url.endsWith("/subida"));
+const postsDeDeshacer = () => llamadas.filter((l) => l.metodo === "POST" && l.url.endsWith("/subida/deshacer"));
+
+{
+  conectar(dentroDeOchoHoras);
+  entregas.length = 0;
+  llamadas.length = 0;
+
+  const puesto = await pedirSubida({ tab: { id: 7 } });
+  comprobar("poner el archivo se resuelve pendiente de confirmar", puesto?.ok === true && puesto.pendienteDeConfirmar === true, JSON.stringify(puesto));
+  comprobar("sin confirmación, ningún POST a …/subida", postsDeSubida().length === 0, `hubo ${postsDeSubida().length}`);
+  comprobar("se pide la confirmación a la pestaña que lo pidió",
+    entregas.some((e) => e.accion === "pedirConfirmacionEnvio" && e.idPestana === 7));
+
+  const pendientes7 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("la pestaña 7 ve su envío pendiente con el tipo de documento",
+    pendientes7?.pendientes?.length === 1 && pendientes7.pendientes[0].acreditacionId === ACREDITACION
+      && pendientes7.pendientes[0].documento === "Reconocimiento medico", JSON.stringify(pendientes7));
+  const pendientes8 = await mensaje("obtenerEnviosPendientes", { tab: { id: 8 } });
+  comprobar("otra pestaña no ve nada pendiente", pendientes8?.pendientes?.length === 0, JSON.stringify(pendientes8));
+
+  const ajena = await mensaje("confirmarEnvio", { tab: { id: 8 } }, { acreditacionId: ACREDITACION });
+  comprobar("otra pestaña no puede confirmar lo puesto en la 7", ajena?.ok === false && postsDeSubida().length === 0);
+  const sinPestana = await mensaje("confirmarEnvio", {}, { acreditacionId: ACREDITACION });
+  comprobar("sin pestaña (popup) no se confirma", sinPestana?.ok === false && postsDeSubida().length === 0);
+
+  const confirmado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("«Lo he enviado» hace exactamente un POST a …/subida", confirmado?.ok === true && postsDeSubida().length === 1,
+    `${JSON.stringify(confirmado)} · ${postsDeSubida().length}`);
+  comprobar("y ofrece deshacer", confirmado?.puedeDeshacer === true);
+  const otraVez = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("confirmar dos veces no anota dos veces", otraVez?.ok === false && postsDeSubida().length === 1);
+
+  const deshecho = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const cuerpo = JSON.parse(postsDeDeshacer()[0]?.cuerpo ?? "{}");
+  comprobar("«Deshacer» manda el cambio y la versión que devolvió TALVEG",
+    deshecho?.ok === true && cuerpo.cambioId === CAMBIO && cuerpo.version === VERSION, JSON.stringify(cuerpo));
+  const deshacerOtraVez = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("no se deshace dos veces", deshacerOtraVez?.ok === false && postsDeDeshacer().length === 1);
+}
+
+// «No lo he enviado»: nada en TALVEG y deja de estar pendiente.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const tras = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("tras «No lo he enviado» no se anota nada", tras?.ok === false && postsDeSubida().length === 0);
+}
+
+// Un 409 al confirmar (conector apagado entre medias): se dice el motivo y deja de estar pendiente.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 409;
+  const rechazado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  estadoDeLaSubida = 200;
+  comprobar("un 409 muestra el detalle del servidor", rechazado?.ok === false && rechazado.error.includes("desactivado"));
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("y deja de estar pendiente", pendientes?.pendientes?.length === 0);
+}
+
+// PortalAjeno conserva el intento para reintentar, con su caducidad original.
+for (const plataforma of [undefined, "Twind"]) {
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  const pendienteOriginal = structuredClone(almacen.enviosPendientes["7"][ACREDITACION]);
+  estadoDeLaSubida = 409;
+  problemaDeLaSubida = {
+    title: "Acreditacion.PortalAjeno",
+    detail: plataforma ? `Este documento debe subirse en la Plataforma CAE ${plataforma}.` : "Este documento es de otra plataforma CAE.",
+  };
+  const rechazado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("PortalAjeno muestra el detalle completo de la Plataforma CAE",
+    rechazado?.ok === false && rechazado.error === problemaDeLaSubida.detail);
+  comprobar("PortalAjeno mantiene el pendiente sin renovar los 30 min",
+    JSON.stringify(almacen.enviosPendientes?.["7"]?.[ACREDITACION]) === JSON.stringify(pendienteOriginal));
+  estadoDeLaSubida = 200;
+  const reintentado = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("PortalAjeno permite confirmar al reintentar", reintentado?.ok === true);
+}
+
+// Cualquier otro 409 (título por defecto, otro código, sin título o con cuerpo que no es JSON) sigue borrando el pendiente.
+for (const problema of [{ title: "Conflict", detail: "Este conector está desactivado temporalmente." },
+                        { title: "Acreditacion.ConectorInactivo", detail: "Conector apagado." },
+                        { detail: "Sin título." }, null]) {
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 409;
+  problemaDeLaSubida = problema;
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar(`un 409 distinto de PortalAjeno (${problema === null ? "cuerpo no JSON" : problema.title ?? "sin título"}) sigue borrando el pendiente`,
+    pendientes?.pendientes?.length === 0);
+  estadoDeLaSubida = 200;
+  problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
+}
+
+// Un 404 elimina el pendiente incluso si el cuerpo lleva el título PortalAjeno.
+{
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 404;
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("un 404 sigue borrando el pendiente", pendientes?.pendientes?.length === 0);
+  estadoDeLaSubida = 200;
+  problemaDeLaSubida = { detail: "Este conector está desactivado temporalmente." };
+}
+
+// El «Desconectar» que pide la persona (popup) borra lo pendiente: no se ofrece a quien conecte después.
+{
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("desconectar", {});
+  const pendientes = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("el «Desconectar» del popup borra lo pendiente", pendientes?.pendientes?.length === 0, JSON.stringify(pendientes));
+}
+
+// Vuelve a conectar SIN vaciar storage.session: conectar() empieza de cero, y aquí importa lo que sobrevive.
+function reconectar() {
+  Object.assign(almacen, { hydraUrl: "https://staging.talveg.es", token: "token-inventado-para-el-arnes", expiraEnUtc: dentroDeOchoHoras });
+}
+const MINUTO = 60 * 1000;
+
+// Lo pendiente caduca a los 30 min: pasado ese tiempo ni se ofrece ni se anota.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  desfaseMs = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  desfaseMs = 29 * MINUTO;
+  const aLos29 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("a los 29 min sigue pendiente", aLos29?.pendientes?.length === 1, JSON.stringify(aLos29));
+  desfaseMs = 30 * MINUTO + 1000;
+  const aLos30 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("pasados 30 min ya no se ofrece", aLos30?.pendientes?.length === 0, JSON.stringify(aLos30));
+  const tarde = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("y confirmarlo tarde no anota nada", tarde?.ok === false && postsDeSubida().length === 0);
+  desfaseMs = 0;
+}
+
+// El «Deshacer» solo vale 15 s desde la confirmación.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  desfaseMs = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  desfaseMs = 16 * 1000;
+  const tarde = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("pasados 15 s ya no se deshace desde la extensión", tarde?.ok === false && postsDeDeshacer().length === 0,
+    JSON.stringify(tarde));
+  comprobar("y remite a Centro 360", tarde?.error?.includes("Centro 360"));
+
+  desfaseMs = 0;
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  desfaseMs = 14 * 1000;
+  const aTiempo = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("a los 14 s sí se deshace", aTiempo?.ok === true && postsDeDeshacer().length === 1);
+  desfaseMs = 0;
+}
+
+// Otra pestaña no deshace lo que se confirmó en la 7.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  const ajena = await mensaje("deshacerEnvio", { tab: { id: 8 } }, { acreditacionId: ACREDITACION });
+  comprobar("otra pestaña no puede deshacer lo confirmado en la 7", ajena?.ok === false && postsDeDeshacer().length === 0);
+  const sinPestana = await mensaje("deshacerEnvio", {}, { acreditacionId: ACREDITACION });
+  comprobar("sin pestaña (popup) no se deshace", sinPestana?.ok === false && postsDeDeshacer().length === 0);
+  const propia = await mensaje("deshacerEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("la pestaña 7 sí lo deshace", propia?.ok === true && postsDeDeshacer().length === 1);
+}
+
+// Cerrar una pestaña olvida lo suyo, y solo lo suyo.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  await pedirSubida({ tab: { id: 9 } });
+  comprobar("precondición: el arnés recoge el oyente de tabs.onRemoved", typeof alCerrarPestana === "function");
+  await alCerrarPestana?.(7);
+  const de7 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  const de9 = await mensaje("obtenerEnviosPendientes", { tab: { id: 9 } });
+  comprobar("al cerrar la pestaña 7 se olvida lo pendiente en ella", de7?.pendientes?.length === 0, JSON.stringify(de7));
+  comprobar("y la 9 conserva lo suyo", de9?.pendientes?.length === 1, JSON.stringify(de9));
+
+  await mensaje("confirmarEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION });
+  await alCerrarPestana?.(9);
+  const deshacerCerrada = await mensaje("deshacerEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION });
+  comprobar("ni se deshace lo confirmado en una pestaña ya cerrada", deshacerCerrada?.ok === false && postsDeDeshacer().length === 0);
+}
+
+// La desconexión automática (401 o las 8 h cumplidas) conserva lo pendiente para reintentarlo al volver a conectar.
+{
+  conectar(dentroDeOchoHoras);
+  llamadas.length = 0;
+  await pedirSubida({ tab: { id: 7 } });
+  estadoDeLaSubida = 401;
+  const con401 = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  estadoDeLaSubida = 200;
+  comprobar("con un 401 no se anota y se desconecta", con401?.ok === false && !almacen.token, JSON.stringify(con401));
+  reconectar();
+  const trasEl401 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("tras el 401 sigue pendiente", trasEl401?.pendientes?.length === 1, JSON.stringify(trasEl401));
+  const reintento = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("y al volver a conectar se confirma", reintento?.ok === true);
+
+  await pedirSubida({ tab: { id: 7 } });
+  almacen.expiraEnUtc = ayer;
+  const caducada = await mensaje("confirmarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  comprobar("con la conexión de 8 h caducada no se anota", caducada?.ok === false && !almacen.token);
+  reconectar();
+  const trasCaducar = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("y lo pendiente sobrevive a la caducidad", trasCaducar?.pendientes?.length === 1, JSON.stringify(trasCaducar));
+}
+
+// Dos mensajes a la vez no se pisan: cada uno lee y escribe el mapa entero, y sin la cola el segundo resucitaría
+// lo que borró el primero.
+{
+  conectar(dentroDeOchoHoras);
+  await pedirSubida({ tab: { id: 7 } });
+  await pedirSubida({ tab: { id: 9 } });
+  await Promise.all([
+    mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION }),
+    mensaje("descartarEnvio", { tab: { id: 9 } }, { acreditacionId: ACREDITACION }),
+  ]);
+  const de7 = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  const de9 = await mensaje("obtenerEnviosPendientes", { tab: { id: 9 } });
+  comprobar("dos descartes a la vez borran los dos", de7?.pendientes?.length === 0 && de9?.pendientes?.length === 0,
+    `${JSON.stringify(de7)} · ${JSON.stringify(de9)}`);
+}
+
+// PLATAFORMA CORRECTA. Un documento de una Plataforma CAE no entra en el portal
+// de otra: el popup lista todo, así que la puerta de subirDocumento es la que
+// cuenta; al confirmar «Lo he enviado», el servidor recibe el host de la pestaña.
+{
+  conectar(dentroDeOchoHoras);
+  const sinEntregas = () => !entregas.some((e) => e.accion === "inyectarArchivo");
+  const pedir = async (remitente, extra) => {
+    entregas.length = 0; llamadas.length = 0;
+    return pedirSubida(remitente, extra);
+  };
+
+  // Control: en el portal de su Plataforma (subdominio) se pone el archivo.
+  const propio = await pedir({ tab: { id: 7 }, url: "https://acme.nalandaglobal.com/subir?x=1" });
+  comprobar("en el portal de su plataforma (subdominio) se pone el archivo",
+    propio?.ok === true && !sinEntregas(), JSON.stringify(propio));
+
+  // La confirmación declara al servidor el host de ESA pestaña, no uno que mande el mensaje.
+  const confirmado = await mensaje("confirmarEnvio", { tab: { id: 7 }, url: "https://acme.nalandaglobal.com/otra/ruta" },
+    { acreditacionId: ACREDITACION, dominioPortal: "app.dokify.net" });
+  const cuerpoConfirmado = JSON.parse(postsDeSubida().at(-1)?.cuerpo ?? "{}");
+  comprobar("«Lo he enviado» declara al servidor el host de la pestaña",
+    confirmado?.ok === true && cuerpoConfirmado.dominioPortal === "acme.nalandaglobal.com", JSON.stringify(cuerpoConfirmado));
+
+  // Panel: la URL del remitente manda aunque otra pestaña esté activa.
+  const ajenoPanel = await pedir({ tab: { id: 7 }, url: "https://app.dokify.net/subir" });
+  comprobar("desde el panel de otra plataforma NO se pone el archivo",
+    ajenoPanel?.ok === false && ajenoPanel.error.includes("otra plataforma"), JSON.stringify(ajenoPanel));
+  comprobar("y no entrega ningún archivo al formulario", sinEntregas());
+  const sinPendiente = await mensaje("obtenerEnviosPendientes", { tab: { id: 7 } });
+  comprobar("ni deja nada pendiente de confirmar", sinPendiente?.pendientes?.length === 0, JSON.stringify(sinPendiente));
+
+  // Popup: sin pestaña propia, se pregunta por la pestaña activa.
+  pestanaActiva = 55;
+  urlsDePestanas[55] = "https://app.dokify.net/subir";
+  const ajenoPopup = await pedir({});
+  comprobar("desde el popup, con la pestaña activa en otra plataforma, NO se pone el archivo",
+    ajenoPopup?.ok === false && sinEntregas());
+  urlsDePestanas[55] = "https://app.nalandaglobal.com/";
+  const propioPopup = await pedir({});
+  comprobar("desde el popup, en el portal de su plataforma, sí", propioPopup?.ok === true, JSON.stringify(propioPopup));
+  delete urlsDePestanas[55];
+  await mensaje("descartarEnvio", { tab: { id: 55 } }, { acreditacionId: ACREDITACION });
+
+  // El sufijo exige el punto: «notnalandaglobal.com» no es un subdominio.
+  const parecido = await pedir({ tab: { id: 7 }, url: "https://notnalandaglobal.com/" });
+  comprobar("un host que solo acaba igual (sin punto) NO cuenta", parecido?.ok === false && sinEntregas());
+
+  // Catálogo sin dominios para el Proveedor: no se puede saber, no se pone.
+  dominiosDelProveedor = [];
+  const sinDominios = await pedir({ tab: { id: 7 }, url: "https://app.nalandaglobal.com/" });
+  comprobar("sin dominios del proveedor en la lista, no se pone el archivo", sinDominios?.ok === false && sinEntregas());
+  dominiosDelProveedor = ["nalandaglobal.com"];
+
+  // Dominios compartidos con otro Proveedor. Twind posee app.twind.io y ctaima.com (catálogo real); un segundo
+  // Proveedor, CTAIMA, también tiene ctaima.com. Con empate el popup no puede elegir, y desde el panel solo se
+  // sigue si la persona eligió justo el Proveedor del documento.
+  dominiosDelProveedor = ["app.twind.io", "ctaima.com"];
+  solapadosDelProveedor = [{ proveedorPlataformaCaeId: "c-1", nombre: "CTAIMA", dominios: ["ctaima.com"] }];
+  const sinElegir = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" });
+  comprobar("portal empatado entre dos Proveedores y sin elección: no se pone el archivo y se nombra a los dos",
+    sinElegir?.ok === false && sinEntregas() && sinElegir.error.includes("Twind") && sinElegir.error.includes("CTAIMA"), JSON.stringify(sinElegir));
+  const eligeOtro = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" }, { proveedorElegidoId: "c-1" });
+  comprobar("si la persona eligió el OTRO Proveedor, tampoco se pone", eligeOtro?.ok === false && sinEntregas(), JSON.stringify(eligeOtro));
+  const eligeBien = await pedir({ tab: { id: 7 }, url: "https://ctaima.com/subir" }, { proveedorElegidoId: "t-1" });
+  comprobar("si eligió el Proveedor del documento, sí se pone", eligeBien?.ok === true && !sinEntregas(), JSON.stringify(eligeBien));
+  const sinEmpate = await pedir({ tab: { id: 7 }, url: "https://app.twind.io/" });
+  comprobar("en app.twind.io no hay empate: se pone sin preguntar", sinEmpate?.ok === true && !sinEntregas(), JSON.stringify(sinEmpate));
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+
+  // Gana el dominio más largo: otro Proveedor con un subdominio propio se queda con ese portal.
+  dominiosDelProveedor = ["nalandaglobal.com"];
+  solapadosDelProveedor = [{ proveedorPlataformaCaeId: "p-1", nombre: "Propio", dominios: ["app.nalandaglobal.com"] }];
+  const pierde = await pedir({ tab: { id: 7 }, url: "https://app.nalandaglobal.com/" });
+  comprobar("si otro Proveedor casa con un dominio más largo, el documento no se pone", pierde?.ok === false && sinEntregas(), JSON.stringify(pierde));
+  const gana = await pedir({ tab: { id: 7 }, url: "https://otro.nalandaglobal.com/" });
+  comprobar("pero en el resto de subdominios sigue valiendo el dominio general", gana?.ok === true && !sinEntregas(), JSON.stringify(gana));
+  solapadosDelProveedor = [];
+  await mensaje("descartarEnvio", { tab: { id: 7 } }, { acreditacionId: ACREDITACION });
+  dominiosDelProveedor = ["nalandaglobal.com"];
+  // Pestaña sin URL legible: no se pone.
+  urlsDePestanas[7] = "about:blank";
+  const sinHost = await pedir({ tab: { id: 7 } });
+  comprobar("si no hay host legible en la pestaña, no se pone el archivo", sinHost?.ok === false && sinEntregas());
+  delete urlsDePestanas[7];
+}
 console.log(`\n${fallos === 0 ? "todo en verde" : `${fallos} fallos`}.\n`);
 console.log(`${total} comprobaciones ejecutadas.`);
 process.exit(fallos > 0 ? 1 : 0);

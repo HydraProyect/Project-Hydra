@@ -247,7 +247,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     {
         var cut = await AbrirAltaAsync(Renderizar());
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
-        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await cut.FindAll(".modal-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
@@ -263,7 +263,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     {
         var cut = await AbrirAltaAsync(Renderizar());
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
-        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
@@ -280,7 +280,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         var cut = await AbrirAltaAsync(Renderizar());
         await EscribirAsync(cut, "Nombre", "Planta Zaragoza");
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
-        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         await cut.InvokeAsync(() => Navegacion.NavigateTo(AvisoCambiosSinGuardarPrueba.DestinoFuera));
 
@@ -294,7 +294,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     {
         var cut = await AbrirAltaAsync(Renderizar());
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
-        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         // Una salida a la propia página: descartar cierra el drawer y el modal sin desmontar la página.
         await cut.InvokeAsync(() => Navegacion.NavigateTo("centros?q=zaragoza"));
@@ -303,7 +303,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
 
         await AbrirAltaAsync(cut);
         await CrearClienteDesdeElSelectorAsync(cut, "Aceros Ebro");
-        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "B50123456",
+        cut.FindComponents<CampoTexto>().Should().NotContain(c => c.Instance.Valor == "B10380186",
             "lo descartado no reaparece al abrir otra vez el modal");
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "el modal vuelve a abrirse limpio");
     }
@@ -342,7 +342,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
 
         await cut.Find("input[placeholder='Busca o crea una empresa…']").InputAsync(new ChangeEventArgs { Value = "Aceros Ebro" });
         await cut.Find("li.selector-entidad-opcion-crear").ClickAsync(new MouseEventArgs());
-        await EscribirAsync(cut, "Identificación fiscal", "B50999999");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
         await cut.InvokeAsync(() => Navegacion.NavigateTo(AvisoCambiosSinGuardarPrueba.DestinoFuera));
 
         PreguntasDeSalida(cut).Should().Be(1, "el Cliente elegido en el drawer y el CIF del modal se preguntan juntos, una vez");
@@ -358,7 +358,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
         ElNavegadorAvisaAlRecargar(cut).Should().BeFalse("barrera: sin nada escrito, recargar no avisa");
 
-        await EscribirAsync(cut, "Identificación fiscal", "B50123456");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         ElNavegadorAvisaAlRecargar(cut).Should().BeTrue(
             "teclear en el modal tiene que repintar la página: si no, recargar o cerrar la pestaña pierde lo escrito sin aviso");
@@ -374,7 +374,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
         cut.WaitForAssertion(() => cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "Nueva empresa"));
         ElNavegadorAvisaAlRecargar(cut).Should().BeFalse("barrera: el Cliente llegó por la URL y el modal no tiene nada escrito");
 
-        await EscribirAsync(cut, "Identificación fiscal", "B50999999");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
 
         ElNavegadorAvisaAlRecargar(cut).Should().BeTrue();
     }
@@ -400,6 +400,7 @@ public class CentrosAvisoCambiosSinGuardarTests : BunitContext
     {
         var cut = await AbrirAltaAsync(Renderizar());
         await CrearClienteDesdeElSelectorAsync(cut, "Hierros Aragón");
+        await EscribirAsync(cut, "Identificación fiscal *", "B10380186");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Crear").ClickAsync(new MouseEventArgs());
 
         _mediador.Enviadas.OfType<CrearClienteCommand>().Should().ContainSingle("barrera: el Cliente se creó");

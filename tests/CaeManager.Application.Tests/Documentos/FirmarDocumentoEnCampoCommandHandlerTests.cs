@@ -8,7 +8,7 @@ using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using FluentAssertions;
-using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace CaeManager.Application.Tests.Documentos;
@@ -31,13 +31,14 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         public MediatorFalso Mediator { get; } = new() { Respuesta = Result.Exito() };
         public PublisherFalso Publisher { get; } = new();
         public UnitOfWorkFalso UnitOfWork { get; } = new();
+        public RegistroDeAvisos<FirmarDocumentoEnCampoCommandHandler> Registro { get; } = new();
 
         public FirmarDocumentoEnCampoCommandHandler CrearHandler(
             bool sinUsuario = false, string? rol = "GestorCae", AlcanceDatosServiceFalso? alcanceDatos = null) =>
             new(Documentos, TiposDocumento, alcanceDatos ?? new AlcanceDatosServiceFalso(), new ProyectosQueryContextFalso(),
                 FirmasDigitales, FirmasEnCampo, FirmaGuardada, SelloEmpresa, Almacenamiento, Estampador,
                 new CurrentUserServiceFalso(sinUsuario ? null : UsuarioActualId, rol), new DirectorioUsuariosServiceFalso(),
-                Mediator, Publisher, UnitOfWork, NullLogger<FirmarDocumentoEnCampoCommandHandler>.Instance);
+                Mediator, Publisher, UnitOfWork, Registro);
 
         public async Task<Documento> CrearDocumentoConArchivoAsync(CaeManager.Domain.Documentos.TipoDocumento tipoDocumento)
         {
@@ -163,6 +164,25 @@ public class FirmarDocumentoEnCampoCommandHandlerTests
         contexto.UnitOfWork.VecesGuardado.Should().Be(1);
         contexto.Publisher.Publicados.OfType<CaeManager.Application.Documentos.Eventos.DocumentacionCambiadaEvent>()
             .Should().ContainSingle(evento => evento.DocumentoId == documento.Id);
+    }
+
+    [Fact]
+    public async Task El_aviso_del_archivo_anterior_que_no_se_pudo_borrar_identifica_el_documento_sin_revelar_la_clave()
+    {
+        var contexto = new Contexto();
+        var documento = await contexto.CrearDocumentoConArchivoAsync(CrearTipoDocumento());
+        var claveAnterior = documento.ArchivoUrl!;
+        contexto.Almacenamiento.ExcepcionAlEliminar = new IOException($"Acceso denegado a {claveAnterior}");
+        var handler = contexto.CrearHandler();
+
+        var resultado = await handler.Handle(
+            new FirmarDocumentoEnCampoCommand(documento.Id, TrazoPngBase64, "Madrid"), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue("la firma ya está confirmada: no se aborta por no poder limpiar el archivo anterior");
+        var aviso = contexto.Registro.Entradas.Should().ContainSingle().Subject;
+        aviso.Nivel.Should().Be(LogLevel.Error);
+        aviso.Texto.Should().Contain(documento.Id.ToString()).And.Contain(nameof(IOException))
+            .And.NotContain(claveAnterior).And.NotContain("Acceso denegado");
     }
 
     [Fact]

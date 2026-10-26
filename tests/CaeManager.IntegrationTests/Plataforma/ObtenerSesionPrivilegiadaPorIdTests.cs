@@ -56,6 +56,8 @@ public class ObtenerSesionPrivilegiadaPorIdTests : IAsyncLifetime
         detalle.Capacidad.Should().Be(CapacidadPrivilegio.BreakGlass);
         detalle.Motivo.Should().Be("Corregir un dato incorrecto a petición del cliente");
         detalle.Ticket.Should().Be("TCK-123");
+        detalle.UsuarioPlataformaId.Should().Be(_tecnico,
+            "la pantalla solo ofrece el cierre al Actor de Plataforma TALVEG que nombra la concesión");
     }
 
     [Fact]

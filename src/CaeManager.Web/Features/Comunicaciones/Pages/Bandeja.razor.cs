@@ -43,6 +43,7 @@ using CaeManager.Infrastructure.Comunicaciones;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Services;
 using CaeManager.Infrastructure.Autorizacion;
 using FluentValidation;
 using Microsoft.AspNetCore.Components;
@@ -299,12 +300,17 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
 
         await CargarCompanerosAsync();
 
-        // La suscripción es del tenant del circuito: los avisos de otros
-        // tenants nunca llegan aquí (el notificador ya segrega por tenant).
+        // La suscripción es del Tenant del circuito: los avisos de otros
+        // Tenants nunca llegan aquí (el notificador ya segrega por Tenant), y si
+        // la selección de Tenant beneficiario se retira en caliente se da de baja
+        // del anterior y pasa al de origen sin esperar al cierre del circuito.
         // Refresca la bandeja unificada al instante cuando la ingesta de
         // WhatsApp persiste un mensaje nuevo — antes solo lo hacía /chat.
-        if (TenantActual.TenantId is { } tenantId)
-            _suscripcionTiempoReal = Notificador.Suscribir(tenantId, AlRecibirMensajeAsync);
+        // Si se salió de la pantalla durante las lecturas de arriba, DisposeAsync ya corrió: suscribirse ahora dejaría
+        // una suscripción, y su oyente de la retirada, que nadie soltaría hasta el cierre del circuito.
+        if (_ciclo.IsCancellationRequested)
+            return;
+        _suscripcionTiempoReal = SuscripcionMensajesDelTenantActual.Abrir(Notificador, TenantActual, AlRecibirMensajeAsync);
 
         if (_vista == "personal")
             await CargarBuzonPersonalAsync();

@@ -45,6 +45,7 @@ public class AccesoLuzDeAguaTests : BunitContext
         Services.AddSingleton(signIn);
         Services.AddSingleton<IOptions<AzureAdOptions>>(Opciones.Create(_azureAd));
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
+        Services.AddLocalization();
     }
 
     [Fact]
@@ -121,8 +122,39 @@ public class AccesoLuzDeAguaTests : BunitContext
 
         var alerta = cut.Find("[role=alert]");
         alerta.TextContent.Should().Be(
-            $"Tu cuenta de Microsoft no está dada de alta en {Marca.Nombre}. Contacta con tu administrador.");
+            $"Tu cuenta de Microsoft no está dada de alta en {Marca.Nombre}. Pide a tu Administrador que te dé de alta.");
         alerta.TextContent.Should().NotContain("@", "una cadena C# no evalúa Razor: el nombre tiene que interpolarse");
+    }
+
+    [Fact]
+    public void El_error_de_SSO_sin_cuenta_se_dice_en_catalan()
+    {
+        var anterior = System.Globalization.CultureInfo.CurrentUICulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = System.Globalization.CultureInfo.GetCultureInfo("ca-ES");
+            Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/iniciar-sesion?ErrorSso=sin-cuenta");
+
+            var cut = Render<Login>();
+
+            cut.Find("[role=alert]").TextContent.Should().Be(
+                $"El teu compte de Microsoft no està donat d'alta a {Marca.Nombre}. Demana al teu Administrador que et doni d'alta.");
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentUICulture = anterior;
+        }
+    }
+
+    [Fact]
+    public void El_error_de_SSO_sin_segundo_factor_dice_a_quien_pedirlo()
+    {
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/iniciar-sesion?ErrorSso=sin-mfa");
+
+        var cut = Render<Login>();
+
+        cut.Find("[role=alert]").TextContent.Should().Be(
+            $"Tu inicio de sesión con Microsoft no incluyó la verificación en dos pasos, y tu cuenta de {Marca.Nombre} no la tiene configurada. Pide a tu Administrador que active la verificación en dos pasos en Microsoft.");
     }
 
     [Fact]
@@ -163,6 +195,7 @@ public class AccesoLuzDeAguaTests : BunitContext
         _azureAd.TenantId = "tenant";
         _azureAd.ClientId = "cliente-app";
         _azureAd.ClientSecret = "secreto";
+        _azureAd.TenantHydraId = Guid.Parse("00000000-0000-0000-0000-0000000000aa");
     }
 
     // D-09: con sesión iniciada la página de login redirige en vez de mostrarse.

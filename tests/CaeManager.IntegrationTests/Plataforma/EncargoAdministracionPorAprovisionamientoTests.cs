@@ -233,12 +233,13 @@ public class EncargoAdministracionPorAprovisionamientoTests : IAsyncLifetime
         await conexion.OpenAsync();
         await using var transaccion = await conexion.BeginTransactionAsync();
 
+        var contextoFirmado = await ContextoRlsDePruebas.FirmarAsync(conexion, tenantId: _propietario.Id);
         await using (var preparar = conexion.CreateCommand())
         {
             preparar.Transaction = transaccion;
             preparar.CommandText =
-                "SELECT set_config('app.tenant_id', @tenant, true); SET LOCAL ROLE cae_app_aprovisionamiento;";
-            preparar.Parameters.AddWithValue("tenant", _propietario.Id.ToString());
+                "SELECT set_config('app.contexto', @contexto, true); SET LOCAL ROLE cae_app_aprovisionamiento;";
+            preparar.Parameters.AddWithValue("contexto", contextoFirmado);
             await preparar.ExecuteNonQueryAsync();
         }
 

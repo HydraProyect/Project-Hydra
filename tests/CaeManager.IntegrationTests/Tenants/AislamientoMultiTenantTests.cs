@@ -139,12 +139,15 @@ public class AislamientoMultiTenantTests : IAsyncLifetime
         }
 
         // Mismo CIF, mismo tenant — debe rechazarse por el índice único compuesto.
+        // Desde Z5-7 el DbContext traduce esa violación concreta a CifEmpresaDuplicadoException,
+        // que conserva la DbUpdateException de la base como causa.
         await using (var contextoADuplicado = CrearContexto(_tenantA))
         {
             contextoADuplicado.Empresas.Add(Empresa.CrearComoCliente(
                 "Duplicado dentro del mismo tenant", cifCompartido, esCritico: false, notas: null, ejecutivoUsuarioId: null));
             var guardarDuplicado = async () => await contextoADuplicado.SaveChangesAsync();
-            await guardarDuplicado.Should().ThrowAsync<DbUpdateException>();
+            (await guardarDuplicado.Should().ThrowAsync<CifEmpresaDuplicadoException>())
+                .WithInnerException<DbUpdateException>();
         }
     }
 }

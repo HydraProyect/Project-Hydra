@@ -127,6 +127,7 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentU
             .SelectMany(p => p.Valores.IncidenciasPorGravedad)
             .GroupBy(g => g.Gravedad)
             .Select(g => new GravedadIncidenciaConteoDto(g.Key, g.Sum(x => x.Cantidad)))
+            .OrderBy(g => g.Gravedad)
             .ToList();
 
         return new DashboardEjecutivoDto(
@@ -177,6 +178,8 @@ public class ObtenerDashboardEjecutivoQueryHandler(IMediator mediator, ICurrentU
             .GroupBy(h => h.ClienteId)
             .Select(g => new HorasClienteDto(g.Key, g.First().ClienteNombre, g.Sum(h => h.SegundosActivos)))
             .OrderByDescending(h => h.SegundosActivos)
+            .ThenBy(h => h.ClienteNombre, StringComparer.Ordinal)
+            .ThenBy(h => h.ClienteId)
             .Take(ObtenerKpisBpoQueryHandler.TopClientesPorHoras)
             .ToList();
 

@@ -1,3 +1,4 @@
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -32,9 +33,9 @@ public class CrearClienteCommandValidator : AbstractValidator<CrearClienteComman
 /// F3b — reemplaza <c>IClienteRepository</c> por <c>IEmpresaRepository</c>:
 /// desde la congelación, "crear un Cliente" es crear una Empresa
 /// contraparte (<see cref="Empresa.CrearComoCliente"/>). La comprobación
-/// de unicidad de RazonSocial/Cif pasa a ser global (contra todas las
+/// de unicidad de RazonSocial/Cif abarca el Tenant propietario (contra todas las
 /// Empresas, no solo contra los antiguos Clientes) porque el índice único
-/// de la base ya es global desde F3a — un mensaje que dijera "ya existe un
+/// de la base incluye todas esas Empresas desde F3a — un mensaje que dijera "ya existe un
 /// Cliente" sería inexacto si la colisión es con una Empresa propia o una
 /// ex-Subcontrata.
 /// </summary>
@@ -52,8 +53,11 @@ public class CrearClienteCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, cancellationToken: cancellationToken))
             return Result.Fallo<Guid>(Error.Crear("Cliente.RazonSocialDuplicada", "Ya existe una organización con esta razón social."));
 
-        if (await repositorio.ExisteConCifAsync(request.Cif, cancellationToken: cancellationToken))
-            return Result.Fallo<Guid>(Error.Crear("Cliente.CifDuplicado", "Ya existe una organización con este CIF."));
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, null, "Cliente.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo<Guid>(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, null, "Cliente.CifDuplicado", cancellationToken) is { } duplicadoCif)
+            return Result.Fallo<Guid>(duplicadoCif);
 
         // Un Cliente creado por un Gestor CAE lo tiene a él como Gestor CAE de
         // referencia (Empresa.EjecutivoUsuarioId). Es solo una referencia —enrutado

@@ -50,7 +50,7 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
 
     /// <summary>
     /// El defecto exacto: la fila existe, pero para el rol restringido sin
-    /// <c>app.usuario_id</c> la tabla está vacía. Con control negativo, para que
+    /// Usuario en el contexto firmado (<c>app_ctx_usuario_id()</c>) la tabla está vacía. Con control negativo, para que
     /// el cero no se pueda confundir con "no hay fila".
     /// </summary>
     [Fact]
@@ -68,7 +68,7 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
         await AdoptarRolRestringidoAsync(conexion);
 
         (await ContarEstadoAsync(conexion)).Should().Be(0,
-            "la política de SELECT exige UsuarioRaizId = app.usuario_id, y en el arranque no hay sesión " +
+            "la política de SELECT exige UsuarioRaizId = app_ctx_usuario_id(), y en el arranque no hay sesión " +
             "de usuario: para el rol restringido la tabla está vacía aunque la fila exista");
     }
 
@@ -153,13 +153,13 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
 
     /// <summary>
     /// La prueba adversaria: el mismo seeder, los mismos datos, bajo el rol
-    /// restringido y <b>con <c>app.tenant_id</c> correctamente fijado</b> — que es
+    /// restringido y <b>con el Tenant correctamente fijado en el contexto firmado</b> — que es
     /// la situación de producción, no una degradada.
     ///
     /// <para>
     /// Falla igualmente, y ese es el punto: el backfill escribe una fila por cada
     /// tenant en un solo <c>SaveChanges</c>, y la política exige
-    /// <c>PropietarioTenantId = app.tenant_id</c>. Ninguna elección de tenant
+    /// <c>PropietarioTenantId = app_ctx_tenant_id()</c>. Ninguna elección de tenant
     /// puede satisfacer a las seis a la vez. No es un ámbito mal fijado: es una
     /// operación cross-tenant bajo una identidad per-tenant.
     /// </para>
@@ -175,7 +175,7 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
             await AsignacionesOperativasBackfillSeeder.SeedAsync(contexto, NullLogger.Instance);
 
         await ejecutar.Should().ThrowAsync<Exception>(
-            "con app.tenant_id fijado a UN tenant, las filas de los otros cinco violan el WITH CHECK de " +
+            "con el Tenant del contexto firmado fijado a UN tenant, las filas de los otros cinco violan el WITH CHECK de " +
             "posicion_en_la_asignacion; y no hay ningún valor que sirva para las seis a la vez");
 
         await using var comprobacion = CrearContextoDeBootstrap();
@@ -208,8 +208,14 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
         return ids;
     }
 
+    /// <summary>
+    /// Como <see cref="AdoptarRolRestringido"/> sin Tenant: contexto firmado sin
+    /// Tenant ni usuario, y después el rol de tráfico. Así el cero de la lectura
+    /// se debe a que no hay usuario en el contexto, no a que falte el token.
+    /// </summary>
     private static async Task AdoptarRolRestringidoAsync(NpgsqlConnection conexion)
     {
+        await ContextoRlsDePruebas.FijarAsync(conexion);
         await using var comando = conexion.CreateCommand();
         comando.CommandText = "SET ROLE cae_app_runtime;";
         await comando.ExecuteNonQueryAsync();
@@ -228,7 +234,7 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
 
     /// <summary>
     /// Identidad de tráfico: adopta <c>cae_app_runtime</c> y fija
-    /// <c>app.tenant_id</c> en cada apertura, como hace el interceptor real.
+    /// el Tenant del contexto RLS firmado en cada apertura, como hace el interceptor real.
     /// </summary>
     private CaeManagerDbContext CrearContextoRestringido(Guid tenantDeSesion) =>
         CrearContexto(tenantDeSesion, adoptarRol: true);
@@ -247,7 +253,7 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
 
     /// <summary>
     /// Reproduce lo que hace <c>TenantRlsConnectionInterceptor</c> en producción,
-    /// reducido a lo que estos tests necesitan: fijar la coordenada de tenant y
+    /// reducido a lo que estos tests necesitan: fijar el contexto firmado del tenant y
     /// adoptar el rol restringido, en ese orden.
     /// </summary>
     private sealed class AdoptarRolRestringido(Guid? tenant) : DbConnectionInterceptor
@@ -267,23 +273,18 @@ public class IdentidadDeBootstrapTests : IAsyncLifetime
 
         private void Preparar(DbConnection conexion)
         {
+            // Contexto firmado primero, rol después (el interceptor real hace lo mismo).
+            // Sin coordenada de tenant (tenant null) es el contexto del arranque, sin
+            // sesión de usuario ni Workspace operativo derivado, y aun así se firma:
+            // TenantRlsConnectionInterceptor firma en cada apertura, también un
+            // contexto sin Tenant ni usuario. Es lo que hace casar la excepción de
+            // bootstrap del INSERT («contexto firmado válido y sin usuario»). El
+            // origen del token difiere (aquí Ambito, allí Anonimo), pero
+            // app_contexto_validado no lo valida.
+            ContextoRlsDePruebas.FijarAsync((NpgsqlConnection)conexion, tenantId: tenant).GetAwaiter().GetResult();
+
             using var comando = conexion.CreateCommand();
-
-            if (tenant is { } valor)
-            {
-                comando.CommandText = "SELECT set_config('app.tenant_id', @tenant, false); SET ROLE cae_app_runtime;";
-                var parametro = comando.CreateParameter();
-                parametro.ParameterName = "tenant";
-                parametro.Value = valor.ToString();
-                comando.Parameters.Add(parametro);
-            }
-            else
-            {
-                // Sin coordenada de tenant: es el contexto del arranque, que no
-                // tiene sesión de usuario ni workspace.
-                comando.CommandText = "SET ROLE cae_app_runtime;";
-            }
-
+            comando.CommandText = "SET ROLE cae_app_runtime;";
             comando.ExecuteNonQuery();
         }
     }

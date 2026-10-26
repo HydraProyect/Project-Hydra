@@ -94,7 +94,7 @@ public class MiFirmaTests : BunitContext
     }
 
     private static FirmaGuardadaUsuarioDto Firma(DateTime actualizadaEnUtc) =>
-        new("firmas/firma.png", actualizadaEnUtc);
+        new("firmas/firma.png", actualizadaEnUtc, Guid.NewGuid());
 
     private static string UrlEsperada(DateTime actualizadaEnUtc) => $"/mi-firma/archivo?v={actualizadaEnUtc.Ticks}";
 

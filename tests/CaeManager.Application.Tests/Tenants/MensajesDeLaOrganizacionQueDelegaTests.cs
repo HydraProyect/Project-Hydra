@@ -47,8 +47,8 @@ public class MensajesDeLaOrganizacionQueDelegaTests
         return tenant;
     }
 
-    private CrearDelegacionTenantCommandHandler HandlerDeDelegacion(AutorizacionDelegacionFalsa autorizacion) =>
-        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte());
+    private CrearDelegacionTenantCommandHandler HandlerDeDelegacion(AutorizacionDelegacionFalsa autorizacion, Guid? tenantActivo = null) =>
+        new(_vinculos, _tenants, _writer, autorizacion, new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), new CaeManager.Application.Tests.Configuracion.TenantActualFijo(tenantActivo ?? _propietario.Id));
 
     // ── CrearDelegacionTenant ───────────────────────────────────────────────
 
@@ -82,7 +82,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
     {
         // Con autoridad para ese Id, pero sin ningún Tenant detrás.
         var desconocido = Guid.NewGuid();
-        var sinTenant = await HandlerDeDelegacion(AutorizacionDelegacionFalsa.AdministradorDe(desconocido)).Handle(
+        var sinTenant = await HandlerDeDelegacion(AutorizacionDelegacionFalsa.AdministradorDe(desconocido), desconocido).Handle(
             new CrearDelegacionTenantCommand(_operador.Id, desconocido), CancellationToken.None);
 
         sinTenant.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");
@@ -96,7 +96,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
         plataforma.MarcarComoPlataforma();
         _tenants.ListaTenants.Add(plataforma);
 
-        var resultado = await HandlerDeDelegacion(AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id)).Handle(
+        var resultado = await HandlerDeDelegacion(AutorizacionDelegacionFalsa.AdministradorDe(plataforma.Id), plataforma.Id).Handle(
             new CrearDelegacionTenantCommand(_operador.Id, plataforma.Id), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("DelegacionTenant.ClienteNoEncontrado");
@@ -112,6 +112,27 @@ public class MensajesDeLaOrganizacionQueDelegaTests
 
         errores.Should().Contain("Selecciona la organización que delega.");
         errores.Should().NotContain(m => m.Contains("Cliente"));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Crear_desde_un_contexto_ajeno_o_sin_Tenant_se_rechaza_antes_de_escribir(bool sinTenant)
+    {
+        var handler = new CrearDelegacionTenantCommandHandler(
+            _vinculos, _tenants, _writer, AutorizacionDelegacionFalsa.AdministradorDe(_propietario.Id),
+            new CurrentUserServiceFalso(_usuario), _unitOfWork, new TransaccionDeComandoFalsa(),
+            new AsignacionAutomaticaInerte(),
+            new CaeManager.Application.Tests.Configuracion.TenantActualFijo(sinTenant ? null : Guid.NewGuid()));
+
+        var resultado = await handler.Handle(
+            new CrearDelegacionTenantCommand(_operador.Id, _propietario.Id), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("DelegacionTenant.NoAutorizado");
+        resultado.Error.Mensaje.Should().Contain("entra en la organización que delega").And.NotContain("Tenant");
+        _vinculos.Delegaciones.Should().BeEmpty();
+        _writer.OperacionesAbiertas.Should().BeEmpty();
+        _unitOfWork.VecesGuardado.Should().Be(0);
     }
 
     // ── CrearAsignacionOperadorDelegado ─────────────────────────────────────
@@ -170,7 +191,7 @@ public class MensajesDeLaOrganizacionQueDelegaTests
             tenantRepositorio: null!, delegacionRepositorio: null!, asignacionRepositorio: null!,
             parametroSistemaRepositorio: null!, AutorizacionAdminPlataformaFalsa.SinNada(),
             new CurrentUserServiceFalso(_usuario, tenantOrigenId: _operador.Id),
-            asignacionesWriter: null!, unitOfWork: null!);
+            asignacionesWriter: null!, unitOfWork: null!, new CaeManager.Application.Tests.Clientes.TransaccionDeComandoFalsa());
 
         var resultado = await handler.Handle(
             new CrearClienteDeleganteCommand("Constructora Boreal"), CancellationToken.None);

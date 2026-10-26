@@ -1,0 +1,3 @@
+# Composiciones manuales sobre la URL actual fuera de NavigationManagerExtensions; solo pueden disminuir.
+src/CaeManager.Web/Features/BusquedaGlobal/BuscadorGlobal.razor.cs :: GetUriWithQueryParameter-sobre-Uri = 1
+src/CaeManager.Web/Features/Reportes/Pages/Reportes.razor.cs :: GetUriWithQueryParameter-sobre-Uri = 1

@@ -196,6 +196,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
+        // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.
+        services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -399,6 +401,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.Cumplimiento.IAceptacionTerminosRepository, AceptacionTerminosRepository>();
         services.AddScoped<CaeManager.Domain.Cumplimiento.IInstruccionTratamientoIaTenantPropietarioRepository, InstruccionTratamientoIaTenantPropietarioRepository>();
         services.AddScoped<CaeManager.Domain.Reclamaciones.IReclamacionDocumentalRepository, ReclamacionDocumentalRepository>();
+        services.AddScoped<CaeManager.Domain.Reclamaciones.IEnvioReclamacionRepository, EnvioReclamacionRepository>();
         services.AddScoped<CaeManager.Application.Reclamaciones.IReclamacionesQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<CaeManager.Domain.Contactos.IContactoAgendaRepository, ContactoAgendaRepository>();
         services.AddScoped<CaeManager.Application.Contactos.IContactosAgendaQueryContext>(sp => sp.GetRequiredService<CaeManagerDbContext>());
@@ -435,6 +438,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Domain.ApiKeys.IClaveApiRepository, ClaveApiRepository>();
         services.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDesenganchadorDeEntidadesRastreadas>(sp => sp.GetRequiredService<CaeManagerDbContext>());
+        services.AddScoped<IRestauracionCambiosDeComando>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<IDescarteCambiosPendientes>(sp => sp.GetRequiredService<CaeManagerDbContext>());
         services.AddScoped<ITransaccionDeComando, TransaccionDeComando>();
         services.AddScoped<CaeManager.Application.Clientes.IBloqueoCarteraUsuario, BloqueoCarteraUsuario>();
@@ -854,6 +858,7 @@ public static class InfrastructureServiceCollectionExtensions
         // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
         // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
         services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
+        services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
         services.AddScoped<IPlantillaDocumentosService, ClosedXmlPlantillaDocumentosService>();
@@ -978,9 +983,10 @@ public static class InfrastructureServiceCollectionExtensions
         if (!entorno.IsDevelopment() && !configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
             throw new InvalidOperationException(
                 $"Falta ConnectionStrings:CaeManagerDbRuntime en el entorno '{entorno.EnvironmentName}'. " +
-                "El tráfico se ejecutaría con el rol propietario de la base, al que PostgreSQL nunca " +
-                "somete a RLS (ni siquiera con FORCE ROW LEVEL SECURITY), dejando el aislamiento por " +
-                "tenant a merced únicamente del filtro global de EF Core. Configura la conexión del rol " +
+                "El tráfico se ejecutaría con el rol propietario de la base, exento de RLS: como " +
+                "superusuario o con BYPASSRLS, PostgreSQL no le aplica ninguna política ni con FORCE ROW " +
+                "LEVEL SECURITY, y como propietario ordinario solo en las tablas con FORCE. El aislamiento " +
+                "por tenant quedaría a merced del filtro global de EF Core. Configura la conexión del rol " +
                 "restringido cae_app_runtime (deploy/bootstrap/roles-de-cluster.sql) o, si de verdad " +
                 $"quieres arrancar sin esa protección, declara {ClaveDegradacionInsegura}=true.");
 

@@ -144,11 +144,11 @@ public class EscritorasDeIdentitySinAuditarTests
     private static readonly Dictionary<(string Ruta, string Linea), int> UsosObservadosCongelados = new()
     {
         // Vincula un login externo (Microsoft 365 / SSO) a una cuenta
-        // auto-provisionada — escribe AspNetUserLogins. AUDITADA desde la
+        // creada antes (invitación previa, D-3) — escribe AspNetUserLogins. AUDITADA desde la
         // misión N6/V4: deja fila "LoginExterno / Creado" contra el Tenant
         // propietario de la cuenta (ver AuditoriaDeIdentidadRestanteTests).
         [("src/CaeManager.Web/Components/Account/IdentityEndpointsExtensions.cs",
-            "await userManager.AddLoginAsync(usuario, infoExterna);")] = 1,
+            "var resultadoVinculo = await userManager.AddLoginAsync(usuario, infoExterna);")] = 1,
 
         // Hallazgo M1 de sesión coordinadora (revisión de `8982cdc8`): el
         // secreto TOTP (AspNetUserTokens). AUDITADA desde la misión N6/V4 —

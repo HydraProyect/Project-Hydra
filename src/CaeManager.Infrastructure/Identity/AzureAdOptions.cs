@@ -24,8 +24,8 @@ public class AzureAdOptions : IOpcionesConGate
     public string Instance { get; set; } = "https://login.microsoftonline.com/";
 
     /// <summary>
-    /// El tenant de <b>Hydra</b> al que pertenecen las cuentas que se
-    /// auto-provisionan por este login. No es <see cref="TenantId"/>: aquel es
+    /// El tenant de <b>Hydra</b> al que pertenecen las cuentas que entran por
+    /// este login (creadas antes: no hay alta automática, D-3). No es <see cref="TenantId"/>: aquel es
     /// el tenant de <i>Entra</i>, y son dos espacios de identificadores
     /// distintos que no se pueden deducir el uno del otro.
     ///
@@ -35,8 +35,24 @@ public class AzureAdOptions : IOpcionesConGate
     /// tenant real (el tenant #1 es <c>…0001</c>, no ceros). La cuenta quedaba
     /// huérfana: no veía nada, no pertenecía a nadie, y aun así aparecía en la
     /// sala de espera de <c>/roles</c> para que cualquier Administrador la
-    /// adoptara. Ahora, sin este valor configurado, el alta se rechaza en vez
-    /// de crear esa cuenta ambigua.
+    /// adoptara. Ahora, sin este valor, el callback rechaza todo inicio de
+    /// sesión con Microsoft en vez de abrir cuentas, y con él tampoco crea ninguna.
+    /// </para>
+    ///
+    /// <para>
+    /// Es también el único Tenant en cuyas cuentas se puede entrar por Microsoft:
+    /// una cuenta de otro Tenant con el mismo correo no se vincula ni se abre
+    /// (ver <c>InicioSesionMicrosoft.DecidirCuenta</c>). No entra en el gate a
+    /// propósito: sin él, el esquema sigue registrado y la restricción del login
+    /// local sigue activa (fallo cerrado), el callback rechaza a todo el mundo y
+    /// el arranque avisa de que falta. Meterlo en el gate levantaría en silencio
+    /// esa restricción en un entorno con solo las otras tres claves.
+    /// </para>
+    ///
+    /// <para>
+    /// Decide también a quién alcanza esa restricción (D-1, 2026-10-25): solo a
+    /// las cuentas cuyo Tenant propietario es este. Sin él, alcanza a todas (ver
+    /// <c>RestriccionLoginLocalClaimsTransformation</c>).
     /// </para>
     ///
     /// <para>
@@ -49,10 +65,48 @@ public class AzureAdOptions : IOpcionesConGate
     /// </summary>
     public Guid? TenantHydraId { get; set; }
 
+    /// <summary>Nombre del esquema de autenticación de este inicio de sesión. Identity lo guarda como método de autenticación de la sesión.</summary>
+    public const string Esquema = "Microsoft";
+
+    /// <summary>
+    /// Id del contexto de autenticación de Acceso condicional de Entra (por ejemplo
+    /// <c>c1</c>) que acredita la MFA (decisión D-2 de 2026-10-25). Con valor, se pide
+    /// a Microsoft en cada inicio y se acepta como segundo factor si vuelve en la
+    /// notificación <c>acrs</c> del token. Vacío: no se pide ni se exige <c>acrs</c>,
+    /// y la MFA se acredita solo con <c>amr</c> = <c>mfa</c>. Sin ninguna de las dos,
+    /// se pide el TOTP de TALVEG antes de emitir la sesión.
+    /// </summary>
+    public string? ContextoAutenticacionMfa { get; set; }
+
+    /// <summary>
+    /// Si entran por Microsoft las cuentas invitadas B2B del directorio, las que llegan
+    /// con la notificación <c>acct</c> = 1 en el token de ID. Falso por defecto: se
+    /// rechazan antes de buscar la cuenta de TALVEG y de emitir la sesión. Solo se
+    /// detectan si el App Registration emite <c>acct</c> (notificación opcional); sin
+    /// ella, el inicio sigue como antes. Variable: <c>AzureAd__PermitirInvitados</c>.
+    /// </summary>
+    public bool PermitirInvitados { get; set; }
+
     public bool EstaConfigurado => Evaluar().Completo;
 
-    public IReadOnlyList<string> ProblemasDeConfiguracion() => Evaluar().Problemas;
 
     private EvaluacionGate Evaluar() => GateDeConfiguracion.Evaluar(null,
         (nameof(TenantId), TenantId), (nameof(ClientId), ClientId), (nameof(ClientSecret), ClientSecret));
+
+    /// <summary>El Tenant destino declarado, o <see cref="Guid.Empty"/> si no lo hay.</summary>
+    public Guid TenantDestino => TenantHydraId ?? Guid.Empty;
+
+    /// <summary>Hay Tenant destino declarado (no nulo ni <see cref="Guid.Empty"/>).</summary>
+    public bool TieneTenantDestino => TenantDestino != Guid.Empty;
+
+    /// <summary>
+    /// Los «falta X» del gate y, con las tres claves puestas pero sin
+    /// <see cref="TenantHydraId"/>, también ese: el esquema queda registrado y la
+    /// restricción del login local activa, pero el callback rechaza a todo el mundo.
+    /// </summary>
+    public IReadOnlyList<string> ProblemasDeConfiguracion()
+    {
+        var evaluacion = Evaluar();
+        return evaluacion.Completo && !TieneTenantDestino ? ["falta TenantHydraId"] : evaluacion.Problemas;
+    }
 }

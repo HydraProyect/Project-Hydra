@@ -39,7 +39,7 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
             new PlantillasFalsas.CentrosQueryContextFalso(),
             new DocumentosFalsos.EmpresasQueryContextFalso(),
             new PlantillasFalsas.TrabajadoresQueryContextFalso(),
-            new ClientesFalsos.UnitOfWorkFalso(),
+            new OperacionImportacionRepositorioFalso(),
             autorizacion);
     }
 
@@ -48,7 +48,7 @@ public class EjecutarImportacionCombinadaCommandAutorizacionTests
         public Guid? TenantId => null;
     }
 
-    private static PlanImportacionCombinadaDto PlanVacio() => new([], [], [], [], [], []);
+    private static PlanImportacionCombinadaDto PlanVacio() => new(Guid.NewGuid(), [], [], [], [], [], []);
 
     [Fact]
     public async Task Administrador_puede_ejecutar_una_importacion_combinada()

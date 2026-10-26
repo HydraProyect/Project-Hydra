@@ -50,6 +50,27 @@ namespace CaeManager.Web.Tests;
 /// </summary>
 public partial class Visita360PaginaTests : BunitContext
 {
+    [Fact]
+    public async Task Cambiar_pestana_con_otra_escritura_pendiente_conserva_los_parametros()
+    {
+        var navigation = new NavegacionRetenida($"http://localhost/visitas/{VisitaId}?extra=conservar#detalle");
+        Services.AddSingleton<NavigationManager>(navigation);
+        var (cut, _) = Montar(Detalle(tramo: TramoAntelacion.Urgente));
+        navigation.Retener = true;
+
+        await cut.InvokeAsync(() => CaeManager.Web.Components.NavigationManagerExtensions.ActualizarFiltroEnUrl(navigation, "hilo", "pendiente"));
+        cut.FindAll("[role=tab]").Single(p => p.TextContent.Trim() == "Ficha").Click();
+
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navigation.Destinos[^1]).Query);
+        parametros["pestana"].ToString().Should().Be("ficha");
+        parametros["hilo"].ToString().Should().Be("pendiente");
+        parametros["extra"].ToString().Should().Be("conservar");
+        new Uri(navigation.Destinos[^1]).Fragment.Should().Be("#detalle");
+        navigation.Opciones[^1].ReplaceHistoryEntry.Should().BeTrue();
+        navigation.Opciones[^1].ForceLoad.Should().BeFalse();
+        navigation.Opciones[^1].HistoryEntryState.Should().BeNull();
+    }
+
     public Visita360PaginaTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;

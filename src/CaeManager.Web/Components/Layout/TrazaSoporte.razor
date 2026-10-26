@@ -17,7 +17,9 @@
 <LimiteDeErrores Islote="this">
 @if (_esSesionDeSoporte)
 {
-    <div class="aviso-sesion-soporte" role="status" data-aviso-sistema data-tono="soporte">
+    <div class="aviso-sesion-soporte" role="status" data-aviso-sistema data-tono="soporte"
+         data-captura-lista="@(_capturaLista ? "true" : "false")"
+         data-interacciones-registradas="@_interaccionesRegistradas">
         Sesión de soporte — estás operando datos de otra organización y tu actividad queda registrada.
     </div>
 }

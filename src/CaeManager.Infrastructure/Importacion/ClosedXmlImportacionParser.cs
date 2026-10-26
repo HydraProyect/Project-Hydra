@@ -11,6 +11,7 @@ using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Trabajadores;
 using ClosedXML.Excel;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Infrastructure.Importacion;
 
@@ -35,7 +36,11 @@ namespace CaeManager.Infrastructure.Importacion;
 /// de fecha vacía, columna de centro sin marca) del que sí pierde un dato: en
 /// esos tres el `continue` sigue mudo a propósito, verificado por test.
 ///
-/// La fecha de nacimiento (columna 5 de Empleados/Extranjeros) es dato
+/// Las hojas de Trabajadores y la Empresa de cada una no están en el código: las declara
+/// <see cref="OpcionesPlantillaCaeCompleta"/>. Sin ninguna configurada, el análisis lo dice en
+/// <see cref="PlanImportacionDto.Omitidos"/> y no lee Trabajadores, en vez de suponer una Empresa.
+///
+/// La fecha de nacimiento (columna 5 de las hojas de Trabajadores) es dato
 /// opcional de una fila que sí se importa: si la celda está vacía, el
 /// trabajador se crea sin fecha de nacimiento, legítimo y silencioso; si la
 /// celda trae un valor que no se pudo interpretar, el trabajador se crea
@@ -48,17 +53,12 @@ namespace CaeManager.Infrastructure.Importacion;
 /// (rescate de pantallas 2026-09-25, ítem 9). Antes iba a Omitidos y el
 /// reporte contaba como omitido a un trabajador que sí se importaba.
 /// </summary>
-public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IExcelImportacionParser
+public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IDocumentosQueryContext documentosContext, IEmpresasQueryContext empresasContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesPlantillaCaeCompleta> opciones) : IExcelImportacionParser
 {
     private const string HojaCentros = "Centros_Plataformas";
-    private const string HojaEmpleados = "Empleados";
-    private const string HojaExtranjeros = "Extranjeros (Ibertec GmbH)";
     private const string HojaAsignaciones = "Asignaciones";
 
-    private const string EmpresaEmpleados = "Ibertec S.A.";
-    private const string EmpresaExtranjeros = "Ibertec GmbH";
-
-    // Columna del "Fecha" de cada grupo de documento en Empleados/Extranjeros
+    // Columna del "Fecha" de cada grupo de documento en las hojas de Trabajadores
     // → nombre exacto del TipoDocumento semilla (ver Fase 0 / TipoDocumentoSeedData).
     private static readonly (int Columna, string TipoDocumento)[] ColumnasDocumentos =
     [
@@ -89,7 +89,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         // específicamente (EsCritico != null, igual que
         // EjecutarImportacionCommandHandler y ObtenerClientesQuery) — no
         // cualquier Empresa con ese nombre. A diferencia de
-        // razonesSocialesExistentes (de abajo, para Empleados/Extranjeros,
+        // razonesSocialesExistentes (de abajo, para las hojas de Trabajadores,
         // donde cualquier Empresa sí es la respuesta correcta), aquí
         // "cliente" tiene un significado específico y una Subcontrata u otra
         // Empresa homónima no lo satisface.
@@ -141,18 +141,39 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
         var dnisVistosEnArchivo = new HashSet<string>();
         var nombreCompletoADni = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-        AnalizarHojaTrabajadores(
-            libro, HojaEmpleados, EmpresaEmpleados, razonesSocialesExistentes, dnisExistentes, dnisVistosEnArchivo,
-            nombresTiposDocumentoValidos, documentosExistentes, nombreCompletoADni, empresas, trabajadores, documentos, advertencias, omitidos);
-        AnalizarHojaTrabajadores(
-            libro, HojaExtranjeros, EmpresaExtranjeros, razonesSocialesExistentes, dnisExistentes, dnisVistosEnArchivo,
-            nombresTiposDocumentoValidos, documentosExistentes, nombreCompletoADni, empresas, trabajadores, documentos, advertencias, omitidos);
+        var hojasTrabajadores = HojasTrabajadoresConfiguradas();
+        if (hojasTrabajadores.Count == 0)
+        {
+            // Sin Empresa declarada no se puede dar de alta a nadie: se dice, no se calla ni se inventa una.
+            omitidos.Add(new ItemImportacionDto(
+                "Configuración", 0, "Hojas de Trabajadores",
+                "La plantilla CAE completa no tiene configuradas en este entorno las hojas de Trabajadores ni la Empresa de cada una; " +
+                "no se leyó ningún Trabajador ni Documento. Avisa a Soporte TALVEG para configurarlas."));
+        }
+
+        foreach (var hojaTrabajadores in hojasTrabajadores)
+        {
+            AnalizarHojaTrabajadores(
+                libro, hojaTrabajadores.Hoja, hojaTrabajadores.RazonSocialEmpresa, razonesSocialesExistentes, dnisExistentes, dnisVistosEnArchivo,
+                nombresTiposDocumentoValidos, documentosExistentes, nombreCompletoADni, empresas, trabajadores, documentos, advertencias, omitidos);
+        }
 
         var asignaciones = AnalizarAsignaciones(
             libro, nombreCompletoADni, nombresCentrosOrdenados, asignacionesActivasExistentes, advertencias, omitidos);
 
         return new PlanImportacionDto(Guid.NewGuid(), clientesCentros, empresas, trabajadores, documentos, asignaciones, advertencias, omitidos);
     }
+
+    /// <summary>
+    /// Las hojas de Trabajadores válidas de la configuración (con nombre de hoja y razón social), sin repetir hoja.
+    /// Una entrada a medias no se lee: sin Empresa declarada no hay a quién asignar los Trabajadores.
+    /// </summary>
+    private List<HojaTrabajadoresCae> HojasTrabajadoresConfiguradas() =>
+        opciones.Value.HojasTrabajadores
+            .Where(h => !string.IsNullOrWhiteSpace(h.Hoja) && !string.IsNullOrWhiteSpace(h.RazonSocialEmpresa))
+            .Select(h => new HojaTrabajadoresCae { Hoja = h.Hoja.Trim(), RazonSocialEmpresa = h.RazonSocialEmpresa.Trim() })
+            .DistinctBy(h => h.Hoja, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
     private static List<ClienteCentroImportadoDto> AnalizarCentros(
         XLWorkbook libro,
@@ -197,7 +218,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
             resultado.Add(new ClienteCentroImportadoDto(
                 nombre, esCritico, direccion, contacto,
-                nombresClientesExistentes.Contains(nombre), nombresCentrosExistentes.Contains(nombre)));
+                nombresClientesExistentes.Contains(nombre), nombresCentrosExistentes.Contains(nombre), HojaCentros, fila));
         }
 
         return resultado;
@@ -244,7 +265,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             // hacía inalcanzable ese caso para la rama de abajo).
             if (string.IsNullOrWhiteSpace(nombre) && string.IsNullOrWhiteSpace(apellidos)
                 && FilaTrabajadorSinNingunOtroDato(hoja, fila, dni))
-                continue; // Fila de plantilla sin datos todavía (p. ej. Extranjeros, hoy vacía).
+                continue; // Fila de plantilla sin datos todavía (p. ej. una hoja todavía vacía).
 
             if (string.IsNullOrWhiteSpace(nombre) || string.IsNullOrWhiteSpace(apellidos) || string.IsNullOrWhiteSpace(dni))
             {
@@ -273,9 +294,11 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 advertencias.Add(new ItemImportacionDto(nombreHoja, fila, $"{nombre} {apellidos} ({dni})",
                     CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
 
+            // Dos hojas de la misma Empresa darían una sola alta: la segunda no la repite.
             if (!huboAlMenosUnTrabajador)
             {
-                empresas.Add(new EmpresaImportadaDto(nombreEmpresa, razonesSocialesExistentes.Contains(nombreEmpresa)));
+                if (!empresas.Any(e => string.Equals(e.RazonSocial, nombreEmpresa, StringComparison.OrdinalIgnoreCase)))
+                    empresas.Add(new EmpresaImportadaDto(nombreEmpresa, razonesSocialesExistentes.Contains(nombreEmpresa), nombreHoja, fila));
                 huboAlMenosUnTrabajador = true;
             }
 
@@ -291,7 +314,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             var email = TextoCelda(hoja.Cell(fila, 6));
 
             trabajadores.Add(new TrabajadorImportadoDto(
-                nombreEmpresa, nombre.Trim(), apellidos.Trim(), dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni)));
+                nombreEmpresa, nombre.Trim(), apellidos.Trim(), dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni), nombreHoja, fila));
 
             nombreCompletoADni[$"{nombre.Trim()} {apellidos.Trim()}"] = dni;
 
@@ -327,7 +350,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 }
 
                 documentos.Add(new DocumentoImportadoDto(
-                    dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento)), nombreHoja));
+                    dni, tipoDocumento, fechaEmision, documentosExistentes.Contains((dni, tipoDocumento)), nombreHoja, fila));
             }
         }
     }
@@ -407,7 +430,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
             if (!nombreCompletoADni.TryGetValue(nombreCompleto, out var dni))
             {
                 omitidos.Add(new ItemImportacionDto(
-                    HojaAsignaciones, fila, nombreCompleto, "No se encontró este trabajador en las hojas Empleados/Extranjeros."));
+                    HojaAsignaciones, fila, nombreCompleto, "No se encontró este trabajador en las hojas de Trabajadores del archivo."));
                 continue;
             }
 
@@ -417,7 +440,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
                 if (string.IsNullOrWhiteSpace(marcado)) continue;
 
                 var nombreCentro = columnaANombreCentroReal[columna];
-                resultado.Add(new AsignacionImportadaDto(dni, nombreCentro, asignacionesActivasExistentes.Contains((dni, nombreCentro))));
+                resultado.Add(new AsignacionImportadaDto(
+                    dni, nombreCentro, asignacionesActivasExistentes.Contains((dni, nombreCentro)), HojaAsignaciones, fila));
             }
         }
 
@@ -432,7 +456,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     }
 
     /// <summary>
-    /// DCR-12 B: una fila de Empleados/Extranjeros sin nombre ni apellidos es
+    /// DCR-12 B: una fila de una hoja de Trabajadores sin nombre ni apellidos es
     /// plantilla vacía solo si tampoco trae DNI, fecha de nacimiento, email ni
     /// ninguna fecha de documento — si trae algo, es una fila con datos
     /// incompletos y debe registrarse en Omitidos, no callarse.

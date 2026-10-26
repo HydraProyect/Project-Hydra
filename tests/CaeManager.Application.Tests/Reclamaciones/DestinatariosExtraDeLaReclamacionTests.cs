@@ -143,7 +143,8 @@ public class DestinatariosExtraDeLaReclamacionTests
 
         var servicio = new RegistroEnvioReclamacionService(
             integraciones, correo, repositorio, new CurrentUserServiceFalso(Guid.NewGuid()), new CorreoDelActorRealFalso(),
-            mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, new UnitOfWorkFalso());
+            mediator, NullLogger<RegistroEnvioReclamacionService>.Instance, new UnitOfWorkFalso(),
+            new EnvioReclamacionRepositorioFalso(), new DescarteCambiosPendientesFalso());
 
         return new Entorno(servicio, correo, repositorio, mediator);
     }

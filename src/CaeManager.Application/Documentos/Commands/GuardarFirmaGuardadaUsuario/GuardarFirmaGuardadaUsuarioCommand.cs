@@ -71,9 +71,10 @@ public class GuardarFirmaGuardadaUsuarioCommandHandler(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex,
-                    "No se pudo borrar la imagen anterior {Archivo} de la firma guardada del usuario {UsuarioId}.",
-                    urlAnterior, usuarioIdValido);
+                // Sin la clave del fichero ni el mensaje de la excepción (suele repetirla): Id y tipo.
+                logger.LogError(
+                    "No se pudo borrar la imagen anterior de la firma guardada del usuario {UsuarioId} ({TipoExcepcion}).",
+                    usuarioIdValido, ex.GetType().Name);
             }
         }
 

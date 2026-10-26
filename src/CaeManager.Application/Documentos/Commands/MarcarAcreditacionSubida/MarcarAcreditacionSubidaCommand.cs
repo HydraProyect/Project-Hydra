@@ -1,37 +1,24 @@
-using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
-using CaeManager.Application.Integraciones;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 
 /// <summary>
 /// "Marcar subido" del drill-down por plataforma (mockup Documentos TALVEG,
-/// pestaña Plataforma — cierra el hallazgo P-04): el domino ya sabía pasar
-/// una AcreditacionDocumentoPlataforma a Subida (Lote 2-C), pero ningún
-/// Command de Application la disparaba todavía (Lote 2-D, "todavía sin
-/// construir" según el propio comentario de la entidad).
+/// pestaña Plataforma — cierra el hallazgo P-04) y del panel «Gestionar
+/// acreditación en plataforma»: registra una subida que el Gestor CAE ya hizo
+/// A MANO en la plataforma. No crea cambio de estado ni pide proveedor activo.
 ///
-/// <see cref="ExigirProveedorActivo"/> (MVP2 § 14.5, *kill switch* remoto):
-/// solo la extensión de navegador lo pasa a <c>true</c>
-/// (<c>MarcarAcreditacionSubidaEndpoints</c>) — el drill-down interno
-/// (<c>PlataformaTab.razor</c>) deja el valor por defecto porque "marcar
-/// subido" ahí registra una subida que el gestor ya hizo A MANO en la
-/// plataforma, sin pasar por la extensión ni por su inyección; bloquearla
-/// por un proveedor inactivo rompería ese registro sin motivo — el
-/// conector inactivo es sobre la extensión, no sobre la plataforma en sí.
-/// Nótese que para cuando este Command corre, la extensión YA descargó el
-/// PDF e YA lo inyectó en el DOM de la plataforma (ver
-/// <c>extension/background.js</c>, <c>subirDocumento</c>) — el freno real
-/// que evita la inyección reconsulta la lista en el service worker antes de
-/// entregar el archivo al formulario. Esta comprobación es la
-/// segunda línea: que el registro de Hydra nunca diga "subida" para un
-/// conector que la plataforma declaró inactivo, ni siquiera si un cliente
-/// desactualizado o modificado se saltó el freno del popup.
+/// <para>
+/// La extensión de navegador ya no pasa por aquí: su «Lo he enviado» es
+/// <c>ConfirmarSubidaDesdeExtensionCommand</c>, que exige el proveedor activo
+/// (kill switch remoto, MVP2 § 14.5) y deja un cambio de estado con origen
+/// Extensión que se puede deshacer. Las dos vías comparten la carga con
+/// alcance (<see cref="AcreditacionSubible"/>) y la regla de la rechazada.
+/// </para>
 ///
 /// Una acreditación <see cref="EstadoAcreditacion.Rechazada"/> no se marca
 /// subida (P0-9b, FS-02): la plataforma ya evaluó y devolvió esa versión, y
@@ -42,54 +29,66 @@ namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 /// reinicia sus acreditaciones a <see cref="EstadoAcreditacion.PendienteDeSubir"/>.
 /// Desde ahí sí se marca subida. La lista de la extensión reutiliza esta regla.
 /// </summary>
-public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId, bool ExigirProveedorActivo = false) : ICommand;
+public record MarcarAcreditacionSubidaCommand(Guid AcreditacionId) : ICommand;
 
-public class MarcarAcreditacionSubidaCommandHandler(
-    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext,
-    ICentrosQueryContext centrosContext, IProveedoresPlataformaCaeQueryContext proveedoresContext,
-    IUnitOfWork unitOfWork)
-    : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
+/// <summary>
+/// Lo que comparten «Marcar subido» y «Lo he enviado» de la extensión antes de escribir: la acreditación existe, su
+/// Documento está en la cartera de quien pide (lo que no, sale como «no encontrada», sin decir por qué) y, si la
+/// plataforma la rechazó, hay una versión nueva.
+/// </summary>
+internal static class AcreditacionSubible
 {
     public const string CodigoRechazadaSinVersionNueva = "Acreditacion.RechazadaSinVersionNueva";
 
-    public async Task<Result> Handle(MarcarAcreditacionSubidaCommand request, CancellationToken cancellationToken)
+    public static readonly Error NoEncontrada = Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación.");
+
+    public static readonly Error RechazadaSinVersionNueva = Error.Crear(
+        CodigoRechazadaSinVersionNueva,
+        "La plataforma rechazó esta versión. Sube una versión corregida del documento: al guardarla volverá a quedar pendiente de subir.");
+
+    /// <summary>
+    /// La acreditación, si existe y su Documento es visible; <c>null</c> si no. Con <paramref name="recargar"/> se lee de
+    /// nuevo de la base con sus cambios de estado, que es lo que necesita quien crea o deshace un cambio.
+    /// </summary>
+    public static async Task<AcreditacionDocumentoPlataforma?> CargarVisibleAsync(
+        Guid acreditacionId, IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
+        IDocumentoRepository documentoRepositorio, IAlcanceDatosService alcanceDatos,
+        IProyectosQueryContext proyectosContext, bool recargar, CancellationToken cancellationToken)
     {
-        var acreditacion = await acreditacionRepositorio.ObtenerPorIdAsync(request.AcreditacionId, cancellationToken);
+        var acreditacion = recargar
+            ? await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(acreditacionId, cancellationToken)
+            : await acreditacionRepositorio.ObtenerPorIdAsync(acreditacionId, cancellationToken);
         if (acreditacion is null)
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+            return null;
 
         var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
-        if (documento is null || !await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
-            return Result.Fallo(Error.Crear("Acreditacion.NoEncontrada", "No encontramos esta acreditación."));
+        return documento is not null && await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken)
+            ? acreditacion
+            : null;
+    }
+}
+
+public class MarcarAcreditacionSubidaCommandHandler(
+    IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
+{
+    public const string CodigoRechazadaSinVersionNueva = AcreditacionSubible.CodigoRechazadaSinVersionNueva;
+
+    public async Task<Result> Handle(MarcarAcreditacionSubidaCommand request, CancellationToken cancellationToken)
+    {
+        var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            recargar: false, cancellationToken);
+        if (acreditacion is null)
+            return Result.Fallo(AcreditacionSubible.NoEncontrada);
 
         if (!ReglaSubidaAcreditacion.PermiteSubir(acreditacion))
-            return Result.Fallo(Error.Crear(
-                CodigoRechazadaSinVersionNueva,
-                "La plataforma rechazó esta versión. Sube una versión corregida del documento: al guardarla volverá a quedar pendiente de subir."));
-
-        if (request.ExigirProveedorActivo && !await ProveedorActivoAsync(acreditacion.CanalGestionDocumentalId, cancellationToken))
-            return Result.Fallo(Error.Crear(
-                "Acreditacion.ConectorInactivo", "Este conector está desactivado temporalmente."));
+            return Result.Fallo(AcreditacionSubible.RechazadaSinVersionNueva);
 
         acreditacion.MarcarSubida();
         await unitOfWork.SaveChangesAsync(cancellationToken);
 
         return Result.Exito();
-    }
-
-    private async Task<bool> ProveedorActivoAsync(Guid canalGestionDocumentalId, CancellationToken cancellationToken)
-    {
-        var proveedorId = await centrosContext.CanalesGestionDocumental
-            .Where(c => c.Id == canalGestionDocumentalId)
-            .Select(c => c.ProveedorPlataformaCaeId)
-            .SingleOrDefaultAsync(cancellationToken);
-
-        if (proveedorId is null) return true; // sin proveedor de catálogo, nada que apagar
-
-        return await proveedoresContext.ProveedoresPlataformaCae
-            .Where(p => p.Id == proveedorId.Value)
-            .Select(p => p.Activo)
-            .SingleOrDefaultAsync(cancellationToken);
     }
 }

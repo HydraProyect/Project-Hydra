@@ -17,7 +17,8 @@ public class PlataformaCaeClienteEmpresarialRepository(CaeManagerDbContext dbCon
     ];
 
     public Task<PlataformaCaeClienteEmpresarial?> ObtenerPlataformaAsync(Guid clienteEmpresarialId, CancellationToken cancellationToken = default) =>
-        dbContext.PlataformasCaeClienteEmpresarial.FirstOrDefaultAsync(p => p.ClienteEmpresarialId == clienteEmpresarialId, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.PlataformasCaeClienteEmpresarial
+            .Where(p => p.ClienteEmpresarialId == clienteEmpresarialId), cancellationToken);
 
     public void AgregarPlataforma(PlataformaCaeClienteEmpresarial plataforma) => dbContext.PlataformasCaeClienteEmpresarial.Add(plataforma);
 
@@ -33,6 +34,15 @@ public class PlataformaCaeClienteEmpresarialRepository(CaeManagerDbContext dbCon
         {
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Otra persona cambió la plataforma entre la comprobación de Version y el UPDATE. La edición perdida
+            // no se queda Modified (con el token que le dio el interceptor) para que el siguiente SaveChanges del
+            // circuito la reintente, ni su auditoría Added. ConcurrenciaBehavior traduce la excepción al conflicto.
+            ConcurrenciaContexto.DescartarEdicionPerdida(dbContext, dbContext.ChangeTracker.Entries()
+                .Where(e => e.Entity is PlataformaCaeClienteEmpresarial or AccesoPlataformaCaeEmpresa));
+            throw;
         }
         catch (DbUpdateException ex) when (ex.InnerException is PostgresException
         {

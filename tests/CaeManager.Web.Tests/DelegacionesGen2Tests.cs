@@ -55,10 +55,17 @@ public partial class DelegacionesGen2Tests : BunitContext
         public bool EsTenantOrigenPlataforma { get; set; } = true;
 
         /// <summary>
-        /// Criterio real de Reactivar por Cliente Delegante — por defecto autoriza a
-        /// cualquiera para no obligar a los tests que no lo ejercitan a fijarlo.
+        /// Criterio real de Reactivar (<see cref="PuedeReactivarQuery"/>) por Id de la
+        /// delegación — por defecto autoriza a cualquiera para no obligar a los tests que no lo
+        /// ejercitan a fijarlo.
         /// </summary>
         public Func<Guid, bool> PuedeReactivar { get; set; } = _ => true;
+
+        /// <summary>
+        /// Criterio real de «Revocar acceso» (<see cref="PuedeRevocarQuery"/>) por Id de la
+        /// delegación; mismo valor por defecto que <see cref="PuedeReactivar"/>.
+        /// </summary>
+        public Func<Guid, bool> PuedeRevocar { get; set; } = _ => true;
 
         /// <summary>
         /// Respuesta de <see cref="ObtenerTenantPropietarioAutorizanteQuery"/>: por defecto
@@ -112,7 +119,8 @@ public partial class DelegacionesGen2Tests : BunitContext
                 ObtenerOperadoresCaeExternosQuery => Operadores,
                 CrearOperadorCaeExternoCommand => ResultadoAltaOperador,
                 CrearTenantPropietarioDeOperadorCaeExternoCommand => Result.Exito(Guid.NewGuid()),
-                PuedeReactivarQuery q => PuedeReactivar(q.TenantClienteId),
+                PuedeReactivarQuery q => PuedeReactivar(q.Id),
+                PuedeRevocarQuery q => PuedeRevocar(q.Id),
                 ObtenerTenantPropietarioAutorizanteQuery => TenantPropietarioAutorizante,
                 ObtenerAccesosSoporteTalvegQuery => AccesosSoporteTalveg,
                 BuscarOperadorCaeExternoAutorizableQuery q => Buscar(q),
@@ -422,10 +430,10 @@ public partial class DelegacionesGen2Tests : BunitContext
 
     /// <summary>
     /// Hueco declarado en PR #651, mitad de Reactivar: ReactivarDelegacionTenantCommand
-    /// exige ser Administrador del Cliente Delegante (IAutorizacionDelegacionTenant,
-    /// asimetría documentada en su propio Handle) — NO basta con !OperandoWorkspaceAjeno,
-    /// que era la única guarda antes de este cambio. Falsación: invertir el resultado de
-    /// PuedeReactivar hace que la aserción exija lo contrario y el test caiga.
+    /// exige ser del equipo del Operador CAE externo con alcance sobre el Tenant propietario
+    /// (decisiones del 2026-10-26) — NO basta
+    /// con !OperandoWorkspaceAjeno. Falsación: invertir el resultado de PuedeReactivar hace
+    /// que la aserción exija lo contrario y el test caiga.
     /// </summary>
     [Fact]
     public void Reactivar_se_oculta_si_el_usuario_no_puede_gestionar_las_delegaciones_del_cliente()
@@ -435,7 +443,7 @@ public partial class DelegacionesGen2Tests : BunitContext
             Delegacion(activa: false));
 
         cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reactivar",
-            "PuedeGestionarDelegacionesAsync devolvió false: mostrar el botón mentiría sobre lo que el comando permite");
+            "PuedeReactivarQuery devolvió false: mostrar el botón mentiría sobre lo que el comando permite");
     }
 
     [Fact]
@@ -450,24 +458,64 @@ public partial class DelegacionesGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// PuedeReactivarQuery recibe el TenantClienteId de CADA fila, no un booleano global:
-    /// con dos delegaciones inactivas de clientes distintos, una autorizada y otra no,
-    /// deben distinguirse por fila y no compartir un único resultado.
+    /// PuedeReactivarQuery recibe el Id de CADA fila, no un booleano global: con dos
+    /// delegaciones inactivas, una autorizada y otra no, deben distinguirse por fila y no
+    /// compartir un único resultado.
     /// </summary>
     [Fact]
-    public void Reactivar_se_evalua_por_TenantClienteId_de_cada_fila_y_no_de_forma_global()
+    public void Reactivar_se_evalua_por_cada_fila_y_no_de_forma_global()
     {
-        var clienteAutorizado = Guid.NewGuid();
-        var clienteSinAutorizar = Guid.NewGuid();
-        var (cut, _, _) = Renderizar(
+        var autorizada = Delegacion(activa: false);
+        var sinAutorizar = Delegacion(activa: false);
+        var (cut, mediador, _) = Renderizar(
             esAdministradorPlataforma: true, esTenantOrigenPlataforma: true,
-            puedeReactivar: tenantClienteId => tenantClienteId == clienteAutorizado,
-            Delegacion(activa: false, tenantClienteId: clienteAutorizado),
-            Delegacion(activa: false, tenantClienteId: clienteSinAutorizar));
+            puedeReactivar: id => id == autorizada.Id,
+            autorizada, sinAutorizar);
 
         cut.FindAll("button").Count(b => b.TextContent.Trim() == "Reactivar").Should().Be(1,
-            "solo la fila del cliente autorizado debe mostrar el botón; compartir un único resultado " +
+            "solo la fila autorizada debe mostrar el botón; compartir un único resultado " +
             "global habría mostrado 0 o 2, nunca exactamente 1");
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is PuedeRevocarQuery,
+            "a una fila revocada no se le pregunta si se puede revocar");
+    }
+
+    /// <summary>
+    /// «Revocar acceso» se pinta solo a quien puede usarlo: el equipo del Operador CAE externo
+    /// con alcance sobre el Tenant propietario (decisiones del 2026-10-26), que la pantalla conoce por
+    /// <see cref="PuedeRevocarQuery"/> fila a fila. Al Administrador del Tenant propietario la
+    /// consulta le dice que no y el botón no aparece. Falsación: invertir el resultado hace que
+    /// las aserciones exijan lo contrario.
+    /// </summary>
+    [Fact]
+    public void Revocar_acceso_se_muestra_solo_en_las_filas_que_el_usuario_puede_revocar()
+    {
+        var revocable = Delegacion(activa: true);
+        var noRevocable = Delegacion(activa: true, somosLaConsultora: false);
+        _configurarMediador = m => m.PuedeRevocar = id => id == revocable.Id;
+        var (cut, mediador, _) = Renderizar(revocable, noRevocable);
+
+        cut.FindAll("button").Count(b => b.TextContent.Trim() == "Revocar acceso").Should().Be(1,
+            "solo la fila que PuedeRevocarQuery autoriza lleva el botón");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reactivar",
+            "una fila activa no revocable no cae al botón de reactivar");
+        mediador.Enviadas.Where(x => x.Peticion is PuedeRevocarQuery).Should().HaveCount(2);
+        mediador.Enviadas.Should().NotContain(x => x.Peticion is PuedeReactivarQuery,
+            "a una fila activa no se le pregunta si se puede reactivar");
+    }
+
+    [Fact]
+    public void Sin_autoridad_de_Gestor_CAE_no_se_pinta_ni_revocar_ni_reactivar()
+    {
+        _configurarMediador = m =>
+        {
+            m.PuedeRevocar = _ => false;
+            m.PuedeReactivar = _ => false;
+        };
+        var (cut, _, _) = Renderizar(Delegacion(activa: true), Delegacion(activa: false));
+
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Revocar acceso");
+        cut.FindAll("button").Should().NotContain(b => b.TextContent.Trim() == "Reactivar");
+        cut.Markup.Should().Contain("Organización Norte", "control positivo: las dos filas se pintan");
     }
 
     private static OperadorCaeExternoDto OperadorArcoSpa(Guid id) =>

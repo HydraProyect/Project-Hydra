@@ -105,6 +105,15 @@ jobs:
   tests-integracion:
     name: Tests de integración (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    # Techo del job entero, preparación incluida. Medido en los runs verdes
+    # del 2026-10-26: 8 a 18 min por bloque, pero uno tardó 37,2 min porque
+    # «Instalar LibreOffice» se quedó 27,7 min en apt. Con 40 ese run se
+    # habría cortado sin culpa; 75 cubre esa preparación lenta más los 40 del
+    # paso «Ejecutar el bloque». El cuelgue de un test lo corta antes
+    # --blame-hang (ver ese paso). Sin esto, el techo es el de GitHub, 6 h: el
+    # 2026-10-26 (PR #1729) el bloque 1 estuvo 78 min colgado en ese paso
+    # hasta que alguien canceló a mano.
+    timeout-minutes: 75
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     permissions:
@@ -161,13 +170,22 @@ jobs:
       # exigen paquetes Microsoft.Extensions.* >= 10.0.12 que nuget.org
       # todavía no publica en estable (solo hasta 10.0.11) — NU1103 en los 10
       # jobs que restauran, transversal a cualquier PR, no causado por ningún
-      # cambio de código. Acotado a "10.0.3xx" (banda de features fija, parche
-      # libre) siguiendo la regla de la § 23: fijar la versión libre cuando
-      # una herramienta cambia de condiciones sin avisar.
+      # cambio de código. Se acotó entonces a "10.0.3xx" siguiendo la § 23
+      # (fijar la versión libre cuando una herramienta cambia de condiciones
+      # sin avisar).
+      #
+      # Desde el 2026-10-25 la versión sale de global.json, exacta y sin
+      # rollForward, en todos los jobs y workflows. "10.0.3xx" no fijaba nada:
+      # la imagen del runner trae además el SDK 10.0.401, y sin global.json
+      # el host elige el más alto instalado, así que se compilaba con ese.
+      # Además el SDK fija dentro de packages.lock.json de CaeManager.Web la
+      # referencia implícita Microsoft.AspNetCore.App.Internal.Assets con su
+      # propia versión de ASP.NET Core; con otro SDK el lock deja de cuadrar
+      # y NuGet reevaluaba Web en silencio (ver Directory.Build.props).
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       # Solo lo necesita CaeManager.IntegrationTests, en
       # Conversion/LibreOfficeConversorWordPdfServiceTests. Por eso se instala
@@ -279,13 +297,42 @@ jobs:
       #
       # 8 y no mas porque el siguiente escalon exige tocar max_connections del
       # servicio, que es otro cambio y merece su propia medicion.
+      #
+      # CUELGUES (2026-10-26, PR #1729: 78 min colgado sin saber en qué test).
+      # --blame-hang mata el testhost cuando pasan 10 min sin que EMPIECE ni
+      # TERMINE ningún test: el temporizador arranca con el testhost y se
+      # reinicia con cada test, así que con 8 hilos solo salta si el bloque
+      # entero está parado. Ensayado en local con el mismo SDK, xunit 2.9.3,
+      # Test.Sdk 18.10.1, coverlet, trx y --results-directory:
+      #   - test colgado en un await: la consola dice «Prueba en ejecución
+      #     cuando se produjo el bloqueo: <test>», y quedan el .trx, el
+      #     Sequence_*.xml y la cobertura en --results-directory;
+      #   - fixture de clase colgada en InitializeAsync, sin test en curso:
+      #     también corta, pero sin nombre de test ni Sequence («Todas las
+      #     pruebas han terminado de ejecutarse»). Ahí la pista es qué clases
+      #     no llegaron a imprimir sus tests en la consola, y el log de
+      #     PostgreSQL de abajo;
+      #   - `none` no mata los procesos hijos del testhost: los limpia el
+      #     runner al terminar el job.
+      # Volcado `none`: lo que hace falta es el nombre del test; un volcado
+      # `full` del testhost pesa GB y uno `mini` no incluye el heap, que es
+      # donde están las máquinas de estado de los await, así que en un
+      # cuelgue asíncrono no diría nada más. Medido en el run 40282022954: el
+      # cierre del colector de cobertura tras el último test tarda 1 a 4 s;
+      # si volviera a tardar minutos (ver coverlet.runsettings) y pasara de
+      # 10, este corte daría un rojo falso. No cambia qué tests corren.
+      # El timeout del paso (40 min, ~2,7× el bloque más lento medido, 14,7)
+      # es la red si blame no llega a cortar; al ser del paso y no del job,
+      # los pasos de diagnóstico con failure() de abajo sí se ejecutan.
       - name: Ejecutar el bloque
+        timeout-minutes: 40
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
           --filter "${{ steps.reparto.outputs.filtro }}"
           --collect "XPlat Code Coverage" --results-directory ./coverage/integration
           --settings tests/CaeManager.IntegrationTests/coverlet.runsettings
+          --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
           -- xUnit.MaxParallelThreads=8
 
       # Diagnostico para la PROXIMA vez que un bloque falle con algo raro
@@ -338,6 +385,23 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+      # El .trx y, tras un cuelgue cortado por --blame-hang, el Sequence_*.xml
+      # con los tests que estaban en curso. Artefacto aparte, y no la
+      # cobertura con always(), para que esta siga subiéndose solo de un
+      # bloque verde (la consume el agregador). El intento va en el nombre
+      # porque «Re-run failed jobs» repite el bloque en la misma ejecución y
+      # dos artefactos no pueden llamarse igual.
+      - name: Publicar los resultados del bloque si falló o se cortó
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: resultados-integracion-bloque-${{ matrix.bloque }}-intento-${{ github.run_attempt }}
+          path: |
+            coverage/integration/**/*.trx
+            coverage/integration/**/Sequence_*.xml
+          retention-days: 7
+          if-no-files-found: warn
+
       # El paso de reparto garantiza que el FILTRO no este vacio, pero no que
       # el filtro haya CASADO con algo: `dotnet test` con un patron que no
       # encuentra tests termina en 0, sin fallar. Con cuatro bloques hay cuatro
@@ -387,6 +451,8 @@ jobs:
   compilacion-y-unitarios:
     name: Compilación y tests unitarios
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     # Ya no espera a los bloques: la agregacion vive en su propio job, asi
     # que este corre en paralelo con ellos en vez de detras. No necesita
     # PostgreSQL ni LibreOffice.
@@ -396,10 +462,25 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
+
+      # Con los locks ya coherentes, el CI sale igual de verde con el modo
+      # bloqueado activo que roto; esto mira las tres piezas que impiden que
+      # NuGet vuelva a reevaluar en silencio (ver Directory.Build.props): el
+      # SDK que de verdad corre es el de global.json, la propiedad llega
+      # evaluada a los proyectos y el restore no ha reescrito ningún lock.
+      - name: Comprobar SDK fijado y restore bloqueado
+        run: |
+          set -euo pipefail
+          esperado="$(sed -n 's/.*"version": *"\([^"]*\)".*/\1/p' global.json)"
+          real="$(dotnet --version)"
+          [ "$real" = "$esperado" ] || { echo "::error::SDK $real en vez del $esperado de global.json"; exit 1; }
+          bloqueado="$(dotnet msbuild src/CaeManager.Web/CaeManager.Web.csproj -getProperty:RestoreLockedMode)"
+          [ "$bloqueado" = "true" ] || { echo "::error::RestoreLockedMode='$bloqueado' en CI; tiene que ser true"; exit 1; }
+          git diff --exit-code -- '*packages.lock.json'
 
       # reportgenerator (para el informe de cobertura de abajo) — mismo
       # manifiesto que dotnet-ef, ver .config/dotnet-tools.json.
@@ -459,13 +540,15 @@ jobs:
   formato:
     name: Verificar formato
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -477,6 +560,8 @@ jobs:
   extension-arneses:
     name: Arneses de la extensión de navegador
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -500,9 +585,59 @@ jobs:
       - name: background.js — el código de conexión que empaqueta el C# se lee aquí
         run: node extension/pruebas/comprobar-codigo-conexion.mjs extension/background.js
 
+      # E3 — empaquetado. El zip se construye con extension/herramientas/empaquetar.mjs:
+      # solo lo que el manifiesto alcanza (sin pruebas ni herramientas), con
+      # fechas y orden fijos, así que dos ejecuciones dan los mismos bytes.
+      # NO se publica en ninguna tienda y no usa secretos: `key` del manifiesto
+      # es una clave PÚBLICA que solo fija el ID de la extensión en desarrollo.
+      # El arnés falla si el manifiesto pierde `key`, si cambia el ID, si el
+      # zip incluye algo que no toca o si deja de ser reproducible.
+      - name: Empaquetado — la clave del manifiesto y el contenido del zip
+        run: node extension/pruebas/comprobar-empaquetado.mjs extension
+
+      # La rama base se baja como carpeta (sin tocar el árbol de trabajo) para
+      # poder construir también su zip y comparar: si el contenido del paquete
+      # cambia, la versión de extension/manifest.json tiene que subir.
+      # En merge_group la base es la punta de lo que ya va delante en la cola
+      # (`base_sha`), no `main` a secas: así dos PR que suben a la misma versión
+      # no llegan juntas a main.
+      - name: Traer la extensión de la rama base
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        env:
+          EVENTO: ${{ github.event_name }}
+          RAMA_BASE: ${{ github.base_ref }}
+          SHA_BASE_COLA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          if [ "$EVENTO" = "merge_group" ]; then
+            git fetch --no-tags --depth=1 origin "$SHA_BASE_COLA"
+          else
+            git fetch --no-tags --depth=1 origin "$RAMA_BASE"
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive FETCH_HEAD extension | tar -x -C "$RUNNER_TEMP/base"
+
+      - name: Generar el zip de la extensión (y comprobar que la versión aumenta)
+        env:
+          EVENTO: ${{ github.event_name }}
+        run: |
+          args=(--origen extension --salida "$RUNNER_TEMP/extension-zip")
+          if [ "$EVENTO" = "pull_request" ] || [ "$EVENTO" = "merge_group" ]; then
+            args+=(--base "$RUNNER_TEMP/base/extension")
+          fi
+          node extension/herramientas/empaquetar.mjs "${args[@]}"
+
+      - name: Publicar el zip de la extensión como artefacto
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: talveg-extension-zip
+          path: ${{ runner.temp }}/extension-zip/talveg-extension-*.zip
+          retention-days: 30
+          if-no-files-found: error
   build-and-test:
     name: Build, format y tests
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [alcance, compilacion-y-unitarios, formato, tests-integracion, e2e-tests, bunit-tests, extension-arneses]
     # SIEMPRE se ejecuta, incluso si sus dependencias fallan. No es un detalle:
     # un job que se salta reporta su check como "skipped", y la proteccion de
@@ -549,7 +684,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       # Solo para reportgenerator; no se compila nada en este job.
       - name: Restaurar herramientas locales
@@ -564,6 +699,7 @@ jobs:
       # En coverage-web y NO bajo coverage/: el informe del núcleo recoge
       # coverage/**, y la Web tiene su propio universo y su propio trinquete.
       - name: Recoger la cobertura de la Web (bUnit)
+        id: recoger-cobertura-web
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: cobertura-web
@@ -875,8 +1011,20 @@ jobs:
             exit 1
           fi
 
+      # Condición (2026-10-25): corre aunque haya fallado el trinquete del
+      # núcleo (de ahí el always()), pero solo si «Exigir…» pasó y el
+      # artefacto de bUnit se descargó. Con un always() a secas, cuando caía
+      # otro job el paso «Exigir…» ya ponía el job en rojo y este corría igual
+      # sobre un coveragereport-web/Summary.json que no existía: un segundo
+      # rojo, «Umbral de cobertura de la Web», que no era una pérdida de
+      # cobertura y llevaba a buscar la causa donde no estaba (61 de los 63
+      # runs fallidos medidos del 22 al 25-10). No abre ningún hueco: si este paso se salta es
+      # porque «Exigir…» o «Recoger la cobertura de la Web» fallaron, y
+      # cualquiera de los dos deja el job en rojo por sí solo. Con el artefacto
+      # descargado, si el informe no se generó, el paso corre y falla, como
+      # antes.
       - name: Umbral de cobertura de la Web (ratchet)
-        if: always()
+        if: always() && steps.exigir.outcome == 'success' && steps.recoger-cobertura-web.outcome == 'success'
         run: |
           cobertura=$(jq -r '.summary.linecoverage' coveragereport-web/Summary.json)
           umbral="61.2"  # Web: 61,4 % medido (run 35169698302, main@bc9dfa3a) − 0,2
@@ -889,13 +1037,15 @@ jobs:
   migraciones-pendientes:
     name: Detectar migraciones EF olvidadas
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -914,6 +1064,8 @@ jobs:
   docker-build:
     name: Build de la imagen de despliegue
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -933,6 +1085,16 @@ jobs:
           push: false
           load: true
           tags: caemanager:ci
+
+      # El publish sin blazor.web.js termina bien y deja la interactividad
+      # rota en silencio (ver el comentario del publish en el Dockerfile).
+      # Desde que el restore de la imagen va en modo bloqueado y sin -r
+      # (2026-10-25), el artefacto se mira aquí en vez de darlo por hecho.
+      - name: Comprobar los assets de Blazor en la imagen
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint ls caemanager:ci /app/wwwroot/_framework | tee assets.txt
+          grep -qx 'blazor.web.js' assets.txt || { echo "::error::La imagen no trae _framework/blazor.web.js"; exit 1; }
 
       # P2 #25 de Project-Hydra-Negocio/MATURITY_REVIEW.md: escaneo de la imagen de
       # despliegue en busca de vulnerabilidades conocidas (SO + paquetes del
@@ -954,13 +1116,15 @@ jobs:
   bunit-tests:
     name: Tests de componentes (bUnit)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1013,6 +1177,12 @@ jobs:
   e2e-bloques:
     name: Tests E2E (bloque ${{ matrix.bloque }} de 4)
     runs-on: ubuntu-latest
+    # Techo del job entero, preparación incluida. Medido en los runs verdes
+    # del 2026-10-26: 9 a 19,2 min por bloque; el de 19,2 pasó 7,6 min en
+    # «Instalar navegadores de Playwright», que suele tardar 0,4. Mismo
+    # criterio que en tests-integracion: 60 para no cortar una preparación
+    # lenta, y el cuelgue de un test lo corta antes el paso «Tests E2E».
+    timeout-minutes: 60
     # Ver el bloque ALCANCE sobre el job `alcance`: los bloques solo se saltan
     # fuera de `merge_group` y con un `false` explícito de `alcance`. Que ese
     # salto sea legítimo lo decide el agregador `e2e-tests`.
@@ -1053,7 +1223,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1129,11 +1299,21 @@ jobs:
           filtro=$(LISTADO_DE_TESTS=reparto-e2e/listado-bloque-${{ matrix.bloque }}.txt REPARTO_SALIDA=reparto-e2e/bloque-${{ matrix.bloque }}.txt bash scripts/repartir-e2e-por-coleccion.sh 4 ${{ matrix.bloque }})
           echo "FILTRO_E2E=$filtro" >> "$GITHUB_ENV"
 
+      # CUELGUES: mismo criterio que «Ejecutar el bloque» de tests-integracion
+      # (ver su comentario). --blame-hang corta tras 10 min sin que empiece ni
+      # termine ningún test y deja en el log y en
+      # TestResults/<guid>/Sequence_*.xml qué test estaba en curso; volcado
+      # `none` por la misma razón. CaeManager.Web y el navegador, hijos del
+      # testhost, no los mata blame: los limpia el runner al acabar. El paso
+      # «Tests E2E» más lento medido el 2026-10-26 tardó 8,7 min; 30 es la red
+      # si blame no llega a cortar.
       - name: Tests E2E
+        timeout-minutes: 30
         run: >
           dotnet test tests/CaeManager.E2ETests --no-build --filter "$FILTRO_E2E"
           --logger "console;verbosity=normal"
           --logger "trx;LogFileName=e2e-bloque-${{ matrix.bloque }}.trx"
+          --blame-hang --blame-hang-timeout 10min --blame-hang-dump-type none
 
       # `dotnet test --filter` con un patrón que no casa con nada termina en
       # 0 sin ejecutar un solo test: un bloque mudo se leería como uno que
@@ -1204,14 +1384,18 @@ jobs:
             || echo "TestResults no existe en tests/CaeManager.E2ETests (¿el logger trx no llegó a escribir?)" \
             >> /tmp/diagnostico-e2e/manifiesto.txt
 
+      # TestResults entero, no solo el .trx: tras un cuelgue cortado por
+      # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
+      # cancelled() se suma a failure() para cubrir también el job cortado
+      # por su timeout-minutes o cancelado a mano, como el del 2026-10-26.
       - name: Publicar logs de CaeManager.Web si el E2E falla
-        if: failure()
+        if: failure() || cancelled()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: logs-caemanager-web-e2e-bloque-${{ matrix.bloque }}
           path: |
             src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/
-            tests/CaeManager.E2ETests/TestResults/e2e-bloque-${{ matrix.bloque }}.trx
+            tests/CaeManager.E2ETests/TestResults/
             /tmp/diagnostico-e2e/manifiesto.txt
           retention-days: 7
           if-no-files-found: warn
@@ -1234,6 +1418,8 @@ jobs:
   e2e-tests:
     name: Tests E2E (Playwright)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: [alcance, e2e-bloques]
     if: always()
     steps:
@@ -1382,7 +1568,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1429,8 +1615,20 @@ jobs:
           ConnectionStrings__CaeManagerDb="Host=localhost;Port=5432;Database=caemanager_carga;Username=postgres;Password=postgres" \
           DatosPrueba__Activo=true \
           nohup dotnet src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll > app.log 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -sf http://127.0.0.1:5000/salud > /dev/null; then exit 0; fi
+          app_pid=$!
+          # Arranques medidos (#1712): 33-45 s sanos; 68 s en fallos todavía
+          # sembrando DatosPrueba. 180 s deja margen y, si la app muere antes,
+          # el bucle corta en ese segundo y enseña el final de app.log.
+          for i in $(seq 1 180); do
+            if ! kill -0 "$app_pid" 2>/dev/null; then
+              echo "La app terminó antes de responder /salud:"
+              tail -n 100 app.log
+              exit 1
+            fi
+            if curl -sf --max-time 5 http://127.0.0.1:5000/salud > /dev/null; then
+              echo "/salud respondió en el intento $i (~$i s)."
+              exit 0
+            fi
             sleep 1
           done
           echo "La app no respondió /salud a tiempo:"
@@ -1606,6 +1804,8 @@ jobs:
   deploy-script-tests:
     name: Prueba de mutación — SHA determinista en el despliegue
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1617,6 +1817,18 @@ jobs:
 
       - name: deploy/vigilar-host.tests.sh
         run: bash deploy/vigilar-host.tests.sh
+
+      # Conciliación de las issues de alerta de los workflows vigilancia-*
+      # (deduplicación por marcador, cierre solo con escaneo completo, tope de
+      # issues nuevas). Node del runner, sin dependencias.
+      - name: .github/vigilancia (node --test)
+        run: node --test .github/vigilancia/*.test.js
+
+      # Captura de interacciones de la sesión de soporte: una por montaje, sin
+      # listeners duplicados y con el último lote enviado antes de desenganchar.
+      # bUnit simula este módulo, así que solo aquí se ejecuta de verdad.
+      - name: trazaSoporte.js (node --test)
+        run: node --test tests/CaeManager.Web.Tests/js/trazaSoporte.test.mjs
 
       # P1-F1: vuelta atrás a una imagen caemanager:<sha> retenida, sin
       # reconstruir ni deshacer esquema, con docker falso. Incluye su prueba de
@@ -1767,6 +1979,8 @@ jobs:
   licencias-dependencias:
     name: Licencias de dependencias
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -1779,7 +1993,7 @@ jobs:
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
@@ -1805,13 +2019,15 @@ jobs:
   paquetes-vulnerables:
     name: Paquetes NuGet vulnerables
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Instalar .NET SDK
         uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         with:
-          dotnet-version: "10.0.3xx"
+          global-json-file: global.json
 
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx

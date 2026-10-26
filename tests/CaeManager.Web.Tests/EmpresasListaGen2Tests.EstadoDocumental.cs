@@ -1,3 +1,4 @@
+using CaeManager.Web.Components.DesignSystem;
 using System.Globalization;
 using AngleSharp.Dom;
 using Bunit;
@@ -254,6 +255,9 @@ public partial class EmpresasListaGen2Tests
 
         // Segunda recarga, con la misma pregunta, que no viene de una corrección: el alta de otra Empresa.
         await cut.FindAll("header.cabecera-pagina .acciones-cabecera button").Single(b => b.TextContent.Trim() == "+ Nueva empresa").ClickAsync(new MouseEventArgs());
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Raz\u00f3n social").Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        await cut.InvokeAsync(() => cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Identificaci\u00f3n fiscal *").Instance.ValorChanged.InvokeAsync("B10380186"));
+
         await cut.FindAll(".drawer-pie button.boton-espera-boton").Single().ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<CrearEmpresaCommand>().Should().ContainSingle("control: el alta se guardó");

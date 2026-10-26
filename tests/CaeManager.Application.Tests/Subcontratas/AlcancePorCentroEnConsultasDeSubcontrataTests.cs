@@ -253,6 +253,15 @@ public class AlcancePorCentroEnConsultasDeSubcontrataTests
             .Should().BeEquivalentTo(new Guid?[] { _verificacionEnCentroPropio.Id, _verificacionEnCentroAjeno.Id });
     }
 
+    [Fact]
+    public async Task La_ultima_verificacion_de_la_supervision_lleva_su_Version_para_poder_editarla()
+    {
+        var supervision = await Supervision(AlcanceSoloAlCentroPropio())
+            .Handle(new ObtenerSupervisionSubcontrataQuery(_subcontrata.Id), CancellationToken.None);
+
+        var ultima = supervision!.Centros.SelectMany(c => c.Tipos).Select(t => t.UltimaVerificacion).Should().ContainSingle(v => v != null).Subject;
+        ultima!.Version.Should().NotBe(Guid.Empty).And.Be(_verificacionEnCentroPropio.Version);
+    }
     // ---- Descarga de la evidencia de una verificación, por identificador ----
 
     [Fact]

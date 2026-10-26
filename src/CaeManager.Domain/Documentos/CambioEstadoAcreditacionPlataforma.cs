@@ -3,16 +3,16 @@ using CaeManager.Domain.Common;
 namespace CaeManager.Domain.Documentos;
 
 /// <summary>
-/// Un cambio de estado de una <see cref="AcreditacionDocumentoPlataforma"/> hecho a mano desde Centro 360: el Gestor CAE
-/// ha subido el documento a la plataforma CAE del Cliente (o la plataforma lo ha validado o rechazado) y lo anota en
-/// TALVEG. La acreditación ya es de un Centro (su canal de gestión es del Centro), así que el cambio solo afecta a ese
-/// Centro.
+/// Un cambio de estado de una <see cref="AcreditacionDocumentoPlataforma"/> anotado a mano por el Gestor CAE: ha subido
+/// el documento a la plataforma CAE del Cliente (o la plataforma lo ha validado o rechazado) y lo anota en TALVEG, desde
+/// Centro 360 o con «Lo he enviado» de la extensión de navegador (<see cref="Origen"/>). La acreditación ya es de un
+/// Centro (su canal de gestión es del Centro), así que el cambio solo afecta a ese Centro.
 ///
 /// <para>
-/// Guarda lo que se anotó (estado, fecha, motivo del rechazo, nota, usuario y momento) y lo que había antes (estado y
-/// vigencia en la plataforma), para que «Deshacer» devuelva el valor exacto sin fiarse de lo que mande el llamador.
-/// Nunca se borra: un cambio deshecho queda marcado con <see cref="DeshechoUtc"/> y sigue en el Historial del Centro.
-/// Solo <see cref="AcreditacionDocumentoPlataforma.CambiarEstadoAMano"/> crea instancias.
+/// Guarda lo que se anotó (estado, fecha, motivo del rechazo, nota, usuario, momento y origen) y lo que había antes
+/// (estado y vigencia en la plataforma), para que «Deshacer» devuelva el valor exacto sin fiarse de lo que mande el
+/// llamador. Nunca se borra: un cambio deshecho queda marcado con <see cref="DeshechoUtc"/> y sigue en el Historial del
+/// Centro. Solo <see cref="AcreditacionDocumentoPlataforma.CambiarEstadoAMano"/> crea instancias.
 /// </para>
 /// </summary>
 public class CambioEstadoAcreditacionPlataforma : EntidadConTenant
@@ -40,6 +40,9 @@ public class CambioEstadoAcreditacionPlataforma : EntidadConTenant
     public DateTime MomentoUtc { get; private set; }
     public DateTime? DeshechoUtc { get; private set; }
 
+    /// <summary>Desde dónde se anotó: Centro 360 o «Lo he enviado» de la extensión. Se ve en el Historial del Centro.</summary>
+    public OrigenCambioEstadoAcreditacion Origen { get; private set; }
+
     public bool EstaDeshecho => DeshechoUtc is not null;
 
     private CambioEstadoAcreditacionPlataforma()
@@ -48,10 +51,13 @@ public class CambioEstadoAcreditacionPlataforma : EntidadConTenant
 
     internal CambioEstadoAcreditacionPlataforma(
         Guid acreditacionId, EstadoAcreditacion estadoAnterior, VigenciaEnPlataforma vigenciaAnterior,
-        EstadoAcreditacion estado, DateOnly fecha, string? motivo, string? nota, Guid? usuarioId, DateTime momentoUtc)
+        EstadoAcreditacion estado, DateOnly fecha, string? motivo, string? nota, Guid? usuarioId, DateTime momentoUtc,
+        OrigenCambioEstadoAcreditacion origen)
     {
         if (acreditacionId == Guid.Empty)
             throw new ArgumentException("El cambio debe pertenecer a una acreditación.", nameof(acreditacionId));
+        if (!Enum.IsDefined(origen))
+            throw new ArgumentOutOfRangeException(nameof(origen), "Origen del cambio desconocido.");
 
         var motivoNormalizado = string.IsNullOrWhiteSpace(motivo) ? null : motivo.Trim();
         if (estado == EstadoAcreditacion.Rechazada && motivoNormalizado is null)
@@ -75,6 +81,7 @@ public class CambioEstadoAcreditacionPlataforma : EntidadConTenant
         Nota = notaNormalizada;
         UsuarioId = usuarioId;
         MomentoUtc = momentoUtc;
+        Origen = origen;
     }
 
     internal VigenciaEnPlataforma VigenciaAnterior =>

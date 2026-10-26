@@ -66,11 +66,13 @@ public record LineaFacturacionDto(
 /// tres conceptos de Proyecto (técnicos, gestiones y días abiertos) solo cuentan obras. Los conceptos de Centro no
 /// cambian: los participantes de un evento son <c>ProyectoTecnico</c>, no Asignaciones al Centro.
 /// </summary>
-public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IFacturacionQueryContext facturacionContext, IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext)
+public class ObtenerResumenFacturacionQueryHandler(IAsignacionesQueryContext asignacionesContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IDocumentosQueryContext documentosContext, IFacturacionQueryContext facturacionContext, IProyectosQueryContext proyectosContext, ITrabajadoresQueryContext trabajadoresContext, IVisitasQueryContext visitasContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerResumenFacturacionQuery, ResumenFacturacionDto?>
 {
     public async Task<ResumenFacturacionDto?> Handle(ObtenerResumenFacturacionQuery request, CancellationToken cancellationToken)
     {
+        if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken)) return null;
+
         var periodoInicio = new DateTime(request.Anyo, request.Mes, 1, 0, 0, 0, DateTimeKind.Utc);
         var periodoFin = periodoInicio.AddMonths(1);
         var periodoInicioFecha = DateOnly.FromDateTime(periodoInicio);

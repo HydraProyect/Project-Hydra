@@ -65,6 +65,7 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Comunicaciones/AlertaCriticaConversacion.cs"] = 1,
         // Token de concurrencia Version (IVersionable) y quien lo renueva.
         ["src/CaeManager.Domain/AsistenteIa/TareaAsistente.cs"] = 1,
+        ["src/CaeManager.Domain/Empresas/PlataformaCaeClienteEmpresarial.cs"] = 1,
         ["src/CaeManager.Domain/Common/EntidadBase.cs"] = 2,
         ["src/CaeManager.Domain/Integraciones/CredencialIntegracion.cs"] = 1,
         ["src/CaeManager.Domain/Operaciones/AsignacionResponsabilidad.cs"] = 1,
@@ -78,12 +79,14 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Domain/Plataforma/OrdenMenuLateral.cs"] = 1,
         ["src/CaeManager.Domain/Plataforma/SesionPrivilegiada.cs"] = 1,
         ["src/CaeManager.Domain/Proyectos/ProyectoTecnico.cs"] = 1,
+        ["src/CaeManager.Domain/Reclamaciones/EnvioReclamacion.cs"] = 1,
         ["src/CaeManager.Domain/Tenants/EncargoAdministracion.cs"] = 1,
         ["src/CaeManager.Domain/VigilanciaNormativa/AvisoRevisionNormativa.cs"] = 1,
         ["src/CaeManager.Infrastructure/Persistence/Interceptors/ConcurrenciaOptimistaInterceptor.cs"] = 1,
-        // Id del plan de importación en memoria (no se persiste como clave).
+        // Id de la operación de importación (marca de idempotencia de un plan analizado; no es el Id de ninguna entidad de negocio).
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlImportacionParser.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaClientesService.cs"] = 2,
+        ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaCombinadaService.cs"] = 1,
         ["src/CaeManager.Infrastructure/Importacion/ClosedXmlPlantillaDocumentosService.cs"] = 2,
         // Referencia de correlación de un error en el log.
         ["src/CaeManager.Web/Components/Layout/MainLayout.razor.cs"] = 1,

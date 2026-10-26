@@ -39,9 +39,10 @@ public class ObtenerActividadSoporteQueryHandler(
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         if (tenantOrigenId is null) return [];
 
-        // DelegacionTenant es catálogo global (sin filtro), así que se lee
-        // igual desde cualquier tenant — de ahí que la autorización se
-        // compruebe a mano justo después.
+        // DelegacionTenant no tiene filtro de EF; su RLS la deja ver al cliente
+        // visitado desde su Tenant y a la plataforma por su Tenant de origen.
+        // La autorización se comprueba a mano justo después: RLS no distingue
+        // el propósito ni quién de los dos extremos pregunta.
         var delegacion = await dbContext.DelegacionesTenant
             .Where(d => d.Id == request.DelegacionTenantId && d.Proposito == PropositoDelegacion.Soporte)
             .Select(d => new { d.TenantConsultoraId, d.TenantClienteId })

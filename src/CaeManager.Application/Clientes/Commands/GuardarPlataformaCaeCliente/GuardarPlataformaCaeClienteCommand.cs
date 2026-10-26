@@ -22,8 +22,14 @@ namespace CaeManager.Application.Clientes.Commands.GuardarPlataformaCaeCliente;
 /// Cliente empresarial de una Empresa propia: posición cliente de al menos una Relación
 /// Empresarial vigente cuya proveedora sea propia. Sin eso no hay a quién acreditar en la plataforma.
 /// </para>
+///
+/// <para>
+/// <c>Version</c> es la que la caja leyó (<c>PlataformaCaeClienteDto.Version</c>). Es anulable porque el Command
+/// es un alta o edición según exista la fila: el alta va sin ella, y una edición sin ella (o con
+/// <see cref="Guid.Empty"/>) se rechaza como conflicto en vez de pisar lo guardado.
+/// </para>
 /// </summary>
-public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente) : ICommand
+public record GuardarPlataformaCaeClienteCommand(Guid ClienteEmpresarialId, string Nombre, string? UrlPortal, string? CodigoCliente, Guid? Version = null) : ICommand
 {
     /// <summary>Otra persona registró la plataforma a la vez (índice único): la caja vuelve a leer lo guardado.</summary>
     public const string CodigoConflicto = "PlataformaCae.Conflicto";
@@ -34,6 +40,8 @@ public class GuardarPlataformaCaeClienteCommandValidator : AbstractValidator<Gua
     public GuardarPlataformaCaeClienteCommandValidator()
     {
         RuleFor(c => c.ClienteEmpresarialId).NotEmpty();
+        // null representa el alta; una edición nunca puede usar Guid.Empty para omitir la comprobación.
+        RuleFor(c => c.Version).NotEqual(Guid.Empty).When(c => c.Version.HasValue);
         RuleFor(c => c.Nombre).NotEmpty().WithMessage("Indica la plataforma.")
             .MaximumLength(PlataformaCaeClienteEmpresarial.LongitudMaximaNombre);
         RuleFor(c => c.UrlPortal).MaximumLength(PlataformaCaeClienteEmpresarial.LongitudMaximaUrlPortal)
@@ -80,6 +88,12 @@ public class GuardarPlataformaCaeClienteCommandHandler(
         }
         else
         {
+            // La fila pudo aparecer desde que se abrió el alta. Sin versión no se convierte en una edición ciega.
+            if (request.Version is null || request.Version == Guid.Empty)
+                return Result.Fallo(Error.Crear(ConcurrenciaOptimista.CodigoConflicto,
+                    "La plataforma ya está registrada. Vuelve a abrirla para ver los cambios y aplica los tuyos de nuevo."));
+            if (ConcurrenciaOptimista.Verificar(plataforma, request.Version.Value, "esta plataforma CAE") is { } conflicto)
+                return Result.Fallo(conflicto);
             plataforma.Actualizar(request.Nombre, request.UrlPortal, request.CodigoCliente);
         }
 

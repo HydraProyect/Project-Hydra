@@ -161,4 +161,13 @@
   <data name="NoHeSidoYoBoton" xml:space="preserve">
     <value>Proteger mi cuenta</value>
   </data>
+  <data name="LoginErrorSsoSinCuenta" xml:space="preserve">
+    <value>Tu cuenta de Microsoft no está dada de alta en {0}. Pide a tu Administrador que te dé de alta.</value>
+  </data>
+  <data name="LoginErrorSsoFallo" xml:space="preserve">
+    <value>No pudimos completar el inicio de sesión con Microsoft. Intenta nuevamente.</value>
+  </data>
+  <data name="LoginErrorSsoSinSegundoFactor" xml:space="preserve">
+    <value>Tu inicio de sesión con Microsoft no incluyó la verificación en dos pasos, y tu cuenta de {0} no la tiene configurada. Pide a tu Administrador que active la verificación en dos pasos en Microsoft.</value>
+  </data>
 </root>

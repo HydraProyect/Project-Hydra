@@ -68,7 +68,7 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     private readonly Guid _administrador = Guid.NewGuid();
     private readonly Guid _administradorAjeno = Guid.NewGuid();
-    private readonly Guid _administradorDelPropietario = Guid.NewGuid(); // del Tenant propietario: desactiva y reactiva la delegación
+    private readonly Guid _administradorDelPropietario = Guid.NewGuid(); // del Tenant propietario
     private readonly Guid _coordinador = Guid.NewGuid();
     private readonly Guid _otroCoordinador = Guid.NewGuid();
     private readonly Guid _coordinadorAjeno = Guid.NewGuid();
@@ -887,8 +887,9 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task Si_el_principal_se_desactivo_entre_el_cierre_y_la_reactivacion_la_marca_va_a_su_Coordinador_CAE()
     {
-        // El Coordinador CAE ya operaba sobre este Tenant: conserva su fila de operador delegado, que es
-        // lo que deja al Administrador del Tenant propietario leer su cuenta (política cuentas_lectura).
+        // El Coordinador CAE ya operaba sobre este Tenant y conserva su fila de operador delegado. Quien
+        // reactiva (el equipo del Operador CAE externo) ve su cuenta también sin ella: el caso sin
+        // vínculo lo cubre el test siguiente.
         await using (var propietario = ContextoPropietario(_operador.Id))
         {
             propietario.AsignacionesOperadorDelegadoConRevocadas.Add(
@@ -917,25 +918,55 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Quien reactiva es el Administrador del Tenant propietario, y RLS no le enseña el organigrama del
-    /// Operador CAE: de sus cuentas solo ve las que ya tienen un vínculo con su Tenant. Un Coordinador CAE
-    /// que nunca operó sobre él no se puede comprobar, así que no recibe la marca: la operación queda sin
-    /// principal, que es el desenlace cerrado, y nunca pasa a un Gestor CAE de apoyo.
+    /// Reactiva el equipo del Operador CAE externo desde su propia casa (decisiones del 2026-10-26), así
+    /// que la sesión lleva su Tenant de origen y la política cuentas_lectura le deja leer todas las cuentas
+    /// de su organización aunque el Tenant activo sea el propietario. Su Coordinador CAE se comprueba
+    /// aunque nunca haya operado sobre ese Tenant, y recibe la marca. Antes reactivaba el Administrador
+    /// del Tenant propietario, que no veía ese organigrama, y la operación quedaba sin principal.
     /// </summary>
     [Fact]
-    public async Task Si_el_principal_se_desactivo_y_su_Coordinador_CAE_no_es_visible_desde_el_Tenant_propietario_queda_sin_principal()
+    public async Task Si_el_principal_se_desactivo_su_Coordinador_CAE_recibe_la_marca_aunque_nunca_operara_sobre_el_Tenant_propietario()
+    {
+        (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        await using (var propietario = ContextoPropietario(_operador.Id))
+        {
+            (await propietario.AsignacionesOperadorDelegadoConRevocadas.AnyAsync(a => a.UsuarioId == _coordinador))
+                .Should().BeFalse("control: el Coordinador CAE no tiene ningún vínculo con el Tenant propietario");
+            await propietario.Users.Where(u => u.Id == _gestorA)
+                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+        }
+
+        (await ReactivarDelegacion()).EsExitoso.Should().BeTrue();
+
+        var nueva = await OperacionVigenteAsync();
+        (await CarterasAsync(nueva)).Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorB, _gestorC, _coordinador],
+            "se reponen las tres carteras y se emite la del Coordinador CAE que releva");
+        (await PrincipalesAsync(nueva)).Should().Equal([_coordinador], "relevo de D-3: nunca a un Gestor CAE de apoyo");
+    }
+
+    /// <summary>
+    /// Un principal sin Coordinador CAE que se desactivó entre el cierre y la reactivación: no hay a quién
+    /// relevar, y el escalado tampoco decide porque el primer nivel (Coordinador CAE) tiene dos cuentas
+    /// activas. La operación queda sin principal, que es el desenlace cerrado, y nunca pasa a un Gestor CAE
+    /// de apoyo.
+    /// </summary>
+    [Fact]
+    public async Task Si_el_principal_se_desactivo_y_no_tiene_Coordinador_CAE_ni_relevo_unico_queda_sin_principal()
     {
         (await DesactivarDelegacion()).EsExitoso.Should().BeTrue();
 
         await using (var propietario = ContextoPropietario(_operador.Id))
             await propietario.Users.Where(u => u.Id == _gestorA)
-                .ExecuteUpdateAsync(s => s.SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100)));
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(u => u.LockoutEnd, DateTimeOffset.UtcNow.AddYears(100))
+                    .SetProperty(u => u.CoordinadorUsuarioId, (Guid?)null));
 
         (await ReactivarDelegacion()).EsExitoso.Should().BeTrue("quedar sin principal no impide reactivar");
 
         var nueva = await OperacionVigenteAsync();
         (await CarterasAsync(nueva)).Select(c => c.UsuarioId).Should().BeEquivalentTo([_gestorA, _gestorB, _gestorC],
-            "control: se reponen las tres carteras y no se emite ninguna para el Coordinador CAE");
+            "control: se reponen las tres carteras y no se emite ninguna para un Coordinador CAE");
         (await PrincipalesAsync(nueva)).Should().BeEmpty();
     }
 
@@ -990,26 +1021,37 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
 
     // ── Arnés ─────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// Como la ejecuta la Dirección CAE del Operador CAE externo desde su propia casa: alcanza a toda la
+    /// organización, así que no necesita Asignación de Cartera propia sobre el Tenant propietario
+    /// (decisiones del 2026-10-26). _gestorSinCoordinador no serviría: su cartera es sobre otro Tenant
+    /// propietario.
+    /// </summary>
     private Task<Result> DesactivarDelegacion() =>
-        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, _, sp) =>
+        EnArnes(_direccion, Roles.DireccionCae, _operador.Id, (usuario, contexto, directorio, sp) =>
             new DesactivarDelegacionTenantCommandHandler(
                     new DelegacionTenantRepository(contexto), usuario,
-                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto)
+                    new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, sp.GetRequiredService<ITenantActual>(),
+                    directorio, contexto, new CatalogoIncorporacionCartera(contexto, usuario))
                 .Handle(new DesactivarDelegacionTenantCommand(_delegacion), CancellationToken.None));
 
     /// <summary>
-    /// Como la ejecuta el Administrador del Tenant propietario, que es quien puede reactivar: su Tenant de
-    /// origen es el propietario, no el del Operador CAE cuyas cuentas y carteras toca la restauración.
+    /// Como la ejecuta la Dirección CAE del Operador CAE externo desde su propia casa (decisiones del
+    /// 2026-10-26). No un Gestor CAE: revocar cierra sus carteras en cascada, así que tras revocar ningún
+    /// Gestor CAE ni Coordinador CAE tiene ya cartera viva con la que reactivar; lo hacen el Administrador o
+    /// la Dirección CAE, que alcanzan a toda la organización. El comando abre su transacción con el Tenant
+    /// propietario como Tenant activo, así que lo que ve de las cuentas del Operador CAE es lo que se ve
+    /// desde ese Tenant.
     /// </summary>
     private Task<Result> ReactivarDelegacion(Pausa? pausa = null) =>
-        EnArnes(_administradorDelPropietario, Roles.Administrador, _beneficiario.Id, (usuario, contexto, directorio, sp) =>
+        EnArnes(_direccion, Roles.DireccionCae, _operador.Id, (usuario, contexto, directorio, sp) =>
         {
             ICatalogoIncorporacionCartera catalogo = new CatalogoIncorporacionCartera(contexto, usuario);
             return new ReactivarDelegacionTenantCommandHandler(
-                    new DelegacionTenantRepository(contexto), new AutorizaAlAdministradorDe(_beneficiario.Id), usuario,
+                    new DelegacionTenantRepository(contexto), usuario,
                     new AsignacionesOperativasWriter(contexto, sp.GetRequiredService<ITenantActual>(), usuario), contexto, contexto,
                     new TransaccionDeComando(contexto), pausa is null ? catalogo : new CatalogoConPausa(catalogo, pausa),
-                    directorio, directorio, new BloqueoCarteraUsuario(contexto))
+                    directorio, directorio, new BloqueoCarteraUsuario(contexto), sp.GetRequiredService<ITenantActual>())
                 .Handle(new ReactivarDelegacionTenantCommand(_delegacion), CancellationToken.None);
         });
 
@@ -1023,13 +1065,6 @@ public class PrincipalDeCarteraBajoRuntimeTests : IAsyncLifetime
             .Select(o => o.Id).SingleAsync();
     }
 
-    /// <summary>La autoridad para reactivar no es lo que se mide aquí (lo hace <c>AutorizacionDeDelegacionTests</c>).</summary>
-    private sealed class AutorizaAlAdministradorDe(Guid tenant) : IAutorizacionDelegacionTenant
-    {
-        public Task<bool> PuedeGestionarDelegacionesAsync(
-            Guid usuarioId, Guid tenantClienteDeleganteId, CancellationToken cancellationToken = default) =>
-            Task.FromResult(tenantClienteDeleganteId == tenant);
-    }
 
     private async Task<List<Guid>> PrincipalesAsync(Guid operacionId)
     {

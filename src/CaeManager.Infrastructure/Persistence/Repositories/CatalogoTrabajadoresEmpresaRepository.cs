@@ -8,10 +8,10 @@ namespace CaeManager.Infrastructure.Persistence.Repositories;
 public class CatalogoTrabajadoresEmpresaRepository(CaeManagerDbContext dbContext) : ICatalogoTrabajadoresEmpresaRepository
 {
     public Task<DelegacionEmpresa?> ObtenerDelegacionEmpresaAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.DelegacionesEmpresa.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.DelegacionesEmpresa.Where(d => d.Id == id), cancellationToken);
 
     public Task<OficioEmpresa?> ObtenerOficioAsync(Guid id, CancellationToken cancellationToken = default) =>
-        dbContext.OficiosEmpresa.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        dbContext.ObtenerActualAsync(dbContext.OficiosEmpresa.Where(o => o.Id == id), cancellationToken);
 
     public async Task<IReadOnlyList<DelegacionEmpresa>> ListarDelegacionesEmpresaAsync(Guid empresaId, CancellationToken cancellationToken = default) =>
         await dbContext.DelegacionesEmpresa.Where(d => d.EmpresaId == empresaId).OrderBy(d => d.Nombre).ToListAsync(cancellationToken);

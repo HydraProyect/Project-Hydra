@@ -225,18 +225,58 @@ public class IngestaWebhookServiceTests
         conversacionRepositorio.Conversaciones.Should().BeEmpty();
     }
 
-    [Fact]
-    public async Task Un_correo_de_una_plataforma_conocida_queda_marcado_como_notificacion_automatica()
+    [Theory]
+    [InlineData("mx; dmarc=pass header.from=dokify.net", true)]
+    [InlineData("mx; dmarc=fail header.from=dokify.net; spf=pass smtp.mailfrom=dokify.net", false)]
+    [InlineData(null, false)]
+    [InlineData("mx; spf=pass smtp.mailfrom=avisos@dokify.net", true)]
+    [InlineData("mx; spf=pass smtp.mailfrom=atacante.test", false)]
+    [InlineData("mx; dkim=pass header.d=dokify.net", true)]
+    [InlineData("mx; dkim=pass header.d=atacante.test", false)]
+    [InlineData("mx; dmarc=pass header.from=atacante.test", false)]
+    [InlineData("mx; dmarc=temperror header.from=dokify.net; dkim=pass header.d=dokify.net", false)]
+    [InlineData("mx; dmarc=pass header.from=dokify.net; dmarc=fail header.from=dokify.net", false)]
+    // Formato real de Microsoft 365, sin authserv-id.
+    [InlineData("spf=pass (sender IP is 192.0.2.10) smtp.mailfrom=dokify.net; dkim=pass (signature was verified) header.d=dokify.net;dmarc=pass action=none header.from=dokify.net;compauth=pass reason=100", true)]
+    [InlineData("spf=fail (sender IP is 192.0.2.66) smtp.mailfrom=atacante.test; dkim=none (message not signed) header.d=none;dmarc=fail action=none header.from=dokify.net;compauth=fail reason=000", false)]
+    // Sin política DMARC publicada: decide SPF alineado o DKIM del propio dominio.
+    [InlineData("mx; dmarc=none action=none header.from=dokify.net; dkim=pass header.d=dokify.net", true)]
+    [InlineData("mx; dmarc=bestguesspass action=none header.from=dokify.net; spf=pass smtp.mailfrom=dokify.net", true)]
+    [InlineData("mx; dmarc=none action=none header.from=dokify.net; spf=pass smtp.mailfrom=atacante.test", false)]
+    // Una segunda cabecera puesta por el remitente junto a la del receptor anula la confianza.
+    [InlineData("spf=fail smtp.mailfrom=atacante.test;dmarc=fail header.from=dokify.net||mx; dmarc=pass header.from=dokify.net", false)]
+    [InlineData("mx; dmarc=pass header.from=dokify.net||spf=fail smtp.mailfrom=atacante.test;dmarc=fail header.from=dokify.net", false)]
+    // Mayúsculas, error permanente, valor repetido y subdominio con igualdad estricta.
+    [InlineData("mx; DMARC=PASS header.from=DOKIFY.NET", true)]
+    [InlineData("mx; dmarc=permerror header.from=dokify.net; spf=pass smtp.mailfrom=dokify.net", false)]
+    [InlineData("mx; dmarc=pass header.from=dokify.net header.from=atacante.test", false)]
+    [InlineData("mx; dmarc=none header.from=dokify.net; spf=pass smtp.mailfrom=bounce.dokify.net; dkim=pass header.d=sub.dokify.net", false)]
+    // Texto del remitente entrecomillado que inyectaría un segmento SPF.
+    [InlineData("mx; dmarc=none header.from=dokify.net; spf=softfail smtp.mailfrom=\"x;spf=pass smtp.mailfrom=dokify.net;y=\"@atacante.test", false)]
+    // Exchange marca el mensaje como no llegado por Internet: su cabecera de resultados no es de fiar.
+    [InlineData("mx; dmarc=pass header.from=dokify.net||X-MS-Exchange-Organization-AuthAs: Internal", false)]
+    [InlineData("mx; dmarc=pass header.from=dokify.net||X-MS-Exchange-Organization-AuthAs: Anonymous", true)]
+    public async Task Una_plataforma_solo_es_de_confianza_con_autenticacion_alineada(string? autenticacion, bool confiable)
     {
-        var conexion = ConexionHabilitada();
+        var conexion = new ConexionIntegracion("persona@empresa.test", "Personal", gestorPropietarioId: Guid.NewGuid());
         var conexionRepositorio = new ConexionIntegracionRepositorioFalso();
         conexionRepositorio.Agregar(conexion);
         var conversacionRepositorio = new ConversacionRepositorioFalso();
+        var cerrada = new Conversacion("Hilo cerrado");
+        cerrada.AsociarConexion(conexion.Id, "graph-thread-1");
+        cerrada.CambiarEstado(EstadoConversacion.Cerrada, DateTime.UtcNow.AddDays(-1));
+        conversacionRepositorio.Agregar(cerrada);
+        List<CabeceraCorreoDto> cabeceras = [new("Auto-Submitted", "auto-replied")];
+        // «||» separa cabeceras; las que empiezan por «X-» llevan su propio nombre antes de «: ».
+        foreach (var valor in autenticacion?.Split("||") ?? [])
+            cabeceras.Add(valor.StartsWith("X-", StringComparison.Ordinal)
+                ? new(valor[..valor.IndexOf(": ", StringComparison.Ordinal)], valor[(valor.IndexOf(": ", StringComparison.Ordinal) + 2)..])
+                : new("Authentication-Results", valor));
         var graphClient = new Microsoft365GraphClientFalso
         {
             MensajeIdsADevolver = ["graph-msg-1"],
             MensajeADevolver = new MensajeGraphDto(
-                "graph-msg-1", "graph-thread-1", "Aviso pendiente", "notificaciones@dokify.net", "<p>Aviso</p>", DateTime.UtcNow, [], []),
+                "graph-msg-1", "graph-thread-1", "Aviso pendiente", "noreply@dokify.net", "<p>Aviso</p>", DateTime.UtcNow, [], [], cabeceras),
         };
         var credencialRepositorio = new CredencialIntegracionRepositorioFalso();
         credencialRepositorio.Agregar(new CredencialIntegracion(conexion.Id, "refresh-token"));
@@ -252,8 +292,23 @@ public class IngestaWebhookServiceTests
         await servicio.ProcesarAsync(evento, CancellationToken.None);
 
         var clasificacion = clasificacionRepositorio.Clasificaciones.Should().ContainSingle().Subject;
-        clasificacion.EsNotificacionAutomatica.Should().BeTrue();
-        clasificacion.ProveedorPlataformaCaeId.Should().Be(proveedorId);
+        evento.Estado.Should().Be(EstadoEventoWebhook.Completado);
+        clasificacion.EsNotificacionAutomatica.Should().Be(confiable);
+        clasificacion.ProveedorPlataformaCaeId.Should().Be(confiable ? proveedorId : null);
+        cerrada.Estado.Should().Be(EstadoConversacion.Cerrada);
+        if (confiable)
+        {
+            cerrada.Mensajes.Should().ContainSingle();
+            conversacionRepositorio.Conversaciones.Should().ContainSingle();
+        }
+        else
+        {
+            clasificacion.Motivo.Should().Be(MotivoRuidoMensaje.PosiblePhishing);
+            cerrada.Mensajes.Should().BeEmpty();
+            var continuacion = conversacionRepositorio.Conversaciones.Should().HaveCount(2).And.Subject.Single(c => c.Id != cerrada.Id);
+            continuacion.ConversacionAnteriorId.Should().Be(cerrada.Id);
+            continuacion.Mensajes.Should().ContainSingle();
+        }
     }
 
     [Fact]

@@ -2415,6 +2415,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<int>("Origen")
+                        .HasColumnType("integer");
+
                     b.Property<Guid>("TenantId")
                         .HasColumnType("uuid");
 
@@ -6168,6 +6171,10 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("TenantId", "ClienteEmpresarialId")
@@ -8846,6 +8853,53 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"FechaBaja\" IS NULL");
 
                     b.ToTable("ProyectosTecnicos", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Reclamaciones.EnvioReclamacion", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ConversacionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Huella")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("IniciadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ReclamacionDocumentalId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.PrimitiveCollection<List<string>>("_entregados")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("Entregados");
+
+                    b.PrimitiveCollection<List<string>>("_entregadosEnCopia")
+                        .IsRequired()
+                        .HasColumnType("text[]")
+                        .HasColumnName("EntregadosEnCopia");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "UsuarioId", "Huella");
+
+                    b.ToTable("EnviosReclamacion", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Reclamaciones.ReclamacionDocumental", b =>

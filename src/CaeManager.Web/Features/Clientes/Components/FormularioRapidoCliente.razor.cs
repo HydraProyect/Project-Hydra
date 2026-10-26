@@ -96,7 +96,9 @@ public partial class FormularioRapidoCliente : ComponentBase
 
         try
         {
-            var resultado = await Mediator.Send(new CrearClienteCommand(_razonSocial, _cif, EsCritico: false, Notas: null));
+            var comando = new CrearClienteCommand(_razonSocial, _cif, EsCritico: false, Notas: null);
+            new CrearClienteCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             if (resultado.EsFallido)
             {
                 _mensajeError = resultado.Error.Mensaje;

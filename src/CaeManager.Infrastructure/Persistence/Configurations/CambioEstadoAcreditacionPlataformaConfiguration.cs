@@ -14,6 +14,8 @@ public class CambioEstadoAcreditacionPlataformaConfiguration : IEntityTypeConfig
         builder.Property(c => c.Motivo).HasMaxLength(RechazoAcreditacionDocumentoPlataforma.LongitudMaximaMotivoLiteral);
         builder.Property(c => c.Nota).HasMaxLength(CambioEstadoAcreditacionPlataforma.LongitudMaximaNota);
         builder.Property(c => c.EstadoVigenciaAnterior).HasConversion<int>();
+        // Los cambios anotados antes de existir el origen eran todos de Centro 360 (0): la migración los deja con ese valor.
+        builder.Property(c => c.Origen).HasConversion<int>();
         builder.Ignore(c => c.EstaDeshecho);
 
         builder.HasIndex(c => new { c.TenantId, c.AcreditacionId, c.MomentoUtc });

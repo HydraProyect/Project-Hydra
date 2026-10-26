@@ -1,3 +1,4 @@
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Empresas;
@@ -30,10 +31,8 @@ public class EditarEmpresaCommandValidator : AbstractValidator<EditarEmpresaComm
             .MaximumLength(Empresa.LongitudMaximaRazonSocial)
             .WithMessage($"La razón social no puede superar {Empresa.LongitudMaximaRazonSocial} caracteres.");
 
-        // A diferencia del alta (CrearEmpresaCommand), aquí la identificación
-        // fiscal sigue siendo opcional: hay Empresas legacy sin ella (ver
-        // Empresa.Cif) y editar otro campo no debe forzar retroactivamente su
-        // relleno.
+        RuleFor(c => c.Cif).NotEmpty().WithMessage("La identificación fiscal es obligatoria.");
+
         RuleFor(c => c.Cif)
             .Must(ValidadorIdentificacion.EsIdentificacionFiscalValida)
             .WithMessage(Empresa.MensajeIdentificacionFiscalInvalida)
@@ -67,8 +66,11 @@ public class EditarEmpresaCommandHandler(
         if (await repositorio.ExisteConRazonSocialAsync(request.RazonSocial, request.Id, cancellationToken))
             return Result.Fallo(Error.Crear("Empresa.RazonSocialDuplicada", "Ya existe una empresa con esta razón social."));
 
-        if (!string.IsNullOrWhiteSpace(request.Cif) && await repositorio.ExisteConCifAsync(request.Cif, request.Id, cancellationToken))
-            return Result.Fallo(Error.Crear("Empresa.CifDuplicado", "Ya existe una empresa con este CIF."));
+        if (await DuplicadosEmpresa.ComprobarRazonSocialAsync(repositorio, request.RazonSocial, request.Id, "Empresa.RazonSocialDuplicada", cancellationToken) is { } duplicadaRazonSocial)
+            return Result.Fallo(duplicadaRazonSocial);
+
+        if (await DuplicadosEmpresa.ComprobarAsync(repositorio, request.Cif, request.Id, "Empresa.CifDuplicado", cancellationToken) is { } duplicadoCif)
+            return Result.Fallo(duplicadoCif);
 
         empresa.Actualizar(request.RazonSocial, request.Cif, request.Cnae, request.ConvenioAplicable, request.EsActividadAnexoI);
 

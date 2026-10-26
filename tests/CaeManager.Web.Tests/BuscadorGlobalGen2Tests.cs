@@ -47,6 +47,70 @@ public class BuscadorGlobalGen2Tests : BunitContext
     public BuscadorGlobalGen2Tests() => JSInterop.Mode = JSRuntimeMode.Loose;
 
     [Theory]
+    [InlineData("https://evil.example")]
+    [InlineData("//evil.example")]
+    [InlineData("/\\evil.example")]
+    public async Task Un_reciente_externo_se_descarta_y_Enter_no_navega_a_el(string ruta)
+    {
+        var mediador = new MediadorControlado
+        {
+            Recientes = [new("Centro", null, "Reciente manipulado", null, ruta)]
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        cut.FindAll("a.buscador-item").Should().NotContain(a =>
+            a.TextContent.Contains("Reciente manipulado", StringComparison.Ordinal) ||
+            a.GetAttribute("href") == ruta);
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var inicial = navegacion.Uri;
+        await Input(cut).TeclaAsync("Enter");
+        navegacion.Uri.Should().Be(inicial);
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("https://evil.example")]
+    [InlineData("//evil.example")]
+    [InlineData("/\\evil.example")]
+    public async Task Un_resultado_con_destino_externo_no_navega_ni_registra_uso_y_su_href_cae_a_la_raiz(string ruta)
+    {
+        var mediador = new MediadorControlado
+        {
+            Resultado = new ResultadoBusquedaGlobalDto(
+                [new ItemBusquedaDto(IdCliente, "Refrielectric S.A.", "Cliente", ruta)], [], [], [])
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+
+        var fila = cut.FindAll("a.buscador-item")
+            .Single(a => a.QuerySelector(".buscador-item-titulo")!.TextContent.Contains("Refrielectric", StringComparison.Ordinal));
+        fila.GetAttribute("href").Should().Be("/");
+
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        var inicial = navegacion.Uri;
+        await fila.ClickAsync(new MouseEventArgs());
+        await Input(cut).TeclaAsync("Enter");
+        navegacion.Uri.Should().Be(inicial);
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Guardar_filtro_actual_navega_a_una_ruta_local_con_la_consulta_y_la_accion()
+    {
+        var cut = Renderizar(new MediadorControlado(), conEscritura: true);
+        var navegacion = Services.GetRequiredService<NavigationManager>();
+        navegacion.NavigateTo("documentos?estado=vencido");
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+
+        var fila = cut.FindAll("a.buscador-item")
+            .Single(a => a.QuerySelector(".buscador-item-titulo")!.TextContent.Trim() == "Guardar filtro actual");
+        fila.GetAttribute("href").Should().Be("/documentos?estado=vencido&accion=guardar-filtro");
+
+        await fila.ClickAsync(new MouseEventArgs());
+        navegacion.Uri.Should().EndWith("/documentos?estado=vencido&accion=guardar-filtro");
+    }
+
+    [Theory]
     [InlineData("12345678A", "12345678Z")]
     [InlineData("X1234567A", "X1234567L")]
     public async Task Una_letra_incorrecta_muestra_correccion_y_no_consulta(string valor, string corregido)
@@ -405,12 +469,19 @@ public class BuscadorGlobalGen2Tests : BunitContext
         Filas(cut).Should().Contain(f => f.Titulo == "Reclamar…" && f.Href == "/comunicaciones");
     }
 
-    [Fact]
-    public async Task Un_reciente_con_ruta_no_local_no_ofrece_ir_a()
+    [Theory]
+    [InlineData("https://ajeno.example/centros/1")]
+    [InlineData("/\t/evil.example")]
+    [InlineData("/\n/evil.example")]
+    [InlineData("/\r\n/evil.example")]
+    [InlineData("/\\evil.example")]
+    [InlineData("\\evil.example")]
+    [InlineData("//evil.example")]
+    public async Task Un_reciente_con_ruta_no_local_no_ofrece_ir_a(string ruta)
     {
         var cut = await RenderizarYAbrir(new MediadorControlado
         {
-            Recientes = [new("Centro", null, "Centro Norte", "Centro", "https://ajeno.example/centros/1")]
+            Recientes = [new("Centro", null, "Centro Norte", "Centro", ruta)]
         });
         await Input(cut).EscribirAsync("ir a");
 
@@ -476,6 +547,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
         public IReadOnlyList<ClienteAutorizadoDto> Autorizados { get; set; } = [];
         public int? VencenEstaSemana { get; set; }
         public Exception? FalloDeBusqueda { get; set; }
+        public CaeManager.Domain.Common.Result ResultadoDeRegistro { get; set; } = CaeManager.Domain.Common.Result.Exito();
 
         public TaskCompletionSource<object> Retener(Func<object, bool> criterio)
         {
@@ -505,6 +577,7 @@ public class BuscadorGlobalGen2Tests : BunitContext
                 ObtenerClientesAutorizadosQuery => Autorizados,
                 BuscarGlobalQuery => Resultado,
                 ContarVencenEstaSemanaDeEmpresaQuery => VencenEstaSemana,
+                RegistrarUsoRecienteCommand => ResultadoDeRegistro,
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             })!;
         }
@@ -1314,6 +1387,27 @@ public class BuscadorGlobalGen2Tests : BunitContext
 
         mediador.TokensRecibidos.Should().OnlyContain(t => t.CanBeCanceled,
             "un CancellationToken.None significa que esa llamada no se cancela nunca, ni siquiera al destruirse el componente");
+    }
+
+    [Fact]
+    public async Task El_rechazo_del_registro_no_impide_volver_a_usar_el_buscador()
+    {
+        var mediador = new MediadorControlado
+        {
+            Resultado = UnClienteEmpresarial,
+            ResultadoDeRegistro = CaeManager.Domain.Common.Result.Fallo(
+                CaeManager.Domain.Common.Error.Crear("Reciente.UrlDestinoInvalida", "El destino debe ser una ruta local segura."))
+        };
+        var cut = await RenderizarYAbrir(mediador);
+        await Input(cut).EscribirAsync("refri");
+        await Input(cut).TeclaAsync("Enter");
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().ContainSingle();
+
+        await cut.InvokeAsync(() => cut.Instance.AbrirDesdeJs());
+        await Input(cut).EscribirAsync("refri");
+        await Input(cut).TeclaAsync("Enter");
+
+        mediador.Enviados.OfType<RegistrarUsoRecienteCommand>().Should().HaveCount(2);
     }
 
     /// <summary>

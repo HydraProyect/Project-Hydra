@@ -12,7 +12,8 @@ namespace CaeManager.Domain.Tenants;
 /// Extiende <see cref="Entity"/>, no <see cref="EntidadConTenant"/>: es un
 /// catálogo global de autorización, no un dato que pertenezca a un único
 /// tenant — igual tratamiento que <see cref="Tenant"/> (sin
-/// <c>HasQueryFilter</c>, ver CaeManagerDbContext). Nunca tiene FK hacia
+/// <c>HasQueryFilter</c>, ver CaeManagerDbContext), aunque su tabla sí lleva RLS
+/// por sus dos extremos (ver <c>DelegacionTenantConfiguration</c>). Nunca tiene FK hacia
 /// Empresa/Centro/Trabajador/Documento — es la representación literal de
 /// "delegación de acceso, no de propiedad" (ADR-004 § 2).
 ///

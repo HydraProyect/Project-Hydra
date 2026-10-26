@@ -283,6 +283,12 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         }
     }
 
+    // La identificación fiscal de una Empresa es obligatoria; una Empresa legacy sin ella no
+    // puede reeditarse para vincularla (EditarEmpresaCommand la exige), y el error del
+    // validador caería en un campo que estas ramas no pintan.
+    private const string MensajeEmpresaExistenteSinIdentificacionFiscal =
+        "Esta empresa no tiene identificación fiscal. Complétala en su ficha antes de vincularla.";
+
     private async Task VincularEmpresaExistenteAsync()
     {
         if (!Guid.TryParse(_empresaExistenteId, out var empresaId))
@@ -304,9 +310,14 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
         // Cliente se vincula esta Empresa.
         if (_clienteId is { } clienteId && !existente.ClienteIds.Contains(clienteId))
         {
+            if (string.IsNullOrWhiteSpace(existente.Cif))
+            {
+                _mensajeErrorEmpresa = MensajeEmpresaExistenteSinIdentificacionFiscal;
+                return;
+            }
+
             var clienteIds = existente.ClienteIds.Append(clienteId).ToList();
-            var resultado = await Mediator.Send(
-                new EditarEmpresaCommand(
+            var resultado = await Mediator.Send(new EditarEmpresaCommand(
                     existente.Id, existente.RazonSocial, existente.Cif, clienteIds,
                     existente.Cnae, existente.ConvenioAplicable, existente.EsActividadAnexoI, existente.Version));
 
@@ -327,8 +338,10 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
     private async Task CrearEmpresaNuevaAsync()
     {
         var clienteIds = _clienteId is { } clienteId ? new List<Guid> { clienteId } : [];
-        var resultado = await Mediator.Send(new CrearEmpresaCommand(
-            _razonSocialEmpresa, string.IsNullOrWhiteSpace(_cifEmpresa) ? null : _cifEmpresa, clienteIds));
+        var comando = new CrearEmpresaCommand(
+            _razonSocialEmpresa, string.IsNullOrWhiteSpace(_cifEmpresa) ? null : _cifEmpresa, clienteIds);
+        new CrearEmpresaCommandValidator().ValidateAndThrow(comando);
+        var resultado = await Mediator.Send(comando);
 
         if (resultado.EsFallido)
         {
@@ -395,9 +408,22 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
 
     private async Task CrearClienteNuevoAsync()
     {
-        var resultado = await Mediator.Send(new CrearClienteCommand(
+        var comando = new CrearClienteCommand(
             _razonSocialCliente, _cifCliente, _esCriticoCliente,
-            string.IsNullOrWhiteSpace(_notasCliente) ? null : _notasCliente));
+            string.IsNullOrWhiteSpace(_notasCliente) ? null : _notasCliente);
+        new CrearClienteCommandValidator().ValidateAndThrow(comando);
+
+        // Antes de crear nada: si la vinculación posterior va a ser imposible (Empresa legacy
+        // sin identificación fiscal), no se deja un Cliente huérfano con un reintento que falla.
+        if (_empresaId is { } empresaDelAlta
+            && await Mediator.Send(new ObtenerEmpresaPorIdQuery(empresaDelAlta)) is { } empresaActual
+            && string.IsNullOrWhiteSpace(empresaActual.Cif))
+        {
+            _mensajeErrorCliente = MensajeEmpresaExistenteSinIdentificacionFiscal;
+            return;
+        }
+
+        var resultado = await Mediator.Send(comando);
 
         if (resultado.EsFallido)
         {
@@ -483,9 +509,14 @@ public partial class AltaGuiada : CaeManager.Web.Components.PaginaInteractiva
 
         if (existente.ClienteIds.Contains(clienteId)) return;
 
+        if (string.IsNullOrWhiteSpace(existente.Cif))
+        {
+            _mensajeErrorCliente = MensajeEmpresaExistenteSinIdentificacionFiscal;
+            return;
+        }
+
         var clienteIds = existente.ClienteIds.Append(clienteId).ToList();
-        var resultado = await Mediator.Send(
-            new EditarEmpresaCommand(
+        var resultado = await Mediator.Send(new EditarEmpresaCommand(
                 existente.Id, existente.RazonSocial, existente.Cif, clienteIds,
                 existente.Cnae, existente.ConvenioAplicable, existente.EsActividadAnexoI, existente.Version));
 

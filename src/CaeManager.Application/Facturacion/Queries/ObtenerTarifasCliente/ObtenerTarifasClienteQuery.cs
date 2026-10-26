@@ -18,18 +18,15 @@ public record TarifaClienteDto(
     string MonedaIso,
     Guid Version);
 
-public class ObtenerTarifasClienteQueryHandler(IEmpresasQueryContext empresasContext, IFacturacionQueryContext facturacionContext)
+public class ObtenerTarifasClienteQueryHandler(IEmpresasQueryContext empresasContext, IFacturacionQueryContext facturacionContext, IAlcanceDatosService alcanceDatos)
     : IRequestHandler<ObtenerTarifasClienteQuery, List<TarifaClienteDto>>
 {
     public async Task<List<TarifaClienteDto>> Handle(ObtenerTarifasClienteQuery request, CancellationToken cancellationToken)
     {
-        // Cargar antes el Cliente (filtrado por tenant) en vez de fiarse solo
-        // del ClienteId recibido — mismo criterio que ObtenerResumenFacturacion
-        // y la regla de CLAUDE.md: un Id ajeno debe resultar "no encontrado".
-        // El filtro global de TarifaCliente ya aísla por tenant; esto lo
-        // refuerza en el handler para no depender de una sola capa en datos
-        // comercialmente sensibles.
-        // F3b — ClienteId ahora repunta contra Empresas.
+        if (!await alcanceDatos.ClienteVisibleAsync(request.ClienteId, cancellationToken)) return [];
+
+        // Además del alcance efectivo, la Empresa debe existir en el Tenant propietario.
+        // ClienteId es deuda terminológica: representa una Empresa en posición Cliente empresarial.
         var clienteExiste = await empresasContext.Empresas
             .AnyAsync(c => c.Id == request.ClienteId, cancellationToken);
 

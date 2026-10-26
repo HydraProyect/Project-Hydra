@@ -95,7 +95,7 @@ public class CaeManagerDbContext(
         CaeManager.Application.AsistenteIa.Tareas.ITareasAsistenteQueryContext,
         CaeManager.Application.EstadoMaterializado.IEstadoMaterializadoQueryContext,
         IDesenganchadorDeEntidadesRastreadas,
-        IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
+        IRestauracionCambiosDeComando, IDescarteCambiosPendientes, CaeManager.Application.Dashboard.ICierresCuadroDireccion,
         CaeManager.Application.Dashboard.TarifasOperadorCae.ITarifasOperadorCaeContext
 {
     public DbSet<CaeManager.Domain.Dashboard.TarifaOperadorCae> TarifasOperadorCae => Set<CaeManager.Domain.Dashboard.TarifaOperadorCae>();
@@ -106,6 +106,8 @@ public class CaeManagerDbContext(
     void CaeManager.Application.Dashboard.ICierresCuadroDireccion.Agregar(CaeManager.Domain.Dashboard.CierreMensualTenantBeneficiario cierre) => CierresMensualesTenantBeneficiario.Add(cierre);
     void IDesenganchadorDeEntidadesRastreadas.Desenganchar<TEntidad>(TEntidad entidad) =>
         Entry(entidad).State = EntityState.Detached;
+
+    IInstantaneaCambiosDeComando IRestauracionCambiosDeComando.CapturarRestauracion() => ConcurrenciaContexto.CapturarRestauracion(this);
 
     void IDescarteCambiosPendientes.DescartarCambiosPendientes() => ChangeTracker.Clear();
 
@@ -292,6 +294,7 @@ public class CaeManagerDbContext(
     public DbSet<ReclamacionDocumental> ReclamacionesDocumentales => Set<ReclamacionDocumental>();
     IQueryable<ReclamacionDocumental> IReclamacionesQueryContext.ReclamacionesDocumentales => ReclamacionesDocumentales;
     public DbSet<ReclamacionDocumentalDocumento> ReclamacionesDocumentalesDocumento => Set<ReclamacionDocumentalDocumento>();
+    public DbSet<EnvioReclamacion> EnviosReclamacion => Set<EnvioReclamacion>();
     IQueryable<ReclamacionDocumentalDocumento> IReclamacionesQueryContext.ReclamacionesDocumentalesDocumento => ReclamacionesDocumentalesDocumento;
     public DbSet<CaeManager.Domain.Contactos.ContactoAgenda> ContactosAgenda => Set<CaeManager.Domain.Contactos.ContactoAgenda>();
     IQueryable<CaeManager.Domain.Contactos.ContactoAgenda> CaeManager.Application.Contactos.IContactosAgendaQueryContext.ContactosAgenda => ContactosAgenda;
@@ -450,6 +453,57 @@ public class CaeManagerDbContext(
     IQueryable<ContactoWhatsApp> IComunicacionesQueryContext.ContactosWhatsApp => ContactosWhatsApp;
 
 
+    internal Guid? TenantPropietarioId => tenantActual.TenantId;
+
+    // Z5-7: se sobrescribe la sobrecarga con acceptAllChangesOnSuccess porque es la que
+    // invocan todas las demás (SaveChangesAsync(ct) incluida): así ningún camino de guardado
+    // asíncrono escapa a la traducción.
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ConcurrenciaContexto.DescartarLoteFallido(this);
+            throw;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is Npgsql.PostgresException
+        {
+            SqlState: Npgsql.PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_Empresas_TenantId_Cif" or "IX_Empresas_TenantId_RazonSocial"
+        })
+        {
+            // Con lotes, EF puede no identificar la entrada exacta que chocó: si Entries no trae
+            // ninguna Empresa, se toman todas las Empresas pendientes (cualquiera de ellas pudo chocar).
+            var empresasEnConflicto = ex.Entries.Select(e => e.Entity).OfType<Empresa>().ToList();
+            if (empresasEnConflicto.Count == 0)
+                empresasEnConflicto = ChangeTracker.Entries<Empresa>()
+                    .Where(e => e.State is EntityState.Added or EntityState.Modified)
+                    .Select(e => e.Entity).ToList();
+            var razonSocial = ((Npgsql.PostgresException)ex.InnerException!).ConstraintName == "IX_Empresas_TenantId_RazonSocial";
+            var valores = empresasEnConflicto
+                .Where(e => razonSocial || e.Cif != null).Select(e => razonSocial ? e.RazonSocial : e.Cif!).Distinct().ToArray();
+            // La unidad de escritura fallida no debe reintentarse en un guardado posterior del circuito,
+            // ni persistir la auditoría de cambios que la base rechazó.
+            ConcurrenciaContexto.DescartarLoteFallido(this);
+            throw razonSocial ? new DatoEmpresaDuplicadoException(valores, true, ex) : new CifEmpresaDuplicadoException(valores, ex);
+        }
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        try
+        {
+            return base.SaveChanges(acceptAllChangesOnSuccess);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            ConcurrenciaContexto.DescartarLoteFallido(this);
+            throw;
+        }
+    }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -556,7 +610,8 @@ public class CaeManagerDbContext(
         // privilegio de plataforma (ConcesionPrivilegio, SesionPrivilegiada,
         // TenantAlcanzadoPorConcesion) tampoco heredan de EntidadConTenant: son
         // catálogos globales por diseño (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 7-8 y ADR-011
-        // § 8), no un olvido.
+        // § 8), no un olvido. Sin filtro de EF no quiere decir sin RLS: DelegacionTenant
+        // la lleva por sus dos extremos (migración ProtegeDelegacionesTenantConRls).
         //
         // El filtro de cada entidad se construye con un método genérico real
         // (AplicarFiltroTenant/ConSoftDelete), invocado por reflexión — nunca

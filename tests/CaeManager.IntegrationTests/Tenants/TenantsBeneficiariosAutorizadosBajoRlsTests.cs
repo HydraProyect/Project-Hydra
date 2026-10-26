@@ -392,6 +392,25 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
         operacion.Should().BeNull();
     }
 
+    /// <summary>
+    /// RLS de DelegacionesTenant: dentro del workspace de A el Tenant activo es A, no el de origen.
+    /// La delegación hacia el Tenant heredado se sigue viendo por el Tenant de origen del Operador
+    /// CAE, así que el selector la lista y el POST acepta pasar de A a ese Tenant sin volver al origen.
+    /// </summary>
+    [Fact]
+    public async Task Desde_el_workspace_de_A_la_lista_y_el_POST_conservan_la_via_heredada()
+    {
+        var lista = await ListaAsync(_gestor, desdeTenant: _a);
+        lista.Where(c => !c.EsOrigen).Select(c => c.TenantId).Should().BeEquivalentTo([_a, _heredado]);
+
+        var (resultado, httpContext) = await CambiarAsync(_gestor, _heredado, desdeTenant: _a);
+        resultado.Should().BeOfType<RedirectHttpResult>();
+        var (tenant, operacion, _) = ClienteActivoSeleccionado.LeerCargaUtil(
+            _protector, CookieEmitida(httpContext, ClienteActivoSeleccionado.NombreCookie), _gestor);
+        tenant.Should().Be(_heredado);
+        operacion.Should().BeNull();
+    }
+
     [Fact]
     public async Task El_POST_rechaza_cada_Tenant_que_el_predicado_excluye()
     {
@@ -826,17 +845,18 @@ public class TenantsBeneficiariosAutorizadosBajoRlsTests : IAsyncLifetime
 
     // ---------- Arnés ----------
 
-    private async Task<IReadOnlyList<ClienteAutorizadoDto>> ListaAsync(Guid usuario, string rol = Roles.GestorCae)
+    private async Task<IReadOnlyList<ClienteAutorizadoDto>> ListaAsync(Guid usuario, string rol = Roles.GestorCae, Guid? desdeTenant = null)
     {
-        await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
+        await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: desdeTenant ?? _origen);
         return await new ObtenerClientesAutorizadosQueryHandler(
                 runtime, runtime, new CurrentUserServiceFalso(usuario, rol, tenantOrigenId: _origen))
             .Handle(new ObtenerClientesAutorizadosQuery(), CancellationToken.None);
     }
 
-    private async Task<(IResult, DefaultHttpContext)> CambiarAsync(Guid usuario, Guid tenantId, IContadorPendientesSelectorTenant? contador = null)
+    private async Task<(IResult, DefaultHttpContext)> CambiarAsync(
+        Guid usuario, Guid tenantId, IContadorPendientesSelectorTenant? contador = null, Guid? desdeTenant = null)
     {
-        await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: _origen);
+        await using var runtime = CrearRuntime(usuario, tenantDeLaPeticion: desdeTenant ?? _origen);
         var httpContext = new DefaultHttpContext { User = UsuarioAutenticado(usuario) };
         var resultado = await ClienteActivoEndpoints.CambiarAsync(
             tenantId, "/", httpContext, runtime, new CurrentUserServiceFalso(usuario, Roles.GestorCae, tenantOrigenId: _origen),

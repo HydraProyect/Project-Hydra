@@ -165,16 +165,82 @@ public class GateNivel0EnDeteccionesDeIngestaTests
         centros.Consultas.Should().Be(1);
     }
 
+    [Fact]
+    public async Task Solo_los_Trabajadores_con_Asignacion_activa_llegan_a_la_deteccion()
+    {
+        var centro = CentroDelCliente();
+        var activo = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "Pérez", "12345678Z");
+        var historico = Trabajador.DeEmpresa(Guid.NewGuid(), "Luis", "Mora", "X1234567L");
+        var alta = new Asignacion(activo.Id, centro.Id, DiaDeNegocio.Hoy());
+        var baja = new Asignacion(historico.Id, centro.Id, DiaDeNegocio.Hoy());
+        baja.DarDeBaja(DiaDeNegocio.Hoy());
+        var anterior = new Asignacion(activo.Id, centro.Id, DiaDeNegocio.Hoy());
+        anterior.DarDeBaja(DiaDeNegocio.Hoy());
+        var otroCentro = new Asignacion(historico.Id, Guid.NewGuid(), DiaDeNegocio.Hoy());
+        var deteccion = new DeteccionGestionCapturadora();
+        var servicio = ServicioDeGestion(new CentrosQueryContextEspia(centro), true,
+            new LoggerRecolector<SugerenciaGestionCorreoService>(),
+            new AsignacionesDePrueba(alta, baja, anterior, otroCentro),
+            new TrabajadoresDePrueba(activo, historico), new TiposDocumentoQueryContextConUno(), deteccion);
+
+        await servicio.ProcesarAsync(MensajeEntrante(), ClienteId);
+
+        deteccion.Candidatos.Should().ContainSingle().Which.Id.Should().Be(activo.Id);
+        deteccion.Candidatos.Should().NotContain(t => t.Id == historico.Id);
+    }
+
+    [Fact]
+    public async Task Sin_ninguna_Asignacion_activa_no_se_carga_ningun_Trabajador_ni_se_llama_a_la_deteccion()
+    {
+        var centro = CentroDelCliente();
+        var historico = Trabajador.DeEmpresa(Guid.NewGuid(), "Luis", "Mora", "X1234567L");
+        var baja = new Asignacion(historico.Id, centro.Id, DiaDeNegocio.Hoy());
+        baja.DarDeBaja(DiaDeNegocio.Hoy());
+        // Trabajadores, tipos de documento y detección lanzan si se invocan.
+        var servicio = ServicioDeGestion(new CentrosQueryContextEspia(centro), true,
+            new LoggerRecolector<SugerenciaGestionCorreoService>(), new AsignacionesDePrueba(baja));
+
+        var resultado = await servicio.ProcesarAsync(MensajeEntrante(), ClienteId);
+
+        resultado.Should().Be(ResultadoDeteccionGestionDto.Vacio);
+    }
+
+    private sealed class AsignacionesDePrueba(params Asignacion[] asignaciones) : IAsignacionesQueryContext
+    {
+        public IQueryable<Asignacion> Asignaciones => new TestAsyncQueryable<Asignacion>(asignaciones.AsQueryable());
+    }
+
+    private sealed class TrabajadoresDePrueba(params Trabajador[] trabajadores) : ITrabajadoresQueryContext
+    {
+        public IQueryable<Trabajador> Trabajadores => new TestAsyncQueryable<Trabajador>(trabajadores.AsQueryable());
+        public IQueryable<DeteccionTrabajador> DeteccionesTrabajador => throw new NotSupportedException();
+    }
+
+    private sealed class DeteccionGestionCapturadora : IDeteccionGestionCorreoService
+    {
+        public IReadOnlyList<TrabajadorCandidatoGestionDto> Candidatos { get; private set; } = [];
+
+        public Task<Result<DeteccionGestionCorreoDto>> DetectarAsync(string cuerpoMensaje,
+            IReadOnlyList<TrabajadorCandidatoGestionDto> trabajadoresDisponibles,
+            IReadOnlyList<TipoDocumentoCandidatoGestionDto> tiposDocumentoDisponibles,
+            CancellationToken cancellationToken = default)
+        {
+            Candidatos = trabajadoresDisponibles;
+            return Task.FromResult(Result.Exito(new DeteccionGestionCorreoDto(false, "No aplica", 100, [])));
+        }
+    }
+
     private static SugerenciaGestionCorreoService ServicioDeGestion(
         ICentrosQueryContext centros, bool habilitada, ILogger<SugerenciaGestionCorreoService> registro,
         IAsignacionesQueryContext? asignaciones = null,
         ITrabajadoresQueryContext? trabajadores = null,
-        ITiposDocumentoQueryContext? tiposDocumento = null) =>
+        ITiposDocumentoQueryContext? tiposDocumento = null,
+        IDeteccionGestionCorreoService? deteccion = null) =>
         new(centros,
             asignaciones ?? new AsignacionesQueryContextQueLanzaSiSeInvoca(),
             trabajadores ?? new TrabajadoresQueryContextQueLanzaSiSeInvoca(),
             tiposDocumento ?? new TiposDocumentoQueryContextQueLanzaSiSeInvoca(),
-            new DeteccionGestionQueLanzaSiSeInvoca(),
+            deteccion ?? new DeteccionGestionQueLanzaSiSeInvoca(),
             new SugerenciaGestionRepositorioQueLanzaSiSeInvoca(),
             new InstruccionTratamientoIaFalsa(habilitada),
             new TenantActualFalso(TenantId),

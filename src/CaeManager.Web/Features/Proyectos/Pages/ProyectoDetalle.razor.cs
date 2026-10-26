@@ -15,6 +15,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerDocumentacionPorCentroD
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Common;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos;
 using CaeManager.Web.Components.Workspace;
@@ -426,9 +427,7 @@ public partial class ProyectoDetalle : CaeManager.Web.Components.PaginaInteracti
     }
 
     private void CambiarPestana(string pestana) =>
-        NavigationManager.NavigateTo(
-            NavigationManager.GetUriWithQueryParameter("pestana", pestana == PestanaTecnicos ? null : pestana),
-            replace: true);
+        NavigationManager.ActualizarFiltroEnUrl("pestana", pestana == PestanaTecnicos ? null : pestana, estadoHistorial: null);
 
     private Task AbrirPanelTrabajador(TecnicoProyectoDto tecnico) =>
         WorkspaceService.AbrirAsync(EntidadWorkspace.Trabajador, tecnico.TrabajadorId, tecnico.TrabajadorNombreCompleto, "informacion");

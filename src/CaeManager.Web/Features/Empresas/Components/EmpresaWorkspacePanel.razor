@@ -24,6 +24,7 @@
 @using CaeManager.Web.Services
 @implements IDisposable
 @inject IMediator Mediator
+@inject Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Empresas.Recursos.TextosEmpresas> Textos
 @inject ContextWorkspaceService WorkspaceService
 @inject ToastService ToastService
 @inject NavigationManager NavigationManager
@@ -92,7 +93,7 @@ else
                         <div class="alerta-formulario" role="alert">@_mensajeErrorInformacion</div>
                     }
                     <CampoTexto Etiqueta="Razón social" Valor="@_razonSocialInfo" ValorChanged="v => _razonSocialInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.RazonSocial))" />
-                    <CampoTexto Etiqueta="Identificación fiscal" Placeholder="CIF, DNI o NIE" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cif))" />
+                    <CampoTexto aria-required="true" Etiqueta="@Textos["RotuloIdentificacionFiscalObligatoria"]" Placeholder="CIF, DNI o NIE" Valor="@_cifInfo" ValorChanged="v => _cifInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cif))" />
                     <CampoTexto Etiqueta="CNAE" Placeholder="p. ej. 4321" Valor="@_cnaeInfo" ValorChanged="v => _cnaeInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.Cnae))" />
                     <CampoTexto Etiqueta="Convenio aplicable" Valor="@_convenioAplicableInfo" ValorChanged="v => _convenioAplicableInfo = v" MensajeError="@ObtenerErrorInformacion(nameof(EditarEmpresaCommand.ConvenioAplicable))" />
                     <label class="campo-checkbox">
@@ -574,10 +575,11 @@ else
             var cif = string.IsNullOrWhiteSpace(_cifInfo) ? null : _cifInfo;
             var cnae = string.IsNullOrWhiteSpace(_cnaeInfo) ? null : _cnaeInfo;
             var convenioAplicable = string.IsNullOrWhiteSpace(_convenioAplicableInfo) ? null : _convenioAplicableInfo;
-            var resultado = await Mediator.Send(
-                new EditarEmpresaCommand(
+            var comando = new EditarEmpresaCommand(
                     detalle.Id, _razonSocialInfo, cif, _clienteIdsInfo.ToList(),
-                    cnae, convenioAplicable, _esActividadAnexoIInfo, detalle.Version));
+                    cnae, convenioAplicable, _esActividadAnexoIInfo, detalle.Version);
+            new EditarEmpresaCommandValidator().ValidateAndThrow(comando);
+            var resultado = await Mediator.Send(comando);
             // El guardado ya es firme aunque el panel haya pasado a otra ficha: el listado que
             // tenga esta fila a la vista la vuelve a pedir y la sustituye en sitio.
             if (!resultado.EsFallido) WorkspaceService.NotificarEntidadGuardada(EntidadWorkspace.Empresa, detalle.Id);

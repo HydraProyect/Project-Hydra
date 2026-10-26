@@ -177,8 +177,8 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
                 logger.LogWarning(
                     "Rol efectivo del Workspace operativo derivado retirado en {Ruta}: {RolDeSesion} sin "
                     + "sustituto para el tenant {TenantSeleccionado}.",
-                    contexto.Request.Path,
-                    rolDeSesion ?? "(ninguno)",
+                    ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()),
+                    ValoresParaLog.Sanear(rolDeSesion ?? "(ninguno)"),
                     clienteActivoSeleccionado.TenantIdSeleccionado);
             }
             else
@@ -186,9 +186,9 @@ public class RolEfectivoDelWorkspaceMiddleware(RequestDelegate siguiente)
                 logger.LogInformation(
                     "Rol efectivo del Workspace operativo derivado ajustado en {Ruta}: de {RolDeSesion} a "
                     + "{RolEfectivo} para el tenant {TenantSeleccionado}.",
-                    contexto.Request.Path,
-                    rolDeSesion ?? "(ninguno)",
-                    rolEfectivo,
+                    ValoresParaLog.Sanear(contexto.Request.Path.ToUriComponent()),
+                    ValoresParaLog.Sanear(rolDeSesion ?? "(ninguno)"),
+                    ValoresParaLog.Sanear(rolEfectivo),
                     clienteActivoSeleccionado.TenantIdSeleccionado);
             }
         }

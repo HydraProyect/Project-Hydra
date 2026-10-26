@@ -173,6 +173,44 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
 
     // ------------------------------------------------- desenlace: Cliente empresarial
 
+    [Fact]
+    public async Task Paso_cliente_sin_identificacion_fiscal_muestra_error_y_no_envia()
+    {
+        var empresaId = Guid.NewGuid();
+        var m = new MediadorControlado
+        {
+            Empresa = new EmpresaDetalleDto(empresaId, "Empresa de prueba", "B10380186", DateTime.UtcNow, [], Guid.NewGuid())
+        };
+        var (cut, _, _) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", m);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
+        await RellenarCampoTextoAsync(cut, 0, "Empresa contraparte");
+        await Boton(cut, "Guardar y continuar a Centro").ClickAsync(new MouseEventArgs());
+        cut.Find("input[aria-required='true']").Should().NotBeNull();
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificaci\u00f3n fiscal es obligatoria.");
+        m.Enviadas.OfType<CrearClienteCommand>().Should().BeEmpty();
+        m.Enviadas.OfType<EditarEmpresaCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Empresa_legacy_sin_identificacion_fiscal_no_se_vincula_y_el_aviso_lo_dice()
+    {
+        var empresaId = Guid.NewGuid();
+        var m = new MediadorControlado
+        {
+            Empresa = new EmpresaDetalleDto(empresaId, "Empresa legacy", null, DateTime.UtcNow, [], Guid.NewGuid())
+        };
+        var (cut, _, _) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", m);
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
+        await RellenarCampoTextoAsync(cut, 0, "Empresa contraparte");
+        await RellenarCampoTextoAsync(cut, 1, "B10380186");
+        await Boton(cut, "Guardar y continuar a Centro").ClickAsync(new MouseEventArgs());
+        m.Enviadas.OfType<CrearClienteCommand>().Should().BeEmpty(
+            "no se crea un Cliente cuya vinculación posterior es imposible");
+        m.Enviadas.OfType<EditarEmpresaCommand>().Should().BeEmpty(
+            "la edición exigiría una identificación fiscal que la Empresa legacy no tiene");
+        cut.Markup.Should().Contain("Esta empresa no tiene identificación fiscal");
+    }
+
     /// <summary>
     /// CrearClienteCommand triunfa y EditarEmpresaCommand (la vinculación con
     /// la Empresa) falla: el Cliente empresarial YA existe. El aviso tiene que
@@ -186,7 +224,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         var empresaId = Guid.NewGuid();
         var mediador = new MediadorControlado
         {
-            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", "B10380186", DateTime.UtcNow, [], Guid.NewGuid()),
             AlEditarEmpresa = _ => Result.Fallo(Error.Crear("Empresa.Concurrencia", "La empresa cambió mientras tanto.")),
         };
 
@@ -371,7 +409,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         var mediador = new MediadorControlado
         {
             AlCrearEmpresa = _ => Result.Exito(empresaId),
-            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", "B10380186", DateTime.UtcNow, [], Guid.NewGuid()),
         };
         var (cut, _, toasts) = Renderizar("clientes/alta-guiada", mediador);
 
@@ -384,6 +422,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         SinClienteEmpresarialVisible(cut.Markup, toasts);
 
         await RellenarCampoTextoAsync(cut, 0, "Montajes Ebro S.L.");
+        await RellenarCampoTextoAsync(cut, 1, "B10380186");
         await Boton(cut, "Guardar y continuar").ClickAsync(new MouseEventArgs());
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("2. Cliente</h2>"));
@@ -435,7 +474,7 @@ public class AltaGuiadaDesenlacesParcialesTests : BunitContext
         var clienteId = Guid.NewGuid();
         var mediador = new MediadorControlado
         {
-            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", null, DateTime.UtcNow, [], Guid.NewGuid()),
+            Empresa = new EmpresaDetalleDto(empresaId, "Montajes Ebro S.L.", "B10380186", DateTime.UtcNow, [], Guid.NewGuid()),
             CatalogoClientes = [new ClienteSelectorDto(clienteId, "Refrielectric SL")],
         };
         var (cut, _, toasts) = Renderizar($"clientes/alta-guiada?empresaId={empresaId}", mediador);

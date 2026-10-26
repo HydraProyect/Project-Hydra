@@ -158,7 +158,8 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
         var centros = AnalizarCentros(libro, nombresClientesDisponibles, nombresEmpresasDisponibles, centrosExistentes, advertencias, omitidos);
         var trabajadores = AnalizarTrabajadores(libro, nombresEmpresasDisponibles, dnisExistentes, advertencias, omitidos);
 
-        return new PlanImportacionCombinadaDto(clientes, empresas, centros, trabajadores, advertencias, omitidos);
+        // Cada análisis es su propia operación: el Id viaja en el plan hasta confirmar (ver PlanImportacionCombinadaDto).
+        return new PlanImportacionCombinadaDto(Guid.NewGuid(), clientes, empresas, centros, trabajadores, advertencias, omitidos);
     }
 
     private static List<ClienteImportadoDto> AnalizarClientes(
@@ -206,7 +207,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
             var esCritico = string.Equals(TextoCelda(hoja.Cell(fila, 3)), "C", StringComparison.OrdinalIgnoreCase);
 
-            resultado.Add(new ClienteImportadoDto(razonSocial, cif, esCritico, cifsExistentes.Contains(cif)));
+            resultado.Add(new ClienteImportadoDto(razonSocial, cif, esCritico, cifsExistentes.Contains(cif), fila));
         }
 
         return resultado;
@@ -261,7 +262,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
                 }
             }
 
-            resultado.Add(new EmpresaCombinadaImportadaDto(razonSocial, clientesAsociados, nombresEmpresasExistentes.Contains(razonSocial)));
+            resultado.Add(new EmpresaCombinadaImportadaDto(razonSocial, clientesAsociados, nombresEmpresasExistentes.Contains(razonSocial), fila));
         }
 
         return resultado;
@@ -334,7 +335,7 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
             }
 
             resultado.Add(new CentroImportadoDto(
-                nombre, cliente, empresa, codigoCentro, direccion, contacto, resultadoContrato.Fecha, centrosExistentes.Contains(clave)));
+                nombre, cliente, empresa, codigoCentro, direccion, contacto, resultadoContrato.Fecha, centrosExistentes.Contains(clave), fila));
         }
 
         return resultado;
@@ -411,7 +412,8 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
                 advertencias.Add(new ItemImportacionDto(HojaTrabajadores, fila, $"{nombre} {apellidos} ({dni})",
                     CriterioDocumentoIdentidadTrabajador.AvisoPasaporte + "."));
 
-            resultado.Add(new TrabajadorImportadoDto(empresa, nombre, apellidos, dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni)));
+            resultado.Add(new TrabajadorImportadoDto(
+                empresa, nombre, apellidos, dni, resultadoNacimiento.Fecha, email, dnisExistentes.Contains(dni), HojaTrabajadores, fila));
         }
 
         return resultado;
