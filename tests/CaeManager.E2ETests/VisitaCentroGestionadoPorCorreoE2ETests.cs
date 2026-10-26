@@ -122,6 +122,10 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         // aria-busy=false: terminó CargarAsync (Centros y visitas), no solo el primer render de la página.
         await Expect(page.Locator(".lista-filas-acordeon")).ToHaveAttributeAsync("aria-busy", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         await Expect(page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
+        // El filtro escribe «?q=» en la URL y el navegador pide /centros de nuevo (navegación mejorada, visible en el log
+        // del servidor como un segundo GET unos cientos de ms después). Las esperas de arriba solo prueban lo que ya pintó el
+        // circuito; el clic de abajo no debe cruzarse con esa respuesta (cola de la #1715: «Gestionar» no aparecía en 15 s).
+        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await botonExpandir.ClickAsync();
         await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         // En el listado el chevron se oculta para quien gestiona: «Gestionar» abre el mismo desglose.
