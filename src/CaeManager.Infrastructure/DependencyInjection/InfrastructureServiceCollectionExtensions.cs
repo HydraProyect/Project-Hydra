@@ -744,6 +744,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        services.AddAsistenteDePruebas(configuration, entorno);
         services.AddHttpClient<IExtraccionTrabajadoresIaService, AnthropicExtraccionTrabajadoresIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));

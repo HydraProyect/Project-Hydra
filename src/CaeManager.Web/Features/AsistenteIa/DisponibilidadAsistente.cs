@@ -1,4 +1,5 @@
 using CaeManager.Infrastructure.AsistenteIa;
+using CaeManager.Infrastructure.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Features.AsistenteIa;
@@ -8,7 +9,8 @@ namespace CaeManager.Web.Features.AsistenteIa;
 /// distintos y se encienden por separado:
 /// <list type="bullet">
 /// <item><see cref="PreguntasDisponibles"/>: el chat de consultas normativas, con
-/// <c>Anthropic:ApiKey</c>.</item>
+/// <c>Anthropic:ApiKey</c>, o con el doble de pruebas del arnés E2E
+/// (<see cref="MarcaAsistenteDePruebas"/>, que solo se registra en Development o Test).</item>
 /// <item><see cref="AgenteDisponible"/>: el agente que propone planes de gestión, con
 /// <c>TypeSafe:Activo</c> <b>y</b> <c>TypeSafe:ApiKey</c> (las dos llaves que exige el
 /// adaptador; ver <see cref="TypeSafeOptions"/>). Apagado por defecto: activarlo con
@@ -18,9 +20,13 @@ namespace CaeManager.Web.Features.AsistenteIa;
 /// consulta y cada escritura pasan por la comprobación de instrucción de tratamiento
 /// con IA y por los Commands de Application.
 /// </summary>
-public sealed class DisponibilidadAsistente(IOptions<AnthropicOptions> anthropic, IOptions<TypeSafeOptions> typeSafe)
+public sealed class DisponibilidadAsistente(
+    IOptions<AnthropicOptions> anthropic,
+    IOptions<TypeSafeOptions> typeSafe,
+    IEnumerable<MarcaAsistenteDePruebas> asistenteDePruebas)
 {
-    public bool PreguntasDisponibles => !string.IsNullOrWhiteSpace(anthropic.Value.ApiKey);
+    public bool PreguntasDisponibles =>
+        !string.IsNullOrWhiteSpace(anthropic.Value.ApiKey) || asistenteDePruebas.Any();
 
     public bool AgenteDisponible => typeSafe.Value.Activo && !string.IsNullOrWhiteSpace(typeSafe.Value.ApiKey);
 
