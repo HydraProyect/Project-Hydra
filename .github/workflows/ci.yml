@@ -108,12 +108,12 @@ jobs:
     # Techo del job entero, preparación incluida. Medido en los runs verdes
     # del 2026-10-26: 8 a 18 min por bloque, pero uno tardó 37,2 min porque
     # «Instalar LibreOffice» se quedó 27,7 min en apt. Con 40 ese run se
-    # habría cortado sin culpa; 60 deja margen a la preparación lenta. El
-    # cuelgue de un test lo corta antes el timeout del paso «Ejecutar el
-    # bloque» y --blame-hang (ver ese paso). Sin esto, el techo es el de
-    # GitHub, 6 h: el 2026-10-26 (PR #1729) el bloque 1 estuvo 78 min colgado
-    # en ese paso hasta que alguien canceló a mano.
-    timeout-minutes: 60
+    # habría cortado sin culpa; 75 cubre esa preparación lenta más los 40 del
+    # paso «Ejecutar el bloque». El cuelgue de un test lo corta antes
+    # --blame-hang (ver ese paso). Sin esto, el techo es el de GitHub, 6 h: el
+    # 2026-10-26 (PR #1729) el bloque 1 estuvo 78 min colgado en ese paso
+    # hasta que alguien canceló a mano.
+    timeout-minutes: 75
     needs: alcance
     if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     permissions:
@@ -300,20 +300,32 @@ jobs:
       #
       # CUELGUES (2026-10-26, PR #1729: 78 min colgado sin saber en qué test).
       # --blame-hang mata el testhost cuando pasan 10 min sin que EMPIECE ni
-      # TERMINE ningún test (el temporizador se reinicia con cada uno, así que
-      # con 8 hilos solo salta si el bloque entero está parado) y deja en el
-      # log de consola y en Sequence_*.xml, dentro de --results-directory, qué
-      # tests estaban en curso. Volcado `none`: lo que hace falta es el nombre
-      # del test; un volcado `full` del testhost pesa GB y uno `mini` no
-      # incluye el heap, que es donde están las máquinas de estado de los
-      # await, así que en un cuelgue asíncrono no diría nada más. Medido en el
-      # run 40282022954: el cierre del colector de cobertura tras el último
-      # test tarda 1 a 4 s, lejos de los 10 min. No cambia qué tests corren.
-      # El timeout del paso (30 min, ~2× el bloque más lento medido, 14,7)
+      # TERMINE ningún test: el temporizador arranca con el testhost y se
+      # reinicia con cada test, así que con 8 hilos solo salta si el bloque
+      # entero está parado. Ensayado en local con el mismo SDK, xunit 2.9.3,
+      # Test.Sdk 18.10.1, coverlet, trx y --results-directory:
+      #   - test colgado en un await: la consola dice «Prueba en ejecución
+      #     cuando se produjo el bloqueo: <test>», y quedan el .trx, el
+      #     Sequence_*.xml y la cobertura en --results-directory;
+      #   - fixture de clase colgada en InitializeAsync, sin test en curso:
+      #     también corta, pero sin nombre de test ni Sequence («Todas las
+      #     pruebas han terminado de ejecutarse»). Ahí la pista es qué clases
+      #     no llegaron a imprimir sus tests en la consola, y el log de
+      #     PostgreSQL de abajo;
+      #   - `none` no mata los procesos hijos del testhost: los limpia el
+      #     runner al terminar el job.
+      # Volcado `none`: lo que hace falta es el nombre del test; un volcado
+      # `full` del testhost pesa GB y uno `mini` no incluye el heap, que es
+      # donde están las máquinas de estado de los await, así que en un
+      # cuelgue asíncrono no diría nada más. Medido en el run 40282022954: el
+      # cierre del colector de cobertura tras el último test tarda 1 a 4 s;
+      # si volviera a tardar minutos (ver coverlet.runsettings) y pasara de
+      # 10, este corte daría un rojo falso. No cambia qué tests corren.
+      # El timeout del paso (40 min, ~2,7× el bloque más lento medido, 14,7)
       # es la red si blame no llega a cortar; al ser del paso y no del job,
       # los pasos de diagnóstico con failure() de abajo sí se ejecutan.
       - name: Ejecutar el bloque
-        timeout-minutes: 30
+        timeout-minutes: 40
         run: >
           dotnet test tests/CaeManager.IntegrationTests --no-build --logger "console;verbosity=normal"
           --logger "trx;LogFileName=bloque-${{ matrix.bloque }}.trx"
@@ -1289,9 +1301,10 @@ jobs:
 
       # CUELGUES: mismo criterio que «Ejecutar el bloque» de tests-integracion
       # (ver su comentario). --blame-hang corta tras 10 min sin que empiece ni
-      # termine ningún test, mata también los procesos hijos (CaeManager.Web y
-      # el navegador) y deja en el log y en TestResults/<guid>/Sequence_*.xml
-      # qué test estaba en curso; volcado `none` por la misma razón. El paso
+      # termine ningún test y deja en el log y en
+      # TestResults/<guid>/Sequence_*.xml qué test estaba en curso; volcado
+      # `none` por la misma razón. CaeManager.Web y el navegador, hijos del
+      # testhost, no los mata blame: los limpia el runner al acabar. El paso
       # «Tests E2E» más lento medido el 2026-10-26 tardó 8,7 min; 30 es la red
       # si blame no llega a cortar.
       - name: Tests E2E
@@ -1371,7 +1384,6 @@ jobs:
             || echo "TestResults no existe en tests/CaeManager.E2ETests (¿el logger trx no llegó a escribir?)" \
             >> /tmp/diagnostico-e2e/manifiesto.txt
 
-      #
       # TestResults entero, no solo el .trx: tras un cuelgue cortado por
       # --blame-hang, el Sequence_*.xml queda en una subcarpeta <guid>.
       # cancelled() se suma a failure() para cubrir también el job cortado
