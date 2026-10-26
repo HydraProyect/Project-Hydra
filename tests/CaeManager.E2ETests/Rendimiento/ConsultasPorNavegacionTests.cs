@@ -34,7 +34,11 @@ namespace CaeManager.E2ETests.Rendimiento;
 /// Un intento de eliminar la segunda pasada (recoger el resultado del
 /// prerender en el circuito con <c>PersistentComponentState</c>) bajaba 4 a 2
 /// pero ahorraba solo 18–30 ms de esqueleto de carga al usuario, y se
-/// descartó (#752).
+/// descartó (#752) para las listas de pantalla que mide esta clase. El layout
+/// sí lo usa desde el encargo 31 (migas, selector de Tenant beneficiario y gate
+/// de términos): son lecturas pequeñas que se repiten en cada visita, y solo se
+/// reutilizan con el mismo contexto y dentro de la caducidad de los memos del
+/// layout.
 /// </para>
 /// </summary>
 [Collection("AppCollectionConsultasSql")]

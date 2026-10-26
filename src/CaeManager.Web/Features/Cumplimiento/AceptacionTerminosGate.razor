@@ -13,6 +13,7 @@
 @using CaeManager.Application.Cumplimiento.Queries.ObtenerEstadoAceptacionTerminos
 @using CaeManager.Web.Features.Cumplimiento.Recursos
 @using CaeManager.Application.Common
+@using CaeManager.Domain.Cumplimiento
 @using MediatR
 @using Microsoft.Extensions.DependencyInjection
 @using Microsoft.Extensions.Localization
@@ -64,7 +65,7 @@
     /// El prerenderizado sigue pintando el modal bloqueante; el circuito solo lo reutiliza para el mismo usuario
     /// y dentro de la caducidad de las lecturas del layout.
     /// </summary>
-    public sealed record EstadoGate(Guid Usuario, DateTimeOffset Creado, bool DebeAceptar);
+    public sealed record EstadoGate(Guid Usuario, string Version, DateTimeOffset Creado, bool DebeAceptar);
 
     protected override async Task OnInitializedAsync()
     {
@@ -72,16 +73,13 @@
         {
             var usuario = Servicios.GetService<ICurrentUserService>() is { } actual
                 ? await actual.ObtenerUsuarioActualIdAsync() : null;
-            if (EstadoPersistente.TryTakeFromJson<EstadoGate>(ClavePersistencia, out var anterior)
-                && anterior is not null && usuario is { } id && anterior.Usuario == id
-                && DateTimeOffset.UtcNow - anterior.Creado is var edad && edad >= TimeSpan.Zero
-                && edad < MemoPorContexto.Caducidad)
+            if (Restaurar(usuario) is { } anterior)
                 _debeAceptar = anterior.DebeAceptar;
             else
             {
                 _debeAceptar = await Mediator.Send(new ObtenerEstadoAceptacionTerminosQuery());
                 if (usuario is { } leido)
-                    _estado = new(leido, DateTimeOffset.UtcNow, _debeAceptar);
+                    _estado = new(leido, VersionTerminos.Actual, DateTimeOffset.UtcNow, _debeAceptar);
             }
         }
         catch (Exception)
@@ -93,6 +91,28 @@
             _debeAceptar = false;
         }
         _persistencia = EstadoPersistente.RegisterOnPersisting(PersistirAsync);
+    }
+
+    /// <summary>
+    /// Lo que dejó el prerenderizado, si es del mismo usuario, de la versión vigente de los términos y está dentro de
+    /// la caducidad. Un estado ilegible no deja el gate abierto: se ignora y se consulta.
+    /// </summary>
+    private EstadoGate? Restaurar(Guid? usuario)
+    {
+        try
+        {
+            return EstadoPersistente.TryTakeFromJson<EstadoGate>(ClavePersistencia, out var anterior)
+                && anterior is not null && usuario is { } id && anterior.Usuario == id
+                && anterior.Version == VersionTerminos.Actual
+                && DateTimeOffset.UtcNow - anterior.Creado is var edad && edad >= TimeSpan.Zero
+                && edad < MemoPorContexto.Caducidad
+                ? anterior
+                : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 
     private Task PersistirAsync()

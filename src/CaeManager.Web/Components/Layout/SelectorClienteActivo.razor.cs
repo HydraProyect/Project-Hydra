@@ -71,6 +71,10 @@ public partial class SelectorClienteActivo
     private PresentacionSelector? _presentacion;
     private const string ClavePersistencia = "layout-selector-presentacion-v1";
 
+    // El estado persistido viaja de vuelta al servidor al arrancar el circuito, dentro del mensaje de SignalR
+    // (32 KB por defecto). Una cartera grande no se persiste: el circuito vuelve a leerla, como antes.
+    internal const int MaximoEmpresasPersistidas = 25;
+
     /// <summary>
     /// Contexto con el que se leyó lo que el prerenderizado deja al circuito: la misma clave que los memos del
     /// layout (usuario, Tenant de origen, perfil que decide el alcance, Tenant efectivo y ámbito explícito) más el
@@ -475,7 +479,7 @@ public partial class SelectorClienteActivo
         {
             if (!restaurado)
                 _puedeSolicitar = await Mediator.Send(new CaeManager.Application.Operaciones.IncorporacionCartera.Queries.ParticipaEnIncorporacionCarteraQuery());
-            if (!restaurado && contexto is not null)
+            if (!restaurado && contexto is not null && _clientes.Count <= MaximoEmpresasPersistidas)
                 _presentacion = new(contexto, DateTimeOffset.UtcNow, _clientes.ToList(), _puedeSolicitar);
         }
         catch (Exception ex)

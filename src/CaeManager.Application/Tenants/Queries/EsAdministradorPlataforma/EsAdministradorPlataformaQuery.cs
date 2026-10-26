@@ -21,8 +21,17 @@ namespace CaeManager.Application.Tenants.Queries.EsAdministradorPlataforma;
 /// <c>Tenant.EsPlataforma</c> hasta el bloque que lo traslade, así que
 /// <b>ya no hay paridad con él</b> y no debe citarse aquí como equivalente.
 /// </para>
+///
+/// <para>
+/// Por defecto la respuesta sale de <see cref="MemoAdministradorPlataforma"/> (hasta
+/// <see cref="MemoPorContexto.Caducidad"/> de antigüedad dentro del ámbito): basta para mostrar u ocultar
+/// controles, porque cada operación de plataforma vuelve a comprobar la concesión. Quien decide con ella una
+/// lectura que no autoriza por sí misma pide <paramref name="LecturaVigente"/>: lee la concesión vigente y no
+/// toca el memo.
+/// </para>
 /// </summary>
-public record EsAdministradorPlataformaQuery : IRequest<bool>;
+/// <param name="LecturaVigente">Leer la concesión de la base aunque el ámbito tenga la respuesta memoizada.</param>
+public record EsAdministradorPlataformaQuery(bool LecturaVigente = false) : IRequest<bool>;
 
 public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma autorizacion, ICurrentUserService currentUserService,
     ITenantActual? tenantActual = null, MemoAdministradorPlataforma? memo = null)
@@ -30,7 +39,7 @@ public class EsAdministradorPlataformaQueryHandler(IAutorizacionAdminPlataforma 
 {
     public async Task<bool> Handle(EsAdministradorPlataformaQuery request, CancellationToken cancellationToken)
     {
-        if (memo is not null && tenantActual is not null
+        if (memo is not null && tenantActual is not null && !request.LecturaVigente
             && await ClaveContextoMemo.ResolverAsync(currentUserService, tenantActual) is { } clave)
             return await memo.ObtenerOCalcularAsync(clave, CalcularAsync, cancellationToken);
 

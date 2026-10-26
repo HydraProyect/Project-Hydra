@@ -129,22 +129,47 @@ public class SelectorClienteActivoTests : BunitContext
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Una_presentacion_caducada_o_de_otro_contexto_no_se_reutiliza(bool caducada)
+    [InlineData("vigente")]
+    [InlineData("caducada")]
+    [InlineData("otro-seleccionado")]
+    [InlineData("otro-usuario")]
+    [InlineData("otro-origen")]
+    [InlineData("otro-perfil")]
+    [InlineData("otro-tenant-efectivo")]
+    [InlineData("otro-ambito")]
+    public void Solo_se_reutiliza_la_presentacion_vigente_del_mismo_contexto(string escenario)
     {
         Services.AddScoped<IClienteActivoSeleccionado>(_ => new SeleccionEmpresaGestionadaDePrueba(Norte));
+        var clave = new ClaveContextoMemo(
+            escenario == "otro-usuario" ? Guid.NewGuid() : UsuarioFalso.Id,
+            escenario == "otro-origen" ? Guid.NewGuid() : Origen,
+            escenario == "otro-perfil" ? "Consulta" : "GestorCae",
+            escenario == "otro-tenant-efectivo" ? Sur : Norte,
+            escenario == "otro-ambito" ? Norte : null);
         _estadoPersistente.Persist("layout-selector-presentacion-v1",
             new SelectorClienteActivo.PresentacionSelector(
-                new(new ClaveContextoMemo(UsuarioFalso.Id, Origen, "GestorCae", Norte, null), caducada ? Norte : Sur),
-                DateTimeOffset.UtcNow - (caducada ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
+                new(clave, escenario == "otro-seleccionado" ? Sur : Norte),
+                DateTimeOffset.UtcNow - (escenario == "caducada" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
                 [Propio(), Gestionado(Norte, "Dato antiguo"), Gestionado(Sur, "Empresa Sur")], true));
         _lista = [Propio(), Gestionado(Norte, "Dato vigente"), Gestionado(Sur, "Empresa Sur")];
 
         var cut = Render<SelectorClienteActivo>();
 
-        cut.Find(".selector-tenant-disparador").TextContent.Should().Contain("Dato vigente");
-        cut.Markup.Should().NotContain("Dato antiguo");
+        cut.Find(".selector-tenant-disparador").TextContent.Should()
+            .Contain(escenario == "vigente" ? "Dato antiguo" : "Dato vigente");
+    }
+
+    [Fact]
+    public void Una_cartera_grande_no_se_persiste_para_el_circuito()
+    {
+        _lista = [Propio(), .. Enumerable.Range(0, 30).Select(i => Gestionado(Guid.NewGuid(), $"Empresa {i}"))];
+        var prerender = Renderizar();
+        _estadoPersistente.TriggerOnPersisting();
+        prerender.Dispose();
+
+        _estadoPersistente.TryTake<SelectorClienteActivo.PresentacionSelector>(
+                "layout-selector-presentacion-v1", out _)
+            .Should().BeFalse("el estado persistido vuelve al servidor en el mensaje de arranque del circuito");
     }
 
     private static ClienteAutorizadoDto Gestionado(Guid id, string nombre) =>

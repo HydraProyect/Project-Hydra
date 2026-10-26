@@ -287,6 +287,8 @@ public class CabeceraRedisenadaTests : BunitContext
     [InlineData("otro-tenant", 1)]
     [InlineData("otro-perfil", 1)]
     [InlineData("caducada", 1)]
+    [InlineData("otro-usuario", 1)]
+    [InlineData("otro-origen", 1)]
     public void Las_migas_reutilizan_solo_la_presentacion_vigente_del_mismo_contexto(string escenario, int consultasEsperadas)
     {
         var origen = Guid.NewGuid();
@@ -302,7 +304,9 @@ public class CabeceraRedisenadaTests : BunitContext
             return false;
         }));
         Services.GetRequiredService<NavigationManager>().NavigateTo("/empresas");
-        var clave = new ClaveContextoMemo(Marta, origen,
+        var clave = new ClaveContextoMemo(
+            escenario == "otro-usuario" ? Guid.NewGuid() : Marta,
+            escenario == "otro-origen" ? Guid.NewGuid() : origen,
             escenario == "otro-perfil" ? "Consulta" : "GestorCae",
             escenario == "otro-tenant" ? Guid.NewGuid() : efectivo, null);
         _estadoPersistente.Persist("layout-migas-presentacion-v1", new MigasPagina.PresentacionMigas(

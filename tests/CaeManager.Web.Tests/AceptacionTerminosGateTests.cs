@@ -101,21 +101,31 @@ public class AceptacionTerminosGateTests : BunitContext
     }
 
     [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void Un_estado_caducado_o_de_otro_usuario_no_se_reutiliza(bool caducado)
+    [InlineData("vigente")]
+    [InlineData("caducado")]
+    [InlineData("otro-usuario")]
+    [InlineData("otra-version")]
+    public void Solo_se_reutiliza_el_estado_vigente_del_mismo_usuario_y_version(string escenario)
     {
-        var estado = _estadoPersistente;
         var mediador = Preparar();
-        estado.Persist("gate-terminos-estado-v1", new AceptacionTerminosGate.EstadoGate(
-            caducado ? _usuario.Id : Guid.NewGuid(),
-            DateTimeOffset.UtcNow - (caducado ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
+        _estadoPersistente.Persist("gate-terminos-estado-v1", new AceptacionTerminosGate.EstadoGate(
+            escenario == "otro-usuario" ? Guid.NewGuid() : _usuario.Id,
+            escenario == "otra-version" ? "2000-01-01" : CaeManager.Domain.Cumplimiento.VersionTerminos.Actual,
+            DateTimeOffset.UtcNow - (escenario == "caducado" ? TimeSpan.FromMinutes(1) : TimeSpan.Zero),
             DebeAceptar: false));
 
         var gate = Render<AceptacionTerminosGate>();
 
-        mediador.Consultas.Should().Be(1);
-        gate.Find(".texto-consentimiento");
+        if (escenario == "vigente")
+        {
+            mediador.Consultas.Should().Be(0, "el circuito reutiliza el «no hace falta aceptar» del prerenderizado");
+            gate.FindAll(".texto-consentimiento").Should().BeEmpty();
+        }
+        else
+        {
+            mediador.Consultas.Should().Be(1);
+            gate.Find(".texto-consentimiento");
+        }
     }
 
     [Fact]
