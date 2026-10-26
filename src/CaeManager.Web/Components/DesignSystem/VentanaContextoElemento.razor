@@ -11,7 +11,7 @@
         class="ventana-contexto-elemento"
         title="@Ayuda"
         disabled="@Deshabilitado"
-        @onclick="AlPulsar"
+        @onclick="ManejadorClic"
         @attributes="AtributosAdicionales">
     <span class="ventana-contexto-elemento-texto">@ChildContent</span>
     @if (!string.IsNullOrWhiteSpace(Secundario))
@@ -33,6 +33,12 @@
     [Parameter] public string? Ayuda { get; set; }
 
     [Parameter] public bool Deshabilitado { get; set; }
+
+    // El clic llega al llamador solo si el elemento está habilitado (CWE-602: quitar `disabled` en el DOM del navegador no basta).
+    // Sin AlPulsar no se registra manejador, como antes con el EventCallback sin delegado.
+    private EventCallback ManejadorClic => AlPulsar.HasDelegate ? EventCallback.Factory.Create(this, AlClicAsync) : default;
+
+    private Task AlClicAsync() => Deshabilitado ? Task.CompletedTask : AlPulsar.InvokeAsync();
 
     [Parameter(CaptureUnmatchedValues = true)]
     public Dictionary<string, object>? AtributosAdicionales { get; set; }

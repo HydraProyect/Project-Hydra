@@ -238,8 +238,9 @@
 
     private async Task AlPulsarAsync()
     {
-        // Sin doble envío: el clic que llegara antes del render deshabilitado no sale de aquí.
-        if (EnCurso && !ReintentoDisponible) return;
+        // Sin doble envío: el clic que llegara antes del render deshabilitado no sale de aquí. Tampoco el de un botón que la pantalla
+        // dejó deshabilitado (CWE-602: quitar `disabled` en el DOM del navegador no basta).
+        if (BotonDeshabilitado) return;
         if (ReintentoDisponible) await OnReintentar.InvokeAsync();
         else await OnClick.InvokeAsync();
     }

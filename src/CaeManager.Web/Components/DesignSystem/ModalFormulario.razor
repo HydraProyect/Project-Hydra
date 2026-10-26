@@ -218,8 +218,9 @@
 
     private async Task GuardarAsync()
     {
-        // Guarda de doble clic en el kit, igual que DrawerFormulario.
-        if (_guardadoEnCurso || Guardando) return;
+        // Guarda de doble clic en el kit, igual que DrawerFormulario; y «Guardar» deshabilitado no guarda aunque el clic llegue
+        // (CWE-602: quitar `disabled` en el DOM del navegador no basta).
+        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado) return;
         _guardadoEnCurso = true;
         try
         {

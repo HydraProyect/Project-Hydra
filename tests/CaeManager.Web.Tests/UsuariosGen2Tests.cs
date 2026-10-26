@@ -1171,7 +1171,11 @@ public partial class UsuariosGen2Tests : BunitContext
         await EscribirAsync(cut, "Nombre completo", "Sin Correo");
         await GuardarAsync(cut);
 
-        cut.Find(".alerta-formulario").TextContent.Should().Contain("Correo y nombre son obligatorios");
+        // «Guardar» sale deshabilitado con su motivo mientras falte el correo, y el kit no deja pasar el clic de un botón deshabilitado
+        // (CWE-602): antes este clic llegaba al manejador de la página, que respondía con «Correo y nombre son obligatorios».
+        var guardar = cut.Find(".drawer-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
         _identidad.Creadas.Should().BeEmpty();
         cut.FindAll(".drawer-panel").Should().NotBeEmpty("el formulario no se cierra sobre una validación");
 
