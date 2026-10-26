@@ -2,6 +2,7 @@ using System.Collections;
 using System.Linq.Expressions;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Operaciones;
 using CaeManager.Infrastructure.Autorizacion;
 using CaeManager.Infrastructure.Identity;
@@ -99,17 +100,89 @@ public partial class LoginLocalEnAsignacionDelegadaTests
 
         (await escenario.Servicio.ObtenerRolDeAsignacionHeredadaAsync()).Should().BeNull();
     }
+
+    /// <summary>
+    /// Revisión de seguridad 2026-10-23, Z1-3. La FK compuesta de AsignacionesCartera impide en
+    /// PostgreSQL una cartera del Tenant visitado bajo una Asignación de Operación de otro Tenant
+    /// propietario; este contexto sin base de datos no la aplica, que es justo lo que permite probar
+    /// que la consulta falla en cerrado por sí misma si esa fila mal formada existiera.
+    /// </summary>
+    [Fact]
+    public async Task La_cartera_no_concede_el_ambito_de_una_Operacion_de_otro_Tenant_propietario()
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae);
+        await escenario.AplicarMiddlewareAsync();
+        var tenantActual = new TenantActualAmbiental { TenantId = escenario.TenantVisitado };
+        var ahora = DateTime.UtcNow;
+        var clientePropio = Guid.NewGuid();
+        var clienteDeOtroTenant = Guid.NewGuid();
+        var operacionPropia = AsignacionOperacion.Externa(escenario.TenantVisitado, escenario.TenantOrigen,
+            ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clientePropio), ahora.AddHours(-1), null, ahora);
+        // Misma posición (Operador CAE de origen, vigente), pero el Tenant propietario es otro.
+        var operacionDeOtroTenant = AsignacionOperacion.Externa(Guid.NewGuid(), escenario.TenantOrigen,
+            ServicioCae.Outbound, AmbitoAsignacion.DeRelacionCliente(clienteDeOtroTenant), ahora.AddHours(-1), null, ahora);
+        var cartera = AsignacionCartera.Externa(operacionPropia, escenario.Usuario, Roles.GestorCae,
+            AmbitoAsignacion.Universal, ahora.AddHours(-1), null, ahora);
+        var usuarios = new[] { new ApplicationUser { Id = escenario.Usuario } };
+
+        // Control: la cartera bien formada sí concede el ámbito de su Operación.
+        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios))
+        {
+            var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+            (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().Equal(clientePropio);
+        }
+
+        // La misma cartera, apuntando a la Operación de otro Tenant propietario: no concede nada.
+        typeof(AsignacionCartera).GetProperty(nameof(AsignacionCartera.AsignacionOperacionId))!
+            .SetValue(cartera, operacionDeOtroTenant.Id);
+        await using (var db = new ContextoDeCarteras(escenario, tenantActual, [operacionPropia, operacionDeOtroTenant], [cartera], usuarios))
+        {
+            var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+            (await alcance.ObtenerClienteIdsVisiblesAsync()).Should().BeEmpty(
+                "una Asignación de Operación de otro Tenant propietario no ampara una cartera del Tenant en el que se opera");
+        }
+    }
+
+    /// <summary>
+    /// Revisión de seguridad 2026-10-23, Z1-5: una conexión que no se puede leer no es visible
+    /// (antes, «sin fila» se confundía con «buzón general» y devolvía true). Este contexto no aplica
+    /// el filtro global de Tenant ni de borrado lógico: el caso de otro Tenant o eliminada llega al
+    /// servicio como «sin fila» por ese filtro, que aquí se representa con un Id inexistente. Los tres casos con fila
+    /// fijan que el arreglo no rompe los buzones generales ni el personal propio.
+    /// </summary>
+    [Fact]
+    public async Task Una_conexion_de_integracion_que_no_se_puede_leer_no_es_visible()
+    {
+        using var escenario = await Escenario.CrearAsync(Roles.GestorCae, Roles.GestorCae);
+        await escenario.AplicarMiddlewareAsync();
+        var tenantActual = new TenantActualAmbiental { TenantId = escenario.TenantVisitado };
+        var general = new ConexionIntegracion("cae@buzon-simulado.local", "General");
+        var personalPropio = new ConexionIntegracion("propio@buzon-simulado.local", "Propio", gestorPropietarioId: escenario.Usuario);
+        var personalAjeno = new ConexionIntegracion("ajeno@buzon-simulado.local", "Ajeno", gestorPropietarioId: Guid.NewGuid());
+        await using var db = new ContextoDeCarteras(escenario, tenantActual, [], [], [],
+            [general, personalPropio, personalAjeno]);
+        var alcance = new AlcanceDatosService(db, escenario.Servicio, tenantActual, new SesionPrivilegiadaAusente());
+
+        (await alcance.ConexionIntegracionVisibleAsync(Guid.NewGuid())).Should().BeFalse(
+            "una conexión sin fila legible en el Tenant actual falla en cerrado");
+        (await alcance.ConexionIntegracionVisibleAsync(general.Id)).Should().BeTrue();
+        (await alcance.ConexionIntegracionVisibleAsync(personalPropio.Id)).Should().BeTrue();
+        (await alcance.ConexionIntegracionVisibleAsync(personalAjeno.Id)).Should().BeFalse();
+    }
+
     private sealed class ContextoDeCarteras : CaeManagerDbContext
     {
         private readonly AsignacionOperacion[] operaciones;
         private readonly AsignacionCartera[] carteras;
+        private readonly ConexionIntegracion[] conexiones;
 
         public ContextoDeCarteras(Escenario escenario, TenantActualAmbiental tenantActual, AsignacionOperacion[] operaciones,
-            AsignacionCartera[] carteras, ApplicationUser[] usuarios)
+            AsignacionCartera[] carteras, ApplicationUser[] usuarios, ConexionIntegracion[]? conexiones = null)
             : base(new DbContextOptionsBuilder<CaeManagerDbContext>().Options, escenario.Protector, tenantActual)
         {
             this.operaciones = operaciones;
             this.carteras = carteras;
+            this.conexiones = conexiones ?? [];
             // Después del constructor de EF, que inicializa los DbSets de Identity.
             Users = new ConjuntoDePruebas<ApplicationUser>(usuarios);
         }
@@ -120,6 +193,8 @@ public partial class LoginLocalEnAsignacionDelegadaTests
                 return (DbSet<TEntity>)(object)new ConjuntoDePruebas<AsignacionOperacion>(operaciones);
             if (typeof(TEntity) == typeof(AsignacionCartera))
                 return (DbSet<TEntity>)(object)new ConjuntoDePruebas<AsignacionCartera>(carteras);
+            if (typeof(TEntity) == typeof(ConexionIntegracion))
+                return (DbSet<TEntity>)(object)new ConjuntoDePruebas<ConexionIntegracion>(conexiones);
             throw new NotSupportedException($"La prueba no debe consultar {typeof(TEntity).Name}.");
         }
     }

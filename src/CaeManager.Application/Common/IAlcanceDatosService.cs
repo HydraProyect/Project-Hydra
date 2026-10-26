@@ -171,7 +171,9 @@ public interface IAlcanceDatosService
     /// esto es propiedad de un recurso, no pertenencia a una cartera — por
     /// eso no tiene excepción de rol, ni Administrador ve por defecto el
     /// correo personal de otro gestor por aquí (para eso está la gestión
-    /// explícita de /integraciones).
+    /// explícita de /integraciones). Una conexión que no se puede leer en el
+    /// Tenant actual (inexistente, de otro Tenant o eliminada) no es visible:
+    /// falla en cerrado.
     /// </summary>
     Task<bool> ConexionIntegracionVisibleAsync(Guid conexionIntegracionId, CancellationToken cancellationToken = default);
 }
