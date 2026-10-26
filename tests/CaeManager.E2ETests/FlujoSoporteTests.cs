@@ -20,21 +20,10 @@ namespace CaeManager.E2ETests;
 /// cubierto ahora seleccionando de verdad el workspace delegado y navegando
 /// tras abrir el acceso — se comprueba "Navegó a" en la actividad.
 ///
-/// Fuera de alcance, tras cinco intentos reales en CI: verificar también
-/// "Pulsó" (TipoActividadSoporte.Interaccion). El registro de clics vive en
-/// trazaSoporte.js — se acumulan en el navegador, se envían por lotes cada
-/// 2s, y su listener (document.addEventListener, enganchado en
-/// OnAfterRenderAsync tras importar el módulo) no tiene ninguna señal en el
-/// DOM que Playwright pueda esperar: cada intento de sincronizarlo con una
-/// espera fija distinta (tras el clic, antes del clic, separando navegación
-/// de interacción) reprodujo el mismo síntoma — la Interaccion simplemente
-/// no llegaba a registrarse en CI, aunque el clic sí abría el drawer
-/// correspondiente. El propio mecanismo de captura de clics no tiene un
-/// gancho de producción pensado para pruebas (algo tipo "avísame cuando el
-/// listener ya esté enganchado"); añadir uno solo para este test no está
-/// justificado todavía. Verificar "Navegó a" ya prueba que TrazaSoporteService
-/// escribe de verdad mientras se opera el workspace delegado — la brecha que
-/// quedaba sin cubrir tras la primera versión del test.
+/// La captura de clics y la confirmación del lote registrado se observan en
+/// el aviso de soporte antes de cambiar de Tenant y destruir el circuito.
+/// El Actor real sigue siendo el Actor de Plataforma TALVEG autenticado;
+/// este recorrido de la vía heredada no selecciona ningún Usuario simulado.
 ///
 /// Solo el Administrador inicial puede abrir acceso de soporte:
 /// AbrirAccesoSoporteCommandHandler exige que el tenant de ORIGEN del
@@ -111,19 +100,19 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // TrazaSoporte.OnInitializedAsync/LocationChanged.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // Interacción real: un clic en el menú lo captura trazaSoporte.js y lo
-        // envía por lotes cada 2 s (INTERVALO_ENVIO_MS). Es la mitad del
-        // rastro que este test no observaba, y por no observarla estuvo rota
-        // sin que nadie lo notara: la guarda de TrazaSoporte.OnAfterRenderAsync
-        // no podía dispararse, así que el módulo no se importaba nunca y no se
-        // registraba una sola Interaccion. Se espera al vaciado del lote ANTES
-        // de cambiar de workspace, porque ese cambio recarga el documento y se
-        // llevaría por delante lo que quedara pendiente de enviar.
-        await page.Locator("a.nav-item[href='empresas']").First.ClickAsync();
-        await Assertions.Expect(page).ToHaveURLAsync(
-            new System.Text.RegularExpressions.Regex("/empresas$"),
-            new PageAssertionsToHaveURLOptions { Timeout = 15_000 });
-        await page.WaitForTimeoutAsync(3500);
+        // El aviso puede existir antes del interop de OnAfterRenderAsync. Esperar
+        // al listener y después al lote persistido evita perder el clic al recargar.
+        var aviso = page.Locator(".aviso-sesion-soporte");
+        await Assertions.Expect(aviso).ToHaveAttributeAsync("data-captura-lista", "true",
+            new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        var registradas = await aviso.GetAttributeAsync("data-interacciones-registradas");
+        // Una interacción sin navegación: el documento que confirma el lote debe
+        // seguir siendo el que capturó el clic, también con navegación mejorada.
+        await Ayudas.AbrirSelectorTenantAsync(page);
+        // El lote sale cada 2 s (INTERVALO_ENVIO_MS de trazaSoporte.js) y el contador solo sube tras guardarlo.
+        await Assertions.Expect(aviso).Not.ToHaveAttributeAsync("data-interacciones-registradas", registradas!,
+            new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
+        await Ayudas.CerrarSelectorTenantAsync(page);
 
         // --- Volver al tenant de origen: gestionar delegaciones (incluida
         // la propia lectura de actividad) se hace desde la organización
@@ -184,6 +173,7 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
         // La actividad registrada ahora incluye también el cierre.
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Ver actividad registrada", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await tabla.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         Assert.Contains("Acceso cerrado", await tabla.InnerTextAsync());
     }
 }
