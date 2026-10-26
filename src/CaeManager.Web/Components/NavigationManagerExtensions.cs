@@ -32,6 +32,9 @@ public static class NavigationManagerExtensions
         private string? _destino;
         private readonly HashSet<string> _destinosDeLaCadena = new(StringComparer.Ordinal);
 
+        // URL sobre la que se compuso cada destino de la cadena: lleva las escrituras anteriores aún sin confirmar.
+        private readonly Dictionary<string, string> _bases = new(StringComparer.Ordinal);
+
         // Última ubicación cuyo LocationChanged ha visto este manejador, y si la cadena empezó sobre una URL cuyo
         // evento aún no había llegado aquí (la página escribió dentro de él, antes que este manejador).
         private string _ultimaUbicacionVista;
@@ -63,14 +66,54 @@ public static class NavigationManagerExtensions
             return actual;
         }
 
-        public void Solicitar(string destino)
+        public void Solicitar(string destino, string baseDeComposicion)
         {
             // Con el tope solo se olvidan los acuses intermedios: el origen y el último destino siguen valiendo, y un
             // acuse intermedio olvidado se tratará como navegación ajena (vuelta a componer sobre Uri).
-            if (_destinosDeLaCadena.Count >= MaximoDestinosPorCadena)
+            // El tope se mide sobre _bases, que también guarda los destinos detenidos y retirados de la cadena.
+            if (_bases.Count >= MaximoDestinosPorCadena)
+            {
                 _destinosDeLaCadena.Clear();
+                _bases.Clear();
+            }
             _destino = destino;
             _destinosDeLaCadena.Add(destino);
+            _bases[destino] = baseDeComposicion;
+        }
+
+        /// <summary>
+        /// La navegación a <paramref name="destino"/> no llegará (la detuvo el aviso de cambios sin guardar). Si era el
+        /// último destino pedido, deja de serlo: componer la siguiente escritura sobre él resucitaría, sin preguntar, lo
+        /// que el usuario decidió no hacer. La cadena vuelve a la base sobre la que se compuso: la escritura anterior si
+        /// sigue en vuelo (sus parámetros no se pierden), o Uri si no la había. Su base se recuerda, por si «Salir y
+        /// descartar» la vuelve a pedir (<see cref="BaseDe"/>), pero su acuse ya no se toma por intermedio.
+        /// </summary>
+        public void DescartarSiEsElUltimo(string destino)
+        {
+            if (_destino is null || destino != new Uri(_destino).AbsoluteUri)
+                return;
+
+            var baseDelDetenido = _bases[_destino];
+            if (_destinosDeLaCadena.Contains(baseDelDetenido))
+            {
+                _destinosDeLaCadena.Remove(_destino);
+                _destino = baseDelDetenido;
+            }
+            else
+            {
+                Reiniciar();
+            }
+        }
+
+        /// <summary>URL sobre la que se compuso <paramref name="destino"/> en esta cadena; null si no es uno de sus destinos.</summary>
+        public string? BaseDe(string destino)
+        {
+            if (_destino is null)
+                return null;
+            foreach (var (pedido, baseDelPedido) in _bases)
+                if (destino == new Uri(pedido).AbsoluteUri)
+                    return baseDelPedido;
+            return null;
         }
 
         public void Reiniciar()
@@ -79,6 +122,7 @@ public static class NavigationManagerExtensions
             _destino = null;
             _esperaElEventoDelOrigen = false;
             _destinosDeLaCadena.Clear();
+            _bases.Clear();
         }
 
         private void AlCambiarUbicacion(string ubicacion)
@@ -122,28 +166,34 @@ public static class NavigationManagerExtensions
     /// (<c>replace: true</c> para no llenar el historial de un clic por
     /// tecla). Un valor vacío o en blanco quita el parámetro en vez de
     /// dejarlo como cadena vacía en la URL.
+    /// <paramref name="estadoHistorial"/> permite conservar la ausencia de marca en escrituras de contexto o pestaña
+    /// que deben seguir pasando por el aviso de cambios sin guardar. Si el aviso las detiene, avisa con
+    /// <see cref="DescartarEscrituraDetenida"/> y la cadena no compone sobre ellas.
     /// </summary>
-    public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor) =>
-        navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor });
+    public static void ActualizarFiltroEnUrl(this NavigationManager navigation, string nombreParametro, string? valor,
+        string? estadoHistorial = EstadoEscrituraDeFiltros) =>
+        navigation.ActualizarFiltrosEnUrl(new Dictionary<string, string?> { [nombreParametro] = valor }, estadoHistorial);
 
     /// <summary>
     /// Igual que <see cref="ActualizarFiltroEnUrl"/> pero para varios
     /// parámetros a la vez, en una única navegación. Mientras el navegador no
     /// confirma la navegación, compone los cambios sobre el último destino solicitado.
     /// </summary>
-    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros)
+    public static void ActualizarFiltrosEnUrl(this NavigationManager navigation, IReadOnlyDictionary<string, string?> parametros,
+        string? estadoHistorial = EstadoEscrituraDeFiltros)
     {
         var normalizados = new Dictionary<string, object?>();
         foreach (var (nombreParametro, valor) in parametros)
             normalizados[nombreParametro] = string.IsNullOrWhiteSpace(valor) ? null : valor;
 
         var pendientes = Pendientes.GetValue(navigation, n => new EscriturasPendientes(n));
-        var destino = navigation.GetUriWithQueryParameters(pendientes.BaseDeComposicion(navigation.Uri), normalizados);
-        pendientes.Solicitar(destino);
+        var baseDeComposicion = pendientes.BaseDeComposicion(navigation.Uri);
+        var destino = navigation.GetUriWithQueryParameters(baseDeComposicion, normalizados);
+        pendientes.Solicitar(destino, baseDeComposicion);
         try
         {
             navigation.NavigateTo(destino,
-                new NavigationOptions { ReplaceHistoryEntry = true, HistoryEntryState = EstadoEscrituraDeFiltros });
+                new NavigationOptions { ReplaceHistoryEntry = true, HistoryEntryState = estadoHistorial });
         }
         catch
         {
@@ -151,4 +201,27 @@ public static class NavigationManagerExtensions
             throw;
         }
     }
+
+    /// <summary>
+    /// Lo llama <c>AvisoCambiosSinGuardar</c> al detener una navegación: si era la última escritura pedida en la URL de
+    /// este <see cref="NavigationManager"/>, deja de ser la base de la siguiente (ver
+    /// <see cref="EscriturasPendientes.DescartarSiEsElUltimo"/>).
+    /// </summary>
+    internal static void DescartarEscrituraDetenida(this NavigationManager navigation, string destino)
+    {
+        if (Pendientes.TryGetValue(navigation, out var pendientes))
+            pendientes.DescartarSiEsElUltimo(navigation.ToAbsoluteUri(destino).AbsoluteUri);
+    }
+
+    /// <summary>
+    /// URL de la que parte la navegación a <paramref name="destino"/>: si es la última escritura pedida, la URL sobre la
+    /// que se compuso, que ya lleva las escrituras anteriores aún sin confirmar; si no, <see cref="NavigationManager.Uri"/>.
+    /// Con ella compara <c>AvisoCambiosSinGuardar</c> qué cambia una escritura: contra <see cref="NavigationManager.Uri"/>,
+    /// un filtro anterior aún en vuelo parecería parte del cambio de pestaña y haría preguntar sin motivo.
+    /// </summary>
+    internal static string UrlDeLaQueParte(this NavigationManager navigation, string destino) =>
+        Pendientes.TryGetValue(navigation, out var pendientes)
+        && pendientes.BaseDe(navigation.ToAbsoluteUri(destino).AbsoluteUri) is { } baseDeComposicion
+            ? baseDeComposicion
+            : navigation.Uri;
 }

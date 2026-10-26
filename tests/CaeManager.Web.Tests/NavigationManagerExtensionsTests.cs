@@ -60,6 +60,37 @@ public class NavigationManagerExtensionsTests
     }
 
     /// <summary>
+    /// Caso A+B: dos escrituras seguidas en el mismo ciclo, antes de que el navegador confirme la primera. Las de
+    /// contexto o pestaña van sin marca (<c>estadoHistorial: null</c>) para seguir pasando por el aviso de cambios sin
+    /// guardar, y aun así componen sobre el último destino pedido igual que las de filtros: la segunda conserva los dos
+    /// parámetros, con o sin marca en cualquiera de ellas.
+    /// </summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public void Dos_escrituras_seguidas_en_el_mismo_ciclo_conservan_los_dos_parametros(bool primeraConMarca, bool segundaConMarca)
+    {
+        var navigation = new NavegacionRetenida("http://localhost/visitas/1?extra=conservar#detalle") { Retener = true };
+        var ctx = "Vehiculo:00000000-0000-0000-0000-000000000001:informacion";
+
+        navigation.ActualizarFiltroEnUrl("pestana", "ficha", primeraConMarca ? NavigationManagerExtensions.EstadoEscrituraDeFiltros : null);
+        navigation.ActualizarFiltroEnUrl("ctx", ctx, segundaConMarca ? NavigationManagerExtensions.EstadoEscrituraDeFiltros : null);
+
+        navigation.Destinos.Should().HaveCount(2);
+        Parametros(navigation.Destinos[^1]).Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["extra"] = "conservar",
+            ["pestana"] = "ficha",
+            ["ctx"] = ctx,
+        });
+        new Uri(navigation.Destinos[^1]).Fragment.Should().Be("#detalle");
+        navigation.Opciones.Select(o => o.ReplaceHistoryEntry).Should().AllBeEquivalentTo(true);
+        navigation.Opciones[0].HistoryEntryState.Should().Be(primeraConMarca ? NavigationManagerExtensions.EstadoEscrituraDeFiltros : null);
+        navigation.Opciones[1].HistoryEntryState.Should().Be(segundaConMarca ? NavigationManagerExtensions.EstadoEscrituraDeFiltros : null);
+    }
+
+    /// <summary>
     /// Con una escritura sin confirmar (o cancelada por el navegador al atender otra navegación), el usuario pulsa un
     /// enlace del menú o «atrás»/«adelante». La página a la que llega escribe sus filtros: unas veces cuando el ayudante
     /// ya vio el LocationChanged, y otras dentro del propio evento, antes que él (el Router lo atiende primero y la

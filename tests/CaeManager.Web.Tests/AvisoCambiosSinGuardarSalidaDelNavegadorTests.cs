@@ -207,6 +207,23 @@ public class AvisoCambiosSinGuardarSalidaDelNavegadorTests : BunitContext
         Navegacion.Uri.Should().EndWith("?q=foto");
     }
 
+    [Fact]
+    public async Task Una_escritura_sin_marca_detenida_no_reaparece_en_la_siguiente_escritura_de_filtros()
+    {
+        var cut = KitYAvisoDePagina();
+
+        await cut.InvokeAsync(() => Navegacion.ActualizarFiltroEnUrl("pestana", "ficha", estadoHistorial: null));
+        Preguntas(cut).Should().Be(1, "sin la marca, la escritura pasa por el aviso como una navegación cualquiera");
+        await Pulsar(cut, "Seguir editando");
+
+        await cut.InvokeAsync(() => Navegacion.ActualizarFiltroEnUrl("q", "foto"));
+
+        Preguntas(cut).Should().Be(0);
+        Navegacion.Uri.Should().EndWith("?q=foto",
+            "la escritura detenida no llegará: si fuera la base de la siguiente, el filtro, que no pregunta, la colaría");
+        _descartesPagina.Should().Be(0);
+    }
+
     /// <summary>
     /// El script tiene que cargarse ANTES que blazor.web.js: los oyentes de popstate de window corren en el orden en
     /// que se registraron, y los de Blazor avisan al circuito del cambio de URL en cuanto lo ven. Cargado después, una

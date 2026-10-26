@@ -40,7 +40,6 @@ public class ContextWorkspaceCambioDeFichaAvisoTests : BunitContext
         Services.AddSingleton(_workspace);
         Services.AddSingleton(new ToastService());
         ComponentFactories.Add(new PanelVehiculoFalso(_estado));
-        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
     }
 
     private sealed class AlertaOperativaMuda : IAlertaOperativa
@@ -81,11 +80,34 @@ public class ContextWorkspaceCambioDeFichaAvisoTests : BunitContext
 
     private NavigationManager Navegacion => Services.GetRequiredService<NavigationManager>();
 
+    [Fact]
+    public async Task Abrir_ficha_con_otra_escritura_pendiente_conserva_los_parametros()
+    {
+        var navigation = new NavegacionRetenida("http://localhost/vehiculos?extra=conservar#lista");
+        Services.AddSingleton<NavigationManager>(navigation);
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var cut = Render<ContextWorkspace>();
+        navigation.Retener = true;
+
+        await cut.InvokeAsync(() => CaeManager.Web.Components.NavigationManagerExtensions.ActualizarFiltroEnUrl(navigation, "q", "furgoneta"));
+        await cut.InvokeAsync(() => _workspace.AbrirAsync(EntidadWorkspace.Vehiculo, FichaA, "Furgoneta A", "informacion"));
+
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navigation.Destinos[^1]).Query);
+        parametros["ctx"].ToString().Should().Be($"Vehiculo:{FichaA}:informacion");
+        parametros["q"].ToString().Should().Be("furgoneta");
+        parametros["extra"].ToString().Should().Be("conservar");
+        new Uri(navigation.Destinos[^1]).Fragment.Should().Be("#lista");
+        navigation.Opciones[^1].ReplaceHistoryEntry.Should().BeTrue();
+        navigation.Opciones[^1].ForceLoad.Should().BeFalse();
+        navigation.Opciones[^1].HistoryEntryState.Should().BeNull();
+    }
+
     /// <summary>La URL con los <c>:</c> de <c>?ctx=</c> sin escapar.</summary>
     private string UriLegible => Uri.UnescapeDataString(Navegacion.Uri);
 
     private async Task<IRenderedComponent<ContextWorkspace>> AbrirFichaAAsync(bool conCambios)
     {
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
         Navegacion.NavigateTo("/vehiculos");
         var cut = Render<ContextWorkspace>();
         await cut.InvokeAsync(() => _workspace.AbrirAsync(EntidadWorkspace.Vehiculo, FichaA, "Furgoneta A", "informacion"));
@@ -185,6 +207,31 @@ public class ContextWorkspaceCambioDeFichaAvisoTests : BunitContext
 
         UriLegible.Should().EndWith($"ctx=Vehiculo:{FichaA}:documentacion");
         Pregunta(cut).Should().BeFalse("el estado del panel sobrevive al cambio de pestaña");
+    }
+
+    /// <summary>
+    /// Un filtro de la página sigue en vuelo cuando el panel cambia de pestaña: la escritura de <c>?ctx=</c> lo lleva
+    /// compuesto. El aviso compara con la URL de la que parte esa escritura, no con <c>Uri</c> (que aún no tiene el
+    /// filtro): solo cambia la pestaña y no pregunta.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_de_pestana_con_un_filtro_aun_sin_confirmar_no_pregunta_a_un_aviso_fuera_de_las_pestanas()
+    {
+        var navigation = new NavegacionRetenida { ConAvisos = true };
+        Services.AddSingleton<NavigationManager>(navigation);
+        SetRendererInfo(new RendererInfo("Server", isInteractive: true));
+        var cut = Render<ContextWorkspace>();
+        await cut.InvokeAsync(() => _workspace.AbrirAsync(EntidadWorkspace.Vehiculo, FichaA, "Furgoneta A", "informacion"));
+        _estado.HayCambios = true;
+        navigation.Retener = true;
+
+        await cut.InvokeAsync(() => CaeManager.Web.Components.NavigationManagerExtensions.ActualizarFiltroEnUrl(navigation, "q", "furgoneta"));
+        await cut.InvokeAsync(() => _workspace.CambiarPestanaAsync("documentacion"));
+
+        Pregunta(cut).Should().BeFalse("respecto a la URL de la que parte, la escritura solo cambia la pestaña");
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navigation.Destinos[^1]).Query);
+        parametros["ctx"].ToString().Should().Be($"Vehiculo:{FichaA}:documentacion");
+        parametros["q"].ToString().Should().Be("furgoneta");
     }
 
     [Fact]

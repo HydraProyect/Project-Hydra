@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Components.Workspace;
 using FluentAssertions;
@@ -157,6 +158,98 @@ public class AvisoCambiosSinGuardarSincronizacionCtxTests : BunitContext
 
         navegacion.Uri.Should().Be(origen);
         cut.FindAll(".modal-contenido").Should().ContainSingle();
+    }
+
+    /// <summary>
+    /// Revisión puente: un filtro de la página sigue en vuelo y el panel cambia de pestaña. Detiene la escritura el
+    /// formulario de dentro de la pestaña (X); el de fuera de las pestañas (Y), de la misma ficha y también con cambios,
+    /// no corre peligro: no se adhiere a la pregunta, «Salir y descartar» no lo descarta y la escritura que se repite no
+    /// le hace preguntar. Y al «Seguir editando» de otra vez, el filtro en vuelo sigue siendo la base de la siguiente.
+    /// </summary>
+    [Fact]
+    public async Task Con_un_filtro_en_vuelo_el_cambio_de_pestana_detenido_solo_descarta_el_formulario_de_la_pestana()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var navegacion = new NavegacionRetenida($"http://localhost/centros?ctx=Centro:{Centro}:informacion") { ConAvisos = true };
+        Services.AddSingleton<NavigationManager>(navegacion);
+        var ficha = new AmbitoCambiosSinGuardar();
+        var descartesX = 0;
+        var descartesY = 0;
+        var x = Render<AvisoCambiosSinGuardar>(p => p
+            .Add(a => a.HayCambios, () => true)
+            .Add(a => a.AlDescartar, () => descartesX++)
+            .AddCascadingValue(new AmbitoCambiosSinGuardar(ficha))
+            .AddCascadingValue(AmbitoCambiosSinGuardar.NombreAmbitoFicha, ficha));
+        var y = Render<AvisoCambiosSinGuardar>(p => p
+            .Add(a => a.HayCambios, () => true)
+            .Add(a => a.AlDescartar, () => descartesY++)
+            .AddCascadingValue(AmbitoCambiosSinGuardar.NombreAmbitoFicha, ficha));
+        navegacion.Retener = true;
+
+        await x.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("q", "norte"));
+        var ctx = $"Centro:{Centro}:documentacion";
+        await x.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("ctx", ctx, estadoHistorial: null));
+
+        x.FindAll(".modal-contenido").Should().ContainSingle("el formulario de la pestaña se desmontaría");
+        y.FindAll(".modal-contenido").Should().BeEmpty();
+        navegacion.Destinos.Should().HaveCount(1, "la escritura de ?ctx= quedó detenida");
+
+        await x.PulsarEnElAvisoAsync("Seguir editando");
+        await x.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("orden", "nombre"));
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navegacion.Destinos[^1]).Query);
+        parametros["q"].ToString().Should().Be("norte", "el filtro en vuelo sigue siendo la base de la cadena");
+        parametros["ctx"].ToString().Should().Be($"Centro:{Centro}:informacion", "la pestaña detenida no reaparece");
+
+        await x.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("ctx", ctx, estadoHistorial: null));
+        await x.PulsarEnElAvisoAsync("Salir y descartar");
+
+        descartesX.Should().Be(1);
+        descartesY.Should().Be(0, "el formulario de fuera de las pestañas sigue montado");
+        y.FindAll(".modal-contenido").Should().BeEmpty("repetir la escritura tampoco le hace preguntar");
+        parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navegacion.Destinos[^1]).Query);
+        parametros["ctx"].ToString().Should().Be(ctx);
+        parametros["q"].ToString().Should().Be("norte");
+        parametros["orden"].ToString().Should().Be("nombre");
+    }
+
+    /// <summary>
+    /// Revisión puente: un destino detenido se retira de la cadena pero su base se recuerda. Muchas detenciones seguidas
+    /// sin ningún acuse no hacen crecer esa memoria más allá del tope de la cadena.
+    /// </summary>
+    [Fact]
+    public async Task Muchas_escrituras_detenidas_sin_acuse_no_crecen_mas_alla_del_tope()
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
+        var navegacion = new NavegacionRetenida($"http://localhost/centros?ctx=Centro:{Centro}:informacion") { ConAvisos = true, Retener = true };
+        Services.AddSingleton<NavigationManager>(navegacion);
+        var cut = Render<AvisoCambiosSinGuardar>(p => p.Add(a => a.HayCambios, () => true));
+
+        for (var i = 0; i < 40; i++)
+        {
+            var valor = i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await cut.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("q", valor));
+            await cut.InvokeAsync(() => navegacion.ActualizarFiltroEnUrl("pestana", valor, estadoHistorial: null));
+            cut.FindAll(".modal-contenido").Should().ContainSingle();
+            await cut.PulsarEnElAvisoAsync("Seguir editando");
+            BasesRecordadas(navegacion).Should().BeLessThanOrEqualTo(32, $"vuelta {i}");
+        }
+
+        var parametros = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(new Uri(navegacion.Destinos[^1]).Query);
+        parametros["q"].ToString().Should().Be("39");
+        parametros.Should().NotContainKey("pestana", "ninguna pestaña detenida reaparece");
+    }
+
+    /// <summary>Entradas de la memoria privada de bases del ayudante para este NavigationManager (solo para medir el tope).</summary>
+    private static int BasesRecordadas(NavigationManager navegacion)
+    {
+        const System.Reflection.BindingFlags Privado = System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Instance;
+        var tabla = typeof(CaeManager.Web.Components.NavigationManagerExtensions).GetField("Pendientes", Privado)!.GetValue(null)!;
+        var argumentos = new object?[] { navegacion, null };
+        tabla.GetType().GetMethod("TryGetValue")!.Invoke(tabla, argumentos).Should().Be(true);
+        var bases = (System.Collections.ICollection)argumentos[1]!.GetType().GetField("_bases", Privado)!.GetValue(argumentos[1])!;
+        return bases.Count;
     }
 
     private static readonly IReadOnlyList<PestanaDefinicion> PestanasFicha =

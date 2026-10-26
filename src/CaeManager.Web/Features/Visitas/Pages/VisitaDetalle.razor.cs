@@ -17,6 +17,7 @@ using CaeManager.Application.Visitas.Queries.ObtenerSolicitudAccesoCorreo;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using CaeManager.Domain.Visitas;
+using CaeManager.Web.Components;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.Documentos.Components;
 using MediatR;
@@ -253,8 +254,7 @@ public partial class VisitaDetalle : CaeManager.Web.Components.PaginaInteractiva
     {
         _pestana = pestana;
         var primera = Pestanas[0].Id;
-        NavigationManager.NavigateTo(
-            NavigationManager.GetUriWithQueryParameter("pestana", pestana == primera ? null : pestana), replace: true);
+        NavigationManager.ActualizarFiltroEnUrl("pestana", pestana == primera ? null : pestana, estadoHistorial: null);
     }
 
     // ---------------------------------------------------------------- Carga
