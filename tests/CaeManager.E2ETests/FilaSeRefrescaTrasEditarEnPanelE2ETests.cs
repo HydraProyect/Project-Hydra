@@ -233,19 +233,22 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {
         var enfocada = page.Locator("tbody tr.fila-enfocada");
+        // «Enfocada» es la clase y además el foco real del DOM (:focus): la clase puede quedarse sin foco tras
+        // un repintado, y entonces Enter lo recibiría el control de origen (#1756).
+        var conFoco = page.Locator("tbody tr.fila-enfocada:focus");
         for (var intento = 0; intento < 5; intento++)
         {
-            if (await enfocada.CountAsync() == 0)
+            if (await conFoco.CountAsync() == 0)
             {
                 await page.Locator("thead th.col-estado button.col-title").FocusAsync();
                 await page.Keyboard.PressAsync("j");
             }
 
             await page.WaitForTimeoutAsync(400);
-            if (await enfocada.CountAsync() == 1)
+            if (await conFoco.CountAsync() == 1)
             {
                 await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1) return;
+                if (await conFoco.CountAsync() == 1) return;
             }
         }
 

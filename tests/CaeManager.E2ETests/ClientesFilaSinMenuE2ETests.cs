@@ -86,15 +86,22 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         {
             Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
         });
+        // «Enfocada» es la clase y además el foco real del DOM (:focus): la clase puede quedarse sin foco tras
+        // un repintado, y entonces Enter lo recibiría el control de origen (#1756).
+        var conFoco = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon.fila-enfocada:focus");
+        var conFocoPropio = conFoco.Filter(new LocatorFilterOptions
+        {
+            Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
+        });
         for (var intento = 0; intento < 8; intento++)
         {
-            if (await enfocada.CountAsync() == 0)
+            if (await conFoco.CountAsync() == 0)
                 await page.Keyboard.PressAsync("j");
             await page.WaitForTimeoutAsync(400);
-            if (await enfocadaPropia.CountAsync() == 1)
+            if (await conFocoPropio.CountAsync() == 1)
             {
                 await page.WaitForTimeoutAsync(600);
-                if (await enfocada.CountAsync() == 1 && await enfocadaPropia.CountAsync() == 1) return;
+                if (await conFoco.CountAsync() == 1 && await conFocoPropio.CountAsync() == 1) return;
             }
         }
 
