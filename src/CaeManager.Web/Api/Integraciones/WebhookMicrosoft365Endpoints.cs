@@ -72,7 +72,7 @@ public static class WebhookMicrosoft365Endpoints
 
             var clientStateRecibido = graphClient.ExtraerClientStateDeNotificacion(payload);
             if (string.IsNullOrWhiteSpace(clientStateRecibido))
-                return Results.BadRequest();
+                return Results.Unauthorized();
 
             var subscriptionIdRecibido = graphClient.ExtraerSubscriptionIdDeNotificacion(payload);
 

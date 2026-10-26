@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Integraciones;
 using CaeManager.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +40,9 @@ public class WebhookTenantResolver(CaeManagerDbContext dbContext) : IWebhookTena
         // renovación — Graph todavía la considerara viva unos minutos más.
         // Sin esto, clientState + subscriptionId de una suscripción ya
         // caducada localmente se seguían aceptando indefinidamente.
-        if (fila is null || fila.ClientState != clientStateRecibido ||
+        if (fila is null || string.IsNullOrWhiteSpace(clientStateRecibido) ||
+            !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(fila.ClientState), Encoding.UTF8.GetBytes(clientStateRecibido)) ||
             string.IsNullOrWhiteSpace(subscriptionIdRecibido) || fila.GraphSubscriptionId != subscriptionIdRecibido ||
             fila.FechaExpiracionUtc <= DateTime.UtcNow)
         {

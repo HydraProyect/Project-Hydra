@@ -69,7 +69,10 @@ public class StripePaymentProvider(IOptions<StripeOptions> opciones, ILogger<Str
             // observado realmente al parsear/verificar un payload adverso
             // (NullReferenceException: ver el comentario de
             // throwOnApiVersionMismatch más arriba) quedan cubiertas aquí.
-            logger.LogWarning(ex, "Webhook de Stripe rechazado: firma o payload inválidos.");
+            // El SDK puede incluir datos de la petición en la excepción; no se
+            // registra ni su mensaje ni su traza, solo el tipo para diagnóstico.
+            logger.LogWarning("Webhook de Stripe rechazado: firma o payload inválidos ({TipoExcepcion}).",
+                ex.GetType().Name);
             return Result.Fallo<EventoWebhookProveedorDto>(Error.Crear(
                 "PaymentProvider.FirmaInvalida", "Webhook rechazado."));
         }

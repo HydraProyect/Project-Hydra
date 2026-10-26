@@ -1,5 +1,7 @@
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CaeManager.Application.Integraciones;
@@ -600,25 +602,31 @@ public class Microsoft365GraphClient(
     }
 
     public string? ExtraerClientStateDeNotificacion(string payloadJson)
-    {
-        try
-        {
-            var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
-            return notificacion?.Value?.FirstOrDefault()?.ClientState;
-        }
-        catch (JsonException ex)
-        {
-            logger.LogWarning(ex, "Payload de notificación de webhook de Microsoft Graph no es JSON válido.");
-            return null;
-        }
-    }
+        => ExtraerNotificacionHomogenea(payloadJson)?.ClientState;
 
     public string? ExtraerSubscriptionIdDeNotificacion(string payloadJson)
+        => ExtraerNotificacionHomogenea(payloadJson)?.SubscriptionId;
+
+    private NotificacionGraph? ExtraerNotificacionHomogenea(string payloadJson)
     {
         try
         {
             var notificacion = JsonSerializer.Deserialize<NotificacionesGraph>(payloadJson);
-            return notificacion?.Value?.FirstOrDefault()?.SubscriptionId;
+            var primera = notificacion?.Value?.FirstOrDefault();
+            if (primera is null || string.IsNullOrWhiteSpace(primera.ClientState) ||
+                string.IsNullOrWhiteSpace(primera.SubscriptionId))
+                return null;
+
+            var secreto = Encoding.UTF8.GetBytes(primera.ClientState);
+            foreach (var elemento in notificacion!.Value!)
+            {
+                if (elemento is null || string.IsNullOrWhiteSpace(elemento.ClientState) ||
+                    !CryptographicOperations.FixedTimeEquals(secreto, Encoding.UTF8.GetBytes(elemento.ClientState)) ||
+                    !string.Equals(primera.SubscriptionId, elemento.SubscriptionId, StringComparison.Ordinal))
+                    return null;
+            }
+
+            return primera;
         }
         catch (JsonException ex)
         {
