@@ -108,24 +108,21 @@ public class VisitaCentroGestionadoPorCorreoE2ETests(WebAppFixture fixture)
         await page.Locator(".modal-pie").WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Documento vigente con archivo, subido desde /centros ---
-        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
-        // PR #1703: confirmar el circuito antes de filtrar y desplegar el HTML del prerender.
+        // El Centro se filtra con «?q=» en la URL de la carga, no tecleando en el buscador: teclear escribe la URL y el
+        // navegador vuelve a pedir /centros (navegación mejorada, un segundo GET en el log del servidor) y esa respuesta
+        // reemplaza la página interactiva en un momento que ninguna espera del DOM distingue; si el clic de desplegar caía
+        // antes, el Centro volvía plegado y «Gestionar» no aparecía en 15 s (cola de la #1715, dos ejecuciones seguidas).
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros?q={Uri.EscapeDataString(nombreCentro)}");
+        // PR #1703: confirmar el circuito antes de desplegar el HTML del prerender.
         var agrupar = Ayudas.DesplegableAgrupar(page);
         await Ayudas.AbrirMenuAccionesAsync(agrupar);
         await agrupar.PressAsync("Escape");
         await Expect(agrupar).ToHaveAttributeAsync("aria-expanded", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
-        var buscadorCentros = page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa");
-        await buscadorCentros.FillAsync(nombreCentro);
         var botonExpandir = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Asignaciones de {nombreCentro}" });
         await botonExpandir.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        await buscadorCentros.BlurAsync();
         // aria-busy=false: terminó CargarAsync (Centros y visitas), no solo el primer render de la página.
         await Expect(page.Locator(".lista-filas-acordeon")).ToHaveAttributeAsync("aria-busy", "false", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         await Expect(page.Locator(".tarjeta-fila-acordeon-cabecera.fila-pulsable")).ToHaveCountAsync(1, new LocatorAssertionsToHaveCountOptions { Timeout = 15_000 });
-        // El filtro escribe «?q=» en la URL y el navegador pide /centros de nuevo (navegación mejorada, visible en el log
-        // del servidor como un segundo GET unos cientos de ms después). Las esperas de arriba solo prueban lo que ya pintó el
-        // circuito; el clic de abajo no debe cruzarse con esa respuesta (cola de la #1715: «Gestionar» no aparecía en 15 s).
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         await botonExpandir.ClickAsync();
         await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
         // En el listado el chevron se oculta para quien gestiona: «Gestionar» abre el mismo desglose.
