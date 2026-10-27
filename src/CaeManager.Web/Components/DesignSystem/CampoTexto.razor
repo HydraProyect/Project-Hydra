@@ -96,6 +96,7 @@
     /// </summary>
     protected override void OnParametersSet()
     {
+        if (Deshabilitado) _debounceCts?.Cancel();
         if (Valor != _ultimoValorNotificado)
         {
             _valorMostrado = Valor;
@@ -107,6 +108,7 @@
 
     private async Task ManejarCambioAsync(ChangeEventArgs e)
     {
+        if (Deshabilitado) return;
         // _valorMostrado (lo que se re-pinta en el <input>) NO se toca aquí
         // a propósito: el navegador ya tiene el valor correcto en su propio
         // DOM porque el usuario lo acaba de teclear. Si lo reflejáramos de
@@ -141,7 +143,7 @@
         // justo cuando el blur ya está cancelando, y sin esto los dos
         // notificarían el mismo valor (bug real, visto en CI: ValorChanged
         // invocado dos veces con el mismo valor tras perder el foco).
-        if (cts.Token.IsCancellationRequested) return;
+        if (cts.Token.IsCancellationRequested || Deshabilitado) return;
 
         _ultimoValorNotificado = _ultimoValor;
         await ValorChanged.InvokeAsync(_ultimoValor);
@@ -169,6 +171,7 @@
     /// </summary>
     private async Task ManejarBlurAsync()
     {
+        if (Deshabilitado) return;
         _debounceCts?.Cancel();
 
         // Si el debounce ya notificó este mismo valor (blur llegado después

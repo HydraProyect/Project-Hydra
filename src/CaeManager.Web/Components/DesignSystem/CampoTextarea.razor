@@ -9,7 +9,7 @@
               placeholder="@Placeholder"
               disabled="@Deshabilitado"
               @oninput="ManejarCambioAsync"
-              @onblur="() => OnBlur.InvokeAsync()">@_valorMostrado</textarea>
+              @onblur="ManejarBlurAsync">@_valorMostrado</textarea>
     @if (TieneError)
     {
         <span class="campo-mensaje-error" role="alert">@MensajeError</span>
@@ -44,8 +44,11 @@
         }
     }
 
+    private Task ManejarBlurAsync() => Deshabilitado ? Task.CompletedTask : OnBlur.InvokeAsync();
+
     private Task ManejarCambioAsync(ChangeEventArgs e)
     {
+        if (Deshabilitado) return Task.CompletedTask;
         // _valorMostrado no se toca aquí — ver el comentario equivalente en
         // CampoTexto.ManejarCambioAsync: el navegador ya tiene el valor
         // correcto, y reflejarlo de vuelta en cada pulsación es lo que

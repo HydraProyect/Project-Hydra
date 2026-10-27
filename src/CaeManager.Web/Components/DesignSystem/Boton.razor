@@ -34,6 +34,7 @@ else
     [Parameter, EditorRequired] public VarianteBoton Variante { get; set; }
     [Parameter] public TamanoBoton Tamano { get; set; } = TamanoBoton.Medio;
     [Parameter] public bool Deshabilitado { get; set; }
+    [CascadingParameter(Name = "PieFormularioDeshabilitado")] public bool PieDeshabilitado { get; set; }
     [Parameter] public bool Cargando { get; set; }
     [Parameter] public string Type { get; set; } = "button";
     [Parameter] public EventCallback OnClick { get; set; }
@@ -69,7 +70,7 @@ else
     // Sin OnClick no se registra manejador (como antes con el EventCallback sin delegado), para no mandar clics al circuito de balde.
     private EventCallback ManejadorClic => OnClick.HasDelegate ? EventCallback.Factory.Create(this, AlPulsarAsync) : default;
 
-    private Task AlPulsarAsync() => Deshabilitado || Cargando ? Task.CompletedTask : OnClick.InvokeAsync();
+    private Task AlPulsarAsync() => Deshabilitado || Cargando || PieDeshabilitado ? Task.CompletedTask : OnClick.InvokeAsync();
 
     private string ClaseVariante => Variante.ToString().ToLowerInvariant();
     private string ClaseTamano => Tamano.ToString().ToLowerInvariant();

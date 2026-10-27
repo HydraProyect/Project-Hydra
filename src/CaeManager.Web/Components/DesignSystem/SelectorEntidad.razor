@@ -152,6 +152,7 @@
 
     private Task ManejarEntradaAsync(ChangeEventArgs e)
     {
+        if (Deshabilitado) return Task.CompletedTask;
         _filtro = e.Value?.ToString() ?? string.Empty;
         _vaciadoPorUsuario = _filtro.Trim().Length == 0;
         _abierto = true;
@@ -161,6 +162,7 @@
 
     private Task AbrirAsync()
     {
+        if (Deshabilitado) return Task.CompletedTask;
         _abierto = true;
         return Task.CompletedTask;
     }
@@ -174,6 +176,7 @@
     /// </summary>
     private async Task CerrarAsync()
     {
+        if (Deshabilitado) return;
         _abierto = false;
         _indiceResaltado = -1;
 
@@ -192,6 +195,7 @@
 
     private async Task SeleccionarOpcionAsync(OpcionBuscable opcion)
     {
+        if (Deshabilitado) return;
         _filtro = opcion.Texto;
         _vaciadoPorUsuario = false;
         _ultimoValorNotificado = opcion.Id;
@@ -202,6 +206,7 @@
 
     private async Task SolicitarCreacionAsync()
     {
+        if (Deshabilitado) return;
         var texto = _filtro.Trim();
         _abierto = false;
         _indiceResaltado = -1;
@@ -210,6 +215,7 @@
 
     private async Task ManejarTeclaAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
+        if (Deshabilitado) return;
         var totalFilas = FilasFiltradas.Count + (MostrarFilaCrear ? 1 : 0);
 
         switch (e.Key)
