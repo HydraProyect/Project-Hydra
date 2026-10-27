@@ -147,22 +147,6 @@ public class SignInManagerCuentaDesactivada(
     }
 
     /// <summary>
-    /// El principal que rehace la fábrica de claims (al iniciar sesión, al refrescar y en cada
-    /// revalidación de la cookie) nunca trae la marca de TOTP: si alguien la guardara en
-    /// <c>AspNetUserClaims</c>, la fábrica la copiaría en cada sesión sin código. La marca solo la
-    /// ponen <see cref="SignInWithClaimsAsync(ApplicationUser, AuthenticationProperties?, IEnumerable{Claim})"/>
-    /// y <see cref="ConservarMarcaTotpAlRevalidar"/>.
-    /// </summary>
-    public override async Task<ClaimsPrincipal> CreateUserPrincipalAsync(ApplicationUser user)
-    {
-        var principal = await base.CreateUserPrincipalAsync(user);
-        foreach (var identidad in principal.Identities)
-            foreach (var marca in identidad.FindAll(ClaimTotpSesion).ToList())
-                identidad.RemoveClaim(marca);
-        return principal;
-    }
-
-    /// <summary>
     /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
     /// marca de TOTP, igual que <see cref="RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar"/>
     /// con la de Microsoft: el validador de la cookie rehace el principal cada intervalo de revalidación

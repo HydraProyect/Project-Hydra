@@ -430,6 +430,32 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         return (valor % 1_000_000).ToString("D6", CultureInfo.InvariantCulture);
     }
 
+    [Fact]
+    public async Task Una_marca_del_TOTP_guardada_en_la_cuenta_no_llega_a_la_sesion()
+    {
+        // La fábrica copia los claims de AspNetUserClaims: uno con la marca no cuenta como TOTP,
+        // ni al iniciar sesión ni para quien llame a la fábrica directamente.
+        var usuario = await CrearUsuarioAsync("marca-guardada@x.test");
+        var ahora = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        using (var preparacion = _servicios.CreateScope())
+        {
+            var userManager = preparacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
+            (await userManager.AddClaimAsync(cuenta, new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, ahora))).Succeeded.Should().BeTrue();
+            (await userManager.GetClaimsAsync(cuenta)).Should().Contain(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion,
+                "control: el claim quedó guardado en la cuenta");
+        }
+
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+        cookie.Should().NotBeEmpty("control: se emitió la cookie");
+        PrincipalDeLaCookie(cookie)!.HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+
+        using var ambito = _servicios.CreateScope();
+        var fabrica = ambito.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var cuentaLeida = (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString()))!;
+        (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+    }
+
     /// <summary>Cookie de aplicación («nombre=valor») con la marca de TOTP que solo pone el segundo factor.</summary>
     private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca, DateTimeOffset? emitidaEnUtc = null)
     {
