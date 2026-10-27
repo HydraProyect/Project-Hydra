@@ -17,5 +17,5 @@
     [Parameter] public bool Deshabilitado { get; set; }
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private Task ManejarCambioAsync(ChangeEventArgs e) => ValorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
+    private Task ManejarCambioAsync(ChangeEventArgs e) => Deshabilitado ? Task.CompletedTask : ValorChanged.InvokeAsync(e.Value?.ToString() ?? string.Empty);
 }

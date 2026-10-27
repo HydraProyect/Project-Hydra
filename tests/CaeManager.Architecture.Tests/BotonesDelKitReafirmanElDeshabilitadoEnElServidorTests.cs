@@ -13,12 +13,11 @@ namespace CaeManager.Architecture.Tests;
 /// <para>
 /// <b>Contrato efectivo, más estrecho que el nombre.</b> Dos propiedades sobre los <c>.razor</c> del kit (<c>Components/DesignSystem</c>):
 /// (1) un componente con un parámetro <c>bool</c> de deshabilitado no enlaza un <c>EventCallback</c> parámetro directamente a
-/// <c>@onclick</c> (así el clic llegaría al llamador sin pasar por ninguna comprobación); (2) todo <c>&lt;button&gt;</c> con
-/// <c>disabled="@…"</c> cuyo <c>@onclick</c> es un método del propio componente tiene un cuerpo que menciona alguno de los
+/// <c>@onclick</c> (así el clic llegaría al llamador sin pasar por ninguna comprobación); (2) todo <c>&lt;button&gt;</c>, <c>&lt;input&gt;</c>, <c>&lt;select&gt;</c>, <c>&lt;textarea&gt;</c> o <c>&lt;InputFile&gt;</c> con
+/// <c>disabled="@…"</c> cuyo manejador (<c>@onclick</c>, <c>@oninput</c>, <c>@onchange</c>, <c>@onblur</c> u <c>@onfocus</c>, o <c>OnChange</c>; el <c>@onkeydown</c> no entra aquí y lo cubren los bUnit de cada componente, y <c>ZonaSoltarArchivo</c> queda fuera a propósito: su <c>Cargando</c> admite soltar otro archivo mientras se analiza) es un método del propio componente tiene un cuerpo que menciona alguno de los
 /// identificadores de la expresión de <c>disabled</c>, él o un método del componente al que llama (un nivel). NO ve: manejadores en lambda (<c>@onclick="() =&gt; X()"</c>, que no se
 /// pueden inspeccionar por texto), la lógica que el método delega en otro, un identificador que se mencione pero no se use para
-/// retornar, ni los campos de entrada (<c>CampoTexto</c>, <c>CampoSelect</c>…: su <c>disabled</c> sigue sin reafirmarse en el
-/// servidor: es el siguiente incremento de esta línea). Es un trinquete de forma, no una prueba de comportamiento: el comportamiento
+/// retornar. Es un trinquete de forma, no una prueba de comportamiento: el comportamiento
 /// lo prueban los bUnit de cada componente (quitan <c>disabled</c> y comprueban que el llamador no se entera).
 /// </para>
 /// </summary>
@@ -31,9 +30,9 @@ public class BotonesDelKitReafirmanElDeshabilitadoEnElServidorTests
     {
     };
 
-    private static readonly Regex EtiquetaBoton = new(@"<button\b(?:=>|[^>])*>", RegexOptions.Compiled | RegexOptions.Singleline);
+    private static readonly Regex EtiquetaBoton = new(@"<(?:button|input|select|textarea|InputFile)\b(?:=>|[^>])*>", RegexOptions.Compiled | RegexOptions.Singleline);
     private static readonly Regex AtributoDisabled = new(@"\sdisabled=""@\(?([^""]*?)\)?""", RegexOptions.Compiled);
-    private static readonly Regex ManejadorMetodo = new(@"@onclick=""@?([A-Za-z_]\w*)""", RegexOptions.Compiled);
+    private static readonly Regex ManejadorMetodo = new(@"(?:@on(?:click|input|change|blur|focus)|OnChange)=""@?([A-Za-z_]\w*)""", RegexOptions.Compiled);
     private static readonly Regex Identificador = new(@"\b[A-Za-z_]\w*\b", RegexOptions.Compiled);
     private static readonly Regex ParametroBoolDeshabilitado = new(@"\[Parameter[^\]\n]*\][^\n]*\bbool\s+(\w*(?:Deshabilitad|Habilitad)\w*)", RegexOptions.Compiled);
     private static readonly Regex ParametroEventCallback = new(@"\[Parameter[^\]\n]*\][^\n]*\bEventCallback(?:<[^>\n]+>)?\s+(\w+)", RegexOptions.Compiled);
@@ -81,24 +80,22 @@ public class BotonesDelKitReafirmanElDeshabilitadoEnElServidorTests
             foreach (Match etiqueta in EtiquetaBoton.Matches(razor))
             {
                 var disabled = AtributoDisabled.Match(etiqueta.Value);
-                var manejador = ManejadorMetodo.Match(etiqueta.Value);
-                if (!disabled.Success || !manejador.Success) continue;
+                if (!disabled.Success) continue;
 
-                vistos++;
-                var metodo = manejador.Groups[1].Value;
-                var cuerpo = CuerpoDelManejador(codigo, metodo);
                 var condicion = Identificador.Matches(disabled.Groups[1].Value).Select(m => m.Value)
                     .Where(i => i is not ("true" or "false" or "null" or "is" or "not" or "and" or "or")).ToList();
-                var clave = $"{nombre}.{metodo}";
-                if (cuerpo is null)
+                foreach (var metodo in ManejadorMetodo.Matches(etiqueta.Value).Select(m => m.Groups[1].Value).Distinct())
                 {
+                    vistos++;
+                    var cuerpo = CuerpoDelManejador(codigo, metodo);
+                    var clave = $"{nombre}.{metodo}";
                     // Un manejador que no es un método del componente (un EventCallback propio) no se puede inspeccionar aquí.
-                    continue;
-                }
+                    if (cuerpo is null) continue;
 
-                var menciona = condicion.Any(i => Regex.IsMatch(cuerpo, $@"\b{Regex.Escape(i)}\b"));
-                if (!menciona && !SinReafirmarTodavia.Contains(clave))
-                    infractores.Add($"{clave} (disabled depende de: {string.Join(", ", condicion)})");
+                    var menciona = condicion.Any(i => Regex.IsMatch(cuerpo, $@"\b{Regex.Escape(i)}\b"));
+                    if (!menciona && !SinReafirmarTodavia.Contains(clave))
+                        infractores.Add($"{clave} (disabled depende de: {string.Join(", ", condicion)})");
+                }
             }
         }
 

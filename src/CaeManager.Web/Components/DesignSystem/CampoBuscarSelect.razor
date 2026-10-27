@@ -47,6 +47,7 @@
     /// </summary>
     protected override void OnParametersSet()
     {
+        if (Deshabilitado) _debounceCts?.Cancel();
         if (Valor == _ultimoValorNotificado && !_textoPendienteDeResolver)
             return;
 
@@ -62,6 +63,7 @@
 
     private async Task ManejarEscrituraAsync(ChangeEventArgs e)
     {
+        if (Deshabilitado) return;
         // _texto (lo que se pinta en value="@_texto") no se toca aquí —
         // mismo motivo que CampoTexto.ManejarCambioAsync: el navegador ya
         // tiene el valor correcto en su propio DOM, y reflejarlo de vuelta
@@ -88,6 +90,7 @@
         // Solo una coincidencia exacta y única elige. Con dos opciones de mismo texto, quedarse con
         // la primera asignaría en silencio la otra entidad (p. ej. un Documento al Trabajador
         // homónimo): se deja sin elegir y la pantalla pide elegir, como con un texto sin coincidencia.
+        if (cts.Token.IsCancellationRequested || Deshabilitado) return;
         var coincidencias = Opciones.Where(o => o.Texto == _ultimoTextoTecleado).Take(2).ToList();
         _ultimoValorNotificado = coincidencias.Count == 1 ? coincidencias[0].Id : string.Empty;
         await ValorChanged.InvokeAsync(_ultimoValorNotificado);

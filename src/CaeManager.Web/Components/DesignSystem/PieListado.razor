@@ -65,5 +65,5 @@ else
     [Parameter] public string? EtiquetaSiguiente { get; set; }
     [Parameter] public RenderFragment? Centro { get; set; }
 
-    private Task CambiarPaginaAsync(int pagina) => PaginaActualChanged.InvokeAsync(pagina);
+    private Task CambiarPaginaAsync(int pagina) => pagina < 1 || (pagina > TotalPaginas && pagina >= PaginaActual) ? Task.CompletedTask : PaginaActualChanged.InvokeAsync(pagina);
 }

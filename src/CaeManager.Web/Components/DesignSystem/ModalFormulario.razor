@@ -62,7 +62,7 @@
         @if (PieExtra is not null)
         {
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
-            <fieldset class="formulario-modal-pie-extra" disabled="@Guardando">@PieExtra</fieldset>
+            <fieldset class="formulario-modal-pie-extra" disabled="@Guardando"><CascadingValue Name="PieFormularioDeshabilitado" Value="Guardando">@PieExtra</CascadingValue></fieldset>
         }
         <BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
                         Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"

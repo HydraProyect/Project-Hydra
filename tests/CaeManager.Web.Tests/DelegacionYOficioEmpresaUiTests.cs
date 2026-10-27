@@ -186,8 +186,10 @@ public class DelegacionEmpresaYOficioEmpresaUiTests : BunitContext
         cut.Find("input[role=combobox]").Input("Electricista");
         var crear = cut.Find("li.selector-entidad-opcion-crear");
         crear.Click();
+        // Mientras se crea, el selector está deshabilitado y el servidor ignora lo que le llegue (CWE-602): no hay segunda fila de crear.
+        cut.Find("input[role=combobox]").HasAttribute("disabled").Should().BeTrue();
         cut.Find("input[role=combobox]").Input("Electricista");
-        cut.Find("li.selector-entidad-opcion-crear").Click();
+        cut.FindAll("li.selector-entidad-opcion-crear").Should().BeEmpty();
 
         var nuevo = Guid.NewGuid();
         cut.InvokeAsync(() => _mediador.GuardarOficioPendiente.SetResult(Result.Exito(nuevo)));
