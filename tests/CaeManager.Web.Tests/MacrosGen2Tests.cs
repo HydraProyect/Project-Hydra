@@ -365,8 +365,9 @@ public class MacrosGen2Tests : BunitContext
         // Ninguno de los dos clics se espera antes de comprobar: sin guarda, el
         // segundo también quedaría retenido en «alta» y el test se colgaría en
         // vez de caer por el motivo que mide.
-        var primero = Guardar(cut);
-        var segundo = Guardar(cut);
+        var botonGuardar = Boton(cut, ".drawer-pie button", "Guardar");
+        var primero = botonGuardar.ClickAsync(new MouseEventArgs());
+        var segundo = botonGuardar.ClickAsync(new MouseEventArgs());
 
         mediador.Enviados.OfType<CrearMacroCommand>().Should().ContainSingle(
             "el segundo clic llega mientras el primero espera al servidor: sin guarda saldrían dos altas iguales");
@@ -392,7 +393,7 @@ public class MacrosGen2Tests : BunitContext
         await Guardar(cut);
 
         cut.Find(".drawer-cuerpo .campo-mensaje-error").TextContent.Trim().Should().Be("El título no puede superar 150 caracteres.");
-        cut.Find(".drawer-cuerpo .alerta-formulario").TextContent.Trim().Should().Be("Revisa los campos marcados.");
+        cut.Find(".drawer-panel .alerta-formulario").TextContent.Trim().Should().Be("Revisa los campos marcados.");
         cut.FindAll(".drawer-panel").Should().ContainSingle("el formulario sigue abierto con lo escrito");
     }
 
@@ -480,6 +481,7 @@ public class MacrosGen2Tests : BunitContext
         Services.AddLocalization();
         var (cut, _) = Renderizar(new Escenario());
         await AbrirNuevaMacro(cut);
+        cut.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeTrue();
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
 
         await AbrirNuevaMacro(cut);
