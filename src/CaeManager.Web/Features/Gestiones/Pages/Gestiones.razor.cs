@@ -62,8 +62,15 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         if (_devolverFocoPendiente)
         {
             _devolverFocoPendiente = false;
-            await using var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-lista.js");
-            await modulo.InvokeVoidAsync("enfocarFilaActiva", 0);
+            try
+            {
+                await using var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-lista.js");
+                await modulo.InvokeVoidAsync("enfocarFilaActiva", 0);
+            }
+            catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+            {
+                // Devolver el foco a la fila es una mejora de teclado: sin circuito o sin módulo no hay nada que hacer.
+            }
         }
         var grid = _grid;
         var columna = _columnaTrabajador;

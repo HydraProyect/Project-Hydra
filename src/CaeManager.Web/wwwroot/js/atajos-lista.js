@@ -176,7 +176,6 @@ export function registrarAtajosLista(dotNetRef) {
 
         const enElementoInteractivo = activo && activo !== document.body && activo.matches?.(SELECTOR_INTERACTIVO);
         if (evento.key === 'Enter' && enElementoInteractivo) return;
-        if (evento.key === 'Enter' && !activo?.matches?.(SELECTOR_FILA_ENFOCADA)) return;
 
         if (evento.key === 'f') {
             // Con un menú abierto (una pastilla de filtro, el «⋯» de la cabecera o de una fila)
