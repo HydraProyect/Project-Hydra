@@ -30,12 +30,14 @@ public class WebhooksAutenticacionHttpTests
     private const string SecretoAjeno = "secreto_ajeno_fixture_http_86352";
 
     [Theory]
-    [InlineData("token+con/igual=")]
-    [InlineData("Validation: Testing client application reachability for subscription Request-Id: 25f8b8e2")]
-    [InlineData("<script>alert('x')</script>")]
-    public async Task Validacion_graph_responde_antes_de_leer_el_cuerpo(string token)
+    [InlineData("POST", "token+con/igual=")]
+    [InlineData("POST", "Validation: Testing client application reachability for subscription Request-Id: 25f8b8e2")]
+    [InlineData("POST", "<script>alert('x')</script>")]
+    [InlineData("GET", "<script>alert('x')</script>")]
+    public async Task Validacion_graph_responde_antes_de_leer_el_cuerpo(string metodo, string token)
     {
-        var resultado = await EnviarAsync("microsoft365", "ausente", token);
+        var resultado = await EnviarAsync("microsoft365", "ausente",
+            "validationToken=" + Uri.EscapeDataString(token), new HttpMethod(metodo));
 
         // Eco intacto: escapar el token rompería la validación de Graph. El
         // marcado no se ejecuta porque es text/plain con nosniff.
@@ -48,14 +50,42 @@ public class WebhooksAutenticacionHttpTests
     }
 
     [Fact]
+    public async Task Validacion_graph_decodifica_el_formato_de_graph_y_admite_1024_caracteres()
+    {
+        // Graph codifica los espacios como '+' y los ':' como %3a.
+        var resultado = await EnviarAsync("microsoft365", "ausente",
+            "validationToken=Validation%3a+Testing+client+application+reachability");
+        resultado.Estado.Should().Be(HttpStatusCode.OK);
+        resultado.Cuerpo.Should().Be("Validation: Testing client application reachability");
+
+        var limite = new string('a', 1024);
+        resultado = await EnviarAsync("microsoft365", "ausente", "validationToken=" + limite);
+        resultado.Estado.Should().Be(HttpStatusCode.OK);
+        resultado.Cuerpo.Should().Be(limite);
+    }
+
+    [Fact]
     public async Task Validacion_graph_rechaza_token_demasiado_largo()
     {
         var token = new string('a', 1025);
-        var resultado = await EnviarAsync("microsoft365", "ausente", token);
+        var resultado = await EnviarAsync("microsoft365", "ausente", "validationToken=" + token);
 
         resultado.Estado.Should().Be(HttpStatusCode.BadRequest);
         resultado.Llamadas.Should().BeEmpty();
         resultado.Logs.Should().NotContain(token);
+    }
+
+    [Theory]
+    [InlineData("validationToken=uno&validationToken=dos")]
+    [InlineData("validationToken=")]
+    [InlineData("validationToken=+++")]
+    public async Task Validacion_graph_rechaza_token_largo_repetido_o_vacio_sin_efectos(string consulta)
+    {
+        var resultado = await EnviarAsync("microsoft365", "ausente", consulta);
+
+        resultado.Estado.Should().Be(HttpStatusCode.BadRequest);
+        resultado.Llamadas.Should().BeEmpty();
+        resultado.Logs.Should().NotContain(consulta);
     }
 
     [Theory]
@@ -107,7 +137,7 @@ public class WebhooksAutenticacionHttpTests
     }
 
     private static async Task<(HttpStatusCode Estado, string[] Llamadas, string Logs, string? TipoContenido, string Cuerpo, string? Nosniff)> EnviarAsync(
-        string proveedor, string credencial, string? token = null)
+        string proveedor, string credencial, string? consulta = null, HttpMethod? metodo = null)
     {
         var llamadas = new ConcurrentQueue<string>();
         var logs = new CapturaLogs();
@@ -177,15 +207,15 @@ public class WebhooksAutenticacionHttpTests
             var ruta = proveedor == "stripe" ? "/api/comercial/webhooks/stripe/"
                 : proveedor == "microsoft365" ? $"/api/integraciones/webhooks/microsoft365/{conexionId}"
                 : "/api/integraciones/webhooks/whatsapp/";
-            if (token is not null)
+            if (consulta is not null)
             {
-                ruta += "?validationToken=" + Uri.EscapeDataString(token);
+                ruta += "?" + consulta;
                 payload = "cuerpo no válido";
             }
-            using var peticion = new HttpRequestMessage(HttpMethod.Post, ruta)
-            {
-                Content = new StringContent(payload, Encoding.UTF8, "application/json")
-            };
+            metodo ??= HttpMethod.Post;
+            using var peticion = new HttpRequestMessage(metodo, ruta);
+            if (metodo == HttpMethod.Post)
+                peticion.Content = new StringContent(payload, Encoding.UTF8, "application/json");
             if (proveedor != "microsoft365" && credencial != "ausente")
             {
                 var secretoFirma = credencial == "valida" ? Secreto : SecretoAjeno;
