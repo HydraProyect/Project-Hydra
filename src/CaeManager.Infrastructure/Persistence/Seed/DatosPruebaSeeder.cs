@@ -674,7 +674,8 @@ public static class DatosPruebaSeeder
         // --- Empresas contratistas: cada cliente trabaja con 5-10 del pool ---
         var empresas = new List<Empresa>();
         for (var i = 0; i < numeroEmpresas; i++)
-            empresas.Add(new Empresa($"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}"));
+            empresas.Add(new Empresa($"{ElementoAleatorio(aleatorio, SectoresEmpresa)} {ElementoAleatorio(aleatorio, MarcasCaricatura)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
+                GenerarCifValido(contadorCif++)));
         dbContext.Empresas.AddRange(empresas);
 
         // F4.2c — RelacionEmpresarial es la única fuente de escritura: el
@@ -755,7 +756,7 @@ public static class DatosPruebaSeeder
         {
             var subcontrata = Empresa.CrearComoSubcontrata(
                 $"Subcontrata {ElementoAleatorio(aleatorio, MarcasCaricatura)} {ElementoAleatorio(aleatorio, SectoresEmpresa)} {i + 1:D2} {ElementoAleatorio(aleatorio, SufijosSociedad)}",
-                cif: null,
+                cif: GenerarCifValido(contadorCif++),
                 nivelServicio: NivelServicioSubcontrata.Gestionada.ToString());
             subcontratas.Add(subcontrata);
 
