@@ -417,6 +417,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         // ── BOOTSTRAP O SIEMBRA ──────────────────────────────────────────────────────
         ["src/CaeManager.Infrastructure/Persistence/Seed/PlantillasRespuestaSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "tenantId procede del catálogo de Tenants propietarios leído con el contexto administrativo; solo instala las nueve Macros estáticas, sin datos de conversaciones"),
+        ["src/CaeManager.Infrastructure/FileStorage/ReparacionAdjuntosTemporales.cs"] =
+            new(Categoria.BootstrapOSiembra, "TenantId de la propia fila referenciada (o el Id del Tenant para su logo), leída con el contexto administrativo en el modo manual --reparar-adjuntos-temporales; solo cambia la ruta del adjunto de esa fila"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/AsignacionesOperativasBackfillSeeder.cs"] =
             new(Categoria.BootstrapOSiembra, "tenants[0].Id, de la lista de tenants ya sembrados por el propio arranque"),
         ["src/CaeManager.Infrastructure/Persistence/Seed/DatosPruebaSeeder.cs"] =

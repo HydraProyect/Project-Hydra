@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Configuration;
 
 namespace CaeManager.Infrastructure.Persistence;
@@ -46,7 +47,8 @@ namespace CaeManager.Infrastructure.Persistence;
 /// </para>
 ///
 /// <para>
-/// <b>Alcance deliberadamente estrecho.</b> Solo los declarados arriba. Los demás
+/// <b>Alcance deliberadamente estrecho.</b> Los declarados arriba y el mantenimiento
+/// manual de referencias a adjuntos definitivos con sufijo temporal. Los demás
 /// seeders del arranque operan dentro de un <c>AmbitoTenantExplicito</c> que fija
 /// <c>app.tenant_id</c> antes de escribir, que es exactamente lo que las políticas
 /// por-tenant piden, y siguen usando el contexto inyectado. Esa clasificación es
@@ -71,7 +73,7 @@ public sealed class FabricaContextoDeBootstrap(
     /// Crea el contexto. El llamante lo posee y debe liberarlo — se usa en el
     /// arranque, una vez, dentro de un <c>await using</c>.
     /// </summary>
-    public CaeManagerDbContext Crear()
+    public CaeManagerDbContext Crear(bool reintentar = true)
     {
         // Vacía cuenta como ausente: el servicio "app" de staging y producción la
         // recibe vacía a propósito desde P0-2 (docker-compose.*.yml), y solo el
@@ -86,6 +88,10 @@ public sealed class FabricaContextoDeBootstrap(
 
         var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>();
         ConfiguracionDeContexto.Aplicar(opciones, serviceProvider, cadena);
+        // Los renombrados en disco no participan en los reintentos de PostgreSQL.
+        // Conserva identidad e interceptores; solo cambia la estrategia de ejecución.
+        if (!reintentar)
+            opciones.UseNpgsql(npgsql => npgsql.ExecutionStrategy(dependencias => new NonRetryingExecutionStrategy(dependencias)));
 
         return new CaeManagerDbContext(opciones.Options, dataProtectionProvider, tenantActual);
     }

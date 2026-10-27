@@ -127,6 +127,7 @@ public class DetectorEstadoMaterializadoTests
             "TrabajoAnalisisDocumentoRepository.cs",   // reclama un trabajo de IA; no toca entradas
             "EventoWebhookRepository.cs",              // registra un webhook; no toca entradas
             "TransicionLineaBaseCompactada.cs",        // migraciones, conexión propia
+            "ReparacionAdjuntosTemporales.cs",         // modo manual: solo cambia rutas de adjuntos, ninguna entrada del cálculo
         };
 
         var fuera = FicherosDeSrc()
