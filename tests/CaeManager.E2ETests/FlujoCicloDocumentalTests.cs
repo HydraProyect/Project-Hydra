@@ -130,12 +130,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // otros tests, así que se comprueba visibilidad real en vez de
         // asumir cuál de las dos ramas pinta Blazor (mismo criterio que
         // FlujoBandejaPriorizadaTests).
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        await page.WaitForTimeoutAsync(300);
-        if (await comboEmpresa.IsVisibleAsync())
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        else
-            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
 
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
@@ -381,15 +376,17 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
             var boton = page.Locator(".revision-ia-cola").GetByRole(
                 AriaRole.Button,
                 new LocatorGetByRoleOptions { Name = apellidosTrabajador });
-            if (await boton.CountAsync() > 0)
+            try
+            {
+                await boton.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
                 return boton;
+            }
+            catch (TimeoutException) { }
 
             if (DateTime.UtcNow >= limite)
                 throw new TimeoutException(
                     $"La revisión IA de \"{apellidosTrabajador}\" no apareció en /documentos/revision-ia "
                     + $"tras {presupuesto.TotalSeconds:F0}s.");
-
-            await page.WaitForTimeoutAsync(2_000);
         }
     }
 
