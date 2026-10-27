@@ -60,12 +60,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // visibilidad real, no solo si el <select> existe en el DOM (existe
         // oculto incluso cuando se resuelve en silencio) ni comprobarlo
         // antes de que Blazor termine de decidir qué rama pintar.
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        await page.WaitForTimeoutAsync(300);
-        if (await comboEmpresa.IsVisibleAsync())
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        else
-            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);

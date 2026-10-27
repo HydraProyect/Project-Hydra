@@ -81,22 +81,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         var pastillaCriticidad = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") });
         await Expect(pastillaCriticidad).ToBeFocusedAsync();
         await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Gestor CAE(?::|$)") })).ToHaveCountAsync(0);
-        // Salir del buscador dispara ManejarBlurAsync (CampoTexto.razor),
-        // que reinvoca ValorChanged aunque el valor no haya cambiado — eso
-        // vuelve a llamar a BuscarAsync -> RecargarAsync, que resetea
-        // _idEnfocado a null como parte de ProveerElementosAsync
-        // (Clientes.razor.cs). Sin esta espera, la primera "j" puede llegar
-        // mientras esa recarga por blur sigue en vuelo y su reset de
-        // _idEnfocado puede pisar el enfoque que "j" acaba de fijar.
-        await page.WaitForTimeoutAsync(400);
+        await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), filaA);
 
-        // Espera breve tras cada tecla, además del reintento propio de las
-        // aserciones: j/k/x/Enter viajan por interop JS -> SignalR -> C# ->
-        // StateHasChanged -> parche de DOM, y mandar la siguiente tecla
-        // justo cuando la aserción anterior confirma el primer cambio deja
-        // sin margen ese último tramo de asentamiento (detectado en CI: la
-        // primera "j" pasaba, la segunda llegaba antes de que el circuito
-        // terminase de procesar la primera).
         await page.Keyboard.PressAsync("j");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
         // La fila "enfocada" por j/k debe llevarse también el foco real de
@@ -104,17 +90,14 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // entera de cuál es (defecto detectado en revisión de Plantillas,
         // fix en atajos-lista.js: enfocarFilaActiva()).
         await Expect(filaA).ToBeFocusedAsync();
-        await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("j");
         await Expect(filaB).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
         await Expect(filaB).ToBeFocusedAsync();
-        await page.WaitForTimeoutAsync(300);
 
         await page.Keyboard.PressAsync("k");
         await Expect(filaA).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("fila-enfocada"));
         await Expect(filaA).ToBeFocusedAsync();
-        await page.WaitForTimeoutAsync(300);
 
         // "x" marca la fila enfocada (Alfa) y enciende ella sola la selección
         // múltiple: una fila marcada sin casilla a la vista sería selección
@@ -125,7 +108,6 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await barraLote.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("1 seleccionado en esta página");
         await Expect(filaA.Locator("input[type=\"checkbox\"]")).ToBeCheckedAsync();
-        await page.WaitForTimeoutAsync(300);
 
         // --- Enter abre la vista rápida del Cliente empresarial enfocado: el
         // panel del Context Workspace, el mismo que abre el nombre de la fila
@@ -156,7 +138,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         var filtroGuardado = page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = nombreFiltro, Exact = true });
 
         await buscador.FillAsync(razonSocialA);
-        await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms): «Guardar filtro» se habilita con un filtro aplicado
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar filtro de búsqueda" })).ToBeVisibleAsync();
         await filtrosGuardados.ClickAsync();
         await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
 
@@ -169,7 +151,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // guardado demuestra que reconstruye el estado, no solo que existe.
         // El filtro está en «Filtros guardados» de inmediato, sin recargar.
         await buscador.FillAsync(string.Empty);
-        await page.WaitForTimeoutAsync(400); // debounce de CampoTexto (300ms)
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar filtro de búsqueda" })).Not.ToBeVisibleAsync();
 
         await filtrosGuardados.ClickAsync();
         await filtroGuardado.ClickAsync();

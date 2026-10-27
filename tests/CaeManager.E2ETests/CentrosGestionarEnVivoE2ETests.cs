@@ -99,12 +99,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
         await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
 
-        var comboEmpresa = drawer.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Empresa" });
-        await page.WaitForTimeoutAsync(300);
-        if (await comboEmpresa.IsVisibleAsync())
-            await comboEmpresa.SelectOptionAsync(new SelectOptionValue { Label = razonSocialEmpresa });
-        else
-            await drawer.GetByText(razonSocialEmpresa).First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
+        await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
 
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
@@ -152,7 +147,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         }
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
-        await page.WaitForTimeoutAsync(500);
+        await Expect(page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Asignar igualmente", Exact = true })).ToBeVisibleAsync();
         // El botón dice "Asignar igualmente" cuando al comprobarlo faltaba
         // algún documento de los que se piden — exactamente el caso de este
         // test, que necesita esa Falta para poder demostrar luego cómo se
@@ -281,12 +276,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         var motivoPendientes = filaCentro.Locator(".tarjeta-fila-acordeon-cabecera .motivo-recuento-pendientes");
         await Expect(motivoPendientes).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
-        // Blur explícito del buscador ANTES de expandir — ver el GAP
-        // documentado arriba: sin esto, el re-disparo redundante de
-        // ValorChanged en el primer clic siguiente (el propio botón de
-        // expandir) puede vaciar _expandidos justo después de fijarlo.
         await buscador.BlurAsync();
-        await page.WaitForTimeoutAsync(500);
+        await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), filaCentro);
 
         await botonExpandir.ClickAsync();
         await Expect(botonExpandir).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
@@ -296,11 +287,6 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // del botón que despliega esa fila.
         var botonExpandirTrabajador = filaCentro.Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-        // El acordeón vuelve a renderizar la fila al terminar CargarAsync —
-        // un margen corto evita apuntar a un nodo que Blazor está
-        // reemplazando (mismo criterio que FlujoCicloDocumentalTests antes
-        // de sus interacciones justo después de una carga asíncrona).
-        await page.WaitForTimeoutAsync(300);
         await botonExpandirTrabajador.ClickAsync();
 
         var tablaDocumentos = page.GetByRole(AriaRole.Table,
