@@ -137,6 +137,8 @@
     /// <summary>Igual que CampoBuscarSelect: solo se resincroniza el texto visible con el Id recibido cuando ese Id no vino de nuestro propio evento.</summary>
     protected override void OnParametersSet()
     {
+        // Deshabilitado con la lista abierta: el blur ya no se atiende, así que se cierra aquí.
+        if (Deshabilitado) { _abierto = false; _indiceResaltado = -1; }
         var textoDelValor = Opciones.FirstOrDefault(o => o.Id == Valor)?.Texto;
         if (Valor == _ultimoValorNotificado)
         {

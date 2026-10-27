@@ -14,7 +14,7 @@ namespace CaeManager.Architecture.Tests;
 /// <b>Contrato efectivo, más estrecho que el nombre.</b> Dos propiedades sobre los <c>.razor</c> del kit (<c>Components/DesignSystem</c>):
 /// (1) un componente con un parámetro <c>bool</c> de deshabilitado no enlaza un <c>EventCallback</c> parámetro directamente a
 /// <c>@onclick</c> (así el clic llegaría al llamador sin pasar por ninguna comprobación); (2) todo <c>&lt;button&gt;</c>, <c>&lt;input&gt;</c>, <c>&lt;select&gt;</c>, <c>&lt;textarea&gt;</c> o <c>&lt;InputFile&gt;</c> con
-/// <c>disabled="@…"</c> cuyo manejador (<c>@onclick</c>, <c>@oninput</c>, <c>@onchange</c>, <c>@onblur</c> u <c>@onfocus</c>, o <c>OnChange</c>; el <c>@onkeydown</c> no, que solo navega) es un método del propio componente tiene un cuerpo que menciona alguno de los
+/// <c>disabled="@…"</c> cuyo manejador (<c>@onclick</c>, <c>@oninput</c>, <c>@onchange</c>, <c>@onblur</c> u <c>@onfocus</c>, o <c>OnChange</c>; el <c>@onkeydown</c> no entra aquí y lo cubren los bUnit de cada componente, y <c>ZonaSoltarArchivo</c> queda fuera a propósito: su <c>Cargando</c> admite soltar otro archivo mientras se analiza) es un método del propio componente tiene un cuerpo que menciona alguno de los
 /// identificadores de la expresión de <c>disabled</c>, él o un método del componente al que llama (un nivel). NO ve: manejadores en lambda (<c>@onclick="() =&gt; X()"</c>, que no se
 /// pueden inspeccionar por texto), la lógica que el método delega en otro, un identificador que se mencione pero no se use para
 /// retornar. Es un trinquete de forma, no una prueba de comportamiento: el comportamiento

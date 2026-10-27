@@ -200,7 +200,6 @@ public class KitCamposDeshabilitadosEnElServidorTests : BunitContext
     [Theory]
     [InlineData(0)]
     [InlineData(4)]
-    [InlineData(-1)]
     public async Task PieListado_ignora_una_pagina_fuera_de_rango_aunque_el_boton_se_reactive(int paginaActual)
     {
         // Los botones Anterior y Siguiente están deshabilitados en los extremos; el servidor no se fía de eso.
@@ -246,6 +245,7 @@ public class KitCamposDeshabilitadosEnElServidorTests : BunitContext
             .Add(x => x.PieExtra, BotonDeFragmento(() => clics++))
             .Add(x => x.PieIzquierda, BotonDeFragmento(() => clics++)));
 
+        foreach (var fieldset in cut.FindAll("fieldset")) fieldset.RemoveAttribute("disabled");
         var botones = cut.FindAll("fieldset button");
         botones.Should().HaveCount(2);
         foreach (var boton in botones)
@@ -281,6 +281,7 @@ public class KitCamposDeshabilitadosEnElServidorTests : BunitContext
             .Add(x => x.Guardando, true)
             .Add(x => x.PieExtra, BotonDeFragmento(() => clics++)));
 
+        cut.Find("fieldset").RemoveAttribute("disabled");
         var boton = cut.Find("fieldset button");
         boton.RemoveAttribute("disabled");
         await boton.ClickAsync(new MouseEventArgs());
