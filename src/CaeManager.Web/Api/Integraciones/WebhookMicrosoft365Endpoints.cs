@@ -14,9 +14,7 @@ namespace CaeManager.Web.Api.Integraciones;
 /// notificación (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo de resolución de
 /// tenant — ver <see cref="IWebhookTenantResolver"/>).
 ///
-/// GET atiende el handshake de validación que Graph hace una vez al crear
-/// la suscripción (echo del <c>validationToken</c>, ver
-/// <c>Microsoft365GraphClient.CrearSuscripcionAsync</c>). POST atiende las
+/// POST atiende la validación de Graph al crear la suscripción y las
 /// notificaciones reales — solo persiste <see cref="EventoWebhook"/> y
 /// responde, nunca llama a Graph de forma síncrona dentro del request
 /// entrante (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 6.4) —
@@ -38,6 +36,8 @@ namespace CaeManager.Web.Api.Integraciones;
 /// </summary>
 public static class WebhookMicrosoft365Endpoints
 {
+    private const int MaximoCaracteresToken = 1024;
+
     public static IEndpointRouteBuilder MapWebhookMicrosoft365Endpoints(this IEndpointRouteBuilder endpoints)
     {
         // P41c: el llamador es un sistema de un tercero, no una persona, y este
@@ -48,10 +48,7 @@ public static class WebhookMicrosoft365Endpoints
             .AllowAnonymous()
             .AddEndpointFilter<ActorIntegracionExternaEndpointFilter>();
 
-        grupo.MapGet("/{conexionId:guid}", (string? validationToken) =>
-            string.IsNullOrWhiteSpace(validationToken)
-                ? Results.BadRequest()
-                : Results.Text(validationToken, "text/plain"));
+        grupo.MapGet("/{conexionId:guid}", (HttpRequest request) => ResponderValidacion(request));
 
         grupo.MapPost("/{conexionId:guid}", async (
             Guid conexionId, HttpRequest request,
@@ -59,6 +56,9 @@ public static class WebhookMicrosoft365Endpoints
             IEventoWebhookRepository eventoRepositorio, IUnitOfWork unitOfWork,
             ILogger<Program> logger, CancellationToken cancellationToken) =>
         {
+            if (request.Query.ContainsKey("validationToken"))
+                return ResponderValidacion(request);
+
             var cuerpo = await LimiteCuerpoWebhook.LeerAsync(request, cancellationToken);
             if (cuerpo is null)
             {
@@ -96,5 +96,19 @@ public static class WebhookMicrosoft365Endpoints
         });
 
         return endpoints;
+    }
+
+    private static IResult ResponderValidacion(HttpRequest request)
+    {
+        var tokens = request.Query["validationToken"];
+        if (tokens.Count != 1 || string.IsNullOrWhiteSpace(tokens[0]) || tokens[0]!.Length > MaximoCaracteresToken)
+            return Results.BadRequest();
+
+        // Graph compara el eco byte a byte: el token va tal cual, sin escapar. No
+        // abre XSS porque text/plain con nosniff impide que el navegador lo
+        // interprete como HTML; la cabecera se fija aquí además de en
+        // UseCabecerasSeguridad para no depender del orden del pipeline.
+        request.HttpContext.Response.Headers.XContentTypeOptions = "nosniff";
+        return Results.Text(tokens[0]!, "text/plain");
     }
 }

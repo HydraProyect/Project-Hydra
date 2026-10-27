@@ -30,6 +30,35 @@ public class WebhooksAutenticacionHttpTests
     private const string SecretoAjeno = "secreto_ajeno_fixture_http_86352";
 
     [Theory]
+    [InlineData("token+con/igual=")]
+    [InlineData("Validation: Testing client application reachability for subscription Request-Id: 25f8b8e2")]
+    [InlineData("<script>alert('x')</script>")]
+    public async Task Validacion_graph_responde_antes_de_leer_el_cuerpo(string token)
+    {
+        var resultado = await EnviarAsync("microsoft365", "ausente", token);
+
+        // Eco intacto: escapar el token rompería la validación de Graph. El
+        // marcado no se ejecuta porque es text/plain con nosniff.
+        resultado.Estado.Should().Be(HttpStatusCode.OK);
+        resultado.TipoContenido.Should().Be("text/plain");
+        resultado.Nosniff.Should().Be("nosniff");
+        resultado.Cuerpo.Should().Be(token);
+        resultado.Llamadas.Should().BeEmpty();
+        resultado.Logs.Should().NotContain(token);
+    }
+
+    [Fact]
+    public async Task Validacion_graph_rechaza_token_demasiado_largo()
+    {
+        var token = new string('a', 1025);
+        var resultado = await EnviarAsync("microsoft365", "ausente", token);
+
+        resultado.Estado.Should().Be(HttpStatusCode.BadRequest);
+        resultado.Llamadas.Should().BeEmpty();
+        resultado.Logs.Should().NotContain(token);
+    }
+
+    [Theory]
     [InlineData("whatsapp", "ausente")]
     [InlineData("whatsapp", "erronea")]
     [InlineData("microsoft365", "ausente")]
@@ -77,8 +106,8 @@ public class WebhooksAutenticacionHttpTests
         resultado.Logs.Should().NotContain(Secreto);
     }
 
-    private static async Task<(HttpStatusCode Estado, string[] Llamadas, string Logs)> EnviarAsync(
-        string proveedor, string credencial)
+    private static async Task<(HttpStatusCode Estado, string[] Llamadas, string Logs, string? TipoContenido, string Cuerpo, string? Nosniff)> EnviarAsync(
+        string proveedor, string credencial, string? token = null)
     {
         var llamadas = new ConcurrentQueue<string>();
         var logs = new CapturaLogs();
@@ -88,6 +117,7 @@ public class WebhooksAutenticacionHttpTests
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
         builder.Logging.AddProvider(logs);
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.Services.AddSingleton(Options.Create(new WhatsAppCloudApiOptions { AppSecret = Secreto }));
         builder.Services.AddSingleton<IEventoWebhookRepository>(Crear<IEventoWebhookRepository>(llamadas, (_, _) => null));
         builder.Services.AddSingleton<IUnitOfWork>(Crear<IUnitOfWork>(llamadas, (_, _) => Task.FromResult(1)));
@@ -147,6 +177,11 @@ public class WebhooksAutenticacionHttpTests
             var ruta = proveedor == "stripe" ? "/api/comercial/webhooks/stripe/"
                 : proveedor == "microsoft365" ? $"/api/integraciones/webhooks/microsoft365/{conexionId}"
                 : "/api/integraciones/webhooks/whatsapp/";
+            if (token is not null)
+            {
+                ruta += "?validationToken=" + Uri.EscapeDataString(token);
+                payload = "cuerpo no válido";
+            }
             using var peticion = new HttpRequestMessage(HttpMethod.Post, ruta)
             {
                 Content = new StringContent(payload, Encoding.UTF8, "application/json")
@@ -162,7 +197,9 @@ public class WebhooksAutenticacionHttpTests
                     proveedor == "stripe" ? $"t={timestamp},v1={firma}" : $"sha256={firma}");
             }
             using var respuesta = await http.SendAsync(peticion);
-            return (respuesta.StatusCode, llamadas.ToArray(), string.Join('\n', logs.Mensajes));
+            return (respuesta.StatusCode, llamadas.ToArray(), string.Join('\n', logs.Mensajes),
+                respuesta.Content.Headers.ContentType?.MediaType, await respuesta.Content.ReadAsStringAsync(),
+                respuesta.Headers.TryGetValues("X-Content-Type-Options", out var nosniff) ? string.Join(',', nosniff) : null);
         }
         finally
         {
