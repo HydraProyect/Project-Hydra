@@ -117,14 +117,23 @@ public class SmtpEmailServiceTests
             Contrasena = "contrasena",
             BuzonRemitente = "info@talveg.es",
         }), new LoggerEspia());
-        using var cancelacion = new CancellationTokenSource(TimeSpan.FromMilliseconds(300));
+        using var cancelacion = new CancellationTokenSource();
 
-        var envio = () => servicio.EnviarAsync(
+        var envio = servicio.EnviarAsync(
             "destino@ejemplo.com", "Asunto", "<p>Cuerpo</p>", TipoAvisoCorreo.Transaccional, cancellationToken: cancelacion.Token);
 
-        await envio.Should().ThrowAsync<OperationCanceledException>();
-
+        // Se cancela con la conexión ya aceptada, no con un temporizador: bajo carga de CI
+        // uno de 300 ms vencía antes de que MailKit abriera el socket, el envío se cancelaba
+        // bien y la espera de la aceptación, sin tope, colgaba el bloque de integración hasta
+        // que Blame lo abortaba a los 10 minutos. Toda espera del test lleva tope.
+        var primero = await Task.WhenAny(aceptacion, envio).WaitAsync(TimeSpan.FromSeconds(30));
+        primero.Should().BeSameAs(aceptacion, "el envío tiene que haber abierto la conexión antes de que se cancele");
         using var aceptado = await aceptacion;
+
+        await cancelacion.CancelAsync();
+
+        var esperarEnvio = () => envio.WaitAsync(TimeSpan.FromSeconds(30));
+        await esperarEnvio.Should().ThrowAsync<OperationCanceledException>();
     }
 
     /// <summary>
