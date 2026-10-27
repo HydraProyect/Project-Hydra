@@ -46,7 +46,8 @@ public class ProveedorAutenticacionRevalidadaTests
             Options.Create(new SecurityStampValidatorOptions()));
         try
         {
-            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "prueba")], "sesion"));
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "prueba"),
+                new Claim(CaducidadSesion.MarcaInicio, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture))], "sesion"));
             var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;
             var tarea = (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), ciclo.Token])!;
