@@ -421,6 +421,8 @@ public class MacrosGen2Tests : BunitContext
             .Should().Be("Otra persona editó esta macro mientras la tenías abierta");
         Boton(cut, ".drawer-pie button", "Guardar").HasAttribute("disabled").Should().BeTrue(
             "guardar otra vez con la versión vieja volvería a chocar");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse(
+            "con el aviso de conflicto a la vista un clic fuera no puede cerrar el formulario sin que se lea");
 
         await Pulsar(cut, ".macros-conflicto button", "Cargar la versión actual");
 
