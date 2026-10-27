@@ -20,4 +20,5 @@ public sealed class CurrentUserServiceMutable : ICurrentUserService
     public Task<string?> ObtenerRolOrigenAsync() => Task.FromResult(Rol);
     public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(TenantOrigenId);
     public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(true);
+    public Task<bool> SuperoTotpEnSesionAsync() => Task.FromResult(true);
 }

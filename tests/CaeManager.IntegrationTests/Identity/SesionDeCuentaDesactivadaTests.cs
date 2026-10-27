@@ -1,4 +1,5 @@
 using System.Data.Common;
+using System.Globalization;
 using System.Security.Claims;
 using CaeManager.Application.Common;
 using CaeManager.Application.Tenants;
@@ -281,6 +282,60 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         string[] esperado = conMarca ? [RestriccionLoginLocalClaimsTransformation.MetodoLoginSso] : [];
         PrincipalDeLaCookie(refrescada)!.FindAll(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin)
             .Select(c => c.Value).Should().Equal(esperado);
+    }
+
+    [Fact]
+    public async Task Refrescar_la_sesion_conserva_el_instante_del_TOTP_sin_rejuvenecerlo()
+    {
+        // S4: la apertura de una Sesión Privilegiada exige un TOTP reciente; cambiar la
+        // contraseña (RefreshSignInAsync) no puede convertir uno viejo en uno nuevo.
+        var usuario = await CrearUsuarioAsync("refresco-totp@x.test");
+        var hace3Horas = DateTimeOffset.UtcNow.AddHours(-3).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var cookie = CookieConMarcaTotp(await PrincipalDeSesionAsync(usuario), hace3Horas);
+        PrincipalDeLaCookie(cookie)!.FindFirst(SignInManagerCuentaDesactivada.ClaimTotpSesion)!.Value
+            .Should().Be(hace3Horas, "control: la cookie de partida");
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: cookie);
+
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        PrincipalDeLaCookie(refrescada)!.FindAll(SignInManagerCuentaDesactivada.ClaimTotpSesion)
+            .Select(c => c.Value).Should().Equal([hace3Horas]);
+    }
+
+    [Fact]
+    public async Task La_marca_del_TOTP_no_entra_por_claims_adicionales_ni_se_inventa_al_refrescar()
+    {
+        var usuario = await CrearUsuarioAsync("marca-totp-ajena@x.test");
+        var ahora = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+
+        string emitida;
+        using (var ambito = _servicios.CreateScope())
+        {
+            var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+            ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+            var cuenta = await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString());
+            await ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>()
+                .SignInWithClaimsAsync(cuenta!, isPersistent: false, [new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, ahora)]);
+            emitida = contexto.Response.Headers.SetCookie.ToString();
+        }
+
+        emitida.Should().NotBeEmpty("control: se emitió la cookie");
+        PrincipalDeLaCookie(emitida)!.HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: emitida);
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        PrincipalDeLaCookie(refrescada)!.HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+    }
+
+    /// <summary>Cookie de aplicación («nombre=valor») con la marca de TOTP que solo pone el segundo factor.</summary>
+    private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca)
+    {
+        var opciones = _servicios.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(IdentityConstants.ApplicationScheme);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, marca));
+        var ticket = new AuthenticationTicket(
+            principal, new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow }, IdentityConstants.ApplicationScheme);
+        return $"{opciones.Cookie.Name}={opciones.TicketDataFormat.Protect(ticket)}";
     }
 
     [Fact]

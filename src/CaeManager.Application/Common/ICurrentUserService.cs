@@ -105,4 +105,11 @@ public interface ICurrentUserService
     /// <see cref="ObtenerRolEfectivoAsync"/>.
     /// </summary>
     Task<bool> TieneDobleFactorActivoAsync();
+
+    /// <summary>
+    /// Si la sesión de inicio actual superó el TOTP de TALVEG y esa verificación es reciente
+    /// (precondición de abrir una Sesión Privilegiada). Por defecto <c>false</c>: una
+    /// implementación que no lo sepa falla en cerrado.
+    /// </summary>
+    Task<bool> SuperoTotpEnSesionAsync() => Task.FromResult(false);
 }
