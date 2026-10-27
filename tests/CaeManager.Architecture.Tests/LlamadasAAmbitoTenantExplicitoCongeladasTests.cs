@@ -457,6 +457,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         // ── SERVICIO DE PLATAFORMA CON GUARDA PROPIA ────────────────────────────────
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenantId ya comprobado contra la allowlist de nombres de demo del propio servicio"),
+        ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
+            new(Categoria.ServicioDePlataformaConGuardaPropia, "tenantId del argumento de CLI --exportar-tenant, solo tras exigir contra PostgreSQL que la identidad está sometida a RLS; bajo ese ámbito exige un Administrador activo del propio Tenant y audita antes de leer, y cada fila se compara otra vez con ese Tenant"),
         ["src/CaeManager.Web/Services/TrazaSoporteService.cs"] =
             new(Categoria.ServicioDePlataformaConGuardaPropia, "tenantId del tenant visitado de una sesión de soporte ya abierta y resuelta por ResolverSesionAsync"),
 
