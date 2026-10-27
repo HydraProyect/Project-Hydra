@@ -16,7 +16,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Tests;
@@ -239,13 +238,16 @@ public class CaducidadSesionTests
     [Fact]
     public async Task El_circuito_sin_hora_de_inicio_falla_cerrado()
     {
+        // Sin SignInManager registrado: llegar a la base dejaría un aviso de error en el log.
+        var registro = new RegistroDeAvisos();
         var servicios = new ServiceCollection().BuildServiceProvider();
-        using var proveedor = new ProveedorAutenticacionRevalidada(NullLoggerFactory.Instance,
+        using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
             servicios.GetRequiredService<IServiceScopeFactory>(), Options.Create(new SecurityStampValidatorOptions()), new RelojManual(Ahora));
         var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "cookie"));
         var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
         (await (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!).Should().BeFalse();
         proveedor.SesionInvalidada.Should().BeTrue();
+        registro.Avisos.Should().Be(0);
     }
 
     private static async Task<HttpResponseMessage> Pedir(HttpClient cliente, string ruta, string cookie)

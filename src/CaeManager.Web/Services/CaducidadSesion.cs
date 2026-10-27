@@ -28,7 +28,9 @@ namespace CaeManager.Web.Services;
 /// sesión emitida antes de este cambio) o con más de 12 horas se rechaza y se
 /// borra. El circuito de Blazor no hace peticiones HTTP:
 /// <see cref="ProveedorAutenticacionRevalidada"/> mira el claim en cada ciclo de
-/// revalidación y pasa a anónimo sin consultar la base.
+/// revalidación y pasa a anónimo sin consultar la base. Dentro del circuito solo
+/// rige el tope de 12 h: la inactividad de 8 h se mide en peticiones HTTP, y lo
+/// que va por SignalR no la desliza ni la consume.
 /// </para>
 ///
 /// <para>
