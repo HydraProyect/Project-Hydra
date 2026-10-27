@@ -114,8 +114,8 @@ jobs:
     # 2026-10-26 (PR #1729) el bloque 1 estuvo 78 min colgado en ese paso
     # hasta que alguien canceló a mano.
     timeout-minutes: 75
-    needs: alcance
-    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
+    needs: [alcance, compilacion-compartida]
+    if: ${{ !cancelled() && needs.compilacion-compartida.result == 'success' && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false') }}
     permissions:
       contents: read
       packages: read
@@ -198,8 +198,13 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
-      - name: Compilar los tests de integración
-        run: dotnet build tests/CaeManager.IntegrationTests --no-restore -warnaserror
+      - name: Descargar compilación compartida
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.compilacion-compartida.outputs.artefacto }}
+
+      - name: Extraer compilación compartida
+        run: tar -xf compilacion-compartida.tar
 
       # BOOTSTRAP DE CLÚSTER — prerrequisito de cualquier MigrateAsync.
       #
@@ -447,6 +452,72 @@ jobs:
           name: reparto-bloque-${{ matrix.bloque }}
           path: reparto
           retention-days: 1
+
+  # COMPILACIÓN COMPARTIDA. Los cuatro bloques de integración, los cuatro de
+  # E2E y k6 no compilan: esperan a este job y descargan su artefacto. Una
+  # rotura de compilación da aquí un rojo (y otro en `compilacion-y-unitarios`)
+  # en vez de uno por bloque. Va aparte de `compilacion-y-unitarios` para que
+  # los jobs pesados no esperen además a los tests unitarios: están en el
+  # camino crítico del grupo de fusión.
+  #
+  # Corre solo si va a correr alguno de los tres jobs pesados (mismas
+  # condiciones que ellos); en una PR ligera no sube un artefacto que nadie
+  # descargaría.
+  #
+  # El nombre del artefacto viaja como salida: al relanzar solo los jobs
+  # fallidos este job no se repite y conserva la salida del intento que lo
+  # subió, mientras que github.run_attempt en el consumidor ya sería otro.
+  compilacion-compartida:
+    name: Compilación compartida (integración, E2E y k6)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: alcance
+    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.integracion != 'false' || needs.alcance.outputs.e2e != 'false' || needs.alcance.outputs.carga != 'false') }}
+    permissions:
+      contents: read
+    outputs:
+      artefacto: compilacion-compartida-${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Instalar .NET SDK
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
+        with:
+          global-json-file: global.json
+
+      - name: Restaurar dependencias
+        run: dotnet restore CaeManager.slnx
+
+      - name: Compilar (warnings como errores)
+        run: dotnet build CaeManager.slnx --no-restore -warnaserror
+
+      # tar conserva los permisos del ejecutable de Playwright y los archivos ocultos.
+      # E2E y k6 arrancan la app en Development, que sirve los static web assets
+      # según CaeManager.Web.staticwebassets.runtime.json: sus content roots
+      # incluyen obj/Debug/net10.0/compressed y scopedcss/bundle, no solo wwwroot.
+      - name: Empaquetar compilación compartida
+        run: |
+          test -f tests/CaeManager.IntegrationTests/bin/Debug/net10.0/CaeManager.IntegrationTests.dll
+          test -f tests/CaeManager.E2ETests/bin/Debug/net10.0/CaeManager.E2ETests.dll
+          test -f tests/CaeManager.E2ETests/bin/Debug/net10.0/playwright.ps1
+          test -f src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.dll
+          test -f src/CaeManager.Web/bin/Debug/net10.0/CaeManager.Web.staticwebassets.runtime.json
+          test -d src/CaeManager.Web/obj/Debug/net10.0/compressed
+          test -d src/CaeManager.Web/obj/Debug/net10.0/scopedcss/bundle
+          tar -cf compilacion-compartida.tar \
+            tests/CaeManager.IntegrationTests/bin/Debug \
+            tests/CaeManager.E2ETests/bin/Debug \
+            src/CaeManager.Web/bin/Debug \
+            src/CaeManager.Web/obj/Debug/net10.0/compressed \
+            src/CaeManager.Web/obj/Debug/net10.0/scopedcss/bundle
+
+      - name: Publicar compilación compartida
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compilacion-compartida-${{ github.run_attempt }}
+          path: compilacion-compartida.tar
+          retention-days: 1
+          if-no-files-found: error
 
   compilacion-y-unitarios:
     name: Compilación y tests unitarios
@@ -1242,8 +1313,8 @@ jobs:
     # Ver el bloque ALCANCE sobre el job `alcance`: los bloques solo se saltan
     # fuera de `merge_group` y con un `false` explícito de `alcance`. Que ese
     # salto sea legítimo lo decide el agregador `e2e-tests`.
-    needs: alcance
-    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.e2e != 'false') }}
+    needs: [alcance, compilacion-compartida]
+    if: ${{ !cancelled() && needs.compilacion-compartida.result == 'success' && (github.event_name == 'merge_group' || needs.alcance.outputs.e2e != 'false') }}
     permissions:
       contents: read
       packages: read
@@ -1284,11 +1355,13 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
-      # Arranca la propia app (WebAppFixture) como subproceso real contra
-      # PostgreSQL — necesita el .dll ya compilado antes de correr los
-      # tests, y el propio proyecto Web (CaeManager.Web.dll) también.
-      - name: Compilar
-        run: dotnet build CaeManager.slnx --no-restore
+      - name: Descargar compilación compartida
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.compilacion-compartida.outputs.artefacto }}
+
+      - name: Extraer compilación compartida
+        run: tar -xf compilacion-compartida.tar
 
       # El paquete Microsoft.Playwright genera un playwright.ps1 en el output
       # del proyecto que lo referencia — se usa ese, no una instalación
@@ -1341,7 +1414,7 @@ jobs:
       # ventana de UN test, no de hasta cuatro simultáneos.
       #
       # El filtro sale del reparto por colección. El descubrimiento se hace
-      # sobre el árbol recién compilado y se publica con el reparto: el
+      # sobre el árbol que trae `compilacion-compartida` y se publica con el reparto: el
       # agregador exige que los cuatro bloques descubrieran lo mismo.
       # MINIMO_CLASES es el suelo del descubrimiento (77 clases el 2026-10-10):
       # un `--list-tests` truncado repartiría una suite incompleta en verde.
@@ -1405,7 +1478,8 @@ jobs:
       # bajo el content root de estos tests
       # (src/CaeManager.Web/bin/Debug/net10.0/App_Data/logs/ — confirmado por
       # el Módulo 1 en los dos ejes que podían vaciarlo en silencio:
-      # WorkingDirectory del proceso, y que el job compila en Debug sin -c).
+      # WorkingDirectory del proceso, y que `compilacion-compartida` compila
+      # en Debug sin -c).
       # Ese fichero es donde queda la única traza de una excepción no
       # controlada mientras la app ya estaba sirviendo — así se encontró en
       # su día la causa del fallo del Paso 0 de FlujoCicloDocumentalTests, en
@@ -1584,8 +1658,8 @@ jobs:
     runs-on: ubuntu-latest
     # Ver el bloque ALCANCE sobre el job `alcance`: en una PR solo corre con
     # la etiqueta «CI: completo» o si cambia la infraestructura de CI.
-    needs: alcance
-    if: ${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.carga != 'false') }}
+    needs: [alcance, compilacion-compartida]
+    if: ${{ !cancelled() && needs.compilacion-compartida.result == 'success' && (github.event_name == 'merge_group' || needs.alcance.outputs.carga != 'false') }}
     permissions:
       contents: read
       packages: read
@@ -1629,8 +1703,13 @@ jobs:
       - name: Restaurar dependencias
         run: dotnet restore CaeManager.slnx
 
-      - name: Compilar
-        run: dotnet build CaeManager.slnx --no-restore
+      - name: Descargar compilación compartida
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.compilacion-compartida.outputs.artefacto }}
+
+      - name: Extraer compilación compartida
+        run: tar -xf compilacion-compartida.tar
 
       - name: Instalar k6
         uses: grafana/setup-k6-action@43b9fc21641a76002687994433dd586f56e791b1 # v1
