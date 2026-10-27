@@ -439,7 +439,12 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
     {
         using var ambito = _servicios.CreateScope();
         var signInManager = ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>();
-        return await signInManager.CreateUserPrincipalAsync(usuario);
+        var principal = await signInManager.CreateUserPrincipalAsync(usuario);
+        // Como el de la cookie: la sesión lleva su hora de inicio (CaducidadSesion);
+        // sin ella el circuito falla cerrado antes de preguntar a la base.
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(CaeManager.Web.Services.CaducidadSesion.MarcaInicio,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return principal;
     }
 
     private async Task<bool> ValidarAsync(ClaimsPrincipal principal)

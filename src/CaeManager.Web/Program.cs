@@ -344,6 +344,8 @@ var intervaloRevalidacionSesion = TimeSpan.FromSeconds(
     Math.Max(1, builder.Configuration.GetValue("Sesion:IntervaloRevalidacionSegundos", 60)));
 builder.Services.Configure<SecurityStampValidatorOptions>(
     opciones => opciones.ValidationInterval = intervaloRevalidacionSesion);
+// HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
+CaducidadSesion.ConfigurarHsts(builder.Services);
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -368,6 +370,9 @@ builder.Services.ConfigureApplicationCookie(options =>
     // dependa del rol ni de si el stamp sigue siendo válido, así que saltarse
     // la revalidación ahí no cede ninguna autorización real.
     OmitirRevalidacionDeStampEnRuta.Configurar(options, "/Error");
+    // 8 h de inactividad (deslizante) y 12 h como máximo desde el inicio de
+    // sesión; cookie Secure salvo en Development (ver CaducidadSesion).
+    CaducidadSesion.Configurar(options, builder.Environment);
 });
 
 // Encargo de administración (decisión D-8, 2026-10-08): quien administra por encargo lleva el rol

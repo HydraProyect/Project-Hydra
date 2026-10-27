@@ -42,7 +42,8 @@ namespace CaeManager.Web.Services;
 public sealed class ProveedorAutenticacionRevalidada(
     ILoggerFactory loggerFactory,
     IServiceScopeFactory scopeFactory,
-    IOptions<SecurityStampValidatorOptions> opciones)
+    IOptions<SecurityStampValidatorOptions> opciones,
+    TimeProvider? reloj = null)
     : RevalidatingServerAuthenticationStateProvider(loggerFactory), ISesionDeCircuitoInvalidable
 {
     private readonly ILogger _logger = loggerFactory.CreateLogger<ProveedorAutenticacionRevalidada>();
@@ -59,6 +60,15 @@ public sealed class ProveedorAutenticacionRevalidada(
         // sin esto, cada ciclo lo «invalidaría» y provocaría un render inútil.
         if (authenticationState.User.Identity?.IsAuthenticated != true)
             return true;
+
+        // Tope de 12 h desde el inicio de sesión (ver CaducidadSesion): un circuito
+        // abierto no hace peticiones, así que la cookie no lo cortaría. Sin hora de
+        // inicio legible, también falla cerrado. No consulta la base.
+        if (!CaducidadSesion.EsVigente(authenticationState.User, (reloj ?? TimeProvider.System).GetUtcNow()))
+        {
+            _sesionInvalidada = true;
+            return false;
+        }
 
         for (var intento = 1; ; intento++)
         {
