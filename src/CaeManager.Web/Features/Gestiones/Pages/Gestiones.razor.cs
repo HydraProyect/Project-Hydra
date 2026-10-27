@@ -11,6 +11,7 @@ using CaeManager.Web.Components.Layout;
 using CaeManager.Web.Components.Workspace;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.QuickGrid;
+using Microsoft.JSInterop;
 
 namespace CaeManager.Web.Features.Gestiones.Pages;
 
@@ -58,6 +59,12 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        if (_devolverFocoPendiente)
+        {
+            _devolverFocoPendiente = false;
+            await using var modulo = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/atajos-lista.js");
+            await modulo.InvokeVoidAsync("enfocarFilaActiva", 0);
+        }
         var grid = _grid;
         var columna = _columnaTrabajador;
         if (_desechado || !_ordenTrabajadorPendiente || grid is null || columna is null)
@@ -517,7 +524,13 @@ public partial class Gestiones : CaeManager.Web.Components.PaginaInteractiva, ID
         _vistaRapida = fila;
     }
 
-    private void CerrarVistaRapida() => _vistaRapida = null;
+    private bool _devolverFocoPendiente;
+
+    private void CerrarVistaRapida()
+    {
+        _vistaRapida = null;
+        _devolverFocoPendiente = true;
+    }
 
     /// <summary>
     /// Los 360 se abren desde la vista rápida: se cierra primero para no dejar
