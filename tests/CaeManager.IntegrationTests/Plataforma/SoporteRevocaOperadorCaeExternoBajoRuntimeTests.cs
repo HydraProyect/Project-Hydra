@@ -27,8 +27,9 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// <para>
 /// Lo que se ataca: la conexión de la sesión sigue siendo de solo lectura y la RLS no se
 /// ensancha. La única escritura posible es <c>app_revocar_operador_cae_externo_por_soporte</c>, y
-/// cada precondición que repite tiene aquí un caso que la incumple y deja la Delegación, la
-/// operación y las carteras intactas y sin auditoría. Las reglas de Application están en
+/// las precondiciones de sesión, concesión, Tenant, actor, motivo y Delegación tienen aquí un caso
+/// que las incumple y deja la Delegación, la operación y las carteras intactas y sin auditoría
+/// (el actor de un Tenant de plataforma no tiene caso propio). Las reglas de Application están en
 /// <c>RevocarOperadorCaeExternoPorSoporteCommandTests</c>.
 /// </para>
 /// </summary>
@@ -168,23 +169,53 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task La_operacion_de_otro_Operador_CAE_externo_queda_intacta()
     {
+        // El índice IX_AsignacionesOperacion_DelegacionTotalVigente no admite dos delegaciones
+        // totales Outbound vigentes del mismo propietario: la del Operador CAE externo original se
+        // cierra antes de sembrar la del otro, para que solo el filtro por Operador la separe.
         Guid otraOperacion;
         await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
         {
             var ahora = DateTime.UtcNow.AddMinutes(-30);
-            // Inbound: una segunda delegación total Outbound vigente del mismo propietario la
-            // impide el índice IX_AsignacionesOperacion_DelegacionTotalVigente.
-            var operacion = AsignacionOperacion.Externa(_tenantA, _tenantB, ServicioCae.Inbound,
+            var original = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
+            original.Cerrar(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+            var otra = AsignacionOperacion.Externa(_tenantA, _tenantB, ServicioCae.Outbound,
                 AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
-            contexto.AsignacionesOperacion.Add(operacion);
+            contexto.AsignacionesOperacion.Add(otra);
             await contexto.SaveChangesAsync();
-            otraOperacion = operacion.Id;
+            otraOperacion = otra.Id;
         }
         var sesion = await AbrirSesionConCapacidadAsync();
         var antes = await FilaAsync("AsignacionesOperacion", otraOperacion);
         (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
         (await FilaAsync("AsignacionesOperacion", otraOperacion)).Should().Be(antes);
         (await LeerAuditoriaDeSesionAsync(sesion)).Should().NotContain(f => f.EntidadId == otraOperacion);
+    }
+
+    [Fact]
+    public async Task La_operacion_de_otro_servicio_del_mismo_Operador_CAE_externo_queda_intacta()
+    {
+        Guid inbound;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var operacion = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            contexto.AsignacionesOperacion.Add(operacion);
+            await contexto.SaveChangesAsync();
+            inbound = operacion.Id;
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await FilaAsync("AsignacionesOperacion", inbound);
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+        (await FilaAsync("AsignacionesOperacion", inbound)).Should().Be(antes);
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().NotContain(f => f.EntidadId == inbound);
+    }
+
+    [Fact]
+    public async Task Un_motivo_de_exactamente_500_caracteres_con_espacios_alrededor_si_revoca()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion, "  " + new string('a', 500) + "  ")).Should().Be("revocada");
     }
 
     [Fact]
@@ -279,6 +310,7 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
         var sesion = await AbrirSesionConCapacidadAsync();
 
         (await RevocarComoSoporteAsync(_tenantA, sesion, delegacion: deSoporte)).Should().Be("delegacion_no_encontrada");
+        await IntactaAsync(sesion);
     }
 
     [Fact]
