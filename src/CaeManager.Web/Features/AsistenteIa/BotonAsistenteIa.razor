@@ -5,8 +5,9 @@
    icono en su círculo turquesa, «Vega» y Ctrl I. No aparece en la pantalla completa
    (/asistente) ni mientras el panel está abierto (base.css, data-vega-abierto).
 
-   Sin ningún proveedor configurado (Anthropic:ApiKey para las consultas, o TypeSafe:Activo
-   + TypeSafe:ApiKey para el agente) el botón ni se muestra — el chat queda completamente
+   Sin ningún proveedor configurado (Anthropic:ApiKey o el doble del arnés E2E para las
+   consultas, o TypeSafe:Activo + TypeSafe:ApiKey para el agente; ver DisponibilidadAsistente)
+   el botón ni se muestra — el chat queda completamente
    inerte en vez de mostrar algo roto (mismo principio que Sentry/Backups). *@
 <LimiteDeErrores Islote="this">
 @if (Disponibilidad.Alguna && !_enPantallaCompleta)

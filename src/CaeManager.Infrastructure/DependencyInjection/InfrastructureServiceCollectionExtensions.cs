@@ -747,6 +747,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        services.AddAsistenteDePruebas(configuration, entorno);
         // El cliente de Anthropic es ahora el respaldo: el servicio que ve Application es el compositor
         // que prueba primero el parser local (ITA/RNT/TC2 con texto digital) y solo si el documento no
         // cuadra llama a este cliente. Por eso se registra por su tipo concreto, no por la interfaz.
