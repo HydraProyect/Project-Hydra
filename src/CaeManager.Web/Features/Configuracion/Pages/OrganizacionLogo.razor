@@ -3,6 +3,7 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @attribute [Authorize]
 @using CaeManager.Web.Components.Layout
+@using CaeManager.Web.Features.ContactoSeguridad.Components
 
 <LimiteDeErrores Pagina="this">
 <PageTitle>@Textos["OrganizacionTituloDocumento"] — @Marca.Nombre</PageTitle>
@@ -90,6 +91,8 @@
                 <p class="organizacion-logo-solo-lectura" role="note">@TextoSoloLectura</p>
             }
         </Tarjeta>
+
+        <SeccionContactoSeguridad />
     }
 </div>
 

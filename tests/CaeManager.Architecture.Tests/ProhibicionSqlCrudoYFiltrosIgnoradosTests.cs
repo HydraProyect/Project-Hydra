@@ -191,6 +191,19 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         [("src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs",
             ".SqlQuery<string>(")] = 1,
 
+        // Contacto de seguridad del Tenant beneficiario (aviso de violaciones de seguridad, incremento 3a).
+        // El Actor de Plataforma TALVEG lee la cola de propuestas y el vigente de cualquier Tenant: el filtro
+        // de Tenant de EF se quita porque el actor no está en ese Tenant, y lo que acota las filas es la
+        // política actor_de_plataforma_lee (AdminPlataforma global vigente sobre app_ctx_usuario_id()), además
+        // del PuedeGlobalmenteAsync del handler. Validar y rechazar van por la función SECURITY DEFINER
+        // app_resolver_contacto_seguridad, que repite concesión, cuenta de plataforma, estado y motivo, y
+        // devuelve un código; los destinatarios del aviso, por app_destinatarios_aviso_seguridad, que lanza
+        // 42501 sin la concesión. Valores parametrizados por EF.
+        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<FilaDestinatarioAvisoSeguridad>(")] = 1,
+
         // DEC-36 y REC-208 (revisión extensa 2026-10-23, Z2-2): el acceso de Soporte TALVEG
         // a un documento sensible desde una Sesión Privilegiada queda registrado. Esa
         // conexión lleva cae_app_soporte (solo SELECT sobre RegistrosAccesoDocumentoSensible),

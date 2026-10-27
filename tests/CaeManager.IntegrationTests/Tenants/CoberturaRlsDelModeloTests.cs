@@ -115,18 +115,42 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// una de la lista que falte en la base, pone el test en rojo. <c>Menciona</c>
     /// son los fragmentos que su USING y su WITH CHECK tienen que contener: sin
     /// ellos, una restrictiva reescrita a <c>true</c> seguiría contando como revisada.
+    /// Una restrictiva solo de INSERT no tiene USING: ahí basta con su WITH CHECK.
+    /// Una tabla puede tener más de una.
     /// </summary>
-    private static readonly Dictionary<string, (string Politica, string Motivo, string[] Menciona)> PoliticasRestrictivasRevisadas = new()
-    {
-        ["TareasAsistente"] = ("solo_su_persona",
+    private static readonly (string Tabla, string Politica, string Motivo, string[] Menciona)[] PoliticasRestrictivasRevisadas =
+    [
+        ("TareasAsistente", "solo_su_persona",
             "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app_ctx_usuario_id()",
             ["\"ActorRealUsuarioId\"", "app_ctx_usuario_id()"]),
-        ["TurnosTareaAsistente"] = ("solo_su_persona",
+        ("TurnosTareaAsistente", "solo_su_persona",
             "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
             ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""]),
-        ["PasosTareaAsistente"] = ("solo_su_persona",
+        ("PasosTareaAsistente", "solo_su_persona",
             "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
             ["EXISTS", "FROM \"TareasAsistente\"", "\"PasosTareaAsistente\".\"TareaAsistenteId\""]),
+        ("ContactosSeguridadTenant", "solo_el_administrador_propone",
+            "el Tenant propietario solo da de alta contactos Propuestos, sin resolución, a nombre de quien firma el " +
+            "contexto y si es su Administrador (validar y rechazar son de app_resolver_contacto_seguridad)",
+            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "'Propuesto'"]),
+        ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_su_propuesta",
+            "lo único que el Tenant propietario actualiza es su propuesta pendiente a Sustituida, y solo su Administrador",
+            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"]),
+    ];
+
+    /// <summary>
+    /// Políticas PERMISSIVE de lectura del plano de Plataforma revisadas, además de
+    /// <c>aislamiento_tenant</c>, por tabla. Ensanchan la lectura —por eso cada una va aquí, con motivo, en
+    /// el commit que la introduce— y nada más: tienen que ser solo de SELECT, sin WITH CHECK, y su USING
+    /// tiene que ser la concesión AdminPlataforma global vigente sobre la identidad del contexto RLS firmado,
+    /// sin disyunciones. Mismo patrón que <c>actor_de_plataforma_lee</c> de las tablas de incidentes de
+    /// seguridad, que no llevan <c>TenantId</c>.
+    /// </summary>
+    private static readonly Dictionary<string, (string Politica, string Motivo)> LecturasDePlataformaRevisadas = new()
+    {
+        ["ContactosSeguridadTenant"] = ("actor_de_plataforma_lee",
+            "el Actor de Plataforma TALVEG valida o rechaza los contactos de seguridad propuestos por los " +
+            "Administradores de todos los Tenants (aviso de violaciones de seguridad, incremento 3a)"),
     };
 
     /// <summary>Política de los catálogos globales de asignación.</summary>
@@ -300,31 +324,50 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         // demás, así que ensancha el acceso. Es exactamente el "accidentalmente
         // demasiado permisiva" que un recuento de políticas no vería.
         var conPoliticasDeMas = conRls
-            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)))
-            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
+            .Where(t => estado[t].Politicas.Any(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p)))
+            .Select(t => $"{t} ({string.Join("+", estado[t].Politicas.Where(p => p.Nombre != PoliticaAislamiento && !EsRestrictivaRevisada(t, p) && !EsLecturaDePlataformaRevisada(t, p)).Select(p => p.Permisiva ? p.Nombre : $"{p.Nombre} RESTRICTIVE sin revisar"))})")
             .ToList();
 
         // La lista de revisadas no es solo una lista blanca: cada entrada
         // afirma que la política existe, es restrictiva y sigue ahí.
         var restrictivasAusentes = PoliticasRestrictivasRevisadas
-            .Where(r => !estado.TryGetValue(r.Key, out var e)
-                        || !e.Politicas.Any(p => p.Nombre == r.Value.Politica && !p.Permisiva))
-            .Select(r => $"{r.Key}.{r.Value.Politica}")
+            .Where(r => !estado.TryGetValue(r.Tabla, out var e)
+                        || !e.Politicas.Any(p => p.Nombre == r.Politica && !p.Permisiva))
+            .Select(r => $"{r.Tabla}.{r.Politica}")
             .ToList();
 
         var restrictivasQueNoDicenLoQueToca = PoliticasRestrictivasRevisadas
-            .Select(r => (r.Key, r.Value, Politica: estado.TryGetValue(r.Key, out var e)
-                ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Value.Politica)
+            .Select(r => (Revisada: r, Politica: estado.TryGetValue(r.Tabla, out var e)
+                ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Politica)
                 : null))
             .Where(x => x.Politica is not null
-                        && (!x.Value.Menciona.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal)
-                                                       && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
-                            // Ninguna de estas tres lleva disyunciones: un "... OR true" conservaría
+                        && (!x.Revisada.Menciona.All(m => (x.Politica.Comando == 'a' || (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal))
+                                                          && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
+                            // Ninguna lleva disyunciones: un "... OR true" conservaría
                             // los fragmentos y dejaría de restringir. Que restringe de verdad lo
-                            // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests); esto
-                            // solo cierra la reescritura más barata.
+                            // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests,
+                            // ContactosSeguridadTenantBajoRuntimeTests); esto solo cierra la
+                            // reescritura más barata.
                             || TieneDisyuncion(x.Politica.Using) || TieneDisyuncion(x.Politica.WithCheck)))
-            .Select(x => $"{x.Key}.{x.Value.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
+            .Select(x => $"{x.Revisada.Tabla}.{x.Revisada.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
+            .ToList();
+
+        // Cada lectura de Plataforma revisada existe y solo abre la lectura, con la concesión
+        // AdminPlataforma global sobre el contexto firmado.
+        var lecturasDePlataformaQueNoDicenLoQueToca = LecturasDePlataformaRevisadas
+            .Select(r => (r.Key, r.Value.Politica, Politica: estado.TryGetValue(r.Key, out var e)
+                ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Value.Politica)
+                : null))
+            .Where(x => x.Politica is null
+                        || !x.Politica.Permisiva
+                        || x.Politica.Comando != 'r'
+                        || x.Politica.WithCheck is not null
+                        || x.Politica.Using is null
+                        || !x.Politica.Using.Contains("app_es_admin_plataforma_global(", StringComparison.Ordinal)
+                        || !x.Politica.Using.Contains("app_ctx_usuario_id()", StringComparison.Ordinal)
+                        || x.Politica.Using.Contains("current_setting(", StringComparison.Ordinal)
+                        || TieneDisyuncion(x.Politica.Using))
+            .Select(x => $"{x.Key}.{x.Item2} → {(x.Politica is null ? "(no existe)" : $"USING {x.Politica.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"} / comando {x.Politica.Comando}")}")
             .ToList();
 
         // La de tenant tiene que ser PERMISSIVE: una tabla con solo políticas
@@ -372,6 +415,11 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
 
         string.Join(", ", restrictivasQueNoDicenLoQueToca).Should().BeEmpty(
             "una restrictiva revisada tiene que seguir diciendo, en USING y en WITH CHECK, lo que la lista documenta");
+
+        string.Join(" | ", lecturasDePlataformaQueNoDicenLoQueToca).Should().BeEmpty(
+            "una lectura de Plataforma revisada tiene que existir, ser PERMISSIVE solo de SELECT y sin WITH CHECK, y " +
+            "pedir la concesión AdminPlataforma global sobre app_ctx_usuario_id(): si escribiera o se abriera a " +
+            "otra condición, ensancharía el acceso entre Tenants");
 
         string.Join(", ", aislamientoNoPermisivo).Should().BeEmpty(
             $"'{PoliticaAislamiento}' tiene que ser PERMISSIVE: es la que concede el acceso por tenant");
@@ -928,7 +976,11 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
     private static bool EsRestrictivaRevisada(string tabla, PoliticaRls politica) =>
         !politica.Permisiva
-        && PoliticasRestrictivasRevisadas.TryGetValue(tabla, out var revisada)
+        && PoliticasRestrictivasRevisadas.Any(r => r.Tabla == tabla && r.Politica == politica.Nombre);
+
+    private static bool EsLecturaDePlataformaRevisada(string tabla, PoliticaRls politica) =>
+        politica.Permisiva
+        && LecturasDePlataformaRevisadas.TryGetValue(tabla, out var revisada)
         && revisada.Politica == politica.Nombre;
 
     private async Task<Dictionary<string, (bool Habilitado, bool Forzado, List<PoliticaRls> Politicas)>> LeerEstadoRlsAsync(

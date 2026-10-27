@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SeccionTitulo" xml:space="preserve">
+    <value>Contacte de seguretat</value>
+  </data>
+  <data name="SeccionDescripcion" xml:space="preserve">
+    <value>La persona a qui TALVEG avisarà si una violació de seguretat afecta les dades de la teva organització. Només rep avisos quan TALVEG l'ha validada; mentrestant, els avisos van als Administradors de l'organització.</value>
+  </data>
+  <data name="SinContactoValidado" xml:space="preserve">
+    <value>La teva organització encara no té cap contacte de seguretat validat.</value>
+  </data>
+  <data name="EstadoValidado" xml:space="preserve">
+    <value>Validat</value>
+  </data>
+  <data name="EstadoEnRevision" xml:space="preserve">
+    <value>En revisió</value>
+  </data>
+  <data name="EstadoRechazado" xml:space="preserve">
+    <value>Rebutjat</value>
+  </data>
+  <data name="ContactoVigente" xml:space="preserve">
+    <value>Contacte validat</value>
+  </data>
+  <data name="PropuestaPendiente" xml:space="preserve">
+    <value>Proposta en revisió</value>
+  </data>
+  <data name="PropuestaPendienteNota" xml:space="preserve">
+    <value>Fins que TALVEG no la validi, els avisos continuen anant al contacte validat o, si no n'hi ha, als Administradors.</value>
+  </data>
+  <data name="UltimoRechazo" xml:space="preserve">
+    <value>Darrera proposta rebutjada</value>
+  </data>
+  <data name="MotivoDelRechazo" xml:space="preserve">
+    <value>Motiu: {0}</value>
+  </data>
+  <data name="BotonProponer" xml:space="preserve">
+    <value>Proposar contacte</value>
+  </data>
+  <data name="BotonProponerOtro" xml:space="preserve">
+    <value>Proposar un altre contacte</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Proposar contacte de seguretat</value>
+  </data>
+  <data name="DrawerNota" xml:space="preserve">
+    <value>Si ja hi ha una proposta en revisió, aquesta la substitueix.</value>
+  </data>
+  <data name="CampoNombre" xml:space="preserve">
+    <value>Nom i cognoms</value>
+  </data>
+  <data name="CampoCorreo" xml:space="preserve">
+    <value>Correu electrònic</value>
+  </data>
+  <data name="CampoTelefono" xml:space="preserve">
+    <value>Telèfon (opcional)</value>
+  </data>
+  <data name="BotonEnviar" xml:space="preserve">
+    <value>Enviar a revisió</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancel·lar</value>
+  </data>
+  <data name="PropuestaEnviada" xml:space="preserve">
+    <value>Proposta enviada. TALVEG la revisarà.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No s'ha pogut enviar la proposta. Torna-ho a provar.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No s'ha pogut carregar el contacte de seguretat.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Tornar-ho a provar</value>
+  </data>
+  <data name="ColaTituloDocumento" xml:space="preserve">
+    <value>Contactes de seguretat</value>
+  </data>
+  <data name="ColaTitulo" xml:space="preserve">
+    <value>Contactes de seguretat proposats</value>
+  </data>
+  <data name="ColaDescripcion" xml:space="preserve">
+    <value>Cada organització proposa la persona que rebrà els avisos de violacions de seguretat. Comprova per un altre canal que la persona existeix i pertany a l'organització abans de validar-la.</value>
+  </data>
+  <data name="ColaVaciaTitulo" xml:space="preserve">
+    <value>Cap proposta en revisió</value>
+  </data>
+  <data name="ColaVaciaDescripcion" xml:space="preserve">
+    <value>Cap organització no té un contacte de seguretat pendent de validar.</value>
+  </data>
+  <data name="ColaErrorCarga" xml:space="preserve">
+    <value>No s'ha pogut carregar la cua de propostes.</value>
+  </data>
+  <data name="ColumnaOrganizacion" xml:space="preserve">
+    <value>Organització</value>
+  </data>
+  <data name="ColumnaContacto" xml:space="preserve">
+    <value>Persona de contacte</value>
+  </data>
+  <data name="ColumnaCorreo" xml:space="preserve">
+    <value>Correu electrònic</value>
+  </data>
+  <data name="ColumnaTelefono" xml:space="preserve">
+    <value>Telèfon</value>
+  </data>
+  <data name="ColumnaPropuesto" xml:space="preserve">
+    <value>Proposat el</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Accions</value>
+  </data>
+  <data name="BotonValidar" xml:space="preserve">
+    <value>Validar</value>
+  </data>
+  <data name="BotonRechazar" xml:space="preserve">
+    <value>Rebutjar</value>
+  </data>
+  <data name="ContactoValidadoAviso" xml:space="preserve">
+    <value>Contacte de seguretat validat.</value>
+  </data>
+  <data name="ContactoRechazadoAviso" xml:space="preserve">
+    <value>Proposta rebutjada.</value>
+  </data>
+  <data name="RechazarTitulo" xml:space="preserve">
+    <value>Rebutjar la proposta</value>
+  </data>
+  <data name="RechazarTexto" xml:space="preserve">
+    <value>L'organització veurà el motiu i podrà proposar un altre contacte.</value>
+  </data>
+  <data name="CampoMotivo" xml:space="preserve">
+    <value>Motiu del rebuig</value>
+  </data>
+  <data name="MotivoObligatorio" xml:space="preserve">
+    <value>Indica el motiu del rebuig.</value>
+  </data>
+  <data name="BotonConfirmarRechazo" xml:space="preserve">
+    <value>Rebutjar proposta</value>
+  </data>
+  <data name="ErrorResolver" xml:space="preserve">
+    <value>No s'ha pogut resoldre la proposta. Torna-ho a provar.</value>
+  </data>
+</root>

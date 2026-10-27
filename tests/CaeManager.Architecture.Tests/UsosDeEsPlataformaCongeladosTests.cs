@@ -440,6 +440,11 @@ public class UsosDeEsPlataformaCongeladosTests
             new(3, CategoriaUso.MigracionManual,
                 "doc-comment, comentario y predicado de app_revocar_operador_cae_externo_por_soporte (enmienda de " +
                 "ADR-004 § 12.2 del 2026-10-26; ADR-011 § 8.7.3): el actor de la Sesión Privilegiada debe pertenecer a un Tenant de plataforma. Solo restringe, como el segundo factor"),
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261027073902_AnadeContactosSeguridadTenant.cs"] =
+            new(2, CategoriaUso.MigracionManual,
+                "comentario y predicado de app_resolver_contacto_seguridad (aviso de violaciones de seguridad, " +
+                "incremento 3a): quien valida o rechaza debe ser una cuenta de un Tenant de plataforma trabajando desde " +
+                "ese Tenant, además de la concesión AdminPlataforma global. Solo restringe, como el segundo factor"),
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] =
             new(3, CategoriaUso.MigracionManual,
                 ":217 comentario y :221 predicado de app_restablecer_segundo_factor_por_soporte (ADR-011 § 8.7.3, " +

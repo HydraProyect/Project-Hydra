@@ -1,4 +1,5 @@
 using Bunit;
+using CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactoSeguridadDeMiOrganizacion;
 using CaeManager.Application.Tenants.Commands.GuardarLogoTenant;
 using CaeManager.Application.Tenants.Commands.RetirarLogoTenant;
 using CaeManager.Application.Tenants.Queries.ObtenerLogoOrganizacion;
@@ -231,6 +232,10 @@ public class OrganizacionLogoTests : BunitContext
                     Retirados++;
                     Organizacion = OrganizacionTrasGuardar;
                     return Task.FromResult((TResponse)(object)Result.Exito());
+                case ObtenerContactoSeguridadDeMiOrganizacionQuery:
+                    // La sección «Contacto de seguridad» tiene sus propios tests (SeccionContactoSeguridadTests):
+                    // aquí no se pinta, como para quien no es Administrador del Tenant.
+                    return Task.FromResult(default(TResponse)!);
                 default:
                     throw new NotSupportedException($"El doble no cubre {request.GetType().Name}.");
             }
