@@ -67,7 +67,8 @@ public class ExportacionCompletaTenantTests
             ["Empresa", "Trabajador", "Vehiculo", "Centro", "Documento", "Proyecto", "Visita", "Incidencia",
              "Conversacion", "Mensaje", "RegistroAuditoria"]);
         tipos.Select(t => t.Name).Should().NotContain(
-            ["Tenant", "AsignacionOperacion", "AsignacionCartera", "ConcesionPrivilegio", "SesionPrivilegiada", "DelegacionTenant"]);
+            ["Tenant", "AsignacionOperacion", "AsignacionCartera", "ConcesionPrivilegio", "SesionPrivilegiada", "DelegacionTenant",
+             "TareaAsistente", "TurnoTareaAsistente", "PasoTareaAsistente"]);
         tipos.Should().OnlyHaveUniqueItems();
     }
 

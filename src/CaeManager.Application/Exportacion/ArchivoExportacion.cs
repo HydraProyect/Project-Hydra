@@ -7,8 +7,8 @@ namespace CaeManager.Application.Exportacion;
 /// <summary>
 /// Zip de la exportación completa de UN Tenant propietario: cada fichero se escribe en streaming,
 /// con su SHA-256 calculado al vuelo, y al terminar se añade <c>manifiesto.json</c> con la fecha,
-/// el Tenant propietario, el recuento por entidad, el hash de cada fichero y los Documentos cuyo
-/// binario ya no estaba en el almacén. Solo da formato: qué filas entran y bajo qué contexto de
+/// el Tenant propietario, el recuento por entidad, el hash de cada fichero, los Documentos cuyo
+/// binario ya no estaba en el almacén y lo que la exportación deja fuera a sabiendas. Solo da formato: qué filas entran y bajo qué contexto de
 /// RLS se leen lo decide quien lo llena (<c>ExportacionCompletaTenant</c>, en Infrastructure).
 /// </summary>
 public sealed class ArchivoExportacion : IDisposable
@@ -19,6 +19,7 @@ public sealed class ArchivoExportacion : IDisposable
     private readonly SortedDictionary<string, string> hashes = new(StringComparer.Ordinal);
     private readonly SortedDictionary<string, long> recuentos = new(StringComparer.Ordinal);
     private readonly List<Guid> documentosSinFichero = [];
+    private readonly SortedDictionary<string, string> noIncluido = new(StringComparer.Ordinal);
     private readonly Guid tenantId;
     private readonly TimeProvider reloj;
     private bool terminado;
@@ -66,6 +67,17 @@ public sealed class ArchivoExportacion : IDisposable
         documentosSinFichero.Add(documentoId);
     }
 
+    /// <summary>
+    /// Lo que la exportación sabe que deja fuera, con su motivo: el manifiesto no presenta como
+    /// completo lo que no lo es.
+    /// </summary>
+    public void RegistrarNoIncluido(string que, string motivo)
+    {
+        ExigirAbierto();
+        if (string.IsNullOrWhiteSpace(que) || string.IsNullOrWhiteSpace(motivo)) throw new ArgumentException("Exclusión sin nombre o sin motivo.");
+        noIncluido.Add(que, motivo);
+    }
+
     public async Task TerminarAsync(CancellationToken cancellationToken = default)
     {
         ExigirAbierto();
@@ -78,6 +90,7 @@ public sealed class ArchivoExportacion : IDisposable
             recuentos,
             sha256 = hashes,
             documentosSinFichero,
+            noIncluido,
         }, new JsonSerializerOptions { WriteIndented = true }, cancellationToken);
     }
 

@@ -1,3 +1,4 @@
+using System.Data;
 using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -30,8 +31,10 @@ namespace CaeManager.Infrastructure.Exportacion;
 /// <para>
 /// <b>Autorización.</b> Solo se alcanza desde el modo de CLI <see cref="Argumento"/> (acceso
 /// operativo al servidor), y exige además nombrar a la cuenta que la pide, que tiene que ser un
-/// Administrador activo del propio Tenant propietario. La exportación queda en la auditoría del
-/// Tenant antes de escribir el primer byte: si esa fila no se guarda, no se exporta nada.
+/// Administrador activo del propio Tenant propietario; quien ejecuta la CLI no está autenticado en
+/// la aplicación, así que ese solicitante consta como declarado y el actor como Desconocido. La
+/// exportación queda en la auditoría del Tenant antes de leer nada (si esa fila no se guarda, no
+/// se exporta nada) y otra vez al terminar, con los recuentos.
 /// </para>
 ///
 /// <para>
@@ -53,6 +56,30 @@ public static class ExportacionCompletaTenant
     {
         "Contrasena", "HashClave", "RefreshToken", "AccessToken", "ClientState", "TokenAcceso", "PayloadCrudo",
         "PasswordHash", "SecurityStamp",
+    };
+
+    /// <summary>
+    /// Tablas con Tenant que RLS acota además a la persona que las creó (política restrictiva
+    /// <c>solo_su_persona</c>): sin sesión de usuario no se ven, y exportarlas vacías diría que no hay.
+    /// </summary>
+    private static readonly HashSet<string> AcotadasALaPersona = new(StringComparer.Ordinal)
+    {
+        "TareaAsistente", "TurnoTareaAsistente", "PasoTareaAsistente",
+    };
+
+    /// <summary>Lo que la exportación deja fuera a sabiendas; va al manifiesto con su motivo.</summary>
+    private static readonly IReadOnlyDictionary<string, string> NoIncluido = new SortedDictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["TareaAsistente, TurnoTareaAsistente, PasoTareaAsistente"] =
+            "RLS las acota a la persona que las creó; la exportación corre sin sesión de usuario y no las ve.",
+        ["Filas con borrado lógico"] = "El filtro global de EF las oculta; solo se exportan los datos vigentes.",
+        ["Asignaciones de Operación y de Cartera, encargos, solicitudes y propuestas de cartera"] =
+            "No son filas del Tenant propietario sino relaciones con un Operador CAE externo (sin TenantId).",
+        ["Aceptaciones de términos, preferencias de panel y tablas de Identity de claims, logins y tokens"] =
+            "Van por cuenta de usuario, sin TenantId; los tokens de Identity guardan secretos TOTP.",
+        ["Adjuntos de mensajes, evidencias inbound, ficheros de tipos de documento de Centro y logo"] =
+            "Sus filas se exportan con su clave de almacén; el binario solo se incluye para los Documentos.",
+        ["Columnas cifradas en reposo, hash de claves de API y secretos de Identity"] = "Secretos: nunca se exportan.",
     };
 
     private static readonly JsonSerializerOptions OpcionesJson = new()
@@ -99,7 +126,7 @@ public static class ExportacionCompletaTenant
         modelo.GetEntityTypes()
             .Where(t => t.BaseType is null && !t.IsOwned() && t.FindPrimaryKey() is not null &&
                         t.GetTableName() is not null && !t.HasSharedClrType &&
-                        typeof(EntidadConTenant).IsAssignableFrom(t.ClrType))
+                        typeof(EntidadConTenant).IsAssignableFrom(t.ClrType) && !AcotadasALaPersona.Contains(t.ClrType.Name))
             .OrderBy(t => t.ClrType.Name, StringComparer.Ordinal)
             .ToList();
 
@@ -126,49 +153,82 @@ public static class ExportacionCompletaTenant
 
         var solicitanteId = await ExigirAdministradorActivoAsync(contexto, tenantId, correoSolicitante, cancellationToken);
 
-        contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
-            "Tenant", tenantId, RegistroAuditoria.AccionExportacion, null,
-            JsonSerializer.Serialize(new { alcance = "ExportacionCompleta", via = Argumento, solicitanteUsuarioId = solicitanteId }),
-            usuarioId: null, TipoActorAuditoria.Sistema));
-        await contexto.SaveChangesAsync(cancellationToken);
-        contexto.ChangeTracker.Clear();
-
-        using var archivo = new ArchivoExportacion(destino, tenantId);
-
-        await archivo.EscribirAsync("datos/Tenant.json",
-            salida => JsonSerializer.SerializeAsync(salida, tenant, OpcionesJson, cancellationToken), cancellationToken);
+        // Quien ejecuta la CLI no está autenticado en la aplicación: el actor queda Desconocido y el
+        // solicitante, como declarado. Esta fila se guarda antes de leer nada; la de cierre, al terminar.
+        await AuditarAsync(contexto, tenantId, new
+        {
+            fase = "Iniciada",
+            alcance = "ExportacionCompleta",
+            via = Argumento,
+            solicitanteDeclaradoUsuarioId = solicitanteId,
+        }, cancellationToken);
 
         var recuentos = new SortedDictionary<string, long>(StringComparer.Ordinal);
-        foreach (var tipo in TiposExportables(contexto.Model))
+        int sinFichero;
+        using (var archivo = new ArchivoExportacion(destino, tenantId))
         {
-            var filas = 0L;
-            await archivo.EscribirAsync($"datos/{tipo.ClrType.Name}.json", async salida =>
+            // Una sola foto de la base para todas las tablas: sin ella, una fila creada o borrada a mitad
+            // dejaría claves foráneas que apuntan fuera del zip.
+            await using (var foto = await contexto.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken))
             {
-                await using var escritor = new Utf8JsonWriter(salida);
-                escritor.WriteStartArray();
-                await foreach (var fila in Leer(contexto, tipo.ClrType).WithCancellation(cancellationToken))
+                await archivo.EscribirAsync("datos/Tenant.json",
+                    salida => JsonSerializer.SerializeAsync(salida, tenant, OpcionesJson, cancellationToken), cancellationToken);
+
+                foreach (var tipo in TiposExportables(contexto.Model))
                 {
-                    var conTenant = (EntidadConTenant)fila;
-                    GuardaTenantExportacion.Exigir(tenantId, conTenant.TenantId, tipo.ClrType.Name);
-                    EscribirEntidad(escritor, contexto.Model.FindEntityType(fila.GetType()) ?? tipo, fila);
-                    filas++;
-                    if (escritor.BytesPending > 64 * 1024)
-                        await escritor.FlushAsync(cancellationToken);
+                    var filas = 0L;
+                    await archivo.EscribirAsync($"datos/{tipo.ClrType.Name}.json", async salida =>
+                    {
+                        await using var escritor = new Utf8JsonWriter(salida);
+                        escritor.WriteStartArray();
+                        await foreach (var fila in Leer(contexto, tipo.ClrType).WithCancellation(cancellationToken))
+                        {
+                            GuardaTenantExportacion.Exigir(tenantId, ((EntidadConTenant)fila).TenantId, tipo.ClrType.Name);
+                            EscribirEntidad(escritor, contexto.Model.FindEntityType(fila.GetType()) ?? tipo, fila);
+                            filas++;
+                            if (escritor.BytesPending > 64 * 1024)
+                                await escritor.FlushAsync(cancellationToken);
+                        }
+                        escritor.WriteEndArray();
+                    }, cancellationToken);
+                    archivo.RegistrarRecuento(tipo.ClrType.Name, filas);
+                    recuentos[tipo.ClrType.Name] = filas;
                 }
-                escritor.WriteEndArray();
-            }, cancellationToken);
-            archivo.RegistrarRecuento(tipo.ClrType.Name, filas);
-            recuentos[tipo.ClrType.Name] = filas;
+
+                var usuarios = await EscribirUsuariosAsync(contexto, archivo, tenantId, cancellationToken);
+                archivo.RegistrarRecuento("Usuario", usuarios);
+                recuentos["Usuario"] = usuarios;
+
+                sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, cancellationToken);
+                // Foto de solo lectura: se deshace siempre; las dos filas de auditoría van fuera de ella.
+                await foto.RollbackAsync(cancellationToken);
+            }
+
+            foreach (var (que, motivo) in NoIncluido)
+                archivo.RegistrarNoIncluido(que, motivo);
+            await archivo.TerminarAsync(cancellationToken);
         }
 
-        var usuarios = await EscribirUsuariosAsync(contexto, archivo, tenantId, cancellationToken);
-        archivo.RegistrarRecuento("Usuario", usuarios);
-        recuentos["Usuario"] = usuarios;
-
-        var sinFichero = await EscribirDocumentosAsync(contexto, almacen, archivo, cancellationToken);
-        await archivo.TerminarAsync(cancellationToken);
+        await AuditarAsync(contexto, tenantId, new
+        {
+            fase = "Completada",
+            alcance = "ExportacionCompleta",
+            via = Argumento,
+            solicitanteDeclaradoUsuarioId = solicitanteId,
+            recuentos,
+            documentosSinFichero = sinFichero,
+        }, cancellationToken);
 
         return new Resultado(tenantId, tenant.Nombre, recuentos, sinFichero);
+    }
+
+    private static async Task AuditarAsync(CaeManagerDbContext contexto, Guid tenantId, object datos, CancellationToken cancellationToken)
+    {
+        contexto.RegistrosAuditoria.Add(new RegistroAuditoria(
+            "Tenant", tenantId, RegistroAuditoria.AccionExportacion, null, JsonSerializer.Serialize(datos),
+            usuarioId: null, TipoActorAuditoria.Desconocido));
+        await contexto.SaveChangesAsync(cancellationToken);
+        contexto.ChangeTracker.Clear();
     }
 
     /// <summary>

@@ -57,9 +57,19 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
 
         _empresaA = await SembrarAsync(_tenantA, "Montajes Springfield");
         _empresaB = await SembrarAsync(_tenantB, "Montajes Shelbyville");
-        _administradorA = await CuentaAsync(_tenantA, administrador);
-        _administradorB = await CuentaAsync(_tenantB, administrador);
-        _consultaA = await CuentaAsync(_tenantA, consulta);
+        (_, _administradorA) = await CuentaAsync(_tenantA, administrador);
+        (var administradorBId, _administradorB) = await CuentaAsync(_tenantB, administrador);
+        (_, _consultaA) = await CuentaAsync(_tenantA, consulta);
+
+        // Referencia cruzada: una fila de auditoría de A que nombra a la cuenta de B. La política de lectura
+        // de cuentas deja ver a B bajo el contexto de A por esa referencia, así que lo que impide que B salga
+        // en Usuario.json es el filtro explícito por Tenant de la exportación, no solo RLS.
+        using (AmbitoTenantExplicito.Establecer(_tenantA))
+        {
+            _propietario.RegistrosAuditoria.Add(new RegistroAuditoria(
+                "Empresa", _empresaA, "Modificado", null, null, administradorBId, TipoActorAuditoria.Persona));
+            await _propietario.SaveChangesAsync();
+        }
     }
 
     public async Task DisposeAsync()
@@ -111,7 +121,8 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         await using var control = CrearPropietario();
         (await control.RegistrosAuditoria.IgnoreQueryFilters()
                 .CountAsync(r => r.TenantId == _tenantA && r.EntidadId == _tenantA && r.Accion == RegistroAuditoria.AccionExportacion))
-            .Should().Be(1, "la exportación queda en la auditoría del Tenant propietario");
+            .Should().Be(2, "la exportación queda en la auditoría del Tenant propietario al empezar y al terminar");
+        manifiesto.RootElement.GetProperty("noIncluido").EnumerateObject().Should().NotBeEmpty();
     }
 
     [Fact]
@@ -150,7 +161,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         return empresa.Id;
     }
 
-    private async Task<string> CuentaAsync(Guid tenantId, Guid rolId)
+    private async Task<(Guid Id, string Correo)> CuentaAsync(Guid tenantId, Guid rolId)
     {
         var id = Guid.NewGuid();
         var correo = $"{id:N}@exportacion.local";
@@ -171,7 +182,7 @@ public class ExportacionCompletaTenantBajoRuntimeTests : IAsyncLifetime
         });
         _propietario.UserRoles.Add(new IdentityUserRole<Guid> { UserId = id, RoleId = rolId });
         await _propietario.SaveChangesAsync();
-        return correo;
+        return (id, correo);
     }
 
     private CaeManagerDbContext CrearPropietario()
