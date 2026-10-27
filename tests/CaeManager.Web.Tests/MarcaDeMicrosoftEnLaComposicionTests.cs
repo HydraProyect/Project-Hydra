@@ -63,6 +63,30 @@ public class MarcaDeMicrosoftEnLaComposicionTests
             .Should().ContainSingle(c => c.Value == RestriccionLoginLocalClaimsTransformation.MetodoLoginSso);
     }
 
+    /// <summary>
+    /// La marca del TOTP de la sesión (precondición de abrir una Sesión Privilegiada) también sobrevive
+    /// a la revalidación en la composición real, con su instante original.
+    /// </summary>
+    [Fact]
+    public async Task La_composicion_real_conserva_la_marca_del_TOTP_al_revalidar_la_cookie()
+    {
+        var servicios = new ServiceCollection();
+        servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
+        using var proveedor = servicios.BuildServiceProvider();
+        var opciones = proveedor.GetRequiredService<IOptions<SecurityStampValidatorOptions>>().Value;
+
+        var contexto = new SecurityStampRefreshingPrincipalContext
+        {
+            CurrentPrincipal = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.NameIdentifier, "cuenta"), new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, "1700000000")], "Prueba")),
+            NewPrincipal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "cuenta")], "Prueba")),
+        };
+        await opciones.OnRefreshingPrincipal!(contexto);
+
+        contexto.NewPrincipal!.FindAll(SignInManagerCuentaDesactivada.ClaimTotpSesion)
+            .Select(c => c.Value).Should().Equal(["1700000000"]);
+    }
+
     private sealed class EntornoFalso : Microsoft.Extensions.Hosting.IHostEnvironment
     {
         public string EnvironmentName { get; set; } = "Testing";

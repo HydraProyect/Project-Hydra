@@ -146,6 +146,53 @@ public class SignInManagerCuentaDesactivada(
         }
     }
 
+    /// <summary>
+    /// El principal que rehace la fábrica de claims (al iniciar sesión, al refrescar y en cada
+    /// revalidación de la cookie) nunca trae la marca de TOTP: si alguien la guardara en
+    /// <c>AspNetUserClaims</c>, la fábrica la copiaría en cada sesión sin código. La marca solo la
+    /// ponen <see cref="SignInWithClaimsAsync(ApplicationUser, AuthenticationProperties?, IEnumerable{Claim})"/>
+    /// y <see cref="ConservarMarcaTotpAlRevalidar"/>.
+    /// </summary>
+    public override async Task<ClaimsPrincipal> CreateUserPrincipalAsync(ApplicationUser user)
+    {
+        var principal = await base.CreateUserPrincipalAsync(user);
+        foreach (var identidad in principal.Identities)
+            foreach (var marca in identidad.FindAll(ClaimTotpSesion).ToList())
+                identidad.RemoveClaim(marca);
+        return principal;
+    }
+
+    /// <summary>
+    /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
+    /// marca de TOTP, igual que <see cref="RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar"/>
+    /// con la de Microsoft: el validador de la cookie rehace el principal cada intervalo de revalidación
+    /// (60 s por defecto) y sin esto la marca moría en el primer minuto. Copia el valor original de la
+    /// cookie validada, de la misma cuenta, sin rejuvenecerlo; nunca la crea donde no estaba.
+    /// Respeta un gancho anterior.
+    /// </summary>
+    public static void ConservarMarcaTotpAlRevalidar(SecurityStampValidatorOptions opciones)
+    {
+        var anterior = opciones.OnRefreshingPrincipal;
+        opciones.OnRefreshingPrincipal = async contexto =>
+        {
+            if (anterior is not null) await anterior(contexto);
+            CopiarMarcaTotp(contexto);
+        };
+    }
+
+    private static void CopiarMarcaTotp(SecurityStampRefreshingPrincipalContext contexto)
+    {
+        if (contexto.NewPrincipal?.Identity is not ClaimsIdentity nueva) return;
+        foreach (var ajena in nueva.FindAll(ClaimTotpSesion).ToList())
+            nueva.RemoveClaim(ajena);
+
+        var actual = contexto.CurrentPrincipal;
+        if (actual?.FindFirst(ClaimTotpSesion)?.Value is { } marca
+            && actual.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } cuentaActual
+            && cuentaActual == contexto.NewPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+            nueva.AddClaim(new Claim(ClaimTotpSesion, marca));
+    }
+
     public override Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
