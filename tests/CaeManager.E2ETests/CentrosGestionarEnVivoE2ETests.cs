@@ -278,7 +278,7 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
 
         await buscador.BlurAsync();
         // El chip del filtro activo marca que la búsqueda ya se aplicó; solo entonces tiene sentido esperar a que la recarga acabe.
-        await Expect(page.GetByText($"Búsqueda: \"{nombreCentro}\"")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar filtro de búsqueda" })).ToBeVisibleAsync();
         await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), filaCentro);
 
         await botonExpandir.ClickAsync();
