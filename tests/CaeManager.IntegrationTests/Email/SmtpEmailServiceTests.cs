@@ -71,7 +71,9 @@ public class SmtpEmailServiceTests
         using var servidor = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0);
         servidor.Start();
         var puerto = ((System.Net.IPEndPoint)servidor.LocalEndpoint).Port;
-        _ = servidor.AcceptTcpClientAsync();
+        // Se guarda la conexión aceptada por el mismo motivo que en el test de cancelación:
+        // si el GC cerrara el socket, el envío fallaría como error de red sin que venciera el tope.
+        var aceptacion = servidor.AcceptTcpClientAsync();
 
         var logger = new LoggerEspia();
         var servicio = new SmtpEmailService(Options.Create(new SmtpEmailOptions
@@ -92,6 +94,8 @@ public class SmtpEmailServiceTests
         resultado.Error.Codigo.Should().Be("Email.ErrorRed");
         reloj.Elapsed.Should().BeLessThan(TimeSpan.FromSeconds(15), "el tope configurado manda, no los 120 s de MailKit");
         logger.Errores.Should().ContainSingle();
+
+        using var aceptado = await aceptacion.WaitAsync(TimeSpan.FromSeconds(30));
     }
 
     /// <summary>
@@ -116,6 +120,8 @@ public class SmtpEmailServiceTests
             Usuario = "usuario",
             Contrasena = "contrasena",
             BuzonRemitente = "info@talveg.es",
+            // Holgado para que, bajo carga, no venza el tope propio antes de cancelar a mano.
+            TiempoMaximoSegundos = 120,
         }), new LoggerEspia());
         using var cancelacion = new CancellationTokenSource();
 
