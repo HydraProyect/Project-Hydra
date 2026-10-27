@@ -94,6 +94,11 @@ function Invoke-Caso {
 $roles = 'deploy/bootstrap/roles-de-cluster.sql'
 $neutros = @('src/Foo.cs')
 $rev = "## Revisi${o}n Codex"
+# Lineas que toda seccion de revision valida lleva ademas del veredicto (endurecimiento del 2026-10-26).
+$revL = 'Revisor: Codex'
+$refL = 'Refutacion: intente saltarme el filtro de tenant con un id de otro tenant'
+$nb = [string][char]0x00A0     # espacio de no separacion: NO es espacio ASCII (el .sh y este espejo coinciden)
+$nfdO = 'o' + [string][char]0x0301   # o + acento combinante (NFD)
 
 Write-Host '=== Regla 1: paso operativo de roles de cluster (aislada de la regla 2) ==='
 Invoke-Caso 'toca roles-de-cluster.sql sin seccion: falla' 1 @('## Resumen', 'Anade un rol nuevo.') @($roles, 'src/Foo.cs') -Menciona 'Paso operativo en servidores'
@@ -121,34 +126,67 @@ Invoke-Caso "'resultado' y 'abajo' con varios espacios: sigue fallando" 1 @($rev
 Invoke-Caso "marcador 'pendiente': falla" 1 @($rev, 'pendiente de ejecutar') $neutros -Autor ''
 Invoke-Caso "nombre de estado 'Pendiente' con inicial mayuscula: falla" 1 @($rev, 'Estado: Pendiente') $neutros -Autor ''
 Invoke-Caso "marcador 'TODO': falla" 1 @($rev, 'TODO: pedirle a Codex que revise esto') $neutros -Autor ''
-Invoke-Caso "'todo' en minusculas no es un marcador" 0 @($rev, 'Codex reviso todo el diff, sin hallazgos.') $neutros -Autor ''
-Invoke-Caso "'independiente' no dispara 'pendiente'" 0 @($rev, 'El hallazgo es independiente del diseno actual; sin accion.') $neutros -Autor ''
-Invoke-Caso "'pendientes' dentro de una frase real no es marcador (#828)" 0 @($rev, 'Sin hallazgos nuevos pendientes de esta pasada.') $neutros -Autor ''
-Invoke-Caso 'hallazgos aceptados y rechazados: pasa' 0 @($rev, '', '- Aceptado: falta validar el tenant objetivo en el comando.', '- Rechazado: el guardarrail de RLS ya cubre ese camino (falso positivo).') $neutros -Autor ''
-Invoke-Caso "'sin hallazgos' sola: pasa" 0 @($rev, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'todo' en minusculas no es un marcador" 0 @($rev, $revL, $refL, 'Codex reviso todo el diff, sin hallazgos.') $neutros -Autor ''
+Invoke-Caso "'independiente' no dispara 'pendiente'" 0 @($rev, $revL, $refL, 'El hallazgo es independiente del diseno actual; aceptados 0, rechazados 1.') $neutros -Autor ''
+Invoke-Caso "'pendientes' dentro de una frase real no es marcador (#828)" 0 @($rev, $revL, $refL, 'Sin hallazgos nuevos pendientes de esta pasada.') $neutros -Autor ''
+Invoke-Caso 'hallazgos aceptados y rechazados: pasa' 0 @($rev, $revL, $refL, 'Hallazgos: aceptados 1, rechazados 1', '- Aceptado: falta validar el tenant objetivo en el comando.', '- Rechazado: el guardarrail de RLS ya cubre ese camino (falso positivo).') $neutros -Autor ''
+# Endurecimiento del 2026-10-26: "sin hallazgos" a secas ya no basta (antes pasaba).
+Invoke-Caso "'sin hallazgos' sola: falla" 1 @($rev, 'sin hallazgos') $neutros -Autor '' -Menciona 'Revisor'
+Invoke-Caso 'revisor, refutacion y sin hallazgos: pasa' 0 @($rev, $revL, $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "recuento 'aceptados 2, rechazados 0': pasa" 0 @($rev, $revL, $refL, 'Hallazgos: aceptados 2, rechazados 0') $neutros -Autor ''
+Invoke-Caso 'revisor-puente, vineta e Intentos de refutacion: pasa' 0 @($rev, '- Revisor: revisor-puente', "- Intentos de refutaci${o}n: ruta alternativa por el job", 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Refutacion' sin tilde: pasa" 0 @($rev, $revL, 'Refutacion: estado degradado sin tenant', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Refutaci${o}n' con tilde: pasa" 0 @($rev, $revL, "Refutaci${o}n: estado degradado sin tenant", 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "Codex nombrado en prosa pero sin linea 'Revisor:': falla" 1 @($rev, 'Lo reviso Codex.', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Revisor:' que no es revisor-puente ni Codex: falla" 1 @($rev, 'Revisor: yo mismo', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'negar a Codex en la linea de revisor no cuenta: falla' 1 @($rev, 'Revisor: no se uso Codex', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'sin linea de refutacion: falla' 1 @($rev, $revL, 'sin hallazgos') $neutros -Autor '' -Menciona 'refutar'
+Invoke-Caso "'Refutacion:' vacia: falla" 1 @($rev, $revL, 'Refutacion:', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Refutacion:' con solo un comentario HTML: falla" 1 @($rev, $revL, 'Refutacion: <!-- luego -->', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'sin veredicto contable: falla' 1 @($rev, $revL, $refL, 'Todo correcto.') $neutros -Autor '' -Menciona 'veredicto'
+Invoke-Caso "recuento sin numeros ('aceptados y rechazados'): falla" 1 @($rev, $revL, $refL, 'Hay aceptados y rechazados.') $neutros -Autor ''
+
+# --- Endurecimiento: formatos legitimos que deben pasar (revision adversarial 2026-10-26)
+Invoke-Caso 'negrita en revisor y refutacion, con vineta: pasa' 0 @($rev, '- **Revisor:** Codex', '- **Refutacion:** probe un id de otro tenant', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "negrita con los dos puntos fuera ('**Revisor**: Codex'): pasa" 0 @($rev, '**Revisor**: Codex', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'revisor entre comillas invertidas: pasa' 0 @($rev, 'Revisor: `Codex`', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'cita (>) y lista numerada: pasa' 0 @($rev, '> Revisor: Codex', '1. Refutacion: ruta alternativa por el job', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'recuento con el orden invertido: pasa' 0 @($rev, $revL, $refL, 'Rechazados 1, aceptados 2') $neutros -Autor ''
+Invoke-Caso 'recuento con numeros intermedios (gravedad): pasa' 0 @($rev, $revL, $refL, 'Aceptados: 3 (1 grave), rechazados: 0') $neutros -Autor ''
+Invoke-Caso 'dos comentarios HTML en la linea de refutacion: el texto de en medio cuenta' 0 @($rev, $revL, 'Refutacion: <!-- a --> probe el bypass <!-- b -->', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Refutacion' en NFD (o + U+0301): pasa" 0 @($rev, $revL, "Refutaci${nfdO}n: estado degradado sin tenant", 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'fin de linea CRLF en todas las lineas: pasa' 0 @("$rev`r", "$revL`r", "$refL`r", "sin hallazgos`r") $neutros -Autor ''
+
+# --- Endurecimiento: lo que debe seguir fallando
+Invoke-Caso "'Codexx' no es Codex: falla" 1 @($rev, 'Revisor: Codexx', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'revisor-puentex' no es revisor-puente: falla" 1 @($rev, 'Revisor: revisor-puentex', $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "refutacion en negrita pero vacia ('**Refutacion:**'): falla" 1 @($rev, $revL, '**Refutacion:**', 'sin hallazgos') $neutros -Autor ''
+# NBSP: no es espacio ASCII ni para el .sh (grep) ni para este espejo (clase ASCII explicita; `\s` de .NET si lo casaria).
+Invoke-Caso "NBSP tras 'Revisor:': falla (no es espacio ASCII)" 1 @($rev, "Revisor:${nb}Codex", $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "NBSP dentro de 'sin hallazgos': falla (no es espacio ASCII)" 1 @($rev, $revL, $refL, "sin${nb}hallazgos") $neutros -Autor ''
 Invoke-Caso 'seccion de revision vacia: falla' 1 @($rev, '', '## Otra seccion', 'texto') $neutros -Autor ''
 Invoke-Caso 'dependabot[bot] exime de la revision' 0 @('## Resumen', 'Bump de Serilog 4.4.0 a 4.4.1.') $neutros -Autor 'dependabot[bot]'
 Invoke-Caso 'autor vacio no exime' 1 @('## Resumen', 'Cambio cualquiera.') $neutros -Autor ''
 Invoke-Caso "bot con nombre parecido no exime ('dependabot')" 1 @('## Resumen', 'Cambio cualquiera.') $neutros -Autor 'dependabot'
 Invoke-Caso 'solo un comentario HTML: falla' 1 @($rev, '<!-- -->') $neutros -Autor ''
-Invoke-Caso 'comentario HTML junto a contenido real: pasa' 0 @($rev, '<!-- nota interna -->sin hallazgos') $neutros -Autor ''
+Invoke-Caso 'comentario HTML junto a contenido real: pasa' 0 @($rev, $revL, $refL, '<!-- nota interna -->sin hallazgos') $neutros -Autor ''
 Invoke-Caso "marcador 'TODOs' (plural): falla" 1 @($rev, 'TODOs: repasar con Codex') $neutros -Autor ''
 Invoke-Caso "marcador 'resultados abajo' (plural): falla" 1 @($rev, "2$ap pasada $raya resultados abajo") $neutros -Autor ''
 Invoke-Caso "marcador 'resultado-abajo' (con guion): falla" 1 @($rev, 'resultado-abajo') $neutros -Autor ''
-Invoke-Caso "'Todo' con inicial mayuscula no es marcador" 0 @($rev, 'Todo el equipo reviso esto, sin hallazgos.') $neutros -Autor ''
-Invoke-Caso "'resultado' y 'abajo' en lineas distintas no es el marcador" 0 @($rev, 'resultado final', 'abajo el detalle: sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'Todo' con inicial mayuscula no es marcador" 0 @($rev, $revL, $refL, 'Todo el equipo reviso esto, sin hallazgos.') $neutros -Autor ''
+Invoke-Caso "'resultado' y 'abajo' en lineas distintas no es el marcador" 0 @($rev, $revL, $refL, 'resultado final', 'abajo el detalle: sin hallazgos') $neutros -Autor ''
 
 Write-Host '=== Variantes del titulo de la regla 2 ==='
-Invoke-Caso "'## Revision de Codex' (con acento y 'de'): pasa" 0 @("## Revisi${o}n de Codex", 'sin hallazgos') $neutros -Autor ''
-Invoke-Caso "'## Revision Codex' (sin tilde): pasa" 0 @('## Revision Codex', 'sin hallazgos') $neutros -Autor ''
-Invoke-Caso "'## Revision de Codex' (sin tilde, con 'de'): pasa" 0 @('## Revision de Codex', 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'## Revision de Codex' (con acento y 'de'): pasa" 0 @("## Revisi${o}n de Codex", $revL, $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'## Revision Codex' (sin tilde): pasa" 0 @('## Revision Codex', $revL, $refL, 'sin hallazgos') $neutros -Autor ''
+Invoke-Caso "'## Revision de Codex' (sin tilde, con 'de'): pasa" 0 @('## Revision de Codex', $revL, $refL, 'sin hallazgos') $neutros -Autor ''
 Invoke-Caso "variante con marcador 'pendiente': sigue fallando" 1 @("## Revisi${o}n de Codex", 'pendiente de ejecutar') $neutros -Autor ''
 Invoke-Caso 'variante vacia: sigue fallando' 1 @("## Revisi${o}n de Codex", '', '## Otra seccion', 'texto') $neutros -Autor ''
 Invoke-Caso "'## Revision por Codex' (no aceptada): falla" 1 @("## Revisi${o}n por Codex", 'sin hallazgos') $neutros -Autor ''
 
 Write-Host '=== Combinacion de las dos reglas ==='
 Invoke-Caso 'faltan las dos secciones a la vez: falla con 2 problemas' 1 @('## Resumen', 'Cambio grande.') @($roles) -Autor '' -Menciona 'Problemas: 2'
-Invoke-Caso 'las dos secciones completas: pasa' 0 @($rev, 'sin hallazgos', '', '## Paso operativo en servidores', "GRANT en staging y producci${o}n antes del despliegue.") @($roles, 'src/Foo.cs') -Autor ''
+Invoke-Caso 'las dos secciones completas: pasa' 0 @($rev, $revL, $refL, 'sin hallazgos', '', '## Paso operativo en servidores', "GRANT en staging y producci${o}n antes del despliegue.") @($roles, 'src/Foo.cs') -Autor ''
 
 Write-Host '=== Guarda de proyectos de test (nunca Integration ni E2E) ==='
 function Test-Guarda([string]$Descripcion, [string]$Ruta, [bool]$DebeLanzar) {
