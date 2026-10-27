@@ -33,10 +33,11 @@ public static class ClienteActivoEndpoints
             IOperacionesQueryContext operacionesContext,
             IDataProtectionProvider dataProtectionProvider,
             IContadorPendientesSelectorTenant contadorPendientes,
+            [FromServices] CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad senalesIncidente,
             CancellationToken cancellationToken) =>
             CambiarAsync(
                 tenantId, returnUrl, httpContext, dbContext, currentUserService,
-                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes));
+                operacionesContext, dataProtectionProvider, cancellationToken, contadorPendientes, senalesIncidente));
 
         return endpoints;
     }
@@ -52,7 +53,8 @@ public static class ClienteActivoEndpoints
         IOperacionesQueryContext operacionesContext,
         IDataProtectionProvider dataProtectionProvider,
         CancellationToken cancellationToken,
-        IContadorPendientesSelectorTenant? contadorPendientes = null)
+        IContadorPendientesSelectorTenant? contadorPendientes = null,
+        CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null)
     {
         var usuarioId = await currentUserService.ObtenerUsuarioActualIdAsync();
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
@@ -87,7 +89,15 @@ public static class ClienteActivoEndpoints
                 dbContext, usuarioId.Value, tenantId, ahora, cancellationToken);
 
         if (!autorizado)
+        {
+            // Señal de incidente: el selector solo ofrece Tenants autorizados, así que pedir
+            // uno que no lo está, repetidamente, es manipular la petición (o una revocación
+            // en curso, que el umbral absorbe). Un rechazo no expone nada; la señal no cambia
+            // la respuesta.
+            if (senalesIncidente is not null)
+                await senalesIncidente.AccesoAOtroTenantRechazadoAsync(usuarioId.Value, tenantOrigenId.Value, tenantId, cancellationToken);
             return Results.Forbid();
+        }
 
         if (tenantId == tenantOrigenId.Value)
             CookieDeContextoTenant.VolverAlOrigen(httpContext, usuarioId.Value);

@@ -7,7 +7,9 @@ namespace CaeManager.Application.Auditoria;
 /// <inheritdoc cref="IRegistroExportacionService"/>
 public class RegistroExportacionService(
     IActorAuditoria actorAuditoria,
-    IRegistroAccesoDatoSensibleRepository repositorio)
+    IRegistroAccesoDatoSensibleRepository repositorio,
+    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
+    ITenantActual? tenantActual = null)
     : IRegistroExportacionService
 {
     public async Task RegistrarAsync(
@@ -32,5 +34,10 @@ public class RegistroExportacionService(
             viaAccesoId: actor.ViaAccesoId);
 
         await repositorio.GuardarAsync(registro, cancellationToken);
+
+        // Señal de extracción masiva: cuenta para quien estaba realmente detrás del
+        // teclado, no para la persona simulada. Solo tras quedar registrada la exportación.
+        if (senalesIncidente is not null && actor.ActorRealUsuarioId is { } actorReal)
+            await senalesIncidente.ExportacionAsync(actorReal, tenantActual?.TenantId, filas, cancellationToken);
     }
 }
