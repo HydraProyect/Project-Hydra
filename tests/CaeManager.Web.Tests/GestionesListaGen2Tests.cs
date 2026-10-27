@@ -257,6 +257,21 @@ public partial class GestionesListaGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Cerrar_vista_rapida_solicita_devolver_el_foco_a_la_fila()
+    {
+        var modulo = JSInterop.SetupModule("./js/atajos-lista.js");
+        var foco = modulo.SetupVoid("enfocarFilaActiva", args => args.Arguments.Count == 1 && (int)args.Arguments[0]! == 0);
+        foco.SetVoidResult();
+        var cut = Renderizar(new MediatorFalso { Almacen = { Gestion("Nuria Salas Ortiz") } });
+
+        await NombreEnLaFila(cut, "Nuria Salas Ortiz").ClickAsync(new MouseEventArgs());
+        await cut.Find(".boton-cerrar-vista-rapida-gestion").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("aside.vista-rapida-gestion").Should().BeEmpty();
+        foco.Invocations.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task El_nombre_del_trabajador_abre_la_vista_rapida_con_los_datos_de_esa_fila_y_no_el_360()
     {
         var cut = Renderizar(new MediatorFalso
