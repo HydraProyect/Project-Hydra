@@ -27,8 +27,9 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// <para>
 /// Lo que se ataca: la conexión de la sesión sigue siendo de solo lectura y la RLS no se
 /// ensancha. La única escritura posible es <c>app_revocar_operador_cae_externo_por_soporte</c>, y
-/// cada precondición que repite tiene aquí un caso que la incumple y deja la Delegación, la
-/// operación y las carteras intactas y sin auditoría. Las reglas de Application están en
+/// las precondiciones de sesión, concesión, Tenant, actor, motivo y Delegación tienen aquí un caso
+/// que las incumple y deja la Delegación, la operación y las carteras intactas y sin auditoría
+/// (el actor de un Tenant de plataforma no tiene caso propio). Las reglas de Application están en
 /// <c>RevocarOperadorCaeExternoPorSoporteCommandTests</c>.
 /// </para>
 /// </summary>
@@ -133,6 +134,107 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
     // ── Cada precondición de la función, incumplida ──────────────────────────
 
     [Fact]
+    public async Task Otro_actor_no_puede_ejercer_la_sesion()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await InstantaneaAsync();
+        await using var contexto = CrearContexto(_tenantA, sesionPrivilegiadaId: sesion, actor: _adminPlataforma);
+        (await LlamarFuncionAsync(contexto, sesion, _delegacion, Motivo)).Should().Be("sesion_no_autorizada");
+        (await InstantaneaAsync()).Should().Be(antes);
+    }
+
+    [Theory]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""VigenciaHasta"" = now() - interval '1 minute' WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    [InlineData(@"UPDATE ""TenantsAlcanzadosPorConcesion"" SET ""TenantId"" = gen_random_uuid() WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    [InlineData(@"UPDATE ""SesionesPrivilegiadas"" SET ""UsuarioSimuladoId"" = gen_random_uuid() WHERE ""Id"" = @u;")]
+    public async Task Concesion_no_vigente_sin_Tenant_o_sesion_con_simulacion_no_revoca(string preparacion)
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await EjecutarAsync(preparacion, sesion);
+        var antes = await InstantaneaAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("sesion_no_autorizada");
+        (await InstantaneaAsync()).Should().Be(antes);
+    }
+
+    [Fact]
+    public async Task Un_motivo_de_mas_de_500_caracteres_no_revoca()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await InstantaneaAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion, new string('a', 501))).Should().Be("motivo_no_valido");
+        (await InstantaneaAsync()).Should().Be(antes);
+    }
+
+    [Fact]
+    public async Task La_operacion_de_otro_Operador_CAE_externo_queda_intacta()
+    {
+        // El índice IX_AsignacionesOperacion_DelegacionTotalVigente no admite dos delegaciones
+        // totales Outbound vigentes del mismo propietario: la del Operador CAE externo original se
+        // cierra antes de sembrar la del otro, para que solo el filtro por Operador la separe.
+        Guid otraOperacion;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var original = await contexto.AsignacionesOperacion.SingleAsync(o => o.Id == _operacion);
+            original.Cerrar(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+            var otra = AsignacionOperacion.Externa(_tenantA, _tenantB, ServicioCae.Outbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            contexto.AsignacionesOperacion.Add(otra);
+            await contexto.SaveChangesAsync();
+            otraOperacion = otra.Id;
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await FilaAsync("AsignacionesOperacion", otraOperacion);
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+        (await FilaAsync("AsignacionesOperacion", otraOperacion)).Should().Be(antes);
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().NotContain(f => f.EntidadId == otraOperacion);
+    }
+
+    [Fact]
+    public async Task La_operacion_de_otro_servicio_del_mismo_Operador_CAE_externo_queda_intacta()
+    {
+        Guid inbound;
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var ahora = DateTime.UtcNow.AddMinutes(-30);
+            var operacion = AsignacionOperacion.Externa(_tenantA, _tenantOperador, ServicioCae.Inbound,
+                AmbitoAsignacion.Universal, ahora, null, ahora, _gestora);
+            contexto.AsignacionesOperacion.Add(operacion);
+            await contexto.SaveChangesAsync();
+            inbound = operacion.Id;
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await FilaAsync("AsignacionesOperacion", inbound);
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+        (await FilaAsync("AsignacionesOperacion", inbound)).Should().Be(antes);
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().NotContain(f => f.EntidadId == inbound);
+    }
+
+    [Fact]
+    public async Task Un_motivo_de_exactamente_500_caracteres_con_espacios_alrededor_si_revoca()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        (await RevocarComoSoporteAsync(_tenantA, sesion, "  " + new string('a', 500) + "  ")).Should().Be("revocada");
+    }
+
+    [Fact]
+    public async Task Una_cartera_ya_cerrada_queda_intacta_al_revocar()
+    {
+        await using (var contexto = CrearContexto(_tenantA, cadena: _cadenaConexion))
+        {
+            var cartera = await contexto.AsignacionesCartera.SingleAsync(c => c.Id == _cartera);
+            cartera.Cerrar(MotivoCierreAsignacion.Revocada, DateTime.UtcNow);
+            await contexto.SaveChangesAsync();
+        }
+        var sesion = await AbrirSesionConCapacidadAsync();
+        var antes = await FilaAsync("AsignacionesCartera", _cartera);
+        (await RevocarComoSoporteAsync(_tenantA, sesion)).Should().Be("revocada");
+        (await FilaAsync("AsignacionesCartera", _cartera)).Should().Be(antes);
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().NotContain(f => f.EntidadId == _cartera);
+    }
+
+    [Fact]
     public async Task Una_sesion_de_SoporteLectura_no_revoca()
     {
         var sesion = await AbrirSesionDeSoporteLecturaAsync();
@@ -208,6 +310,7 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
         var sesion = await AbrirSesionConCapacidadAsync();
 
         (await RevocarComoSoporteAsync(_tenantA, sesion, delegacion: deSoporte)).Should().Be("delegacion_no_encontrada");
+        await IntactaAsync(sesion);
     }
 
     [Fact]
@@ -319,6 +422,19 @@ public class SoporteRevocaOperadorCaeExternoBajoRuntimeTests : IAsyncLifetime
             .Should().Be("Vigente");
         (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty("sin escritura no hay fila de auditoría");
     }
+
+    private Task<string> FilaAsync(string tabla, Guid id) =>
+        EscalarAsync<string>($"SELECT row_to_json(t)::text FROM \"{tabla}\" t WHERE t.\"Id\" = @u;", id);
+
+    private Task<string> InstantaneaAsync() => EscalarAsync<string>(@"
+SELECT concat_ws('|',
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""DelegacionesTenant"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""AsignacionesOperacion"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""AsignacionesCartera"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""RegistrosAuditoria"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""SesionesPrivilegiadas"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""ConcesionesPrivilegio"" t),
+ (SELECT coalesce(json_agg(row_to_json(t) ORDER BY t.""Id"")::text, '[]') FROM ""TenantsAlcanzadosPorConcesion"" t));", Guid.Empty);
 
     private async Task<T> EscalarAsync<T>(string sql, Guid parametro)
     {
