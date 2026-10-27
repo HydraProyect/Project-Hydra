@@ -63,7 +63,7 @@ public class BotonVarianteYUnSoloPrimarioTests
         ["src/CaeManager.Web/Features/Alertas/Pages/Alertas.razor"] = 3,
         ["src/CaeManager.Web/Features/Bandeja/Pages/Bandeja.razor"] = 2,
         ["src/CaeManager.Web/Features/Bandeja/Pages/MiTrabajo.razor"] = 3,
-        ["src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor#Drawer1"] = 3,
+        ["src/CaeManager.Web/Features/Blindaje42/Components/DrawerBlindaje42.razor#DrawerFormulario1"] = 3,
         ["src/CaeManager.Web/Features/Centros/Components/AcordeonAsignacionesCentro.razor"] = 3,
         ["src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor"] = 6,
         ["src/CaeManager.Web/Features/Centros/Pages/CentroDetalle.razor"] = 2,

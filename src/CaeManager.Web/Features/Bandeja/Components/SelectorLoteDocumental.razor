@@ -92,10 +92,13 @@
         <div class="alerta-formulario" role="alert">@_errorValidacion</div>
     }
 
+    @if (MostrarAcciones)
+    {
     <div class="selector-lote-acciones">
         <Boton Variante="VarianteBoton.Secundario" OnClick="() => OnCancelar.InvokeAsync()">Cancelar</Boton>
         <Boton Variante="VarianteBoton.Primario" OnClick="ConfirmarAsync">Continuar</Boton>
     </div>
+    }
 </div>
 
 @code {
@@ -121,6 +124,7 @@
     [Parameter] public Guid? EntidadIdInicial { get; set; }
     [Parameter, EditorRequired] public EventCallback<FiltroLoteDocumental> OnConfirmar { get; set; }
     [Parameter] public EventCallback OnCancelar { get; set; }
+    [Parameter] public bool MostrarAcciones { get; set; } = true;
 
     /// <summary>
     /// P1-E2b: cada cambio del filtro. Invocarlo re-renderiza a quien monta el selector, que
@@ -252,7 +256,7 @@
         return OnFiltroCambiado.InvokeAsync();
     }
 
-    private Task ConfirmarAsync()
+    public Task ConfirmarAsync()
     {
         if (_ambito is not { } ambito)
         {

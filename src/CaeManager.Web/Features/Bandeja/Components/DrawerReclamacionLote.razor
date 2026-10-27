@@ -27,12 +27,14 @@
 @inject IMediator Mediator
 @inject ToastService ToastService
 
-<Drawer @ref="_drawer" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote" CerrarAlHacerClicFuera="@(!_enviando)">
+<DrawerFormulario HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote"
+                  Guardando="_enviando" MostrarGuardar="@(_paso == Paso.Seleccion)" TextoGuardar="Continuar" TextoCancelar="Cancelar"
+                  OnGuardar="ContinuarAsync">
     <ChildContent>
         @if (_paso == Paso.Seleccion)
         {
             <SelectorLoteDocumental @ref="_selector" AmbitosDisponibles="AmbitosDisponibles" AmbitoInicial="AmbitoInicial" EntidadIdInicial="EntidadIdInicial"
-                                    OnConfirmar="ResolverAsync" OnCancelar="() => _drawer?.SolicitarCierreAsync() ?? Task.CompletedTask"
+                                    OnConfirmar="ResolverAsync" MostrarAcciones="false"
                                     OnFiltroCambiado="AlCambiarFiltro" />
         }
         else if (_paso == Paso.Cargando)
@@ -86,7 +88,7 @@
 
                 <Tarjeta @key="clavesLotes.De(Clave(lote))" Titulo="@TituloDeLote(lote)" Class="tarjeta-reclamacion">
                     <AccionesHeader>
-                        <Boton Variante="VarianteBoton.Primario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
+                        <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno" Deshabilitado="@(totalSeleccionado == 0 || contactos.Count == 0 || _enviando)"
                                Cargando="enviandoEste" OnClick="() => PedirConfirmacion(lote)">
                             Enviar (@totalSeleccionado)
                         </Boton>
@@ -103,7 +105,7 @@
                         }
                         @if (lote.Destinatarios is not { Count: > 0 })
                         {
-                            <div class="alerta-formulario" role="alert">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</div>
+                            <p class="reclamacion-motivo">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</p>
                         }
                         else
                         {
@@ -195,11 +197,8 @@
             }
         }
     </ChildContent>
-</Drawer>
-
-@* Un correo a un tercero no se puede deshacer: «Enviar» no manda nada, abre esta confirmación con lo que va a salir
-   (a cuántos contactos y cuántos documentos), y solo ella envía. Mismo patrón que la pantalla de Alertas. *@
-<DialogoConfirmacion Visible="_envioPendiente is not null"
+    <Dialogos>
+    <DialogoConfirmacion Visible="_envioPendiente is not null"
                      VisibleChanged="CerrarConfirmacionEnvio"
                      Titulo="@(TextosMiTrabajo.Formato("ReclamacionConfirmarTitulo", _envioPendiente?.TitularNombre ?? string.Empty))"
                      Mensaje="@MensajeConfirmacionEnvio"
@@ -207,11 +206,11 @@
                      VarianteConfirmar="VarianteBoton.Primario"
                      EnProgreso="_enviando"
                      OnConfirmar="ConfirmarEnvioAsync" />
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => CerrarAsync(false)" />
+    </Dialogos>
+</DrawerFormulario>
 
 @code {
-    private Drawer? _drawer;
+    private Task ContinuarAsync() => _selector?.ConfirmarAsync() ?? Task.CompletedTask;
     /// <summary>Identidad de una tarjeta: el titular y su ámbito y, en un lote a la Empresa empleadora, también su Delegación (una Empresa puede tener varias tarjetas).</summary>
     private readonly record struct ClaveDeLote(Guid TitularId, AmbitoAplicacion Ambito, bool AEmpresaEmpleadora = false, Guid? DelegacionEmpresaId = null);
     private static ClaveDeLote Clave(LoteReclamacionAgrupadoDto lote) =>

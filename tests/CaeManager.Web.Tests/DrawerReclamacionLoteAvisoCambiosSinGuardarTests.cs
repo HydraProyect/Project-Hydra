@@ -98,7 +98,7 @@ public class DrawerReclamacionLoteAvisoCambiosSinGuardarTests : BunitContext
     }
 
     private static Task ContinuarAsync(IRenderedComponent<DrawerReclamacionLote> cut) =>
-        cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
 
     /// <summary>
     /// D-05 (hallazgo de la revisión puente): su «Cancelar» vive en el hijo <c>SelectorLoteDocumental</c> y llega por <c>OnCancelar</c>;
@@ -115,13 +115,13 @@ public class DrawerReclamacionLoteAvisoCambiosSinGuardarTests : BunitContext
             .Add(x => x.AmbitoInicial, AmbitoAplicacion.Trabajador));
         cut.WaitForAssertion(() => cut.FindAll(".selector-lote-documental input[type=checkbox]").Should().NotBeEmpty());
 
-        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
         cierres.Should().Equal(false);
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Descartar cambios?");
 
         cierres.Clear();
         await cut.Find(".selector-lote-documental input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = false });
-        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
 
         cierres.Should().BeEmpty("con el filtro cambiado, Cancelar pregunta antes de cerrar");
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");

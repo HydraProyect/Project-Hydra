@@ -100,6 +100,25 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
         cut.FindAll("h2").Any(h => h.TextContent.Trim() == Pregunta);
 
     [Fact]
+    public async Task Cancelar_sin_cambios_cierra()
+    {
+        var cut = Renderizar();
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeFalse();
+        Preguntando(cut).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Cancelar_con_cambios_pregunta()
+    {
+        var cut = Renderizar();
+        await cut.InvokeAsync(() => cut.FindComponent<CampoTextarea>().Instance.ValorChanged.InvokeAsync("Observación"));
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        _visible.Should().BeTrue();
+        Preguntando(cut).Should().BeTrue();
+    }
+
+    [Fact]
     public async Task Sin_cambios_la_X_cierra_directamente()
     {
         var cut = Renderizar();

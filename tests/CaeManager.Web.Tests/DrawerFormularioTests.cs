@@ -65,6 +65,15 @@ public class DrawerFormularioTests : BunitContext
     }
 
     [Fact]
+    public void Sin_MostrarGuardar_el_pie_solo_tiene_Cancelar_y_por_defecto_se_muestra_Guardar()
+    {
+        Renderizar(p => p.Add(x => x.MostrarGuardar, false))
+            .FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar");
+
+        Renderizar().FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Guardar");
+    }
+
+    [Fact]
     public async Task Cancelar_sin_cambios_cierra()
     {
         var cut = Renderizar();
