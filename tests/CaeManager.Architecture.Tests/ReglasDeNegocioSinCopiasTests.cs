@@ -388,6 +388,8 @@ public class ReglasDeNegocioSinCopiasTests
         // Documento 360: el documento por Id (ya autorizado por ObtenerDocumentoPorIdQuery) y, en la pestaña Versiones, el historial
         // de versiones del mismo propietario y tipo, incluidas las sustituidas.
         ["src/CaeManager.Application/Documentos/Queries/ObtenerFichaDocumento360/ObtenerFichaDocumento360Query.cs"] = 2,
+        // Exportación completa del Tenant propietario: devuelve el binario de toda versión viva, también de las sustituidas.
+        ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] = 1,
         ["src/CaeManager.Application/BusquedaGlobal/Queries/BuscarGlobal/BuscarGlobalQuery.cs"] = 5,
 
         // --- Búsqueda por Id de un documento que ya se nombró (el historial referencia a documentos que pudieron

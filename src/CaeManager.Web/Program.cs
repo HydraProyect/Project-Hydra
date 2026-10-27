@@ -980,6 +980,61 @@ if (args.Contains(PilotoOutboundRetirada.Argumento))
     return;
 }
 
+// Exportación completa de los datos de UN Tenant propietario (devolución al terminar el contrato):
+// `--exportar-tenant <TenantId> --solicitante <correo> --destino <ruta.zip>`. Solo desde este modo
+// de CLI, nunca en el arranque normal. Lee con el contexto INYECTADO —rol restringido, bajo RLS— y
+// nunca con FabricaContextoDeBootstrap: ExportacionCompletaTenant se niega si esa identidad puede
+// saltarse RLS, exige que el solicitante sea un Administrador activo del propio Tenant y audita
+// la exportación en ese Tenant antes de escribir. Se lanza con el servicio "app" (el que recibe
+// CaeManagerDbRuntime) y un --destino en un volumen montado; el fichero no puede existir antes, y
+// si la exportación falla a mitad se borra: un zip incompleto no se entrega.
+if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Argumento))
+{
+    static string? ValorDe(string[] argumentos, string nombre)
+    {
+        var indice = Array.IndexOf(argumentos, nombre);
+        return indice >= 0 && indice + 1 < argumentos.Length ? argumentos[indice + 1] : null;
+    }
+
+    var tenantAExportar = ValorDe(args, CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Argumento);
+    var solicitante = ValorDe(args, CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ArgumentoSolicitante);
+    var destinoExportacion = ValorDe(args, CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ArgumentoDestino);
+    if (!Guid.TryParse(tenantAExportar, out var tenantIdAExportar) ||
+        string.IsNullOrWhiteSpace(solicitante) || string.IsNullOrWhiteSpace(destinoExportacion))
+    {
+        Console.Error.WriteLine(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Uso);
+        Environment.ExitCode = 1;
+        return;
+    }
+
+    using var scopeExportacion = app.Services.CreateScope();
+    var rutaExportacion = Path.GetFullPath(destinoExportacion);
+    var creado = false;
+    try
+    {
+        CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Resultado resultadoExportacion;
+        await using (var ficheroExportacion = new FileStream(rutaExportacion, FileMode.CreateNew, FileAccess.Write))
+        {
+            creado = true;
+            resultadoExportacion = await CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ExportarAsync(
+                scopeExportacion.ServiceProvider.GetRequiredService<CaeManagerDbContext>(),
+                scopeExportacion.ServiceProvider.GetRequiredService<IFileStorageService>(),
+                tenantIdAExportar, solicitante, ficheroExportacion);
+        }
+
+        CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Informar(resultadoExportacion, rutaExportacion, Console.Out);
+    }
+    // Cualquier excepción: el zip a medias se borra y se sale con 1.
+    catch (Exception ex)
+    {
+        if (creado && File.Exists(rutaExportacion)) File.Delete(rutaExportacion);
+        Console.Error.WriteLine(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.MensajeDeInterrupcion(ex));
+        Environment.ExitCode = 1;
+    }
+
+    return;
+}
+
 // Detrás de un proxy inverso (Caddy, ver deploy/local/Caddyfile y Project-Hydra-Negocio/tecnico/DEPLOY.md),
 // Kestrel solo ve tráfico HTTP interno; sin esto,
 // UseHttpsRedirection/UseHsts no reconocen la petición original como HTTPS
