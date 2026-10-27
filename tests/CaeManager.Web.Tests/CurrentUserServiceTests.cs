@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using CaeManager.Application.Common;
+using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Services;
 using FluentAssertions;
 using Microsoft.AspNetCore.Components.Authorization;
@@ -11,6 +12,48 @@ namespace CaeManager.Web.Tests;
 /// <summary>Mismo fallo real que TenantActualTests, pero para el rol/Id de usuario que consume IAlcanceDatosService.</summary>
 public class CurrentUserServiceTests
 {
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("true", false)]
+    [InlineData("-60", false)]
+    [InlineData("hace-un-rato", false)]
+    public async Task Totp_falla_en_cerrado_sin_una_marca_con_instante(string? marca, bool esperado)
+    {
+        var servicio = CrearServicio(new AuthenticationStateProviderFalso(PrincipalConMarcaTotp(marca)), new HttpContextAccessorFalso(null));
+        (await servicio.SuperoTotpEnSesionAsync()).Should().Be(esperado);
+    }
+
+    [Fact]
+    public async Task Totp_verificado_hace_un_momento_permite_abrir()
+    {
+        var marca = DateTimeOffset.UtcNow.AddMinutes(-1).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        var servicio = CrearServicio(new AuthenticationStateProviderFalso(PrincipalConMarcaTotp(marca)), new HttpContextAccessorFalso(null));
+        (await servicio.SuperoTotpEnSesionAsync()).Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(11 * 60, true)]
+    [InlineData(12 * 60, true)]
+    [InlineData(12 * 60 + 1, false)]
+    [InlineData(14 * 24 * 60, false)]
+    [InlineData(-4, true)]
+    [InlineData(-6, false)]
+    public void Totp_solo_es_reciente_dentro_de_la_ventana(int minutosDesdeLaVerificacion, bool esperado)
+    {
+        var ahora = new DateTimeOffset(2026, 10, 27, 12, 0, 0, TimeSpan.Zero);
+        var marca = ahora.AddMinutes(-minutosDesdeLaVerificacion).ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture);
+        SignInManagerCuentaDesactivada.TotpEsReciente(PrincipalConMarcaTotp(marca), ahora).Should().Be(esperado);
+    }
+
+    private static ClaimsPrincipal PrincipalConMarcaTotp(string? marca)
+    {
+        var identidad = new ClaimsIdentity("prueba");
+        if (marca is not null)
+            identidad.AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, marca));
+        return new ClaimsPrincipal(identidad);
+    }
+
     private static readonly Guid UsuarioIdDeEjemplo = Guid.Parse("22222222-2222-2222-2222-222222222222");
 
     [Fact]

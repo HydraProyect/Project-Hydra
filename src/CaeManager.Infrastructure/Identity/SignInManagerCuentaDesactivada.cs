@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using CaeManager.Domain.Seguridad;
 using CaeManager.Infrastructure.Seguridad;
@@ -83,6 +84,40 @@ public class SignInManagerCuentaDesactivada(
     private bool _conservarMarcaSso;
 
     /// <summary>
+    /// Instante (segundos Unix, UTC) en que esta sesión superó el TOTP de TALVEG. Lo pone
+    /// <see cref="TwoFactorAuthenticatorSignInAsync"/> al acertar el código y lo conserva
+    /// <see cref="RefreshSignInAsync"/> con su valor original: refrescar la cookie no rejuvenece
+    /// la verificación. Un segundo factor recordado en el navegador o un código de recuperación
+    /// no la ponen, así que la apertura de una Sesión Privilegiada falla en cerrado.
+    /// </summary>
+    public const string ClaimTotpSesion = "talveg:totp_sesion";
+
+    /// <summary>Antigüedad máxima del TOTP de la sesión para abrir una Sesión Privilegiada.</summary>
+    public static readonly TimeSpan VentanaTotpReciente = TimeSpan.FromHours(12);
+
+    /// <summary>Margen de reloj admitido para una marca con instante futuro.</summary>
+    private static readonly TimeSpan MargenRelojTotp = TimeSpan.FromMinutes(5);
+
+    private string? _marcaTotpConservada;
+    private bool _verificandoTotp;
+
+    /// <summary>
+    /// Si <paramref name="principal"/> superó el TOTP hace como mucho <see cref="VentanaTotpReciente"/>.
+    /// Falla en cerrado: sin marca, con un valor que no es un instante, o con un instante futuro
+    /// más allá del margen de reloj.
+    /// </summary>
+    public static bool TotpEsReciente(ClaimsPrincipal? principal, DateTimeOffset ahora)
+    {
+        if (principal?.FindFirst(ClaimTotpSesion)?.Value is not { } valor
+            || !long.TryParse(valor, NumberStyles.None, CultureInfo.InvariantCulture, out var segundos)
+            || segundos > DateTimeOffset.MaxValue.ToUnixTimeSeconds())
+            return false;
+
+        var verificado = DateTimeOffset.FromUnixTimeSeconds(segundos);
+        return verificado <= ahora + MargenRelojTotp && ahora - verificado <= VentanaTotpReciente;
+    }
+
+    /// <summary>
     /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor) reemite la cookie
     /// conservando solo <c>amr</c> y el método de autenticación: perdía la marca
     /// <see cref="RestriccionLoginLocalClaimsTransformation.MetodoLoginSso"/> y un Gestor CAE del Tenant
@@ -96,6 +131,10 @@ public class SignInManagerCuentaDesactivada(
             && actual.HasClaim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
                 RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)
             && UserManager.GetUserId(actual) == user.Id.ToString();
+        _marcaTotpConservada = autenticada.Principal is { } principal
+            && UserManager.GetUserId(principal) == user.Id.ToString()
+                ? principal.FindFirst(ClaimTotpSesion)?.Value
+                : null;
         try
         {
             await base.RefreshSignInAsync(user);
@@ -103,12 +142,51 @@ public class SignInManagerCuentaDesactivada(
         finally
         {
             _conservarMarcaSso = false;
+            _marcaTotpConservada = null;
         }
+    }
+
+    /// <summary>
+    /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
+    /// marca de TOTP, igual que <see cref="RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar"/>
+    /// con la de Microsoft: el validador de la cookie rehace el principal cada intervalo de revalidación
+    /// (60 s por defecto) y sin esto la marca moría en el primer minuto. Copia el valor original de la
+    /// cookie validada, de la misma cuenta, sin rejuvenecerlo; nunca la crea donde no estaba.
+    /// Respeta un gancho anterior.
+    /// </summary>
+    public static void ConservarMarcaTotpAlRevalidar(SecurityStampValidatorOptions opciones)
+    {
+        var anterior = opciones.OnRefreshingPrincipal;
+        opciones.OnRefreshingPrincipal = async contexto =>
+        {
+            if (anterior is not null) await anterior(contexto);
+            CopiarMarcaTotp(contexto);
+        };
+    }
+
+    private static void CopiarMarcaTotp(SecurityStampRefreshingPrincipalContext contexto)
+    {
+        if (contexto.NewPrincipal?.Identity is not ClaimsIdentity nueva) return;
+        foreach (var ajena in nueva.FindAll(ClaimTotpSesion).ToList())
+            nueva.RemoveClaim(ajena);
+
+        var actual = contexto.CurrentPrincipal;
+        if (actual?.FindFirst(ClaimTotpSesion)?.Value is { } marca
+            && actual.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } cuentaActual
+            && cuentaActual == contexto.NewPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+            nueva.AddClaim(new Claim(ClaimTotpSesion, marca));
     }
 
     public override Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
+        // La marca solo la escribe este tipo: se descarta cualquier otra que llegue.
+        additionalClaims = additionalClaims.Where(c => c.Type != ClaimTotpSesion);
+        var marcaTotp = _verificandoTotp
+            ? DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
+            : _marcaTotpConservada;
+        if (marcaTotp is not null)
+            additionalClaims = additionalClaims.Append(new Claim(ClaimTotpSesion, marcaTotp));
         if (_conservarMarcaSso && !additionalClaims.Any(c => c.Type == RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin))
             additionalClaims = additionalClaims.Append(new Claim(
                 RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin, RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
@@ -192,7 +270,16 @@ public class SignInManagerCuentaDesactivada(
     {
         var usuario = await GetTwoFactorAuthenticationUserAsync();
         _paisNoPermitido = false;
-        var resultado = await base.TwoFactorAuthenticatorSignInAsync(code, isPersistent, rememberClient);
+        SignInResult resultado;
+        _verificandoTotp = true;
+        try
+        {
+            resultado = await base.TwoFactorAuthenticatorSignInAsync(code, isPersistent, rememberClient);
+        }
+        finally
+        {
+            _verificandoTotp = false;
+        }
         if (usuario is not null)
             await RegistrarAsync(usuario, MetodoInicioSesion.SegundoFactor, resultado);
         return resultado;

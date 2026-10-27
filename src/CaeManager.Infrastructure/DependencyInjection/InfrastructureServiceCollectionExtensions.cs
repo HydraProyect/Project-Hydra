@@ -227,6 +227,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
         // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.
         services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
+        // Ni la marca del TOTP de la sesión, que exige la apertura de una Sesión Privilegiada.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
