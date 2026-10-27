@@ -200,9 +200,10 @@ for par in "R_INTEGRACION: \${{ needs.tests-integracion.result }}" "R_E2E: \${{ 
   contrato "el paso recibe $par" 1 "$([[ "$(cuenta "          $par")" -ge 1 ]] && echo 1 || echo 0)"
 done
 for salida in integracion e2e carga; do
-  contrato "un job pesado solo se salta con $salida == 'false' y nunca en merge_group" 1 "$(cuenta "    if: \${{ !cancelled() && (github.event_name == 'merge_group' || needs.alcance.outputs.$salida != 'false') }}")"
+  contrato "un job pesado solo se salta con $salida == 'false', nunca en merge_group, y solo corre sobre una compilación en verde" 1 "$(cuenta "    if: \${{ !cancelled() && needs.compilacion-y-unitarios.result == 'success' && (github.event_name == 'merge_group' || needs.alcance.outputs.$salida != 'false') }}")"
 done
-contrato "los tres jobs pesados dependen de alcance" 3 "$(grep -cE '^    needs: alcance$' <<< "$yml" || true)"
+contrato "los tres jobs pesados dependen de alcance y de la compilación compartida" 3 "$(grep -cE '^    needs: \[alcance, compilacion-y-unitarios\]$' <<< "$yml" || true)"
+contrato "los tres jobs pesados descargan el artefacto por la salida de la compilación, no por su propio run_attempt" 3 "$(cuenta '          name: ${{ needs.compilacion-y-unitarios.outputs.artefacto }}')"
 
 # Agregador de los bloques de E2E: conserva el nombre del check obligatorio.
 e2e_agregador="$(sed -n '/^  e2e-tests:$/,/^    steps:$/p' <<< "$yml")"
