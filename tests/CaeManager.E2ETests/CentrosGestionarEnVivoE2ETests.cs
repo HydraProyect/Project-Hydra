@@ -277,6 +277,8 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         await Expect(motivoPendientes).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         await buscador.BlurAsync();
+        // El chip del filtro activo marca que la búsqueda ya se aplicó; solo entonces tiene sentido esperar a que la recarga acabe.
+        await Expect(page.GetByText($"Búsqueda: \"{nombreCentro}\"")).ToBeVisibleAsync();
         await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), filaCentro);
 
         await botonExpandir.ClickAsync();
@@ -287,7 +289,9 @@ public class CentrosGestionarEnVivoE2ETests(WebAppFixture fixture)
         // del botón que despliega esa fila.
         var botonExpandirTrabajador = filaCentro.Locator(".fila-trabajador-gestionar");
         await botonExpandirTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await Expect(botonExpandirTrabajador).ToHaveAttributeAsync("aria-expanded", "false");
         await botonExpandirTrabajador.ClickAsync();
+        await Expect(botonExpandirTrabajador).ToHaveAttributeAsync("aria-expanded", "true", new LocatorAssertionsToHaveAttributeOptions { Timeout = 15_000 });
 
         var tablaDocumentos = page.GetByRole(AriaRole.Table,
             new PageGetByRoleOptions { Name = $"Documentación exigida a {nombreTrabajador} {apellidosTrabajador}" });

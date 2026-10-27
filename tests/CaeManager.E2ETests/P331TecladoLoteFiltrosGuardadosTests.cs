@@ -81,6 +81,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         var pastillaCriticidad = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Criticidad(?::|$)") });
         await Expect(pastillaCriticidad).ToBeFocusedAsync();
         await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { NameRegex = new System.Text.RegularExpressions.Regex(@"^Gestor CAE(?::|$)") })).ToHaveCountAsync(0);
+        // El blur relanza la búsqueda y recarga la lista (resetea el enfoque): el chip del filtro activo marca que ya empezó.
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Quitar filtro de búsqueda" })).ToBeVisibleAsync();
         await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), filaA);
 
         await page.Keyboard.PressAsync("j");
