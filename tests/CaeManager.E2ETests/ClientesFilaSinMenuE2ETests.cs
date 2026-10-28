@@ -67,44 +67,25 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «j» sin fila enfocada enfoca la primera. Antes hay que sacar el foco del buscador (una «j»
-    /// ahí se escribe en el campo), y salir de él relanza la carga, que limpia la fila enfocada;
-    /// además la lista vuelve a pedir la página cuando el total cambia. Una «j» que
-    /// llegue antes de esas cargas pierde el foco sin que nada en el DOM lo anuncie: se reintenta
-    /// hasta que la fila enfocada aguante. Mientras no haya fila enfocada, repetir «j» vuelve a la
-    /// primera, así que el reintento no cambia qué fila se prueba.
+    /// «j» sin fila enfocada enfoca la primera. Antes hay que sacar el foco del buscador (una «j» ahí se
+    /// escribe en el campo) y esperar a que la lista termine de cargar con la fila del test pintada: la
+    /// fila enfocada ha de ser la del test, no la de otro E2E de la base compartida.
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, string razonSocial)
     {
+        // El buscador ya ha notificado su valor (la URL lleva «q») y la lista filtrada está pintada: el
+        // Tab no relanza la carga y la «j» no cae en una recarga que limpie la fila enfocada.
+        await Expect(page).ToHaveURLAsync(new Regex(@"[?&]q="));
+        await Expect(page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon")).ToHaveCountAsync(1);
         await page.Keyboard.PressAsync("Tab");
-        await page.WaitForTimeoutAsync(400);
+        await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), FilaDe(page, razonSocial));
 
         var enfocada = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon.fila-enfocada");
-        // La fila enfocada ha de ser la del test: si el filtro aún no se aplicó, «j» puede enfocar la de otro
-        // E2E de la base compartida, y esa fila desaparece con la recarga filtrada (se vuelve a intentar).
         var enfocadaPropia = enfocada.Filter(new LocatorFilterOptions
         {
             Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
         });
-        // «Enfocada» es la clase y además el foco real del DOM (:focus): la clase puede quedarse sin foco tras
-        // un repintado, y entonces Enter lo recibiría el control de origen (#1756).
-        var conFoco = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon.fila-enfocada:focus");
-        var conFocoPropio = conFoco.Filter(new LocatorFilterOptions
-        {
-            Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true }),
-        });
-        for (var intento = 0; intento < 8; intento++)
-        {
-            if (await conFoco.CountAsync() == 0)
-                await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(400);
-            if (await conFocoPropio.CountAsync() == 1)
-            {
-                await page.WaitForTimeoutAsync(600);
-                if (await conFoco.CountAsync() == 1 && await conFocoPropio.CountAsync() == 1) return;
-            }
-        }
-
+        await page.Keyboard.PressAsync("j");
         await Ayudas.EsperarFocoRealEnFilaAsync(enfocadaPropia);
     }
 

@@ -141,7 +141,7 @@ public partial class Centros : CaeManager.Web.Components.PaginaInteractiva
 
     /// <summary>
     /// Algo escrito en el modal de crear Cliente o Empresa abierto encima del drawer. Los
-    /// modales rápidos no montan su propio aviso: los cubre el de la página.
+    /// modales rápidos llevan el aviso de su kit (ModalFormulario); este de la página los cubre también y se coordinan.
     /// </summary>
     private bool HayCambiosFormulariosRapidos =>
         (_formularioRapidoClienteVisible && _formularioRapidoCliente?.HayCambiosSinGuardar == true)
