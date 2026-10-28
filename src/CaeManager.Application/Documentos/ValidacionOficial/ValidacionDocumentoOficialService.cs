@@ -35,7 +35,8 @@ public class ValidacionDocumentoOficialService(
     ILogger<ValidacionDocumentoOficialService> logger) : IValidacionDocumentoOficialService
 {
     /// <summary>
-    /// Umbral de auto-validación. Revisado tras auditoría de seguridad del
+    /// Umbral mínimo para dar el cotejo por bueno (la decisión final siempre es
+    /// humana, S-C-1). Revisado tras auditoría de seguridad del
     /// módulo (2026-08-30): la degradación original (§ 6.1/§ 4.4 del plan) a
     /// <see cref="NivelConfianzaDocumental.FirmaValidaSinRevocacion"/>
     /// permitía que un certificado robado o revocado siguiera auto-validando

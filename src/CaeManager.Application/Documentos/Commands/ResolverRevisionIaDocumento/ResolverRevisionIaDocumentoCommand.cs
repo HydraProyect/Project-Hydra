@@ -44,8 +44,8 @@ public class ResolverRevisionIaDocumentoCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         // Mismo alcance que la bandeja (ObtenerRevisionesIaPendientesQuery):
-        // documento de Trabajador ⇒ cartera; documento de Empresa (validación
-        // oficial) ⇒ solo roles de visión total.
+        // documento de Trabajador ⇒ cartera; documento de Empresa o de Cliente
+        // empresarial (validación oficial) ⇒ solo roles de visión total.
         var visible = propietario?.TrabajadorId is { } trabajadorId
             ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
             : (propietario?.EmpresaId is not null || propietario?.ClienteId is not null)

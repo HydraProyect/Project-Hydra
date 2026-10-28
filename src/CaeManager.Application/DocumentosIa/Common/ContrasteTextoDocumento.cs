@@ -48,8 +48,8 @@ public sealed record ContrasteTextoDocumentoDto(
 /// </para>
 /// <para>
 /// No cubren una inyección redactada sin ninguna de estas señales: son una capa más,
-/// no la garantía. Lo que garantiza es que la aprobación automática exige que todas
-/// pasen, además de las reglas de <c>VerificacionIaDocumentoService.ComputarMotivos</c>.
+/// no la garantía. Lo que aportan es motivos de revisión para quien confirma: la IA nunca
+/// aprueba sola, y estas señales se suman a las reglas de <c>VerificacionIaDocumentoService.ComputarMotivos</c>.
 /// </para>
 /// </summary>
 public static partial class ContrasteTextoDocumento

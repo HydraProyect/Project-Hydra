@@ -56,7 +56,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     }
 
     [Fact]
-    public async Task Una_decision_manual_antes_de_procesar_impide_la_aprobacion_automatica()
+    public async Task Una_decision_manual_antes_de_procesar_impide_que_la_verificacion_abra_otra_revision()
     {
         await using var arnes = await CrearArnesAsync();
         var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
@@ -152,7 +152,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     }
 
     [Fact]
-    public async Task Una_revision_pendiente_aparecida_durante_la_extraccion_descarta_la_aprobacion()
+    public async Task Una_revision_pendiente_aparecida_durante_la_extraccion_descarta_la_verificacion()
     {
         await using var arnes = await CrearArnesAsync();
         var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);

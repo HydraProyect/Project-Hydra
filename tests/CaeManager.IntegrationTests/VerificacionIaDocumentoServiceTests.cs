@@ -159,6 +159,28 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task El_tipo_detectado_se_coteja_tambien_con_los_alias_guardados_en_base_de_datos()
+    {
+        _tipoApto.EstablecerAliases(["Titulo impreso alternativo"]);
+        await _dbContext.SaveChangesAsync();
+
+        var trabajador = CrearTrabajador();
+        _dbContext.Trabajadores.Add(trabajador);
+        var fechaEmision = DiaDeNegocio.Hoy();
+        var documento = Documento.DeTrabajador(trabajador.Id, _tipoApto.Id, fechaEmision, VigenciaDocumento.NoCaduca, "archivo.pdf");
+        _dbContext.Documentos.Add(documento);
+        await _dbContext.SaveChangesAsync();
+
+        var extraido = new MetadatosDocumentoExtraidosDto("Titulo impreso alternativo", fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
+        var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
+
+        await servicio.ProcesarDocumentoAsync(Encargo(documento));
+
+        var revision = await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id);
+        revision.Motivo.Should().NotContain("tipo detectado", "el alias del catálogo cuenta como coincidencia");
+    }
+
+    [Fact]
     public async Task Vincula_la_auditoria_y_espera_la_decision_humana()
     {
         var trabajador = CrearTrabajador();
