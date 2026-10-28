@@ -71,7 +71,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         // ejecutar en el mismo test sin esperar 30 días ---
         await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
 
-        var modalAutorizar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Autorizar la destrucción" });
+        var modalAutorizar = page.GetByRole(AriaRole.Dialog, new() { Name = "Autorizar la destrucción", Exact = true });
         await modalAutorizar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalAutorizar.GetByLabel("Fecha de ejecución").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
         await modalAutorizar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Autorizar", Exact = true }).ClickAsync();
@@ -82,7 +82,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         // --- Ejecutar ---
         await filaDocumentos.GetByRole(AriaRole.Button, new() { Name = "Ejecutar ahora", Exact = true }).ClickAsync();
 
-        var modalEjecutar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Ejecutar la destrucción" });
+        var modalEjecutar = page.GetByRole(AriaRole.Dialog, new() { Name = "Ejecutar la destrucción", Exact = true });
         await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalEjecutar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Destruir definitivamente", Exact = true }).ClickAsync();
         await modalEjecutar.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
@@ -93,7 +93,7 @@ public class FlujoRetencionTests(WebAppFixtureConRetencionActiva fixture)
         // alternativo, no todo lo detectado termina en destrucción ---
         await filaTrabajadores.GetByRole(AriaRole.Button, new() { Name = "Descartar", Exact = true }).ClickAsync();
 
-        var modalDescartar = page.Locator(".modal-contenido").Filter(new LocatorFilterOptions { HasText = "Descartar la propuesta" });
+        var modalDescartar = page.GetByRole(AriaRole.Dialog, new() { Name = "Descartar la propuesta", Exact = true });
         await modalDescartar.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
         await modalDescartar.GetByLabel("Motivo").FillAsync("E2E: la organización conserva estos registros por política interna (P1-19)");
         await modalDescartar.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Descartar", Exact = true }).ClickAsync();
