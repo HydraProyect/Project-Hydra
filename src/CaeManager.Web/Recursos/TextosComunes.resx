@@ -719,6 +719,9 @@
   <data name="CompletaCamposObligatorios" xml:space="preserve">
     <value>Completa los campos obligatorios.</value>
   </data>
+  <data name="FormularioRapidoCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
   <data name="FormularioRapidoCrear" xml:space="preserve">
     <value>Crear</value>
   </data>

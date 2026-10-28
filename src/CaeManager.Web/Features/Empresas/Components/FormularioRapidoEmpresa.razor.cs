@@ -61,12 +61,14 @@ public partial class FormularioRapidoEmpresa : ComponentBase
     private Task CambiarRazonSocialAsync(string valor)
     {
         _razonSocial = valor;
+        _erroresCampo.Remove(nameof(CrearEmpresaCommand.RazonSocial));
         return OnCambio.InvokeAsync();
     }
 
     private Task CambiarCifAsync(string valor)
     {
         _cif = valor;
+        _erroresCampo.Remove(nameof(CrearEmpresaCommand.Cif));
         return OnCambio.InvokeAsync();
     }
 

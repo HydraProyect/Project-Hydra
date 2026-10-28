@@ -60,6 +60,49 @@ public class IdentificacionFiscalFormulariosRapidosTests : BunitContext
         mediador.Envios.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Guardar_se_habilita_solo_con_razon_social_e_identificacion_fiscal(bool clienteEmpresarial)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton<IMediator>(new MediadorVigilado());
+        Services.AddLocalization();
+        IRenderedComponent<IComponent> cut = clienteEmpresarial
+            ? Render<FormularioRapidoCliente>(p => p.Add(x => x.Visible, true))
+            : Render<FormularioRapidoEmpresa>(p => p.Add(x => x.Visible, true));
+        var campos = cut.FindComponents<CampoTexto>();
+
+        await Renderer.Dispatcher.InvokeAsync(() => campos[1].Instance.ValorChanged.InvokeAsync("B12345674"));
+        var guardar = cut.Find(".modal-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Be("Completa los campos obligatorios.");
+
+        await Renderer.Dispatcher.InvokeAsync(() => campos[0].Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        cut.Find(".modal-pie .boton-primario").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_error_de_identificacion_fiscal_desaparece_al_corregir_el_campo(bool clienteEmpresarial)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddSingleton<IMediator>(new MediadorVigilado());
+        Services.AddLocalization();
+        IRenderedComponent<IComponent> cut = clienteEmpresarial
+            ? Render<FormularioRapidoCliente>(p => p.Add(x => x.Visible, true).Add(x => x.NombreInicial, "Empresa de prueba"))
+            : Render<FormularioRapidoEmpresa>(p => p.Add(x => x.Visible, true).Add(x => x.NombreInicial, "Empresa de prueba"));
+        var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Placeholder == "CIF, DNI o NIE");
+        await Renderer.Dispatcher.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync("invalido"));
+        await cut.Find(".modal-pie .boton-primario").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent.Contains("no es válida"));
+
+        await Renderer.Dispatcher.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync("B1234567"));
+
+        cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+    }
+
     private sealed class MediadorVigilado : IMediator
     {
         public int Envios { get; private set; }

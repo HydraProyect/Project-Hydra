@@ -11,7 +11,7 @@
 <ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Nuevo Cliente" Ancho="AnchoModal.Pequeno"
                  Guardando="_guardando" MensajeError="_mensajeError" HayErroresDeCampo="@(_erroresCampo.Count > 0)"
                  MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_razonSocial) || string.IsNullOrWhiteSpace(_cif) ? Comunes["CompletaCamposObligatorios"].Value : null)"
-                 OnGuardar="GuardarAsync" TextoGuardar="@Comunes["FormularioRapidoCrear"]" TextoCancelar="@Comunes["FiltroGuardadoCancelar"]">
+                 OnGuardar="GuardarAsync" TextoGuardar="@Comunes["FormularioRapidoCrear"]" TextoCancelar="@Comunes["FormularioRapidoCancelar"]">
         <CampoTexto Etiqueta="Razón social" Valor="@_razonSocial" ValorChanged="CambiarRazonSocialAsync"
                     MensajeError="@ObtenerError(nameof(CrearClienteCommand.RazonSocial))" />
         <CampoTexto aria-required="true" Etiqueta="Identificación fiscal *" Placeholder="CIF, DNI o NIE" Valor="@_cif" ValorChanged="CambiarCifAsync"

@@ -63,12 +63,14 @@ public partial class FormularioRapidoCliente : ComponentBase
     private Task CambiarRazonSocialAsync(string valor)
     {
         _razonSocial = valor;
+        _erroresCampo.Remove(nameof(CrearClienteCommand.RazonSocial));
         return OnCambio.InvokeAsync();
     }
 
     private Task CambiarCifAsync(string valor)
     {
         _cif = valor;
+        _erroresCampo.Remove(nameof(CrearClienteCommand.Cif));
         return OnCambio.InvokeAsync();
     }
 
