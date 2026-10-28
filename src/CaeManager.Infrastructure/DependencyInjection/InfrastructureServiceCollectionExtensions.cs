@@ -671,6 +671,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
+        services.AddHostedService<LimpiezaTemporalesConversionWordHostedService>();
 
         // Política de retención RGPD: los plazos son decisión legal y viven en
         // configuración, no en el código (ver RetencionDatosOptions).
