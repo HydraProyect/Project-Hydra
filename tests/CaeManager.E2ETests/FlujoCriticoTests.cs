@@ -112,6 +112,7 @@ public class FlujoCriticoTests(WebAppFixture fixture)
         // 150ms más el viaje de ida y vuelta a Blazor Server antes de seguir.
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
         await page.WaitForTimeoutAsync(500);
 
         // "Formación PRL de convenio" no tiene vencimiento automático (ver
