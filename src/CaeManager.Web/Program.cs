@@ -455,7 +455,9 @@ builder.Services.AddAuthorization(options =>
 // autenticado, que a esta altura del pipeline aún no existe). Configurables sin
 // recompilar, mismo patrón que RetencionDatosOptions.
 var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinuto", 300);
-var rateLimitPorMinutoPorIp = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 1200);
+// Nunca por debajo del cupo por clave: un techo menor haría inalcanzable el cupo de una sola clave.
+var rateLimitPorMinutoPorIp = Math.Max(
+    builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 3000), rateLimitPorMinuto);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -539,7 +541,8 @@ builder.Services.AddRateLimiter(opciones =>
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
-        // después, por petición. Este es el ÚNICO sitio del sistema que lee la
+        // después, por petición. Este y el techo por IP de /api/v1
+        // (LimitadorApiPublica) son los ÚNICOS sitios del sistema que leen la
         // IP del cliente —no la registra la auditoría, ni los accesos
         // sensibles, ni los logs—, así que es también el único alcance de lo
         // que se perdería si esa IP fuese falsificable: ver
@@ -1326,7 +1329,8 @@ app.UseRolEfectivoDelWorkspace();
 // ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
 app.UseCuentaAMedioActivarSinAcceso();
 
-// Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
+// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado;
+// el de /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y antes
 // de que ningún endpoint procese la petición.
 app.UseRateLimiter();
 

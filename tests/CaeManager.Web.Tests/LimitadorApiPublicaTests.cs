@@ -134,6 +134,26 @@ public class LimitadorApiPublicaTests
     }
 
     [Theory]
+    [InlineData("2001:db8:1:2:3:4:5:6", "ip:2001:db8:1:2::/64")]
+    [InlineData("2001:db8:1:2:ffff:ffff:ffff:ffff", "ip:2001:db8:1:2::/64")]
+    [InlineData("::ffff:203.0.113.9", "ip:203.0.113.9")]
+    public void Las_IPv6_se_agrupan_por_prefijo_64_y_las_IPv4_mapeadas_cuentan_como_IPv4(string ip, string esperada)
+    {
+        var contexto = new DefaultHttpContext();
+        contexto.Connection.RemoteIpAddress = IPAddress.Parse(ip);
+
+        LimitadorApiPublica.ParticionPorLlamante(contexto, CupoPorClave).PartitionKey.Should().Be(esperada);
+        LimitadorApiPublica.ParticionGlobal(Ruta(contexto, "/api/v1/x"), 10)!.Value.PartitionKey
+            .Should().Be(esperada.Replace("ip:", "api-ip:"));
+    }
+
+    private static HttpContext Ruta(HttpContext contexto, string ruta)
+    {
+        contexto.Request.Path = ruta;
+        return contexto;
+    }
+
+    [Theory]
     [InlineData("/api/v1/clientes", true)]
     [InlineData("/api/v1", true)]
     [InlineData("/api/v2/clientes", false)]

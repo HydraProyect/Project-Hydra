@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Threading.RateLimiting;
 using CaeManager.Infrastructure.Autenticacion;
 using Microsoft.AspNetCore.Http;
@@ -39,8 +41,12 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
-/// Consecuencia asumida: el cupo es por clave, no por Tenant; un Tenant con varias claves suma sus
-/// cupos. Agrupar por Tenant exigiría autenticar antes de limitar, con el coste de arriba.
+/// Consecuencias asumidas. (1) El cupo es por clave, no por Tenant; un Tenant con varias claves suma sus
+/// cupos. Agrupar por Tenant exigiría autenticar antes de limitar, con el coste de arriba. (2) El techo
+/// por IP se cobra antes de saber si la clave es válida: integraciones de Tenants distintos que salen por
+/// la misma IP (una plataforma de integración, un NAT) comparten ese techo, que por eso es varias veces
+/// el cupo por clave (<c>ApiPublica:RateLimitPorMinutoPorIp</c>). El middleware de limitación reintenta
+/// el cupo global cuando la política rechaza, así que una petición rechazada gasta dos permisos de IP.
 /// </para>
 /// </summary>
 public static class LimitadorApiPublica
@@ -70,8 +76,28 @@ public static class LimitadorApiPublica
             ? VentanaFija($"api-ip:{IpDelCliente(contexto)}", limitePorIpPorMinuto)
             : null;
 
-    private static string IpDelCliente(HttpContext contexto) =>
-        contexto.Connection.RemoteIpAddress?.ToString() ?? "desconocida";
+    /// <summary>
+    /// IP del cliente como identificador de cupo. Una IPv6 se agrupa por su prefijo /64 (lo que se asigna a
+    /// una sola conexión): sin ello, quien dispone de un /64 rotaría direcciones para obtener un techo nuevo
+    /// en cada una. Una IPv4 mapeada en IPv6 cuenta como la IPv4.
+    /// </summary>
+    internal static string IpDelCliente(HttpContext contexto)
+    {
+        var ip = contexto.Connection.RemoteIpAddress;
+        if (ip is null)
+            return "desconocida";
+
+        if (ip.IsIPv4MappedToIPv6)
+            ip = ip.MapToIPv4();
+
+        if (ip.AddressFamily != AddressFamily.InterNetworkV6)
+            return ip.ToString();
+
+        Span<byte> octetos = stackalloc byte[16];
+        ip.TryWriteBytes(octetos, out _);
+        octetos[8..].Clear();
+        return $"{new IPAddress(octetos)}/64";
+    }
 
     private static RateLimitPartition<string> VentanaFija(string clavePartition, int limitePorMinuto) =>
         RateLimitPartition.GetFixedWindowLimiter(
