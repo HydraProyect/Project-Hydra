@@ -100,6 +100,7 @@ public class FechaDeHoyEnFormulariosTests : BunitContext
     {
         this.ConRolDeEscritura(Roles.GestorCae);
         JSInterop.Mode = JSRuntimeMode.Loose;
+        Services.AddLocalization();
         Services.AddScoped<ToastService>();
         Services.AddSingleton<IMediator>(new MediatorSinHistorial());
         Services.AddSingleton<TimeProvider>(new RelojManual(MediaHoraTrasLaMedianocheDeMadrid));

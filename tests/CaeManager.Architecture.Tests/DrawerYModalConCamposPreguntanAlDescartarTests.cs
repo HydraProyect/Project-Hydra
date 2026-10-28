@@ -114,7 +114,7 @@ public class DrawerYModalConCamposPreguntanAlDescartarTests
         // Cada migración a los kits (DrawerFormulario, ModalFormulario) saca un contenedor artesanal de esta medida: los kits ya no se cuentan
         // aquí (su guardián lo obliga el compilador). Medido tras el lote 3b-3: 27 con campos y 28 con HayCambios; el umbral se ajusta a lo
         // medido en cada lote que migra, para que un detector que dejara de ver una parte de los contenedores no pase por holgura.
-        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(24, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1, 31 tras el 3b-2, 27 tras el 3b-3); si baja de golpe sin migrar nada, dejó de mirar");
+        medidos.Count(c => c.Campos > 0).Should().BeGreaterThan(20, "había 56 contenedores con campos al escribirlo (39 tras el lote 3b-1, 31 tras el 3b-2, 27 tras el 3b-3, 24 tras migrar Asignar trabajador, Corregir a mano, Reclamación en lote y Blindaje 42.1); si baja de golpe sin migrar nada, dejó de mirar");
         medidos.Count(c => c.TieneGuardian).Should().BeGreaterThan(25, "había ≥ 50 con HayCambios al escribirlo (40 tras el lote 3b-1, 32 tras el 3b-2, 28 tras el 3b-3); si baja de golpe sin migrar nada, dejó de ver el atributo");
 
         var problemas = Evaluar(medidos, ContenedoresSinGuardian, SalidasDelPieSinGuardian);

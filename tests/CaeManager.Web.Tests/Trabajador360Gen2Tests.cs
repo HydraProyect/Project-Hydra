@@ -2576,7 +2576,7 @@ public partial class Trabajador360Gen2Tests : BunitContext
         await cut.FindAll("[role=menuitem]").Single(i => i.TextContent.Trim() == "Gestionar")
             .ClickAsync(new MouseEventArgs());
         cut.FindAll(".reclamacion-destinatarios input[type=checkbox]").Should().BeEmpty("no se abre la confirmación por Cliente empresarial");
-        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar")
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Continuar")
             .ClickAsync(new MouseEventArgs());
 
         var consulta = mediador.Enviadas
