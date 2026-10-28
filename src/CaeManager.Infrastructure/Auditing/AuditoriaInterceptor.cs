@@ -94,6 +94,9 @@ namespace CaeManager.Infrastructure.Auditing;
 /// 12. La foto del Trabajador en <see cref="VisitaTrabajador"/> (documento y
 ///    nombre mostrado, tomados al asignarlo): se enmascaran en toda entrada de
 ///    la asignación. Ver el comentario de esa entrada.
+/// 13. El contacto de seguridad del Tenant beneficiario
+///    (<see cref="CaeManager.Domain.Tenants.ContactoSeguridadTenant"/>): su nombre, su teléfono y
+///    su correo, con el criterio del punto 10. Ver el comentario de esa entrada.
 /// </summary>
 public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesInterceptor
 {
@@ -239,6 +242,16 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(Visita)] =
         [
             nameof(Visita.ContactoNombre), nameof(Visita.ContactoTelefono), nameof(Visita.ContactoCorreo),
+        ],
+        // Punto 13 del comentario de clase (2026-10-27): el contacto de seguridad del Tenant
+        // beneficiario, con el mismo criterio que el contacto de la Visita 360 (punto 10). El rastro
+        // conserva el estado, quién lo propuso o lo resolvió y cuándo; nunca su nombre, su teléfono
+        // ni su correo. app_resolver_contacto_seguridad tampoco los copia en su auditoría.
+        [typeof(CaeManager.Domain.Tenants.ContactoSeguridadTenant)] =
+        [
+            nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Nombre),
+            nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Telefono),
+            nameof(CaeManager.Domain.Tenants.ContactoSeguridadTenant.Correo),
         ],
 
         // Punto 12: la foto del Trabajador en su asignación a una Visita (histórico congelado de la exportación de

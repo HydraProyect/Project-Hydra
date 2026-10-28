@@ -197,7 +197,8 @@ public class NavMenuCaracterizacionTests
             "los guardados primero y en su orden; los que el orden no nombra, al final en el orden del catálogo; " +
             "'grupo-retirado' no existe y se ignora");
         administrador.FindAll("details[data-grupo='plataforma'] a").Select(a => a.GetAttribute("href")).Should().Equal(
-            ["plataforma/conectores-cae", "configuracion/comercial", "configuracion/plataforma", "delegaciones"],
+            ["plataforma/conectores-cae", "configuracion/comercial", "configuracion/plataforma", "delegaciones",
+                "plataforma/contactos-seguridad"],
             "dentro del grupo manda la posición relativa de la lista plana de enlaces");
 
         var gestor = Pintar(

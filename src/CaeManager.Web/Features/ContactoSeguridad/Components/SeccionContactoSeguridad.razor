@@ -1,0 +1,93 @@
+@using CaeManager.Application.ContactosSeguridad
+@using CaeManager.Application.ContactosSeguridad.Queries.ObtenerContactoSeguridadDeMiOrganizacion
+@using CaeManager.Web.Features.ContactoSeguridad.Recursos
+@using MediatR
+@using Microsoft.Extensions.Localization
+@implements IDisposable
+@inject IMediator Mediator
+@inject IStringLocalizer<TextosContactoSeguridad> Textos
+
+@* «Contacto de seguridad» de la organización (incremento 3a del aviso de violaciones de seguridad). Solo
+   la ve el Administrador del Tenant beneficiario: la consulta devuelve null a cualquier otro y la sección
+   no se pinta. La barrera real está en Application y en la RLS; esta pantalla solo ofrece la propuesta. *@
+@if (_errorCarga)
+{
+    <Tarjeta Titulo="@Textos["SeccionTitulo"]" Class="tarjeta-configuracion contacto-seguridad">
+        <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ErrorCarga"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    </Tarjeta>
+}
+else if (_estado is not null)
+{
+    <Tarjeta Titulo="@Textos["SeccionTitulo"]" Class="tarjeta-configuracion contacto-seguridad">
+        <p class="contacto-seguridad-descripcion">@Textos["SeccionDescripcion"]</p>
+
+        @if (_estado.Vigente is { } vigente)
+        {
+            <section class="contacto-seguridad-vigente" aria-label="@Textos["ContactoVigente"]">
+                <h3>@Textos["ContactoVigente"] <Badge Tono="TonoBadge.Exito">@Textos["EstadoValidado"]</Badge></h3>
+                <p>@vigente.Nombre · @vigente.Correo@(vigente.Telefono is null ? "" : " · " + vigente.Telefono)</p>
+            </section>
+        }
+        else
+        {
+            <p class="contacto-seguridad-sin-validar" role="note">@Textos["SinContactoValidado"]</p>
+        }
+
+        @if (_estado.Pendiente is { } pendiente)
+        {
+            <section class="contacto-seguridad-pendiente" aria-label="@Textos["PropuestaPendiente"]">
+                <h3>@Textos["PropuestaPendiente"] <Badge Tono="TonoBadge.Advertencia">@Textos["EstadoEnRevision"]</Badge></h3>
+                <p>@pendiente.Nombre · @pendiente.Correo@(pendiente.Telefono is null ? "" : " · " + pendiente.Telefono)</p>
+                <p class="contacto-seguridad-nota">@Textos["PropuestaPendienteNota"]</p>
+            </section>
+        }
+
+        @if (_estado.UltimoRechazo is { } rechazo)
+        {
+            <section class="contacto-seguridad-rechazo" aria-label="@Textos["UltimoRechazo"]">
+                <h3>@Textos["UltimoRechazo"] <Badge Tono="TonoBadge.Peligro">@Textos["EstadoRechazado"]</Badge></h3>
+                <p>@rechazo.Nombre · @rechazo.Correo</p>
+                <p>@Textos["MotivoDelRechazo", rechazo.MotivoRechazo ?? ""]</p>
+            </section>
+        }
+
+        <div class="acciones-formulario">
+            <Boton Variante="VarianteBoton.Primario" OnClick="AbrirDrawer">
+                @(_estado.Vigente is null && _estado.Pendiente is null ? Textos["BotonProponer"] : Textos["BotonProponerOtro"])
+            </Boton>
+        </div>
+    </Tarjeta>
+
+    <ProponerContactoSeguridadDrawer @bind-Visible="_drawerVisible" OnPropuesta="CargarAsync" />
+}
+
+@code {
+    private ContactoSeguridadDeMiOrganizacionDto? _estado;
+    private bool _errorCarga, _drawerVisible;
+    private readonly CancellationTokenSource _ciclo = new();
+
+    protected override Task OnInitializedAsync() => CargarAsync();
+
+    private async Task CargarAsync()
+    {
+        _errorCarga = false;
+        try
+        {
+            _estado = await Mediator.Send(new ObtenerContactoSeguridadDeMiOrganizacionQuery(), _ciclo.Token);
+        }
+        catch (OperationCanceledException) when (_ciclo.IsCancellationRequested) { }
+        catch (Exception) { _errorCarga = true; }
+    }
+
+    private void AbrirDrawer() => _drawerVisible = true;
+
+    public void Dispose()
+    {
+        _ciclo.Cancel();
+        _ciclo.Dispose();
+    }
+}

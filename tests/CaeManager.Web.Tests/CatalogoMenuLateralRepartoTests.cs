@@ -73,6 +73,8 @@ public class CatalogoMenuLateralRepartoTests
                 "dashboard", "vision-cartera", "dashboard-ejecutivo", "indicadores-ia-bpo",
                 "usuarios", "configuracion", "auditoria",
                 "plataforma-administracion", "delegaciones", "estado-comercial", "conectores-cae",
+                // Enlace nuevo de Plataforma (aviso de violaciones de seguridad, incremento 3a), no un cambio de grupo.
+                "contactos-seguridad",
             ]);
     }
 
@@ -128,7 +130,7 @@ public class CatalogoMenuLateralRepartoTests
             comunes.AddRange(
                 ["configuracion", "auditoria", "delegaciones", "estado-comercial", "conectores-cae"]);
         // La fila de Administrador del test lleva capacidad de plataforma (el enlace la exige).
-        if (rol == Roles.Administrador) comunes.Add("plataforma-administracion");
+        if (rol == Roles.Administrador) comunes.AddRange(["plataforma-administracion", "contactos-seguridad"]);
         return [.. comunes];
     }
 

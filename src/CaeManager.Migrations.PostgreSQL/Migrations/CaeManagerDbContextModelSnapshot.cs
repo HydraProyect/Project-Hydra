@@ -18,7 +18,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.13")
+                .HasAnnotation("ProductVersion", "10.0.14")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -9609,6 +9609,74 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .HasFilter("\"RevocadaEnUtc\" IS NULL");
 
                     b.ToTable("AsignacionesOperadorDelegado", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Tenants.ContactoSeguridadTenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Correo")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("MotivoRechazo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("Nombre")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("PropuestoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("PropuestoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResueltoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ResueltoPorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("SustitucionEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Telefono")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Estado", "PropuestoEnUtc");
+
+                    b.HasIndex("TenantId", "Estado")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ContactosSeguridadTenant_UnoPropuestoYUnoValidadoPorTenant")
+                        .HasFilter("\"Estado\" IN ('Propuesto', 'Validado')");
+
+                    b.ToTable("ContactosSeguridadTenant", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ContactosSeguridadTenant_Estado", "\"Estado\" IN ('Propuesto', 'Validado', 'Rechazado', 'Sustituido')");
+
+                            t.HasCheckConstraint("CK_ContactosSeguridadTenant_InstanteSustitucion", "(\"Estado\" = 'Sustituido') = (\"SustitucionEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ContactosSeguridadTenant_MotivoSoloAlRechazar", "(\"Estado\" = 'Rechazado') = (\"MotivoRechazo\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_ContactosSeguridadTenant_ResolucionCoherente", "(\"Estado\" IN ('Validado', 'Rechazado')) = (\"ResueltoPorUsuarioId\" IS NOT NULL AND \"ResueltoEnUtc\" IS NOT NULL) OR (\"Estado\" = 'Sustituido' AND \"ResueltoPorUsuarioId\" IS NOT NULL AND \"ResueltoEnUtc\" IS NOT NULL)");
+                        });
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Tenants.DelegacionTenant", b =>

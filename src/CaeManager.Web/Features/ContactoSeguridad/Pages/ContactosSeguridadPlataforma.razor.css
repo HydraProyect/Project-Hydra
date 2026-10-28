@@ -1,0 +1,11 @@
+.contactos-seguridad-error {
+    color: var(--color-danger-700);
+    font: var(--font-body-md);
+    margin: 0 0 var(--space-4);
+}
+
+.contactos-seguridad-acciones {
+    display: inline-flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+}
