@@ -1418,6 +1418,7 @@ public partial class ProyectosGen2Tests : BunitContext
     public async Task Cancelar_el_nuevo_proyecto_con_nombre_pregunta_y_sin_tocar_cierra()
     {
         var cut = await AbrirNuevoProyectoAsync();
+        cut.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeTrue();
         await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
 
         await cut.FindAll("button").First(b => b.TextContent.Trim() == "+ Nuevo proyecto").ClickAsync(new MouseEventArgs());

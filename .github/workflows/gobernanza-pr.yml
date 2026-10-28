@@ -199,8 +199,10 @@ jobs:
       #   - #678 se abrió sin pasar por Codex; #673 dejó un marcador
       #     provisional ("2ª pasada — (resultado abajo)") sin rellenar. Regla:
       #     toda PR (salvo dependabot[bot]) lleva una sección
-      #     "## Revisión Codex" con contenido real — hallazgos aceptados o
-      #     rechazados, o "sin hallazgos" — y sin marcadores provisionales.
+      #     "## Revisión Codex" con contenido real y sin marcadores provisionales.
+      #     Desde 2026-10-26 lleva además tres líneas: "Revisor:" (revisor-puente
+      #     o Codex), "Refutación:" (qué se intentó romper) y el veredicto, "sin
+      #     hallazgos" o "aceptados N, rechazados M". Solo se comprueba la forma.
       #
       # Igual que el paso de arriba (DEC-66): el cuerpo, los ficheros y el
       # autor se leen por API en el momento de evaluar, nunca del payload del

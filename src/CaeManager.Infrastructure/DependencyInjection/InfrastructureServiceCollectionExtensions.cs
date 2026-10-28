@@ -194,10 +194,41 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddScoped<CaeManager.Infrastructure.Seguridad.IVigilanciaInicioSesion, CaeManager.Infrastructure.Seguridad.VigilanciaInicioSesionService>();
         services.AddHostedService<CaeManager.Infrastructure.Seguridad.PurgaIniciosSesionHostedService>();
 
+        // Incidentes de seguridad sospechados (plano de Plataforma): señales de alta certeza,
+        // registro por la función app_registrar_incidente_seguridad y alerta saliente al
+        // guardia de TALVEG. Sin IncidentesSeguridad:UrlAlertaSaliente el canal es el nulo y la alerta
+        // cae a IAlertaOperativa (Sentry); el incidente se registra igual. La configuración se valida
+        // al arrancar (umbrales positivos, URL https).
+        services.AddOptions<CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad>()
+            .Bind(configuration.GetSection(CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion))
+            .Validate(o => o.Validar().Count == 0,
+                "La sección IncidentesSeguridad no es válida: los umbrales tienen que ser positivos y UrlAlertaSaliente, una URL absoluta https.")
+            .ValidateOnStart();
+        Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(services, TimeProvider.System);
+        if (string.IsNullOrWhiteSpace(configuration[CaeManager.Application.Seguridad.Incidentes.OpcionesIncidentesSeguridad.Seccion + ":UrlAlertaSaliente"]))
+            services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadNulo>();
+        else
+        {
+            services.AddHttpClient(CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp.NombreCliente,
+                cliente => cliente.Timeout = TimeSpan.FromSeconds(15))
+                // La URL lleva el token del canal: los registradores por defecto del HttpClient
+                // escribirían la URI de cada petición en el log.
+                .RemoveAllLoggers();
+            services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ICanalAlertaIncidenteSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.CanalAlertaIncidenteSeguridadHttp>();
+        }
+        services.AddSingleton<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>();
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IAlertaIncidenteSeguridad>(
+            sp => sp.GetRequiredService<CaeManager.Infrastructure.Seguridad.Incidentes.ColaAlertasIncidenteSeguridad>());
+        services.AddHostedService<CaeManager.Infrastructure.Seguridad.Incidentes.EnvioAlertasIncidenteSeguridadHostedService>();
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.IRegistroIncidentesSeguridad, CaeManager.Infrastructure.Seguridad.Incidentes.RegistroIncidentesSeguridadEnBase>();
+        services.AddSingleton<CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad, CaeManager.Application.Seguridad.Incidentes.SenalesIncidenteSeguridad>();
+
         services.Configure<AzureAdOptions>(configuration.GetSection(AzureAdOptions.SeccionConfiguracion));
         services.AddTransient<IClaimsTransformation, RestriccionLoginLocalClaimsTransformation>();
         // Sin esto, la revalidación periódica de la cookie borra la marca de inicio por Microsoft.
         services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
+        // Ni la marca del TOTP de la sesión, que exige la apertura de una Sesión Privilegiada.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -750,6 +781,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<IAsistenteIaService, AnthropicAsistenteIaService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
+        services.AddAsistenteDePruebas(configuration, entorno);
         // El cliente de Anthropic es ahora el respaldo: el servicio que ve Application es el compositor
         // que prueba primero el parser local (ITA/RNT/TC2 con texto digital) y solo si el documento no
         // cuadra llama a este cliente. Por eso se registra por su tipo concreto, no por la interfaz.

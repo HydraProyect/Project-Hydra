@@ -12,7 +12,9 @@ public class RegistroAccesoDocumentoSensibleService(
     IDocumentosQueryContext documentosContext,
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IActorAuditoria actorAuditoria,
-    IRegistroAccesoDocumentoSensibleRepository repositorio)
+    IRegistroAccesoDocumentoSensibleRepository repositorio,
+    CaeManager.Application.Seguridad.Incidentes.ISenalesIncidenteSeguridad? senalesIncidente = null,
+    ITenantActual? tenantActual = null)
     : IRegistroAccesoDocumentoSensibleService
 {
     public async Task RegistrarSiSensibleAsync(
@@ -84,5 +86,10 @@ public class RegistroAccesoDocumentoSensibleService(
         // y aquí se convierte en una excepción que corta la respuesta.
         if (!await repositorio.GuardarAsync(registro, cancellationToken))
             throw new AccesoDocumentoSensibleNoRegistradoException(recursoId);
+
+        // Señal de extracción masiva (documentos sensibles abiertos o descargados por el
+        // actor real), solo tras quedar registrado el acceso.
+        if (senalesIncidente is not null && actor.ActorRealUsuarioId is { } actorReal)
+            await senalesIncidente.DocumentoSensibleAbiertoAsync(actorReal, tenantActual?.TenantId, cancellationToken);
     }
 }

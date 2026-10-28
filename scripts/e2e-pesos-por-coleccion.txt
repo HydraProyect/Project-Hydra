@@ -27,6 +27,8 @@ AppCollectionFichas360 63
 AppCollectionEncargoAdministracion 61
 AppCollectionMultiTenant 60
 AppCollectionSoporte 56
+# Estimado, sin medir (#1757): dos tests cortos más el arranque. Sustituir por el p50 en la próxima regeneración.
+AppCollectionVega 55
 AppCollectionBajoRuntime 53
 AppCollectionRetencion 53
 AppCollectionCuentaAMedioActivar 50

@@ -13,8 +13,9 @@
 #      descifrado (mismo llavero, otro propósito);
 #   5. opcionalmente (--copia-claves) repite 3-4 con la copia cifrada de las
 #      claves de la segunda ubicación (P38), sin usar las del archivo Borg.
-# Y mide el RPO observado (antigüedad del backup y hueco máximo entre copias)
-# y los tiempos por fase, de los que sale el RTO automatizable.
+# Y mide el RPO observado (antigüedad del backup y hueco máximo entre las copias
+# diarias recientes, las de los últimos 8 días; el hueco entre todos los retenidos
+# solo se muestra como dato informativo) y los tiempos por fase, de los que sale el RTO automatizable.
 #
 # Requisitos: docker (y borg salvo con --desde-dir; age solo con --copia-claves).
 # pg_restore corre DENTRO del contenedor de PostgreSQL, sin cliente en el host.
@@ -39,6 +40,15 @@
 #                          (P1-F3): hace falta para leer claves de Data Protection
 #                          cifradas con certificado. Se monta en /run/secretos:ro,
 #                          como en producción. Sin él, la app solo lee claves en claro.
+#                          Los ficheros los lee el UID de la app DENTRO del contenedor
+#                          (1654), no quien ejecuta el guion: el directorio debe poder
+#                          atravesarlo y cada dataprotection*.crt/.key debe poder
+#                          leerlos (propietario 1654 con r; si el propietario es otro,
+#                          grupo 1654 u otros con r). Se comprueba ANTES de la fase 1 y,
+#                          si no, sale con 2 y el chown/chmod que lo arregla (sin ello
+#                          el migrador falla con UnauthorizedAccessException tras
+#                          construir la imagen). Usa `stat -c` (GNU); con un `stat` BSD
+#                          la comprobación se omite con un AVISO.
 #                          Cada par dataprotection-*.crt + .key del directorio entra
 #                          como certificado anterior (rotación): hace falta para las
 #                          claves cifradas antes de rotar. Solo ese prefijo: el
@@ -54,6 +64,8 @@
 #                          COPIA desechable (ver preparar_cuenta). Nunca van en el
 #                          repositorio.
 #   RPO_MAX_HORAS (24) · RTO_MAX_HORAS (4): objetivos con los que se compara.
+#   HUECO_DIARIO_MAX_HORAS (26): hueco máximo admitido entre copias diarias
+#                          recientes (24 h más margen por las ejecuciones 03:15/03:45).
 set -euo pipefail
 
 DIR_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -76,11 +88,74 @@ while [ $# -gt 0 ]; do
         *) echo "ERROR: opción desconocida: $1"; exit 2 ;;
     esac
 done
+
+# UID con el que corre la app dentro del contenedor. Es el APP_UID que el Dockerfile
+# NO declara: lo hereda de la imagen base mcr.microsoft.com/dotnet/aspnet (la fijada
+# en `FROM ... AS final`) y el Dockerfile lo usa en `COPY --chown=$APP_UID:$APP_UID`;
+# docker-entrypoint.sh baja a él con gosu. Medido (1654:1654) en
+# deploy/local/docker-compose.produccion.yml (bloque «PROPIEDAD Y PERMISOS DEL PEM»).
+# Si una imagen base futura lo cambia, este valor se corrige aquí y en ese bloque.
+APP_UID_CONTENEDOR=1654
+
+# bits_uid_app RUTA -> imprime los permisos (0-7, rwx) que el UID de la app tiene sobre
+# RUTA, con la regla de POSIX: si es el propietario, solo cuentan los bits del
+# propietario; si no, si su GID (igual al UID en la imagen) es el del grupo, los del
+# grupo; si no, los de otros. Solo mira propietario y modo (no ACL), sigue enlaces
+# simbólicos (-L, como el montaje) y no cubre Docker rootless ni userns-remap, donde el
+# 1654 del contenedor no es el 1654 del host.
+bits_uid_app() {
+    local propietario grupo modo m
+    read -r propietario grupo modo < <(stat -L -c '%u %g %a' -- "$1") || return 1
+    m=$((8#$modo))
+    if [ "$propietario" -eq "$APP_UID_CONTENEDOR" ]; then
+        echo $(( (m >> 6) & 7 ))
+    elif [ "$grupo" -eq "$APP_UID_CONTENEDOR" ]; then
+        echo $(( (m >> 3) & 7 ))
+    else
+        echo $(( m & 7 ))
+    fi
+}
+
+# El montaje es :ro y no cambia propietarios: lo que el UID de la app no pueda leer
+# aquí, tampoco lo leerá en el contenedor. `[ -r ]` con el usuario del guion no lo
+# detecta, y el fallo llegaría tras minutos de construcción de imagen (migrador con
+# UnauthorizedAccessException en /run/secretos/dataprotection.crt). Sale con 2.
+verificar_permisos_certificado_dp() {
+    local dir="$1" f crt bits dir_q
+    local ilegibles=()
+    if ! stat -L -c '%u' -- "$dir" >/dev/null 2>&1; then
+        echo "AVISO: --certificado-dp: este 'stat' no admite -c (¿no es GNU?); no se comprueba que el UID $APP_UID_CONTENEDOR de la app pueda leer los certificados."
+        return 0
+    fi
+    bits=$(bits_uid_app "$dir")
+    [ $((bits & 1)) -ne 0 ] || ilegibles+=("$dir  (directorio: el UID $APP_UID_CONTENEDOR no puede atravesarlo, le falta x)")
+    # La app solo usa pares completos (.crt con su .key): un .crt o .key suelto no se lee.
+    for crt in "$dir"/dataprotection.crt "$dir"/dataprotection-*.crt; do
+        if [ -e "$crt" ] && [ -e "${crt%.crt}.key" ]; then
+            for f in "$crt" "${crt%.crt}.key"; do
+                bits=$(bits_uid_app "$f")
+                [ $((bits & 4)) -ne 0 ] || ilegibles+=("$f  (el UID $APP_UID_CONTENEDOR no puede leerlo)")
+            done
+        fi
+    done
+    [ ${#ilegibles[@]} -eq 0 ] && return 0
+    dir_q=$(printf '%q' "$dir")
+    echo "ERROR: --certificado-dp: la app corre en el contenedor como UID $APP_UID_CONTENEDOR y no podría leer:"
+    printf '         %s\n' "${ilegibles[@]}"
+    echo "       Sin esto el migrador falla con UnauthorizedAccessException leyendo /run/secretos/dataprotection.crt,"
+    echo "       tras construir la imagen. Corrígelo (en el equipo de ensayo) y repite:"
+    printf '         sudo chown -R %s:$(id -g) %s; sudo chmod 750 %s; sudo chmod 440 %s/*\n' \
+        "$APP_UID_CONTENEDOR" "$dir_q" "$dir_q" "$dir_q"
+    exit 2
+}
+
 MONTAJE_DP=()
 if [ -n "$CERTIFICADO_DP" ]; then
+    [ -d "$CERTIFICADO_DP" ] || { echo "ERROR: --certificado-dp: $CERTIFICADO_DP no es un directorio"; exit 2; }
     for f in dataprotection.crt dataprotection.key; do
-        [ -r "$CERTIFICADO_DP/$f" ] || { echo "ERROR: --certificado-dp: falta o no se puede leer $CERTIFICADO_DP/$f"; exit 2; }
+        [ -f "$CERTIFICADO_DP/$f" ] || { echo "ERROR: --certificado-dp: falta $CERTIFICADO_DP/$f"; exit 2; }
     done
+    verificar_permisos_certificado_dp "$CERTIFICADO_DP"
     MONTAJE_DP=(-v "$(cd "$CERTIFICADO_DP" && pwd)":/run/secretos:ro)
 fi
 if [ -n "$COPIA_CLAVES" ] && [ -z "$IDENTIDAD_AGE" ]; then
@@ -111,6 +186,11 @@ fi
 IMAGEN_PG="${ENSAYO_IMAGEN_PG:-postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280}"
 RPO_MAX_HORAS="${RPO_MAX_HORAS:-24}"
 RTO_MAX_HORAS="${RTO_MAX_HORAS:-4}"
+# Cadencia de las copias diarias: ventana de los archivos que deben ser diarios
+# (backup-borg.sh: --keep-daily 7, un día de margen) y hueco máximo admitido en ella:
+# 24 h más 2 h de margen por la hora de las ejecuciones (03:15 y 03:45).
+VENTANA_DIARIAS_DIAS=8
+HUECO_DIARIO_MAX_HORAS="${HUECO_DIARIO_MAX_HORAS:-26}"
 
 # Nombres únicos por ejecución: dos ensayos (o el de otra sesión) no se pisan.
 SUFIJO="$$"
@@ -165,7 +245,8 @@ if [ -n "$DESDE_DIR" ]; then
     echo "==> 1/7 Usando el backup ya extraído en $DESDE_DIR (marca $MARCA_BACKUP) ..."
     ULTIMO="caemanager-$MARCA_BACKUP"
     cp -r "$DESDE_DIR"/. "$DIR_TRABAJO"/
-    HUECO_MAX_TXT="n/d (un solo archivo)"
+    HUECO_DIARIO_TXT="n/d (un solo archivo)"
+    HUECO_TOTAL_TXT="n/d (un solo archivo)"
 else
     echo "==> 1/7 Localizando el archivo más reciente en $BORG_REPO ..."
     ULTIMO=$(borg list --glob-archives 'caemanager-*' --short | sort | tail -1)
@@ -173,17 +254,45 @@ else
     MARCA_BACKUP="${ULTIMO#caemanager-}"
     echo "    Archivo elegido: $ULTIMO"
 
-    # Hueco máximo entre archivos consecutivos: demuestra la cadencia, no solo
-    # que el último existe. Un cron que falló un día lo deja ver aquí.
-    ANTERIOR=""; HUECO_MAX=0
+    # Cadencia: hueco máximo entre copias consecutivas SOLO dentro de los últimos
+    # VENTANA_DIARIAS_DIAS días, que son los que backup-borg.sh retiene como diarios
+    # (--keep-daily 7). Un cron que falló un día lo deja ver aquí, hasta VENTANA_DIARIAS_DIAS
+    # atrás (una caída ya cerrada, anterior a la ventana, la cubre la retención de abajo, no
+    # esta medida). El hueco entre TODOS
+    # los retenidos no mide cadencia: con 7 diarios / 4 semanales / 6 mensuales crece
+    # por diseño (semanas y meses entre los archivos viejos), sin que falte ninguna
+    # copia; se muestra aparte, como dato informativo.
+    # Primero el listado, en una asignación: si borg falla, el guion para (set -e) en vez de
+    # medir una cadencia sobre una lista vacía.
+    LISTA_ARCHIVOS=$(borg list --glob-archives 'caemanager-*' --short | sort)
+    ANTERIOR=""; HUECO_MAX=0; HUECO_DIARIO_MAX=0; N_DIARIOS=0
+    LIMITE_DIARIAS=$(( $(date -u +%s) - VENTANA_DIARIAS_DIAS * 86400 ))
     while read -r nombre; do
         actual=$(epoch_de_marca "${nombre#caemanager-}")
-        if [ -n "$ANTERIOR" ] && [ $((actual - ANTERIOR)) -gt "$HUECO_MAX" ]; then
-            HUECO_MAX=$((actual - ANTERIOR))
+        if [ "$actual" -ge "$LIMITE_DIARIAS" ]; then
+            N_DIARIOS=$((N_DIARIOS + 1))
+        fi
+        if [ -n "$ANTERIOR" ]; then
+            hueco=$((actual - ANTERIOR))
+            if [ "$hueco" -gt "$HUECO_MAX" ]; then HUECO_MAX=$hueco; fi
+            if [ "$ANTERIOR" -ge "$LIMITE_DIARIAS" ] && [ "$hueco" -gt "$HUECO_DIARIO_MAX" ]; then
+                HUECO_DIARIO_MAX=$hueco
+            fi
         fi
         ANTERIOR=$actual
-    done < <(borg list --glob-archives 'caemanager-*' --short | sort)
-    HUECO_MAX_TXT="$((HUECO_MAX / 3600)) h $(((HUECO_MAX % 3600) / 60)) min entre archivos consecutivos retenidos"
+    done <<<"$LISTA_ARCHIVOS"
+    HUECO_TOTAL_TXT="$((HUECO_MAX / 3600)) h $(((HUECO_MAX % 3600) / 60)) min"
+    if [ "$N_DIARIOS" -ge 2 ]; then
+        HUECO_DIARIO_TXT="$((HUECO_DIARIO_MAX / 3600)) h $(((HUECO_DIARIO_MAX % 3600) / 60)) min (${N_DIARIOS} archivos en ${VENTANA_DIARIAS_DIAS} días; objetivo ${HUECO_DIARIO_MAX_HORAS} h)"
+        if [ "$HUECO_DIARIO_MAX" -le $((HUECO_DIARIO_MAX_HORAS * 3600)) ]; then
+            registrar OK "Hueco máximo entre copias diarias recientes" "$HUECO_DIARIO_TXT"
+        else
+            registrar FALLO "Hueco máximo entre copias diarias recientes" "$HUECO_DIARIO_TXT: falta alguna copia diaria"
+        fi
+    else
+        HUECO_DIARIO_TXT="n/d (menos de 2 archivos en los últimos ${VENTANA_DIARIAS_DIAS} días)"
+        registrar OMITIDO "Hueco máximo entre copias diarias recientes" "$HUECO_DIARIO_TXT: cadencia sin comprobar"
+    fi
     fase_hecha "localizar archivo"
 
     echo "==> 2/7 Extrayendo CaeManager.dump + dataprotection-keys + documentos (juntos, del MISMO archivo)..."
@@ -584,7 +693,8 @@ TOTAL=$((T_FIN - T_INICIO))
 echo ""
 echo "════════ RESUMEN DEL ENSAYO ════════"
 echo "Archivo restaurado : $ULTIMO"
-echo "RPO observado      : ${EDAD_H} h $(((EDAD_S % 3600) / 60)) min de antigüedad; cadencia: $HUECO_MAX_TXT"
+echo "RPO observado      : ${EDAD_H} h $(((EDAD_S % 3600) / 60)) min de antigüedad; hueco máximo entre copias diarias recientes: $HUECO_DIARIO_TXT"
+echo "Hueco entre retenidos: $HUECO_TOTAL_TXT (informativo, NO es cadencia: crece por diseño con la retención 7 diarios / 4 semanales / 6 mensuales de backup-borg.sh)"
 echo ""
 printf '%s\n' "${RESULTADOS[@]}"
 echo ""

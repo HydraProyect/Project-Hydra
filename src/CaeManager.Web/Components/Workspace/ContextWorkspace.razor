@@ -322,7 +322,7 @@
 
             await using (modulo)
             {
-                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _referenciaPanel);
+                _trampaFoco = await modulo.InvokeAsync<IJSObjectReference>("atraparFoco", _referenciaPanel, true);
             }
 
             return _trampaFoco is not null;

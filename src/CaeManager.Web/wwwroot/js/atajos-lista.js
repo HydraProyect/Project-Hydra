@@ -53,20 +53,25 @@ const SELECTOR_FILA_ENFOCADA = '.fila-enfocada, .panel-resolver-item-enfocado';
 // tabIndex = -1 la hace focable por script sin meterla en el orden de Tab
 // normal — la propia fila no tiene por qué ser alcanzable con Tab, la
 // navegación entre filas ya la hacen j/k.
-function enfocarFilaActiva(intentosRestantes = 10) {
+export function enfocarFilaActiva(intentosRestantes = 10, alEnfocar = null) {
     // El diálogo puede haberse abierto mientras terminaba el callback de C#.
     if (hayDialogoModalAbierto()) return;
+    // Nunca roba el foco a un campo donde se está escribiendo (devolución tras cerrar la vista rápida).
+    const activo = document.activeElement;
+    if (activo && (activo.tagName === 'TEXTAREA' || activo.tagName === 'SELECT' || activo.isContentEditable ||
+        (activo.tagName === 'INPUT' && !TIPOS_INPUT_NO_TEXTO.has(activo.type)))) return;
     const fila = document.querySelector(SELECTOR_FILA_ENFOCADA);
     if (fila) {
         if (!fila.hasAttribute('tabindex')) fila.tabIndex = -1;
         fila.focus({ preventScroll: true });
+        alEnfocar?.();
         return;
     }
     // El parche del DOM tras RecibirAtajo (interop -> C# -> StateHasChanged)
     // puede no haber llegado todavía cuando invokeMethodAsync resuelve —
     // reintenta unos frames antes de rendirse.
     if (intentosRestantes > 0) {
-        requestAnimationFrame(() => enfocarFilaActiva(intentosRestantes - 1));
+        requestAnimationFrame(() => enfocarFilaActiva(intentosRestantes - 1, alEnfocar));
     }
 }
 
@@ -112,6 +117,28 @@ function pulsarFila(evento) {
 
 export function registrarAtajosLista(dotNetRef) {
     let ultimaGSuelta = 0;
+    let filaAnterior = null;
+    let cuerpoObservado = null;
+    const observador = new MutationObserver(() => {
+        if (!filaAnterior || filaAnterior.isConnected) return;
+        const fila = cuerpoObservado.querySelector(SELECTOR_FILA_ENFOCADA);
+        const activo = document.activeElement;
+        filaAnterior.classList.remove('fila-enfocada', 'panel-resolver-item-enfocado');
+        filaAnterior = fila;
+        if (fila && (activo === document.body || activo === fila) && !hayDialogoModalAbierto() &&
+            !document.querySelector('.workspace-panel')) enfocarFilaActiva(0);
+    });
+
+    function observarFila() {
+        const fila = document.querySelector(SELECTOR_FILA_ENFOCADA);
+        const cuerpo = fila?.closest('tbody');
+        if (cuerpo !== cuerpoObservado) {
+            observador.disconnect();
+            cuerpoObservado = cuerpo;
+            if (cuerpo) observador.observe(cuerpo, { childList: true, subtree: true });
+        }
+        filaAnterior = fila;
+    }
 
     const manejador = async (evento) => {
         // Una tecla con modificador (o el modificador solo: Ctrl, AltGr) no es de nadie y no
@@ -167,7 +194,7 @@ export function registrarAtajosLista(dotNetRef) {
         await dotNetRef.invokeMethodAsync('RecibirAtajo', evento.key);
 
         if (evento.key === 'j' || evento.key === 'k') {
-            requestAnimationFrame(() => enfocarFilaActiva());
+            requestAnimationFrame(() => enfocarFilaActiva(10, observarFila));
         }
     };
 
@@ -185,6 +212,7 @@ export function registrarAtajosLista(dotNetRef) {
             }
             document.removeEventListener('keydown', manejador);
             document.removeEventListener('click', pulsarFila);
+            observador.disconnect();
         }
     };
 }

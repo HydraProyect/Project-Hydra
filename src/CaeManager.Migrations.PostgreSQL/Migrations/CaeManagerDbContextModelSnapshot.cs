@@ -8564,6 +8564,65 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         });
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ConfirmadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Detecciones")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("DetectadoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Estado")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Evidencia")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("Senal")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<string>("SujetoClave")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.PrimitiveCollection<List<Guid>>("TenantsAfectados")
+                        .IsRequired()
+                        .HasColumnType("uuid[]");
+
+                    b.Property<DateTime>("UltimaDeteccionEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Estado", "DetectadoEnUtc");
+
+                    b.HasIndex("Senal", "SujetoClave", "DetectadoEnUtc");
+
+                    b.ToTable("IncidentesSeguridadSospechados", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_IncidentesSeguridadSospechados_ConfirmadoConHora", "(\"Estado\" <> 'Confirmado') OR (\"ConfirmadoEnUtc\" IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_IncidentesSeguridadSospechados_Detecciones", "\"Detecciones\" >= 1");
+
+                            t.HasCheckConstraint("CK_IncidentesSeguridadSospechados_Estado", "\"Estado\" IN ('Sospechado', 'EnEvaluacion', 'Confirmado', 'Descartado')");
+
+                            t.HasCheckConstraint("CK_IncidentesSeguridadSospechados_Senal", "\"Senal\" IN ('InicioSesionNoReconocido', 'ExtraccionMasiva', 'AccesoRepetidoAOtroTenant')");
+                        });
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Plataforma.OrdenMenuLateral", b =>
                 {
                     b.Property<Guid>("Id")
@@ -8671,6 +8730,41 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsUnique();
 
                     b.ToTable("TenantsAlcanzadosPorConcesion", (string)null);
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.TransicionIncidenteSeguridad", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("ActorUsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EstadoAnterior")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("EstadoNuevo")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("IncidenteId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("OcurridoEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidenteId", "OcurridoEnUtc");
+
+                    b.ToTable("TransicionesIncidenteSeguridad", (string)null);
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Proyectos.PlantillaRequisitosEvento", b =>
@@ -11352,6 +11446,15 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.TransicionIncidenteSeguridad", b =>
+                {
+                    b.HasOne("CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado", null)
+                        .WithMany("Transiciones")
+                        .HasForeignKey("IncidenteId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Proyectos.PlantillaRequisitosEvento", b =>
                 {
                     b.HasOne("CaeManager.Domain.Empresas.Empresa", null)
@@ -11717,6 +11820,11 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             modelBuilder.Entity("CaeManager.Domain.Plataforma.ConcesionPrivilegio", b =>
                 {
                     b.Navigation("TenantsAlcanzados");
+                });
+
+            modelBuilder.Entity("CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado", b =>
+                {
+                    b.Navigation("Transiciones");
                 });
 
             modelBuilder.Entity("CaeManager.Domain.Proyectos.PlantillaRequisitosEvento", b =>

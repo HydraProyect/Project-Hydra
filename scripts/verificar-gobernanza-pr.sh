@@ -16,14 +16,17 @@
 #      titulada "## Revisión Codex" (o una de sus variantes aceptadas, ver
 #      TITULOS_REVISION_CODEX más abajo — #688 tituló la suya "## Revisión de
 #      Codex" y el check dio rojo con la revisión ya hecha) con contenido
-#      real: al menos una línea de hallazgos aceptados o rechazados, o "sin
-#      hallazgos" — y sin marcadores provisionales ("resultado abajo",
-#      "pendiente", "TODO").
+#      real — sin marcadores provisionales ("resultado abajo", "pendiente",
+#      "TODO") y con tres líneas: "Revisor: revisor-puente" o "Revisor:
+#      Codex", "Refutación: <qué se intentó romper>" y el veredicto, "sin
+#      hallazgos" o "aceptados N, rechazados M" (endurecida el 2026-10-26;
+#      antes bastaba cualquier texto sin marcadores, "sin hallazgos" incluido).
 #
 # Qué NO hace: no interpreta si los hallazgos de Codex son correctos, ni si
 # el paso operativo descrito es el correcto — eso lo decide una persona. Solo
-# comprueba que la sección exista, no esté vacía y no lleve un marcador de
-# "esto se rellena luego".
+# comprueba que la sección exista, no lleve un marcador de "esto se rellena
+# luego" y traiga esas tres líneas con contenido: no puede saber si la
+# refutación fue real ni si el revisor nombrado revisó de verdad.
 #
 # Uso:
 #   scripts/verificar-gobernanza-pr.sh <fichero-cuerpo> <fichero-ficheros> [autor]
@@ -168,11 +171,14 @@ if [[ "$AUTOR" == "$AUTOR_EXENTO_REVISION_CODEX" ]]; then
   echo "OK        Autor $AUTOR_EXENTO_REVISION_CODEX — regla de revisión Codex no aplica."
 else
   SECCION="$(extraer_seccion_variantes "$CUERPO" "${TITULOS_REVISION_CODEX[@]}")"
+  # Las líneas nuevas se buscan sin comentarios HTML de una sola línea: un
+  # "Refutación: <!-- -->" no es contenido real. `[^>]*` en vez de `.*` para que
+  # dos comentarios en la misma línea no se lleven por delante el texto de en medio.
+  SECCION_LIMPIA="$(printf '%s' "$SECCION" | sed -E 's/<!--[^>]*-->//g')"
   if ! seccion_no_vacia "$SECCION"; then
     echo "PROBLEMA  Falta la sección '## Revisión Codex' en el cuerpo (o está vacía)." \
-         "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: al menos una línea de" \
-         "hallazgos aceptados o rechazados, o 'sin hallazgos' si no tocaba superficie" \
-         "sensible."
+         "Protocolo § 24.2 / skill protocolo-hydra-multimodelo: líneas 'Revisor:'," \
+         "'Refutación:' y el veredicto ('sin hallazgos' o 'aceptados N, rechazados M')."
     PROBLEMAS=$((PROBLEMAS + 1))
   elif printf '%s' "$SECCION" | grep -qiE 'resultados?[[:space:]-]+abajo'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'resultado abajo'" \
@@ -189,8 +195,33 @@ else
   elif printf '%s' "$SECCION" | grep -qE '\bTODOs?\b'; then
     echo "PROBLEMA  La sección 'Revisión Codex' tiene el marcador provisional 'TODO'."
     PROBLEMAS=$((PROBLEMAS + 1))
+  # Las tres comprobaciones siguientes miran la FORMA, no la verdad: suben el
+  # coste de un "sin hallazgos" vacío, pero un revisor que miente las supera.
+  # Detalles que no son accidentales (los mismos patrones, con la misma
+  # semántica, viven en scripts/preflight-pr.ps1):
+  #   - "espacio" es ASCII ([[:space:]]); NBSP y compañía NO lo son. En .NET `\s`
+  #     sí los incluye, por eso el espejo usa una clase ASCII explícita.
+  #   - El revisor va al principio de la línea (con viñeta, cita, negrita o
+  #     comillas invertidas opcionales) y termina en un límite explícito, para que
+  #     "no usé Codex" y "Codexx" no cuenten.
+  #   - `refutaci[^:[:space:]]{1,3}n` cubre refutacion/refutación en NFC y NFD,
+  #     en UTF-8 y en locale C (ó = 2 bytes; o + U+0301 = 3).
+  #   - grep sobre here-string, no `printf | grep -q`: con pipefail, el SIGPIPE de
+  #     un grep que sale antes de tiempo daría falso negativo en secciones grandes.
+  elif ! grep -qiE '^[[:space:]>*_0-9.-]*Revisor[*_]*[[:space:]]*:[*_]*[[:space:]]*[`*_]*(revisor-puente|codex)([[:space:]:;,.()*_`]|$)' <<<"$SECCION_LIMPIA"; then
+    echo "PROBLEMA  La sección 'Revisión Codex' no nombra al revisor: falta una línea" \
+         "'Revisor: revisor-puente' o 'Revisor: Codex'."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  elif ! grep -qiE '^[[:space:]>*_0-9.-]*(intentos[[:space:]]+de[[:space:]]+)?refutaci[^:[:space:]]{1,3}n[*_]*[[:space:]]*:[*_]*[[:space:]]*[^[:space:]*_]' <<<"$SECCION_LIMPIA"; then
+    echo "PROBLEMA  La sección 'Revisión Codex' no dice qué se intentó refutar: falta una" \
+         "línea 'Refutación: <qué se intentó romper>' con contenido."
+    PROBLEMAS=$((PROBLEMAS + 1))
+  elif ! grep -qiE 'sin[[:space:]]+hallazgos|aceptad[oa]s?[^0-9]*[0-9]+.*rechazad[oa]s?[^0-9]*[0-9]+|rechazad[oa]s?[^0-9]*[0-9]+.*aceptad[oa]s?[^0-9]*[0-9]+' <<<"$SECCION_LIMPIA"; then
+    echo "PROBLEMA  La sección 'Revisión Codex' no da el veredicto contable: falta" \
+         "'sin hallazgos' o 'aceptados N, rechazados M' (con números, en una sola línea)."
+    PROBLEMAS=$((PROBLEMAS + 1))
   else
-    echo "OK        Sección 'Revisión Codex' presente, con contenido y sin marcadores provisionales."
+    echo "OK        Sección 'Revisión Codex' presente, con revisor, refutación y veredicto, y sin marcadores provisionales."
   fi
 fi
 

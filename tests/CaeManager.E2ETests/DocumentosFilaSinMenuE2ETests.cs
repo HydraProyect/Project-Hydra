@@ -120,15 +120,19 @@ public class DocumentosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         // siembra) y los cinco podían quedar fuera de esa página (#1700; inferido del código, el total
         // no queda en los artefactos). Se acota a esa Empresa por su Id, leído de la propia base como en
         // AsumirPrincipalDeOperacionE2ETests: la página trae entonces todos sus documentos. La lectura
-        // pide lo mismo que el listado (DocumentoOperativo): ni eliminado ni sustituido.
+        // exige un DocumentoOperativo y las uniones del listado: Empresa no eliminada y Tipo de
+        // Documento del mismo Tenant propietario. Para elegir datos activos, descarta además tipos archivados.
         var empresaConAcreditaciones = await fixture.LeerValorSqlAsync(
             """
             SELECT d."EmpresaId"::text
             FROM "AcreditacionesDocumentoPlataforma" a
             JOIN "Documentos" d ON d."Id" = a."DocumentoId"
+            JOIN "Empresas" e ON e."Id" = d."EmpresaId" AND e."TenantId" = d."TenantId"
+            JOIN "TiposDocumento" t ON t."Id" = d."TipoDocumentoId" AND t."TenantId" = d."TenantId"
             JOIN "AspNetUsers" u ON u."TenantId" = d."TenantId"
             WHERE u."NormalizedEmail" = upper(@email) AND d."EmpresaId" IS NOT NULL
               AND NOT d."EstaEliminado" AND d."SustituidoEnUtc" IS NULL
+              AND NOT e."EstaEliminado" AND NOT t."Archivado"
             ORDER BY d."EmpresaId"
             LIMIT 1
             """,

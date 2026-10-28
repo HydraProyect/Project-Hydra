@@ -33,6 +33,39 @@ namespace CaeManager.IntegrationTests.Arranque;
 /// </summary>
 public class DatosPruebaSeederDeterminismoTests
 {
+    [Fact]
+    public async Task Toda_empresa_sembrada_tiene_identificacion_fiscal_valida_unica_y_estable()
+    {
+        await using var arnes = await ArnesDeArranqueRuntime.CrearAsync(datosDePruebaActivos: true);
+        var tenantA = await CrearTenantConCatalogoAsync(arnes, "Tenant CIF A");
+        var tenantB = await CrearTenantConCatalogoAsync(arnes, "Tenant CIF B");
+        List<string?>? cifsAnteriores = null;
+
+        foreach (var tenantId in new[] { tenantA, tenantB })
+        {
+            await SembrarAsync(arnes, tenantId);
+            using var ambito = arnes.Servicios.CreateScope();
+            var contexto = ambito.ServiceProvider.GetRequiredService<CaeManagerDbContext>();
+            using (AmbitoTenantExplicito.Establecer(tenantId))
+            {
+                var empresas = await contexto.Empresas.AsNoTracking().ToListAsync();
+                empresas.Should().HaveCount(41, "la siembra completa crea 9 Clientes empresariales, 24 Empresas contratistas y 8 Empresas con Nivel de servicio de Subcontrata");
+                foreach (var empresa in empresas)
+                {
+                    empresa.Cif.Should().NotBeNullOrWhiteSpace($"{empresa.RazonSocial} debe poder editarse");
+                    ValidadorIdentificacion.EsIdentificacionFiscalValida(empresa.Cif).Should().BeTrue(
+                        $"el CIF sintético de {empresa.RazonSocial} debe tener formato y control válidos");
+                }
+
+                var cifs = empresas.Select(e => e.Cif).OrderBy(c => c, StringComparer.Ordinal).ToList();
+                cifs.Should().OnlyHaveUniqueItems("el contador es compartido por todas las Empresas de la siembra");
+                if (cifsAnteriores is not null)
+                    cifs.Should().Equal(cifsAnteriores, "la misma semilla debe generar los mismos CIF");
+                cifsAnteriores = cifs;
+            }
+        }
+    }
+
     /// <summary>
     /// Smoke end-to-end a escala de producción (9 clientes / 24 empresas,
     /// seed 20260803 fijo) — <b>NO es la red de seguridad del defecto 1</b>.

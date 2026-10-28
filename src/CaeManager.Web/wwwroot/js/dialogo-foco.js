@@ -7,7 +7,7 @@
 // pierde al cerrar.
 const SELECTOR_ENFOCABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
-export function atraparFoco(contenedor) {
+export function atraparFoco(contenedor, devolverFila = false) {
     const elementoPrevio = document.activeElement;
 
     const enfocables = () => Array.from(contenedor.querySelectorAll(SELECTOR_ENFOCABLE))
@@ -45,7 +45,14 @@ export function atraparFoco(contenedor) {
             // Puede que el elemento que abrió el diálogo ya no exista (p. ej.
             // se recargó la lista que contenía el botón) — comprobar que
             // sigue en el documento antes de devolverle el foco.
-            if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio))
+            const fila = devolverFila && document.querySelector('.fila-enfocada, .panel-resolver-item-enfocado');
+            if (devolverFila && document.querySelector('[role="dialog"][aria-modal="true"], [role="alertdialog"][aria-modal="true"]')) return;
+            const previoVigente = elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio) && elementoPrevio !== document.body;
+            // La fila solo gana si el elemento que abrió el panel ya no existe (repintado) o es la propia fila.
+            if (fila && (!previoVigente || fila.contains(elementoPrevio))) {
+                if (!fila.hasAttribute('tabindex')) fila.tabIndex = -1;
+                fila.focus({ preventScroll: true });
+            } else if (elementoPrevio instanceof HTMLElement && document.contains(elementoPrevio))
                 elementoPrevio.focus();
         }
     };
