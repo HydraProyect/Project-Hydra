@@ -310,6 +310,10 @@ name: Desplegar
 # medio de `run:` — evita que un input con metacaracteres de shell (backticks,
 # `$()`, etc.) se ejecute en el runner.
 #
+# Desde 2026-10-28 (S-D-5) la vía manual tampoco se salta el escaneo de la
+# imagen: `staging` depende también de `escanear-imagen`. Un CVE CRITICAL/HIGH
+# aceptado se documenta en el .trivyignore del commit que se despliega.
+#
 # --- Rechazo de runs obsoletos (2026-09-03, DEC-41 / REC-122) ---------------
 #
 # Antes de construir y otra vez antes de desplegar por la vía automática
@@ -538,24 +542,42 @@ jobs:
     # OWASP Top 10 A06). ci.yml escanea `caemanager:ci`, que es otro build del
     # mismo SHA; lo que arrancan staging y producción es el artefacto firmado
     # del job `imagen`, y ese no lo escaneaba nadie. Misma acción, fijada por
-    # el mismo SHA, y misma configuración que el paso Trivy de ci.yml:
-    # CRITICAL/HIGH, bloqueante y sin `ignore-unfixed`; tampoco hay
-    # .trivyignore en el repositorio. Una excepción aceptada se documentaría en
-    # un .trivyignore, como dice el comentario de ci.yml, no relajando esto.
+    # el mismo SHA, misma versión de Trivy y misma configuración que el paso
+    # Trivy de ci.yml: CRITICAL/HIGH, bloqueante y sin `ignore-unfixed`. Una
+    # excepción aceptada se documenta en un .trivyignore, como dice el
+    # comentario de ci.yml, no relajando esto; por eso se trae el código del
+    # SHA: Trivy lee el .trivyignore del directorio de trabajo (hoy no hay).
     #
     # Job propio y no un paso de `imagen`, a propósito: `imagen` tiene
     # `id-token: write` y acceso al demonio Docker ANTES de exportar y firmar,
-    # así que una acción de terceros allí (trivy-action instala además Trivy y
-    # su script de instalación) podría alterar la imagen o firmar en nombre de
-    # este workflow. Aquí corre con el GITHUB_TOKEN sin permisos de la cabecera
-    # y sobre el artefacto ya firmado: puede bloquear el despliegue, no
-    # cambiar lo que el VPS verifica. `staging` lo exige en `needs:`, y con él
-    # toda la cadena hacia producción.
+    # así que una acción de terceros allí podría alterar la imagen o firmar en
+    # nombre de este workflow. Aquí corre sobre el artefacto ya firmado: puede
+    # bloquear el despliegue, no cambiar lo que el VPS verifica. Y sin ningún
+    # permiso del GITHUB_TOKEN (ver "Permisos del GITHUB_TOKEN"): Trivy se
+    # instala con hash fijado, como cosign, y `skip-setup-trivy` evita el
+    # `actions/checkout` de aquasecurity/trivy que hace setup-trivy por dentro
+    # con ese token.
+    #
+    # `staging` lo exige en `needs:`, y con él toda la cadena hacia producción,
+    # también por la vía manual. El escaneo cuenta en el momento de staging:
+    # una aprobación de producción posterior no reescanea, y lo que aparezca
+    # después lo vigila vigilancia-imagenes.yml cada día. Si falla la descarga
+    # de la base de vulnerabilidades (límite o caída del registro), basta
+    # "Re-run failed jobs": el artefacto sigue en el run.
     name: Escanear la imagen firmada (Trivy)
     needs: imagen
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - name: Obtener el código del SHA exacto
+        # Solo por el .trivyignore. Mismo `git fetch` anónimo que el job `imagen`.
+        run: |
+          set -euo pipefail
+          git init -q .
+          git fetch -q --depth 1 "https://github.com/${GITHUB_REPOSITORY}.git" "$SHA_DESPLEGADO"
+          git checkout -q --detach FETCH_HEAD
+          test "$(git rev-parse HEAD)" = "$SHA_DESPLEGADO"
+
       - name: Descargar la imagen firmada
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -563,8 +585,9 @@ jobs:
           path: imagen-despliegue
 
       - name: Cargar la imagen del artefacto
-        # Se comprueba el hash del manifiesto firmado antes de cargar: lo que se
-        # escanea es exactamente el tarball que el VPS va a recibir.
+        # El tarball debe casar con el sha256 y la revisión de su manifiesto.
+        # No se verifica aquí la firma (lo hace el VPS, y el job `imagen` con la
+        # misma función); basta para escanear el mismo tarball que se envía.
         run: |
           set -euo pipefail
           grep -qx "revision=$SHA_DESPLEGADO" imagen-despliegue/imagen.manifiesto
@@ -573,6 +596,20 @@ jobs:
           gunzip -c imagen-despliegue/imagen.tar.gz | docker load
           docker image inspect "caemanager:$SHA_DESPLEGADO" > /dev/null
 
+      - name: Instalar Trivy
+        # v0.70.0, la que instala por defecto la trivy-action v0.36.0 fijada
+        # (y por tanto la de ci.yml). El hash es el de trivy_0.70.0_checksums.txt
+        # de la release, que coincide con el digest del asset en la API de GitHub.
+        run: |
+          set -euo pipefail
+          curl -sSfL -o "$RUNNER_TEMP/trivy.tar.gz" \
+            https://github.com/aquasecurity/trivy/releases/download/v0.70.0/trivy_0.70.0_Linux-64bit.tar.gz
+          echo "8b4376d5d6befe5c24d503f10ff136d9e0c49f9127a4279fd110b727929a5aa9  $RUNNER_TEMP/trivy.tar.gz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$RUNNER_TEMP/trivy.tar.gz" -C "$RUNNER_TEMP/trivy-bin" trivy
+          "$RUNNER_TEMP/trivy-bin/trivy" --version
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+
       - name: Escanear vulnerabilidades de la imagen (Trivy)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
@@ -580,7 +617,7 @@ jobs:
           format: table
           severity: CRITICAL,HIGH
           exit-code: "1"
-
+          skip-setup-trivy: true
   staging:
     # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
     # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
