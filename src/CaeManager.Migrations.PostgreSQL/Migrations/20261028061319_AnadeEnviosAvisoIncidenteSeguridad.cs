@@ -262,7 +262,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     RETURN;
                   END IF;
                   -- Solo a un Tenant afectado y a un destinatario que la base resuelve para él.
-                  IF NOT (p_tenant = ANY (v_tenants))
+                  IF (p_tenant = ANY (v_tenants)) IS NOT TRUE
                      OR NOT EXISTS (
                          SELECT 1 FROM public.app_destinatarios_aviso_seguridad(ARRAY[p_tenant]) d
                          WHERE d."TenantId" = p_tenant AND lower(btrim(d."Correo")) = v_correo

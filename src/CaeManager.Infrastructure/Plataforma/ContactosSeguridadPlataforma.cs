@@ -97,9 +97,19 @@ public sealed class ContactosSeguridadPlataforma(
                     g.Key,
                     g.First().SinContactoValidado,
                     [.. g.Where(f => f.Correo is not null)
-                        .Select(f => new DestinatarioAvisoSeguridad(f.Nombre ?? f.Correo!, f.Correo!, f.Telefono))]))];
+                        .Select(f => new DestinatarioAvisoSeguridad(NombreVisible(f.Nombre, f.Correo!), f.Correo!, f.Telefono))]))];
             return Result.Exito(porTenant);
         }, cancellationToken);
+
+    // app_reclamar_envio_aviso_seguridad rechaza un nombre vacío o de más de 200 caracteres, y un
+    // Administrador puede tener NombreCompleto vacío: sin esto, su envío abortaba el aviso ya confirmado.
+    private const int LargoMaximoNombre = 200;
+
+    private static string NombreVisible(string? nombre, string correo)
+    {
+        var visible = string.IsNullOrWhiteSpace(nombre) ? correo.Trim() : nombre.Trim();
+        return visible.Length <= LargoMaximoNombre ? visible : visible[..LargoMaximoNombre];
+    }
 
     private sealed record FilaDestinatarioAvisoSeguridad(
         Guid TenantId, bool SinContactoValidado, string? Nombre, string? Correo, string? Telefono);

@@ -47,6 +47,7 @@ public class AvisoIncidenteSeguridadBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _tenantAjeno = Guid.NewGuid();
     private readonly Guid _adminPlataforma = Guid.NewGuid();
     private readonly Guid _actorSinConcesion = Guid.NewGuid();
+    private readonly Guid _otroAdminPlataforma = Guid.NewGuid();
     private readonly Guid _administradorDeA = Guid.NewGuid();
     private readonly Guid _administradorDeB = Guid.NewGuid();
     private readonly Guid _administradorAjeno = Guid.NewGuid();
@@ -67,11 +68,14 @@ public class AvisoIncidenteSeguridadBajoRuntimeTests : IAsyncLifetime
         var roles = await contexto.Roles.ToDictionaryAsync(r => r.Name!, r => r.Id);
         SembrarCuenta(contexto, "admin-plataforma", _tenantPlataforma, _adminPlataforma, null);
         SembrarCuenta(contexto, "sin-concesion", _tenantPlataforma, _actorSinConcesion, null);
+        SembrarCuenta(contexto, "otro-admin-plataforma", _tenantPlataforma, _otroAdminPlataforma, null);
         SembrarCuenta(contexto, "admin-a", _tenantA, _administradorDeA, roles[Roles.Administrador]);
         SembrarCuenta(contexto, "admin-b", _tenantB, _administradorDeB, roles[Roles.Administrador]);
         SembrarCuenta(contexto, "admin-ajeno", _tenantAjeno, _administradorAjeno, roles[Roles.Administrador]);
         contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
             _adminPlataforma, vigenciaDesde: DateTime.UtcNow.AddMinutes(-10), vigenciaHasta: null));
+        contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+            _otroAdminPlataforma, vigenciaDesde: DateTime.UtcNow.AddMinutes(-10), vigenciaHasta: null));
         await contexto.SaveChangesAsync();
     }
 
@@ -261,10 +265,39 @@ WHERE ""EntidadTipo"" = 'EnvioAvisoIncidenteSeguridad' AND ""EntidadId"" = @u", 
             envio = (await Adaptador(contexto).ReclamarEnvioAsync(
                 Solicitud(incidente, _tenantA, CorreoAdminA, sinContacto: true), CancellationToken.None)).Valor.EnvioId;
 
+        // Otro Actor de Plataforma con concesión global vigente pasa la ayudante; solo lo para que no fue
+        // él quien reclamó el envío.
+        await using var otroActor = CrearContexto(_tenantPlataforma, actor: _otroAdminPlataforma);
+        (await Adaptador(otroActor).ResolverEnvioAsync(envio, enviado: true, null, CancellationToken.None))
+            .Error.Should().Be(ErroresIncidenteSeguridad.EstadoNoValido);
         await using var sinConcesion = CrearContexto(_tenantPlataforma, actor: _actorSinConcesion);
         (await Adaptador(sinConcesion).ResolverEnvioAsync(envio, enviado: true, null, CancellationToken.None))
             .Error.Should().Be(ErroresIncidenteSeguridad.SoloActorDePlataforma);
         (await TextoAsync(@"SELECT ""Estado"" FROM ""EnviosAvisoIncidenteSeguridad"" WHERE ""Id"" = @u", envio)).Should().Be("Enviando");
+    }
+
+    [Fact]
+    public async Task Un_envio_que_lleva_mas_de_diez_minutos_Enviando_lo_reclama_otro_Actor_de_Plataforma()
+    {
+        var incidente = await SembrarIncidenteAsync();
+        await ConfirmarComoAdminPlataformaAsync(incidente);
+        Guid envio;
+        await using (var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma))
+            envio = (await Adaptador(contexto).ReclamarEnvioAsync(
+                Solicitud(incidente, _tenantA, CorreoAdminA, sinContacto: true), CancellationToken.None)).Valor.EnvioId;
+        await using var otroActor = CrearContexto(_tenantPlataforma, actor: _otroAdminPlataforma);
+        var plataforma = Adaptador(otroActor);
+
+        (await plataforma.ReclamarEnvioAsync(Solicitud(incidente, _tenantA, CorreoAdminA, sinContacto: true), CancellationToken.None))
+            .Valor.Reclamado.Should().BeFalse("un envío en curso desde hace menos de diez minutos no se reclama");
+        await EscalarAsync(@"UPDATE ""EnviosAvisoIncidenteSeguridad"" SET ""UltimoIntentoEnUtc"" = now() - interval '11 minutes' WHERE ""Id"" = @u", envio);
+        var reclamado = (await plataforma.ReclamarEnvioAsync(
+            Solicitud(incidente, _tenantA, CorreoAdminA, sinContacto: true), CancellationToken.None)).Valor;
+
+        reclamado.EnvioId.Should().Be(envio);
+        reclamado.Reclamado.Should().BeTrue("pasados diez minutos se da por muerto el intento anterior");
+        (await plataforma.ResolverEnvioAsync(envio, enviado: true, null, CancellationToken.None)).EsExitoso
+            .Should().BeTrue("ahora el envío es de quien lo reclamó");
     }
 
     // ── Escritura directa ─────────────────────────────────────────────────────

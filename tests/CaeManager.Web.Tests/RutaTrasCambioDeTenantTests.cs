@@ -46,6 +46,8 @@ public class RutaTrasCambioDeTenantTests
     [InlineData("", "/")]
     [InlineData(null, "/")]
     [InlineData("/" + Id, "/")]
+    [InlineData("/plataforma/incidentes/" + Id, "/")]
+    [InlineData("/plataforma/conectores-cae", "/plataforma/conectores-cae")]
     public void Fuera_de_una_ficha_por_Id_conserva_la_ruta_sin_consulta(string? camino, string esperado) =>
         RutaTrasCambioDeTenant.Calcular(camino).Should().Be(esperado);
 

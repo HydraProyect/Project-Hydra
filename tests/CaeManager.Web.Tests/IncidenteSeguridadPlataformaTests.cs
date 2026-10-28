@@ -175,7 +175,8 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
     public void Sin_segundo_factor_en_la_sesion_se_explica_y_no_se_puede_enviar()
     {
         _mediador.Vista = Vista(EstadoIncidenteSeguridad.Sospechado, confirmadoEnUtc: null)
-            with { MotivoParaNoDecidir = ErroresIncidenteSeguridad.TotpNoVerificado };
+            with
+        { MotivoParaNoDecidir = ErroresIncidenteSeguridad.TotpNoVerificado };
         var cut = Pagina();
 
         cut.WaitForAssertion(() => cut.Find("[data-testid=motivo-no-decidir]").TextContent.Should()
