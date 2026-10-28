@@ -467,14 +467,11 @@ else
         }
     </Pestanas>
 
-    <Drawer @ref="_drawerDoc" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
+    <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaDoc.Difiere(ValoresDocumentacion())" Visible="_drawerDocVisible" VisibleChanged="v => _drawerDocVisible = v"
             Titulo="@Textos["ConfigurarRequisitoTitulo"]"
-            CerrarAlHacerClicFuera="@(_mensajeErrorDocumentacion is null && !_guardandoDocumentacion)">
+            Guardando="_guardandoDocumentacion" MensajeError="@_mensajeErrorDocumentacion" OnGuardar="GuardarDocumentacionAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar"
+            MotivoGuardarDeshabilitado="@(_subiendoArchivoEdicion ? Textos["SubiendoArchivoMotivoGuardar"].Value : null)">
         <ChildContent>
-            @if (_mensajeErrorDocumentacion is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorDocumentacion</div>
-            }
             @* _incluidoEdicion parte de item.Aplica (ResolucionTipoDocumentoCentro.Aplica): puede
                llegar marcado sin que este centro tenga fila propia, solo porque el tipo se pide
                siempre por defecto (nota de la lista, arriba). "Este centro lo exige" atribuía la
@@ -538,11 +535,7 @@ else
                 }
             </div>
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerDoc?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_guardandoDocumentacion">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarDocumentacionAsync" Cargando="_guardandoDocumentacion" Deshabilitado="_subiendoArchivoEdicion">Guardar</Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 
     <DialogoConfirmacion
         Visible="_confirmarEliminarCanalVisible"
@@ -561,14 +554,10 @@ else
         EnProgreso="_quitandoAjuste"
         OnConfirmar="ConfirmarQuitarAjusteAsync" />
 
-    <Drawer @ref="_drawerCanal" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
+    <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaCanal.Difiere(ValoresCanal())" Visible="_drawerCanalVisible" VisibleChanged="v => _drawerCanalVisible = v"
             Titulo="@(_canalIdEditando is null ? "Añadir acceso de gestión documental" : "Editar acceso de gestión documental")"
-            CerrarAlHacerClicFuera="@(_mensajeErrorCanal is null && !_guardandoCanal)">
+            Guardando="_guardandoCanal" MensajeError="@_mensajeErrorCanal" OnGuardar="GuardarCanalAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar">
         <ChildContent>
-            @if (_mensajeErrorCanal is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorCanal</div>
-            }
 
             <CampoTexto Etiqueta="Para qué sirve este acceso" Valor="@_etiquetaPropositoEdicion" ValorChanged="v => _etiquetaPropositoEdicion = v"
                         Placeholder="Gestión general" />
@@ -630,23 +619,16 @@ else
 
             <CampoTextarea Etiqueta="Notas" Valor="@_notasCanalEdicion" ValorChanged="v => _notasCanalEdicion = v" Filas="3" />
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerCanal?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_guardandoCanal">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="GuardarCanalAsync" Cargando="_guardandoCanal">Guardar</Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 
-    <Drawer @ref="_drawerPrioridad" HayCambios="() => HayCambiosEnLosDrawers" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+    <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaPrioridad.Difiere(ValoresPrioridad())" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
-            CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
+            Guardando="_enviandoPrioridad" MensajeError="@_mensajeErrorPrioridad" OnGuardar="EnviarPrioridadAsync" TextoGuardar="Enviar" TextoGuardando="@Textos["EnviandoPrioridadTexto"]" TextoCancelar="Cancelar"
+            MotivoGuardarDeshabilitado="@(_cargandoBorradorPrioridad ? Textos["BorradorPrioridadCargandoMotivo"].Value : _borradorPrioridad is null ? Textos["BorradorPrioridadNoDisponibleMotivo"].Value : null)">
         <ChildContent>
             @if (_cargandoBorradorPrioridad)
             {
                 <EstadoCargando Filas="3" />
-            }
-            else if (_mensajeErrorPrioridad is not null && _borradorPrioridad is null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
             }
             else if (_borradorPrioridad is not null)
             {
@@ -658,21 +640,13 @@ else
                 {
                     <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm").</p>
                 }
-                @if (_mensajeErrorPrioridad is not null)
-                {
-                    <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
-                }
                 <CampoTexto Etiqueta="Destinatarios (separados por coma)" Valor="@_destinatarioPrioridad" ValorChanged="v => _destinatarioPrioridad = v" />
                 <CampoTexto Etiqueta="Asunto" Valor="@_asuntoPrioridad" ValorChanged="v => _asuntoPrioridad = v" />
                 <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpoPrioridad" ValorChanged="v => _cuerpoPrioridad = v" Filas="10" />
                 <p class="workspace-nota-contextual">@_borradorPrioridad.TotalDocumentosPendientes documento(s) pendiente(s) incluido(s) en el mensaje. Revisa y adapta el texto antes de enviarlo — se envía desde el buzón conectado de la plataforma.</p>
             }
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridad?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 
     @* "Disparo desde Centro 360": el mismo EnviarReclamacionCommand que usa
        /documentos, pero ya acotado a este Centro por ObtenerLoteReclamacionQuery
@@ -761,9 +735,6 @@ else
 
 @code {
     private Drawer? _drawerReclamacionCentro;
-    private Drawer? _drawerPrioridad;
-    private Drawer? _drawerCanal;
-    private Drawer? _drawerDoc;
     private static readonly IReadOnlyList<PestanaDefinicion> _pestanas =
     [
         new("informacion", "Información"),
