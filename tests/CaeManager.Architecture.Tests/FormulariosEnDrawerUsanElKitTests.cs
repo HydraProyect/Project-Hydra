@@ -60,7 +60,7 @@ public class FormulariosEnDrawerUsanElKitTests
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
         // Control positivo: si el recorrido no viera Drawers con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(4, "quedan 6 Drawers con campos en 5 ficheros tras migrar tres Drawers de CentroWorkspacePanel (9 tras Reclamación en lote y Blindaje 42.1, 11 tras Macros y Proyectos, 13 tras el lote 2b, 22 sin DrawerGestionDocumento ni Centros, 25 tras Trabajadores, 26 antes); si baja de golpe sin migrar nada, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(1, "quedan 3 Drawers con campos en 3 ficheros tras migrar tres Drawers de CentroWorkspacePanel (6 en 3 tras Bandeja y Subcontrata; 9 en 5 tras Reclamación en lote y Blindaje 42.1; 11 tras Macros y Proyectos; 13 tras el lote 2b; 22 sin DrawerGestionDocumento ni Centros; 25 tras Trabajadores; 26 antes); si baja de golpe sin migrar nada, dejó de mirar");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }

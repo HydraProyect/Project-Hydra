@@ -65,10 +65,9 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 /// </summary>
 public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
-    private Drawer? _drawerPrioridad;
-    private Drawer? _drawerRedactar;
     private Modal? _modalActualizarDocumento;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunesPagina { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
     [Inject] private ILogger<Bandeja> Logger { get; set; } = default!;
     [Inject] private IOptions<ComunicacionesOptions> OpcionesComunicaciones { get; set; } = default!;
@@ -1813,6 +1812,25 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private object?[] ValoresRedactar() => [_conexionRedactarId, _redactarDestinatarios, _redactarAsunto, _redactarCuerpo];
 
     private object?[] ValoresPrioridad() => [_destinatarioPrioridad, _asuntoPrioridad, _cuerpoPrioridad];
+
+    // FS-15: sin buzón no hay formulario que rellenar; se dice por qué y quién lo conecta (el kit deja «Enviar» deshabilitado con su motivo).
+    private RenderFragment SinBuzonRedactar => builder =>
+    {
+        builder.OpenComponent<AvisoSinBuzonCorreo>(0);
+        builder.CloseComponent();
+    };
+
+    // El borrador no llegó (la carga falló): el kit pinta el error en lugar de los campos y deja «Enviar» deshabilitado con su motivo.
+    private RenderFragment? SinBorradorPrioridad => _borradorPrioridad is null && !_cargandoBorradorPrioridad ? PintarErrorBorradorPrioridad : null;
+
+    private void PintarErrorBorradorPrioridad(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder)
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "alerta-formulario");
+        builder.AddAttribute(2, "role", "alert");
+        builder.AddContent(3, _mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value);
+        builder.CloseElement();
+    }
 
     private void FijarInstantaneaActualizarDocumento() => _instantaneaActualizarDocumento.Fijar(ValoresActualizarDocumento());
 

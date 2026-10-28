@@ -3,6 +3,4 @@
 # Medida: 'ruta :: Drawer = n' con n Drawers que contienen campos (FormulariosEnDrawerUsanElKitTests).
 src/CaeManager.Web/Features/Centros/Components/CentroWorkspacePanel.razor :: Drawer = 1
 src/CaeManager.Web/Features/Centros/Components/DrawerAsignacionMasiva.razor :: Drawer = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: Drawer = 2
 src/CaeManager.Web/Features/Documentos/Components/RevisionIaTab.razor :: Drawer = 1
-src/CaeManager.Web/Features/Subcontratas/Components/SubcontrataWorkspacePanel.razor :: Drawer = 1
