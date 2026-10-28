@@ -56,6 +56,15 @@ public class DiskFileStorageServiceTests : IDisposable
     private string RutaDe(Guid tenantId, string identificador) =>
         Path.Combine(_rutaTemporal, tenantId.ToString("N"), Path.GetFileName(identificador));
 
+    [Fact]
+    public void La_huella_es_determinista_y_corresponde_al_nombre_en_disco()
+    {
+        const string nombre = "Ana Garcia - reconocimiento medico.pdf";
+        DiskFileStorageService.HuellaArchivo($"{_tenantA:N}/{nombre}").Should().Be("c1b147d77066");
+        DiskFileStorageService.HuellaArchivo($"{_tenantB:N}/{nombre}").Should().Be("c1b147d77066");
+        DiskFileStorageService.HuellaArchivo($"{_tenantA:N}/otro.pdf").Should().NotBe("c1b147d77066");
+    }
+
     /// <summary>
     /// Escribe un archivo con el formato ANTERIOR al versionado: payload de
     /// Data Protection del protector global, sin marca delante. Es lo que hay
@@ -364,6 +373,44 @@ public class DiskFileStorageServiceTests : IDisposable
         _alertas.Alertas.Should().ContainSingle()
             .Which.Nivel.Should().Be(NivelAlertaOperativa.Critica,
                 "manipulacion o perdida de claves es un incidente, no un error de usuario");
+        _alertas.Alertas[0].Mensaje.Should().Contain(_tenantA.ToString("N"))
+            .And.NotContain(Path.GetFileName(identificador));
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
+    }
+
+    [Fact]
+    public async Task La_alerta_v2_es_estable_por_Tenant_propietario_incluso_en_lectura_Inbound()
+    {
+        var servicioA = CrearServicio(_tenantA);
+        var servicioB = CrearServicio(_tenantB);
+        var identificadores = new List<string>();
+        foreach (var nombre in new[] { "uno.pdf", "dos.pdf" })
+        {
+            using var contenido = new MemoryStream("contenido"u8.ToArray());
+            var identificador = await servicioA.GuardarAsync(contenido, nombre);
+            identificadores.Add(identificador);
+            var ruta = RutaDe(_tenantA, identificador);
+            var bytes = await File.ReadAllBytesAsync(ruta);
+            bytes[^1] ^= 0xFF;
+            await File.WriteAllBytesAsync(ruta, bytes);
+            var accion = async () => await servicioB.AbrirOriginalAsync(new ArchivoInboundDto(Guid.NewGuid(), _tenantA, identificador, false));
+            await accion.Should().ThrowAsync<InvalidDataException>();
+        }
+
+        _alertas.Alertas.Should().HaveCount(2);
+        _alertas.Alertas.Select(a => a.Mensaje).Distinct().Should().ContainSingle()
+            .Which.Should().Contain(_tenantA.ToString("N")).And.NotContain(_tenantB.ToString("N"));
+        for (var i = 0; i < identificadores.Count; i++)
+        {
+            var nombre = Path.GetFileName(identificadores[i]);
+            _alertas.Alertas[i].Mensaje.Should().NotContain(nombre);
+            _logger.Avisos[i].Should().Contain(_tenantA.ToString("N"))
+                .And.NotContain(_tenantB.ToString("N"))
+                .And.Contain(DiskFileStorageService.HuellaArchivo(identificadores[i]))
+                .And.NotContain(nombre);
+        }
     }
 
     [Fact]
@@ -406,6 +453,9 @@ public class DiskFileStorageServiceTests : IDisposable
 
         _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("protector v1"),
             "es el único instrumento que puede responder si queda formato anterior en producción");
+        _logger.Avisos[0].Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
     }
 
     [Fact]
@@ -420,7 +470,10 @@ public class DiskFileStorageServiceTests : IDisposable
         var servicio = CrearServicio(_tenantA);
         await using var flujo = await servicio.AbrirAsync($"{carpetaTenant}/{nombreArchivo}");
 
-        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("sin cifrar"));
+        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains("sin cifrar"))
+            .Which.Should().Contain(carpetaTenant)
+            .And.Contain(DiskFileStorageService.HuellaArchivo($"{carpetaTenant}/{nombreArchivo}"))
+            .And.NotContain(nombreArchivo);
     }
 
     [Fact]
@@ -474,8 +527,9 @@ public class DiskFileStorageServiceTests : IDisposable
         alerta.Mensaje.Should().Contain(_tenantA.ToString("N"), "la guardia necesita saber de qué Tenant propietario es")
             .And.NotContain(nombreEnDisco)
             .And.NotContain(Path.GetFileNameWithoutExtension(nombreEnDisco));
-        _logger.Avisos.Should().ContainSingle(aviso => aviso.Contains(identificador),
-            "el identificador para localizar el fichero queda en el registro, no en la alerta");
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(nombreEnDisco);
     }
 
     [Fact]
@@ -506,6 +560,9 @@ public class DiskFileStorageServiceTests : IDisposable
         var alerta = _alertas.Alertas.Should().ContainSingle().Subject;
         alerta.Nivel.Should().Be(NivelAlertaOperativa.Critica);
         alerta.Mensaje.Should().Contain(_tenantA.ToString("N")).And.Contain("rechazó");
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
     }
 
     [Theory]
@@ -533,6 +590,10 @@ public class DiskFileStorageServiceTests : IDisposable
 
         _alertas.Alertas.Should().ContainSingle()
             .Which.Mensaje.Should().Contain(_tenantA.ToString("N")).And.NotContain(_tenantB.ToString("N"));
+        _logger.Avisos.Should().ContainSingle().Which.Should().Contain(_tenantA.ToString("N"))
+            .And.NotContain(_tenantB.ToString("N"))
+            .And.Contain(DiskFileStorageService.HuellaArchivo(identificador))
+            .And.NotContain(Path.GetFileName(identificador));
     }
 
     [Theory]
