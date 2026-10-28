@@ -16,28 +16,28 @@
     <value>Sistema</value>
   </data>
   <data name="HubTitulo" xml:space="preserve">
-    <value>Configuración</value>
+    <value>Configuració</value>
   </data>
   <data name="AriaSeccionesHub" xml:space="preserve">
-    <value>Secciones de configuración</value>
+    <value>Seccions de configuració</value>
   </data>
   <data name="TituloDocumentoConEntrada" xml:space="preserve">
-    <value>{0} — Configuración</value>
+    <value>{0} — Configuració</value>
   </data>
   <data name="SalidaPropiaDescripcion" xml:space="preserve">
-    <value>Esta sección tiene pantalla propia, fuera del hub de Configuración.</value>
+    <value>Aquesta secció té pantalla pròpia, fora del centre de Configuració.</value>
   </data>
   <data name="EnlaceIrAEntrada" xml:space="preserve">
-    <value>Ir a {0}</value>
+    <value>Ves a {0}</value>
   </data>
   <data name="GrupoMiCuenta" xml:space="preserve">
     <value>El meu compte</value>
   </data>
   <data name="GrupoPlataformaConexiones" xml:space="preserve">
-    <value>Plataforma y conexiones</value>
+    <value>Plataforma i connexions</value>
   </data>
   <data name="GrupoCatalogosDatos" xml:space="preserve">
-    <value>Catálogos y datos</value>
+    <value>Catàlegs i dades</value>
   </data>
   <data name="GrupoComunicaciones" xml:space="preserve">
     <value>Comunicacions</value>
@@ -49,7 +49,7 @@
     <value>Documents que es generen</value>
   </data>
   <data name="GrupoAuditoria" xml:space="preserve">
-    <value>Auditoría</value>
+    <value>Auditoria</value>
   </data>
   <data name="EntradaDosPasosNombre" xml:space="preserve">
     <value>Verificació en dos passos</value>
@@ -64,151 +64,151 @@
     <value>Signatura i segell personals</value>
   </data>
   <data name="EntradaApiNombre" xml:space="preserve">
-    <value>Claves API</value>
+    <value>Claus API</value>
   </data>
   <data name="EntradaApiResumen" xml:space="preserve">
-    <value>Acceso programático</value>
+    <value>Accés programàtic</value>
   </data>
   <data name="EntradaIntegracionesNombre" xml:space="preserve">
-    <value>Conexiones de integración</value>
+    <value>Connexions d'integració</value>
   </data>
   <data name="EntradaIntegracionesResumen" xml:space="preserve">
-    <value>M365, portales, webhooks</value>
+    <value>M365, portals, webhooks</value>
   </data>
   <data name="EntradaImportarNombre" xml:space="preserve">
-    <value>Importar datos</value>
+    <value>Importar dades</value>
   </data>
   <data name="EntradaImportarResumen" xml:space="preserve">
-    <value>Cuadro de Control CAE (Excel)</value>
+    <value>Quadre de Control CAE (Excel)</value>
   </data>
   <data name="EntradaPlataformaNombre" xml:space="preserve">
-    <value>Administración de plataforma</value>
+    <value>Administració de plataforma</value>
   </data>
   <data name="EntradaPlataformaResumen" xml:space="preserve">
-    <value>Inicialización e identidad raíz</value>
+    <value>Inicialització i identitat arrel</value>
   </data>
   <data name="EntradaTiposNombre" xml:space="preserve">
-    <value>Tipos de documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="EntradaTiposResumen" xml:space="preserve">
-    <value>Catálogo y vigencias</value>
+    <value>Catàleg i vigències</value>
   </data>
   <data name="EntradaIaNombre" xml:space="preserve">
-    <value>Lectura IA por Cliente</value>
+    <value>Lectura IA per Client</value>
   </data>
   <data name="EntradaIaResumen" xml:space="preserve">
-    <value>Restricción por tipo de documento</value>
+    <value>Restricció per tipus de document</value>
   </data>
   <data name="EntradaMacrosNombre" xml:space="preserve">
-    <value>Macros de respuesta</value>
+    <value>Macros de resposta</value>
   </data>
   <data name="EntradaMacrosResumen" xml:space="preserve">
-    <value>Plantillas de comunicación</value>
+    <value>Plantilles de comunicació</value>
   </data>
   <data name="EntradaParamsNombre" xml:space="preserve">
-    <value>Parámetros del sistema</value>
+    <value>Paràmetres del sistema</value>
   </data>
   <data name="EntradaParamsResumen" xml:space="preserve">
-    <value>Umbrales del semáforo</value>
+    <value>Llindars del semàfor</value>
   </data>
   <data name="EntradaParamsEntradilla" xml:space="preserve">
-    <value>Umbrales del semáforo documental, franja de jornada y medición de tiempo, y aviso de gasto en IA.</value>
+    <value>Llindars del semàfor documental, franja de jornada i mesurament de temps, i avís de despesa en IA.</value>
   </data>
   <data name="EntradaRetencionNombre" xml:space="preserve">
-    <value>Retención de datos</value>
+    <value>Retenció de dades</value>
   </data>
   <data name="EntradaRetencionResumen" xml:space="preserve">
-    <value>Plazos de borrado</value>
+    <value>Terminis d'esborrament</value>
   </data>
   <data name="EntradaAuditoriaNombre" xml:space="preserve">
-    <value>Auditoría</value>
+    <value>Auditoria</value>
   </data>
   <data name="EntradaAuditoriaResumen" xml:space="preserve">
-    <value>Quién hizo qué y cuándo</value>
+    <value>Qui va fer què i quan</value>
   </data>
   <data name="EntradaAuditoriaIaNombre" xml:space="preserve">
-    <value>Auditoría IA</value>
+    <value>Auditoria IA</value>
   </data>
   <data name="EntradaAuditoriaIaResumen" xml:space="preserve">
-    <value>Lecturas y decisiones automáticas</value>
+    <value>Lectures i decisions automàtiques</value>
   </data>
   <data name="EntradaAutomatizacionesNombre" xml:space="preserve">
-    <value>Automatizaciones</value>
+    <value>Automatitzacions</value>
   </data>
   <data name="EntradaAutomatizacionesResumen" xml:space="preserve">
-    <value>Trabajos del sistema</value>
+    <value>Tasques del sistema</value>
   </data>
   <data name="ErrorCargaDetalle" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="BotonReintentar" xml:space="preserve">
-    <value>Reintentar</value>
+    <value>Torna-ho a provar</value>
   </data>
   <data name="LecturaIaTituloPagina" xml:space="preserve">
-    <value>Lectura IA por Cliente</value>
+    <value>Lectura IA per Client</value>
   </data>
   <data name="LecturaIaVolver" xml:space="preserve">
-    <value>← Configuración</value>
+    <value>← Configuració</value>
   </data>
   <data name="LecturaIaDescripcionAntesEnlace" xml:space="preserve">
-    <value>La lectura IA de cada tipo de documento se activa para todos en</value>
+    <value>La lectura IA de cada tipus de document s'activa per a tothom a</value>
   </data>
   <data name="LecturaIaDescripcionEnlace" xml:space="preserve">
-    <value>Tipos de documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="LecturaIaDescripcionDespuesEnlace" xml:space="preserve">
-    <value>. Aquí eliges un Cliente para restringirla solo para él: puedes desactivar un tipo que está activo para todos, nunca activar uno que está desactivado.</value>
+    <value>. Aquí tries un Client per restringir-la només per a ell: pots desactivar un tipus que està actiu per a tothom, mai activar-ne un que està desactivat.</value>
   </data>
   <data name="LecturaIaNotaAlcance" xml:space="preserve">
-    <value>Hoy esa restricción solo la aplica la detección de trabajadores en los documentos de empresa, y la omite para una empresa únicamente cuando todos los Clientes a los que presta servicio tienen ese tipo desactivado.</value>
+    <value>Actualment aquesta restricció només s'aplica a la detecció de treballadors en els documents d'empresa, i s'omet per a una empresa únicament quan tots els Clients als quals presta servei tenen aquest tipus desactivat.</value>
   </data>
   <data name="LecturaIaErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los Clientes</value>
+    <value>No s'han pogut carregar els Clients</value>
   </data>
   <data name="LecturaIaVacioTitulo" xml:space="preserve">
-    <value>Todavía no hay ningún Cliente</value>
+    <value>Encara no hi ha cap Client</value>
   </data>
   <data name="LecturaIaVacioDescripcion" xml:space="preserve">
-    <value>Da de alta un Cliente para poder restringir su lectura IA.</value>
+    <value>Dona d'alta un Client per poder restringir-ne la lectura IA.</value>
   </data>
   <data name="LecturaIaBuscarEtiqueta" xml:space="preserve">
-    <value>Buscar Cliente</value>
+    <value>Cercar Client</value>
   </data>
   <data name="LecturaIaBuscarPlaceholder" xml:space="preserve">
-    <value>Razón social…</value>
+    <value>Raó social…</value>
   </data>
   <data name="LecturaIaSinCoincidencias" xml:space="preserve">
-    <value>Ningún Cliente coincide con «{0}».</value>
+    <value>Cap Client coincideix amb «{0}».</value>
   </data>
   <data name="AutomatizacionesErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar las automatizaciones</value>
+    <value>No s'han pogut carregar les automatitzacions</value>
   </data>
   <data name="AutomatizacionesEncabezado" xml:space="preserve">
-    <value>Automatizaciones</value>
+    <value>Automatitzacions</value>
   </data>
   <data name="AutomatizacionesEntradilla" xml:space="preserve">
-    <value>Trabajos del sistema que corren sin intervención. Apagar uno detiene su efecto en toda la cartera.</value>
+    <value>Tasques del sistema que s'executen sense intervenció. Desactivar-ne una n'atura l'efecte a tota la cartera.</value>
   </data>
   <data name="ColumnaNombre" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Nom</value>
   </data>
   <data name="ColumnaUltimaEjecucion" xml:space="preserve">
-    <value>Última ejecución</value>
+    <value>Última execució</value>
   </data>
   <data name="ColumnaProximoCiclo" xml:space="preserve">
-    <value>Próximo ciclo</value>
+    <value>Pròxim cicle</value>
   </data>
   <data name="ColumnaResultado" xml:space="preserve">
-    <value>Resultado</value>
+    <value>Resultat</value>
   </data>
   <data name="ColumnaEstado" xml:space="preserve">
-    <value>Estado</value>
+    <value>Estat</value>
   </data>
   <data name="ResultadoNoConfigurado" xml:space="preserve">
-    <value>No configurado</value>
+    <value>No configurat</value>
   </data>
   <data name="ResultadoSinDatos" xml:space="preserve">
-    <value>Sin datos</value>
+    <value>Sense dades</value>
   </data>
   <data name="ResultadoCorrecta" xml:space="preserve">
     <value>Correcta</value>
@@ -217,127 +217,127 @@
     <value>Fallida</value>
   </data>
   <data name="EstadoSinConfigurar" xml:space="preserve">
-    <value>Sin configurar</value>
+    <value>Sense configurar</value>
   </data>
   <data name="EstadoSiempreActivo" xml:space="preserve">
-    <value>Siempre activo</value>
+    <value>Sempre actiu</value>
   </data>
   <data name="AriaConmutarTrabajo" xml:space="preserve">
     <value>Activar o desactivar {0}</value>
   </data>
   <data name="AutomatizacionesNotaPie" xml:space="preserve">
-    <value>Los trabajos conmutables dejan su última ejecución registrada arriba.</value>
+    <value>Les tasques commutables deixen la seva última execució registrada a dalt.</value>
   </data>
   <data name="AutomatizacionesErrorConmutar" xml:space="preserve">
-    <value>No pudimos actualizar el estado. Intenta nuevamente en unos segundos.</value>
+    <value>No s'ha pogut actualitzar l'estat. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ProximoCicloContinuo" xml:space="preserve">
-    <value>Continuo</value>
+    <value>Continu</value>
   </data>
   <data name="DetalleEvaluadosYAfectados" xml:space="preserve">
-    <value>{0} evaluados, {1} afectados</value>
+    <value>{0} avaluats, {1} afectats</value>
   </data>
   <data name="DetalleSoloEvaluados" xml:space="preserve">
-    <value>{0} evaluados</value>
+    <value>{0} avaluats</value>
   </data>
   <data name="DetalleSoloAfectados" xml:space="preserve">
-    <value>{0} afectados</value>
+    <value>{0} afectats</value>
   </data>
   <data name="ParametrosErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar la configuración</value>
+    <value>No s'ha pogut carregar la configuració</value>
   </data>
   <data name="UmbralesTitulo" xml:space="preserve">
-    <value>Umbrales de alerta</value>
+    <value>Llindars d'alerta</value>
   </data>
   <data name="UmbralesDescripcion" xml:space="preserve">
-    <value>Días restantes hasta el vencimiento a partir de los cuales un documento pasa a "Próximo" o "Urgente". Corresponde a la sección "Umbrales de alerta" de la hoja Parametros del Excel original.</value>
+    <value>Dies restants fins al venciment a partir dels quals un document passa a "Pròxim" o "Urgent". Correspon a la secció "Llindars d'alerta" del full Parametros de l'Excel original.</value>
   </data>
   <data name="UmbralProximoEtiqueta" xml:space="preserve">
-    <value>Umbral próximo (días)</value>
+    <value>Llindar pròxim (dies)</value>
   </data>
   <data name="UmbralUrgenteEtiqueta" xml:space="preserve">
-    <value>Umbral urgente (días)</value>
+    <value>Llindar urgent (dies)</value>
   </data>
   <data name="BotonGuardarCambios" xml:space="preserve">
-    <value>Guardar cambios</value>
+    <value>Desar els canvis</value>
   </data>
   <data name="JornadaTitulo" xml:space="preserve">
-    <value>Jornada y medición de tiempo</value>
+    <value>Jornada i mesurament de temps</value>
   </data>
   <data name="JornadaDescripcion" xml:space="preserve">
-    <value>La franja de jornada se usa para dos cosas: es la hora de entrada que se asume cuando una visita no indica hora, y marca fuera de qué horas una entrada se considera exprés.</value>
+    <value>La franja de jornada es fa servir per a dues coses: és l'hora d'entrada que s'assumeix quan una visita no indica hora, i marca fora de quines hores una entrada es considera exprés.</value>
   </data>
   <data name="InicioJornadaEtiqueta" xml:space="preserve">
-    <value>Inicio de jornada</value>
+    <value>Inici de jornada</value>
   </data>
   <data name="FinJornadaEtiqueta" xml:space="preserve">
-    <value>Fin de jornada</value>
+    <value>Fi de jornada</value>
   </data>
   <data name="HorasMesEtiqueta" xml:space="preserve">
-    <value>Horas de jornada al mes por Gestor CAE</value>
+    <value>Hores de jornada al mes per Gestor CAE</value>
   </data>
   <data name="MedicionDescripcion" xml:space="preserve">
-    <value>La medición de tiempo registra cuánto tiempo permanece abierta y con el foco puesto cada gestión. No se recogen pulsaciones de teclado, movimientos de ratón ni actividad fuera de esta aplicación. Antes de activarla hay que informar a la plantilla y a su representación legal (art. 87 LOPDGDD y art. 20.3 del Estatuto de los Trabajadores).</value>
+    <value>El mesurament de temps registra quant de temps roman oberta i amb el focus posat cada gestió. No es recullen pulsacions de teclat, moviments de ratolí ni activitat fora d'aquesta aplicació. Abans d'activar-lo cal informar la plantilla i la seva representació legal (art. 87 LOPDGDD i art. 20.3 de l'Estatut dels Treballadors).</value>
   </data>
   <data name="MedicionActivarEtiqueta" xml:space="preserve">
-    <value>Activar la medición de tiempo de enfoque</value>
+    <value>Activar el mesurament de temps de focus</value>
   </data>
   <data name="SegundosSinFocoEtiqueta" xml:space="preserve">
-    <value>Segundos sin foco antes de pausar</value>
+    <value>Segons sense focus abans de posar en pausa</value>
   </data>
   <data name="ExcluirFueraJornadaEtiqueta" xml:space="preserve">
-    <value>Excluir de las métricas el tiempo registrado fuera de la jornada</value>
+    <value>Excloure de les mètriques el temps registrat fora de la jornada</value>
   </data>
   <data name="PresupuestoTitulo" xml:space="preserve">
-    <value>Presupuesto de IA</value>
+    <value>Pressupost d'IA</value>
   </data>
   <data name="PresupuestoDescripcion" xml:space="preserve">
-    <value>Límite blando (no bloqueante) de gasto estimado en IA documental por mes natural. Superarlo no detiene ni degrada nada: solo enciende un aviso en el Dashboard Ejecutivo para que el operador lo vea antes de que aparezca en la factura. Déjalo en blanco para desactivar el aviso.</value>
+    <value>Límit tou (no blocant) de despesa estimada en IA documental per mes natural. Superar-lo no atura ni degrada res: només activa un avís al Dashboard Executiu perquè l'operador el vegi abans que aparegui a la factura. Deixa'l en blanc per desactivar l'avís.</value>
   </data>
   <data name="PresupuestoMensualEtiqueta" xml:space="preserve">
-    <value>Presupuesto mensual (USD)</value>
+    <value>Pressupost mensual (USD)</value>
   </data>
   <data name="ToastUmbralesActualizados" xml:space="preserve">
-    <value>Umbrales de alerta actualizados correctamente.</value>
+    <value>Llindars d'alerta actualitzats correctament.</value>
   </data>
   <data name="ToastOperativaActualizada" xml:space="preserve">
-    <value>Configuración operativa actualizada correctamente.</value>
+    <value>Configuració operativa actualitzada correctament.</value>
   </data>
   <data name="ToastPresupuestoActualizado" xml:space="preserve">
-    <value>Presupuesto de IA actualizado correctamente.</value>
+    <value>Pressupost d'IA actualitzat correctament.</value>
   </data>
   <data name="ErrorGuardarCambios" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No s'han pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ErrorFormatoHoras" xml:space="preserve">
-    <value>Las horas de jornada deben tener formato HH:mm.</value>
+    <value>Les hores de jornada han de tenir el format HH:mm.</value>
   </data>
   <data name="ErrorPresupuestoNoNumerico" xml:space="preserve">
-    <value>El presupuesto debe ser un número.</value>
+    <value>El pressupost ha de ser un número.</value>
   </data>
   <data name="EntradaOrdenMenuNombre" xml:space="preserve">
-    <value>Orden del menú</value>
+    <value>Ordre del menú</value>
   </data>
   <data name="EntradaOrdenMenuResumen" xml:space="preserve">
-    <value>Solo Actor de Plataforma</value>
+    <value>Només Actor de Plataforma</value>
   </data>
   <data name="OrdenMenuTituloDocumento" xml:space="preserve">
-    <value>Orden del menú — Configuración</value>
+    <value>Ordre del menú — Configuració</value>
   </data>
   <data name="OrdenMenuTitulo" xml:space="preserve">
-    <value>Orden del menú</value>
+    <value>Ordre del menú</value>
   </data>
   <data name="OrdenMenuAriaMigas" xml:space="preserve">
-    <value>Ruta de navegación</value>
+    <value>Ruta de navegació</value>
   </data>
   <data name="OrdenMenuMigaConfiguracion" xml:space="preserve">
-    <value>Configuración</value>
+    <value>Configuració</value>
   </data>
   <data name="OrdenMenuCeja" xml:space="preserve">
-    <value>Configuración · Plataforma</value>
+    <value>Configuració · Plataforma</value>
   </data>
   <data name="OrdenMenuDescripcion" xml:space="preserve">
-    <value>Ordena los grupos del menú lateral y los enlaces de cada grupo. El orden es el mismo para todos los usuarios de todos los Tenants.</value>
+    <value>Ordena els grups del menú lateral i els enllaços de cada grup. L'ordre és el mateix per a tots els usuaris de tots els Tenants.</value>
   </data>
   <data name="OrdenMenuSinAccesoTitulo" xml:space="preserve">
     <value>Només l'equip de TALVEG pot canviar l'ordre del menú.</value>
@@ -346,136 +346,136 @@
     <value>L'ordre del menú és el mateix per a totes les persones que fan servir TALVEG. Si necessites canviar-lo, contacta amb l'equip de TALVEG.</value>
   </data>
   <data name="OrdenMenuGlobalTitulo" xml:space="preserve">
-    <value>El cambio es global</value>
+    <value>El canvi és global</value>
   </data>
   <data name="OrdenMenuGlobalTodos" xml:space="preserve">
-    <value>Lo verán todos los usuarios de todos los Tenants la próxima vez que carguen una página.</value>
+    <value>El veuran tots els usuaris de tots els Tenants la pròxima vegada que carreguin una pàgina.</value>
   </data>
   <data name="OrdenMenuGlobalVisibilidad" xml:space="preserve">
-    <value>Ordenar no muestra ni oculta nada: cada usuario sigue viendo solo los enlaces que su rol le permite.</value>
+    <value>Ordenar no mostra ni amaga res: cada usuari continua veient només els enllaços que el seu rol li permet.</value>
   </data>
   <data name="OrdenMenuGlobalLimites" xml:space="preserve">
-    <value>Un enlace no puede cambiar de grupo. El menú del portal del rol «Usuario de Cliente» no se ordena aquí.</value>
+    <value>Un enllaç no pot canviar de grup. El menú del portal del rol «Usuari de Client» no s'ordena aquí.</value>
   </data>
   <data name="OrdenMenuChipPlano" xml:space="preserve">
-    <value>Plano de Plataforma</value>
+    <value>Pla de Plataforma</value>
   </data>
   <data name="OrdenMenuChipTenants" xml:space="preserve">
-    <value>Todos los Tenants</value>
+    <value>Tots els Tenants</value>
   </data>
   <data name="OrdenMenuChipAuditado" xml:space="preserve">
-    <value>Queda auditado con el Actor real</value>
+    <value>Queda auditat amb l'Actor real</value>
   </data>
   <data name="OrdenMenuAvisoGuardadoTitulo" xml:space="preserve">
-    <value>Orden guardado</value>
+    <value>Ordre desat</value>
   </data>
   <data name="OrdenMenuAvisoGuardadoTexto" xml:space="preserve">
-    <value>Todos los usuarios lo verán la próxima vez que carguen una página.</value>
+    <value>Tots els usuaris el veuran la pròxima vegada que carreguin una pàgina.</value>
   </data>
   <data name="OrdenMenuAvisoErrorTitulo" xml:space="preserve">
-    <value>No se pudo guardar el orden</value>
+    <value>No s'ha pogut desar l'ordre</value>
   </data>
   <data name="OrdenMenuAvisoErrorTexto" xml:space="preserve">
-    <value>Tus cambios siguen aquí. Vuelve a intentarlo; si persiste, el error ya ha quedado registrado.</value>
+    <value>Els teus canvis continuen aquí. Torna-ho a provar; si persisteix, l'error ja ha quedat registrat.</value>
   </data>
   <data name="OrdenMenuReintentar" xml:space="preserve">
-    <value>Reintentar</value>
+    <value>Torna-ho a provar</value>
   </data>
   <data name="OrdenMenuAvisoConflictoTitulo" xml:space="preserve">
-    <value>Otro Actor de Plataforma guardó un orden mientras editabas</value>
+    <value>Un altre Actor de Plataforma ha desat un ordre mentre editaves</value>
   </data>
   <data name="OrdenMenuAvisoConflictoTexto" xml:space="preserve">
-    <value>No se ha pisado su cambio ({0}, {1}). Carga su orden y vuelve a aplicar lo tuyo.</value>
+    <value>No s'ha sobreescrit el seu canvi ({0}, {1}). Carrega el seu ordre i torna a aplicar el teu.</value>
   </data>
   <data name="OrdenMenuAvisoConflictoSinFila" xml:space="preserve">
-    <value>No se ha pisado su cambio: el orden guardado cambió mientras editabas. Carga el orden actual y vuelve a aplicar lo tuyo.</value>
+    <value>No s'ha sobreescrit el seu canvi: l'ordre desat ha canviat mentre editaves. Carrega l'ordre actual i torna a aplicar el teu.</value>
   </data>
   <data name="OrdenMenuCargarActual" xml:space="preserve">
-    <value>Cargar el orden actual</value>
+    <value>Carregar l'ordre actual</value>
   </data>
   <data name="OrdenMenuListaTitulo" xml:space="preserve">
-    <value>Grupos y enlaces</value>
+    <value>Grups i enllaços</value>
   </data>
   <data name="OrdenMenuRecuento" xml:space="preserve">
-    <value>{0} grupos · {1} enlaces</value>
+    <value>{0} grups · {1} enllaços</value>
   </data>
   <data name="OrdenMenuAyudaCon" xml:space="preserve">
-    <value>Con el teclado:</value>
+    <value>Amb el teclat:</value>
   </data>
   <data name="OrdenMenuTeclaTab" xml:space="preserve">
     <value>Tab</value>
   </data>
   <data name="OrdenMenuTeclaEspacio" xml:space="preserve">
-    <value>Espacio</value>
+    <value>Espai</value>
   </data>
   <data name="OrdenMenuTeclaEsc" xml:space="preserve">
     <value>Esc</value>
   </data>
   <data name="OrdenMenuAyudaHastaAsa" xml:space="preserve">
-    <value>hasta el asa ·</value>
+    <value>fins a la nansa ·</value>
   </data>
   <data name="OrdenMenuAyudaCoger" xml:space="preserve">
-    <value>coger ·</value>
+    <value>agafar ·</value>
   </data>
   <data name="OrdenMenuAyudaMover" xml:space="preserve">
-    <value>mover ·</value>
+    <value>moure ·</value>
   </data>
   <data name="OrdenMenuAyudaSoltar" xml:space="preserve">
-    <value>soltar ·</value>
+    <value>deixar anar ·</value>
   </data>
   <data name="OrdenMenuAyudaCancelar" xml:space="preserve">
-    <value>cancelar. También puedes arrastrar el asa o usar las flechas de cada fila.</value>
+    <value>cancel·lar. També pots arrossegar la nansa o fer servir les fletxes de cada fila.</value>
   </data>
   <data name="OrdenMenuCargando" xml:space="preserve">
-    <value>Cargando el orden guardado…</value>
+    <value>S'està carregant l'ordre desat…</value>
   </data>
   <data name="OrdenMenuAriaGrupos" xml:space="preserve">
-    <value>Grupos del menú</value>
+    <value>Grups del menú</value>
   </data>
   <data name="OrdenMenuAriaEnlacesDe" xml:space="preserve">
-    <value>Enlaces de {0}</value>
+    <value>Enllaços de {0}</value>
   </data>
   <data name="OrdenMenuRecuentoEnlaces" xml:space="preserve">
-    <value>{0} enlaces</value>
+    <value>{0} enllaços</value>
   </data>
   <data name="OrdenMenuNacePlegado" xml:space="preserve">
-    <value>Nace plegado</value>
+    <value>Es crea plegat</value>
   </data>
   <data name="OrdenMenuNuevo" xml:space="preserve">
-    <value>Nuevo · añadido al final</value>
+    <value>Nou · afegit al final</value>
   </data>
   <data name="OrdenMenuAriaMover" xml:space="preserve">
-    <value>Mover {0}</value>
+    <value>Moure {0}</value>
   </data>
   <data name="OrdenMenuAriaSubir" xml:space="preserve">
-    <value>Subir {0}</value>
+    <value>Pujar {0}</value>
   </data>
   <data name="OrdenMenuAriaBajar" xml:space="preserve">
-    <value>Bajar {0}</value>
+    <value>Baixar {0}</value>
   </data>
   <data name="OrdenMenuAnuncioPosicion" xml:space="preserve">
-    <value>{0}, posición {1} de {2}.</value>
+    <value>{0}, posició {1} de {2}.</value>
   </data>
   <data name="OrdenMenuAnuncioCogido" xml:space="preserve">
-    <value>{0} cogido. Flechas arriba y abajo para moverlo, Espacio para soltar, Escape para cancelar.</value>
+    <value>{0} agafat. Fletxes amunt i avall per moure'l, Espai per deixar-lo anar, Escape per cancel·lar.</value>
   </data>
   <data name="OrdenMenuAnuncioSoltado" xml:space="preserve">
-    <value>{0} soltado en la posición {1} de {2}.</value>
+    <value>{0} deixat anar a la posició {1} de {2}.</value>
   </data>
   <data name="OrdenMenuAnuncioCancelado" xml:space="preserve">
-    <value>Movimiento cancelado. {0} vuelve a su posición.</value>
+    <value>Moviment cancel·lat. {0} torna a la seva posició.</value>
   </data>
   <data name="OrdenMenuVistaPrevia" xml:space="preserve">
-    <value>Vista previa</value>
+    <value>Vista prèvia</value>
   </data>
   <data name="OrdenMenuVerComo" xml:space="preserve">
-    <value>Ver el menú como</value>
+    <value>Veure el menú com a</value>
   </data>
   <data name="OrdenMenuRolAdministrador" xml:space="preserve">
     <value>Administrador de Tenant</value>
   </data>
   <data name="OrdenMenuRolDireccionCae" xml:space="preserve">
-    <value>Dirección CAE</value>
+    <value>Direcció CAE</value>
   </data>
   <data name="OrdenMenuRolCoordinadorCae" xml:space="preserve">
     <value>Coordinador CAE</value>
@@ -487,171 +487,171 @@
     <value>Consulta</value>
   </data>
   <data name="OrdenMenuAriaVistaPrevia" xml:space="preserve">
-    <value>Vista previa del menú</value>
+    <value>Vista prèvia del menú</value>
   </data>
   <data name="OrdenMenuPreviaTexto" xml:space="preserve">
-    <value>Ve {0} de {1} enlaces; los demás no los ve por su rol, no por el orden.</value>
+    <value>Veu {0} de {1} enllaços; els altres no els veu pel seu rol, no per l'ordre.</value>
   </data>
   <data name="OrdenMenuAriaBarra" xml:space="preserve">
-    <value>Guardar el orden</value>
+    <value>Desar l'ordre</value>
   </data>
   <data name="OrdenMenuSinCambios" xml:space="preserve">
-    <value>Sin cambios</value>
+    <value>Sense canvis</value>
   </data>
   <data name="OrdenMenuUnCambio" xml:space="preserve">
-    <value>1 cambio sin guardar</value>
+    <value>1 canvi sense desar</value>
   </data>
   <data name="OrdenMenuCambios" xml:space="preserve">
-    <value>{0} cambios sin guardar</value>
+    <value>{0} canvis sense desar</value>
   </data>
   <data name="OrdenMenuDetalleSinCambios" xml:space="preserve">
-    <value>El menú de todos los usuarios coincide con lo que ves aquí.</value>
+    <value>El menú de tots els usuaris coincideix amb el que veus aquí.</value>
   </data>
   <data name="OrdenMenuDetalleConCambios" xml:space="preserve">
-    <value>Aún no lo ve nadie. Al guardar, se aplica a todos los usuarios de todos los Tenants.</value>
+    <value>Encara no ho veu ningú. En desar, s'aplica a tots els usuaris de tots els Tenants.</value>
   </data>
   <data name="OrdenMenuRestablecer" xml:space="preserve">
-    <value>Restablecer el orden por defecto</value>
+    <value>Restablir l'ordre per defecte</value>
   </data>
   <data name="OrdenMenuDescartar" xml:space="preserve">
-    <value>Descartar cambios</value>
+    <value>Descartar els canvis</value>
   </data>
   <data name="OrdenMenuGuardar" xml:space="preserve">
-    <value>Guardar orden</value>
+    <value>Desar l'ordre</value>
   </data>
   <data name="OrdenMenuUltimoTitulo" xml:space="preserve">
-    <value>Último cambio</value>
+    <value>Últim canvi</value>
   </data>
   <data name="OrdenMenuSinHistorial" xml:space="preserve">
-    <value>Nadie ha cambiado el orden todavía: rige el orden por defecto.</value>
+    <value>Ningú no ha canviat l'ordre encara: regeix l'ordre per defecte.</value>
   </data>
   <data name="OrdenMenuActorReal" xml:space="preserve">
     <value>Actor real</value>
   </data>
   <data name="OrdenMenuActorRealPista" xml:space="preserve">
-    <value>Quién guardó el orden. En una impersonación se registra el Actor real, no el Usuario simulado.</value>
+    <value>Qui ha desat l'ordre. En una impersonació es registra l'Actor real, no l'Usuari simulat.</value>
   </data>
   <data name="OrdenMenuActorDesconocido" xml:space="preserve">
-    <value>Usuario no encontrado</value>
+    <value>Usuari no trobat</value>
   </data>
   <data name="OrdenMenuFecha" xml:space="preserve">
-    <value>Fecha</value>
+    <value>Data</value>
   </data>
   <data name="OrdenMenuFechaPista" xml:space="preserve">
     <value>Hora de Madrid.</value>
   </data>
   <data name="OrdenMenuQueCambio" xml:space="preserve">
-    <value>Qué cambió</value>
+    <value>Què ha canviat</value>
   </data>
   <data name="OrdenMenuQueCambioPorDefecto" xml:space="preserve">
-    <value>Vuelve al orden por defecto</value>
+    <value>Torna a l'ordre per defecte</value>
   </data>
   <data name="OrdenMenuQueCambioPosiciones" xml:space="preserve">
-    <value>{0} posiciones distintas del orden por defecto</value>
+    <value>{0} posicions diferents de l'ordre per defecte</value>
   </data>
   <data name="OrdenMenuQueCambioPista" xml:space="preserve">
-    <value>Frente al orden por defecto; el orden anterior queda en la auditoría.</value>
+    <value>Respecte de l'ordre per defecte; l'ordre anterior queda a l'auditoria.</value>
   </data>
   <data name="OrdenMenuDialogoTitulo" xml:space="preserve">
-    <value>¿Restablecer el orden por defecto?</value>
+    <value>Vols restablir l'ordre per defecte?</value>
   </data>
   <data name="OrdenMenuDialogoTexto" xml:space="preserve">
-    <value>Se vuelve al orden con el que se entrega TALVEG, para todos los usuarios de todos los Tenants. Queda auditado como cualquier otro guardado y se puede volver a ordenar después.</value>
+    <value>Es torna a l'ordre amb què es lliura TALVEG, per a tots els usuaris de tots els Tenants. Queda auditat com qualsevol altre desament i es pot tornar a ordenar després.</value>
   </data>
   <data name="OrdenMenuCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="OrdenMenuRestablecerConfirmar" xml:space="preserve">
-    <value>Restablecer</value>
+    <value>Restablir</value>
   </data>
   <data name="OrdenMenuErrorCargaTitulo" xml:space="preserve">
-    <value>No se pudo cargar el orden del menú</value>
+    <value>No s'ha pogut carregar l'ordre del menú</value>
   </data>
   <data name="OrdenMenuErrorCargaTexto" xml:space="preserve">
-    <value>El error ya ha quedado registrado. Recarga la página para volver a intentarlo.</value>
+    <value>L'error ja ha quedat registrat. Recarrega la pàgina per tornar-ho a provar.</value>
   </data>
   <data name="EntradaAccesosSensiblesNombre" xml:space="preserve">
-    <value>Accesos a documentos sensibles</value>
+    <value>Accessos a documents sensibles</value>
   </data>
   <data name="EntradaAccesosSensiblesResumen" xml:space="preserve">
-    <value>Quién abrió o descargó datos de salud</value>
+    <value>Qui ha obert o descarregat dades de salut</value>
   </data>
   <data name="EntradaOrganizacionNombre" xml:space="preserve">
-    <value>Organización</value>
+    <value>Organització</value>
   </data>
   <data name="EntradaOrganizacionResumen" xml:space="preserve">
-    <value>Logo de la organización</value>
+    <value>Logotip de l'organització</value>
   </data>
   <data name="OrganizacionTituloDocumento" xml:space="preserve">
-    <value>Organización — Configuración</value>
+    <value>Organització — Configuració</value>
   </data>
   <data name="OrganizacionAriaMigas" xml:space="preserve">
-    <value>Ruta de navegación</value>
+    <value>Ruta de navegació</value>
   </data>
   <data name="OrganizacionTitulo" xml:space="preserve">
-    <value>Logo de la organización</value>
+    <value>Logotip de l'organització</value>
   </data>
   <data name="OrganizacionDescripcion" xml:space="preserve">
-    <value>Aparece junto al nombre de la organización en el selector y en las cabeceras. Sin logo se muestran sus iniciales.</value>
+    <value>Apareix al costat del nom de l'organització al selector i a les capçaleres. Sense logotip es mostren les seves inicials.</value>
   </data>
   <data name="OrganizacionErrorCargaTitulo" xml:space="preserve">
-    <value>No se pudo cargar la organización</value>
+    <value>No s'ha pogut carregar l'organització</value>
   </data>
   <data name="OrganizacionLogoActual" xml:space="preserve">
-    <value>Logo actual</value>
+    <value>Logotip actual</value>
   </data>
   <data name="OrganizacionLogoAlt" xml:space="preserve">
-    <value>Logo de {0}</value>
+    <value>Logotip de {0}</value>
   </data>
   <data name="OrganizacionSinLogo" xml:space="preserve">
-    <value>Todavía no hay logo: se muestran las iniciales.</value>
+    <value>Encara no hi ha logotip: es mostren les inicials.</value>
   </data>
   <data name="OrganizacionAsiSeVe" xml:space="preserve">
-    <value>Así se ve en el selector</value>
+    <value>Així es veu al selector</value>
   </data>
   <data name="OrganizacionSubir" xml:space="preserve">
-    <value>Sube el logo</value>
+    <value>Puja el logotip</value>
   </data>
   <data name="OrganizacionSustituir" xml:space="preserve">
-    <value>Sustituye el logo</value>
+    <value>Substitueix el logotip</value>
   </data>
   <data name="OrganizacionFormatos" xml:space="preserve">
-    <value>PNG o JPG, máx. 5 MB</value>
+    <value>PNG o JPG, màx. 5 MB</value>
   </data>
   <data name="OrganizacionNotaConversion" xml:space="preserve">
-    <value>Se convertirá a PNG de 256 px.</value>
+    <value>Es convertirà a PNG de 256 px.</value>
   </data>
   <data name="OrganizacionRetirar" xml:space="preserve">
-    <value>Retirar logo</value>
+    <value>Retirar el logotip</value>
   </data>
   <data name="OrganizacionRetirarTitulo" xml:space="preserve">
-    <value>Retirar el logo</value>
+    <value>Retirar el logotip</value>
   </data>
   <data name="OrganizacionRetirarTexto" xml:space="preserve">
-    <value>Se mostrarán de nuevo las iniciales de la organización. Puedes subir otro logo cuando quieras.</value>
+    <value>Es tornaran a mostrar les inicials de l'organització. Pots pujar un altre logotip quan vulguis.</value>
   </data>
   <data name="OrganizacionRetirarConfirmar" xml:space="preserve">
     <value>Retirar</value>
   </data>
   <data name="OrganizacionCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="OrganizacionToastGuardado" xml:space="preserve">
-    <value>Logo actualizado</value>
+    <value>Logotip actualitzat</value>
   </data>
   <data name="OrganizacionToastRetirado" xml:space="preserve">
-    <value>Logo retirado</value>
+    <value>Logotip retirat</value>
   </data>
   <data name="OrganizacionErrorTamano" xml:space="preserve">
-    <value>Máximo 5 MB.</value>
+    <value>Màxim 5 MB.</value>
   </data>
   <data name="OrganizacionErrorGuardar" xml:space="preserve">
-    <value>No se pudo guardar el logo. Inténtalo de nuevo.</value>
+    <value>No s'ha pogut desar el logotip. Torna-ho a provar.</value>
   </data>
   <data name="OrganizacionSoloLecturaAdministrador" xml:space="preserve">
-    <value>Solo el Administrador de la organización puede cambiar el logo.</value>
+    <value>Només l'Administrador de l'organització pot canviar el logotip.</value>
   </data>
   <data name="OrganizacionSoloLecturaSoporte" xml:space="preserve">
-    <value>Esta sesión de soporte no tiene la capacidad de aprovisionamiento sobre esta organización: solo puedes ver el logo.</value>
+    <value>Aquesta sessió de suport no té la capacitat d'aprovisionament sobre aquesta organització: només pots veure el logotip.</value>
   </data>
 </root>
