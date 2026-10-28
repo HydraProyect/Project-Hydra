@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Microsoft.Playwright;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
@@ -95,19 +96,13 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         // La fila completada cambia de sitio (el orden por defecto es el estado): se busca por su
         // identidad entre las que ahora ofrecen «Reabrir».
-        var completadas = Filas(page).Filter(new LocatorFilterOptions { Has = page.Locator("button.gestion-reabrir") });
-        ILocator? laMisma = null;
-        for (var i = 0; i < await completadas.CountAsync(); i++)
-        {
-            var candidata = completadas.Nth(i);
-            if (await IdentidadAsync(candidata) != identidad) continue;
-            laMisma = candidata;
-            break;
-        }
+        var nombreFila = new Regex($"(?=.*{Regex.Escape(identidad.Trabajador)})(?=.*{Regex.Escape(identidad.Centro)})(?=.*{Regex.Escape(identidad.Tipo)})");
+        var laMisma = page.GetByRole(AriaRole.Row, new PageGetByRoleOptions { NameRegex = nombreFila })
+            .Filter(new LocatorFilterOptions { Has = page.Locator("button.gestion-reabrir") });
+        await Expect(laMisma).ToHaveCountAsync(1);
+        Assert.Equal(identidad, await IdentidadAsync(laMisma));
 
-        Assert.True(laMisma is not null, "Control positivo: la Gestión completada sigue en la lista, ahora con «Reabrir».");
-
-        await laMisma!.Locator("button.gestion-reabrir").ClickAsync();
+        await laMisma.Locator("button.gestion-reabrir").ClickAsync();
         await Expect(reabrir).ToHaveCountAsync(completadasAntes);
         await Expect(vista).ToHaveCountAsync(0);
     }
