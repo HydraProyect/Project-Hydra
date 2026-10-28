@@ -44,6 +44,25 @@ public class AgregarVersionPlantillaCommandHandlerTests
         almacenamiento.ArchivosGuardados.Should().Be(0);
     }
 
+    [Theory]
+    [InlineData("nueva.png")] // imagen con firma PNG válida: es un documento admitido, pero una plantilla es solo PDF
+    [InlineData("nueva.docx")]
+    public async Task Rechaza_una_plantilla_que_no_es_pdf_aunque_su_firma_coincida_con_su_extension(string nombre)
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada("%PDF-anterior"u8.ToArray());
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, almacenamiento,
+            new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+        byte[] contenido = nombre.EndsWith(".png", StringComparison.Ordinal)
+            ? [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00]
+            : [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
+
+        var resultado = await handler.Handle(new AgregarVersionPlantillaCommand(plantilla.Id, contenido, nombre), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
+
     [Fact]
     public async Task Crea_una_nueva_version_con_el_siguiente_numero()
     {

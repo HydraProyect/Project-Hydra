@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace CaeManager.Application.Common.Archivos;
 
 /// <summary>
@@ -10,8 +12,9 @@ public interface IVerificadorArchivoAlmacenado
 {
     /// <summary>
     /// Verdadero si la clave existe en el almacenamiento del Tenant activo, su extensión es la de un Documento admitido
-    /// (PDF, JPG, PNG o Word .docx), no pasa del tamaño máximo y su contenido real coincide con esa extensión
-    /// (<see cref="ValidadorFirmaArchivo.EsDocumentoValido"/>). Una clave inexistente o de otro Tenant es «no válido».
+    /// (PDF, JPG, PNG o Word .docx) y la firma de su contenido real coincide con esa extensión
+    /// (<see cref="ValidadorFirmaArchivo.TieneFormatoDeDocumento"/>). Una clave inexistente, de otro Tenant o cuyo
+    /// contenido no supera la comprobación de integridad del almacenamiento es «no válido», nunca una excepción.
     /// </summary>
     Task<bool> EsDocumentoValidoAsync(string archivoUrl, CancellationToken cancellationToken = default);
 }
@@ -20,6 +23,12 @@ public interface IVerificadorArchivoAlmacenado
 /// OWASP ASVS 4.0.3 V12.1/V12.2: el tipo de un archivo subido se decide por su contenido, no por el nombre. Hasta que
 /// haya antivirus, todo archivo que entre como Documento se valida por firma; la clave del almacenamiento conserva la
 /// extensión con la que se guardó, así que sirve de nombre para comparar.
+///
+/// <para>
+/// Solo lee la cabecera. El tope de tamaño por archivo ya se aplicó al subirlo (cada archivo, antes de convertirlo), y el
+/// PDF que resulta de unificar varios puede pasar de ese tope sin ser un problema: volver a aplicarlo aquí rechazaría
+/// como «no válido» un Documento legítimo que el usuario acaba de componer.
+/// </para>
 /// </summary>
 public sealed class VerificadorArchivoAlmacenado(IFileStorageService almacenamiento) : IVerificadorArchivoAlmacenado
 {
@@ -33,24 +42,18 @@ public sealed class VerificadorArchivoAlmacenado(IFileStorageService almacenamie
         {
             flujo = await almacenamiento.AbrirAsync(archivoUrl, cancellationToken);
         }
-        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException
+            or InvalidDataException or CryptographicException)
         {
             return false;
         }
 
         await using (flujo)
         {
-            using var memoria = new MemoryStream();
-            var buffer = new byte[81920];
-            int leidos;
-            while ((leidos = await flujo.ReadAsync(buffer, cancellationToken)) > 0)
-            {
-                if (memoria.Length + leidos > LimitesArchivoSubido.TamanoMaximoBytes)
-                    return false;
-                await memoria.WriteAsync(buffer.AsMemory(0, leidos), cancellationToken);
-            }
+            var cabecera = new byte[ValidadorFirmaArchivo.BytesDeCabeceraNecesarios];
+            var leidos = await flujo.ReadAtLeastAsync(cabecera, cabecera.Length, throwOnEndOfStream: false, cancellationToken);
 
-            return ValidadorFirmaArchivo.EsDocumentoValido(memoria.ToArray(), archivoUrl);
+            return ValidadorFirmaArchivo.TieneFormatoDeDocumento(cabecera.AsSpan(0, leidos).ToArray(), archivoUrl);
         }
     }
 }

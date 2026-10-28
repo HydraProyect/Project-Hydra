@@ -57,18 +57,46 @@ public class VerificadorArchivoAlmacenadoTests
     }
 
     [Fact]
-    public async Task Rechaza_un_archivo_de_mas_de_10_MB_aunque_su_firma_sea_valida()
+    public async Task Acepta_un_PDF_unificado_de_mas_de_10_MB_porque_el_tope_por_archivo_se_aplico_al_subir_cada_uno()
     {
-        var grande = new byte[LimitesArchivoSubido.TamanoMaximoBytes + 1];
+        // La subida múltiple une varios archivos de hasta 10 MB cada uno en un solo PDF: ese PDF guardado puede pasar
+        // legítimamente del tope por archivo y no puede rechazarse como «no válido» al guardar el Documento.
+        var grande = new byte[LimitesArchivoSubido.TamanoMaximoBytes * 2];
         Pdf.CopyTo(grande, 0);
         var (verificador, clave) = await Preparar("documento.pdf", grande);
 
-        (await verificador.EsDocumentoValidoAsync(clave)).Should().BeFalse();
+        (await verificador.EsDocumentoValidoAsync(clave)).Should().BeTrue();
+    }
 
-        var justo = new byte[LimitesArchivoSubido.TamanoMaximoBytes];
-        Pdf.CopyTo(justo, 0);
-        var (verificadorJusto, claveJusta) = await Preparar("documento.pdf", justo);
-        (await verificadorJusto.EsDocumentoValidoAsync(claveJusta)).Should().BeTrue("control: en el límite exacto sí pasa");
+    [Fact]
+    public async Task Un_archivo_corto_o_de_un_solo_byte_no_lanza_y_se_rechaza()
+    {
+        var (verificador, clave) = await Preparar("documento.pdf", [0x25]);
+
+        (await verificador.EsDocumentoValidoAsync(clave)).Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(typeof(FileNotFoundException))]
+    [InlineData(typeof(DirectoryNotFoundException))]
+    [InlineData(typeof(KeyNotFoundException))]
+    [InlineData(typeof(InvalidDataException))] // el blob no supera la integridad del almacenamiento cifrado
+    [InlineData(typeof(System.Security.Cryptography.CryptographicException))]
+    public async Task Rechaza_sin_lanzar_cuando_el_almacenamiento_no_puede_entregar_un_contenido_integro(Type excepcion)
+    {
+        var verificador = new VerificadorArchivoAlmacenado(new AlmacenQueFalla((Exception)Activator.CreateInstance(excepcion)!));
+
+        (await verificador.EsDocumentoValidoAsync("tenant/abc.pdf")).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Un_fallo_de_infraestructura_del_almacenamiento_no_se_confunde_con_un_archivo_invalido()
+    {
+        var verificador = new VerificadorArchivoAlmacenado(new AlmacenQueFalla(new IOException("disco caido")));
+
+        var accion = async () => await verificador.EsDocumentoValidoAsync("tenant/abc.pdf");
+
+        await accion.Should().ThrowAsync<IOException>("un fallo transitorio de infraestructura no debe decirle al usuario que su archivo es falso");
     }
 
     [Theory]
@@ -82,13 +110,6 @@ public class VerificadorArchivoAlmacenadoTests
         (await verificador.EsDocumentoValidoAsync(clave)).Should().BeFalse();
     }
 
-    [Fact]
-    public async Task Rechaza_sin_lanzar_cuando_el_almacenamiento_dice_que_el_archivo_no_existe()
-    {
-        var verificador = new VerificadorArchivoAlmacenado(new AlmacenQueNoEncuentra());
-
-        (await verificador.EsDocumentoValidoAsync("tenant/abc.pdf")).Should().BeFalse();
-    }
 
     private static byte[] Contenido(string nombre) => nombre switch
     {
@@ -106,13 +127,13 @@ public class VerificadorArchivoAlmacenadoTests
         return (new VerificadorArchivoAlmacenado(almacen), clave);
     }
 
-    private sealed class AlmacenQueNoEncuentra : IFileStorageService
+    private sealed class AlmacenQueFalla(Exception excepcion) : IFileStorageService
     {
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+            throw excepcion;
 
         public Task EliminarAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();

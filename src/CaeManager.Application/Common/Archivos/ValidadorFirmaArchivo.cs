@@ -33,11 +33,23 @@ public static class ValidadorFirmaArchivo
             _ => false
         };
 
+    /// <summary>Documento que entra por una subida: tamaño dentro del tope por archivo y <see cref="TieneFormatoDeDocumento"/>.</summary>
     public static bool EsDocumentoValido(byte[] contenido, string? nombreArchivo) =>
         contenido.Length is > 0 and <= LimitesArchivoSubido.TamanoMaximoBytes
-        && !string.IsNullOrWhiteSpace(nombreArchivo)
+        && TieneFormatoDeDocumento(contenido, nombreArchivo);
+
+    /// <summary>
+    /// Extensión de documento admitida (PDF, JPG, JPEG, PNG o DOCX; nunca .zip suelto) y firma del contenido que
+    /// coincide con ella. Sin tope de tamaño: lo usa también la comprobación de un archivo ya almacenado, donde basta con
+    /// la cabecera y el PDF unificado de una subida múltiple puede pasar legítimamente del tope por archivo.
+    /// </summary>
+    public static bool TieneFormatoDeDocumento(byte[] contenido, string? nombreArchivo) =>
+        !string.IsNullOrWhiteSpace(nombreArchivo)
         && Path.GetExtension(nombreArchivo).ToLowerInvariant() is ".pdf" or ".jpg" or ".jpeg" or ".png" or ".docx"
         && TieneFirmaValida(contenido, nombreArchivo);
+
+    /// <summary>Bytes iniciales que bastan para decidir la firma de cualquiera de los formatos admitidos (el mayor es PNG, 8).</summary>
+    public const int BytesDeCabeceraNecesarios = 8;
 
     private static bool EmpiezaCon(byte[] contenido, byte[] firma) =>
         contenido.Length >= firma.Length && contenido.AsSpan(0, firma.Length).SequenceEqual(firma);
