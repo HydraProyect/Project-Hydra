@@ -104,6 +104,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         }
 
         await Expect(fila).ToHaveClassAsync(new Regex("fila-enfocada"));
+        await Expect(fila).ToBeFocusedAsync();
         await Ayudas.EsperarFocoRealEnFilaAsync(fila);
     }
 
