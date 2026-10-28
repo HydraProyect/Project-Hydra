@@ -123,12 +123,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Visita eliminada sigue fuera: su filtro global no se quita.
         [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
-        // Resolución de tenant a partir de un webhook entrante (Graph/WhatsApp):
-        // en ese punto todavía no hay tenant resuelto en el contexto — es
-        // precisamente lo que esta consulta calcula — así que no hay filtro
-        // de tenant que pueda aplicarse todavía.
-        [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
-        [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs", ".IgnoreQueryFilters()")] = 1,
+        // Resolución del Tenant de un webhook entrante (Graph/WhatsApp, S-C-5): en ese punto no hay Tenant en el
+        // contexto, que es justo lo que se calcula, y bajo FORCE RLS IgnoreQueryFilters() no veía ninguna fila.
+        // Las funciones SECURITY DEFINER devuelven solo el Tenant propietario (la de Graph, NULL si la conexión
+        // está en dos Tenants, en vez de elegir uno); la suscripción y la línea se leen después bajo RLS.
+        [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_webhook_graph({conexionIntegracionId}) AS \"Value\"")""")] = 1,
+        [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs",
+            """.SqlQuery<Guid?>($"SELECT app_tenant_de_webhook_whatsapp({phoneNumberId}) AS \"Value\"")""")] = 1,
 
         // Autenticación de API Key: el tenant lo determina la propia clave que
         // se está validando, así que no puede depender del filtro global de
