@@ -206,8 +206,17 @@ internal sealed class ArnesPilotoOutbound : IAsyncDisposable
         return new ConfigurationBuilder().AddInMemoryCollection(valores).Build();
     }
 
-    /// <summary>La fecha de demostración de los tests: cinco días por delante, así que hoy es D−5.</summary>
-    public static DateOnly FechaDemostracion() => DiaDeNegocio.Hoy().AddDays(5);
+    /// <summary>
+    /// La fecha de demostración de los tests: cinco días por delante del día de negocio en que se pide por primera vez
+    /// en el proceso, así que al sembrar hoy es D−5. Se fija una sola vez: la siembra y las aserciones la piden por
+    /// separado, y si la ejecución cruzaba la medianoche de Madrid entre las dos, la aserción esperaba la siembra de
+    /// D+1 sobre la de D (PR #1815: cinco fallos en el bloque 4 de integración, de 23:49 a 00:04 hora peninsular).
+    /// Después de la medianoche hoy es D−4, dentro de la ventana en que la fecha se puede sembrar (D−9 a D). Se lee con
+    /// el reloj del sistema, no con el que un test haya fijado en su flujo con <c>DiaDeNegocio.FijarRelojEnEsteFlujo</c>.
+    /// </summary>
+    public static DateOnly FechaDemostracion() => FechaDemostracionDelProceso.Value;
+
+    private static readonly Lazy<DateOnly> FechaDemostracionDelProceso = new(() => DiaDeNegocio.Hoy(TimeProvider.System).AddDays(5));
 
     public async Task<PilotoOutboundSeeder.Resultado?> SembrarAsync(
         IConfiguration configuracion, IHostEnvironment? entorno = null,

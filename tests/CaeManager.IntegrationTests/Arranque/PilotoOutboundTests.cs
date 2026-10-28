@@ -58,9 +58,17 @@ public sealed class PilotoOutboundFixture : IAsyncLifetime
     internal Informe Informe { get; private set; } = null!;
     internal ArnesPilotoOutbound.RegistroDeAvisos Registro { get; } = new();
 
+    /// <summary>
+    /// El mes de la siembra, tomado justo antes de sembrar: la siembra fecha sus altas con su propio reloj, y un test que
+    /// lo tomara de su reloj al afirmar vería el mes siguiente si la ejecución cruzó el cambio de mes UTC desde la siembra.
+    /// </summary>
+    internal DateTime InicioDelMesDeLaSiembraUtc { get; private set; }
+
     public async Task InitializeAsync()
     {
         Arnes = await ArnesPilotoOutbound.CrearAsync();
+        var antesDeSembrar = DateTime.UtcNow;
+        InicioDelMesDeLaSiembraUtc = new DateTime(antesDeSembrar.Year, antesDeSembrar.Month, 1, 0, 0, 0, DateTimeKind.Utc);
         Configuracion = ArnesPilotoOutbound.Configurar(
             ArnesPilotoOutbound.FechaDemostracion(),
             extra: (OpcionesPilotoOutbound.ClaveCorreoContactos, ArnesPilotoOutbound.CorreoDePrueba));
@@ -212,7 +220,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Las_altas_se_reparten_en_el_ultimo_ano_y_el_escaparate_tiene_bajas_en_meses_anteriores()
     {
         var ahora = DateTime.UtcNow;
-        var inicioDelMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var inicioDelMes = fixture.InicioDelMesDeLaSiembraUtc;
         foreach (var tenant in CatalogoPilotoOutbound.Escaparate)
         {
             var (altas, bajas) = await fixture.Arnes.EnTenantAsync(await fixture.Arnes.TenantIdAsync(tenant.Nombre), async (db, _) =>
@@ -239,7 +247,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Los_Centros_y_los_Clientes_empresariales_entran_dentro_de_la_Asignacion_de_Operacion()
     {
         var ahora = DateTime.UtcNow;
-        var inicioDelMes = new DateTime(ahora.Year, ahora.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var inicioDelMes = fixture.InicioDelMesDeLaSiembraUtc;
         foreach (var tenant in CatalogoPilotoOutbound.Tenants)
         {
             var (centros, clientes, operaciones, eliminadoresDeBajas) = await fixture.Arnes.EnTenantAsync(
@@ -401,7 +409,8 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
     public async Task Los_resultados_no_cambian_en_ninguno_de_los_dias_en_que_se_puede_sembrar_para_esa_demostracion()
     {
         var fecha = ArnesPilotoOutbound.FechaDemostracion();
-        DiaDeNegocio.Hoy().Should().Be(fecha.AddDays(-5), "control: sin fijar el reloj, hoy es D−5");
+        DiaDeNegocio.Hoy().Should().BeOnOrAfter(fecha.AddDays(-5)).And.BeOnOrBefore(fecha.AddDays(-4),
+            "control: sin fijar el reloj, hoy es D−5, o D−4 si la ejecución cruzó la medianoche desde la siembra");
 
         // Los dos extremos: el primer día en que la fecha vale (D−9) y el propio día de la demostración.
         foreach (var dia in new[] { fecha.AddDays(-OpcionesPilotoOutbound.MargenMaximoDias), fecha })
@@ -410,6 +419,7 @@ public class PilotoOutboundTests(PilotoOutboundFixture fixture, ITestOutputHelpe
             using (DiaDeNegocio.FijarRelojEnEsteFlujo(new RelojEn(dia.ToDateTime(new TimeOnly(11, 0), DateTimeKind.Utc))))
             {
                 DiaDeNegocio.Hoy().Should().Be(dia, "control: el reloj fijado mueve el día de negocio");
+                ArnesPilotoOutbound.FechaDemostracion().Should().Be(fecha, "la fecha de demostración se fija una vez y no sigue al reloj del flujo");
                 eseDia = await fixture.Arnes.MedirAsync(fixture.Configuracion);
             }
 
