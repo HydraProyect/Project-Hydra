@@ -24,9 +24,12 @@ public sealed class ContactosSeguridadPlataforma(
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ContactoSeguridadPropuestoDto>>(async () =>
             await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
                 .Where(c => c.Estado == EstadoContactoSeguridad.Propuesto)
-                .Join(contexto.Tenants, c => c.TenantId, t => t.Id, (c, t) => new ContactoSeguridadPropuestoDto(
-                    c.Id, c.TenantId, t.Nombre, c.Nombre, c.Correo, c.Telefono, c.PropuestoEnUtc))
-                .OrderBy(c => c.PropuestoEnUtc)
+                .Join(contexto.Tenants, c => c.TenantId, t => t.Id, (c, t) => new { Contacto = c, Organizacion = t.Nombre })
+                // Ordenar antes de proyectar al DTO: EF no traduce un OrderBy sobre una propiedad del record.
+                .OrderBy(x => x.Contacto.PropuestoEnUtc)
+                .Select(x => new ContactoSeguridadPropuestoDto(
+                    x.Contacto.Id, x.Contacto.TenantId, x.Organizacion, x.Contacto.Nombre, x.Contacto.Correo,
+                    x.Contacto.Telefono, x.Contacto.PropuestoEnUtc))
                 .ToListAsync(cancellationToken), cancellationToken);
 
     public Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken) =>
