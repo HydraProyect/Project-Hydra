@@ -66,10 +66,79 @@ internal static class AutorizacionAvisoIncidenteSeguridad
 /// <summary>
 /// Envía una plantilla del aviso a todos los destinatarios de los Tenants afectados, una fila por destinatario.
 /// Idempotente: lo ya enviado no se repite, lo fallido se reintenta con el asunto y el cuerpo guardados, y lo
-/// que otro clic está enviando se deja. Un fallo del correo no aborta a los demás destinatarios.
+/// que otro clic está enviando se deja. Un fallo del correo, o un destinatario que la base rechaza por sus
+/// datos, no aborta a los demás destinatarios; solo cortan el envío los errores que valen para todos (sin
+/// autorización, incidente no encontrado o no confirmado).
 /// </summary>
 internal static class EnvioAvisosIncidenteSeguridad
 {
+    /// <summary>Un envío preparado: el correo que saldría hacia un destinatario de un Tenant afectado.</summary>
+    private sealed record EnvioPreparado(Guid TenantId, string Correo, EnvioAvisoSolicitado Solicitado);
+
+    /// <summary>
+    /// Comprueba, antes de confirmar el incidente, que ningún correo resultante (con los apartados ya escapados
+    /// para HTML y el saludo de cada destinatario) supera la longitud que la base admite. La hora de confirmación
+    /// solo cambia el texto de la fecha, que tiene siempre la misma longitud.
+    /// </summary>
+    public static async Task<Error?> ValidarLongitudAsync(
+        IIncidentesSeguridadPlataforma plataforma,
+        IncidenteSeguridadDto incidente,
+        DateTime confirmadoEnUtc,
+        PlantillaAvisoIncidenteSeguridad plantilla,
+        ContenidoAvisoIncidente contenido,
+        IReadOnlyList<DestinatariosAvisoSeguridadTenant> destinatarios,
+        CancellationToken cancellationToken)
+    {
+        var (preparados, _) = await PrepararAsync(
+            plataforma, incidente, confirmadoEnUtc, plantilla, contenido, destinatarios, cancellationToken);
+        return preparados.Any(p => DemasiadoLargo(p.Solicitado)) ? ErroresIncidenteSeguridad.CuerpoDemasiadoLargo : null;
+    }
+
+    private static bool DemasiadoLargo(EnvioAvisoSolicitado solicitado) =>
+        solicitado.Cuerpo.Length > EnvioAvisoIncidenteSeguridad.LongitudMaximaCuerpo
+        || solicitado.Asunto.Length > EnvioAvisoIncidenteSeguridad.LongitudMaximaAsunto;
+
+    /// <summary>Errores de la base que solo afectan a ese destinatario: se anotan y se sigue con los demás.</summary>
+    private static bool EsFalloDelDestinatario(Error error) =>
+        error.Codigo == ErroresIncidenteSeguridad.DestinatarioNoValido.Codigo
+        || error.Codigo == ErroresIncidenteSeguridad.ContenidoDemasiadoLargo.Codigo;
+
+    private static async Task<(List<EnvioPreparado> Preparados, List<Guid> SinDestinatario)> PrepararAsync(
+        IIncidentesSeguridadPlataforma plataforma,
+        IncidenteSeguridadDto incidente,
+        DateTime confirmadoEnUtc,
+        PlantillaAvisoIncidenteSeguridad plantilla,
+        ContenidoAvisoIncidente contenido,
+        IReadOnlyList<DestinatariosAvisoSeguridadTenant> destinatarios,
+        CancellationToken cancellationToken)
+    {
+        var referencia = PlantillaAvisoIncidente.Referencia(incidente.Id, incidente.DetectadoEnUtc);
+        var nombres = await plataforma.NombresTenantsAsync(incidente.TenantsAfectados, cancellationToken);
+        var preparados = new List<EnvioPreparado>();
+        var sinDestinatario = new List<Guid>();
+        foreach (var tenant in destinatarios)
+        {
+            if (tenant.Destinatarios.Count == 0)
+            {
+                sinDestinatario.Add(tenant.TenantId);
+                continue;
+            }
+
+            var organizacion = nombres.TryGetValue(tenant.TenantId, out var nombre) ? nombre : "vuestra organización";
+            foreach (var destinatario in tenant.Destinatarios)
+            {
+                preparados.Add(new EnvioPreparado(tenant.TenantId, destinatario.Correo, new EnvioAvisoSolicitado(
+                    incidente.Id, plantilla, tenant.TenantId, destinatario.Nombre, destinatario.Correo,
+                    tenant.SinContactoValidado,
+                    PlantillaAvisoIncidente.Asunto(plantilla, referencia, organizacion),
+                    PlantillaAvisoIncidente.Cuerpo(plantilla, contenido, referencia, organizacion, destinatario.Nombre,
+                        tenant.SinContactoValidado, confirmadoEnUtc))));
+            }
+        }
+
+        return (preparados, sinDestinatario);
+    }
+
     public static async Task<Result<ResumenEnvioAviso>> EnviarAsync(
         IIncidentesSeguridadPlataforma plataforma,
         IContactosSeguridadPlataforma contactos,
@@ -83,65 +152,57 @@ internal static class EnvioAvisosIncidenteSeguridad
         IReadOnlyList<DestinatariosAvisoSeguridadTenant> destinatarios,
         CancellationToken cancellationToken)
     {
-        var referencia = PlantillaAvisoIncidente.Referencia(incidente.Id, incidente.DetectadoEnUtc);
-        var nombres = await plataforma.NombresTenantsAsync(incidente.TenantsAfectados, cancellationToken);
         var responderA = string.IsNullOrWhiteSpace(opciones.CorreoContactoSeguridadTalveg)
             ? null : opciones.CorreoContactoSeguridadTalveg.Trim();
+        var (preparados, sinDestinatario) = await PrepararAsync(
+            plataforma, incidente, confirmadoEnUtc, plantilla, contenido, destinatarios, cancellationToken);
+        if (preparados.Any(p => DemasiadoLargo(p.Solicitado)))
+            return Result.Fallo<ResumenEnvioAviso>(ErroresIncidenteSeguridad.CuerpoDemasiadoLargo);
 
         int enviados = 0, yaEnviados = 0, fallidos = 0, enCurso = 0;
-        var sinDestinatario = new List<Guid>();
-        foreach (var tenant in destinatarios)
+        foreach (var (tenantId, correoDestinatario, solicitado) in preparados)
         {
-            if (tenant.Destinatarios.Count == 0)
+            var reclamo = await plataforma.ReclamarEnvioAsync(solicitado, cancellationToken);
+            if (reclamo.EsFallido)
             {
-                sinDestinatario.Add(tenant.TenantId);
+                if (!EsFalloDelDestinatario(reclamo.Error))
+                    return Result.Fallo<ResumenEnvioAviso>(reclamo.Error);
+
+                fallidos++;
+                logger.LogWarning("La base rechazó un destinatario del Tenant {TenantId} para el aviso {Plantilla} del incidente {IncidenteId}: {Error}.",
+                    tenantId, plantilla, incidente.Id, reclamo.Error.Codigo);
                 continue;
             }
 
-            var organizacion = nombres.TryGetValue(tenant.TenantId, out var nombre) ? nombre : "vuestra organización";
-            foreach (var destinatario in tenant.Destinatarios)
+            var envio = reclamo.Valor;
+            if (!envio.Reclamado)
             {
-                var solicitado = new EnvioAvisoSolicitado(
-                    incidente.Id, plantilla, tenant.TenantId, destinatario.Nombre, destinatario.Correo,
-                    tenant.SinContactoValidado,
-                    PlantillaAvisoIncidente.Asunto(plantilla, referencia, organizacion),
-                    PlantillaAvisoIncidente.Cuerpo(plantilla, contenido, referencia, organizacion, destinatario.Nombre,
-                        tenant.SinContactoValidado, confirmadoEnUtc));
+                if (envio.Estado == EstadoEnvioAvisoIncidenteSeguridad.Enviado) yaEnviados++;
+                else enCurso++;
+                continue;
+            }
 
-                var reclamo = await plataforma.ReclamarEnvioAsync(solicitado, cancellationToken);
-                if (reclamo.EsFallido)
-                    return Result.Fallo<ResumenEnvioAviso>(reclamo.Error);
+            // Sin el token de la petición: cerrar la página a mitad no puede dejar el envío a medias sin
+            // anotar si salió.
+            var resultado = await correo.EnviarAsync(
+                correoDestinatario, envio.Asunto, envio.Cuerpo, TipoAvisoCorreo.Seguridad, responderA,
+                CancellationToken.None);
+            var anotado = await plataforma.ResolverEnvioAsync(
+                envio.EnvioId, resultado.EsExitoso, resultado.EsFallido ? resultado.Error.Codigo : null,
+                CancellationToken.None);
+            if (anotado.EsFallido)
+                logger.LogError("No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}: {Error}.",
+                    envio.EnvioId, incidente.Id, anotado.Error.Codigo);
 
-                var envio = reclamo.Valor;
-                if (!envio.Reclamado)
-                {
-                    if (envio.Estado == EstadoEnvioAvisoIncidenteSeguridad.Enviado) yaEnviados++;
-                    else enCurso++;
-                    continue;
-                }
-
-                // Sin el token de la petición: cerrar la página a mitad no puede dejar el envío a medias sin
-                // anotar si salió.
-                var resultado = await correo.EnviarAsync(
-                    destinatario.Correo, envio.Asunto, envio.Cuerpo, TipoAvisoCorreo.Seguridad, responderA,
-                    CancellationToken.None);
-                var anotado = await plataforma.ResolverEnvioAsync(
-                    envio.EnvioId, resultado.EsExitoso, resultado.EsFallido ? resultado.Error.Codigo : null,
-                    CancellationToken.None);
-                if (anotado.EsFallido)
-                    logger.LogError("No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}: {Error}.",
-                        envio.EnvioId, incidente.Id, anotado.Error.Codigo);
-
-                if (resultado.EsExitoso)
-                {
-                    enviados++;
-                }
-                else
-                {
-                    fallidos++;
-                    logger.LogWarning("El aviso {Plantilla} del incidente {IncidenteId} no salió hacia un destinatario del Tenant {TenantId}: {Error}.",
-                        plantilla, incidente.Id, tenant.TenantId, resultado.Error.Codigo);
-                }
+            if (resultado.EsExitoso)
+            {
+                enviados++;
+            }
+            else
+            {
+                fallidos++;
+                logger.LogWarning("El aviso {Plantilla} del incidente {IncidenteId} no salió hacia un destinatario del Tenant {TenantId}: {Error}.",
+                    plantilla, incidente.Id, tenantId, resultado.Error.Codigo);
             }
         }
 

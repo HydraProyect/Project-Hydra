@@ -99,9 +99,10 @@
             </ul>
         </section>
 
-        @* Un solo paso a la vista y un solo primario: el del paso vigente (primer aviso hasta que haya salido a
-           todos los destinatarios; después, la notificación completa). El botón es el mismo; cambian su texto y
-           su comando, así que la superficie nunca pinta dos primarios ni se queda sin el suyo. *@
+        @* Un solo paso a la vista y un solo primario: el del paso vigente (primer aviso hasta que haya un intento
+           hacia algún destinatario; después, la notificación completa, con el reintento del primer aviso como
+           secundario mientras no haya salido a todos). El botón es el mismo; cambian su texto y su comando, así
+           que la superficie nunca pinta dos primarios ni se queda sin el suyo. *@
         @if (PasoVigente() is var paso && paso != PasoAviso.Ninguno)
         {
             var esPrimerAviso = paso == PasoAviso.PrimerAviso;
@@ -115,6 +116,10 @@
                 }
                 else
                 {
+                    @if (PrimerAvisoPendiente())
+                    {
+                        <p class="incidente-ayuda" data-testid="primer-aviso-pendiente">@Textos["PrimerAvisoPendienteAyuda"]</p>
+                    }
                     @if (Pendientes() is { Count: > 0 } pendientes)
                     {
                         <p class="incidente-ayuda" data-testid="apartados-pendientes">@Textos["ApartadosPendientes", string.Join(", ", pendientes)]</p>
@@ -127,6 +132,12 @@
                            Cargando="@_procesando" OnClick="EnviarPasoVigenteAsync">
                         @TextoEnviar(paso, incidente.Estado)
                     </Boton>
+                    @if (!esPrimerAviso && PrimerAvisoPendiente())
+                    {
+                        <Boton Variante="VarianteBoton.Secundario" data-testid="reintentar-primer-aviso"
+                               Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
+                               OnClick="ReintentarPrimerAvisoAsync">@Textos["BotonReintentarPrimerAvisoSecundario"]</Boton>
+                    }
                     @if (esPrimerAviso && incidente.Estado == EstadoIncidenteSeguridad.Sospechado)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"

@@ -170,6 +170,10 @@ public static class ErroresIncidenteSeguridad
         "IncidenteSeguridad.ContenidoDemasiadoLargo",
         $"Cada apartado del aviso puede tener como mucho {ContenidoAvisoIncidente.LongitudMaximaApartado} caracteres.");
 
+    public static readonly Error CuerpoDemasiadoLargo = Error.Crear(
+        "IncidenteSeguridad.CuerpoDemasiadoLargo",
+        $"El correo del aviso supera los {EnvioAvisoIncidenteSeguridad.LongitudMaximaCuerpo} caracteres que admite el envío (los signos como < > & y las comillas ocupan más al enviarse). Acorta los apartados y vuelve a enviar: no ha salido ningún correo.");
+
     public static readonly Error DestinatarioNoValido = Error.Crear(
         "IncidenteSeguridad.DestinatarioNoValido",
         "Los destinatarios han cambiado mientras confirmabas. Recarga la página y vuelve a enviar.");

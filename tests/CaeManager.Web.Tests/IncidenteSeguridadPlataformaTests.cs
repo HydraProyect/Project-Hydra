@@ -160,15 +160,54 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
     }
 
     [Fact]
-    public void Con_un_primer_aviso_fallido_el_primario_sigue_en_el_primer_aviso_como_reintento()
+    public void Con_un_primer_aviso_fallido_el_primario_pasa_a_la_completa_y_el_reintento_queda_como_secundario()
     {
         _mediador.Vista = Vista(EstadoIncidenteSeguridad.Confirmado, DateTime.UtcNow.AddHours(-1),
             enviosPrimerAviso: EstadoEnvioAvisoIncidenteSeguridad.Fallido);
         var cut = Pagina();
 
+        cut.WaitForAssertion(() => cut.Find("[data-testid=paso-notificacion-completa]"));
+        cut.Find("[data-testid=enviar-paso]").TextContent.Trim().Should().Be("Enviar la notificación completa");
+        cut.FindAll("button.boton-primario").Should().ContainSingle("el reintento no es un segundo primario");
+        cut.Find("[data-testid=primer-aviso-pendiente]");
+        var reintento = cut.Find("[data-testid=reintentar-primer-aviso]");
+        reintento.TextContent.Trim().Should().Be("Reintentar el primer aviso");
+        reintento.ClassList.Should().NotContain("boton-primario");
+
+        reintento.Click();
+
+        cut.WaitForAssertion(() => _mediador.PrimerosAvisos.Should().ContainSingle());
+        _mediador.Completas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Confirmado_sin_ningun_intento_del_primer_aviso_el_primario_sigue_en_el_primer_aviso()
+    {
+        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Confirmado, DateTime.UtcNow.AddHours(-1));
+        var cut = Pagina();
+
         cut.WaitForAssertion(() => cut.Find("[data-testid=enviar-paso]").TextContent.Trim().Should().Be("Reintentar los envíos pendientes"));
         cut.FindAll("[data-testid=paso-notificacion-completa]").Should().BeEmpty();
         cut.FindAll("button.boton-primario").Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Recargar_tras_una_accion_conserva_el_borrador_escrito()
+    {
+        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Sospechado, confirmadoEnUtc: null);
+        var cut = Pagina();
+        cut.WaitForAssertion(() => cut.FindAll("textarea").Should().NotBeEmpty());
+
+        cut.FindAll("textarea")[0].Input("Naturaleza reescrita por el Actor de Plataforma.");
+        cut.FindAll("textarea")[0].Blur();
+        cut.FindAll("button").Single(b => b.TextContent.Trim() == "Necesito más tiempo para evaluarlo").Click();
+
+        cut.WaitForAssertion(() => _mediador.Consultas.Should().Be(2, "evaluar recarga el incidente"));
+        cut.FindAll("textarea")[0].GetAttribute("value").Should().Be("Naturaleza reescrita por el Actor de Plataforma.");
+
+        cut.Find("[data-testid=enviar-paso]").Click();
+        cut.WaitForAssertion(() => _mediador.PrimerosAvisos.Should().ContainSingle());
+        _mediador.PrimerosAvisos[0].Contenido.Naturaleza.Should().Be("Naturaleza reescrita por el Actor de Plataforma.");
     }
 
     [Fact]

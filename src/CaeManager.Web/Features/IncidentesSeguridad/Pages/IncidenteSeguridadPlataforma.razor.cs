@@ -49,7 +49,7 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
 
     private VistaIncidenteSeguridad? _vista;
     private BorradorAvisoIncidente _primerAviso = new(), _completa = new();
-    private bool _cargando = true, _procesando, _descartando;
+    private bool _cargando = true, _procesando, _descartando, _borradoresCargados;
     private string? _error, _errorCarga, _errorMotivo, _errorDescarte;
     private string _motivo = "";
     private Timer? _reloj;
@@ -79,9 +79,16 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
                 return;
             }
 
+            // Los borradores salen de la consulta solo la primera vez que hay vista: recargar tras una acción
+            // (evaluar, enviar, descartar) no puede borrar lo que el Actor de Plataforma TALVEG ya ha escrito.
+            var primeraVista = !_borradoresCargados;
             _vista = resultado.Valor;
-            _primerAviso = BorradorAvisoIncidente.Desde(_vista.BorradorPrimerAviso);
-            _completa = BorradorAvisoIncidente.Desde(_vista.BorradorNotificacionCompleta);
+            if (primeraVista)
+            {
+                _primerAviso = BorradorAvisoIncidente.Desde(_vista.BorradorPrimerAviso);
+                _completa = BorradorAvisoIncidente.Desde(_vista.BorradorNotificacionCompleta);
+                _borradoresCargados = true;
+            }
         }
         catch
         {
@@ -157,9 +164,14 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
     private string QuienDecidio(Guid? actorUsuarioId) =>
         actorUsuarioId == _vista?.ActorUsuarioId ? Textos["PorTi"] : Textos["PorOtroActor"];
 
+    private bool HayIntento(PlantillaAvisoIncidenteSeguridad plantilla) =>
+        _vista?.Incidente.Envios.Any(e => e.Plantilla == plantilla) == true;
+
     /// <summary>
-    /// El paso que la página ofrece ahora: el primer aviso mientras el incidente no esté confirmado o le falte
-    /// algún destinatario; después, la notificación completa; con las dos enviadas (o descartado), ninguno.
+    /// El paso que la página ofrece ahora: el primer aviso mientras el incidente no esté confirmado o ningún
+    /// destinatario tenga aún un intento; en cuanto lo haya, la notificación completa, aunque algún primer aviso
+    /// haya fallado (un fallido no puede bloquear la completa de todos los Tenants afectados: su reintento queda
+    /// como acción secundaria del mismo paso); con la completa enviada a todos (o descartado), ninguno.
     /// </summary>
     private PasoAviso PasoVigente()
     {
@@ -168,11 +180,19 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
         return _vista.Incidente.Estado switch
         {
             EstadoIncidenteSeguridad.Sospechado or EstadoIncidenteSeguridad.EnEvaluacion => PasoAviso.PrimerAviso,
-            EstadoIncidenteSeguridad.Confirmado when !TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso) => PasoAviso.PrimerAviso,
+            EstadoIncidenteSeguridad.Confirmado when !HayIntento(PlantillaAvisoIncidenteSeguridad.PrimerAviso) => PasoAviso.PrimerAviso,
             EstadoIncidenteSeguridad.Confirmado when !TodoEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta) => PasoAviso.NotificacionCompleta,
             _ => PasoAviso.Ninguno,
         };
     }
+
+    /// <summary>En el paso de la completa, el primer aviso aún no ha salido a todos: se ofrece reintentarlo.</summary>
+    private bool PrimerAvisoPendiente() =>
+        _vista?.Incidente.Estado == EstadoIncidenteSeguridad.Confirmado
+        && !TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso);
+
+    private Task ReintentarPrimerAvisoAsync() =>
+        EnviarAsync(() => Mediator.Send(new ConfirmarYEnviarPrimerAvisoCommand(IncidenteId, _primerAviso.AContenido())));
 
     private string TextoEnviar(PasoAviso paso, EstadoIncidenteSeguridad estado) => paso switch
     {

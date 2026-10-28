@@ -156,19 +156,63 @@ public class AvisoIncidenteSeguridadTests
     }
 
     [Fact]
-    public async Task Si_la_base_rechaza_un_destinatario_el_envio_se_detiene_con_el_error()
+    public async Task Si_la_base_rechaza_los_datos_de_un_destinatario_se_cuenta_como_fallido_y_los_demas_siguen()
     {
         var plataforma = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Sospechado))
         {
-            RechazaDestinatario = "admin1@b.test",
+            RechazaDestinatario = "seguridad@a.test",
         };
         var correo = new CorreoFalso();
 
         var resultado = await PrimerAviso(plataforma, correo)
             .Handle(new ConfirmarYEnviarPrimerAvisoCommand(plataforma.Incidente.Id, ContenidoCompleto()), default);
 
-        resultado.Error.Should().Be(ErroresIncidenteSeguridad.DestinatarioNoValido);
-        correo.Enviados.Select(e => e.Destinatario).Should().NotContain("admin1@b.test");
+        resultado.EsExitoso.Should().BeTrue("un destinatario rechazado por sus datos no corta a los demás");
+        resultado.Valor.Fallidos.Should().Be(1);
+        resultado.Valor.Enviados.Should().Be(2);
+        correo.Enviados.Select(e => e.Destinatario).Should().BeEquivalentTo(["admin1@b.test", "admin2@b.test"]);
+    }
+
+    [Fact]
+    public async Task Un_error_de_la_base_que_vale_para_todos_si_corta_el_envio()
+    {
+        var plataforma = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Sospechado))
+        {
+            ErrorAlReclamar = ErroresIncidenteSeguridad.SoloActorDePlataforma,
+        };
+        var correo = new CorreoFalso();
+
+        var resultado = await PrimerAviso(plataforma, correo)
+            .Handle(new ConfirmarYEnviarPrimerAvisoCommand(plataforma.Incidente.Id, ContenidoCompleto()), default);
+
+        resultado.Error.Should().Be(ErroresIncidenteSeguridad.SoloActorDePlataforma);
+        plataforma.Reclamos.Should().ContainSingle("tras un error de autorización no se sigue reclamando");
+        correo.Enviados.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_correo_que_escapado_supera_la_longitud_admitida_se_rechaza_antes_de_confirmar()
+    {
+        // Cada apartado cabe (2.000), pero «<» se escapa a «&lt;»: el cuerpo resultante pasa de 20.000.
+        var signos = new string('<', ContenidoAvisoIncidente.LongitudMaximaApartado);
+        var contenido = new ContenidoAvisoIncidente(signos, signos, signos, signos, signos);
+        var plataforma = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Sospechado));
+        var correo = new CorreoFalso();
+
+        var primer = await PrimerAviso(plataforma, correo)
+            .Handle(new ConfirmarYEnviarPrimerAvisoCommand(plataforma.Incidente.Id, contenido), default);
+
+        primer.Error.Should().Be(ErroresIncidenteSeguridad.CuerpoDemasiadoLargo);
+        plataforma.Decisiones.Should().BeEmpty("un aviso que no puede salir no arranca el plazo");
+        plataforma.Incidente.ConfirmadoEnUtc.Should().BeNull();
+        plataforma.Reclamos.Should().BeEmpty();
+        correo.Enviados.Should().BeEmpty();
+
+        var confirmado = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Confirmado));
+        var completa = await Completa(confirmado, correo)
+            .Handle(new EnviarNotificacionCompletaCommand(confirmado.Incidente.Id, contenido), default);
+        completa.Error.Should().Be(ErroresIncidenteSeguridad.CuerpoDemasiadoLargo);
+        confirmado.Reclamos.Should().BeEmpty();
     }
 
     // ── Orden y estado ────────────────────────────────────────────────────────
@@ -426,6 +470,7 @@ public class AvisoIncidenteSeguridadTests
         public List<(Guid EnvioId, bool Enviado, string? Error)> Resoluciones { get; } = [];
         public Dictionary<(PlantillaAvisoIncidenteSeguridad, string), EnvioFalso> Envios { get; } = [];
         public string? RechazaDestinatario { get; init; }
+        public Error? ErrorAlReclamar { get; init; }
 
         public Task<IncidenteSeguridadDto?> ObtenerAsync(Guid incidenteId, CancellationToken cancellationToken) =>
             Task.FromResult(incidenteId == Incidente.Id ? Incidente : null);
@@ -459,6 +504,8 @@ public class AvisoIncidenteSeguridadTests
         {
             Registro.Add("reclamar");
             Reclamos.Add(envio);
+            if (ErrorAlReclamar is { } error)
+                return Task.FromResult(Result.Fallo<EnvioAvisoReclamado>(error));
             if (envio.DestinatarioCorreo == RechazaDestinatario)
                 return Task.FromResult(Result.Fallo<EnvioAvisoReclamado>(ErroresIncidenteSeguridad.DestinatarioNoValido));
 

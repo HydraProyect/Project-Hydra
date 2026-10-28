@@ -59,6 +59,14 @@ public class ConfirmarYEnviarPrimerAvisoCommandHandler(
         if (destinatarios.EsFallido)
             return Result.Fallo<ResumenEnvioAviso>(ErroresIncidenteSeguridad.SoloActorDePlataforma);
 
+        // Longitud del correo ya escapado, también antes de confirmar: un aviso que la base rechazaría por largo
+        // no puede arrancar el plazo. La hora provisional solo cambia la fecha, de longitud fija.
+        if (await EnvioAvisosIncidenteSeguridad.ValidarLongitudAsync(
+                plataforma, incidente, incidente.ConfirmadoEnUtc ?? DateTime.UtcNow,
+                PlantillaAvisoIncidenteSeguridad.PrimerAviso, request.Contenido, destinatarios.Valor,
+                cancellationToken) is { } largo)
+            return Result.Fallo<ResumenEnvioAviso>(largo);
+
         var confirmacion = await plataforma.DecidirAsync(
             incidente.Id, DecisionIncidenteSeguridad.Confirmar, motivo: null, cancellationToken);
         if (confirmacion.EsFallido)
