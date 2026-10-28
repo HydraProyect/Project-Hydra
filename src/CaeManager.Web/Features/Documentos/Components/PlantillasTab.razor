@@ -138,7 +138,7 @@
 </Pestanas>
 
 <ModalFormulario HayCambios="() => HayCambiosSinGuardar" Titulo="@($"Subir nueva versión — {_plantillaParaNuevaVersionNombre}")" Visible="ModalNuevaVersionVisible" VisibleChanged="CerrarModalNuevaVersion"
-                 Guardando="_subiendoNuevaVersion" TextoGuardar="Subir y configurar" TextoCancelar="Cancelar" OnGuardar="SubirNuevaVersionAsync"
+                 Guardando="_subiendoNuevaVersion" HayErroresDeCampo="_subidaNuevaVersionFallida" TextoGuardar="Subir y configurar" TextoCancelar="Cancelar" OnGuardar="SubirNuevaVersionAsync"
                  MotivoGuardarDeshabilitado="@(_archivoNuevaVersion is not { Length: > 0 } ? Comunes["ModalSeleccionarPdf"].Value : null)">
     <p class="texto-vacio-seccion">
         El PDF nuevo sustituye al actual. Los campos ya configurados se copian como punto de partida — revísalos y ajústalos antes de confirmar.

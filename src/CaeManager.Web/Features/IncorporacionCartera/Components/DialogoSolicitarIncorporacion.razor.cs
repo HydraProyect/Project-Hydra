@@ -57,6 +57,7 @@ public partial class DialogoSolicitarIncorporacion : ComponentBase
     private string? MotivoEnviarDeshabilitado =>
         _enviando || PuedeEnviar ? null
         : TienePendiente ? Textos["DialogoYaPendiente"].Value
+        : MensajeDemasiadoLargo ? Textos["DialogoMensajeDemasiadoLargo", SolicitudIncorporacionCartera.LongitudMaximaMensaje].Value
         : Textos["DialogoCompletarSolicitud"].Value;
 
     protected override async Task OnParametersSetAsync()

@@ -183,7 +183,7 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
             .Which.HasAttribute("disabled").Should().BeFalse("la validación de la fecha sigue siendo la de la pantalla (aviso al pulsar), como antes");
     }
 
-    /// <summary>Se conserva la validación: sin fecha, «Dar de baja» no envía el comando (el falso lo rechazaría) y el modal sigue abierto.</summary>
+    /// <summary>Se conserva la validación: sin fecha, «Dar de baja» avisa con el texto de siempre, no envía el comando y el modal sigue abierto.</summary>
     [Fact]
     public async Task Dar_de_baja_con_la_fecha_vacia_no_envia_nada_y_deja_el_modal_abierto()
     {
@@ -194,6 +194,8 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         await cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".modal-pie").Should().NotBeEmpty("sin fecha válida no se da de baja ni se cierra");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Introduce una fecha de baja válida.",
+            "la validación es la de siempre: si desapareciera, el comando llegaría al falso, que lo rechaza con otro aviso");
     }
 
     /// <summary>D-05: «Cancelar» del alta masiva cierra como la X.</summary>

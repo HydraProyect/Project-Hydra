@@ -279,6 +279,14 @@ public class ModalFormularioTests : BunitContext
     }
 
     [Fact]
+    public void MostrarGuardar_falso_con_Bloqueante_se_rechaza_porque_no_tendria_salida()
+    {
+        var accion = () => Renderizar(p => p.Add(x => x.MostrarGuardar, false).Add(x => x.Bloqueante, true));
+
+        accion.Should().Throw<InvalidOperationException>().WithMessage("*no tiene salida*");
+    }
+
+    [Fact]
     public void MostrarGuardar_falso_con_SinContenido_no_exige_motivo_porque_no_hay_boton_mudo()
     {
         var cut = Renderizar(p => p

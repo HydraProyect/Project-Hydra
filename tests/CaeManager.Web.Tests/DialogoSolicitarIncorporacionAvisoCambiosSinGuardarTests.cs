@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.IncorporacionCartera.Components;
 using FluentAssertions;
@@ -135,13 +136,26 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
         var enviar = cut.FindAll(".modal-pie .boton-primario").Should().ContainSingle().Which;
         enviar.TextContent.Trim().Should().Be("Enviar solicitud");
         enviar.HasAttribute("disabled").Should().BeTrue("la Empresa está elegida pero falta el mensaje");
-        enviar.GetAttribute("title").Should().Be("Completa la empresa y el mensaje para enviar la solicitud.");
+        enviar.GetAttribute("title").Should().Be("Completa la Empresa y el mensaje para enviar la solicitud.");
 
         await EscribirMensajeAsync(cut, "Llevo su coordinación desde enero.");
 
         var habilitado = cut.Find(".modal-pie .boton-primario");
         habilitado.HasAttribute("disabled").Should().BeFalse();
         habilitado.HasAttribute("title").Should().BeFalse();
+    }
+
+    /// <summary>Con el mensaje pasado de largo el motivo dice qué falta (acortarlo), no que haya que completarlo.</summary>
+    [Fact]
+    public async Task Con_el_mensaje_demasiado_largo_el_motivo_pide_acortarlo()
+    {
+        var cut = Renderizar();
+
+        await EscribirMensajeAsync(cut, new string('a', SolicitudIncorporacionCartera.LongitudMaximaMensaje + 1));
+
+        var enviar = cut.Find(".modal-pie .boton-primario");
+        enviar.HasAttribute("disabled").Should().BeTrue();
+        enviar.GetAttribute("title").Should().Contain($"{SolicitudIncorporacionCartera.LongitudMaximaMensaje} caracteres").And.Contain("acórtalo");
     }
 
     /// <summary>Sin Empresas que pedir no hay nada que enviar: el pie queda solo con «Cancelar», como antes.</summary>

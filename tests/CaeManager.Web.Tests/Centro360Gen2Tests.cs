@@ -1647,7 +1647,7 @@ public partial class Centro360Gen2Tests : BunitContext
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
         // Sin await: el comando de A queda retenido.
-        var enA = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var enA = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         cut.Render(p => p
             .Add(x => x.CentroId, b)
@@ -1659,13 +1659,13 @@ public partial class Centro360Gen2Tests : BunitContext
 
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
-        var enB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var enB = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         // Ahora termina la de A, con la de B todavía en vuelo.
         await cut.InvokeAsync(bajaDeA.SetResult);
         await enA;
 
-        var otroEnB = cut.FindAll("button").Single(x => x.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        var otroEnB = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>()
             .Count(c => c.Ids.Contains(deB.AsignacionId)).Should().Be(1,

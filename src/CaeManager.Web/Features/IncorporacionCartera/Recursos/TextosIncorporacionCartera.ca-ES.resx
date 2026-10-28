@@ -289,6 +289,9 @@
     <value>Quan una empresa que gestiona la teva organització es quedi sense Gestor CAE principal, apareixerà aquí perquè algú l'assumeixi.</value>
   </data>
   <data name="DialogoCompletarSolicitud" xml:space="preserve">
-    <value>Completa l’empresa i el missatge per enviar la sol·licitud.</value>
+    <value>Completa l’Empresa i el missatge per enviar la sol·licitud.</value>
+  </data>
+  <data name="DialogoMensajeDemasiadoLargo" xml:space="preserve">
+    <value>El missatge supera els {0} caràcters: escurça’l per enviar la sol·licitud.</value>
   </data>
 </root>
