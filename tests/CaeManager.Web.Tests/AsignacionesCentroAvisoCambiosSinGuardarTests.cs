@@ -170,6 +170,34 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".modal-contenido").Should().BeEmpty("al descartar se cierra");
     }
 
+    /// <summary>Kit ModalFormulario: «Dar de baja» es la única acción del pie, destructiva, tras «Cancelar» secundario.</summary>
+    [Fact]
+    public async Task La_baja_en_lote_ofrece_Cancelar_y_Dar_de_baja_destructivo_sin_primario()
+    {
+        var cut = await AbrirBajaEnLoteAsync();
+
+        cut.FindAll(".modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Dar de baja");
+        cut.FindAll(".modal-pie .boton-secundario").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Cancelar");
+        cut.FindAll(".modal-pie .boton-primario").Should().BeEmpty();
+        cut.FindAll(".modal-pie .boton-destructivo").Should().ContainSingle()
+            .Which.HasAttribute("disabled").Should().BeFalse("la validación de la fecha sigue siendo la de la pantalla (aviso al pulsar), como antes");
+    }
+
+    /// <summary>Se conserva la validación: sin fecha, «Dar de baja» avisa con el texto de siempre, no envía el comando y el modal sigue abierto.</summary>
+    [Fact]
+    public async Task Dar_de_baja_con_la_fecha_vacia_no_envia_nada_y_deja_el_modal_abierto()
+    {
+        var cut = await AbrirBajaEnLoteAsync();
+        await cut.FindComponents<CampoTexto>().Single(c => c.Instance.Etiqueta == "Fecha de baja").Find("input")
+            .InputAsync(new ChangeEventArgs { Value = "" });
+
+        await cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll(".modal-pie").Should().NotBeEmpty("sin fecha válida no se da de baja ni se cierra");
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(m => m.Mensaje == "Introduce una fecha de baja válida.",
+            "la validación es la de siempre: si desapareciera, el comando llegaría al falso, que lo rechaza con otro aviso");
+    }
+
     /// <summary>D-05: «Cancelar» del alta masiva cierra como la X.</summary>
     [Fact]
     public async Task Cancelar_el_alta_masiva_con_un_trabajador_marcado_pregunta_y_sin_tocar_cierra()

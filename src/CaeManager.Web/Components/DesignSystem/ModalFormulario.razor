@@ -10,7 +10,11 @@
       - «Cancelar»: es siempre el secundario del pie y sale por SolicitarCierreAsync, como la X (D-05). Un Modal Bloqueante no
         tiene salida, y por tanto tampoco «Cancelar»;
       - «Guardar»: es el único primario, con el estado Guardando (spinner, sin doble clic; D-30). Solo se puede deshabilitar
-        dando el motivo (MotivoGuardarDeshabilitado, que sale como title): un botón mudo no se puede escribir (D-02, D-06);
+        dando el motivo (MotivoGuardarDeshabilitado, que sale como title): un botón mudo no se puede escribir (D-02, D-06).
+        Dos parámetros opcionales, aditivos (sin ellos el marcado y el comportamiento son los de siempre):
+        GuardarDestructivo (falso por defecto; verdadero para confirmar una baja con su fecha: solo cambia el aspecto del
+        único botón de acción) y MostrarGuardar (verdadero por defecto; falso deja solo «Cancelar», para un formulario sin
+        nada sobre lo que actuar todavía, p. ej. sin candidatas; no se combina con Bloqueante: sin salida, el kit lo rechaza);
       - el aviso del formulario: fuera del cuerpo desplazable, siempre a la vista (D-20): MensajeError (error del formulario
         entero) y Aviso (una nota fija que la pantalla quiere ver siempre, p. ej. «afecta a 12 trabajadores»). Tras un «Guardar»
         que deja errores por campo el foco va al primero (D-20);
@@ -64,11 +68,14 @@
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
             <fieldset class="formulario-modal-pie-extra" disabled="@Guardando"><CascadingValue Name="PieFormularioDeshabilitado" Value="Guardando">@PieExtra</CascadingValue></fieldset>
         }
-        <BotonConEspera Variante="VarianteBoton.Primario" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
-                        Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"
-                        OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
-            @TextoGuardar
-        </BotonConEspera>
+        @if (MostrarGuardar)
+        {
+            <BotonConEspera Variante="@(GuardarDestructivo ? VarianteBoton.Destructivo : VarianteBoton.Primario)" Guardando="Guardando" Progreso="ProgresoGuardado" Fallido="@GuardadoFallido"
+                            Deshabilitado="TieneMotivoDeshabilitado" title="@MotivoEfectivo" OnClick="GuardarAsync"
+                            OnCancelarEspera="OnCancelarGuardado" OnReintentar="OnReintentarGuardado">
+                @TextoGuardar
+            </BotonConEspera>
+        }
     </Pie>
 </Modal>
 
@@ -161,6 +168,19 @@
     /// </summary>
     [Parameter] public EventCallback OnReintentarGuardado { get; set; }
 
+    /// <summary>
+    /// «Guardar» con aspecto destructivo en lugar de primario, cuando el formulario confirma una baja (p. ej. «Dar de baja» con su
+    /// fecha): sigue siendo el único botón de acción, con su spinner y su motivo; solo cambia el aspecto. Falso por defecto.
+    /// </summary>
+    [Parameter] public bool GuardarDestructivo { get; set; }
+
+    /// <summary>
+    /// Falso: el pie solo trae «Cancelar» (y <see cref="PieExtra"/>). Solo para un formulario que aún no puede ofrecer acción
+    /// porque no tiene sobre qué actuar (p. ej. sin candidatas): no es una forma de ocultar un «Guardar» deshabilitado, para eso
+    /// está <see cref="MotivoGuardarDeshabilitado"/>. Verdadero por defecto. Con <see cref="Bloqueante"/> es obligatorio (el modal
+    /// no tendría salida) y el kit lo rechaza.
+    /// </summary>
+    [Parameter] public bool MostrarGuardar { get; set; } = true;
     [Parameter, EditorRequired] public string TextoGuardar { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string TextoCancelar { get; set; } = string.Empty;
     [Parameter] public EventCallback OnGuardar { get; set; }
@@ -190,9 +210,13 @@
 
     protected override void OnParametersSet()
     {
-        if (!Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
+        if (MostrarGuardar && !Cargando && SinContenido is not null && string.IsNullOrWhiteSpace(MotivoGuardarDeshabilitado))
             throw new InvalidOperationException(
                 "ModalFormulario con SinContenido exige MotivoGuardarDeshabilitado: «Guardar» queda deshabilitado y un botón mudo no existe (D-02, D-06).");
+
+        if (Bloqueante && !MostrarGuardar)
+            throw new InvalidOperationException(
+                "ModalFormulario Bloqueante con MostrarGuardar en falso no tiene salida: sin X, sin Escape, sin «Cancelar» y sin «Guardar» el usuario queda atrapado.");
 
         if (_guardandoPrevio && !Guardando)
             _enfocarTrasGuardar = true;
