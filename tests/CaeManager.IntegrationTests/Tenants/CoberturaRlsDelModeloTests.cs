@@ -968,7 +968,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
     }
 
     private static bool TieneDisyuncion(string? expresion) =>
-        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"OR", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"\bOR\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     private static bool MencionaElAislamiento(string? expresion) =>
         expresion is not null
