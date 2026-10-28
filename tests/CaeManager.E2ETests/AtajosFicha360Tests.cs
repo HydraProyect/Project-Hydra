@@ -47,17 +47,22 @@ public class AtajosFicha360Tests(WebAppFixture fixture)
         await Assertions.Expect(enfocada).ToHaveCountAsync(0);
         await page.Keyboard.PressAsync("j");
         await EsperarAsync(page, $"{FilaEnfocada} === 0");
-        await Assertions.Expect(enfocada).ToBeFocusedAsync();
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         await page.Keyboard.PressAsync("j");
         await EsperarAsync(page, $"{FilaEnfocada} === 1");
-        await Assertions.Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         await page.Keyboard.PressAsync("k");
         await EsperarAsync(page, $"{FilaEnfocada} === 0");
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
 
         // Hasta la primera fila con botón.
         var indiceConBoton = await page.EvaluateAsync<int>($"() => {FilaConBoton}");
         for (var i = 0; i < indiceConBoton; i++)
+        {
             await page.Keyboard.PressAsync("j");
+            await EsperarAsync(page, $"{FilaEnfocada} === {i + 1}");
+            await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
+        }
         await EsperarAsync(page, $"{FilaEnfocada} === {indiceConBoton}");
 
         // --- Alt pulsada y soltada, como en los listados: cifras sobre las pestañas y E sobre
