@@ -13,103 +13,103 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPestana" xml:space="preserve">
-    <value>Tipos de Documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="TituloCabecera" xml:space="preserve">
-    <value>Tipos de documento</value>
+    <value>Tipus de document</value>
   </data>
   <data name="BadgeNivelGlobal" xml:space="preserve">
-    <value>Nivel 1 · Global</value>
+    <value>Nivell 1 · Global</value>
   </data>
   <data name="DescripcionAntesEnlace" xml:space="preserve">
-    <value>Catálogo maestro: qué documentos existen, a qué ámbito aplican, si se piden por defecto y cómo los procesa la lectura IA. La lectura IA de cada Cliente (Nivel 2) se afina en</value>
+    <value>Catàleg mestre: quins documents existeixen, a quin àmbit s'apliquen, si es demanen per defecte i com els processa la lectura IA. La lectura IA de cada Client (Nivell 2) s'ajusta a</value>
   </data>
   <data name="EnlaceLecturaIaCliente" xml:space="preserve">
-    <value>Lectura IA por Cliente</value>
+    <value>Lectura IA per Client</value>
   </data>
   <data name="DescripcionTrasEnlace" xml:space="preserve">
     <value>.</value>
   </data>
   <data name="BotonNuevoTipo" xml:space="preserve">
-    <value>+ Nuevo tipo</value>
+    <value>+ Nou tipus</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por nombre o alias (p. ej. TC2)…</value>
+    <value>Cercar per nom o àlies (p. ex. TC2)…</value>
   </data>
   <data name="AriaBusqueda" xml:space="preserve">
-    <value>Buscar por nombre o alias</value>
+    <value>Cercar per nom o àlies</value>
   </data>
   <data name="FiltroCliente" xml:space="preserve">
     <value>Client</value>
   </data>
   <data name="OpcionTodosClientes" xml:space="preserve">
-    <value>Todos los Clientes</value>
+    <value>Tots els Clients</value>
   </data>
   <data name="FiltroEmpresa" xml:space="preserve">
     <value>Empresa</value>
   </data>
   <data name="OpcionTodasEmpresas" xml:space="preserve">
-    <value>Todas las empresas</value>
+    <value>Totes les empreses</value>
   </data>
   <data name="FiltroCentro" xml:space="preserve">
-    <value>Centro</value>
+    <value>Centre</value>
   </data>
   <data name="OpcionTodosCentros" xml:space="preserve">
-    <value>Todos los centros</value>
+    <value>Tots els centres</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar los tipos de documento</value>
+    <value>No hem pogut carregar els tipus de document</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="VacioFiltrosTitulo" xml:space="preserve">
-    <value>Ningún tipo con estos filtros</value>
+    <value>Cap tipus amb aquests filtres</value>
   </data>
   <data name="VacioFiltrosDescripcion" xml:space="preserve">
-    <value>Ninguno coincide con la búsqueda por nombre o alias ni con el ámbito de Cliente, empresa o centro seleccionado.</value>
+    <value>Cap no coincideix amb la cerca per nom o àlies ni amb l'àmbit de Client, empresa o centre seleccionat.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Treure els filtres</value>
   </data>
   <data name="VacioCatalogoTitulo" xml:space="preserve">
-    <value>Aún no hay tipos de documento</value>
+    <value>Encara no hi ha tipus de document</value>
   </data>
   <data name="VacioCatalogoDescripcion" xml:space="preserve">
-    <value>Crea el primero para empezar a construir el catálogo.</value>
+    <value>Crea el primer per començar a construir el catàleg.</value>
   </data>
   <data name="ColumnaOrden" xml:space="preserve">
-    <value>Orden</value>
+    <value>Ordre</value>
   </data>
   <data name="ColumnaNombre" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Nom</value>
   </data>
   <data name="ColumnaAmbito" xml:space="preserve">
-    <value>Ámbito</value>
+    <value>Àmbit</value>
   </data>
   <data name="ColumnaVigencia" xml:space="preserve">
-    <value>Vigencia</value>
+    <value>Vigència</value>
   </data>
   <data name="ColumnaVencimiento" xml:space="preserve">
-    <value>Vencimiento automático</value>
+    <value>Venciment automàtic</value>
   </data>
   <data name="ColumnaExigencia" xml:space="preserve">
-    <value>Exigencia</value>
+    <value>Exigència</value>
   </data>
   <data name="ColumnaLecturaIa" xml:space="preserve">
     <value>Lectura IA</value>
   </data>
   <data name="ColumnaDeteccion" xml:space="preserve">
-    <value>Detecta trabajadores</value>
+    <value>Detecta treballadors</value>
   </data>
   <data name="ColumnaVerificacion" xml:space="preserve">
-    <value>Verificación IA</value>
+    <value>Verificació IA</value>
   </data>
   <data name="ColumnaOficial" xml:space="preserve">
-    <value>Documento oficial</value>
+    <value>Document oficial</value>
   </data>
   <data name="ColumnaAcciones" xml:space="preserve">
-    <value>Acciones</value>
+    <value>Accions</value>
   </data>
   <data name="BadgeAfirmativo" xml:space="preserve">
     <value>Sí</value>
@@ -121,25 +121,25 @@
     <value>Lectura IA</value>
   </data>
   <data name="NombreInterruptorDeteccion" xml:space="preserve">
-    <value>Detecta trabajadores</value>
+    <value>Detecta treballadors</value>
   </data>
   <data name="NombreInterruptorVerificacion" xml:space="preserve">
-    <value>Verificación IA</value>
+    <value>Verificació IA</value>
   </data>
   <data name="CeldaNoAplica" xml:space="preserve">
-    <value>No aplica</value>
+    <value>No escau</value>
   </data>
   <data name="TooltipSelectOficial" xml:space="preserve">
-    <value>Documento oficial de la Administración con validación automática: verificación criptográfica de la firma digital y cotejo de datos, sin IA</value>
+    <value>Document oficial de l'Administració amb validació automàtica: verificació criptogràfica de la signatura digital i comprovació de dades, sense IA</value>
   </data>
   <data name="AriaSelectOficial" xml:space="preserve">
-    <value>Documento oficial de {0}</value>
+    <value>Document oficial de {0}</value>
   </data>
   <data name="OpcionOficialTgss" xml:space="preserve">
-    <value>Corriente TGSS</value>
+    <value>Al corrent TGSS</value>
   </data>
   <data name="OpcionOficialAeat" xml:space="preserve">
-    <value>Corriente AEAT</value>
+    <value>Al corrent AEAT</value>
   </data>
   <data name="AriaEditar" xml:space="preserve">
     <value>Editar {0}</value>
@@ -148,43 +148,43 @@
     <value>Editar</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
-    <value>tipo(s) de documento</value>
+    <value>tipus de document</value>
   </data>
   <data name="DrawerTituloNuevo" xml:space="preserve">
-    <value>Nuevo tipo de documento</value>
+    <value>Nou tipus de document</value>
   </data>
   <data name="DrawerTituloEditar" xml:space="preserve">
-    <value>Editar tipo de documento</value>
+    <value>Editar tipus de document</value>
   </data>
   <data name="NivelDrawer" xml:space="preserve">
-    <value>Nivel 1 · valor general para todos los centros</value>
+    <value>Nivell 1 · valor general per a tots els centres</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Nom</value>
   </data>
   <data name="EtiquetaAlias" xml:space="preserve">
-    <value>Nombres alternativos</value>
+    <value>Noms alternatius</value>
   </data>
   <data name="PistaAlias" xml:space="preserve">
-    <value>(siglas, alias históricos — p. ej. "TC2")</value>
+    <value>(sigles, àlies històrics — p. ex. "TC2")</value>
   </data>
   <data name="AriaAliasNuevo" xml:space="preserve">
-    <value>Alias nuevo</value>
+    <value>Àlies nou</value>
   </data>
   <data name="PlaceholderAlias" xml:space="preserve">
-    <value>Escribe un alias y pulsa Añadir</value>
+    <value>Escriu un àlies i prem Afegir</value>
   </data>
   <data name="BotonAnadirAlias" xml:space="preserve">
-    <value>Añadir</value>
+    <value>Afegir</value>
   </data>
   <data name="AriaQuitarAlias" xml:space="preserve">
-    <value>Quitar alias {0}</value>
+    <value>Treure àlies {0}</value>
   </data>
   <data name="EtiquetaAmbitoAplicacion" xml:space="preserve">
-    <value>Ámbito de aplicación</value>
+    <value>Àmbit d'aplicació</value>
   </data>
   <data name="AmbitoTrabajador" xml:space="preserve">
-    <value>Trabajador</value>
+    <value>Treballador</value>
   </data>
   <data name="AmbitoCliente" xml:space="preserve">
     <value>Client</value>
@@ -193,100 +193,100 @@
     <value>Empresa</value>
   </data>
   <data name="AmbitoVehiculo" xml:space="preserve">
-    <value>Vehículo</value>
+    <value>Vehicle</value>
   </data>
   <data name="AmbitoProyecto" xml:space="preserve">
-    <value>Proyecto</value>
+    <value>Projecte</value>
   </data>
   <data name="PistaAmbitoFijo" xml:space="preserve">
-    <value>El ámbito define qué columnas y automatismos aplican; no se cambia una vez creado el tipo.</value>
+    <value>L'àmbit defineix quines columnes i automatismes s'apliquen; no es canvia un cop creat el tipus.</value>
   </data>
   <data name="CheckVencimientoAutomatico" xml:space="preserve">
-    <value>Aplica vencimiento automático</value>
+    <value>S'aplica venciment automàtic</value>
   </data>
   <data name="EtiquetaVigenciaMeses" xml:space="preserve">
-    <value>Vigencia (meses)</value>
+    <value>Vigència (mesos)</value>
   </data>
   <data name="LeyendaExigencia" xml:space="preserve">
-    <value>Exigencia</value>
+    <value>Exigència</value>
   </data>
   <data name="EtiquetaSePide" xml:space="preserve">
-    <value>¿Se pide?</value>
+    <value>Es demana?</value>
   </data>
   <data name="RequeridoNo" xml:space="preserve">
-    <value>No se pide</value>
+    <value>No es demana</value>
   </data>
   <data name="RequeridoSi" xml:space="preserve">
-    <value>Sí, siempre</value>
+    <value>Sí, sempre</value>
   </data>
   <data name="OpcionRequeridoCondicional" xml:space="preserve">
-    <value>Solo si aplica (actividad, sector o situación)</value>
+    <value>Només si escau (activitat, sector o situació)</value>
   </data>
   <data name="RequeridoCondicional" xml:space="preserve">
-    <value>Solo si aplica</value>
+    <value>Només si escau</value>
   </data>
   <data name="RequisitoDesconocido" xml:space="preserve">
-    <value>Requisito desconocido</value>
+    <value>Requisit desconegut</value>
   </data>
   <data name="EtiquetaAutoridad" xml:space="preserve">
-    <value>¿Con qué autoridad?</value>
+    <value>Amb quina autoritat?</value>
   </data>
   <data name="NaturalezaObligacionLegal" xml:space="preserve">
-    <value>Obligación legal</value>
+    <value>Obligació legal</value>
   </data>
   <data name="NaturalezaObligacionCondicionada" xml:space="preserve">
-    <value>Obligación condicionada</value>
+    <value>Obligació condicionada</value>
   </data>
   <data name="NaturalezaPracticaSector" xml:space="preserve">
-    <value>Práctica del sector</value>
+    <value>Pràctica del sector</value>
   </data>
   <data name="NaturalezaRequisitoCliente" xml:space="preserve">
-    <value>Requisito de Cliente</value>
+    <value>Requisit de Client</value>
   </data>
   <data name="OpcionNaturalezaRecomendacion" xml:space="preserve">
-    <value>Recomendación de TALVEG</value>
+    <value>Recomanació de TALVEG</value>
   </data>
   <data name="NaturalezaRecomendacion" xml:space="preserve">
-    <value>Recomendado por TALVEG</value>
+    <value>Recomanat per TALVEG</value>
   </data>
   <data name="NaturalezaDesconocida" xml:space="preserve">
-    <value>Naturaleza desconocida</value>
+    <value>Naturalesa desconeguda</value>
   </data>
   <data name="ExigenciaCondicional" xml:space="preserve">
-    <value>Si aplica</value>
+    <value>Si escau</value>
   </data>
   <data name="ExigenciaOpcional" xml:space="preserve">
     <value>Opcional</value>
   </data>
   <data name="VistaPreviaExigencia" xml:space="preserve">
-    <value>En la tabla se verá como</value>
+    <value>A la taula es veurà com</value>
   </data>
   <data name="EtiquetaOrden" xml:space="preserve">
-    <value>Orden</value>
+    <value>Ordre</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
-    <value>Notas</value>
+    <value>Notes</value>
   </data>
   <data name="EtiquetaDescripcion" xml:space="preserve">
-    <value>Descripción</value>
+    <value>Descripció</value>
   </data>
   <data name="EtiquetaCriterios" xml:space="preserve">
-    <value>Criterios de validación</value>
+    <value>Criteris de validació</value>
   </data>
   <data name="PistaCriterios" xml:space="preserve">
-    <value>Pega aquí los términos de validación tal como los describe la plataforma documental del Cliente (la sección de criterios/requisitos de aceptación del propio portal), sin reescribirlos: es el texto contra el que se comprueba si un documento vale, y la referencia que usará la lectura automática de documentos.</value>
+    <value>Enganxa aquí els termes de validació tal com els descriu la plataforma documental del Client (la secció de criteris/requisits d'acceptació del mateix portal), sense reescriure'ls: és el text amb què es comprova si un document és vàlid, i la referència que farà servir la lectura automàtica de documents.</value>
   </data>
   <data name="EtiquetaSeSolicitaA" xml:space="preserve">
-    <value>Se solicita a</value>
+    <value>Es sol·licita a</value>
   </data>
   <data name="EtiquetaObservaciones" xml:space="preserve">
-    <value>Observaciones</value>
+    <value>Observacions</value>
   </data>
   <data name="EtiquetaCentrosExpresos" xml:space="preserve">
-    <value>Centros donde se pide expresamente</value>
+    <value>Centres on es demana expressament</value>
   </data>
   <data name="PistaCentrosExpresos" xml:space="preserve">
-    <value>(sin marcar, cada centro sigue «¿Se pide?»)</value>
+    <value>(sense marcar, cada centre segueix «Es demana?»)</value>
   </data>
   <data name="SinCentrosCreados" xml:space="preserve">
     <value>Encara no hi ha Centres. Dona d'alta un Centre per triar on es demana aquest tipus de document.</value>
@@ -295,16 +295,16 @@
     <value>Desa els canvis</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
-    <value>Guardar</value>
+    <value>Desar</value>
   </data>
   <data name="ConfirmacionTitulo" xml:space="preserve">
-    <value>Esto cambia lo que se pide en los centros</value>
+    <value>Això canvia el que es demana als centres</value>
   </data>
   <data name="ConfirmacionBoton" xml:space="preserve">
-    <value>Guardar y aplicar</value>
+    <value>Desar i aplicar</value>
   </data>
   <data name="InterruptorActivo" xml:space="preserve">
     <value>Activa</value>
@@ -316,121 +316,121 @@
     <value>{0} de {1}</value>
   </data>
   <data name="AyudaLecturaIa" xml:space="preserve">
-    <value>Lectura automática por IA para este tipo de documento, en todos los Clientes</value>
+    <value>Lectura automàtica per IA per a aquest tipus de document, en tots els Clients</value>
   </data>
   <data name="AyudaDeteccionTrabajadores" xml:space="preserve">
-    <value>Detecta automáticamente altas y bajas de personal comparando este documento (p. ej. ITA, RNT) contra los trabajadores activos de la empresa</value>
+    <value>Detecta automàticament altes i baixes de personal comparant aquest document (p. ex. ITA, RNT) amb els treballadors actius de l'empresa</value>
   </data>
   <data name="AyudaVerificacionIa" xml:space="preserve">
-    <value>Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score</value>
+    <value>Verifica per IA el tipus, la data d'emissió i la signatura del document amb les dades introduïdes en pujar-lo, amb puntuació de confiança</value>
   </data>
   <data name="ToastErrorClientesFiltro" xml:space="preserve">
-    <value>No pudimos cargar los Clientes del filtro. La lista de tipos sí se carga.</value>
+    <value>No hem pogut carregar els Clients del filtre. La llista de tipus sí que es carrega.</value>
   </data>
   <data name="ToastErrorEmpresasFiltro" xml:space="preserve">
-    <value>No pudimos cargar las empresas de este Cliente.</value>
+    <value>No hem pogut carregar les empreses d'aquest Client.</value>
   </data>
   <data name="ToastErrorCentrosFiltro" xml:space="preserve">
-    <value>No pudimos cargar los centros de esta empresa.</value>
+    <value>No hem pogut carregar els centres d'aquesta empresa.</value>
   </data>
   <data name="ToastCambioNoGuardado" xml:space="preserve">
-    <value>No se pudo guardar el cambio en «{0}». Se ha restaurado el valor anterior.</value>
+    <value>No s'ha pogut desar el canvi de «{0}». S'ha restaurat el valor anterior.</value>
   </data>
   <data name="ToastCambioNoGuardadoMotivo" xml:space="preserve">
-    <value>No se pudo guardar el cambio en «{0}». {1} Se ha restaurado el valor anterior.</value>
+    <value>No s'ha pogut desar el canvi de «{0}». {1} S'ha restaurat el valor anterior.</value>
   </data>
   <data name="AvisoEnVuelo" xml:space="preserve">
-    <value>Guardando…</value>
+    <value>Desant…</value>
   </data>
   <data name="AvisoPersistido" xml:space="preserve">
-    <value>Guardado ✓</value>
+    <value>Desat ✓</value>
   </data>
   <data name="AvisoFallido" xml:space="preserve">
-    <value>No guardado</value>
+    <value>No desat</value>
   </data>
   <data name="VigenciaMesesUno" xml:space="preserve">
     <value>{0} mes</value>
   </data>
   <data name="VigenciaMesesVarios" xml:space="preserve">
-    <value>{0} meses</value>
+    <value>{0} mesos</value>
   </data>
   <data name="AyudaExigenciaFormato" xml:space="preserve">
-    <value>¿Se pide? {0} · ¿Con qué autoridad? {1}. Es el valor general: un centro puede tener su propia configuración.</value>
+    <value>Es demana? {0} · Amb quina autoritat? {1}. És el valor general: un centre pot tenir la seva pròpia configuració.</value>
   </data>
   <data name="PistaOrdenFiltrada" xml:space="preserve">
-    <value>Propuesto a partir de la lista filtrada: comprueba que no coincida con el de otro tipo.</value>
+    <value>Proposat a partir de la llista filtrada: comprova que no coincideixi amb el d'un altre tipus.</value>
   </data>
   <data name="PistaOrdenLibre" xml:space="preserve">
-    <value>Propuesto: el siguiente libre.</value>
+    <value>Proposat: el següent lliure.</value>
   </data>
   <data name="ResumenNingunoSePide" xml:space="preserve">
-    <value>Sin marcar ninguno, cada centro sigue el valor general («{0}») y lo pide, salvo los que lo tengan excluido en sus propios requisitos.</value>
+    <value>Sense marcar-ne cap, cada centre segueix el valor general («{0}») i el demana, excepte els que el tinguin exclòs als seus propis requisits.</value>
   </data>
   <data name="ResumenNingunoNoSePide" xml:space="preserve">
-    <value>Sin marcar ninguno, cada centro sigue el valor general («{0}») y no lo pide por defecto.</value>
+    <value>Sense marcar-ne cap, cada centre segueix el valor general («{0}») i no el demana per defecte.</value>
   </data>
   <data name="ResumenMarcadosSePide" xml:space="preserve">
-    <value>Marcado en {0} de {1} centros. Con el valor general «{2}», el resto también lo pide salvo los que lo tengan excluido.</value>
+    <value>Marcat a {0} de {1} centres. Amb el valor general «{2}», la resta també el demana excepte els que el tinguin exclòs.</value>
   </data>
   <data name="ResumenMarcadosNoSePide" xml:space="preserve">
-    <value>Se pide en los {0} centros marcados (de {1}). El resto sigue el valor general («{2}») y no lo pide por defecto.</value>
+    <value>Es demana als {0} centres marcats (de {1}). La resta segueix el valor general («{2}») i no el demana per defecte.</value>
   </data>
   <data name="ToastErrorAbrirFormulario" xml:space="preserve">
-    <value>No pudimos abrir el formulario. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut obrir el formulari. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastTipoNoEncontrado" xml:space="preserve">
-    <value>No encontramos este tipo de documento.</value>
+    <value>No hem trobat aquest tipus de document.</value>
   </data>
   <data name="NombreTipoGenerico" xml:space="preserve">
-    <value>Este tipo de documento</value>
+    <value>Aquest tipus de document</value>
   </data>
   <data name="NombreTipoCitado" xml:space="preserve">
     <value>«{0}»</value>
   </data>
   <data name="EfectoTodosAlCrear" xml:space="preserve">
-    <value>{0} se pedirá en todos los centros, porque «¿Se pide?» es «Sí, siempre».</value>
+    <value>{0} es demanarà a tots els centres, perquè «Es demana?» és «Sí, sempre».</value>
   </data>
   <data name="EfectoPasaAPedirse" xml:space="preserve">
-    <value>{0} pasará a pedirse en todos los centros que no tengan su propia configuración para este tipo.</value>
+    <value>{0} passarà a demanar-se a tots els centres que no tinguin la seva pròpia configuració per a aquest tipus.</value>
   </data>
   <data name="EfectoDejaPorDefecto" xml:space="preserve">
-    <value>{0} dejará de pedirse por defecto: los centros que no tengan su propia configuración para este tipo ya no lo pedirán.</value>
+    <value>{0} deixarà de demanar-se per defecte: els centres que no tinguin la seva pròpia configuració per a aquest tipus ja no el demanaran.</value>
   </data>
   <data name="EfectoEmpiezan" xml:space="preserve">
-    <value>{0} se pedirá en {1}{2}.</value>
+    <value>{0} es demanarà a {1}{2}.</value>
   </data>
   <data name="EfectoDejan" xml:space="preserve">
-    <value>{0} dejará de pedirse en {1}{2}, {3} a seguir el valor general («{4}»).</value>
+    <value>{0} deixarà de demanar-se a {1}{2}, {3} a seguir el valor general («{4}»).</value>
   </data>
   <data name="EnlaceSiguenUno" xml:space="preserve">
-    <value>que pasa</value>
+    <value>que passa</value>
   </data>
   <data name="EnlaceSiguenVarios" xml:space="preserve">
-    <value>que pasan</value>
+    <value>que passen</value>
   </data>
   <data name="CentrosMarcadosUno" xml:space="preserve">
-    <value>{0} centro marcado</value>
+    <value>{0} centre marcat</value>
   </data>
   <data name="CentrosMarcadosVarios" xml:space="preserve">
-    <value>{0} centros marcados</value>
+    <value>{0} centres marcats</value>
   </data>
   <data name="CentrosDesmarcadosUno" xml:space="preserve">
-    <value>{0} centro desmarcado</value>
+    <value>{0} centre desmarcat</value>
   </data>
   <data name="CentrosDesmarcadosVarios" xml:space="preserve">
-    <value>{0} centros desmarcados</value>
+    <value>{0} centres desmarcats</value>
   </data>
   <data name="ToastTipoCreado" xml:space="preserve">
-    <value>Tipo de documento creado correctamente.</value>
+    <value>Tipus de document creat correctament.</value>
   </data>
   <data name="ToastTipoActualizado" xml:space="preserve">
-    <value>Tipo de documento actualizado correctamente.</value>
+    <value>Tipus de document actualitzat correctament.</value>
   </data>
   <data name="ErrorRevisaCampos" xml:space="preserve">
-    <value>Revisa los campos marcados.</value>
+    <value>Revisa els camps marcats.</value>
   </data>
   <data name="ErrorGuardarFormulario" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="EtiquetaSerieContratacion" xml:space="preserve">
     <value>Es demana de sèrie a</value>
