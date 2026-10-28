@@ -37,10 +37,18 @@ public class ContactoSeguridadTenantRepository(CaeManagerDbContext dbContext) : 
             ConstraintName: "IX_ContactosSeguridadTenant_UnoPropuestoYUnoValidadoPorTenant"
         })
         {
-            // Lo que este guardado añadió o tocó ya no es cierto; solo se sueltan los contactos de seguridad,
-            // no el resto del rastreo del circuito (mismo criterio que ContactosSeguridadPlataforma.ResolverAsync).
-            foreach (var entrada in dbContext.ChangeTracker.Entries<ContactoSeguridadTenant>().ToList())
-                entrada.State = EntityState.Detached;
+            // La base rechazó el lote entero: ni la propuesta perdedora, ni la sustitución de la pendiente, ni la
+            // auditoría que añadió el interceptor pueden reintentarse en un guardado posterior del circuito
+            // (mismo criterio que el choque de CIF en CaeManagerDbContext).
+            ConcurrenciaContexto.DescartarLoteFallido(dbContext);
+            return false;
+        }
+        // La otra carrera: las dos propuestas pasaron a Sustituida la misma pendiente y la perdedora actualizó 0
+        // filas. CaeManagerDbContext ya descartó el lote; solo se traduce si el choque es de contactos de
+        // seguridad, que es lo único que este guardado escribe además de su auditoría.
+        catch (DbUpdateConcurrencyException ex) when (ex.Entries.Count > 0
+            && ex.Entries.All(e => e.Entity is ContactoSeguridadTenant))
+        {
             return false;
         }
     }

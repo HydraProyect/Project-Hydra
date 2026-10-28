@@ -180,11 +180,66 @@ public class ContactoSeguridadTests : BunitContext
         _mediador.ConsultasDeLaCola.Should().Be(1);
     }
 
+    private const string TextoMismaCuenta =
+        "Propusiste tú este contacto: tiene que validarlo o rechazarlo otra persona con administración de plataforma.";
+
+    [Fact]
+    public void Validar_la_propuesta_propia_muestra_los_cuatro_ojos_y_no_recarga()
+    {
+        _mediador.Propuestos = [Propuesto()];
+        _mediador.ResultadoResolver = Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
+        var cut = Render<ContactosSeguridadPlataforma>();
+        cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Validar").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".contactos-seguridad-error").TextContent.Should().Be(TextoMismaCuenta));
+        _mediador.ConsultasDeLaCola.Should().Be(1);
+    }
+
+    [Fact]
+    public void Rechazar_la_propuesta_propia_muestra_los_cuatro_ojos()
+    {
+        _mediador.Propuestos = [Propuesto()];
+        _mediador.ResultadoResolver = Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
+        var cut = Render<ContactosSeguridadPlataforma>();
+        cut.WaitForAssertion(() => cut.FindAll("table").Should().ContainSingle());
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar").Click();
+        cut.Find("textarea").Input("La persona no pertenece a la organización");
+        cut.Find("textarea").Blur();
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Rechazar propuesta").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(TextoMismaCuenta));
+        _mediador.Rechazados.Should().ContainSingle();
+    }
+
+    [Fact]
+    public void Una_propuesta_que_pierde_la_carrera_lo_explica_en_el_Drawer()
+    {
+        _mediador.MiOrganizacion = new ContactoSeguridadDeMiOrganizacionDto(null, null, null);
+        _mediador.ResultadoProponer = Result.Fallo(ErroresContactoSeguridad.PropuestaConcurrente);
+        var cut = Render<SeccionContactoSeguridad>();
+
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Proponer contacto").Click();
+        var campos = cut.FindComponent<ProponerContactoSeguridadDrawer>().FindAll("input");
+        campos[0].Input("Marta Ruiz");
+        campos[0].Blur();
+        campos[1].Input("marta@ejemplo.test");
+        campos[1].Blur();
+        cut.FindAll("button").First(b => b.TextContent.Trim() == "Enviar a revisión").Click();
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain(
+            "Se acaba de enviar otra propuesta para tu organización. Recarga la página para verla."));
+        cut.FindComponent<DrawerFormulario>().Instance.Visible.Should().BeTrue("la propuesta no se guardó");
+    }
+
     private sealed class MediadorFalso : IMediator
     {
         public ContactoSeguridadDeMiOrganizacionDto? MiOrganizacion { get; set; }
         public IReadOnlyList<ContactoSeguridadPropuestoDto> Propuestos { get; set; } = [];
         public Result ResultadoResolver { get; set; } = Result.Exito();
+        public Result ResultadoProponer { get; set; } = Result.Exito();
         public List<ProponerContactoSeguridadCommand> Propuestas { get; } = [];
         public List<Guid> Validados { get; } = [];
         public List<RechazarContactoSeguridadCommand> Rechazados { get; } = [];
@@ -198,7 +253,7 @@ public class ContactoSeguridadTests : BunitContext
                     return Task.FromResult((TResponse)(object)MiOrganizacion!);
                 case ProponerContactoSeguridadCommand proponer:
                     Propuestas.Add(proponer);
-                    return Task.FromResult((TResponse)(object)Result.Exito());
+                    return Task.FromResult((TResponse)(object)ResultadoProponer);
                 case ObtenerContactosSeguridadPropuestosQuery:
                     ConsultasDeLaCola++;
                     return Task.FromResult((TResponse)(object)Propuestos);

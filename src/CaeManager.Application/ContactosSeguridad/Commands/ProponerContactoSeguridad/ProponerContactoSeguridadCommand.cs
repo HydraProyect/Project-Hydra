@@ -19,9 +19,10 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.ProponerContactoSeg
 /// <para>
 /// La propuesta no cambia el contacto vigente: el validado sigue recibiendo avisos hasta que un Actor de
 /// Plataforma TALVEG valide el nuevo. Si ya había otra propuesta pendiente, queda Sustituida en el mismo
-/// guardado: solo hay una propuesta pendiente por Tenant. Si dos propuestas del mismo Tenant se cruzan, el
-/// índice único parcial deja pasar una y la otra recibe <see cref="ErroresContactoSeguridad.PropuestaConcurrente"/>
-/// en vez de un error sin controlar.
+/// guardado: solo hay una propuesta pendiente por Tenant. Si dos propuestas del mismo Tenant se cruzan, solo
+/// se guarda una (sin pendiente previa la para el índice único parcial; con ella, el control de concurrencia de
+/// la pendiente que las dos sustituyen) y la otra recibe <see cref="ErroresContactoSeguridad.PropuestaConcurrente"/>
+/// sin dejar nada guardado ni pendiente, en vez de un error sin controlar.
 /// </para>
 /// </summary>
 public record ProponerContactoSeguridadCommand(string Nombre, string Correo, string? Telefono) : ICommand;

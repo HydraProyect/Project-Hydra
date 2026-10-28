@@ -3,6 +3,7 @@ using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -341,26 +342,52 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
     }
 
     [Fact]
-    public async Task Dos_propuestas_que_se_cruzan_dejan_una_y_la_otra_no_guarda_nada()
+    public async Task El_Actor_de_Plataforma_lee_la_cuenta_proponente_de_otro_Tenant()
     {
-        // Las dos leen «sin pendiente» antes de que la otra guarde: el índice único parcial deja pasar la
-        // primera y la segunda recibe false en vez de un 23505 sin controlar.
-        await using var primero = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA);
-        await using var segundo = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA);
+        // La comprobación temprana de cuatro ojos lee la fila de otro Tenant desde el Tenant de plataforma: sin la
+        // política de lectura del Actor de Plataforma devolvería null y nunca daría MismaCuentaProponente.
+        var contacto = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+
+        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+                .ObtenerCuentaProponenteAsync(contacto, CancellationToken.None))
+            .Should().Be(_administradorDeA);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_propuestas_que_se_cruzan_dejan_una_y_la_otra_no_guarda_ni_deja_nada_pendiente(bool conPendientePrevia)
+    {
+        // Las dos leen el mismo estado antes de que la otra guarde. Sin pendiente previa, el índice único parcial
+        // deja pasar la primera (23505 para la segunda); con ella, la segunda encuentra ya Sustituida la pendiente
+        // que también quería sustituir. En los dos casos la segunda recibe false, no una excepción.
+        var previa = conPendientePrevia ? await ProponerAsync(_tenantA, _administradorDeA, "Antigua") : (Guid?)null;
+        await using var primero = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA, conAuditoria: true);
+        await using var segundo = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA, conAuditoria: true);
         var repositorioPrimero = new ContactoSeguridadTenantRepository(primero);
         var repositorioSegundo = new ContactoSeguridadTenantRepository(segundo);
-        (await repositorioPrimero.ObtenerPendienteYVigenteAsync(CancellationToken.None)).Should().BeEmpty();
-        (await repositorioSegundo.ObtenerPendienteYVigenteAsync(CancellationToken.None)).Should().BeEmpty();
         var ahora = DateTime.UtcNow;
-        repositorioPrimero.Agregar(ContactoSeguridadTenant.Proponer("Marta", "marta@ejemplo.test", null, _administradorDeA, ahora));
-        repositorioSegundo.Agregar(ContactoSeguridadTenant.Proponer("Jordi", "jordi@ejemplo.test", null, _administradorDeA, ahora));
+        foreach (var (repositorio, nombre) in new[] { (repositorioPrimero, "Marta"), (repositorioSegundo, "Jordi") })
+        {
+            foreach (var pendiente in (await repositorio.ObtenerPendienteYVigenteAsync(CancellationToken.None))
+                         .Where(c => c.Estado == EstadoContactoSeguridad.Propuesto))
+                pendiente.SustituirPropuestaPendiente(ahora);
+            repositorio.Agregar(ContactoSeguridadTenant.Proponer(
+                nombre, $"{nombre.ToLowerInvariant()}@ejemplo.test", null, _administradorDeA, ahora));
+        }
 
         (await repositorioPrimero.GuardarPropuestaAsync(CancellationToken.None)).Should().BeTrue();
         (await repositorioSegundo.GuardarPropuestaAsync(CancellationToken.None)).Should().BeFalse();
 
-        segundo.ChangeTracker.Entries<ContactoSeguridadTenant>().Should().BeEmpty(
-            "lo que no se guardó no puede colarse en el siguiente guardado del circuito");
-        (await LeerComoAsync(_tenantA, _administradorDeA)).Should().ContainSingle();
+        segundo.ChangeTracker.Entries().Should().NotContain(
+            e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted,
+            "ni la propuesta perdedora ni su auditoría pueden colarse en el siguiente guardado del circuito");
+        (await EscalarAsync<long>(@"
+SELECT count(*) FROM ""ContactosSeguridadTenant"" WHERE ""TenantId"" = @u AND ""Estado"" = 'Propuesto';", _tenantA))
+            .Should().Be(1);
+        if (previa is { } id)
+            (await EstadoAsync(id)).Should().Be("Sustituido");
     }
 
     // ── Preparación y lectura ─────────────────────────────────────────────────
@@ -430,19 +457,27 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
     /// Por defecto conecta como <c>cae_app_runtime</c>: la identidad de producción. Solo la siembra pasa la
     /// cadena del propietario.
     /// </summary>
-    private CaeManagerDbContext CrearContexto(Guid tenantId, string? cadena = null, Guid? actor = null, Guid? tenantOrigen = null)
+    private CaeManagerDbContext CrearContexto(
+        Guid tenantId, string? cadena = null, Guid? actor = null, Guid? tenantOrigen = null, bool conAuditoria = false)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
+        var actorEfectivo = actor ?? _adminPlataforma;
         var usuario = new CurrentUserServiceFalso(
-            actor ?? _adminPlataforma, rol: null, tenantOrigenId: tenantOrigen ?? _tenantPlataforma, tieneDobleFactorActivo: true);
+            actorEfectivo, rol: null, tenantOrigenId: tenantOrigen ?? _tenantPlataforma, tieneDobleFactorActivo: true);
+        var interceptores = new List<Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor>
+        {
+            new TenantSelladoInterceptor(tenantActual),
+            new TenantRlsConnectionInterceptor(
+                tenantActual, new SinSeleccion(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
+        };
+        // Solo donde el test mira lo que el interceptor de auditoría deja en el rastreo tras un fallo.
+        if (conAuditoria)
+            interceptores.Insert(0, new AuditoriaInterceptor(new ActorFijo(actorEfectivo)));
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(
                 cadena ?? BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
                 npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(
-                new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(
-                    tenantActual, new SinSeleccion(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .AddInterceptors(interceptores)
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
@@ -454,6 +489,13 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
         typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(tenant, id);
         if (esPlataforma) tenant.MarcarComoPlataforma();
         return tenant;
+    }
+
+    private sealed class ActorFijo(Guid actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(ActorAuditoria.Normal(actor));
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => ActorAuditoria.Normal(actor);
     }
 
     private sealed class SinSeleccion : IClienteActivoSeleccionado

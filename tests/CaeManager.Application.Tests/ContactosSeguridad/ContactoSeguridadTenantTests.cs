@@ -156,6 +156,20 @@ public class ContactoSeguridadTenantTests
     }
 
     [Fact]
+    public async Task Quien_propuso_sin_la_concesion_recibe_la_falta_de_autoridad_y_no_los_cuatro_ojos()
+    {
+        // El orden importa: los cuatro ojos leen la cola de otro Tenant, y eso solo puede hacerlo quien ya
+        // tiene la autoridad. Al revés, el mensaje revelaría a cualquiera de quién es una propuesta.
+        var plataforma = new PlataformaFalsa { CuentaProponente = Usuario };
+
+        var resultado = await Validar(plataforma, AutorizacionAdminPlataformaFalsa.SinNada())
+            .Handle(new ValidarContactoSeguridadCommand(Guid.NewGuid()), default);
+
+        resultado.Error.Should().Be(ErroresContactoSeguridad.SoloActorDePlataforma);
+        plataforma.LecturasDeCuentaProponente.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Otra_cuenta_con_la_concesion_global_rechaza_la_propuesta_de_un_Actor_de_Plataforma()
     {
         var plataforma = new PlataformaFalsa { CuentaProponente = Guid.NewGuid() };
@@ -393,7 +407,14 @@ public class ContactoSeguridadTenantTests
     private sealed class PlataformaFalsa : IContactosSeguridadPlataforma
     {
         public Guid? CuentaProponente { get; init; }
-        public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken) => Task.FromResult(CuentaProponente);
+        public int LecturasDeCuentaProponente { get; private set; }
+
+        public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken)
+        {
+            LecturasDeCuentaProponente++;
+            return Task.FromResult(CuentaProponente);
+        }
+
         public IReadOnlyList<ContactoSeguridadPropuestoDto> Propuestos { get; init; } = [];
         public ContactoSeguridadDto? Vigente { get; init; }
         public List<(Guid ContactoId, string? Motivo)> Resoluciones { get; } = [];

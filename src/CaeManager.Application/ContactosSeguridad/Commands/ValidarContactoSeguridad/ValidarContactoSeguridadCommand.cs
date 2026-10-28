@@ -80,8 +80,10 @@ internal static class AutorizacionResolucionContactoSeguridad
     /// <summary>
     /// Cuatro ojos: la cuenta que propuso el contacto no lo resuelve. Se compara la cuenta autenticada
     /// (la misma que firma el contexto RLS y que la función registra como actor), no un Tenant ni otra
-    /// coordenada de contexto; fuera de una Sesión Privilegiada, que <see cref="PuedeAsync"/> ya excluye, no
-    /// hay Usuario simulado que pueda confundirse con el Actor real. Sin propuesta legible responde
+    /// coordenada de contexto. Invariante que esta regla necesita: la cuenta autenticada y
+    /// <c>app_ctx_usuario_id()</c> son el Actor real. Hoy se cumple porque resolver está prohibido en Sesión
+    /// Privilegiada (<see cref="PuedeAsync"/>); si un día existe impersonación, el Usuario simulado no puede
+    /// ocupar ninguno de los dos lados de la comparación. Sin propuesta legible responde
     /// <c>false</c> y decide la función, que repite la regla (<c>misma_cuenta</c>).
     /// </summary>
     public static async Task<bool> LaPropusoQuienResuelveAsync(
