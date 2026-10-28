@@ -705,4 +705,13 @@
   <data name="ModalSeleccionarPdf" xml:space="preserve">
     <value>Tria el PDF de la nova versió.</value>
   </data>
+  <data name="CompletaCamposObligatorios" xml:space="preserve">
+    <value>Completa els camps obligatoris.</value>
+  </data>
+  <data name="FormularioRapidoCancelar" xml:space="preserve">
+    <value>Cancel·la</value>
+  </data>
+  <data name="FormularioRapidoCrear" xml:space="preserve">
+    <value>Crear</value>
+  </data>
 </root>

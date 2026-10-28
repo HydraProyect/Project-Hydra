@@ -502,8 +502,8 @@
     </Dialogos>
 </DrawerFormulario>
 
-@* Los modales rápidos de Cliente empresarial y Empresa se abren desde el drawer y no montan aviso propio: este cubre lo escrito
-   en ellos. Con el del kit (el del drawer) se coordinan (S12, lote 2b): salir con cambios en los dos pregunta una sola vez. *@
+@* Los modales rápidos de Cliente empresarial y Empresa se abren desde el drawer y llevan el aviso de su kit (ModalFormulario): este de la
+   página cubre también lo escrito en ellos. Con el del drawer y el de cada modal se coordinan (S12, lote 2b): salir con cambios pregunta una sola vez. *@
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosFormulariosRapidos" AlDescartar="CerrarFormulariosDescartando" />
 
 @* Baja y asignación masiva son escrituras: un rol de solo lectura (Consulta) puede marcar filas pero no ve la barra. *@

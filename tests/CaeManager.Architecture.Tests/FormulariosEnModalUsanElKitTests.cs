@@ -28,7 +28,7 @@ namespace CaeManager.Architecture.Tests;
 /// un campo dentro de <c>&lt;ModalFormulario&gt;</c> es del kit aunque el kit esté dentro de un <c>Drawer</c>). NO vigila: el
 /// <c>&lt;DialogoConfirmacion&gt;</c> con un «Motivo (opcional)» (es el cuerpo de una confirmación, no un formulario; ver
 /// <c>DrawerYModalConCamposPreguntanAlDescartarTests</c>), un Modal de varios pasos o de solo lectura (sin campos), ni los campos
-/// de un componente hijo que el Modal monta (<c>FormularioRapidoCliente</c> es un <c>Modal</c> propio y sí se mide en su fichero).
+/// de un componente hijo que el Modal monta (un hijo con su propio <c>Modal</c> con campos sí se mide en su fichero).
 /// NO ve que el kit se use <i>bien</i> (un <c>HayCambios</c> que cubra todos los campos): eso lo prueba el bUnit de cada pantalla. Un
 /// <c>&lt;input&gt;</c> escrito en un fichero ya congelado no sube el recuento (cuenta Modales, no campos).
 /// </para>
@@ -57,7 +57,7 @@ public class FormulariosEnModalUsanElKitTests
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
         // Control positivo: si el recorrido no viera Modales con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(7, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3, 8 tras migrar baja en lote, nueva versión de plantilla y solicitud de incorporación); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(5, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3, 9 tras formularios rápidos, 6 tras migrar baja en lote, nueva versión de plantilla y solicitud de incorporación); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }

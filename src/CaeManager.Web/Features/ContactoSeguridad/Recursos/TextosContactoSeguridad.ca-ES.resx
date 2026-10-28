@@ -156,4 +156,7 @@
   <data name="MismaCuentaProponente" xml:space="preserve">
     <value>Has proposat tu aquest contacte: l'ha de validar o rebutjar una altra persona amb administració de plataforma.</value>
   </data>
+  <data name="PropuestaPropia" xml:space="preserve">
+    <value>L'has proposat tu: la valida un altre Actor de Plataforma TALVEG</value>
+  </data>
 </root>

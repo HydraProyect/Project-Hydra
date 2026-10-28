@@ -7,6 +7,5 @@
 # el job E2E a mano, porque su estructura de fila no es la de tbody tr de Trabajadores y Vehículos, donde el arreglo ya está probado.
 tests/CaeManager.E2ETests/AtajosFicha360Tests.cs :: FocoSoloPorClase = 1
 tests/CaeManager.E2ETests/CentrosFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1
-tests/CaeManager.E2ETests/EmpresasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 2
 tests/CaeManager.E2ETests/SubcontratasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1
 tests/CaeManager.E2ETests/VisitasFilaSinMenuE2ETests.cs :: FocoSoloPorClase = 1

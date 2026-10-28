@@ -64,17 +64,24 @@
                         <td>@propuesto.Telefono</td>
                         <td>@Cuando(propuesto.PropuestoEnUtc)</td>
                         <td class="contactos-seguridad-acciones">
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Primario"
-                                   Deshabilitado="@(_procesandoId is not null)"
-                                   Cargando="@(_procesandoId == propuesto.Id && _rechazando is null)"
-                                   OnClick="() => ValidarAsync(propuesto.Id)">
-                                @Textos["BotonValidar"]
-                            </Boton>
-                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
-                                   Deshabilitado="@(_procesandoId is not null)"
-                                   OnClick="() => AbrirRechazo(propuesto)">
-                                @Textos["BotonRechazar"]
-                            </Boton>
+                            @if (propuesto.EsPropia)
+                            {
+                                <span>@Textos["PropuestaPropia"]</span>
+                            }
+                            else
+                            {
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Primario"
+                                       Deshabilitado="@(_procesandoId is not null)"
+                                       Cargando="@(_procesandoId == propuesto.Id && _rechazando is null)"
+                                       OnClick="() => ValidarAsync(propuesto.Id)">
+                                    @Textos["BotonValidar"]
+                                </Boton>
+                                <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                       Deshabilitado="@(_procesandoId is not null)"
+                                       OnClick="() => AbrirRechazo(propuesto)">
+                                    @Textos["BotonRechazar"]
+                                </Boton>
+                            }
                         </td>
                     </tr>
                 }
