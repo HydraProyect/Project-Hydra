@@ -58,7 +58,7 @@
     <value>Total vençudes</value>
   </data>
   <data name="ExcelColumnaTotalProximas" xml:space="preserve">
-    <value>Total properes</value>
+    <value>Total per vèncer</value>
   </data>
   <data name="TituloPagina" xml:space="preserve">
     <value>Subcontractes</value>
@@ -79,7 +79,7 @@
     <value>Búsqueda: "{0}"</value>
   </data>
   <data name="BotonQuitarBusqueda" xml:space="preserve">
-    <value>Treure la cerca</value>
+    <value>Treu la cerca</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
     <value>No hem pogut carregar les subcontractes</value>
@@ -226,7 +226,7 @@
     <value>No hem pogut eliminar les subcontractes seleccionades. Torna-ho a provar.</value>
   </data>
   <data name="EtiquetaCumplimiento" xml:space="preserve">
-    <value>{0}% de compliment — documents al dia / exigits entre els seus treballadors</value>
+    <value>{0}% de compliment — documents al dia / exigits als seus treballadors</value>
   </data>
   <data name="EtiquetaCumplimientoSinUniverso" xml:space="preserve">
     <value>Sense treballadors amb documents exigits per algun centre actiu</value>
@@ -406,7 +406,7 @@
     <value>No hi ha credencials que puguis veure per a aquesta subcontracta.</value>
   </data>
   <data name="CredencialesSePidenAlNecesitarlas" xml:space="preserve">
-    <value>Es demanen només quan les necessites, no en obrir la fitxa.</value>
+    <value>Només es demanen quan les necessites, no en obrir la fitxa.</value>
   </data>
   <data name="BotonVerCredenciales" xml:space="preserve">
     <value>Veure credencials</value>
