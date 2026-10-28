@@ -111,4 +111,78 @@ public class WhatsAppCloudApiClientDescargarMediaTests
         resultado.Error.Codigo.Should().Be("Integraciones.WhatsApp.MediaDemasiadoGrande");
         handler.UrlsPeticionadas.Should().ContainSingle();
     }
+
+    /// <summary>S-C-3: un 3xx del salto 2 es un error controlado; el destino de la redirección no pasó por la validación de host.</summary>
+    [Fact]
+    public async Task Trata_una_redireccion_del_salto_2_como_error_controlado_sin_pedir_el_destino()
+    {
+        var redireccion = new HttpResponseMessage(HttpStatusCode.Found);
+        redireccion.Headers.Location = new Uri("https://atacante.example/robo");
+        var handler = new RespuestasEncoladasHandler(
+            RespuestaMetadatos("https://lookaside.fbsbx.com/x"),
+            redireccion);
+        var cliente = CrearCliente(handler);
+
+        var resultado = await cliente.DescargarMediaAsync("token-de-la-linea", "media-1", CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be("Integraciones.WhatsApp.ErrorMedia");
+        handler.UrlsPeticionadas.Should().HaveCount(2);
+    }
+
+    [Fact]
+    public void El_manejador_primario_del_cliente_no_sigue_redirecciones()
+    {
+        using var manejador = WhatsAppCloudApiClient.CrearManejadorSinRedirecciones();
+
+        manejador.AllowAutoRedirect.Should().BeFalse();
+        manejador.UseCookies.Should().BeFalse("el cliente lo comparten las líneas de todos los Tenants");
+    }
+
+    /// <summary>Con un servidor real: el manejador devuelve el 302 tal cual, sin llegar al destino.</summary>
+    [Fact]
+    public async Task El_manejador_primario_devuelve_el_302_sin_pedir_el_destino()
+    {
+        var puerto = ObtenerPuertoLibre();
+        var prefijo = $"http://127.0.0.1:{puerto}/";
+        using var servidor = new HttpListener();
+        servidor.Prefixes.Add(prefijo);
+        servidor.Start();
+        var peticionesAtendidas = new List<string>();
+        var bucle = Task.Run(async () =>
+        {
+            while (servidor.IsListening)
+            {
+                HttpListenerContext contexto;
+                try { contexto = await servidor.GetContextAsync(); }
+                catch (Exception ex) when (ex is HttpListenerException or ObjectDisposedException) { return; }
+
+                lock (peticionesAtendidas) peticionesAtendidas.Add(contexto.Request.Url!.AbsolutePath);
+                if (contexto.Request.Url!.AbsolutePath == "/origen")
+                {
+                    contexto.Response.StatusCode = 302;
+                    contexto.Response.RedirectLocation = prefijo + "destino";
+                }
+
+                contexto.Response.Close();
+            }
+        });
+
+        using var cliente = new HttpClient(WhatsAppCloudApiClient.CrearManejadorSinRedirecciones());
+        using var respuesta = await cliente.GetAsync(prefijo + "origen");
+        servidor.Stop();
+        await bucle;
+
+        respuesta.StatusCode.Should().Be(HttpStatusCode.Found);
+        lock (peticionesAtendidas) peticionesAtendidas.Should().Equal("/origen");
+    }
+
+    private static int ObtenerPuertoLibre()
+    {
+        var escucha = new System.Net.Sockets.TcpListener(IPAddress.Loopback, 0);
+        escucha.Start();
+        var puerto = ((IPEndPoint)escucha.LocalEndpoint).Port;
+        escucha.Stop();
+        return puerto;
+    }
 }

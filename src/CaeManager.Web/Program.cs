@@ -1016,7 +1016,17 @@ if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenan
     try
     {
         CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Resultado resultadoExportacion;
-        await using (var ficheroExportacion = new FileStream(rutaExportacion, FileMode.CreateNew, FileAccess.Write))
+        // S-B-2: el zip contiene todos los datos del Tenant propietario; en Unix se crea
+        // 0600 (solo su dueño), no con el umask por defecto. En Windows la propiedad no
+        // se admite y no se toca (los permisos los fija la ACL heredada del directorio).
+        var opcionesFicheroExportacion = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+        };
+        if (!OperatingSystem.IsWindows())
+            opcionesFicheroExportacion.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        await using (var ficheroExportacion = new FileStream(rutaExportacion, opcionesFicheroExportacion))
         {
             creado = true;
             resultadoExportacion = await CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ExportarAsync(

@@ -209,7 +209,11 @@ public class ImportacionTests(WebAppFixture fixture)
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var nombreArchivo = $"archivo-ilegible-{sufijo}.xlsx";
         var rutaArchivo = Path.Combine(Path.GetTempPath(), nombreArchivo);
-        await File.WriteAllTextAsync(rutaArchivo, "Esto no es un libro de Excel válido — fuerza la excepción de ClosedXML al abrirlo.");
+        // El log ya no lleva el nombre del archivo (S-D-7: puede contener datos personales), así que
+        // el tamaño exacto hace de identificador de esta ejecución: relleno de longitud aleatoria.
+        var relleno = new string('x', 10_000 + (int)(BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0) % 1_000_000));
+        await File.WriteAllTextAsync(rutaArchivo, "Esto no es un libro de Excel valido, fuerza la excepcion de ClosedXML al abrirlo. " + relleno);
+        var tamanoArchivo = new FileInfo(rutaArchivo).Length;
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -227,9 +231,10 @@ public class ImportacionTests(WebAppFixture fixture)
                 "No pudimos leer este archivo",
                 new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
 
-            var lineaDeLog = await Ayudas.EsperarLineaEnLogDeLaAppAsync(nombreArchivo, TimeSpan.FromSeconds(10));
-            Assert.Contains("Error al analizar el archivo", lineaDeLog);
+            var lineaDeLog = await Ayudas.EsperarLineaEnLogDeLaAppAsync(
+                $"Error al analizar un archivo .xlsx de {tamanoArchivo} bytes", TimeSpan.FromSeconds(10));
             Assert.Contains("cae", lineaDeLog);
+            Assert.DoesNotContain(nombreArchivo, lineaDeLog);
         }
         finally
         {

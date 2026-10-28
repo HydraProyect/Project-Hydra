@@ -316,6 +316,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            // S-C-3: nunca seguir redirecciones con el Bearer de la línea.
+            .ConfigurePrimaryHttpMessageHandler(WhatsAppCloudApiClient.CrearManejadorSinRedirecciones)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
 
         services.AvisarSiConfiguracionAMedias(WhatsAppCloudApiOptions.SeccionConfiguracion, opcionesWhatsApp,
