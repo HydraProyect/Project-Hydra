@@ -75,6 +75,34 @@ public class SesionRevocableEnServidorTests
 
         sesiones.Registradas.Should().ContainSingle("refrescar no abre una sesión nueva");
         SignInManagerCuentaDesactivada.LeerSid(autenticacion.Emitido).Should().Be(original);
+        sesiones.Revocadas.Should().BeEmpty("refrescar no sustituye la sesión: la conserva");
+    }
+
+    [Fact]
+    public async Task Iniciar_sesion_sobre_una_cookie_viva_revoca_la_sesion_que_sustituye()
+    {
+        var (gestor, autenticacion, sesiones, cuenta) = Montar();
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+        var anterior = SignInManagerCuentaDesactivada.LeerSid(autenticacion.Emitido)!.Value;
+        autenticacion.Cookie = autenticacion.Emitido;
+
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        sesiones.RevocadasPorCuenta.Should().Equal([(cuenta.Id, anterior)]);
+        SignInManagerCuentaDesactivada.LeerSid(autenticacion.Emitido).Should().NotBe(anterior);
+    }
+
+    [Fact]
+    public async Task Un_fallo_al_revocar_la_sesion_sustituida_no_impide_iniciar_sesion()
+    {
+        var (gestor, autenticacion, sesiones, cuenta) = Montar(new SesionesFalsas { RevocarLanza = true });
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+        autenticacion.Cookie = autenticacion.Emitido;
+
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+
+        sesiones.Registradas.Should().HaveCount(2);
+        SignInManagerCuentaDesactivada.LeerSid(autenticacion.Emitido).Should().Be(sesiones.Registradas[1].Sid);
     }
 
     [Fact]
@@ -230,7 +258,7 @@ public class SesionRevocableEnServidorTests
         return (http, mediador);
     }
 
-    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar()
+    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null)
     {
         var cuenta = new ApplicationUser
         {
@@ -249,7 +277,7 @@ public class SesionRevocableEnServidorTests
         {
             RequestServices = new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider(),
         };
-        var sesiones = new SesionesFalsas();
+        var sesiones = sesionesDePrueba ?? new SesionesFalsas();
         var gestor = new SignInManagerCuentaDesactivada(usuarios, new HttpContextAccessor { HttpContext = http },
             new UserClaimsPrincipalFactory<ApplicationUser>(usuarios, opciones), opciones,
             NullLogger<SignInManager<ApplicationUser>>.Instance,

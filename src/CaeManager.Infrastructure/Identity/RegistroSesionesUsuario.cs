@@ -76,13 +76,15 @@ public sealed class RegistroSesionesUsuario(
     public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) =>
         EnElTenantDeLaCuentaAsync(usuarioId, async _ =>
         {
-            var sesion = await db.SesionesUsuario
-                .SingleOrDefaultAsync(s => s.UsuarioId == usuarioId && s.Sid == sid && s.RevocadaEnUtc == null, ct);
-            if (sesion is null)
-                return false;
-            sesion.Revocar(DateTime.UtcNow);
-            await db.SaveChangesAsync(ct);
-            return true;
+            // Una sola sentencia con «RevocadaEnUtc IS NULL» en el predicado: dos cierres de la misma
+            // sesión a la vez (dos pestañas, un doble clic) no chocan con el disparador
+            // sesion_revocada_no_se_reabre. PostgreSQL vuelve a evaluar el predicado sobre la fila que
+            // dejó el primero, la ve revocada y el segundo no escribe nada.
+            var ahora = DateTime.UtcNow;
+            var filas = await db.SesionesUsuario
+                .Where(s => s.UsuarioId == usuarioId && s.Sid == sid && s.RevocadaEnUtc == null)
+                .ExecuteUpdateAsync(cambios => cambios.SetProperty(s => s.RevocadaEnUtc, ahora), ct);
+            return filas > 0;
         }, valorSinCuenta: false);
 
     public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) =>
@@ -94,16 +96,15 @@ public sealed class RegistroSesionesUsuario(
             if (!rotado.Succeeded)
                 throw new InvalidOperationException($"No se pudo rotar el sello de seguridad de la cuenta {cuenta.Id}.");
 
+            // Mismo predicado que RevocarAsync, por el mismo motivo: un cierre simultáneo de una de
+            // estas sesiones no hace fallar este.
             var ahora = DateTime.UtcNow;
-            var vivas = await db.SesionesUsuario
+            var revocadas = await db.SesionesUsuario
                 .Where(s => s.UsuarioId == usuarioId && s.RevocadaEnUtc == null)
-                .ToListAsync(ct);
-            foreach (var sesion in vivas)
-                sesion.Revocar(ahora);
-            await db.SaveChangesAsync(ct);
+                .ExecuteUpdateAsync(cambios => cambios.SetProperty(s => s.RevocadaEnUtc, ahora), ct);
             logger.LogWarning("Cerradas todas las sesiones de la cuenta {UsuarioId}: sello rotado y {Sesiones} sesiones revocadas.",
-                usuarioId, vivas.Count);
-            return vivas.Count;
+                usuarioId, revocadas);
+            return revocadas;
         }, valorSinCuenta: 0);
 
     private async Task<T> EnElTenantDeLaCuentaAsync<T>(Guid usuarioId, Func<ApplicationUser, Task<T>> accion, T valorSinCuenta)

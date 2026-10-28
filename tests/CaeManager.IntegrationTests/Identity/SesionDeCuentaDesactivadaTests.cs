@@ -459,6 +459,34 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Un_identificador_de_sesion_guardado_en_la_cuenta_no_llega_a_la_sesion()
+    {
+        // Con un talveg:sid en AspNetUserClaims, todas las sesiones de la cuenta compartirían uno:
+        // la fábrica lo descarta y la cookie lleva solo el que registra el inicio de sesión.
+        var usuario = await CrearUsuarioAsync("sid-guardado@x.test");
+        var guardado = Guid.NewGuid();
+        using (var preparacion = _servicios.CreateScope())
+        {
+            var userManager = preparacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
+            (await userManager.AddClaimAsync(cuenta, new Claim(SignInManagerCuentaDesactivada.ClaimSid, guardado.ToString("N")))).Succeeded.Should().BeTrue();
+            (await userManager.GetClaimsAsync(cuenta)).Should().Contain(c => c.Type == SignInManagerCuentaDesactivada.ClaimSid,
+                "control: el claim quedó guardado en la cuenta");
+        }
+
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+        cookie.Should().NotBeEmpty("control: se emitió la cookie");
+        var principal = PrincipalDeLaCookie(cookie)!;
+        principal.FindAll(SignInManagerCuentaDesactivada.ClaimSid).Should().ContainSingle();
+        SignInManagerCuentaDesactivada.LeerSid(principal).Should().NotBe(guardado);
+
+        using var ambito = _servicios.CreateScope();
+        var fabrica = ambito.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var cuentaLeida = (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString()))!;
+        (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimSid).Should().BeFalse();
+    }
+
     /// <summary>Cookie de aplicación («nombre=valor») con la marca de TOTP que solo pone el segundo factor.</summary>
     private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca, DateTimeOffset? emitidaEnUtc = null)
     {

@@ -262,6 +262,32 @@ public class SignInManagerCuentaDesactivada(
             nueva.AddClaim(new Claim(ClaimSid, sid.ToString("N")));
     }
 
+    /// <summary>
+    /// Una sesión nueva emitida sobre una cookie de aplicación que todavía vale (iniciar sesión otra vez,
+    /// o con otra cuenta, sin cerrar antes) sustituye a la de esa cookie en este navegador: se revoca su
+    /// identificador, para que una copia de la cookie anterior no siga valiendo hasta su caducidad. La
+    /// revoca la cuenta de la cookie anterior, que es quien firma el contexto de esta petición
+    /// (<c>solo_la_propia_cuenta_revoca</c>). Sin cookie anterior, o sin identificador en ella, no hace
+    /// nada. Un fallo se registra y no impide el inicio de sesión: la cookie anterior se sobrescribe igual.
+    /// </summary>
+    private async Task RevocarSesionQueSustituyeAsync()
+    {
+        try
+        {
+            var anterior = await Context.AuthenticateAsync(AuthenticationScheme);
+            if (anterior.Principal is not { } principal
+                || LeerSid(principal) is not { } sidAnterior
+                || !Guid.TryParse(UserManager.GetUserId(principal), out var cuentaAnterior))
+                return;
+            await sesiones.RevocarAsync(cuentaAnterior, sidAnterior);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo revocar la sesión que sustituye el nuevo inicio de sesión ({TipoError}).",
+                ex.GetType().Name);
+        }
+    }
+
     public override async Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
@@ -292,6 +318,7 @@ public class SignInManagerCuentaDesactivada(
         {
             sid = Guid.NewGuid();
             await sesiones.RegistrarAsync(user.Id, user.TenantId, sid.Value);
+            await RevocarSesionQueSustituyeAsync();
         }
         additionalClaims = additionalClaims.Append(new Claim(ClaimSid, sid.Value.ToString("N")));
 
