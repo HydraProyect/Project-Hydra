@@ -19,7 +19,9 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.ProponerContactoSeg
 /// <para>
 /// La propuesta no cambia el contacto vigente: el validado sigue recibiendo avisos hasta que un Actor de
 /// Plataforma TALVEG valide el nuevo. Si ya había otra propuesta pendiente, queda Sustituida en el mismo
-/// guardado: solo hay una propuesta pendiente por Tenant.
+/// guardado: solo hay una propuesta pendiente por Tenant. Si dos propuestas del mismo Tenant se cruzan, el
+/// índice único parcial deja pasar una y la otra recibe <see cref="ErroresContactoSeguridad.PropuestaConcurrente"/>
+/// en vez de un error sin controlar.
 /// </para>
 /// </summary>
 public record ProponerContactoSeguridadCommand(string Nombre, string Correo, string? Telefono) : ICommand;
@@ -57,8 +59,7 @@ public class ProponerContactoSeguridadCommandHandler(
     ITenantActual tenantActual,
     ICurrentUserService currentUserService,
     IAdministradorDelTenantPropietario administradorDelTenant,
-    IContactoSeguridadTenantRepository repositorio,
-    IUnitOfWork unitOfWork)
+    IContactoSeguridadTenantRepository repositorio)
     : IRequestHandler<ProponerContactoSeguridadCommand, Result>
 {
     public async Task<Result> Handle(ProponerContactoSeguridadCommand request, CancellationToken cancellationToken)
@@ -75,8 +76,8 @@ public class ProponerContactoSeguridadCommandHandler(
 
         repositorio.Agregar(ContactoSeguridadTenant.Proponer(
             request.Nombre, request.Correo, request.Telefono, usuarioId, ahora));
-        await unitOfWork.SaveChangesAsync(cancellationToken);
-
-        return Result.Exito();
+        return await repositorio.GuardarPropuestaAsync(cancellationToken)
+            ? Result.Exito()
+            : Result.Fallo(ErroresContactoSeguridad.PropuestaConcurrente);
     }
 }

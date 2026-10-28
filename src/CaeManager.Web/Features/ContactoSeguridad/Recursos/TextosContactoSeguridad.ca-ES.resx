@@ -150,4 +150,10 @@
   <data name="ErrorResolver" xml:space="preserve">
     <value>No s'ha pogut resoldre la proposta. Torna-ho a provar.</value>
   </data>
+  <data name="PropuestaConcurrente" xml:space="preserve">
+    <value>S'acaba d'enviar una altra proposta per a la teva organització. Torna a carregar la pàgina per veure-la.</value>
+  </data>
+  <data name="MismaCuentaProponente" xml:space="preserve">
+    <value>Has proposat tu aquest contacte: l'ha de validar o rebutjar una altra persona amb administració de plataforma.</value>
+  </data>
 </root>
