@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\CaeManager.IntegrationTests\Tenants\InspeccionTextoPoliticaRls.cs" Link="Tenants\InspeccionTextoPoliticaRls.cs" />
   </ItemGroup>
 
   <ItemGroup>
