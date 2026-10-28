@@ -67,6 +67,30 @@ public class InspectorXlsxSeguroTests
     }
 
     [Fact]
+    public void Un_xlsx_valido_muy_repetitivo_no_da_falso_positivo()
+    {
+        // Peor caso razonable para el ratio: 50.000 filas con los mismos
+        // valores y celdas vacías con estilo comprimen mucho más que un libro
+        // de datos reales, y aun así deben quedar por debajo de 100:1.
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Datos");
+        for (var fila = 1; fila <= 50_000; fila++)
+        {
+            hoja.Cell(fila, 1).Value = "Igual";
+            hoja.Cell(fila, 2).Value = 1;
+            hoja.Cell(fila, 6).Style.Font.Bold = true;
+        }
+
+        using var memoria = new MemoryStream();
+        libro.SaveAs(memoria);
+        memoria.Position = 0;
+
+        var verificar = () => InspectorXlsxSeguro.Verificar(memoria);
+
+        verificar.Should().NotThrow();
+    }
+
+    [Fact]
     public void Un_xlsx_valido_grande_no_da_falso_positivo()
     {
         // 30.000 filas son decenas de veces más que cualquier plantilla de
@@ -94,10 +118,10 @@ public class InspectorXlsxSeguroTests
         verificar.Should().ThrowExactly<InvalidDataException>();
         var asignados = GC.GetAllocatedBytesForCurrentThread() - antes;
 
-        // Se corta al pasar el umbral del ratio (~1 MiB leído), no tras
-        // expandir los 200 MiB: lo asignado es el búfer y poco más.
-        asignados.Should().BeLessThan(16L * 1024 * 1024,
-            "la inspección descarta los bytes según los lee en vez de materializar el contenido");
+        // Aquí corta el rechazo barato por cabecera (declara 200 MiB); el
+        // conteo en streaming lo fijan los dos casos de ratio y de total que
+        // siguen. Lo asignado es el búfer y poco más, nunca el contenido.
+        asignados.Should().BeLessThan(16L * 1024 * 1024);
         flujo.Position.Should().Be(0);
     }
 
@@ -126,6 +150,17 @@ public class InspectorXlsxSeguroTests
         using var flujo = new MemoryStream(bomba);
         using (var paquete = new ZipArchive(flujo, ZipArchiveMode.Read, leaveOpen: true))
             paquete.Entries[0].Length.Should().Be(1000, "la cabecera declara poco");
+        flujo.Position = 0;
+        using (var paquete = new ZipArchive(flujo, ZipArchiveMode.Read, leaveOpen: true))
+        using (var contenido = paquete.Entries[0].Open())
+        {
+            var leidos = 0L;
+            var bufer = new byte[64 * 1024];
+            int n;
+            while ((n = contenido.Read(bufer, 0, bufer.Length)) > 0) leidos += n;
+            leidos.Should().Be(1000, "el runtime no entrega más bytes de los que declara la cabecera");
+        }
+
         flujo.Position = 0;
 
         var antes = GC.GetAllocatedBytesForCurrentThread();

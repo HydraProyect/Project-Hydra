@@ -25,17 +25,20 @@ public static class InspectorXlsxSeguro
     /// Un libro de Excel real tiene unas decenas de partes (hojas, estilos,
     /// cadenas compartidas, temas, relaciones); con cien hojas no pasa de
     /// ~120. Mil deja un margen holgado y frena los paquetes con decenas de
-    /// miles de entradas, que son pura carga para el directorio central.
+    /// miles de entradas. El directorio central ya se ha leído al comprobarlo,
+    /// pero con un paquete de 20 MB como mucho ese coste queda acotado.
     /// </summary>
     public const int MaximoEntradas = 1_000;
 
     /// <summary>
-    /// Tope del XML descomprimido sumando todas las partes. 100 MiB es del
-    /// orden de un millón de celdas con datos, muy por encima de cualquier
-    /// plantilla de importación de la Plataforma (decenas de miles de filas
-    /// como mucho) y por debajo de lo que ClosedXML puede cargar sin poner en
-    /// riesgo la memoria del proceso: el DOM en memoria pesa varias veces el
-    /// XML de origen.
+    /// Tope del XML descomprimido sumando todas las partes. 100 MiB está muy
+    /// por encima de cualquier plantilla de importación de la Plataforma
+    /// (decenas de miles de filas como mucho) y frena la expansión
+    /// desproporcionada, que es el vector de la bomba. No mide el coste en
+    /// memoria del DOM de ClosedXML, que pesa varias veces el XML de origen:
+    /// un libro denso y poco repetitivo dentro del tope sigue costando
+    /// memoria, y acotarlo (filas, celdas o análisis concurrentes) es un
+    /// control aparte.
     /// </summary>
     public const long MaximoBytesDescomprimidos = 100L * 1024 * 1024;
 
