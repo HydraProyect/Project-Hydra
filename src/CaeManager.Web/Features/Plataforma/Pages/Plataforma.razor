@@ -323,7 +323,7 @@
 <ModalFormulario Visible="_confirmacionVisible"
                  VisibleChanged="(bool visible) => CerrarConfirmacion(visible)"
                  Titulo="Confirmar el acto fundacional" HayCambios="() => _confirmacionAceptada"
-                 Guardando="_ejecutando" MotivoGuardarDeshabilitado="@(!_confirmacionAceptada ? Textos["MotivoConfirmacion"].Value : null)"
+                 Guardando="_ejecutando" MensajeError="@_error" MotivoGuardarDeshabilitado="@(!_confirmacionAceptada ? Textos["MotivoConfirmacion"].Value : null)"
                  TextoCancelar="Cancelar" TextoGuardar="Sí, inicializar" OnGuardar="InicializarAsync">
     <ChildContent>
         <p>

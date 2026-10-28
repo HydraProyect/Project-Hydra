@@ -223,6 +223,8 @@ public class PlataformaGen2Tests : BunitContext
         mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle();
         cut.FindAll("[role=dialog]").Should().ContainSingle("el desenlace fallido no se trata como éxito");
         cut.Find(".administracion-global-error-comando").TextContent.Should().Contain("Activa la autenticación en dos pasos.");
+        cut.Find("[role=dialog]").TextContent.Should().Contain("Activa la autenticación en dos pasos.", "el error se ve dentro del Modal, no detrás de la superposición");
+        cut.FindAll(".boton-espera-check").Should().BeEmpty("un comando fallido no enseña el «Hecho» de éxito");
     }
 
     [Fact]
@@ -247,7 +249,7 @@ public class PlataformaGen2Tests : BunitContext
         await cut.InvokeAsync(() => pendiente.SetResult(Result.Exito(Guid.NewGuid())));
         await primero.WaitAsync(TimeSpan.FromSeconds(10));
         await segundo.WaitAsync(TimeSpan.FromSeconds(10));
-        mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle("la segunda entrada encuentra la guarda del panel");
+        mediator.Enviados.OfType<AutoConcederPrivilegioCommand>().Should().ContainSingle("la segunda entrada no llega al comando: la corta la guarda del kit y, tras ella, la del panel");
     }
 
     [Fact]
