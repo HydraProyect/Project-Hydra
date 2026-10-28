@@ -16,15 +16,6 @@
     font: var(--font-body-sm);
 }
 
-.modal-actualizar-documento-error {
-    margin: 0 0 var(--space-4);
-    padding: var(--space-2) var(--space-3);
-    border-radius: var(--radius-md);
-    background-color: var(--color-danger-50);
-    color: var(--color-danger-700);
-    font: var(--font-body-sm);
-}
-
 .modal-actualizar-documento-formulario {
     display: flex;
     flex-direction: column;

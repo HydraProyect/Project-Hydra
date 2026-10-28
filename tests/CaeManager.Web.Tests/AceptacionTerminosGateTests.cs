@@ -146,6 +146,19 @@ public class AceptacionTerminosGateTests : BunitContext
     }
 
     [Fact]
+    public void El_gate_marcado_sigue_bloqueado_ante_los_intentos_de_cierre()
+    {
+        Preparar();
+        var gate = Render<AceptacionTerminosGate>();
+        gate.Find("label.campo-checkbox input").Change(true);
+        gate.FindAll(".modal-cerrar").Should().BeEmpty();
+        gate.Find(".modal-superposicion").Click();
+        gate.Find("[role=dialog]").KeyDown("Escape");
+        gate.FindAll("[role=dialog]").Should().ContainSingle();
+        gate.Find("label.campo-checkbox input").HasAttribute("checked").Should().BeTrue();
+    }
+
+    [Fact]
     public void Si_aceptar_falla_muestra_el_error_de_los_recursos()
     {
         Preparar();

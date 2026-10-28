@@ -54,4 +54,5 @@
   <data name="CierreNoPermitido" xml:space="preserve">
     <value>No tienes permiso para cerrar esa sesión de soporte o la sesión ya ha cambiado.</value>
   </data>
+  <data name="MotivoConfirmacion" xml:space="preserve"><value>Marca la casilla para confirmar.</value></data>
 </root>
