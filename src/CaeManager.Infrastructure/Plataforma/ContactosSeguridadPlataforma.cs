@@ -49,7 +49,6 @@ public sealed class ContactosSeguridadPlataforma(
                 .Select(c => (Guid?)c.PropuestoPorUsuarioId)
                 .SingleOrDefaultAsync(cancellationToken), cancellationToken);
 
-
     public Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {

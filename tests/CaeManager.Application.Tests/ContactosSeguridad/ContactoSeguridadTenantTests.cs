@@ -431,7 +431,6 @@ public class ContactoSeguridadTenantTests
             return Task.FromResult(CuentaProponente);
         }
 
-
         public IReadOnlyList<ContactoSeguridadPropuestoDto> Propuestos { get; init; } = [];
         public ContactoSeguridadDto? Vigente { get; init; }
         public List<(Guid ContactoId, string? Motivo)> Resoluciones { get; } = [];

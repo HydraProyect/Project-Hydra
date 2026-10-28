@@ -36,7 +36,6 @@ public interface IContactosSeguridadPlataforma
     /// </summary>
     Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken);
 
-
     /// <summary>Valida (<paramref name="motivoRechazo"/> nulo) o rechaza (con motivo) un contacto Propuesto.</summary>
     Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken);
 
