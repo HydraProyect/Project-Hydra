@@ -22,7 +22,8 @@ namespace CaeManager.Application.Visitas;
 /// <see cref="ITrabajadoresQueryContext"/> ya está acotado a él por el filtro de consulta y RLS, así
 /// que un Trabajador de otro Tenant de la cartera no se encuentra.</item>
 /// <item><b>Empresa de la Visita</b>: dentro del Tenant, el Trabajador es de la Empresa a la que
-/// pertenece el Centro de la Visita (<c>Centro.EmpresaId</c>), o de una Subcontrata con una
+/// pertenece el Centro de la Visita (<c>Centro.EmpresaId</c>, en <c>EmpresaId</c> o, si esa Empresa es
+/// una Subcontrata, en <c>SubcontrataId</c>), o de una Subcontrata con una
 /// <c>RelacionEmpresarial</c> vigente como proveedora de esa Empresa (<see cref="DeLaEmpresa"/>).</item>
 /// <item><b>Alcance de datos</b>: el Trabajador es visible para quien opera
 /// (<see cref="IAlcanceDatosService.ObtenerTrabajadorIdsVisiblesAsync"/>, el mismo criterio que
@@ -47,13 +48,16 @@ public static class TrabajadoresAdmisiblesEnVisita
 
     /// <summary>
     /// Trabajadores de la Empresa <paramref name="empresaId"/>: los suyos y los de sus Subcontratas
-    /// vigentes. Componible en una consulta de EF (un único SQL con subconsulta correlacionada).
+    /// vigentes. «Los suyos» incluye el caso en que la Empresa del Centro es ella misma una Subcontrata
+    /// (p. ej. de nivel de servicio Gestionada): sus Trabajadores la llevan en <c>SubcontrataId</c>, no en
+    /// <c>EmpresaId</c>. Componible en una consulta de EF (un único SQL con subconsulta correlacionada).
     /// </summary>
     public static IQueryable<Trabajador> DeLaEmpresa(
         this IQueryable<Trabajador> trabajadores, Guid empresaId, IEmpresasQueryContext empresas)
     {
         var relaciones = empresas.RelacionesEmpresariales;
         return trabajadores.Where(t => t.EmpresaId == empresaId
+            || t.SubcontrataId == empresaId
             || (t.SubcontrataId != null && relaciones.Any(r =>
                 r.VigenciaHasta == null && r.ProveedoraId == t.SubcontrataId && r.ClienteId == empresaId)));
     }

@@ -107,7 +107,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             var trabajadorFuera = Trabajador.DeSubcontrata(subcontrataFuera.Id, "Iker", "Fuera", "33445566R");
             // De la Empresa propia y sin Visita: el que se puede añadir (S-B-1). Iker es de una Subcontrata
             // que no es proveedora de la Empresa propia y queda fuera de la cartera.
-            var trabajadorLibre = Trabajador.DeEmpresa(propia.Id, "Olga", "Libre", "44556677K");
+            var trabajadorLibre = Trabajador.DeEmpresa(propia.Id, "Olga", "Libre", "44556677L");
             _propietario.Trabajadores.AddRange(trabajadorDentro, trabajadorFuera, trabajadorLibre);
 
             var visitaDentro = new Visita(centroDentro.Id, FechaOriginal, FechaOriginal.AddDays(1), null);
