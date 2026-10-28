@@ -54,4 +54,5 @@
   <data name="CierreNoPermitido" xml:space="preserve">
     <value>No tens permís per tancar aquesta sessió de suport o la sessió ja ha canviat.</value>
   </data>
+  <data name="MotivoConfirmacion" xml:space="preserve"><value>Marca la casella per confirmar.</value></data>
 </root>

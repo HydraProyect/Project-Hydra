@@ -524,76 +524,61 @@
         }
     </div>
 
-    <Modal @ref="_modalActualizarDocumento" HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
-           Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" CerrarAlHacerClicFuera="!_aplicandoDocumento">
+    <ModalFormulario HayCambios="() => HayCambiosActualizarDocumento" Visible="_modalActualizarDocumentoVisible" VisibleChanged="v => { if (!v) CerrarModalActualizarDocumento(); }"
+                    Titulo="Actualizar documentación" Ancho="AnchoModal.Grande" Guardando="_aplicandoDocumento" Cargando="_detectandoDocumento" FilasCargando="4" MensajeError="@_errorActualizarDocumento"
+                    TextoCancelar="Cancelar" TextoGuardar="Aplicar y registrar" OnGuardar="AplicarActualizacionDocumentoAsync">
         <ChildContent>
-            @if (_detectandoDocumento)
+            @if (_confianzaDeteccionDocumento > 0)
             {
-                <EstadoCargando Filas="4" />
+                <p class="modal-actualizar-documento-confianza">
+                    <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /> Detección de la IA — confianza @_confianzaDeteccionDocumento%. Revisa y corrige antes de aplicar.
+                </p>
             }
-            else
-            {
-                @if (_confianzaDeteccionDocumento > 0)
-                {
-                    <p class="modal-actualizar-documento-confianza">
-                        <Icono Nombre="ia" Tamano="TamanoIcono.Pequeno" /> Detección de la IA — confianza @_confianzaDeteccionDocumento%. Revisa y corrige antes de aplicar.
-                    </p>
-                }
-                @if (_errorActualizarDocumento is not null)
-                {
-                    <p class="modal-actualizar-documento-error">@_errorActualizarDocumento</p>
-                }
+            <div class="modal-actualizar-documento-formulario">
+                <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoIdFormulario" ValorChanged="v => _tipoDocumentoIdFormulario = v">
+                    <option value="">Selecciona un tipo…</option>
+                    @foreach (var tipo in _tiposDocumentoSelector.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa))
+                    {
+                        <option value="@tipo.Id">@tipo.Nombre (@(tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador ? "Trabajador" : "Empresa"))</option>
+                    }
+                </CampoSelect>
 
-                <div class="modal-actualizar-documento-formulario">
-                    <CampoSelect Etiqueta="Tipo de documento" Valor="@_tipoDocumentoIdFormulario" ValorChanged="v => _tipoDocumentoIdFormulario = v">
-                        <option value="">Selecciona un tipo…</option>
-                        @foreach (var tipo in _tiposDocumentoSelector.Where(t => t.AmbitoAplicacion is AmbitoAplicacion.Trabajador or AmbitoAplicacion.Empresa))
+                <CampoSelect Etiqueta="Pertenece a" Valor="@_propietarioDocumentoFormulario" ValorChanged="v => _propietarioDocumentoFormulario = v">
+                    <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
+                    <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                </CampoSelect>
+
+                @if (_propietarioDocumentoFormulario == nameof(AmbitoAplicacion.Trabajador))
+                {
+                    <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorDocumentoIdFormulario" ValorChanged="v => _trabajadorDocumentoIdFormulario = v">
+                        <option value="">Selecciona un trabajador…</option>
+                        @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresSelector))
                         {
-                            <option value="@tipo.Id">@tipo.Nombre (@(tipo.AmbitoAplicacion == AmbitoAplicacion.Trabajador ? "Trabajador" : "Empresa"))</option>
+                            <option value="@trabajador.Id">@trabajador.Texto</option>
                         }
                     </CampoSelect>
-
-                    <CampoSelect Etiqueta="Pertenece a" Valor="@_propietarioDocumentoFormulario" ValorChanged="v => _propietarioDocumentoFormulario = v">
-                        <option value="@nameof(AmbitoAplicacion.Trabajador)">Trabajador</option>
-                        <option value="@nameof(AmbitoAplicacion.Empresa)">Empresa</option>
+                }
+                else
+                {
+                    <CampoSelect Etiqueta="Empresa" Valor="@_empresaDocumentoIdFormulario" ValorChanged="v => _empresaDocumentoIdFormulario = v">
+                        <option value="">Selecciona una empresa…</option>
+                        @foreach (var empresa in _empresasSelector)
+                        {
+                            <option value="@empresa.Id">@empresa.RazonSocial</option>
+                        }
                     </CampoSelect>
+                }
 
-                    @if (_propietarioDocumentoFormulario == nameof(AmbitoAplicacion.Trabajador))
-                    {
-                        <CampoSelect Etiqueta="Trabajador" Valor="@_trabajadorDocumentoIdFormulario" ValorChanged="v => _trabajadorDocumentoIdFormulario = v">
-                            <option value="">Selecciona un trabajador…</option>
-                            @foreach (var trabajador in EtiquetasSelectorTrabajador.Construir(_trabajadoresSelector))
-                            {
-                                <option value="@trabajador.Id">@trabajador.Texto</option>
-                            }
-                        </CampoSelect>
-                    }
-                    else
-                    {
-                        <CampoSelect Etiqueta="Empresa" Valor="@_empresaDocumentoIdFormulario" ValorChanged="v => _empresaDocumentoIdFormulario = v">
-                            <option value="">Selecciona una empresa…</option>
-                            @foreach (var empresa in _empresasSelector)
-                            {
-                                <option value="@empresa.Id">@empresa.RazonSocial</option>
-                            }
-                        </CampoSelect>
-                    }
-
-                    <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
-                    <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
-                    <label class="campo-checkbox">
-                        <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
-                        @TextosVigenciaDocumento.Texto("NoCaduca")
-                    </label>
-                    <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosDocumentoFormulario" ValorChanged="v => _comentariosDocumentoFormulario = v" Filas="2" />
-                </div>
-            }
+                <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionDocumentoFormulario" ValorChanged="v => _fechaEmisionDocumentoFormulario = v" />
+                <CampoTexto Etiqueta="Fecha de caducidad (si no se calcula sola)" Type="date" Valor="@_fechaVencimientoDocumentoFormulario" ValorChanged="v => _fechaVencimientoDocumentoFormulario = v" />
+                <label class="campo-checkbox">
+                    <input type="checkbox" checked="@_noCaducaDocumentoFormulario" @onchange="e => _noCaducaDocumentoFormulario = e.Value is bool m && m" />
+                    @TextosVigenciaDocumento.Texto("NoCaduca")
+                </label>
+                <CampoTextarea Etiqueta="Comentarios" Valor="@_comentariosDocumentoFormulario" ValorChanged="v => _comentariosDocumentoFormulario = v" Filas="2" />
+            </div>
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_aplicandoDocumento" OnClick="() => _modalActualizarDocumento?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" Cargando="_aplicandoDocumento" Deshabilitado="_detectandoDocumento" OnClick="AplicarActualizacionDocumentoAsync">Aplicar y registrar</Boton>
-        </Pie>
-    </Modal>
+    </ModalFormulario>
 
     @*
         "Redactar" del toolbar (Parte XVI PROMPT 09) — inicia una conversación
