@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="EstadoSupervisionVigente" xml:space="preserve">
-    <value>Vigente</value>
+    <value>Vigent</value>
   </data>
   <data name="EstadoSupervisionProximo" xml:space="preserve">
     <value>Per vèncer</value>
@@ -22,19 +22,19 @@
     <value>Per vèncer</value>
   </data>
   <data name="EstadoSupervisionVencido" xml:space="preserve">
-    <value>Vencido</value>
+    <value>Vençut</value>
   </data>
   <data name="EstadoSupervisionNoValido" xml:space="preserve">
-    <value>No válido</value>
+    <value>No vàlid</value>
   </data>
   <data name="EstadoSupervisionSinVerificar" xml:space="preserve">
     <value>Sense verificar</value>
   </data>
   <data name="ResultadoVerificacionValido" xml:space="preserve">
-    <value>Válido</value>
+    <value>Vàlid</value>
   </data>
   <data name="ResultadoVerificacionNoValido" xml:space="preserve">
-    <value>No válido</value>
+    <value>No vàlid</value>
   </data>
   <data name="ResultadoVerificacionNoEncontrado" xml:space="preserve">
     <value>No trobat</value>
@@ -64,7 +64,7 @@
     <value>Subcontractes</value>
   </data>
   <data name="KickerNegocio" xml:space="preserve">
-    <value>Negocio</value>
+    <value>Negoci</value>
   </data>
   <data name="EnlaceExportarExcel" xml:space="preserve">
     <value>Exportar a Excel</value>
@@ -76,7 +76,7 @@
     <value>Filtra aquesta pantalla: raó social o CIF</value>
   </data>
   <data name="ChipBusqueda" xml:space="preserve">
-    <value>Búsqueda: "{0}"</value>
+    <value>Cerca: "{0}"</value>
   </data>
   <data name="BotonQuitarBusqueda" xml:space="preserve">
     <value>Treu la cerca</value>
@@ -121,7 +121,7 @@
     <value>Treballadors de {0}</value>
   </data>
   <data name="SinCif" xml:space="preserve">
-    <value>Sin CIF</value>
+    <value>Sense CIF</value>
   </data>
   <data name="RecuentoDocumentosVencidosUno" xml:space="preserve">
     <value>1 document vençut</value>
@@ -139,10 +139,10 @@
     <value>{0} documents per vèncer</value>
   </data>
   <data name="AriaAvisoUnUrgenteEnProximos" xml:space="preserve">
-    <value>1 urgente</value>
+    <value>1 urgent</value>
   </data>
   <data name="AriaAvisoVariosUrgentesEnProximos" xml:space="preserve">
-    <value>{0} urgentes</value>
+    <value>{0} urgents</value>
   </data>
   <data name="MenuEliminar" xml:space="preserve">
     <value>Eliminar</value>
@@ -175,13 +175,13 @@
     <value>Encara no hi ha empreses creades.</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·la</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
-    <value>Guardar</value>
+    <value>Desar</value>
   </data>
   <data name="ConfirmarEliminarTitulo" xml:space="preserve">
-    <value>¿Eliminar a {0}?</value>
+    <value>Vols eliminar {0}?</value>
   </data>
   <data name="ConfirmarEliminarMensaje" xml:space="preserve">
     <value>S'amagarà de les llistes actives. Podràs desfer-ho des de l'avís que apareixerà; després, només un Administrador d'aquesta organització pot recuperar-la des d'Auditoria.</value>
@@ -268,10 +268,10 @@
     <value>Historial</value>
   </data>
   <data name="ListaYMas" xml:space="preserve">
-    <value>{0} y {1} más</value>
+    <value>{0} i {1} més</value>
   </data>
   <data name="MetaTrabajadoresUno" xml:space="preserve">
-    <value>1 trabajador</value>
+    <value>1 treballador</value>
   </data>
   <data name="MetaTrabajadoresVarios" xml:space="preserve">
     <value>{0} treballadors</value>
@@ -298,7 +298,7 @@
     <value>{0} documents urgents</value>
   </data>
   <data name="BotonDetalles" xml:space="preserve">
-    <value>Detalles</value>
+    <value>Detalls</value>
   </data>
   <data name="TrabajadorSinDocumentacionExigida" xml:space="preserve">
     <value>Aquest treballador no està assignat a cap centre amb documentació exigida.</value>
@@ -307,16 +307,16 @@
     <value>Documentació exigida a {0}</value>
   </data>
   <data name="ColumnaDocumento" xml:space="preserve">
-    <value>Documento</value>
+    <value>Document</value>
   </data>
   <data name="ColumnaEstado" xml:space="preserve">
-    <value>Estado</value>
+    <value>Estat</value>
   </data>
   <data name="ColumnaVigencia" xml:space="preserve">
-    <value>Vigencia</value>
+    <value>Vigència</value>
   </data>
   <data name="ColumnaAccion" xml:space="preserve">
-    <value>Acción</value>
+    <value>Acció</value>
   </data>
   <data name="AriaFaltaDocumento" xml:space="preserve">
     <value>Falta: la subcontracta encara no ha aportat aquest document</value>
@@ -361,16 +361,16 @@
     <value>Empresa / Client / Proveïdor</value>
   </data>
   <data name="CopiarEsteCampo" xml:space="preserve">
-    <value>este campo</value>
+    <value>aquest camp</value>
   </data>
   <data name="RotuloUsuario" xml:space="preserve">
-    <value>Usuario</value>
+    <value>Usuari</value>
   </data>
   <data name="CopiarElUsuario" xml:space="preserve">
-    <value>el usuario</value>
+    <value>l'usuari</value>
   </data>
   <data name="RotuloContrasena" xml:space="preserve">
-    <value>Contraseña</value>
+    <value>Contrasenya</value>
   </data>
   <data name="PlaceholderContrasenaConservar" xml:space="preserve">
     <value>Deixa-ho en blanc per conservar l'actual</value>
@@ -379,7 +379,7 @@
     <value>la contrasenya</value>
   </data>
   <data name="RotuloNotas" xml:space="preserve">
-    <value>Notas</value>
+    <value>Notes</value>
   </data>
   <data name="BotonGuardarCredenciales" xml:space="preserve">
     <value>Desar credencials</value>
@@ -412,7 +412,7 @@
     <value>Veure credencials</value>
   </data>
   <data name="BotonOcultarContrasena" xml:space="preserve">
-    <value>Ocultar</value>
+    <value>Amagar</value>
   </data>
   <data name="BotonRevelarContrasena" xml:space="preserve">
     <value>Revelar</value>
@@ -424,7 +424,7 @@
     <value>Editar identitat</value>
   </data>
   <data name="BotonCambiarNivel" xml:space="preserve">
-    <value>Cambiar a {0}</value>
+    <value>Canviar a {0}</value>
   </data>
   <data name="TrabajadoresVacioTitulo" xml:space="preserve">
     <value>Sense treballadors que puguis veure</value>
@@ -499,7 +499,7 @@
     <value>Registra la primera verificació per començar a seguir-ne el compliment extern.</value>
   </data>
   <data name="BadgeNoExigido" xml:space="preserve">
-    <value>No exigido</value>
+    <value>No exigit</value>
   </data>
   <data name="DetalleUltimaVerificacion" xml:space="preserve">
     <value>{0} el {1}</value>
@@ -541,7 +541,7 @@
     <value>Registrar verificació externa</value>
   </data>
   <data name="RotuloCentro" xml:space="preserve">
-    <value>Centro</value>
+    <value>Centre</value>
   </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
     <value>Selecciona un centre…</value>
@@ -553,7 +553,7 @@
     <value>Selecciona un tipus…</value>
   </data>
   <data name="RotuloResultado" xml:space="preserve">
-    <value>Resultado</value>
+    <value>Resultat</value>
   </data>
   <data name="RotuloFechaVerificacion" xml:space="preserve">
     <value>Data de verificació</value>
@@ -568,7 +568,7 @@
     <value>Evidència (captura o justificant — PDF, PNG o JPG, màx. 10 MB, opcional)</value>
   </data>
   <data name="EvidenciaAdjunta" xml:space="preserve">
-    <value>Adjunto: {0}</value>
+    <value>Adjunt: {0}</value>
   </data>
   <data name="BotonRegistrar" xml:space="preserve">
     <value>Registrar</value>
@@ -580,16 +580,16 @@
     <value>Supervisió</value>
   </data>
   <data name="PestanaCentros" xml:space="preserve">
-    <value>Centros</value>
+    <value>Centres</value>
   </data>
   <data name="PestanaAgenda" xml:space="preserve">
     <value>Agenda</value>
   </data>
   <data name="MetaCentrosUno" xml:space="preserve">
-    <value>1 centro</value>
+    <value>1 centre</value>
   </data>
   <data name="MetaCentrosVarios" xml:space="preserve">
-    <value>{0} centros</value>
+    <value>{0} centres</value>
   </data>
   <data name="ResumenTrabajadoresParcial" xml:space="preserve">
     <value>Es mostren {0} de {1} treballadors que pots veure</value>
@@ -673,7 +673,7 @@
     <value>Selecciona una empresa de la teva cartera</value>
   </data>
   <data name="SinEmpresaDescripcion" xml:space="preserve">
-    <value>Les subcontratas es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
+    <value>Les subcontractes es mostren d'una empresa cada vegada. Tria'n una a la barra lateral.</value>
   </data>
   <data name="ChipNivelServicio" xml:space="preserve">
     <value>Nivell: {0}</value>
@@ -841,7 +841,7 @@
     <value>Subcontracta restaurada.</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
-    <value>Deshacer</value>
+    <value>Desfer</value>
   </data>
   <data name="ToastLoteRestauradas" xml:space="preserve">
     <value>{0} subcontracta(es) restaurada(es).</value>
@@ -862,7 +862,7 @@
     <value>Copia el CIF {0}</value>
   </data>
   <data name="AriaEditarInformacion" xml:space="preserve">
-    <value>Edita la informació de la subcontrata</value>
+    <value>Edita la informació de la subcontracta</value>
   </data>
   <data name="TituloEditarConAtajo" xml:space="preserve">
     <value>Edita (e)</value>
