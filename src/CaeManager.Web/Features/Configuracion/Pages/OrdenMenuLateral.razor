@@ -108,14 +108,16 @@
                 else
                 {
                     <ol class="orden-menu-grupos" aria-label="@Textos["OrdenMenuAriaGrupos"]">
+                        @{ var clavesGrupos = new ClavesDeHermanos(); }
                         @foreach (var grupo in GruposEditables)
                         {
-                            <li @key="grupo.Cabecera.Fila.Clave" class="orden-menu-grupo" data-grupo="@grupo.Cabecera.Fila.Id">
+                            <li @key="clavesGrupos.De(grupo.Cabecera.Fila.Clave)" class="orden-menu-grupo" data-grupo="@grupo.Cabecera.Fila.Id">
                                 @RenderFila(grupo.Cabecera)
                                 <ol class="orden-menu-enlaces" aria-label="@Textos["OrdenMenuAriaEnlacesDe", grupo.Cabecera.Nombre]">
+                                    @{ var clavesEnlaces = new ClavesDeHermanos(); }
                                     @foreach (var enlace in grupo.Enlaces)
                                     {
-                                        <li @key="enlace.Fila.Clave">@RenderFila(enlace)</li>
+                                        <li @key="clavesEnlaces.De(enlace.Fila.Clave)">@RenderFila(enlace)</li>
                                     }
                                 </ol>
                             </li>
