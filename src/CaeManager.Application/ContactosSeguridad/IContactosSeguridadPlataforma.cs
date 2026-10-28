@@ -19,8 +19,13 @@ namespace CaeManager.Application.ContactosSeguridad;
 /// </summary>
 public interface IContactosSeguridadPlataforma
 {
-    /// <summary>Contactos Propuestos de todos los Tenants, los más antiguos primero.</summary>
-    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Contactos Propuestos de todos los Tenants, los más antiguos primero. <paramref name="usuarioActualId"/>
+    /// es la cuenta autenticada (Actor real): la misma lectura marca <see cref="ContactoSeguridadPropuestoDto.EsPropia"/>
+    /// en los que propuso esa cuenta, sin sacar de Infrastructure el id de la cuenta proponente.
+    /// </summary>
+    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+        Guid usuarioActualId, CancellationToken cancellationToken);
 
     /// <summary>El contacto Validado del Tenant, o null si no tiene.</summary>
     Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken);
@@ -31,13 +36,6 @@ public interface IContactosSeguridadPlataforma
     /// </summary>
     Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken);
 
-    /// <summary>
-    /// Lo mismo que <see cref="ObtenerCuentaProponenteAsync"/> para varios contactos en una sola lectura,
-    /// para marcar en la cola cuáles propuso la cuenta autenticada. Los que no existen o no se pueden leer
-    /// no aparecen en el resultado.
-    /// </summary>
-    Task<IReadOnlyDictionary<Guid, Guid>> ObtenerCuentasProponentesAsync(
-        IReadOnlyCollection<Guid> contactoIds, CancellationToken cancellationToken);
 
     /// <summary>Valida (<paramref name="motivoRechazo"/> nulo) o rechaza (con motivo) un contacto Propuesto.</summary>
     Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken);

@@ -208,7 +208,7 @@ UPDATE ""ContactosSeguridadTenant"" SET ""Estado"" = 'Sustituido', ""Sustitucion
         var actor = caducada ? _actorPlataformaCaducado : _actorPlataformaSinConcesion;
         await using var contexto = CrearContexto(_tenantPlataforma, actor: actor);
 
-        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos()).ObtenerPropuestosAsync(CancellationToken.None))
+        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos()).ObtenerPropuestosAsync(actor, CancellationToken.None))
             .Should().BeEmpty("sin la concesión la política de lectura de plataforma no abre nada");
         (await LlamarResolverAsync(contexto, contacto, validar: true, motivo: null)).Should().Be("no_autorizado");
         (await EstadoAsync(contacto)).Should().Be("Propuesto");
@@ -227,7 +227,7 @@ UPDATE ""ContactosSeguridadTenant"" SET ""Estado"" = 'Sustituido', ""Sustitucion
         await using (var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma))
         {
             var plataforma = new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos());
-            (await plataforma.ObtenerPropuestosAsync(CancellationToken.None)).Should().ContainSingle()
+            (await plataforma.ObtenerPropuestosAsync(_adminPlataforma, CancellationToken.None)).Should().ContainSingle()
                 .Which.NombreOrganizacion.Should().Be("Tenant beneficiario A S.L.");
             (await plataforma.ResolverAsync(primero, motivoRechazo: null, CancellationToken.None)).EsExitoso.Should().BeTrue();
         }
@@ -355,18 +355,17 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
     }
 
     [Fact]
-    public async Task El_Actor_de_Plataforma_lee_las_cuentas_proponentes_de_varios_Tenants_en_una_lectura()
+    public async Task La_cola_marca_como_propia_solo_la_propuesta_de_la_cuenta_autenticada()
     {
         var deA = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
         var dePlataforma = await ProponerAsync(_tenantPlataforma, _adminPlataformaAdministradorDelTenant, "Jordi");
-        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataformaAdministradorDelTenant);
 
-        var cuentas = await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
-            .ObtenerCuentasProponentesAsync([deA, dePlataforma, Guid.NewGuid()], CancellationToken.None);
+        var cola = await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+            .ObtenerPropuestosAsync(_adminPlataformaAdministradorDelTenant, CancellationToken.None);
 
-        cuentas.Should().HaveCount(2);
-        cuentas[deA].Should().Be(_administradorDeA);
-        cuentas[dePlataforma].Should().Be(_adminPlataformaAdministradorDelTenant);
+        cola.Single(p => p.Id == dePlataforma).EsPropia.Should().BeTrue();
+        cola.Single(p => p.Id == deA).EsPropia.Should().BeFalse();
     }
 
     [Theory]
