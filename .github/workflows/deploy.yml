@@ -533,6 +533,54 @@ jobs:
           # "Re-run all jobs" vuelve a subir el mismo nombre en el mismo run.
           overwrite: true
 
+  escanear-imagen:
+    # Escaneo de la imagen que se despliega (hallazgo S-D-5; ASVS V14.2.1,
+    # OWASP Top 10 A06). ci.yml escanea `caemanager:ci`, que es otro build del
+    # mismo SHA; lo que arrancan staging y producción es el artefacto firmado
+    # del job `imagen`, y ese no lo escaneaba nadie. Misma acción, fijada por
+    # el mismo SHA, y misma configuración que el paso Trivy de ci.yml:
+    # CRITICAL/HIGH, bloqueante y sin `ignore-unfixed`; tampoco hay
+    # .trivyignore en el repositorio. Una excepción aceptada se documentaría en
+    # un .trivyignore, como dice el comentario de ci.yml, no relajando esto.
+    #
+    # Job propio y no un paso de `imagen`, a propósito: `imagen` tiene
+    # `id-token: write` y acceso al demonio Docker ANTES de exportar y firmar,
+    # así que una acción de terceros allí (trivy-action instala además Trivy y
+    # su script de instalación) podría alterar la imagen o firmar en nombre de
+    # este workflow. Aquí corre con el GITHUB_TOKEN sin permisos de la cabecera
+    # y sobre el artefacto ya firmado: puede bloquear el despliegue, no
+    # cambiar lo que el VPS verifica. `staging` lo exige en `needs:`, y con él
+    # toda la cadena hacia producción.
+    name: Escanear la imagen firmada (Trivy)
+    needs: imagen
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Descargar la imagen firmada
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: imagen-despliegue
+          path: imagen-despliegue
+
+      - name: Cargar la imagen del artefacto
+        # Se comprueba el hash del manifiesto firmado antes de cargar: lo que se
+        # escanea es exactamente el tarball que el VPS va a recibir.
+        run: |
+          set -euo pipefail
+          grep -qx "revision=$SHA_DESPLEGADO" imagen-despliegue/imagen.manifiesto
+          ESPERADO="$(sed -n 's/^sha256=//p' imagen-despliegue/imagen.manifiesto)"
+          echo "$ESPERADO  imagen-despliegue/imagen.tar.gz" | sha256sum -c -
+          gunzip -c imagen-despliegue/imagen.tar.gz | docker load
+          docker image inspect "caemanager:$SHA_DESPLEGADO" > /dev/null
+
+      - name: Escanear vulnerabilidades de la imagen (Trivy)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: caemanager:${{ env.SHA_DESPLEGADO }}
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: "1"
+
   staging:
     # EL GATE. Solo despliega si el CI que acaba de terminar terminó en verde
     # Y corrió sobre un `push` a `main`. `failure`, `cancelled`, `timed_out`,
@@ -565,7 +613,9 @@ jobs:
       || (github.event.workflow_run.event == 'push'
       && github.event.workflow_run.conclusion == 'success')
     name: Desplegar a staging
-    needs: imagen
+    # `escanear-imagen`: la imagen firmada no se despliega si Trivy encuentra
+    # vulnerabilidades CRITICAL/HIGH (ver ese job).
+    needs: [imagen, escanear-imagen]
     runs-on: ubuntu-latest
     # Concurrencia por entorno, no por workflow entero: dos deploys de
     # staging no deben chocar entre sí (causa real del run #47, dos runs
