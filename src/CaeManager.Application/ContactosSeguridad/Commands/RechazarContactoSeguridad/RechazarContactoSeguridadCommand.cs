@@ -44,6 +44,10 @@ public class RechazarContactoSeguridadCommandHandler(
         if (string.IsNullOrWhiteSpace(request.Motivo))
             return Result.Fallo(ErroresContactoSeguridad.MotivoObligatorio);
 
+        if (await AutorizacionResolucionContactoSeguridad.LaPropusoQuienResuelveAsync(
+                currentUserService, plataforma, request.ContactoId, cancellationToken))
+            return Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
+
         return await plataforma.ResolverAsync(request.ContactoId, request.Motivo.Trim(), cancellationToken);
     }
 }

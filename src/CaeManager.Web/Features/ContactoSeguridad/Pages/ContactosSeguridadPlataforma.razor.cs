@@ -53,7 +53,8 @@ public partial class ContactosSeguridadPlataforma : CaeManager.Web.Components.Pa
             var resultado = await Mediator.Send(new ValidarContactoSeguridadCommand(contactoId));
             if (resultado.EsFallido)
             {
-                _error = resultado.Error.Mensaje;
+                _error = resultado.Error == ErroresContactoSeguridad.MismaCuentaProponente
+                    ? Textos["MismaCuentaProponente"] : resultado.Error.Mensaje;
                 return;
             }
 
@@ -102,7 +103,8 @@ public partial class ContactosSeguridadPlataforma : CaeManager.Web.Components.Pa
             var resultado = await Mediator.Send(new RechazarContactoSeguridadCommand(propuesto.Id, _motivo));
             if (resultado.EsFallido)
             {
-                _errorRechazo = resultado.Error.Mensaje;
+                _errorRechazo = resultado.Error == ErroresContactoSeguridad.MismaCuentaProponente
+                    ? Textos["MismaCuentaProponente"] : resultado.Error.Mensaje;
                 return;
             }
 

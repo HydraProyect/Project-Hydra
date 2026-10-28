@@ -19,9 +19,15 @@ namespace CaeManager.Application.ContactosSeguridad.Commands.ValidarContactoSegu
 /// </para>
 ///
 /// <para>
+/// <b>Cuatro ojos.</b> La cuenta que propuso el contacto no puede validarlo ni rechazarlo: el caso real es
+/// un Actor de Plataforma TALVEG que, como Administrador del Tenant de plataforma, propone el contacto de
+/// ese Tenant. Lo resuelve otro Actor de Plataforma TALVEG con la misma concesión.
+/// </para>
+///
+/// <para>
 /// <b>Escritura.</b> La fila es de otro Tenant y su RLS no deja escribirla con el contexto del actor; la
-/// escribe <c>app_resolver_contacto_seguridad</c>, que repite la concesión, la cuenta de plataforma y el
-/// estado Propuesto, y deja la auditoría en el Tenant beneficiario.
+/// escribe <c>app_resolver_contacto_seguridad</c>, que repite la concesión, la cuenta de plataforma, el
+/// estado Propuesto y los cuatro ojos, y deja la auditoría en el Tenant beneficiario.
 /// </para>
 /// </summary>
 public record ValidarContactoSeguridadCommand(Guid ContactoId) : ICommand;
@@ -47,6 +53,10 @@ public class ValidarContactoSeguridadCommandHandler(
                 currentUserService, sesionPrivilegiadaActual, autorizacion, cancellationToken))
             return Result.Fallo(ErroresContactoSeguridad.SoloActorDePlataforma);
 
+        if (await AutorizacionResolucionContactoSeguridad.LaPropusoQuienResuelveAsync(
+                currentUserService, plataforma, request.ContactoId, cancellationToken))
+            return Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente);
+
         return await plataforma.ResolverAsync(request.ContactoId, motivoRechazo: null, cancellationToken);
     }
 }
@@ -66,4 +76,21 @@ internal static class AutorizacionResolucionContactoSeguridad
         return await currentUserService.ObtenerUsuarioActualIdAsync() is { } usuarioId
                && await autorizacion.PuedeGlobalmenteAsync(usuarioId, cancellationToken);
     }
+
+    /// <summary>
+    /// Cuatro ojos: la cuenta que propuso el contacto no lo resuelve. Se compara la cuenta autenticada
+    /// (la misma que firma el contexto RLS y que la función registra como actor), no un Tenant ni otra
+    /// coordenada de contexto. Invariante que esta regla necesita: la cuenta autenticada y
+    /// <c>app_ctx_usuario_id()</c> son el Actor real. Hoy se cumple porque resolver está prohibido en Sesión
+    /// Privilegiada (<see cref="PuedeAsync"/>); si un día existe impersonación, el Usuario simulado no puede
+    /// ocupar ninguno de los dos lados de la comparación. Sin propuesta legible responde
+    /// <c>false</c> y decide la función, que repite la regla (<c>misma_cuenta</c>).
+    /// </summary>
+    public static async Task<bool> LaPropusoQuienResuelveAsync(
+        ICurrentUserService currentUserService,
+        IContactosSeguridadPlataforma plataforma,
+        Guid contactoId,
+        CancellationToken cancellationToken) =>
+        await currentUserService.ObtenerUsuarioActualIdAsync() is { } usuarioId
+        && await plataforma.ObtenerCuentaProponenteAsync(contactoId, cancellationToken) == usuarioId;
 }
