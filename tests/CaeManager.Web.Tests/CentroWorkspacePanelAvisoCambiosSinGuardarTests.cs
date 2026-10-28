@@ -1,6 +1,10 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
+using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
@@ -86,6 +90,9 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerBorradorPedirPrioridadQuery => Result.Exito(new BorradorPedirPrioridadDto(
                     "validacion@refrielectric.example", "Prioridad de validación", "Os pedimos prioridad.", true, null, 1)),
                 CrearCanalGestionCommand => Result.Exito(Guid.NewGuid()),
+                EstablecerDocumentacionRequeridaCentroCommand => Result.Exito(),
+                PedirPrioridadValidacionCommand => Result.Exito(),
+                EnviarReclamacionCommand => Result.Exito(new EnvioReclamacionResultado([], [])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)valor!);
@@ -492,6 +499,22 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     }
 
     // ------------------------------------------------ lote 1: edición en línea de Información
+
+    [Theory]
+    [InlineData("prioridad")]
+    [InlineData("reclamacion")]
+    [InlineData("acceso")]
+    [InlineData("requisito")]
+    public async Task Guardar_envia_el_comando_del_drawer(string drawer)
+    {
+        var cut = await AbrirDrawerAsync(drawer);
+        await TocarAlgoAsync(cut, drawer);
+        await PulsarAsync(cut, drawer is "prioridad" or "reclamacion" ? "Enviar" : "Guardar");
+        _mediador.Enviadas.Should().ContainSingle(c => drawer == "prioridad" ? c is PedirPrioridadValidacionCommand
+            : drawer == "reclamacion" ? c is EnviarReclamacionCommand
+            : drawer == "acceso" ? c is CrearCanalGestionCommand
+            : c is EstablecerDocumentacionRequeridaCentroCommand);
+    }
 
     private async Task<IRenderedComponent<CentroWorkspacePanel>> EditarInformacionAsync()
     {

@@ -740,4 +740,6 @@
   <data name="BuscarVehiculo360" xml:space="preserve"><value>Buscar vehículo por matrícula o modelo…</value></data>
   <data name="AriaDocumentosVehiculo360" xml:space="preserve"><value>Documentos de {0}</value></data>
   <data name="VehiculosErrorCargaDescripcion360" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
+  <data name="SubiendoArchivoMotivoGuardar" xml:space="preserve"><value>Subiendo archivo…</value></data>
+  <data name="BorradorPrioridadNoDisponibleMotivo" xml:space="preserve"><value>El borrador no está disponible</value></data>
 </root>

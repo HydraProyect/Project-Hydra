@@ -734,4 +734,6 @@
   <data name="BuscarVehiculo360" xml:space="preserve"><value>Cerca un vehicle per matrícula o model…</value></data>
   <data name="AriaDocumentosVehiculo360" xml:space="preserve"><value>Documents de {0}</value></data>
   <data name="VehiculosErrorCargaDescripcion360" xml:space="preserve"><value>Torna-ho a provar d&apos;aquí a uns segons.</value></data>
+  <data name="SubiendoArchivoMotivoGuardar" xml:space="preserve"><value>Pujant l&apos;arxiu…</value></data>
+  <data name="BorradorPrioridadNoDisponibleMotivo" xml:space="preserve"><value>L&apos;esborrany no està disponible</value></data>
 </root>
