@@ -45,6 +45,7 @@ internal static class RecorridoFichas360
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Trabajadores");
 
         await Ayudas.EsperarListaListaAsync(page.Locator(".marco-lista-trabajadores .lista-filas-acordeon"));
+        // Intervalo de revalidación periódica del circuito en el servidor, sin señal observable de cada ciclo.
         await page.WaitForTimeoutAsync(6_000);
         await ComprobarQueElTenantSigueActivoAsync(page, tenantEsperado, "la lista de Trabajadores tras la revalidación del circuito");
 

@@ -213,6 +213,48 @@ public class AvisoCambiosSinGuardarEnPestanasTests : BunitContext
         cut.FindAll("h2").Should().NotContain(h => h.TextContent.Trim() == "¿Salir sin guardar?");
     }
 
+    private static async Task AbrirNuevaVersionAsync(IRenderedComponent<PlantillasTab> cut, byte[]? pdf)
+    {
+        await cut.InvokeAsync(() =>
+        {
+            Escribir(cut.Instance, "_plantillaParaNuevaVersionId", (Guid?)Guid.NewGuid());
+            Escribir(cut.Instance, "_archivoNuevaVersion", pdf);
+        });
+        cut.Render();
+    }
+
+    /// <summary>Kit ModalFormulario: sin PDF «Subir y configurar» sigue deshabilitado, ahora con su motivo; con PDF se habilita.</summary>
+    [Fact]
+    public async Task Nueva_version_de_plantilla_sin_PDF_deja_Subir_deshabilitado_con_motivo_y_con_PDF_lo_habilita()
+    {
+        var cut = Render<PlantillasTab>();
+        await AbrirNuevaVersionAsync(cut, null);
+
+        var subir = cut.FindAll(".modal-pie .boton-primario").Should().ContainSingle().Which;
+        subir.TextContent.Trim().Should().Be("Subir y configurar");
+        subir.HasAttribute("disabled").Should().BeTrue();
+        subir.GetAttribute("title").Should().Be("Elige el PDF de la nueva versión.");
+
+        await AbrirNuevaVersionAsync(cut, new byte[] { 0x25, 0x50, 0x44, 0x46 });
+
+        var habilitado = cut.Find(".modal-pie .boton-primario");
+        habilitado.HasAttribute("disabled").Should().BeFalse();
+        habilitado.HasAttribute("title").Should().BeFalse();
+    }
+
+    /// <summary>D-05: «Cancelar» del pie cierra como la X; con el PDF elegido pregunta antes.</summary>
+    [Fact]
+    public async Task Nueva_version_de_plantilla_Cancelar_con_PDF_elegido_pregunta_antes_de_cerrar()
+    {
+        var cut = Render<PlantillasTab>();
+        await AbrirNuevaVersionAsync(cut, new byte[] { 0x25, 0x50, 0x44, 0x46 });
+
+        await cut.PulsarCancelarDelPieAsync(".modal-pie");
+
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".modal-pie").Should().BeEmpty("al descartar se cierra");
+    }
     private static void Escribir(object instancia, string campo, object? valor)
     {
         var info = instancia.GetType().GetField(campo, BindingFlags.Instance | BindingFlags.NonPublic);

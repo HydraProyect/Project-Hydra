@@ -57,7 +57,7 @@ public class FormulariosEnModalUsanElKitTests
         var medido = MedirFueraDelKit(MarcadoRazor.LeerRazorDeLaWeb());
 
         // Control positivo: si el recorrido no viera Modales con campos, «ninguno nuevo» valdría por vacío.
-        medido.Values.Sum().Should().BeGreaterThan(5, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3, 9 tras formularios rápidos, 6 tras el lote 3); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
+        medido.Values.Sum().Should().BeGreaterThan(2, "había 28 Modales con campos al escribirlo (27 tras el piloto Guardar filtro, 23 tras el lote 3b-1, 15 tras el 3b-2, 11 tras el 3b-3, 9 tras formularios rápidos, 6 tras migrar baja en lote, nueva versión de plantilla y solicitud de incorporación, 3 tras migrar EstadoComercial, Operadores CAE externos y Asignar a centro); el umbral se ajusta a lo medido en cada lote que migra; si baja de golpe sin migrar nada, dejó de mirar");
 
         ListaCongelada.Verificar(Lista, medido, Guia).Should().BeNull();
     }

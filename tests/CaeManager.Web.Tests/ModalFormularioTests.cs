@@ -236,6 +236,67 @@ public class ModalFormularioTests : BunitContext
         guardar.HasAttribute("title").Should().BeFalse();
     }
 
+    /// <summary>Parámetro aditivo: Destructivo solo cambia el aspecto del único botón de acción; sigue guardando, con spinner y motivo.</summary>
+    [Fact]
+    public async Task GuardarDestructivo_cambia_solo_el_aspecto_del_unico_boton_de_accion()
+    {
+        var cut = Renderizar(p => p.Add(x => x.GuardarDestructivo, true));
+
+        cut.FindAll(".modal-pie .boton-primario").Should().BeEmpty();
+        cut.FindAll(".modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Guardar");
+        cut.FindAll(".modal-pie .boton-secundario").Should().ContainSingle().Which.TextContent.Trim().Should().Be("Cancelar");
+
+        await cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
+        _guardados.Should().Be(1);
+    }
+
+    [Fact]
+    public void GuardarDestructivo_conserva_el_motivo_de_Guardar_deshabilitado()
+    {
+        var cut = Renderizar(p => p
+            .Add(x => x.GuardarDestructivo, true)
+            .Add(x => x.MotivoGuardarDeshabilitado, "Elige una fecha."));
+
+        var guardar = cut.Find(".modal-pie .boton-destructivo");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().Be("Elige una fecha.");
+    }
+
+    /// <summary>Parámetro aditivo: sin acción que ofrecer el pie queda en «Cancelar», que sigue saliendo por el guardián.</summary>
+    [Fact]
+    public async Task MostrarGuardar_falso_deja_solo_Cancelar_y_este_sigue_preguntando()
+    {
+        _hayCambios = true;
+        var cut = Renderizar(p => p.Add(x => x.MostrarGuardar, false));
+
+        cut.FindAll(".modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar");
+        cut.FindAll(".modal-pie .boton-primario").Should().BeEmpty();
+
+        await cut.Find(".modal-pie .boton-secundario").ClickAsync(new MouseEventArgs());
+
+        _visible.Should().BeTrue("sin Guardar, Cancelar sigue sin tirar lo escrito sin preguntar (D-05)");
+        Preguntando(cut).Should().BeTrue();
+    }
+
+    [Fact]
+    public void MostrarGuardar_falso_con_Bloqueante_se_rechaza_porque_no_tendria_salida()
+    {
+        var accion = () => Renderizar(p => p.Add(x => x.MostrarGuardar, false).Add(x => x.Bloqueante, true));
+
+        accion.Should().Throw<InvalidOperationException>().WithMessage("*no tiene salida*");
+    }
+
+    [Fact]
+    public void MostrarGuardar_falso_con_SinContenido_no_exige_motivo_porque_no_hay_boton_mudo()
+    {
+        var cut = Renderizar(p => p
+            .Add(x => x.MostrarGuardar, false)
+            .Add(x => x.SinContenido, (RenderFragment)(b => b.AddContent(0, "No hay nada que pedir."))));
+
+        cut.Markup.Should().Contain("No hay nada que pedir.");
+        cut.FindAll(".modal-pie button").Should().ContainSingle();
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

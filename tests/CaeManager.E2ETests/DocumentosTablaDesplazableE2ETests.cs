@@ -82,7 +82,15 @@ public class DocumentosTablaDesplazableE2ETests(WebAppFixtureListados fixture, I
             {
                 Assert.True(intento <= 10, "«Selección múltiple» no se aplicó tras 10 clics.");
                 await conmutador.ClickAsync();
-                await page.WaitForTimeoutAsync(1_000);
+                try
+                {
+                    await Expect(conmutador).ToHaveAttributeAsync("aria-pressed", "true",
+                        new LocatorAssertionsToHaveAttributeOptions { Timeout = 1_000 });
+                }
+                catch (PlaywrightException)
+                {
+                    // El circuito aún no atendió el clic: el bucle lo repite y, agotados los intentos, falla con su mensaje.
+                }
             }
 
             await Expect(page.GetByRole(AriaRole.Checkbox, new PageGetByRoleOptions { Name = "Seleccionar los documentos de esta página", Exact = true }))
