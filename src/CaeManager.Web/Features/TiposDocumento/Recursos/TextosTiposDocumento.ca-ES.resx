@@ -364,7 +364,7 @@
     <value>Proposat: el següent lliure.</value>
   </data>
   <data name="ResumenNingunoSePide" xml:space="preserve">
-    <value>Sense marcar-ne cap, cada centre segueix el valor general («{0}») i el demana, excepte els que el tinguin exclòs en els seus propis requisits.</value>
+    <value>Sense marcar-ne cap, cada centre segueix el valor general («{0}») i el demana, excepte els que el tinguin exclòs als seus propis requisits.</value>
   </data>
   <data name="ResumenNingunoNoSePide" xml:space="preserve">
     <value>Sense marcar-ne cap, cada centre segueix el valor general («{0}») i no el demana per defecte.</value>

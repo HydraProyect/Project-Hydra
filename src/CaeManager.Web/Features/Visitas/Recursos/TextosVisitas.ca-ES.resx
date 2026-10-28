@@ -97,7 +97,7 @@
     <value>No hi ha visites actives</value>
   </data>
   <data name="VacioActivasDescripcion" xml:space="preserve">
-    <value>Pot haver-hi visites ja finalitzades: la llista arriba filtrada per «Només actives».</value>
+    <value>Pot haver-hi visites ja finalitzades: la llista es mostra filtrada per «Només actives».</value>
   </data>
   <data name="BotonVerFinalizadas" xml:space="preserve">
     <value>Veure també les finalitzades</value>
@@ -202,10 +202,10 @@
     <value>No hi ha documentació pendent per a aquest centre.</value>
   </data>
   <data name="BotonQuitarMarcaNotificada" xml:space="preserve">
-    <value>Treure la marca de notificada</value>
+    <value>Treu la marca de notificada</value>
   </data>
   <data name="BotonMarcarNotificada" xml:space="preserve">
-    <value>Marcar com a notificada</value>
+    <value>Marca com a notificada</value>
   </data>
   <data name="BotonCerrar" xml:space="preserve">
     <value>Tancar</value>
