@@ -59,6 +59,9 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
+        // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
+        InspectorXlsxSeguro.Verificar(archivo);
+
         var trabajadoresPorDni = await trabajadoresContext.Trabajadores
             .Where(t => t.Dni != null)
             .Select(t => t.Dni!)
