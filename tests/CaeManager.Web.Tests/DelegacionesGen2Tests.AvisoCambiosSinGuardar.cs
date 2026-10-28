@@ -183,6 +183,21 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
+    public async Task Crear_Operador_CAE_externo_sin_correo_ni_nombre_del_Administrador_sigue_deshabilitado_y_con_ellos_se_habilita()
+    {
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
+        await BotonConTexto(cut, "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        await EscribirEnElModalAsync(cut, "ArcoSPA");
+        BotonConTexto(cut, "Crear").HasAttribute("disabled").Should().BeTrue("con solo el nombre el servidor lo rechazaría");
+
+        await EscribirEnElCampoAsync(cut, "Correo del primer Administrador", "marta@operador-sur.test");
+        BotonConTexto(cut, "Crear").HasAttribute("disabled").Should().BeTrue("falta el nombre del Administrador");
+
+        await EscribirEnElCampoAsync(cut, "Nombre del primer Administrador", "Marta Ruiz");
+        BotonConTexto(cut, "Crear").HasAttribute("disabled").Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Cancelar_el_alta_de_Operador_CAE_externo_con_nombre_pregunta_y_sin_nombre_cierra()
     {
         var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);

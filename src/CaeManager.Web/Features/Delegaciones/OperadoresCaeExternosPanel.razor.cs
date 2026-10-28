@@ -120,8 +120,8 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
     /// <summary>
     /// P1-E2b: el modal abre siempre con los campos vacíos, así que hay algo que perder en
     /// cuanto se ha escrito un nombre de Operador CAE externo o de Tenant propietario, o el
-    /// correo o el nombre del primer Administrador. Lo leen AvisoCambiosSinGuardar y el
-    /// Modal; cerrado (también tras crear) nunca.
+    /// correo o el nombre del primer Administrador. Lo lee ModalFormulario (su guardián
+    /// y su aviso de navegación); cerrado (también tras crear) nunca.
     /// </summary>
     private bool HayCambiosSinGuardar => _modal is not ModalActivo.Ninguno
         && (!string.IsNullOrWhiteSpace(_nombre)
