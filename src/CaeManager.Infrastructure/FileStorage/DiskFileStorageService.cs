@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Text;
 using CaeManager.Application.Common;
 using CaeManager.Application.ContratosAcceso.EvidenciasInbound;
 using CaeManager.Application.ContratosAcceso.LecturaInbound;
@@ -185,7 +186,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         // él no hay ruta que resolver, así que este es el único punto donde la
         // ausencia significa "no existe" y no un descifrado a ciegas.
         if (rutaCompleta is null || _tenantActual.TenantId is not { } tenantId || !File.Exists(rutaCompleta))
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+            throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
         var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
 
@@ -209,7 +210,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
 
         var rutaCompleta = ResolverRutaSegura(identificador, tenantPropietarioId);
         if (rutaCompleta is null || !File.Exists(rutaCompleta))
-            throw new FileNotFoundException("No encontramos el archivo solicitado.", identificador);
+            throw new FileNotFoundException("No encontramos el archivo solicitado.");
 
         var bytesDisco = await File.ReadAllBytesAsync(rutaCompleta, cancellationToken);
 
@@ -272,9 +273,12 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
                 // fuera legítimo, que es exactamente lo que el cifrado existe
                 // para impedir.
                 _alertaOperativa.Emitir(
-                    $"Un archivo cifrado no supera la verificación de integridad ({identificador}). " +
-                    "Puede ser manipulación, corrupción o pérdida del material de claves de Data Protection.",
+                    $"Un archivo cifrado del Tenant propietario {tenantId:N} no supera la verificación de integridad. " +
+                    "Puede ser manipulación, corrupción o pérdida del material de claves de Data Protection; la huella está en el aviso del registro.",
                     NivelAlertaOperativa.Critica);
+                _logger.LogWarning(
+                    "Un archivo cifrado del Tenant propietario {TenantPropietarioId} no supera la verificación de integridad. Huella del archivo: {HuellaArchivo}.",
+                    tenantId.ToString("N"), HuellaArchivo(identificador));
 
                 throw new InvalidDataException(
                     "El archivo no supera la verificación de integridad y no se puede servir.", ex);
@@ -304,9 +308,9 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
             var descifrado = _protectorLegado.Unprotect(bytesDisco);
 
             _logger.LogWarning(
-                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato ({Identificador}). " +
+                "Se sirvió un archivo legado cifrado con el protector v1 y sin marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}. " +
                 "Mientras existan, la rama legada no se puede retirar: hacerlo dejaría este archivo ilegible.",
-                identificador);
+                tenantId.ToString("N"), HuellaArchivo(identificador));
 
             return descifrado;
         }
@@ -325,31 +329,40 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
             // para todos los archivos de un Tenant, así que una población
             // legada agrupa en una incidencia por Tenant en vez de abrir una
             // por archivo. El aviso del registro, a continuación, es el que
-            // lleva el identificador para localizarlo.
+            // lleva la huella para localizarlo en el volumen.
             var mensajeAlerta =
                 $"{(_rechazarLegadoEnClaro ? "Se rechazó" : "Se sirvió en claro")} un archivo sin cifrar ni marca de formato " +
                 $"del Tenant propietario {tenantId:N}. Puede ser un legado en claro, manipulación del volumen de " +
-                "almacenamiento o pérdida de la clave del protector v1; el identificador está en el aviso del registro.";
+                "almacenamiento o pérdida de la clave del protector v1; la huella está en el aviso del registro.";
             _alertaOperativa.Emitir(mensajeAlerta, NivelAlertaOperativa.Critica);
 
             if (_rechazarLegadoEnClaro)
             {
                 _logger.LogWarning(
-                    "Se rechazó un archivo sin cifrar ni marca de formato ({Identificador}): " +
+                    "Se rechazó un archivo sin cifrar ni marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}: " +
                     "AlmacenamientoArchivos:RechazarLegadoEnClaro está activo.",
-                    identificador);
+                    tenantId.ToString("N"), HuellaArchivo(identificador));
 
                 throw new InvalidDataException(
                     "El archivo no supera la verificación de integridad y no se puede servir.", ex);
             }
 
             _logger.LogWarning(
-                "Se sirvió un archivo legado sin cifrar ni marca de formato ({Identificador}). " +
+                "Se sirvió un archivo legado sin cifrar ni marca de formato del Tenant propietario {TenantPropietarioId}. Huella del archivo: {HuellaArchivo}. " +
                 "Mientras existan, la rama legada no se puede retirar y un contenido manipulado no se distingue de uno antiguo.",
-                identificador);
+                tenantId.ToString("N"), HuellaArchivo(identificador));
 
             return bytesDisco;
         }
+    }
+
+    // SHA-256 de UTF-8("CaeManager.Archivos.Huella.v1:" + nombre en disco),
+    // primeros 12 hexadecimales en minúsculas. El Tenant delimita la búsqueda.
+    internal static string HuellaArchivo(string identificador)
+    {
+        var nombreEnDisco = Path.GetFileName(identificador.Split('/', 2)[1]);
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes("CaeManager.Archivos.Huella.v1:" + nombreEnDisco));
+        return Convert.ToHexStringLower(hash.AsSpan(0, 6));
     }
 
     private static bool EmpiezaConMarcaV2(byte[] contenido) =>
