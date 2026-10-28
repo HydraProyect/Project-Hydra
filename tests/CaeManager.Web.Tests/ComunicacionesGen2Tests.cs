@@ -10,6 +10,7 @@ using CaeManager.Application.Comunicaciones.Commands.CambiarEstadoConversacion;
 using CaeManager.Application.Comunicaciones.Commands.ResponderConversacion;
 using CaeManager.Application.Comunicaciones.Commands.EnviarMensajeNuevo;
 using CaeManager.Application.Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto;
+using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerBorradorPedirPrioridad;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerCompanerosGestorCae;
 using CaeManager.Application.Comunicaciones.Queries.ObtenerFormatosRequeridosCentro;
@@ -828,7 +829,7 @@ public class ComunicacionesGen2Tests : BunitContext
     /// buzón para «Redactar»: lo mínimo para abrir los cinco formularios de la página.
     /// </summary>
     private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync(
-        bool laDeteccionLeeLaFechaDeEmision = true, bool conBuzon = true)
+        bool laDeteccionLeeLaFechaDeEmision = true, bool conBuzon = true, bool borradorFalla = false, bool envioFalla = false)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var detalle = DetalleDe(conversacion);
@@ -844,11 +845,16 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerCentrosParaSelectorQuery => Task.FromResult<object?>(new List<CentroSelectorDto>
                     { new(CentroNorteId, "Centro Norte", ClienteRefrielectric.RazonSocial, "Refrielectric S.A.") }),
                 ObtenerFormatosRequeridosCentroQuery => Task.FromResult<object?>(null),
+                ObtenerBorradorPedirPrioridadQuery when borradorFalla => Task.FromResult<object?>(
+                    Result.Fallo<BorradorPedirPrioridadDto>(Error.Crear("Prioridad.SinBorrador", "No pudimos preparar el borrador."))),
+                PedirPrioridadValidacionCommand => Task.FromResult<object?>(Result.Exito()),
                 ObtenerBorradorPedirPrioridadQuery => Task.FromResult<object?>(Result.Exito(new BorradorPedirPrioridadDto(
                     "validacion@example.invalid", "Prioridad Centro Norte", "<p>Rogamos prioridad.</p>", conBuzon, null, 2))),
                 ObtenerConexionesIntegracionQuery when !conBuzon => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>()),
                 ObtenerConexionesIntegracionQuery => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>
                     { new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null) }),
+                EnviarMensajeNuevoCommand when envioFalla => Task.FromResult<object?>(
+                    Result.Fallo<Guid>(Error.Crear("Mensaje.NoEnviado", "El buzón rechazó el envío."))),
                 EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
                 ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto>()),
                 DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
@@ -998,7 +1004,9 @@ public class ComunicacionesGen2Tests : BunitContext
 
         cut.WaitForAssertion(() => cut.Find(".drawer-panel .aviso-sin-buzon").TextContent.Should().Contain("no hay ningún buzón de Microsoft 365 conectado"));
         cut.Find(".drawer-panel .aviso-sin-buzon-pedir").TextContent.Should().Contain("rol Administrador de esta organización");
-        cut.FindAll(".drawer-panel button").Select(b => b.TextContent.Trim()).Should().NotContain("Enviar");
+        var enviar = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar");
+        enviar.HasAttribute("disabled").Should().BeTrue("sin buzón no hay nada que enviar, y el kit exige decir por qué");
+        enviar.GetAttribute("title").Should().Contain("no hay ningún buzón de Microsoft 365 conectado");
         cut.FindAll(".drawer-panel input.campo-input").Should().BeEmpty();
         Services.GetRequiredService<ToastService>().Mensajes.Should().BeEmpty();
     }
@@ -1086,6 +1094,104 @@ public class ComunicacionesGen2Tests : BunitContext
 
         PreguntaDescartar(cut).Should().BeTrue("con el borrador editado, Cancelar pregunta como la X");
         cut.FindAll(".drawer-panel").Should().ContainSingle();
+    }
+
+    private MediadorControlado MediadorDeLaPagina => (MediadorControlado)Services.GetRequiredService<IMediator>();
+
+    [Fact]
+    public async Task Enviar_Redactar_manda_el_comando_con_lo_escrito_y_cierra()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
+        await cut.FindAll(".drawer-panel input.campo-input")[1].InputAsync(new ChangeEventArgs { Value = "Asunto nuevo" });
+        await cut.Find(".drawer-panel textarea").InputAsync(new ChangeEventArgs { Value = "Cuerpo nuevo." });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        var comando = MediadorDeLaPagina.Enviados.OfType<EnviarMensajeNuevoCommand>().Should().ContainSingle().Subject;
+        comando.Destinatarios.Should().Equal("contacto@example.invalid");
+        comando.Asunto.Should().Be("Asunto nuevo");
+        comando.CuerpoHtml.Should().Be("Cuerpo nuevo.");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Enviar_Redactar_sin_destinatario_dice_por_que_y_no_cierra_ni_envia()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Indica al menos un destinatario.", "el error sale en el aviso del kit, fuera del cuerpo desplazable");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        MediadorDeLaPagina.Enviados.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_envio_de_Redactar_falla_el_Drawer_sigue_abierto_con_lo_escrito_y_el_motivo()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(envioFalla: true);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("El buzón rechazó el envío.");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "contacto@example.invalid", "lo escrito se conserva para corregir");
+        cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").HasAttribute("disabled").Should().BeFalse("se puede corregir y reintentar");
+    }
+
+    [Fact]
+    public async Task Enviar_Pedir_prioridad_manda_el_comando_con_el_borrador_editado_y_cierra()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+        await cut.FindAll(".drawer-panel textarea").Single().InputAsync(new ChangeEventArgs { Value = "Otro texto." });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        var comando = MediadorDeLaPagina.Enviados.OfType<PedirPrioridadValidacionCommand>().Should().ContainSingle().Subject;
+        comando.CentroId.Should().Be(CentroNorteId);
+        comando.Destinatarios.Should().Equal("validacion@example.invalid");
+        comando.Asunto.Should().Be("Prioridad Centro Norte");
+        comando.CuerpoHtml.Should().Be("Otro texto.");
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Enviar_Pedir_prioridad_sin_destinatario_dice_por_que_y_no_envia()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync();
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "Prioridad Centro Norte"));
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = " " });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Indica al menos un destinatario.");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        MediadorDeLaPagina.Enviados.OfType<PedirPrioridadValidacionCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Pedir_prioridad_sin_borrador_pinta_el_error_y_deja_Enviar_deshabilitado_con_su_motivo()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(borradorFalla: true);
+        await cut.Find(".composer-correo-prellenados select").ChangeAsync(new ChangeEventArgs { Value = CentroNorteId.ToString() });
+
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Pedir prioridad de validación").ClickAsync(new MouseEventArgs());
+
+        cut.WaitForAssertion(() => cut.Find(".drawer-panel").TextContent.Should().Contain("No pudimos preparar el borrador."));
+        var enviar = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar");
+        enviar.HasAttribute("disabled").Should().BeTrue();
+        enviar.GetAttribute("title").Should().Be("No pudimos preparar el borrador.");
+        cut.FindAll(".drawer-panel input.campo-input").Should().BeEmpty();
     }
 
     [Fact]
@@ -1210,11 +1316,12 @@ public class ComunicacionesGen2Tests : BunitContext
     public async Task Escribir_la_nota_interna_arma_el_aviso_del_navegador()
     {
         var (cut, _, _, _) = await RenderizarDosConversacionesAsync();
-        cut.FindComponent<NavigationLock>().Instance.ConfirmExternalNavigation.Should().BeFalse();
+        // Los formularios en DrawerFormulario montan su propio NavigationLock (cerrados, sin armar): se mira el conjunto.
+        cut.FindComponents<NavigationLock>().Should().OnlyContain(l => !l.Instance.ConfirmExternalNavigation);
 
         await cut.Find(".composer-nota-interna textarea").InputAsync(new ChangeEventArgs { Value = "Llamar antes de las 10." });
 
-        cut.FindComponent<NavigationLock>().Instance.ConfirmExternalNavigation.Should().BeTrue(
+        cut.FindComponents<NavigationLock>().Should().Contain(l => l.Instance.ConfirmExternalNavigation,
             "recargar o cerrar la pestaña con la nota a medias tiene que avisar");
     }
 

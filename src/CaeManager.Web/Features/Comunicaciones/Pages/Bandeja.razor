@@ -604,20 +604,11 @@
         buzón candidato se pide explícitamente, nunca se manda "a ciegas"
         desde el primero que aparezca.
     *@
-    <Drawer @ref="_drawerRedactar" HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje" CerrarAlHacerClicFuera="!_enviandoRedaccion">
+    <DrawerFormulario HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje"
+            Guardando="_enviandoRedaccion" MensajeError="@_redactarError" SinContenido="@(_conexionesRedactar.Count == 0 ? SinBuzonRedactar : null)"
+            MotivoGuardarDeshabilitado="@(_conexionesRedactar.Count == 0 ? TextosComunesPagina["SinBuzonMotivo"].Value : null)"
+            TextoCancelar="Cancelar" TextoGuardar="Enviar" TextoGuardando="Enviar" OnGuardar="EnviarMensajeNuevoDesdeRedactarAsync">
         <ChildContent>
-            @if (_redactarError is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_redactarError</div>
-            }
-
-            @if (_conexionesRedactar.Count == 0)
-            {
-                @* FS-15: sin buzón no hay formulario que rellenar; se dice por qué y quién lo conecta. *@
-                <AvisoSinBuzonCorreo />
-            }
-            else
-            {
             @if (_conexionesRedactar.Count > 1)
             {
                 <CampoSelect Etiqueta="Enviar desde" Valor="@(_conexionRedactarId?.ToString() ?? string.Empty)" ValorChanged="v => _conexionRedactarId = Guid.TryParse(v, out var id) ? id : null">
@@ -632,31 +623,17 @@
             <CampoTexto Etiqueta="Para (separados por coma)" Valor="@_redactarDestinatarios" ValorChanged="v => _redactarDestinatarios = v" Placeholder="contacto@cliente.com" />
             <CampoTexto Etiqueta="Asunto" Valor="@_redactarAsunto" ValorChanged="v => _redactarAsunto = v" />
             <CampoTextarea Etiqueta="Mensaje" Valor="@_redactarCuerpo" ValorChanged="v => _redactarCuerpo = v" Filas="6" />
-            }
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enviandoRedaccion" OnClick="() => _drawerRedactar?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-            @if (_conexionesRedactar.Count > 0)
-            {
-                <Boton Variante="VarianteBoton.Primario" Cargando="_enviandoRedaccion" OnClick="EnviarMensajeNuevoDesdeRedactarAsync">Enviar</Boton>
-            }
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <Drawer @ref="_drawerPrioridad" HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
-            Titulo="Pedir prioridad de validación"
-            CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
+    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+            Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" Cargando="_cargandoBorradorPrioridad" FilasCargando="3"
+            MensajeError="@(_borradorPrioridad is null ? null : _mensajeErrorPrioridad)" SinContenido="SinBorradorPrioridad"
+            MotivoGuardarDeshabilitado="@(_borradorPrioridad is null ? (_mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value) : null)"
+            TextoCancelar="Cancelar" TextoGuardar="Enviar" TextoGuardando="Enviar" OnGuardar="EnviarPrioridadAsync">
         <ChildContent>
-            @if (_cargandoBorradorPrioridad)
-            {
-                <EstadoCargando Filas="3" />
-            }
-            else if (_mensajeErrorPrioridad is not null && _borradorPrioridad is null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
-            }
-            else if (_borradorPrioridad is not null)
+            @if (_borradorPrioridad is not null)
             {
                 @if (!_borradorPrioridad.HayConexionDisponible)
                 {
@@ -666,21 +643,13 @@
                 {
                     <p class="workspace-nota-contextual">Ya se pidió prioridad para este centro el @ultima.EnHoraPeninsular().ToString("dd/MM/yyyy HH:mm").</p>
                 }
-                @if (_mensajeErrorPrioridad is not null)
-                {
-                    <div class="alerta-formulario" role="alert">@_mensajeErrorPrioridad</div>
-                }
                 <CampoTexto Etiqueta="Destinatarios (separados por coma)" Valor="@_destinatarioPrioridad" ValorChanged="v => _destinatarioPrioridad = v" />
                 <CampoTexto Etiqueta="Asunto" Valor="@_asuntoPrioridad" ValorChanged="v => _asuntoPrioridad = v" />
                 <CampoTextarea Etiqueta="Mensaje" Valor="@_cuerpoPrioridad" ValorChanged="v => _cuerpoPrioridad = v" Filas="10" />
                 <p class="workspace-nota-contextual">@_borradorPrioridad.TotalDocumentosPendientes documento(s) pendiente(s) incluido(s) en el mensaje. Revisa y adapta el texto antes de enviarlo — se envía desde el buzón conectado de la plataforma.</p>
             }
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridad?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 </div>
 
 <CascadingValue Value="_ambitoConversacion" IsFixed="true">
