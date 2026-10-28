@@ -42,11 +42,11 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         // --- Paso 1: crear la Subcontrata (escritor F3b) ---
         var drawer = page.Locator(".drawer-panel");
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
-        await page.GetByText("+ Nueva subcontrata").First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrata);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync(Ayudas.GenerarCifValido(9_998_501));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Paso 2: aparece en /subcontratas (ObtenerSubcontratasQuery, adelantada) ---
@@ -64,14 +64,14 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         // adelantar el selector (la Subcontrata nunca aparecía en el
         // desplegable). ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).ClickAsync();
 
         var drawerTrabajador = page.Locator(".drawer-panel");
         await drawerTrabajador.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
         // El radio y el <select> comparten la misma etiqueta "Subcontrata"
         // (GetByLabel sería ambiguo); tras marcar el radio solo queda un
         // <select> visible en el drawer (rama "empresa" deja de renderizarse).
-        await drawerTrabajador.GetByText("Subcontrata", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await drawerTrabajador.GetByRole(AriaRole.Radio, new() { Name = "Subcontrata", Exact = true }).CheckAsync();
         // El clic conmuta la rama Empresa/Subcontrata del drawer vía SignalR
         // (round-trip circuito -> StateHasChanged -> parche de DOM); sin esta
         // espera, SelectOptionAsync puede intentar actuar mientras el <select>
@@ -81,7 +81,7 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
         var selectorSubcontrata = drawerTrabajador.GetByRole(AriaRole.Combobox, new LocatorGetByRoleOptions { Name = "Subcontrata" });
         await selectorSubcontrata.WaitForAsync(new LocatorWaitForOptions { Timeout = 5_000 });
 
-        var opcionSubcontrata = selectorSubcontrata.Locator("option", new LocatorLocatorOptions { HasText = razonSocialSubcontrata });
+        var opcionSubcontrata = selectorSubcontrata.GetByRole(AriaRole.Option, new() { Name = razonSocialSubcontrata, Exact = true });
         await opcionSubcontrata.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 10_000 });
         var valorOpcion = await opcionSubcontrata.GetAttributeAsync("value");
 
@@ -112,7 +112,7 @@ public class F3bSubcontrataSmokeTests(WebAppFixture fixture)
             .FillAsync(Ayudas.GenerarDniValido(88_500_001));
         await drawerTrabajador.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync("F3b");
         await drawerTrabajador.GetByLabel("Apellidos", new LocatorGetByLabelOptions { Exact = true }).FillAsync(apellidosTrabajador);
-        await drawerTrabajador.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawerTrabajador.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
         try
         {
             await drawerTrabajador.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
