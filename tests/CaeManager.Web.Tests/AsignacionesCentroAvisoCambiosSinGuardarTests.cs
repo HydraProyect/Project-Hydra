@@ -228,7 +228,7 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         var (cut, _) = await AbrirAltaMasivaAsync();
         await MarcarTrabajadorAsync(cut);
 
-        await cut.Find(".drawer-pie button:last-child").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
 
         cut.FindAll(".drawer-panel").Should().BeEmpty("barrera: el alta se guardó y el drawer se cerró");
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "cerrado tras guardar no hay nada que perder");

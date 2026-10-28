@@ -186,6 +186,23 @@ public class RevisionIaGen2Tests : BunitContext
     }
 
     [Fact]
+    public async Task Cancelar_correccion_sin_cambios_cierra_y_con_fecha_cambiada_pregunta()
+    {
+        var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with
+        {
+            FechaEmisionIntroducida = new DateOnly(2026, 9, 1)
+        };
+        var cut = Renderizar(new MediadorFalso { Revisiones = [revision] });
+
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.ComprobarQueCancelarSinCambiosCierraAsync(".drawer-pie", ".drawer-panel");
+        await Boton(cut, "Corregir a mano…").ClickAsync(new MouseEventArgs());
+        await cut.Find(".drawer-panel input[type=date]").InputAsync(new ChangeEventArgs { Value = "2026-09-15" });
+        await cut.PulsarCancelarDelPieAsync(".drawer-pie");
+        await cut.ComprobarQuePreguntaYDescartarAsync(".drawer-panel");
+    }
+
+    [Fact]
     public async Task Corregir_a_mano_fallido_mantiene_el_drawer_abierto_muestra_error_y_no_recarga()
     {
         var revision = Revision("A corregir", 80, new DateOnly(2026, 8, 1)) with

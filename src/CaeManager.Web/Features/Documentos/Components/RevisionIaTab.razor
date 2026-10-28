@@ -248,7 +248,9 @@
         </div>
     }
 </section>
-<Drawer @ref="_drawerCorreccion" HayCambios="() => HayCambiosSinGuardar" Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano" CerrarAlHacerClicFuera="@(!_operacionEnCurso)">
+<DrawerFormulario Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_operacionEnCurso" HayErroresDeCampo="@(_errorFechaManual is not null)"
+                  OnGuardar="CorregirSeleccionadaAsync" TextoCancelar="Cancelar" TextoGuardar="Guardar y cerrar el aviso">
     <ChildContent>
         @if (RevisionSeleccionada is { } seleccionada)
         {
@@ -258,11 +260,7 @@
             <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
         }
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_operacionEnCurso" OnClick="() => _drawerCorreccion?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="@(_procesandoId == _revisionIdSeleccionada)" OnClick="CorregirSeleccionadaAsync">Guardar y cerrar el aviso</Boton>
-    </Pie>
-</Drawer>
+</DrawerFormulario>
 <DialogoConfirmacion
     Visible="_confirmacionLoteVisible"
     VisibleChanged="v => _confirmacionLoteVisible = v"
@@ -280,6 +278,3 @@
     EnProgreso="@(_procesandoId is not null)"
     OnConfirmar="ResolverSeleccionadaAsync" />
 
-@* P1-E2: salir con la corrección manual de la fecha a medias pregunta antes; confirmar la
-   salida cierra la corrección. Va al final para quedar encima de los demás diálogos. *@
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarCorreccionManual" />

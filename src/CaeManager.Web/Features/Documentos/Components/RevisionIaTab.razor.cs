@@ -10,7 +10,6 @@ namespace CaeManager.Web.Features.Documentos.Components;
 
 public partial class RevisionIaTab : ComponentBase, IDisposable
 {
-    private Drawer? _drawerCorreccion;
     // Solo preselecciona: nada se acepta sin que el Gestor CAE pulse «Aceptar seleccionadas». No es el umbral del modelo.
     private const int ConfianzaMinimaPorDefecto = 95;
     private static IReadOnlyList<int> ConfianzasMinimas { get; } = [95, 90, 80];
@@ -421,11 +420,6 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
 
     private bool HayCambiosSinGuardar => _correccionManualVisible && _fechaEmisionManual != _fechaEmisionManualAlAbrir;
 
-    private void CerrarCorreccionManual()
-    {
-        _correccionManualVisible = false;
-        _errorFechaManual = null;
-    }
     private void AlternarPrevisualizacion(Guid documentoId) => _documentoIdExpandido = _documentoIdExpandido == documentoId ? null : documentoId;
 
     private bool CumpleFiltro(RevisionIaDocumentoDto revision) => _filtro switch
