@@ -1474,9 +1474,10 @@ public partial class Centro360Gen2Tests : BunitContext
         await cut.Find("input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
         await BotonAcordeon(cut, "Dar de baja seleccionados").ClickAsync(new MouseEventArgs());
 
-        // Sin await: el comando está retenido.
-        var primero = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
-        var segundo = cut.FindAll("button").Single(b => b.TextContent.Trim() == "Dar de baja").ClickAsync(new MouseEventArgs());
+        // Sin await: el comando está retenido. Se busca por su clase y no por su texto: mientras guarda, el botón del kit
+        // (BotonConEspera) cambia su rótulo.
+        var primero = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
+        var segundo = cut.Find(".modal-pie .boton-destructivo").ClickAsync(new MouseEventArgs());
 
         mediador.Enviadas.OfType<DarDeBajaAsignacionesCommand>().Should().ContainSingle();
 

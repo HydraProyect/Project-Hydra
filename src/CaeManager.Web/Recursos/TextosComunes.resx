@@ -716,4 +716,7 @@
   <data name="SelectorTenantTodas" xml:space="preserve">
     <value>Todas las empresas</value>
   </data>
+  <data name="ModalSeleccionarPdf" xml:space="preserve">
+    <value>Elige el PDF de la nueva versión.</value>
+  </data>
 </root>

@@ -288,4 +288,7 @@
   <data name="SinPrincipalVacioDetalle" xml:space="preserve">
     <value>Quan una empresa que gestiona la teva organització es quedi sense Gestor CAE principal, apareixerà aquí perquè algú l'assumeixi.</value>
   </data>
+  <data name="DialogoCompletarSolicitud" xml:space="preserve">
+    <value>Completa l’empresa i el missatge per enviar la sol·licitud.</value>
+  </data>
 </root>
