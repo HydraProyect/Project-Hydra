@@ -75,6 +75,22 @@ public class ObtenerCandidatosTrabajadorVisitaQueryTests
         candidatos.Select(c => c.Id).Should().BeEquivalentTo([_deSubcontrataVigente.Id]);
     }
 
+    [Fact]
+    public async Task No_ofrece_a_un_Trabajador_de_una_Subcontrata_cuya_Relacion_Empresarial_con_la_Empresa_ya_se_cerro()
+    {
+        var subcontrataCerrada = Guid.NewGuid();
+        var deRelacionCerrada = Trabajador.DeSubcontrata(subcontrataCerrada, "Elena", "Mora", "00000005M");
+        _trabajadores.ListaTrabajadores.Add(deRelacionCerrada);
+        var relacion = RelacionEmpresarial.Crear(subcontrataCerrada, _centro.EmpresaId, DateTime.UtcNow.AddDays(-30));
+        relacion.Cerrar(DateTime.UtcNow);
+        _empresas.ListaRelacionesEmpresariales.Add(relacion);
+
+        var candidatos = await Consultar(new AlcanceDatosServiceFalso(), new EmisorDeSelector(_trabajadores, _empresas, new AlcanceDatosServiceFalso()));
+
+        candidatos.Select(c => c.Id).Should().NotContain(deRelacionCerrada.Id)
+            .And.BeEquivalentTo([_propio.Id, _deSubcontrataVigente.Id]);
+    }
+
     private Task<IReadOnlyList<TrabajadorSelectorDto>> Consultar(AlcanceDatosServiceFalso alcance, ISender emisor) =>
         new ObtenerCandidatosTrabajadorVisitaQueryHandler(_visitas, _centros, _trabajadores, _empresas, alcance, emisor)
             .Handle(new ObtenerCandidatosTrabajadorVisitaQuery(_visita.Id), CancellationToken.None);
