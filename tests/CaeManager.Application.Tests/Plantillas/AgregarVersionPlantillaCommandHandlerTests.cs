@@ -33,6 +33,18 @@ public class AgregarVersionPlantillaCommandHandlerTests
     }
 
     [Fact]
+    public async Task Rechaza_pdf_con_firma_de_ejecutable()
+    {
+        var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada("%PDF-anterior"u8.ToArray());
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new AgregarVersionPlantillaCommandHandler(plantillas, versiones, almacenamiento,
+            new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
+        var resultado = await handler.Handle(new AgregarVersionPlantillaCommand(plantilla.Id, "MZ"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
+
+    [Fact]
     public async Task Crea_una_nueva_version_con_el_siguiente_numero()
     {
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada([1, 2, 3]);
@@ -40,7 +52,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         versiones.Lista.Should().HaveCount(2);
@@ -57,7 +69,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         var nueva = versiones.Lista.Single(v => v.Id == resultado.Valor.PlantillaDocumentoVersionId);
         nueva.Elementos.Should().ContainSingle(e => e.EtiquetaVisible == "CIF" && e.FuenteDato == FuenteDatoPlantilla.EmpresaCif);
@@ -66,7 +78,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
     [Fact]
     public async Task Detecta_cuando_el_archivo_es_identico_a_la_version_actual()
     {
-        var contenido = new byte[] { 1, 2, 3 };
+        var contenido = "%PDF-igual"u8.ToArray();
         var (plantillas, versiones, plantilla) = ConstruirPlantillaConVersionConfirmada(contenido);
         var handler = new AgregarVersionPlantillaCommandHandler(
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
@@ -86,7 +98,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [9, 9, 9], "distinto.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-distinto"u8.ToArray(), "distinto.pdf"), CancellationToken.None);
 
         resultado.Valor.ArchivoIdenticoAVersionAnterior.Should().BeFalse();
     }
@@ -121,7 +133,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         var resultado = await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Plantilla.VersionEnConflicto");
@@ -138,7 +150,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         almacenamiento.ArchivosGuardados.Should().Be(0);
     }
@@ -158,7 +170,7 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, almacenamiento, new AlcanceDatosServiceFalso(), unitOfWork, registro);
 
         var resultado = await handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None);
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
 
         resultado.Error.Codigo.Should().Be("Plantilla.VersionEnConflicto", "el fallo real sigue siendo el conflicto de versión");
         var aviso = registro.Entradas.Should().ContainSingle().Subject;
@@ -177,6 +189,6 @@ public class AgregarVersionPlantillaCommandHandlerTests
             plantillas, versiones, new FileStorageServiceFalso(), new AlcanceDatosServiceFalso(), unitOfWork, NullLogger<AgregarVersionPlantillaCommandHandler>.Instance);
 
         await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => handler.Handle(
-            new AgregarVersionPlantillaCommand(plantilla.Id, [4, 5, 6], "nueva.pdf"), CancellationToken.None));
+            new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-nueva"u8.ToArray(), "nueva.pdf"), CancellationToken.None));
     }
 }

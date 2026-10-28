@@ -134,6 +134,8 @@ public class CrearDocumentoCommandBloqueadoParaConsultaTests : IAsyncLifetime
 
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(Guid.NewGuid(), rol));
         servicios.AddSingleton<ITenantActual>(_tenantActual);
+        // La clave ficticia del comando pasa por la comprobación de firma del contenido (ASVS V12): el almacenamiento devuelve un PDF válido.
+        servicios.AddSingleton<IFileStorageService, AlmacenamientoConPdfMinimoFalso>();
 
         // Una sola instancia de CaeManagerDbContext resuelta bajo cada
         // interfaz que el grafo de dependencias real necesita — el mismo

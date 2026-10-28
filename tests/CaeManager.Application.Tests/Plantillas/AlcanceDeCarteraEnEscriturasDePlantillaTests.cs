@@ -61,7 +61,7 @@ public class AlcanceDeCarteraEnEscriturasDePlantillaTests
                 var resultado = await new AgregarVersionPlantillaCommandHandler(
                         _plantillas, _versiones, new FileStorageServiceFalso(), alcance, _unitOfWork,
                         NullLogger<AgregarVersionPlantillaCommandHandler>.Instance)
-                    .Handle(new AgregarVersionPlantillaCommand(plantilla.Id, [1, 2, 3], "nueva.pdf"), CancellationToken.None);
+                    .Handle(new AgregarVersionPlantillaCommand(plantilla.Id, "%PDF-1.4"u8.ToArray(), "nueva.pdf"), CancellationToken.None);
                 return resultado.EsExitoso ? Result.Exito() : Result.Fallo(resultado.Error);
             case Escritura.GuardarElementos:
                 return await new GuardarElementosPlantillaCommandHandler(_versiones, _plantillas, alcance, _unitOfWork)

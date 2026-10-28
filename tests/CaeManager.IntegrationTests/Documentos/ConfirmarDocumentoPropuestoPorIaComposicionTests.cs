@@ -135,6 +135,8 @@ public class ConfirmarDocumentoPropuestoPorIaComposicionTests : IAsyncLifetime
         servicios.AddSingleton<ICurrentUserService>(new CurrentUserServiceFalso(usuarioId, rol));
         servicios.AddSingleton<IActorAuditoria>(new ActorAuditoriaDePersona(usuarioId));
         servicios.AddSingleton<ITenantActual>(_tenantActual);
+        // La clave ficticia del comando pasa por la comprobación de firma del contenido (ASVS V12): el almacenamiento devuelve un PDF válido.
+        servicios.AddSingleton<IFileStorageService, AlmacenamientoConPdfMinimoFalso>();
 
         servicios.AddSingleton(_dbContext);
         servicios.AddSingleton<IUnitOfWork>(sp => sp.GetRequiredService<CaeManagerDbContext>());

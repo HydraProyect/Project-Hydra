@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Comunicaciones;
 using CaeManager.Application.Documentos;
 using CaeManager.Application.Documentos.Commands.CrearDocumento;
@@ -94,7 +95,22 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         string archivoUrlDocumento;
         await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
         {
-            archivoUrlDocumento = await almacenamiento.GuardarAsync(flujo, adjunto.NombreArchivo, cancellationToken);
+            using var memoria = new MemoryStream();
+            var buffer = new byte[81920];
+            int leidos;
+            while ((leidos = await flujo.ReadAsync(buffer, cancellationToken)) > 0)
+            {
+                if (memoria.Length + leidos > LimitesArchivoSubido.TamanoMaximoBytes)
+                    return ArchivoNoValido();
+                await memoria.WriteAsync(buffer.AsMemory(0, leidos), cancellationToken);
+            }
+
+            if (!ValidadorFirmaArchivo.EsDocumentoValido(memoria.ToArray(), adjunto.NombreArchivo))
+                return ArchivoNoValido();
+
+            memoria.Position = 0;
+            var extension = Path.GetExtension(adjunto.NombreArchivo).ToLowerInvariant();
+            archivoUrlDocumento = await almacenamiento.GuardarAsync(memoria, "documento" + extension, cancellationToken);
         }
 
         // "Unicidad por tipo y entidad" (§ 12.7): a diferencia del alta manual
@@ -156,6 +172,9 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
 
         return Result.Exito(documentoId);
     }
+
+    private static Result<Guid> ArchivoNoValido() => Result.Fallo<Guid>(Error.Crear(
+        "Adjunto.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
     // La copia se hace antes de delegar, así que si Crear/RenovarDocumento
     // rechaza (validación, alcance de cartera, concurrencia) nadie la

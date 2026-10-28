@@ -21,7 +21,19 @@ public class CrearPlantillaDocumentoCommandHandlerTests
 
     private static CrearPlantillaDocumentoCommand ComandoValido(Guid tipoDocumentoId, Guid? centroId = null, Guid? clienteId = null) =>
         new("Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos,
-            tipoDocumentoId, [1, 2, 3], "plantilla.pdf", CentroId: centroId, ClienteId: clienteId);
+            tipoDocumentoId, "%PDF-"u8.ToArray(), "plantilla.pdf", CentroId: centroId, ClienteId: clienteId);
+
+    [Fact]
+    public async Task Rechaza_pdf_con_firma_de_ejecutable()
+    {
+        var (contexto, tipoId) = ContextoConTipoDocumentoDeTrabajador();
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new CrearPlantillaDocumentoCommandHandler(new PlantillaDocumentoRepositorioFalso(),
+            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+        var resultado = await handler.Handle(ComandoValido(tipoId) with { Contenido = "MZ"u8.ToArray() }, CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
 
     [Fact]
     public async Task Crea_el_documento_y_su_primera_version_en_borrador()

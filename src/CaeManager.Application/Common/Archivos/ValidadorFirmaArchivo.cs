@@ -1,3 +1,5 @@
+using System.Resources;
+
 namespace CaeManager.Application.Common.Archivos;
 
 /// <summary>
@@ -7,6 +9,14 @@ namespace CaeManager.Application.Common.Archivos;
 /// </summary>
 public static class ValidadorFirmaArchivo
 {
+    public static string MensajeDocumentoNoValido => new ResourceManager(
+        "CaeManager.Application.Subcontratas.Recursos.ErroresVerificacionExterna",
+        typeof(ValidadorFirmaArchivo).Assembly).GetString("ArchivoDocumentoNoValido")!;
+
+    public static string MensajePlantillaNoValida => new ResourceManager(
+        "CaeManager.Application.Subcontratas.Recursos.ErroresVerificacionExterna",
+        typeof(ValidadorFirmaArchivo).Assembly).GetString("ArchivoPlantillaNoValido")!;
+
     private static readonly byte[] FirmaPdf = "%PDF-"u8.ToArray();
     private static readonly byte[] FirmaJpeg = [0xFF, 0xD8, 0xFF];
     private static readonly byte[] FirmaPng = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
@@ -22,6 +32,12 @@ public static class ValidadorFirmaArchivo
             ".docx" or ".zip" => EmpiezaCon(contenido, FirmaZip),
             _ => false
         };
+
+    public static bool EsDocumentoValido(byte[] contenido, string? nombreArchivo) =>
+        contenido.Length is > 0 and <= LimitesArchivoSubido.TamanoMaximoBytes
+        && !string.IsNullOrWhiteSpace(nombreArchivo)
+        && Path.GetExtension(nombreArchivo).ToLowerInvariant() is ".pdf" or ".jpg" or ".jpeg" or ".png" or ".docx"
+        && TieneFirmaValida(contenido, nombreArchivo);
 
     private static bool EmpiezaCon(byte[] contenido, byte[] firma) =>
         contenido.Length >= firma.Length && contenido.AsSpan(0, firma.Length).SequenceEqual(firma);
