@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -14,10 +15,7 @@ namespace CaeManager.IntegrationTests.Integraciones;
 /// P3-33: el endpoint de webhook de Microsoft 365 llega sin ninguna sesión —
 /// resuelve el tenant a partir del Id de <see cref="ConexionIntegracion"/> en
 /// la URL más el <c>clientState</c> (Project-Hydra-Negocio/tecnico/docs/MULTITENANCY.md § 8, tercer modo).
-/// <see cref="WebhookTenantResolver"/> usa <c>IgnoreQueryFilters()</c> — justo
-/// lo que hay que probar contra Postgres real: que resuelve el tenant
-/// correcto de una <see cref="SuscripcionWebhook"/> ajena al tenant que
-/// tendría activo el filtro global si estuviera puesto.
+/// Las pruebas bajo el rol de tráfico comprueban la resolución y RLS efectiva.
 /// </summary>
 public class WebhookTenantResolverTests : IAsyncLifetime
 {
@@ -25,6 +23,10 @@ public class WebhookTenantResolverTests : IAsyncLifetime
     private readonly IDataProtectionProvider _dataProtectionProvider = new EphemeralDataProtectionProvider();
     private Guid _conexionId;
     private Guid _tenantPropietario;
+    private Guid _otroTenant;
+    private Guid _otraConexionId;
+    private Guid _conexionWhatsAppId;
+    private Guid _otraConexionWhatsAppId;
 
     public async Task InitializeAsync()
     {
@@ -38,6 +40,16 @@ public class WebhookTenantResolverTests : IAsyncLifetime
         contexto.ConexionesIntegracion.Add(conexion);
         contexto.SuscripcionesWebhook.Add(suscripcion);
         await contexto.SaveChangesAsync();
+
+        _conexionWhatsAppId = await SembrarLineaAsync(contexto, "phone-uno");
+        _otroTenant = Guid.NewGuid();
+        await using var otroContexto = CrearContexto(_otroTenant);
+        var otraConexion = new ConexionIntegracion("otro@ejemplo.test", "Otro buzón");
+        _otraConexionId = otraConexion.Id;
+        otroContexto.ConexionesIntegracion.Add(otraConexion);
+        otroContexto.SuscripcionesWebhook.Add(new SuscripcionWebhook(otraConexion.Id, "graph-sub-otro", "otro-secreto", DateTime.UtcNow.AddDays(3)));
+        await otroContexto.SaveChangesAsync();
+        _otraConexionWhatsAppId = await SembrarLineaAsync(otroContexto, "phone-dos");
     }
 
     public async Task DisposeAsync() => await BaseDatosPostgresDePruebas.EliminarAsync(_cadenaConexion);
@@ -126,9 +138,75 @@ public class WebhookTenantResolverTests : IAsyncLifetime
         resultado.Verificado.Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Resolutores_bajo_runtime_resuelven_solo_la_linea_o_suscripcion_identificada()
+    {
+        await using var contexto = CrearContextoRuntime();
+        var graph = new WebhookTenantResolver(contexto);
+        var whatsapp = new WebhookWhatsAppTenantResolver(contexto);
+        (await contexto.Database.SqlQuery<string>($"SELECT current_user AS \"Value\"").SingleAsync()).Should().Be("cae_app_runtime");
+
+        (await graph.VerificarAsync(_conexionId, "secreto-correcto", "graph-sub-1", default)).TenantId.Should().Be(_tenantPropietario);
+        (await graph.VerificarAsync(_otraConexionId, "otro-secreto", "graph-sub-otro", default)).TenantId.Should().Be(_otroTenant);
+        (await graph.VerificarAsync(_conexionId, "otro-secreto", "graph-sub-otro", default)).TenantId.Should().BeNull();
+        (await graph.VerificarAsync(Guid.NewGuid(), "secreto-correcto", "graph-sub-1", default)).TenantId.Should().BeNull();
+
+        var primera = await whatsapp.ResolverPorPhoneNumberIdAsync("phone-uno", default);
+        primera.TenantId.Should().Be(_tenantPropietario);
+        primera.ConexionIntegracionId.Should().Be(_conexionWhatsAppId);
+        var segunda = await whatsapp.ResolverPorPhoneNumberIdAsync("phone-dos", default);
+        segunda.TenantId.Should().Be(_otroTenant);
+        segunda.ConexionIntegracionId.Should().Be(_otraConexionWhatsAppId);
+        var desconocida = await whatsapp.ResolverPorPhoneNumberIdAsync("phone-desconocido", default);
+        desconocida.TenantId.Should().BeNull();
+        desconocida.ConexionIntegracionId.Should().BeNull();
+
+        (await contexto.SuscripcionesWebhook.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        (await contexto.LineasWhatsApp.IgnoreQueryFilters().CountAsync()).Should().Be(0);
+        using (AmbitoTenantExplicito.Establecer(_tenantPropietario))
+        {
+            (await contexto.SuscripcionesWebhook.IgnoreQueryFilters().Select(s => s.ConexionIntegracionId).ToListAsync())
+                .Should().Equal(_conexionId);
+            (await contexto.LineasWhatsApp.IgnoreQueryFilters().Select(l => l.ConexionIntegracionId).ToListAsync())
+                .Should().Equal(_conexionWhatsAppId);
+        }
+    }
+
+    private static async Task<Guid> SembrarLineaAsync(CaeManagerDbContext contexto, string phoneNumberId)
+    {
+        var conexion = new ConexionIntegracion($"{phoneNumberId}@ejemplo.test", "Línea WhatsApp");
+        contexto.ConexionesIntegracion.Add(conexion);
+        contexto.LineasWhatsApp.Add(new LineaWhatsApp(conexion.Id, phoneNumberId, "waba", "+34123456789", "token", ModoAsignacionLinea.PoolInbound));
+        await contexto.SaveChangesAsync();
+        return conexion.Id;
+    }
+
+    private CaeManagerDbContext CrearContextoRuntime()
+    {
+        var tenant = new TenantPorAmbito();
+        var opciones = new DbContextOptionsBuilder<CaeManagerDbContext>()
+            .UseNpgsql(BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion), n => n.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
+            .AddInterceptors(new TenantRlsConnectionInterceptor(tenant, new SinTenantSeleccionado(),
+                new CurrentUserServiceFalso(), BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .Options;
+        return new CaeManagerDbContext(opciones, _dataProtectionProvider, tenant);
+    }
+
+    private sealed class TenantPorAmbito(Guid? predeterminado = null) : ITenantActual
+    {
+        public Guid? TenantId => AmbitoTenantExplicito.TenantIdActual ?? predeterminado;
+    }
+
+    private sealed class SinTenantSeleccionado : IClienteActivoSeleccionado
+    {
+        public Guid? TenantIdSeleccionado => null;
+        public Guid? AsignacionOperacionIdSeleccionada => null;
+        public Guid? SesionPrivilegiadaIdSeleccionada => null;
+    }
+
     private CaeManagerDbContext CrearContexto(Guid tenantId)
     {
-        var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
+        var tenantActual = new TenantPorAmbito(tenantId);
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(_cadenaConexion, npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
             .AddInterceptors(new TenantSelladoInterceptor(tenantActual), new ConcurrenciaOptimistaInterceptor())
