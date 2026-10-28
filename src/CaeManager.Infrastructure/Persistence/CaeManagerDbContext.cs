@@ -372,9 +372,12 @@ public class CaeManagerDbContext(
 
     // Plano de Plataforma, sin TenantId ni filtro de EF: los lee solo un Actor de Plataforma
     // TALVEG con AdminPlataforma global (RLS actor_de_plataforma_lee) y no los escribe EF, sino
-    // la función app_registrar_incidente_seguridad (RegistroIncidentesSeguridadEnBase).
+    // la función app_registrar_incidente_seguridad (RegistroIncidentesSeguridadEnBase); las decisiones y
+    // los envíos del aviso, app_decidir_incidente_seguridad y app_reclamar/app_resolver_envio_aviso_seguridad
+    // (IncidentesSeguridadPlataforma).
     public DbSet<CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado> IncidentesSeguridadSospechados => Set<CaeManager.Domain.Plataforma.IncidenteSeguridadSospechado>();
     public DbSet<CaeManager.Domain.Plataforma.TransicionIncidenteSeguridad> TransicionesIncidenteSeguridad => Set<CaeManager.Domain.Plataforma.TransicionIncidenteSeguridad>();
+    public DbSet<CaeManager.Domain.Plataforma.EnvioAvisoIncidenteSeguridad> EnviosAvisoIncidenteSeguridad => Set<CaeManager.Domain.Plataforma.EnvioAvisoIncidenteSeguridad>();
     public DbSet<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> TenantsAlcanzadosPorConcesion => Set<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion>();
     IQueryable<CaeManager.Domain.Plataforma.TenantAlcanzadoPorConcesion> CaeManager.Application.Plataforma.IPlataformaQueryContext.TenantsAlcanzadosPorConcesion => TenantsAlcanzadosPorConcesion;
     public DbSet<Incidencia> Incidencias => Set<Incidencia>();

@@ -523,6 +523,9 @@ public class LlamadaAlAlcanceDeCarteraEnEscrituraTests
             "marca leída una notificación de la propia persona (IComandoDeAutoservicio)",
         ["Plataforma"] =
             "Sesión Privilegiada y concesiones del Actor de Plataforma TALVEG: plano de Plataforma, no de Operación",
+        ["Seguridad"] =
+            "decisión y aviso de un incidente de seguridad de Plataforma por un Actor de Plataforma TALVEG con " +
+            "concesión AdminPlataforma global y segundo factor; plano de Plataforma, no escribe filas de una cartera",
         ["Retencion"] =
             "solicitudes de purga por retención de datos: proceso de Plataforma sobre el Tenant entero, no una cartera",
         ["Tenants"] =

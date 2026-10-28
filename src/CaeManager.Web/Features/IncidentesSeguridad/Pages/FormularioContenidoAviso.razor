@@ -1,0 +1,21 @@
+@* Apartados editables del aviso de un incidente de seguridad. El primer aviso no lleva «Consecuencias»
+   (se completa en la notificación completa). Los límites los repiten el comando y la función de la base. *@
+@using CaeManager.Web.Features.IncidentesSeguridad.Recursos
+@using Microsoft.Extensions.Localization
+
+<div class="incidente-formulario">
+    <CampoTextarea Etiqueta="@Textos["ApartadoNaturaleza"]" Valor="@Contenido.Naturaleza" ValorChanged="v => Contenido.Naturaleza = v" />
+    <CampoTextarea Etiqueta="@Textos["ApartadoDatosEInteresados"]" Valor="@Contenido.DatosEInteresados" ValorChanged="v => Contenido.DatosEInteresados = v" />
+    @if (ConConsecuencias)
+    {
+        <CampoTextarea Etiqueta="@Textos["ApartadoConsecuencias"]" Valor="@Contenido.Consecuencias" ValorChanged="v => Contenido.Consecuencias = v" />
+    }
+    <CampoTextarea Etiqueta="@Textos["ApartadoMedidas"]" Valor="@Contenido.Medidas" ValorChanged="v => Contenido.Medidas = v" />
+    <CampoTextarea Etiqueta="@Textos["ApartadoContacto"]" Valor="@Contenido.Contacto" ValorChanged="v => Contenido.Contacto = v" />
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BorradorAvisoIncidente Contenido { get; set; } = default!;
+    [Parameter] public bool ConConsecuencias { get; set; }
+    [Parameter, EditorRequired] public IStringLocalizer<TextosIncidenteSeguridad> Textos { get; set; } = default!;
+}

@@ -61,3 +61,40 @@ public class TransicionIncidenteSeguridadConfiguration : IEntityTypeConfiguratio
         // Sin HasQueryFilter: plano de Plataforma, como su incidente.
     }
 }
+
+public class EnvioAvisoIncidenteSeguridadConfiguration : IEntityTypeConfiguration<EnvioAvisoIncidenteSeguridad>
+{
+    public void Configure(EntityTypeBuilder<EnvioAvisoIncidenteSeguridad> builder)
+    {
+        builder.ToTable("EnviosAvisoIncidenteSeguridad", t =>
+        {
+            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Plantilla",
+                "\"Plantilla\" IN ('PrimerAviso', 'NotificacionCompleta')");
+            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Estado",
+                "\"Estado\" IN ('Enviando', 'Enviado', 'Fallido')");
+            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_EnviadoConHora",
+                "(\"Estado\" = 'Enviado') = (\"EnviadoEnUtc\" IS NOT NULL)");
+            t.HasCheckConstraint("CK_EnviosAvisoIncidenteSeguridad_Intentos", "\"Intentos\" >= 1");
+        });
+        builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.IncidenteId).IsRequired();
+        builder.Property(e => e.Plantilla).IsRequired().HasConversion<string>().HasMaxLength(30);
+        builder.Property(e => e.TenantAfectadoId).IsRequired();
+        builder.Property(e => e.DestinatarioNombre).IsRequired().HasMaxLength(EnvioAvisoIncidenteSeguridad.LongitudMaximaNombre);
+        builder.Property(e => e.DestinatarioCorreo).IsRequired().HasMaxLength(EnvioAvisoIncidenteSeguridad.LongitudMaximaCorreo);
+        builder.Property(e => e.Asunto).IsRequired().HasMaxLength(EnvioAvisoIncidenteSeguridad.LongitudMaximaAsunto);
+        builder.Property(e => e.Cuerpo).IsRequired().HasMaxLength(EnvioAvisoIncidenteSeguridad.LongitudMaximaCuerpo);
+        builder.Property(e => e.Estado).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(e => e.UltimoError).HasMaxLength(EnvioAvisoIncidenteSeguridad.LongitudMaximaError);
+
+        builder.HasOne<IncidenteSeguridadSospechado>().WithMany()
+            .HasForeignKey(e => e.IncidenteId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // La clave de idempotencia: un reintento reclama esta misma fila en vez de crear otra.
+        builder.HasIndex(e => new { e.IncidenteId, e.Plantilla, e.TenantAfectadoId, e.DestinatarioCorreo }).IsUnique();
+
+        // Sin HasQueryFilter: plano de Plataforma, como su incidente.
+    }
+}

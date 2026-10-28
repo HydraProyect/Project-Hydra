@@ -589,6 +589,8 @@ public static class InfrastructureServiceCollectionExtensions
             CaeManager.Infrastructure.Plataforma.RevocacionOperadorCaeExternoPorSoporte>();
         services.AddScoped<CaeManager.Application.ContactosSeguridad.IContactosSeguridadPlataforma,
             CaeManager.Infrastructure.Plataforma.ContactosSeguridadPlataforma>();
+        services.AddScoped<CaeManager.Application.Seguridad.Incidentes.Aviso.IIncidentesSeguridadPlataforma,
+            CaeManager.Infrastructure.Plataforma.IncidentesSeguridadPlataforma>();
         services.AddScoped<CaeManager.Application.Usuarios.IAvatarDeCuentas, AvatarDeCuentasIdentity>();
         // P1-I2: las escrituras de cuentas de Identity pasan por Commands de
         // Application; este es su único camino hasta UserManager fuera del login.

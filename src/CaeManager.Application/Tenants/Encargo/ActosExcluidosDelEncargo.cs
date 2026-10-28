@@ -84,6 +84,9 @@ public static class ActosExcluidosDelEncargo
         "Facturacion",  // tarifas, resumen y su exportación
         "Importacion",  // importaciones masivas (Clientes empresariales, Documentos, combinada)
         "Retencion",    // purga y retención
+        // Decisión y aviso de un incidente de seguridad de Plataforma: solo un Actor de Plataforma TALVEG con
+        // concesión AdminPlataforma global y segundo factor; nunca quien administra un Tenant por encargo.
+        "Seguridad",
     };
 
     /// <summary>Peticiones excluidas de áreas que, por lo demás, quedan permitidas.</summary>
