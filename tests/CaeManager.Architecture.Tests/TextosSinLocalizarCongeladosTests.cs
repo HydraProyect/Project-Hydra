@@ -144,7 +144,8 @@ public class TextosSinLocalizarCongeladosTests
         // «>» de comparación toma por texto lo que sigue. No se reformatea para esquivar la heurística.
         // 12 → 11 el 2026-10-16: la alineación del listado con la maqueta retira un literal del markup.
         // 11 → 10 el 2026-10-18: Trabajador 360 deja de pintar el literal «DNI:».
-        ["Trabajadores"] = 9,
+        // 9 → 8 el 2026-10-28: «Asignar a centro» pasa al kit ModalFormulario y el «>» de comparación del texto del primario sale del markup.
+        ["Trabajadores"] = 8,
         // 147 → 146 el 2026-09-26 (P1-E2b): el toast de reenvío de activación fallido va a TextosUsuarios.resx.
         ["Usuarios"] = 115, // 132 → 115 el 2026-10-24 (integrar Flujos 14, alta y edición, en el listado nuevo): el pie del alta, el modal del enlace, la cabecera de la ficha y los estados de la lista van a TextosUsuarios. 144 → 132 el 2026-10-23 (listado nuevo con chips y «Agrupar»): los textos pasan a TextosUsuarios. 145 → 144 el 2026-10-21 (Ámbito efectivo con Empresas gestionadas): los textos de la explicación del alcance pasan a TextosUsuarios. 146 → 145 el 2026-10-09 (rótulo «Cliente») SIN migrar: «Cliente empresarial» pasa a «Cliente» y un literal de una sola palabra es invisible a la heurística; el texto sigue sin localizar. 147 → 146 el 2026-10-09 (H9): «El correo identifica la cuenta…» del formulario de edición pasa a TextosUsuarios («EditarCorreoNoSeCambiaAqui»). Antes: 146 → 147 el 2026-10-02 (resto D-07/D-27) SIN migrar: «1 Cliente empresarial» (recuento de la cartera) antes «1 cliente».
         // 112 → 10 el 2026-09-23: Visitas.razor(.cs) migrados a TextosVisitas.resx. Los 10

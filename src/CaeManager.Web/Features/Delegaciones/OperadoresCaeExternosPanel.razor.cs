@@ -12,7 +12,6 @@ namespace CaeManager.Web.Features.Delegaciones;
 
 public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
 {
-    private Modal? _modalContenedor;
     private enum ModalActivo { Ninguno, Operador, TenantPropietario }
 
     [Inject] private CaeManager.Web.Services.EnlacesPublicos EnlacesPublicos { get; set; } = default!;
@@ -128,14 +127,6 @@ public partial class OperadoresCaeExternosPanel : ComponentBase, IDisposable
         && (!string.IsNullOrWhiteSpace(_nombre)
             || !string.IsNullOrWhiteSpace(_emailAdministrador)
             || !string.IsNullOrWhiteSpace(_nombreAdministrador));
-
-    private void CerrarModalDescartando()
-    {
-        _modal = ModalActivo.Ninguno;
-        _nombre = string.Empty;
-        _emailAdministrador = string.Empty;
-        _nombreAdministrador = string.Empty;
-    }
 
     private void CerrarModal(bool visible)
     {

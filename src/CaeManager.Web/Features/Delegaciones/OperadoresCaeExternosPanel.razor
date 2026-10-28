@@ -56,11 +56,10 @@
     }
 </section>
 
-<Modal @ref="_modalContenedor" HayCambios="() => HayCambiosSinGuardar" Visible="_modal is not ModalActivo.Ninguno"
-       VisibleChanged="v => CerrarModal(v)"
-       Titulo="@TituloModal"
-       CerrarAlHacerClicFuera="!_enCurso">
-    <ChildContent>
+<ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="_modal is not ModalActivo.Ninguno"
+                 VisibleChanged="v => CerrarModal(v)" Titulo="@TituloModal" Guardando="_enCurso" MensajeError="@_errorFormulario"
+                 MotivoGuardarDeshabilitado="@(string.IsNullOrWhiteSpace(_nombre) || (_modal is ModalActivo.Operador && (string.IsNullOrWhiteSpace(_emailAdministrador) || string.IsNullOrWhiteSpace(_nombreAdministrador))) ? TextosAutorizar["ModalCamposObligatorios"].Value : null)"
+                 TextoCancelar="Cancelar" TextoGuardar="Crear" OnGuardar="ConfirmarAsync">
         @if (_modal is ModalActivo.Operador)
         {
             <p>@TextosAutorizar["AltaIntro"]</p>
@@ -83,16 +82,7 @@
                         Valor="@_nombreAdministrador"
                         ValorChanged="v => _nombreAdministrador = v" />
         }
-        @if (_errorFormulario is not null)
-        {
-            <p class="operadores-cae-error" role="alert">@_errorFormulario</p>
-        }
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_enCurso" OnClick="() => _modalContenedor?.SolicitarCierreAsync() ?? Task.CompletedTask">Cancelar</Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_enCurso" OnClick="ConfirmarAsync">Crear</Boton>
-    </Pie>
-</Modal>
+</ModalFormulario>
 
 @* El enlace de activación del primer Administrador. Este flujo no envía correo (el enlace manual es la
    contingencia decidida para el alta de un Tenant): quien da el alta lo copia y se lo hace llegar. Sin clic
@@ -118,5 +108,3 @@
         <Boton Variante="VarianteBoton.Primario" OnClick="() => _activacion = null">@TextosAutorizar["AltaHecho"]</Boton>
     </Pie>
 </Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarModalDescartando" />

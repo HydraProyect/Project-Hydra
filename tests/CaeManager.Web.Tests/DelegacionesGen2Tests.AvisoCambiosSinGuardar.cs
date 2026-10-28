@@ -173,6 +173,16 @@ public partial class DelegacionesGen2Tests
     }
 
     [Fact]
+    public async Task Crear_Operador_CAE_externo_sin_campos_esta_deshabilitado_con_motivo()
+    {
+        var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
+        await BotonConTexto(cut, "Nuevo Operador CAE externo").ClickAsync(new MouseEventArgs());
+        var boton = BotonConTexto(cut, "Crear");
+        boton.HasAttribute("disabled").Should().BeTrue();
+        boton.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
     public async Task Cancelar_el_alta_de_Operador_CAE_externo_con_nombre_pregunta_y_sin_nombre_cierra()
     {
         var (cut, _, _) = Renderizar(esAdministradorPlataforma: true);
@@ -241,6 +251,8 @@ public partial class DelegacionesGen2Tests
         await cut.SalirYComprobarQuePreguntaAsync(Navegacion);
         await cut.PulsarEnElAvisoAsync("Seguir editando");
 
+        await EscribirEnElCampoAsync(cut, "Correo del primer Administrador", "marta@operador-sur.test");
+        await EscribirEnElCampoAsync(cut, "Nombre del primer Administrador", "Marta Ruiz");
         await BotonConTexto(cut, "Crear").ClickAsync(new MouseEventArgs());
         mediador.Enviadas.Should().Contain(x => x.Peticion is CrearOperadorCaeExternoCommand, "si no se creó, el test no mide nada");
 
