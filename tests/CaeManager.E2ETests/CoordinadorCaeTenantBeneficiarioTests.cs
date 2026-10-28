@@ -45,6 +45,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
         await page.Locator(".mi-trabajo-chips").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
 
         // El circuito moría en el primer segundo tras pintar la cola; se deja pasar con margen.
+        // Se comprueba que el circuito no muere durante ese intervalo.
         await page.WaitForTimeoutAsync(4_000);
 
         // Una observación positiva que exige circuito vivo: el disparador del selector es un islote interactivo.
@@ -94,6 +95,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
                 await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
                 donde = $"menú lateral → {destino}";
                 await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
+                // Se comprueba que la revalidación no interrumpe el circuito durante ese intervalo.
                 await page.WaitForTimeoutAsync(5_000);
                 donde = $"{destino} tras revalidar el circuito";
                 await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);

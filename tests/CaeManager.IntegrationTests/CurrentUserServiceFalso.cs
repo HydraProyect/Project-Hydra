@@ -45,4 +45,5 @@ public class CurrentUserServiceFalso(
     public Task<Guid?> ObtenerTenantOrigenIdAsync() => Task.FromResult(tenantOrigenId);
 
     public Task<bool> TieneDobleFactorActivoAsync() => Task.FromResult(tieneDobleFactorActivo);
+    public Task<bool> SuperoTotpEnSesionAsync() => Task.FromResult(true);
 }

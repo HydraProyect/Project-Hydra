@@ -496,13 +496,10 @@
     </aside>
 }
 
-<Drawer @ref="_drawerProyecto" HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]" CerrarAlHacerClicFuera="@(_mensajeErrorFormulario is null && _erroresCampo.Count == 0 && !_guardando)">
+<DrawerFormulario HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@Textos["DrawerNuevoTitulo"]"
+                  Guardando="_guardando" MensajeError="@_mensajeErrorFormulario" HayErroresDeCampo="@(_erroresCampo.Count > 0)"
+                  OnGuardar="CrearProyectoAsync" TextoGuardar="@Textos["BotonCrearProyecto"]" TextoCancelar="@Textos["BotonCancelar"]">
     <ChildContent>
-        @if (_mensajeErrorFormulario is not null)
-        {
-            <div class="alerta-formulario" role="alert">@_mensajeErrorFormulario</div>
-        }
-
         @* La lista no obliga a elegir Cliente: lo pide el alta, que lo necesita para ofrecer sus Centros.
            Viene puesto con el del filtro cuando hay uno. *@
         <CampoSelect Etiqueta="@Textos["EtiquetaCliente"]" Valor="@_nuevoClienteId" ValorChanged="OnClienteDelAltaCambiadoAsync">
@@ -563,11 +560,7 @@
 
         <CampoTexto Etiqueta="@Textos["EtiquetaNotas"]" Valor="@_nuevasNotas" ValorChanged="v => _nuevasNotas = v" />
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Primario" OnClick="CrearProyectoAsync" Cargando="_guardando">@Textos["BotonCrearProyecto"]</Boton>
-        <Boton OnClick="() => _drawerProyecto?.SolicitarCierreAsync() ?? Task.CompletedTask" Variante="VarianteBoton.Secundario">@Textos["BotonCancelar"]</Boton>
-    </Pie>
-</Drawer>
+</DrawerFormulario>
 
 @* «Cerrar proyecto» es un formulario de un campo (la fecha de cierre): ModalFormulario (guardián propio, «Cancelar» como la X, primario único
    con su estado, aviso del formulario y aviso de navegación vienen del kit; fuera del ámbito del detalle, como el Modal anterior). *@
@@ -618,7 +611,6 @@
 </LimiteDeErrores>
 
 @code {
-    private Drawer? _drawerProyecto;
     // De instancia, no static: las etiquetas salen del localizador inyectado.
     private IReadOnlyList<PestanaDefinicion>? _pestanasDetalle;
 

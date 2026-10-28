@@ -58,7 +58,7 @@ public class AbrirSesionPrivilegiadaCommandValidator : AbstractValidator<AbrirSe
 ///
 /// <code>
 /// autorización para abrir  ─┐
-/// 2FA activa               ─┼─→  SesionPrivilegiada.Abrir(...)  →  7 invariantes
+/// 2FA activa, TOTP reciente─┼─→  SesionPrivilegiada.Abrir(...)  →  7 invariantes
 /// concesión cargada        ─┘
 /// </code>
 ///
@@ -91,6 +91,16 @@ public class AbrirSesionPrivilegiadaCommandHandler(
             return Result.Fallo<Guid>(Error.Crear(
                 "SesionPrivilegiada.SinDobleFactor",
                 "Activa la autenticación en dos pasos en tu cuenta antes de abrir un acceso de soporte."));
+
+        // Precondición 1 bis — TOTP reciente en ESTA sesión (S4). Tener el 2FA
+        // activado no prueba que se usara: un segundo factor recordado en el
+        // navegador, un código de recuperación o una cookie deslizante de días
+        // entran sin código. Falla en cerrado si la sesión no lo superó o la
+        // verificación ya no es reciente.
+        if (!await currentUserService.SuperoTotpEnSesionAsync())
+            return Result.Fallo<Guid>(Error.Crear(
+                "SesionPrivilegiada.TotpNoVerificado",
+                "Cierra sesión, vuelve a entrar con tu código de autenticación y abre entonces el acceso de soporte."));
 
         // Precondición 2 — el objetivo es ajeno. Regla independiente de la
         // capacidad: aquella dice QUÉ puede hacerse, esta SOBRE QUÉ tenant.
