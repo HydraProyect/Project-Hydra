@@ -527,14 +527,9 @@ else
         OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
     <DrawerFormulario HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
-            Guardando="_guardandoVerificacion" HayErroresDeCampo="@(_mensajeErrorVerificacion is not null)"
+            Guardando="_guardandoVerificacion" MensajeError="@_mensajeErrorVerificacion"
             TextoCancelar="@Textos["BotonCancelar"]" TextoGuardar="@Textos["BotonRegistrar"]" OnGuardar="GuardarVerificacionAsync">
         <ChildContent>
-            @if (_mensajeErrorVerificacion is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_mensajeErrorVerificacion</div>
-            }
-
             <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_verificacionCentroId" ValorChanged="v => _verificacionCentroId = v">
                 <option value="">@Textos["OpcionSeleccionaCentro"]</option>
                 @foreach (var centro in _supervision?.CentrosSeleccionables ?? [])

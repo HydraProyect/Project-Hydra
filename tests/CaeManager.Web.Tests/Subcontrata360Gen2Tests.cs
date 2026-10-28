@@ -926,8 +926,10 @@ public partial class Subcontrata360Gen2Tests : BunitContext
         var cut = await RellenarRegistroAsync(escena);
 
         // Sin await: el comando está retenido.
-        var primero = BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
-        var segundo = BotonDelPie(cut, ".drawer-pie", "Registrar").ClickAsync(new MouseEventArgs());
+        // El botón se toma una vez: al guardar, el kit lo pinta «Guardando…» y deshabilitado, y el segundo clic llega al mismo botón.
+        var registrar = BotonDelPie(cut, ".drawer-pie", "Registrar");
+        var primero = registrar.ClickAsync(new MouseEventArgs());
+        var segundo = registrar.ClickAsync(new MouseEventArgs());
 
         escena.Mediador.Enviadas.OfType<RegistrarVerificacionExternaSubcontrataCommand>().Should().ContainSingle();
 
