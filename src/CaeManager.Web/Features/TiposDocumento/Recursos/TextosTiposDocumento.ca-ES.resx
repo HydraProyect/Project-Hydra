@@ -31,7 +31,7 @@
     <value>.</value>
   </data>
   <data name="BotonNuevoTipo" xml:space="preserve">
-    <value>+ Nuevo tipo</value>
+    <value>+ Nou tipus</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
     <value>Cercar per nom o àlies (p. ex. TC2)…</value>
@@ -52,7 +52,7 @@
     <value>Totes les empreses</value>
   </data>
   <data name="FiltroCentro" xml:space="preserve">
-    <value>Centro</value>
+    <value>Centre</value>
   </data>
   <data name="OpcionTodosCentros" xml:space="preserve">
     <value>Tots els centres</value>
@@ -79,22 +79,22 @@
     <value>Crea el primer per començar a construir el catàleg.</value>
   </data>
   <data name="ColumnaOrden" xml:space="preserve">
-    <value>Orden</value>
+    <value>Ordre</value>
   </data>
   <data name="ColumnaNombre" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Nom</value>
   </data>
   <data name="ColumnaAmbito" xml:space="preserve">
-    <value>Ámbito</value>
+    <value>Àmbit</value>
   </data>
   <data name="ColumnaVigencia" xml:space="preserve">
-    <value>Vigencia</value>
+    <value>Vigència</value>
   </data>
   <data name="ColumnaVencimiento" xml:space="preserve">
     <value>Venciment automàtic</value>
   </data>
   <data name="ColumnaExigencia" xml:space="preserve">
-    <value>Exigencia</value>
+    <value>Exigència</value>
   </data>
   <data name="ColumnaLecturaIa" xml:space="preserve">
     <value>Lectura IA</value>
@@ -109,7 +109,7 @@
     <value>Document oficial</value>
   </data>
   <data name="ColumnaAcciones" xml:space="preserve">
-    <value>Acciones</value>
+    <value>Accions</value>
   </data>
   <data name="BadgeAfirmativo" xml:space="preserve">
     <value>Sí</value>
@@ -127,7 +127,7 @@
     <value>Verificació IA</value>
   </data>
   <data name="CeldaNoAplica" xml:space="preserve">
-    <value>No aplica</value>
+    <value>No escau</value>
   </data>
   <data name="TooltipSelectOficial" xml:space="preserve">
     <value>Document oficial de l'Administració amb validació automàtica: verificació criptogràfica de la signatura digital i comprovació de dades, sense IA</value>
@@ -160,7 +160,7 @@
     <value>Nivell 1 · valor general per a tots els centres</value>
   </data>
   <data name="EtiquetaNombre" xml:space="preserve">
-    <value>Nombre</value>
+    <value>Nom</value>
   </data>
   <data name="EtiquetaAlias" xml:space="preserve">
     <value>Noms alternatius</value>
@@ -169,13 +169,13 @@
     <value>(sigles, àlies històrics — p. ex. "TC2")</value>
   </data>
   <data name="AriaAliasNuevo" xml:space="preserve">
-    <value>Alias nuevo</value>
+    <value>Àlies nou</value>
   </data>
   <data name="PlaceholderAlias" xml:space="preserve">
     <value>Escriu un àlies i prem Afegir</value>
   </data>
   <data name="BotonAnadirAlias" xml:space="preserve">
-    <value>Añadir</value>
+    <value>Afegir</value>
   </data>
   <data name="AriaQuitarAlias" xml:space="preserve">
     <value>Treure àlies {0}</value>
@@ -184,7 +184,7 @@
     <value>Àmbit d'aplicació</value>
   </data>
   <data name="AmbitoTrabajador" xml:space="preserve">
-    <value>Trabajador</value>
+    <value>Treballador</value>
   </data>
   <data name="AmbitoCliente" xml:space="preserve">
     <value>Client</value>
@@ -193,10 +193,10 @@
     <value>Empresa</value>
   </data>
   <data name="AmbitoVehiculo" xml:space="preserve">
-    <value>Vehículo</value>
+    <value>Vehicle</value>
   </data>
   <data name="AmbitoProyecto" xml:space="preserve">
-    <value>Proyecto</value>
+    <value>Projecte</value>
   </data>
   <data name="PistaAmbitoFijo" xml:space="preserve">
     <value>L'àmbit defineix quines columnes i automatismes s'apliquen; no es canvia un cop creat el tipus.</value>
@@ -208,16 +208,16 @@
     <value>Vigència (mesos)</value>
   </data>
   <data name="LeyendaExigencia" xml:space="preserve">
-    <value>Exigencia</value>
+    <value>Exigència</value>
   </data>
   <data name="EtiquetaSePide" xml:space="preserve">
-    <value>¿Se pide?</value>
+    <value>Es demana?</value>
   </data>
   <data name="RequeridoNo" xml:space="preserve">
-    <value>No se pide</value>
+    <value>No es demana</value>
   </data>
   <data name="RequeridoSi" xml:space="preserve">
-    <value>Sí, siempre</value>
+    <value>Sí, sempre</value>
   </data>
   <data name="OpcionRequeridoCondicional" xml:space="preserve">
     <value>Només si escau (activitat, sector o situació)</value>
@@ -253,7 +253,7 @@
     <value>Naturalesa desconeguda</value>
   </data>
   <data name="ExigenciaCondicional" xml:space="preserve">
-    <value>Si aplica</value>
+    <value>Si escau</value>
   </data>
   <data name="ExigenciaOpcional" xml:space="preserve">
     <value>Opcional</value>
@@ -262,10 +262,10 @@
     <value>A la taula es veurà com</value>
   </data>
   <data name="EtiquetaOrden" xml:space="preserve">
-    <value>Orden</value>
+    <value>Ordre</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
-    <value>Notas</value>
+    <value>Notes</value>
   </data>
   <data name="EtiquetaDescripcion" xml:space="preserve">
     <value>Descripció</value>
@@ -295,10 +295,10 @@
     <value>Desa els canvis</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
-    <value>Guardar</value>
+    <value>Desar</value>
   </data>
   <data name="ConfirmacionTitulo" xml:space="preserve">
     <value>Això canvia el que es demana als centres</value>
@@ -340,19 +340,19 @@
     <value>No s'ha pogut desar el canvi de «{0}». {1} S'ha restaurat el valor anterior.</value>
   </data>
   <data name="AvisoEnVuelo" xml:space="preserve">
-    <value>Guardando…</value>
+    <value>Desant…</value>
   </data>
   <data name="AvisoPersistido" xml:space="preserve">
-    <value>Guardado ✓</value>
+    <value>Desat ✓</value>
   </data>
   <data name="AvisoFallido" xml:space="preserve">
-    <value>No guardado</value>
+    <value>No desat</value>
   </data>
   <data name="VigenciaMesesUno" xml:space="preserve">
     <value>{0} mes</value>
   </data>
   <data name="VigenciaMesesVarios" xml:space="preserve">
-    <value>{0} meses</value>
+    <value>{0} mesos</value>
   </data>
   <data name="AyudaExigenciaFormato" xml:space="preserve">
     <value>Es demana? {0} · Amb quina autoritat? {1}. És el valor general: un centre pot tenir la seva pròpia configuració.</value>
@@ -397,7 +397,7 @@
     <value>{0} deixarà de demanar-se per defecte: els centres que no tinguin la seva pròpia configuració per a aquest tipus ja no el demanaran.</value>
   </data>
   <data name="EfectoEmpiezan" xml:space="preserve">
-    <value>{0} se pedirá en {1}{2}.</value>
+    <value>{0} es demanarà a {1}{2}.</value>
   </data>
   <data name="EfectoDejan" xml:space="preserve">
     <value>{0} deixarà de demanar-se a {1}{2}, {3} a seguir el valor general («{4}»).</value>

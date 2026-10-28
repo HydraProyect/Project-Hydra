@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TituloPagina" xml:space="preserve">
-    <value>Visitas</value>
+    <value>Visites</value>
   </data>
   <data name="BotonNuevaVisita" xml:space="preserve">
     <value>+ Nova visita</value>
@@ -31,7 +31,7 @@
     <value>Notificada al titular del Centre</value>
   </data>
   <data name="OpcionTodas" xml:space="preserve">
-    <value>Todas</value>
+    <value>Totes</value>
   </data>
   <data name="OpcionSi" xml:space="preserve">
     <value>Sí</value>
@@ -55,10 +55,10 @@
     <value>Seleccionar la visita de {0} a {1}, {2}</value>
   </data>
   <data name="EtiquetaCentro" xml:space="preserve">
-    <value>Centro</value>
+    <value>Centre</value>
   </data>
   <data name="ColumnaFechas" xml:space="preserve">
-    <value>Fechas</value>
+    <value>Dates</value>
   </data>
   <data name="EtiquetaTrabajadores" xml:space="preserve">
     <value>Treballadors</value>
@@ -82,7 +82,7 @@
     <value>Cancel·lar visita</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
-    <value>visita(s)</value>
+    <value>visita(es)</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
     <value>Cap visita amb aquests filtres</value>
@@ -127,7 +127,7 @@
     <value>Data d'inici</value>
   </data>
   <data name="EtiquetaFechaFin" xml:space="preserve">
-    <value>Fecha de fin</value>
+    <value>Data de fi</value>
   </data>
   <data name="EtiquetaHoraEntrada" xml:space="preserve">
     <value>Hora d'entrada (opcional — si es deixa buida s'assumeix l'obertura de la jornada)</value>
@@ -142,13 +142,13 @@
     <value>Marcar el titular del Centre com a avisat (no envia res)</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
-    <value>Notas</value>
+    <value>Notes</value>
   </data>
   <data name="BotonCancelar" xml:space="preserve">
-    <value>Cancelar</value>
+    <value>Cancel·lar</value>
   </data>
   <data name="BotonGuardar" xml:space="preserve">
-    <value>Guardar</value>
+    <value>Desar</value>
   </data>
   <data name="DetalleTitulo" xml:space="preserve">
     <value>Detall de la visita</value>
@@ -166,7 +166,7 @@
     <value>Sense hora fixada</value>
   </data>
   <data name="DetalleAntelacion" xml:space="preserve">
-    <value>Antelación</value>
+    <value>Antelació</value>
   </data>
   <data name="DetalleAntelacionHoras" xml:space="preserve">
     <value>Avís rebut amb {0} d'antelació; l'expedient va quedar complet {1} abans de l'entrada.</value>
@@ -187,7 +187,7 @@
     <value>No hi ha documentació d'empresa pendent per a aquest centre.</value>
   </data>
   <data name="SubtituloVence" xml:space="preserve">
-    <value>Vence: {0:dd/MM/yyyy}</value>
+    <value>Venç: {0:dd/MM/yyyy}</value>
   </data>
   <data name="SubtituloTrabajadoresQueEntran" xml:space="preserve">
     <value>Treballadors que entren ({0})</value>
@@ -208,7 +208,7 @@
     <value>Marcar com a notificada</value>
   </data>
   <data name="BotonCerrar" xml:space="preserve">
-    <value>Cerrar</value>
+    <value>Tancar</value>
   </data>
   <data name="ConfirmarCancelarTitulo" xml:space="preserve">
     <value>Vols cancel·lar la visita a {0}?</value>
@@ -247,7 +247,7 @@
     <value>No hem pogut actualitzar l'estat de notificació. Torna-ho a provar.</value>
   </data>
   <data name="OrigenCorreo" xml:space="preserve">
-    <value>Correo</value>
+    <value>Correu</value>
   </data>
   <data name="OrigenWhatsApp" xml:space="preserve">
     <value>WhatsApp</value>
@@ -328,7 +328,7 @@
     <value>Reactivar</value>
   </data>
   <data name="BadgeCancelada" xml:space="preserve">
-    <value>Cancelada</value>
+    <value>Cancel·lada</value>
   </data>
   <data name="EtiquetaMotivo" xml:space="preserve">
     <value>Motiu (obligatori)</value>
@@ -340,7 +340,7 @@
     <value>Motiu (opcional)</value>
   </data>
   <data name="BotonVolver" xml:space="preserve">
-    <value>Volver</value>
+    <value>Tornar</value>
   </data>
   <data name="BotonCancelarSeleccionadas" xml:space="preserve">
     <value>Cancel·lar seleccionades</value>
@@ -364,7 +364,7 @@
     <value>{0} visita(es) reactivada(es); {1} no s'han pogut reactivar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
-    <value>Deshacer</value>
+    <value>Desfer</value>
   </data>
   <data name="DetalleCancelada" xml:space="preserve">
     <value>Visita cancel·lada</value>
@@ -397,25 +397,25 @@
     <value>No hem pogut preparar el correu amb el paquet. Pots descarregar el ZIP i enviar-lo des del teu correu.</value>
   </data>
   <data name="PlazoHoy" xml:space="preserve">
-    <value>Hoy</value>
+    <value>Avui</value>
   </data>
   <data name="PlazoManana" xml:space="preserve">
-    <value>Mañana</value>
+    <value>Demà</value>
   </data>
   <data name="PlazoEnDias" xml:space="preserve">
-    <value>En {0} días</value>
+    <value>D'aquí a {0} dies</value>
   </data>
   <data name="PlazoEnCurso" xml:space="preserve">
-    <value>En curso</value>
+    <value>En curs</value>
   </data>
   <data name="PlazoFinalizada" xml:space="preserve">
-    <value>Finalizada</value>
+    <value>Finalitzada</value>
   </data>
   <data name="EtiquetaOrden" xml:space="preserve">
-    <value>Orden</value>
+    <value>Ordre</value>
   </data>
   <data name="OpcionOrdenFechas" xml:space="preserve">
-    <value>Por fechas</value>
+    <value>Per dates</value>
   </data>
   <data name="OpcionOrdenDocumentacion" xml:space="preserve">
     <value>Documentació per gestionar primer</value>
