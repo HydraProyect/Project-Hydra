@@ -65,7 +65,6 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 /// </summary>
 public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
-    private Modal? _modalActualizarDocumento;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Recursos.TextosComunes> TextosComunesPagina { get; set; } = default!;
     [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
