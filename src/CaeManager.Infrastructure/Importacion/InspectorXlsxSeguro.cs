@@ -1,5 +1,8 @@
 using System.Buffers;
+using System.Globalization;
 using System.IO.Compression;
+using System.Xml;
+using CaeManager.Application.Common;
 
 namespace CaeManager.Infrastructure.Importacion;
 
@@ -37,8 +40,7 @@ public static class InspectorXlsxSeguro
     /// desproporcionada, que es el vector de la bomba. No mide el coste en
     /// memoria del DOM de ClosedXML, que pesa varias veces el XML de origen:
     /// un libro denso y poco repetitivo dentro del tope sigue costando
-    /// memoria, y acotarlo (filas, celdas o análisis concurrentes) es un
-    /// control aparte.
+    /// memoria; los topes de filas y celdas limitan también ese coste.
     /// </summary>
     public const long MaximoBytesDescomprimidos = 100L * 1024 * 1024;
 
@@ -64,14 +66,16 @@ public static class InspectorXlsxSeguro
     /// la posición en que estaba, listo para <c>new XLWorkbook(archivo)</c>.
     /// </summary>
     /// <param name="archivo">Flujo con búsqueda (los llamadores pasan un <see cref="MemoryStream"/>).</param>
-    /// <exception cref="InvalidDataException">
-    /// No es un .zip legible o rebasa algún tope. Los mensajes no incluyen el
-    /// nombre del archivo ni nada de su contenido. La pantalla de importación
-    /// captura cualquier excepción del análisis y muestra «archivo no válido».
+    /// <exception cref="ArchivoRechazadoException">
+    /// No es un .zip legible o rebasa algún tope (<see cref="LimiteHojaImportacionException"/> si es de filas o de
+    /// celdas). Los mensajes no incluyen el nombre del archivo ni nada de su contenido. La pantalla de importación la
+    /// captura y muestra «archivo no válido» o el motivo del tope; no es un error del sistema.
     /// </exception>
-    public static void Verificar(Stream archivo)
+    public static void Verificar(Stream archivo, OpcionesLimitesImportacion? opciones = null)
     {
         ArgumentNullException.ThrowIfNull(archivo);
+        opciones ??= new OpcionesLimitesImportacion();
+        opciones.Validar();
         if (!archivo.CanSeek)
             throw new ArgumentException("El flujo del archivo debe admitir búsqueda.", nameof(archivo));
 
@@ -81,7 +85,7 @@ public static class InspectorXlsxSeguro
             using var paquete = new ZipArchive(archivo, ZipArchiveMode.Read, leaveOpen: true);
 
             if (paquete.Entries.Count > MaximoEntradas)
-                throw new InvalidDataException("El archivo contiene demasiadas partes.");
+                throw new ArchivoRechazadoException("El archivo contiene demasiadas partes.");
 
             long total = 0;
             var bufer = ArrayPool<byte>.Shared.Rent(TamanoBufer);
@@ -92,7 +96,7 @@ public static class InspectorXlsxSeguro
                     // Rechazo barato por cabecera. Falsificable, y por eso solo
                     // adelanta lo que el recuento real confirmaría después.
                     if (entrada.Length > MaximoBytesDescomprimidos)
-                        throw new InvalidDataException("El archivo supera el tamaño descomprimido admitido.");
+                        throw new ArchivoRechazadoException("El archivo supera el tamaño descomprimido admitido.");
 
                     var comprimido = Math.Max(entrada.CompressedLength, 1);
                     long deEstaEntrada = 0;
@@ -105,17 +109,31 @@ public static class InspectorXlsxSeguro
                         total += leidos;
 
                         if (total > MaximoBytesDescomprimidos)
-                            throw new InvalidDataException("El archivo supera el tamaño descomprimido admitido.");
+                            throw new ArchivoRechazadoException("El archivo supera el tamaño descomprimido admitido.");
 
                         if (deEstaEntrada > UmbralRatioBytes && deEstaEntrada / comprimido > RatioMaximo)
-                            throw new InvalidDataException("El archivo tiene una tasa de compresión anómala.");
+                            throw new ArchivoRechazadoException("El archivo tiene una tasa de compresión anómala.");
                     }
                 }
+                // Topes de filas y celdas. El tipo real de una parte se reconoce por su elemento raíz, no por el nombre que
+                // le pone quien fabrica el paquete (la ruta, la extensión y el tipo de contenido declarado son suyos): se
+                // intenta leer la raíz de TODA parte, y el lector XML decide la codificación. Una parte que no es XML
+                // legible no puede ser una hoja para ClosedXML y se ignora. Sin depender de [Content_Types].xml, para que
+                // su ausencia o su capitalización no desactive el control.
+                var celdasDelLibro = 0L;
+                foreach (var entrada in paquete.Entries)
+                    celdasDelLibro += VerificarHoja(entrada, opciones, celdasDelLibro);
             }
             finally
             {
                 ArrayPool<byte>.Shared.Return(bufer, clearArray: true);
             }
+        }
+        catch (Exception ex) when (ex is XmlException or InvalidDataException)
+        {
+            // Zip ilegible o XML mal formado: el mensaje original puede citar fragmentos del archivo, así que no se
+            // propaga; la causa queda en InnerException solo para quien depure con el archivo delante.
+            throw new ArchivoRechazadoException("El archivo no es un paquete .xlsx legible.", ex);
         }
         finally
         {
@@ -125,4 +143,78 @@ public static class InspectorXlsxSeguro
                 archivo.Position = posicionInicial;
         }
     }
+
+    /// <summary>
+    /// Cuenta filas y celdas de la parte si es una hoja de cálculo, y rechaza al rebasar el tope de filas, el de celdas
+    /// de la hoja o el de celdas del libro (<paramref name="celdasPrevias"/> son las de las hojas ya examinadas).
+    /// Devuelve las celdas de esta parte (0 si no es una hoja).
+    /// </summary>
+    private static long VerificarHoja(ZipArchiveEntry entrada, OpcionesLimitesImportacion opciones, long celdasPrevias)
+    {
+        using var flujo = entrada.Open();
+        using var lector = XmlReader.Create(flujo, new XmlReaderSettings
+        {
+            // Ignore y no Prohibit: una hoja con DOCTYPE que el lector de ClosedXML aceptase no debe escapar a los topes; con
+            // Ignore el DTD se salta sin resolver ni expandir entidades.
+            DtdProcessing = DtdProcessing.Ignore,
+            XmlResolver = null,
+            MaxCharactersInDocument = MaximoBytesDescomprimidos
+        });
+        const string ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        const string nsStrict = "http://purl.oclc.org/ooxml/spreadsheetml/main";
+        try
+        {
+            lector.MoveToContent();
+        }
+        catch (XmlException)
+        {
+            return 0; // no es XML legible (binario, vacío, codificación incoherente): tampoco la leería ClosedXML como hoja
+        }
+
+        if (lector.NamespaceURI is not (ns or nsStrict)) return 0;
+        if (lector.LocalName == "sst")
+        {
+            // Tabla de cadenas compartidas: ClosedXML la carga entera aunque ninguna celda la use.
+            long cadenas = 0;
+            while (lector.Read())
+                if (lector.NodeType == XmlNodeType.Element && lector.LocalName == "si" && ++cadenas > opciones.MaximoCeldasPorLibro)
+                    throw new LimiteHojaImportacionException(false);
+            return 0;
+        }
+
+        if (lector.LocalName != "worksheet") return 0;
+
+        var filas = 0;
+        long celdas = 0;
+        while (lector.Read())
+        {
+            if (lector.NodeType != XmlNodeType.Element || lector.NamespaceURI is not (ns or nsStrict)) continue;
+            if (lector.LocalName == "row")
+            {
+                // Una fila con número enorme pero pocas celdas también cuesta (ClosedXML la materializa): se mira el
+                // número declarado y no solo el recuento. Una referencia ilegible o fuera de rango se rechaza.
+                if (++filas > opciones.MaximoFilasPorHoja
+                    || (lector.GetAttribute("r") is { } numero && NumeroDeFila(numero) > opciones.MaximoFilasPorHoja))
+                    throw new LimiteHojaImportacionException(true);
+            }
+            else if (lector.LocalName == "c")
+            {
+                if (++celdas > opciones.MaximoCeldasPorHoja || celdasPrevias + celdas > opciones.MaximoCeldasPorLibro)
+                    throw new LimiteHojaImportacionException(false);
+                if (lector.GetAttribute("r") is { } referencia)
+                {
+                    var inicioFila = 0;
+                    while (inicioFila < referencia.Length && char.IsAsciiLetter(referencia[inicioFila])) inicioFila++;
+                    if (NumeroDeFila(referencia.AsSpan(inicioFila)) > opciones.MaximoFilasPorHoja)
+                        throw new LimiteHojaImportacionException(true);
+                }
+            }
+        }
+        return celdas;
+    }
+
+    private static long NumeroDeFila(ReadOnlySpan<char> texto) =>
+        uint.TryParse(texto, NumberStyles.None, CultureInfo.InvariantCulture, out var numero)
+            ? numero
+            : throw new ArchivoRechazadoException("El archivo tiene una referencia de fila no válida.");
 }

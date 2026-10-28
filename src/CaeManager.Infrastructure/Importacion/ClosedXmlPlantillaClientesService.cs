@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.Importacion;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Importacion;
@@ -36,7 +37,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// existían, se reutilizan) o en <see cref="PlanImportacionDto.Omitidos"/>
 /// con su motivo concreto.
 /// </summary>
-public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext) : IPlantillaClientesService
+public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, IOptions<OpcionesLimitesImportacion>? limites = null) : IPlantillaClientesService
 {
     private const string NombreHoja = "Clientes";
     private const int FilaCabecera = 1;
@@ -69,7 +70,7 @@ public class ClosedXmlPlantillaClientesService(ICentrosQueryContext centrosConte
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
         // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
-        InspectorXlsxSeguro.Verificar(archivo);
+        InspectorXlsxSeguro.Verificar(archivo, limites?.Value);
 
         // F3b — Empresas, no la tabla legacy Clientes. Cliente empresarial
         // específicamente (EsCritico != null, igual que

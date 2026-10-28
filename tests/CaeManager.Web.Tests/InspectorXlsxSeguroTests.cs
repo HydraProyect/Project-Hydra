@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Importacion;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -115,7 +116,7 @@ public class InspectorXlsxSeguroTests
 
         var antes = GC.GetAllocatedBytesForCurrentThread();
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
-        verificar.Should().ThrowExactly<InvalidDataException>();
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>();
         var asignados = GC.GetAllocatedBytesForCurrentThread() - antes;
 
         // Aquí corta el rechazo barato por cabecera (declara 200 MiB); el
@@ -135,7 +136,7 @@ public class InspectorXlsxSeguroTests
         // inspección termina sin expandir nada y sin materializar memoria. La
         // mentira que sí importa, declarar poco y traer mucho, queda cubierta
         // por el conteo real de bytes que hace Verificar en los demás casos.
-        var bomba = CrearZipDeCeros(("xl/worksheets/sheet1.xml", 200L * 1024 * 1024));
+        var bomba = CrearZipDeCeros(("xl/worksheets/sheet1.bin", 200L * 1024 * 1024));
         const int firmaDirectorioCentral = 0x02014B50;
         var falsificado = false;
         for (var i = 0; i < bomba.Length - 28; i++)
@@ -178,7 +179,7 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*compresión*");
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*compresión*");
     }
 
     [Fact]
@@ -201,7 +202,7 @@ public class InspectorXlsxSeguroTests
 
             var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-            verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*tamaño descomprimido*");
+            verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*tamaño descomprimido*");
         }
         finally
         {
@@ -218,14 +219,14 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*demasiadas partes*");
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*demasiadas partes*");
     }
 
     [Fact]
     public void El_numero_maximo_de_entradas_exacto_se_admite()
     {
         var entradas = Enumerable.Range(0, InspectorXlsxSeguro.MaximoEntradas)
-            .Select(i => ($"xl/parte{i}.xml", 10L)).ToArray();
+            .Select(i => ($"xl/parte{i}.bin", 10L)).ToArray();
         using var flujo = new MemoryStream(CrearZipDeCeros(entradas));
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
@@ -240,6 +241,6 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().Throw<InvalidDataException>();
+        verificar.Should().Throw<ArchivoRechazadoException>();
     }
 }

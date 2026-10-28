@@ -69,6 +69,8 @@ public class ImportarDocumentosGen2Tests : BunitContext
 
     private IRenderedComponent<PaginaImportacion> RenderizarAsistenteDocumentos(bool entradaDocumental = true)
     {
+        Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
+        Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
@@ -124,6 +126,8 @@ public class ImportarDocumentosGen2Tests : BunitContext
     [Fact]
     public void La_query_de_Documentos_no_cambia_el_asistente_integrado_en_Configuracion()
     {
+        Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
+        Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
         Services.AddScoped<IMediator, MediadorHistorialVacio>();
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();

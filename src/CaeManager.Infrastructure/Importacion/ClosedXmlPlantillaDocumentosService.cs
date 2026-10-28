@@ -6,6 +6,7 @@ using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Importacion;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Importacion;
@@ -29,7 +30,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// obligatorios"), que llegó a acusar de ausente una fecha que en realidad
 /// estaba presente pero ilegible (REC-129).
 /// </summary>
-public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaDocumentosService
+public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documentosContext, ITiposDocumentoQueryContext tiposDocumentoContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesLimitesImportacion>? limites = null) : IPlantillaDocumentosService
 {
     private const string NombreHoja = "Documentos";
     private const int FilaCabecera = 1;
@@ -60,7 +61,7 @@ public class ClosedXmlPlantillaDocumentosService(IDocumentosQueryContext documen
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
         // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
-        InspectorXlsxSeguro.Verificar(archivo);
+        InspectorXlsxSeguro.Verificar(archivo, limites?.Value);
 
         var trabajadoresPorDni = await trabajadoresContext.Trabajadores
             .Where(t => t.Dni != null)
