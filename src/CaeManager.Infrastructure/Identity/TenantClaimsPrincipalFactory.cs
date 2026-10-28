@@ -79,6 +79,13 @@ public class TenantClaimsPrincipalFactory(
     {
         var principal = await base.CreateAsync(user);
 
+        // La marca del TOTP de la sesión (precondición de abrir una Sesión Privilegiada) nunca sale
+        // de la fábrica: un claim guardado en AspNetUserClaims la daría en cada sesión sin código. Solo
+        // la ponen SignInManagerCuentaDesactivada al acertar el TOTP y su gancho de revalidación.
+        foreach (var identidadGenerada in principal.Identities)
+            foreach (var marca in identidadGenerada.FindAll(SignInManagerCuentaDesactivada.ClaimTotpSesion).ToList())
+                identidadGenerada.RemoveClaim(marca);
+
         if (principal.Identity is not ClaimsIdentity identidad)
             return principal;
 

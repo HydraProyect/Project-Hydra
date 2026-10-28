@@ -411,6 +411,9 @@ public class CurrentUserService(
             .FirstOrDefaultAsync();
     }
 
+    public async Task<bool> SuperoTotpEnSesionAsync() =>
+        SignInManagerCuentaDesactivada.TotpEsReciente(await ObtenerUsuarioAsync(), DateTimeOffset.UtcNow);
+
     // Dentro de un circuito de Blazor, AuthenticationStateProvider ya trae el
     // ClaimsPrincipal correcto (capturado al negociar el circuito). Fuera de
     // uno — endpoints minimal API como GET /documentos/{id}/archivo, que no

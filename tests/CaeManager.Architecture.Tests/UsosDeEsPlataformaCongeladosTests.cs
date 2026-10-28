@@ -365,6 +365,10 @@ public class UsosDeEsPlataformaCongeladosTests
             new(1, CategoriaUso.Guarda,
                 "excluye el Tenant de plataforma del listado de Operadores CAE externos. Solo recorta un " +
                 "listado ya autorizado por PuedeGlobalmenteAsync; no concede nada"),
+        ["src/CaeManager.Infrastructure/Exportacion/ExportacionCompletaTenant.cs"] =
+            new(2, CategoriaUso.Guarda,
+                "lee el flag del Tenant pedido y rechaza exportar el Tenant de plataforma TALVEG como si fuera un " +
+                "Tenant propietario. Solo impide; la autorización es el Administrador activo del propio Tenant"),
         ["src/CaeManager.Infrastructure/MultiTenancy/RetiradaTenantDemoService.cs"] =
             new(2, CategoriaUso.Guarda,
                 ":139 rechaza retirar el tenant de plataforma, :55 lo documenta. No concede capacidad a " +
