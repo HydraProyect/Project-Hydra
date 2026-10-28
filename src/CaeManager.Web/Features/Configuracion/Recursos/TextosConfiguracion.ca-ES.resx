@@ -223,7 +223,7 @@
     <value>Sempre actiu</value>
   </data>
   <data name="AriaConmutarTrabajo" xml:space="preserve">
-    <value>Activar o desactivar {0}</value>
+    <value>Activa o desactiva {0}</value>
   </data>
   <data name="AutomatizacionesNotaPie" xml:space="preserve">
     <value>Les tasques commutables deixen la seva última execució registrada a dalt.</value>
