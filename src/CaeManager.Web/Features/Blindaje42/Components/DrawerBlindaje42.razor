@@ -17,8 +17,7 @@
 @inject TimeProvider Reloj
 
 <DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
-                  HayCambios="() => HayCambiosSinGuardar" Guardando="@(_guardandoSolicitud || _guardandoRespuesta)"
-                  MostrarGuardar="_puedeEscribir" TextoGuardar="Registrar solicitud" TextoCancelar="Cancelar" OnGuardar="RegistrarSolicitudAsync"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardandoSolicitud"                  MostrarGuardar="_puedeEscribir" TextoGuardar="Registrar solicitud" TextoCancelar="Cancelar" OnGuardar="RegistrarSolicitudAsync"
                   MensajeError="@MensajeErrorFormulario">
     <ChildContent>
         <p class="texto-vacio-seccion">
@@ -234,6 +233,9 @@
 
     private async Task RegistrarSolicitudAsync()
     {
+        // El pie del kit solo conoce el guardado de la solicitud: mientras se guarda la respuesta, «Registrar solicitud» no hace nada.
+        if (_guardandoRespuesta) return;
+
         if (!DateOnly.TryParse(_fechaSolicitud, out var fecha))
         {
             _errorSolicitud = "Indica una fecha de solicitud válida.";

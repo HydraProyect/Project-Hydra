@@ -100,6 +100,19 @@ public class DrawerBlindaje42DescartarCambiosTests : BunitContext
         cut.FindAll("h2").Any(h => h.TextContent.Trim() == Pregunta);
 
     [Fact]
+    public async Task Una_fecha_invalida_sale_en_el_aviso_del_kit_y_no_registra_nada()
+    {
+        var cut = Renderizar();
+        var fecha = cut.FindComponents<CampoTexto>().First(c => c.Instance.Etiqueta == "Fecha de la nueva solicitud");
+        await cut.InvokeAsync(() => fecha.Instance.ValorChanged.InvokeAsync("no es una fecha"));
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Registrar solicitud").ClickAsync(new MouseEventArgs());
+
+        cut.FindAll("[role=alert]").Should().ContainSingle().Which.TextContent.Should().Contain("Indica una fecha de solicitud válida.");
+        cut.FindAll(".drawer-cuerpo [role=alert]").Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Cancelar_sin_cambios_cierra()
     {
         var cut = Renderizar();

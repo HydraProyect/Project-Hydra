@@ -29,12 +29,12 @@
 
 <DrawerFormulario HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="Reclamar en lote"
                   Guardando="_enviando" MostrarGuardar="@(_paso == Paso.Seleccion)" TextoGuardar="Continuar" TextoCancelar="Cancelar"
-                  OnGuardar="ContinuarAsync">
+                  OnGuardar="ContinuarAsync" MensajeError="@(_paso == Paso.Seleccion ? _errorDelSelector : null)">
     <ChildContent>
         @if (_paso == Paso.Seleccion)
         {
             <SelectorLoteDocumental @ref="_selector" AmbitosDisponibles="AmbitosDisponibles" AmbitoInicial="AmbitoInicial" EntidadIdInicial="EntidadIdInicial"
-                                    OnConfirmar="ResolverAsync" MostrarAcciones="false"
+                                    OnConfirmar="ResolverAsync" MostrarAcciones="false" OnErrorValidacion="AlErrorDelSelector"
                                     OnFiltroCambiado="AlCambiarFiltro" />
         }
         else if (_paso == Paso.Cargando)
@@ -105,7 +105,7 @@
                         }
                         @if (lote.Destinatarios is not { Count: > 0 })
                         {
-                            <p class="reclamacion-motivo">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</p>
+                            <p class="reclamacion-motivo" role="status">@(lote.EmpresaEmpleadora?.DelegacionEmpresaId is not null ? TextosMiTrabajo.Texto("ReclamacionDelegacionEmpresaSinContactoVisible") : "No hay ningún contacto en la agenda al que reclamar esta documentación.")</p>
                         }
                         else
                         {
@@ -250,9 +250,15 @@
     /// drawer, para que el aviso del navegador al recargar o cerrar la pestaña
     /// (ConfirmExternalNavigation, que se calcula en su render) vea el filtro elegido.
     /// </summary>
-    private static void AlCambiarFiltro()
-    {
-    }
+    private void AlCambiarFiltro() => _errorDelSelector = null;
+
+    /// <summary>
+    /// «Continuar» vive en el pie fijo del kit: el error de validación del selector (que no ha elegido tipo, o a quién) sube al
+    /// aviso del formulario, siempre a la vista, y se quita en cuanto se toca el filtro.
+    /// </summary>
+    private void AlErrorDelSelector(string? error) => _errorDelSelector = error;
+
+    private string? _errorDelSelector;
 
     private string ValoresRevision(ClaveDeLote titularId) =>
         string.Join(',', _seleccionPorTitular.GetValueOrDefault(titularId, []).Order())

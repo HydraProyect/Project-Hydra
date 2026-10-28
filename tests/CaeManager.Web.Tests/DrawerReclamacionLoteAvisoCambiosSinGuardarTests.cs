@@ -129,6 +129,38 @@ public class DrawerReclamacionLoteAvisoCambiosSinGuardarTests : BunitContext
         cierres.Should().Equal(false);
     }
 
+    /// <summary>
+    /// «Continuar» está en el pie fijo del kit: el error de validación del selector sube al aviso del formulario (fuera del cuerpo
+    /// desplazable, una sola vez) y se quita al tocar el filtro.
+    /// </summary>
+    [Fact]
+    public async Task El_error_de_validacion_del_selector_sale_en_el_aviso_del_kit_y_se_quita_al_tocar_el_filtro()
+    {
+        var (cut, _) = Renderizar();
+        const string mensaje = "Marca \"Todos los tipos\" o selecciona al menos uno.";
+
+        await cut.Find(".selector-lote-documental input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = false });
+        await ContinuarAsync(cut);
+
+        cut.FindAll("[role=alert]").Should().ContainSingle().Which.TextContent.Should().Contain(mensaje);
+        cut.FindAll(".drawer-cuerpo [role=alert]").Should().BeEmpty("el aviso va fuera del cuerpo desplazable, no pegado al selector");
+
+        await cut.Find(".selector-lote-documental input[type=checkbox]").ChangeAsync(new ChangeEventArgs { Value = true });
+        cut.FindAll("[role=alert]").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task En_la_revision_el_pie_solo_ofrece_Cancelar()
+    {
+        var (cut, _) = Renderizar();
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar", "Continuar");
+
+        await ContinuarAsync(cut);
+        cut.WaitForAssertion(() => cut.FindAll(".tabla-datos").Should().NotBeEmpty());
+
+        cut.FindAll(".drawer-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar");
+    }
+
     [Fact]
     public async Task Cambiar_el_filtro_y_salir_pregunta()
     {

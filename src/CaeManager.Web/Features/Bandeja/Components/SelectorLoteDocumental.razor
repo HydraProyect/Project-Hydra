@@ -87,7 +87,7 @@
         }
     }
 
-    @if (_errorValidacion is not null)
+    @if (_errorValidacion is not null && !OnErrorValidacion.HasDelegate)
     {
         <div class="alerta-formulario" role="alert">@_errorValidacion</div>
     }
@@ -125,6 +125,18 @@
     [Parameter, EditorRequired] public EventCallback<FiltroLoteDocumental> OnConfirmar { get; set; }
     [Parameter] public EventCallback OnCancelar { get; set; }
     [Parameter] public bool MostrarAcciones { get; set; } = true;
+
+    /// <summary>
+    /// Quien monta el selector pinta el error de validación (el aviso de su formulario, siempre a la vista junto a «Continuar»): con
+    /// este delegado el selector no lo pinta en su cuerpo y lo notifica aquí (nulo cuando se limpia).
+    /// </summary>
+    [Parameter] public EventCallback<string?> OnErrorValidacion { get; set; }
+
+    private Task FijarErrorAsync(string? error)
+    {
+        _errorValidacion = error;
+        return OnErrorValidacion.InvokeAsync(error);
+    }
 
     /// <summary>
     /// P1-E2b: cada cambio del filtro. Invocarlo re-renderiza a quien monta el selector, que
@@ -216,7 +228,7 @@
         _ambito = ambito;
         _todosLosTipos = true;
         _tiposSeleccionados = [];
-        _errorValidacion = null;
+        await FijarErrorAsync(null);
 
         _cargandoTipos = true;
         StateHasChanged();
@@ -260,14 +272,12 @@
     {
         if (_ambito is not { } ambito)
         {
-            _errorValidacion = "Selecciona un tipo de entidad.";
-            return Task.CompletedTask;
+            return FijarErrorAsync("Selecciona un tipo de entidad.");
         }
 
         if (!_todosLosTipos && _tiposSeleccionados.Count == 0)
         {
-            _errorValidacion = "Marca \"Todos los tipos\" o selecciona al menos uno.";
-            return Task.CompletedTask;
+            return FijarErrorAsync("Marca \"Todos los tipos\" o selecciona al menos uno.");
         }
 
         Guid? entidadId = null;
@@ -275,16 +285,18 @@
         {
             if (!Guid.TryParse(_entidadId, out var id))
             {
-                _errorValidacion = $"Selecciona {EtiquetaAmbitoSingular(ambito)}.";
-                return Task.CompletedTask;
+                return FijarErrorAsync($"Selecciona {EtiquetaAmbitoSingular(ambito)}.");
             }
             entidadId = id;
         }
 
-        _errorValidacion = null;
-        var filtro = new FiltroLoteDocumental(
-            ambito, _todosLosTipos ? [] : [.. _tiposSeleccionados], entidadId);
+        return ConfirmarFiltroAsync(new FiltroLoteDocumental(
+            ambito, _todosLosTipos ? [] : [.. _tiposSeleccionados], entidadId));
+    }
 
-        return OnConfirmar.InvokeAsync(filtro);
+    private async Task ConfirmarFiltroAsync(FiltroLoteDocumental filtro)
+    {
+        await FijarErrorAsync(null);
+        await OnConfirmar.InvokeAsync(filtro);
     }
 }

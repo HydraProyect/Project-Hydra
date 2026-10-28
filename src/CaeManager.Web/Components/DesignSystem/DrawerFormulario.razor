@@ -72,7 +72,7 @@
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
             <fieldset class="formulario-drawer-pie-extra" disabled="@Guardando"><CascadingValue Name="PieFormularioDeshabilitado" Value="Guardando">@PieExtra</CascadingValue></fieldset>
         }
-        @if (PasoIntermedio)
+        @if (PasoIntermedio && MostrarGuardar)
         {
             @* «Guardar y terminar»: guarda lo escrito hasta aquí (el mismo comando que «Guardar») sin pasar por los pasos que faltan. *@
             <span class="formulario-drawer-accion formulario-drawer-terminar">
@@ -354,7 +354,7 @@
         // registro dos veces. Antes lo escribía cada pantalla (`if (_guardando) return;`) o no lo escribía.
         // El botón «Guardar» deshabilitado se reafirma aquí (CWE-602): quitar `disabled` en el DOM del navegador deja pasar el clic
         // hasta este manejador, y el estado del servidor es el que manda, como en DialogoConfirmacion.
-        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado) return;
+        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado || !MostrarGuardar) return;
         _guardadoEnCurso = true;
         try
         {
