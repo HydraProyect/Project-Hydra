@@ -2,8 +2,5 @@
 # Solo baja: migrar una pantalla al kit baja o borra su línea; un Modal con campos nuevo no se añade aquí, usa el kit.
 # Medida: 'ruta :: Modal = n' con n Modales que contienen campos (FormulariosEnModalUsanElKitTests).
 src/CaeManager.Web/Features/Comercial/Pages/EstadoComercial.razor :: Modal = 1
-src/CaeManager.Web/Features/Comunicaciones/Pages/Bandeja.razor :: Modal = 1
-src/CaeManager.Web/Features/Cumplimiento/AceptacionTerminosGate.razor :: Modal = 1
 src/CaeManager.Web/Features/Delegaciones/OperadoresCaeExternosPanel.razor :: Modal = 1
-src/CaeManager.Web/Features/Plataforma/Pages/Plataforma.razor :: Modal = 1
 src/CaeManager.Web/Features/Trabajadores/Pages/Trabajadores.razor :: Modal = 1

@@ -27,7 +27,10 @@
 <LimiteDeErrores Islote="this">
 @if (_debeAceptar)
 {
-    <Modal Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande">
+    <ModalFormulario Visible="true" Titulo="@Textos["TituloModal"]" Bloqueante="true" Ancho="AnchoModal.Grande"
+                     HayCambios="() => _marcado" Guardando="_aceptando" MensajeError="@_error"
+                     MotivoGuardarDeshabilitado="@(!_marcado ? Textos["MotivoAceptar"].Value : null)"
+                     TextoGuardar="@Textos["BotonAceptar"]" TextoCancelar="" OnGuardar="AceptarAsync">
         <ChildContent>
             <p class="texto-consentimiento">@Textos["TextoConsentimiento", Marca.Nombre]</p>
             <p>
@@ -39,15 +42,8 @@
                 <input type="checkbox" checked="@_marcado" @onchange="e => _marcado = (bool)e.Value!" />
                 @Textos["CasillaAceptacion"]
             </label>
-            @if (_error is not null)
-            {
-                <div class="alerta-formulario" role="alert">@_error</div>
-            }
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Primario" Deshabilitado="!_marcado" Cargando="_aceptando" OnClick="AceptarAsync">@Textos["BotonAceptar"]</Boton>
-        </Pie>
-    </Modal>
+    </ModalFormulario>
 }
 </LimiteDeErrores>
 
