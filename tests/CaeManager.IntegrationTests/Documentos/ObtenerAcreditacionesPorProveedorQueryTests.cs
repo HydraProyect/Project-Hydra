@@ -81,7 +81,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
                 new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
                 AltaAcreditacionesDePrueba.Con(contexto),
-                new PublisherFalso(), new AlcanceDatosServiceFalso());
+                new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
             var resultado = await handler.Handle(
                 new CrearDocumentoCommand(
@@ -390,7 +390,7 @@ public class ObtenerAcreditacionesPorProveedorQueryTests : IAsyncLifetime
                 new DocumentoRepository(contexto), contexto, contexto, contexto, contexto, contexto,
                 contexto, new ColaAnalisisDocumentoFalsa(), new CurrentUserServiceFalso(),
                 AltaAcreditacionesDePrueba.Con(contexto),
-                new PublisherFalso(), new AlcanceDatosServiceFalso());
+                new PublisherFalso(), new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
             await handlerCrear.Handle(
                 new CrearDocumentoCommand(

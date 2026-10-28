@@ -9,6 +9,7 @@ using CaeManager.Application.Importacion;
 using CaeManager.Application.TiposDocumento.Commands.EditarTipoDocumento;
 using CaeManager.Application.Tests.Asignaciones;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Common;
 using CaeManager.Application.Tests.Importacion;
 using CaeManager.Application.Tests.Proyectos;
 using CaeManager.Application.Tests.TiposDocumento;
@@ -52,7 +53,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             new ColaAnalisisSinUso(), new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, null, null),
@@ -368,7 +369,7 @@ public class CaminosDeAltaAcreditacionesTests
             documentos, mundo.TiposDocumentoContexto, mundo.TrabajadoresContexto, new VehiculosVacios(),
             new ProyectosQueryContextFalso(), new EmpresasQueryContextFalso(), new UnitOfWorkFalso(),
             cola, new CurrentUserServiceFalso(), mundo.Servicio(), new PublisherFalso(),
-            new AlcanceDatosServiceFalso());
+            new AlcanceDatosServiceFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new CrearDocumentoCommand(trabajador.Id, null, null, null, null, tipo.Id, Hoy, null, "apto.pdf", null),

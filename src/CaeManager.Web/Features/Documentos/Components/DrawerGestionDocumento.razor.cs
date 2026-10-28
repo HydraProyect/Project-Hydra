@@ -623,7 +623,7 @@ public partial class DrawerGestionDocumento : ComponentBase
             // bytes del contenido real antes de convertirlo o guardarlo.
             foreach (var (contenido, nombreArchivo) in contenidos)
             {
-                if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
+                if (!ValidadorFirmaArchivo.EsDocumentoValido(contenido, nombreArchivo))
                 {
                     ToastService.Mostrar(
                         $"\"{nombreArchivo}\" no es realmente un PDF, JPG, PNG ni Word (.docx) — su contenido no coincide con la extensión.",

@@ -5,4 +5,6 @@
   <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
   <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
   <data name="EvidenciaFormatoNoValido" xml:space="preserve"><value>La evidencia debe ser un PDF, JPG o PNG válido, de hasta 10 MB, cuyo contenido coincida con la extensión.</value></data>
+  <data name="ArchivoDocumentoNoValido" xml:space="preserve"><value>Comprueba que el archivo sea un PDF, JPG, PNG o Word (.docx) válido, de hasta 10 MB, y que su contenido coincida con la extensión.</value></data>
+  <data name="ArchivoPlantillaNoValido" xml:space="preserve"><value>Comprueba que la plantilla sea un PDF válido de hasta 10 MB y que su contenido coincida con la extensión.</value></data>
 </root>

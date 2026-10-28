@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Contactos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Empresas;
@@ -159,6 +160,9 @@ public class GenerarDocumentoIndividualCommandHandler(
         await flujoOriginal.CopyToAsync(memoria, cancellationToken);
         var contenidoOriginal = memoria.ToArray();
 
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(contenidoOriginal, "plantilla.pdf"))
+            return Fallo("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajePlantillaNoValida);
+
         var elementosRelleno = valoresPorElemento
             .Select(par => new ElementoRellenoPlantilla(
                 par.Key.Tipo, par.Key.NombreCampoAcroForm, par.Key.Pagina, par.Key.X, par.Key.Y, par.Key.Ancho, par.Key.Alto, par.Value,
@@ -167,6 +171,9 @@ public class GenerarDocumentoIndividualCommandHandler(
 
         var resultadoRelleno = rellenador.Rellenar(contenidoOriginal, plantilla.FormatoOrigen, elementosRelleno);
         var contenidoRelleno = resultadoRelleno.Pdf;
+
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(contenidoRelleno, "documento-generado.pdf"))
+            return Fallo("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido);
 
         using var flujoRelleno = new MemoryStream(contenidoRelleno);
         var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujoRelleno, "documento-generado.pdf", cancellationToken);

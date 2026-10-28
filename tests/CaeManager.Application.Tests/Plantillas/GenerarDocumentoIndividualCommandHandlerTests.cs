@@ -29,11 +29,12 @@ public class GenerarDocumentoIndividualCommandHandlerTests
 
         /// <summary>DEC-32 (REC-115): permite a un test simular que el filler encontró un valor que su campo no reconoce.</summary>
         public IReadOnlyList<AvisoValorNoReconocido> ValoresNoReconocidosARetornar { get; set; } = [];
+        public byte[] PdfARetornar { get; set; } = "%PDF-generado"u8.ToArray();
 
         public ResultadoRellenoPlantilla Rellenar(byte[] pdfOriginal, FormatoOrigenPlantilla formato, IReadOnlyList<ElementoRellenoPlantilla> elementos)
         {
             UltimosElementos = elementos;
-            return new ResultadoRellenoPlantilla([9, 9, 9], ValoresNoReconocidosARetornar);
+            return new ResultadoRellenoPlantilla(PdfARetornar, ValoresNoReconocidosARetornar);
         }
     }
 
@@ -74,7 +75,7 @@ public class GenerarDocumentoIndividualCommandHandlerTests
         plantillas.Agregar(plantilla);
 
         var almacenamiento = new FileStorageServiceFalso();
-        using var flujoOriginal = new MemoryStream([1, 2, 3]);
+        using var flujoOriginal = new MemoryStream("%PDF-original"u8.ToArray());
         var archivoUrl = await almacenamiento.GuardarAsync(flujoOriginal, "original.pdf");
 
         var version = new PlantillaDocumentoVersion(plantilla.Id, 1, archivoUrl, new string('a', 64));
@@ -102,6 +103,21 @@ public class GenerarDocumentoIndividualCommandHandlerTests
     {
         version.EstablecerElementos(elementos);
         version.Confirmar(usuarioId, DateTime.UtcNow);
+    }
+
+    [Fact]
+    public async Task Rechaza_un_pdf_generado_con_firma_de_ejecutable()
+    {
+        var entorno = await ConstruirEntornoAsync();
+        var usuarioId = Guid.NewGuid();
+        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Juan", "Pérez", Dni);
+        entorno.Trabajadores.ListaTrabajadores.Add(trabajador);
+        Confirmar(entorno.Version, [new PlantillaElemento(entorno.Version.Id, TipoElementoPlantilla.Texto, 1, 0, 0, 10, 10, "Campo", FuenteDatoPlantilla.Constante, "x")], usuarioId);
+        entorno.Rellenador.PdfARetornar = "MZ"u8.ToArray();
+        var resultado = await entorno.CrearHandler(usuarioId).Handle(new GenerarDocumentoIndividualCommand(entorno.Version.Id, trabajador.Id), CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        entorno.Documentos.Documentos.Should().BeEmpty();
+        entorno.Almacenamiento.ArchivosGuardados.Should().Be(1);
     }
 
     [Fact]

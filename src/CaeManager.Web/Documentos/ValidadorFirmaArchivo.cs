@@ -14,4 +14,7 @@ public static class ValidadorFirmaArchivo
 {
     public static bool TieneFirmaValida(byte[] contenido, string nombreArchivo) =>
         Application.Common.Archivos.ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo);
+
+    public static bool EsDocumentoValido(byte[] contenido, string nombreArchivo) =>
+        Application.Common.Archivos.ValidadorFirmaArchivo.EsDocumentoValido(contenido, nombreArchivo);
 }
