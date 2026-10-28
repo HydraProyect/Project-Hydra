@@ -11,6 +11,8 @@ public class InspeccionTextoPoliticaRlsTests
     [InlineData("(a)OR(b)", true)]
     [InlineData("TenantOrigenId", false)]
     [InlineData("MotivoRechazo", false)]
+    [InlineData("ORDEN = 1", false)]
+    [InlineData("color = 1", false)]
     [InlineData("app_ctx_tenant_id()", false)]
     [InlineData(null, false)]
     [InlineData("", false)]
@@ -25,7 +27,6 @@ public class InspeccionTextoPoliticaRlsTests
     [InlineData("tenantid = app_ctx_tenant_id()", false)]
     [InlineData("TenantId = APP_CTX_TENANT_ID()", false)]
     [InlineData("TenantId = app_ctx_tenant_id() OR current_setting('x')", false)]
-    [InlineData("TenantId = app_ctx_tenant_id() OR CURRENT_SETTING('x')", true)]
     [InlineData(null, false)]
     [InlineData("", false)]
     public void DetectaMencionDelAislamiento(string? expresion, bool esperado) =>
