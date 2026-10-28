@@ -40,7 +40,14 @@ for caso in "${CASOS[@]}"; do
   for par in "$@"; do
     servicio="${par%%:*}"; sufijo="${par##*:}"
     esperada="    mem_limit: \${LIMITE_MEMORIA_${sufijo}:-0}"
-    bloque_de_servicio_en "$DIR/$compose" "$servicio" | grep -qxF "$esperada" \
+    # El bloque se guarda antes de buscar en él, sin tubería hacia `grep -q`:
+    # grep -q sale en la primera coincidencia y, con `pipefail`, si awk aún
+    # tenía que escribir (el bloque de caddy pasa de 4 KiB, así que awk lo
+    # vuelca en dos escrituras) muere por SIGPIPE y la tubería da fallo aunque
+    # la línea esté. Era una carrera: fallaba a veces en la cola de fusión.
+    bloque="$(bloque_de_servicio_en "$DIR/$compose" "$servicio")" \
+      || { echo "FALLO: $compose: no se pudo extraer el bloque del servicio $servicio" >&2; exit 1; }
+    grep -qxF "$esperada" <<< "$bloque" \
       || { echo "FALLO: $compose: el servicio $servicio no lleva la línea '${esperada#    }'" >&2; exit 1; }
   done
 done

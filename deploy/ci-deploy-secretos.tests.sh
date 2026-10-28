@@ -398,16 +398,18 @@ bloque_de_servicio() {  # <servicio>: imprime el bloque `  servicio:` hasta el s
 # «Caddy no lo tiene» de abajo no significaría nada).
 # Se captura ANTES del grep: `awk | grep -q` bajo `pipefail` falla con SIGPIPE (141) en cuanto el
 # bloque supera un búfer de 4 KB, porque `grep -q` sale al primer acierto y `awk` aún escribe.
+# Por lo mismo, el bloque capturado se le pasa a grep con `<<<` y no con `printf | grep -q`:
+# printf también escribe en trozos de 4 KB, y app, migrador y caddy pasan de ese tamaño.
 BLOQUE_APP="$(bloque_de_servicio app-azul)"
-printf '%s\n' "$BLOQUE_APP" | grep -q '^    env_file: \.env' || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
+grep -q '^    env_file: \.env' <<< "$BLOQUE_APP" || { echo "FALLO: el extractor no ve el env_file de 'app' — el caso no observa lo que dice observar" >&2; exit 1; }
 BLOQUE_CADDY="$(bloque_de_servicio caddy)"
 [ -n "$BLOQUE_CADDY" ] || { echo "FALLO: no se encontró el bloque del servicio caddy" >&2; exit 1; }
-if printf '%s\n' "$BLOQUE_CADDY" | grep -q '^    env_file:'; then
+if grep -q '^    env_file:' <<< "$BLOQUE_CADDY"; then
   echo "FALLO: el servicio caddy vuelve a cargar un env_file entero" >&2
   exit 1
 fi
-printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      DOMINIO: \${DOMINIO}' || { echo "FALLO: caddy no recibe DOMINIO" >&2; exit 1; }
-printf '%s\n' "$BLOQUE_CADDY" | grep -q '^      ACME_EMAIL: \${ACME_EMAIL}' || { echo "FALLO: caddy no recibe ACME_EMAIL" >&2; exit 1; }
+grep -q '^      DOMINIO: \${DOMINIO}' <<< "$BLOQUE_CADDY" || { echo "FALLO: caddy no recibe DOMINIO" >&2; exit 1; }
+grep -q '^      ACME_EMAIL: \${ACME_EMAIL}' <<< "$BLOQUE_CADDY" || { echo "FALLO: caddy no recibe ACME_EMAIL" >&2; exit 1; }
 echo "OK: caddy recibe solo DOMINIO y ACME_EMAIL; app conserva su env_file"
 
 echo "=== Caso 18: por la inyección solo entra rk_live_ (D9): ni sk_live_ ni claves de prueba ==="
@@ -445,18 +447,18 @@ for compose19 in docker-compose.produccion.yml docker-compose.staging.yml; do
   # la efectiva de abajo comprueba las dos ranuras ya resueltas.
   APP19="$(bloque_de_servicio_en "$fichero19" app-azul)"
   # Control positivo: el extractor ve la credencial donde SÍ debe estar.
-  printf '%s\n' "$MIGRADOR19" | grep -q 'Username=postgres;Password=\${POSTGRES_PASSWORD}' \
+  grep -q 'Username=postgres;Password=\${POSTGRES_PASSWORD}' <<< "$MIGRADOR19" \
     || { echo "FALLO: $compose19: el extractor no ve la credencial del migrador — el caso no observa lo que dice observar" >&2; exit 1; }
-  printf '%s\n' "$MIGRADOR19" | grep -q '^    command: \["--preparar-arranque"\]' \
+  grep -q '^    command: \["--preparar-arranque"\]' <<< "$MIGRADOR19" \
     || { echo "FALLO: $compose19: el migrador no prepara el arranque (--preparar-arranque): 'app' tendría que sembrar sin la credencial" >&2; exit 1; }
   [ -n "$APP19" ] || { echo "FALLO: $compose19: no se encontró el bloque del servicio app" >&2; exit 1; }
-  if printf '%s\n' "$APP19" | grep -qE 'Username=postgres|\$\{POSTGRES_PASSWORD'; then
+  if grep -qE 'Username=postgres|\$\{POSTGRES_PASSWORD' <<< "$APP19"; then
     echo "FALLO: $compose19: el servicio app vuelve a recibir la credencial del superusuario postgres" >&2
     exit 1
   fi
   # `env_file` inyecta el .env entero: sin estas dos líneas, POSTGRES_PASSWORD entra igual.
   for linea19 in '      POSTGRES_PASSWORD: ""' '      ConnectionStrings__CaeManagerDb: ""' '      Siembra__AlArrancar: "false"'; do
-    printf '%s\n' "$APP19" | grep -qxF "$linea19" \
+    grep -qxF "$linea19" <<< "$APP19" \
       || { echo "FALLO: $compose19: falta en app la línea '${linea19#      }'" >&2; exit 1; }
   done
 done
@@ -479,12 +481,12 @@ if docker compose version >/dev/null 2>&1; then
     ( cd "$DIR19" && docker compose -f "$1" --env-file "$2" --profile ranura config ) > "$EFECTIVA19" \
       || { echo "FALLO: docker compose config no resolvió $1" >&2; exit 1; }
     MIGRADOR19="$(bloque_de_servicio_en "$EFECTIVA19" migrador)"
-    printf '%s\n' "$MIGRADOR19" | grep -q 'SINTETICA_SUPERUSUARIO_19' \
+    grep -q 'SINTETICA_SUPERUSUARIO_19' <<< "$MIGRADOR19" \
       || { echo "FALLO: $1 (efectiva): el migrador no recibe la credencial sintética — el caso no observa lo que dice observar" >&2; exit 1; }
     for ranura19 in app-azul app-verde; do
       APP19="$(bloque_de_servicio_en "$EFECTIVA19" "$ranura19")"
       [ -n "$APP19" ] || { echo "FALLO: $1 (efectiva): no se encontró el bloque del servicio $ranura19" >&2; exit 1; }
-      if printf '%s\n' "$APP19" | grep -q 'SINTETICA_SUPERUSUARIO_19'; then
+      if grep -q 'SINTETICA_SUPERUSUARIO_19' <<< "$APP19"; then
         echo "FALLO: $1 (efectiva): $ranura19 recibe la credencial del superusuario (por environment o por env_file)" >&2
         exit 1
       fi
