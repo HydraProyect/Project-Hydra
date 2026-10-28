@@ -94,12 +94,12 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
 
             // El botón lleva el nombre corto de la plantilla, como el mockup
             // «Importar datos» (el título entero sigue en la zona de soltar).
-            await page.GetByText("Continuar con Combinada").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar con Combinada", Exact = true }).ClickAsync();
             await Ayudas.SubirArchivoDeImportacionAsync(page, rutaExcel);
 
             // --- Paso 2 "Revisar plan": las 4 altas nuevas y la fila inválida ya aislada ---
             await Ayudas.EsperarPlanDeImportacionAsync(page);
-            await page.GetByText("Ver plan de importación").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Ver plan de importación", Exact = true }).ClickAsync();
 
             // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
             // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
@@ -113,9 +113,9 @@ public class ImportarCombinadoTests(WebAppFixture fixture)
             await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             await Expect(filaOmitidaEnPlan).ToContainTextAsync("no es válida");
 
-            await page.GetByText("Continuar a confirmar").ClickAsync();
-            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
-            await page.GetByText("Importar ahora").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar a confirmar", Exact = true }).ClickAsync();
+            await page.GetByLabel("He revisado el plan y quiero escribir estos datos", new() { Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Importar ahora", Exact = true }).ClickAsync();
             // «Importar ahora» abre el DialogoConfirmacion; escribe su botón.
             await page.GetByRole(AriaRole.Dialog)
                 .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();
