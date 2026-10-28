@@ -43,7 +43,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Cliente real (creado hoy: solo existe como Empresa, nunca en la tabla legacy Clientes) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_001));
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
@@ -51,7 +51,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Un segundo Cliente, ajeno — control negativo ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialOtroCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_004));
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
@@ -59,7 +59,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Empresa propia que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaPropia);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_002));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialCliente);
@@ -68,7 +68,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Empresa ajena que sirve solo al OTRO Cliente — control negativo ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresaAjena);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_005));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes con los que trabaja", razonSocialOtroCliente);
@@ -77,7 +77,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
         // --- Subcontrata que sirve al Cliente real (dual-write F4 -> RelacionEmpresarial) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/subcontratas");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nueva subcontrata", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialSubcontrata);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_003));
         await MarcarCasillaEnSelectorMultipleAsync(drawer, "Clientes que la contrataron", razonSocialCliente);
@@ -88,7 +88,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
         // portal Cliente por CIF a esa Empresa, vía el flujo real de
         // Usuarios.razor (BuscarEmpresaPorCifQuery, no BuscarClientePorCifQuery). ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/usuarios");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo usuario", Exact = true }).First.ClickAsync();
+        await page.Locator(".cabecera-listado-primaria").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo usuario", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Correo").FillAsync(emailPortal);
         await drawer.GetByLabel("Nombre completo").FillAsync($"Portal {razonSocialCliente}");
         await drawer.GetByLabel("Rol").SelectOptionAsync(new SelectOptionValue { Value = "Cliente" });
@@ -229,8 +229,7 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
     /// </summary>
     private static async Task MarcarCasillaEnSelectorMultipleAsync(ILocator drawer, string etiquetaSelector, string nombreElemento)
     {
-        var etiquetaLocator = drawer.GetByText(etiquetaSelector, new LocatorGetByTextOptions { Exact = true });
-        var selector = etiquetaLocator.Locator("xpath=ancestor::div[contains(@class,'campo')][1]");
+        var selector = drawer.GetByRole(AriaRole.Group, new() { Name = etiquetaSelector, Exact = true });
 
         await selector.GetByPlaceholder("Buscar…").FillAsync(nombreElemento);
 
