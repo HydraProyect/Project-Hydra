@@ -13,8 +13,8 @@
         «Guardar» que deja errores por campo el foco va al primero (D-20);
       - un aviso fijo que no es un error de guardado (AvisoFijo, aditivo): un conflicto de versión, p. ej. Va en la misma
         ranura que el aviso, fuera del cuerpo desplazable; con MensajeError se muestran los dos, el error primero. Por sí
-        solo NO bloquea el cierre por fuera: si debe bloquearlo, la pantalla lo declara con HayErroresDeCampo. Sin AvisoFijo
-        el marcado es el de siempre;
+        solo NO bloquea el cierre por fuera ni marca el botón de guardar como fallido (GuardadoFallido): si debe, la pantalla
+        lo declara con HayErroresDeCampo. Sin AvisoFijo el marcado es el de siempre;
       - no cerrar con un clic fuera ni con Escape mientras se guarda o hay un error visible;
       - el cuerpo que aún no está listo (v2, T7): Cargando pinta el esqueleto y SinContenido el estado vacío o de error EN LUGAR
         de los campos, y «Guardar» queda deshabilitado con su motivo mientras tanto: un primario habilitado sobre un cuerpo

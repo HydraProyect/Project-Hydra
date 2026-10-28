@@ -440,6 +440,34 @@ public class MacrosGen2Tests : BunitContext
         cut.FindAll(".drawer-panel").Should().BeEmpty("el segundo guardado entra y el formulario se cierra");
     }
 
+    [Fact]
+    public async Task Sin_conflicto_la_ranura_del_aviso_esta_vacia_y_con_conflicto_y_error_se_ven_los_dos_con_el_error_primero()
+    {
+        var escenario = new Escenario();
+        var original = Macro("Acuse de recibo");
+        escenario.Macros.Add(original);
+        var (cut, _) = Renderizar(escenario);
+
+        await EditarFila(cut, "Acuse de recibo");
+
+        cut.Find(".drawer-aviso").InnerHtml.Should().BeEmpty("sin conflicto ni error el aviso fijo no deja nada, ni un espacio, que rompa :empty");
+
+        escenario.Macros[0] = original with { Version = Guid.NewGuid() };
+        await RellenarFormulario(cut, "Mi título", "Mi cuerpo");
+        await Guardar(cut);
+        cut.Find(".drawer-aviso").Children.Should().ContainSingle().Which.ClassList.Should().Contain("macros-conflicto");
+
+        // La macro desaparece mientras tanto: cargar la versión actual falla con su propio mensaje y el conflicto sigue a la vista.
+        escenario.Macros.Clear();
+        await Pulsar(cut, ".drawer-aviso .macros-conflicto button", "Cargar la versión actual");
+
+        var hijos = cut.Find(".drawer-aviso").Children;
+        hijos.Should().HaveCount(2);
+        hijos[0].ClassList.Should().Contain("alerta-formulario");
+        hijos[0].TextContent.Should().Contain("ya no está donde la abriste");
+        hijos[1].ClassList.Should().Contain("macros-conflicto");
+    }
+
     // ---------------------------------------------------------------- eliminar
 
     [Fact]

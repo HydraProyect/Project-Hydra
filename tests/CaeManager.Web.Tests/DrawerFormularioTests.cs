@@ -79,6 +79,14 @@ public class DrawerFormularioTests : BunitContext
         cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeTrue();
         cut.Render(p => p.Add(x => x.MensajeError, "Error de guardado"));
         cut.Find(".drawer-aviso").TextContent.Should().Contain("Error de guardado").And.Contain("Aviso fijo");
+        var hijos = cut.Find(".drawer-aviso").Children;
+        hijos[0].ClassList.Should().Contain("alerta-formulario", "el error de guardado va primero y se pinta como antes");
+        cut.Find(".drawer-aviso").LastChild!.TextContent.Should().Contain("Aviso fijo");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse("el error de guardado sigue bloqueando el cierre por fuera");
+
+        _mensaje = "Error de guardado";
+        var soloError = Renderizar();
+        soloError.Find(".drawer-aviso").Children.Should().ContainSingle().Which.ClassList.Should().Contain("alerta-formulario");
     }
 
     [Fact]
