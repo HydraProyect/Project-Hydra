@@ -25,7 +25,7 @@
     <value>{0} — Configuració</value>
   </data>
   <data name="SalidaPropiaDescripcion" xml:space="preserve">
-    <value>Aquesta secció té pantalla pròpia, fora del centre de Configuració.</value>
+    <value>Aquesta secció té pantalla pròpia, fora de la pàgina principal de Configuració.</value>
   </data>
   <data name="EnlaceIrAEntrada" xml:space="preserve">
     <value>Ves a {0}</value>
@@ -160,7 +160,7 @@
     <value>. Aquí tries un Client per restringir-la només per a ell: pots desactivar un tipus que està actiu per a tothom, mai activar-ne un que està desactivat.</value>
   </data>
   <data name="LecturaIaNotaAlcance" xml:space="preserve">
-    <value>Actualment aquesta restricció només s'aplica a la detecció de treballadors en els documents d'empresa, i s'omet per a una empresa únicament quan tots els Clients als quals presta servei tenen aquest tipus desactivat.</value>
+    <value>Actualment aquesta restricció només s'aplica a la detecció de treballadors als documents d'empresa, i s'omet per a una empresa únicament quan tots els Clients als quals presta servei tenen aquest tipus desactivat.</value>
   </data>
   <data name="LecturaIaErrorCargaTitulo" xml:space="preserve">
     <value>No s'han pogut carregar els Clients</value>
@@ -187,7 +187,7 @@
     <value>Automatitzacions</value>
   </data>
   <data name="AutomatizacionesEntradilla" xml:space="preserve">
-    <value>Tasques del sistema que s'executen sense intervenció. Desactivar-ne una n'atura l'efecte a tota la cartera.</value>
+    <value>Tasques del sistema que s'executen sense intervenció. Si en desactives una, s'atura el seu efecte a tota la cartera.</value>
   </data>
   <data name="ColumnaNombre" xml:space="preserve">
     <value>Nom</value>
@@ -250,7 +250,7 @@
     <value>Llindars d'alerta</value>
   </data>
   <data name="UmbralesDescripcion" xml:space="preserve">
-    <value>Dies restants fins al venciment a partir dels quals un document passa a "Pròxim" o "Urgent". Correspon a la secció "Llindars d'alerta" del full Parametros de l'Excel original.</value>
+    <value>Dies restants fins al venciment a partir dels quals un document passa a "Pròxim" o "Urgent". Correspon a la secció "Umbrales de alerta" del full Parametros de l'Excel original.</value>
   </data>
   <data name="UmbralProximoEtiqueta" xml:space="preserve">
     <value>Llindar pròxim (dies)</value>
@@ -292,7 +292,7 @@
     <value>Pressupost d'IA</value>
   </data>
   <data name="PresupuestoDescripcion" xml:space="preserve">
-    <value>Límit tou (no blocant) de despesa estimada en IA documental per mes natural. Superar-lo no atura ni degrada res: només activa un avís al Dashboard Executiu perquè l'operador el vegi abans que aparegui a la factura. Deixa'l en blanc per desactivar l'avís.</value>
+    <value>Límit flexible (no blocant) de despesa estimada en IA documental per mes natural. Superar-lo no atura ni degrada res: només activa un avís al Dashboard Executiu perquè l'operador el vegi abans que aparegui a la factura. Deixa'l en blanc per desactivar l'avís.</value>
   </data>
   <data name="PresupuestoMensualEtiqueta" xml:space="preserve">
     <value>Pressupost mensual (USD)</value>
