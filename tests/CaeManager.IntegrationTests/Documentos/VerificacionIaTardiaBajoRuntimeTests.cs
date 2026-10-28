@@ -40,7 +40,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     private readonly TenantActualAmbiental _tenant = new();
 
     [Fact]
-    public async Task Sin_cambios_desde_el_encolado_aprueba_automaticamente()
+    public async Task Sin_cambios_desde_el_encolado_deja_una_revision_para_confirmacion_humana_y_ninguna_aprobacion()
     {
         await using var arnes = await CrearArnesAsync();
         var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
@@ -50,13 +50,13 @@ public class VerificacionIaTardiaBajoRuntimeTests
 
         descarte.Should().BeNull();
         extraccion.Llamadas.Should().Be(1);
-        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId))
-            .Should().ContainSingle().Which.Should().Be((TipoAprobacionDocumento.Automatica, _tenantPropietario));
-        (await ContarRevisionesComoPropietarioAsync(arnes, documentoId)).Should().Be(0);
+        (await LeerAprobacionesComoPropietarioAsync(arnes, documentoId)).Should().BeEmpty(
+            "la IA nunca aprueba: ni siquiera cuando todo coincide");
+        (await ContarRevisionesComoPropietarioAsync(arnes, documentoId)).Should().Be(1);
     }
 
     [Fact]
-    public async Task Una_decision_manual_antes_de_procesar_impide_la_aprobacion_automatica()
+    public async Task Una_decision_manual_antes_de_procesar_impide_que_la_verificacion_abra_otra_revision()
     {
         await using var arnes = await CrearArnesAsync();
         var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
@@ -152,7 +152,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     }
 
     [Fact]
-    public async Task Una_revision_pendiente_aparecida_durante_la_extraccion_descarta_la_aprobacion()
+    public async Task Una_revision_pendiente_aparecida_durante_la_extraccion_descarta_la_verificacion()
     {
         await using var arnes = await CrearArnesAsync();
         var (documentoId, encargo) = await SembrarDocumentoEncoladoAsync(arnes);
@@ -291,7 +291,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
         // runtime, como en producción.
         var servicio = new VerificacionIaDocumentoService(
             contexto, contexto, new AlmacenamientoFalso(), extraccion,
-            new RevisionIaDocumentoRepository(contexto), new AprobacionDocumentoRepository(contexto),
+            new RevisionIaDocumentoRepository(contexto),
             new AuditoriaExtraccionIaRepository(contexto), new InstruccionSiempreHabilitada(), _tenant,
             new TransaccionDocumentoBloqueado(contexto, _tenant), contexto);
         return await servicio.ProcesarDocumentoAsync(encargo);
@@ -360,7 +360,7 @@ public class VerificacionIaTardiaBajoRuntimeTests
     /// <summary>
     /// Lo que devolvería el proveedor de IA para el Documento sembrado: todo
     /// coincide y con evidencia, así que sin descarte el resultado es una
-    /// aprobación automática. <paramref name="durante"/> simula lo que un
+    /// revisión pendiente de confirmación humana. <paramref name="durante"/> simula lo que un
     /// usuario hace mientras el proveedor responde.
     /// </summary>
     private sealed class ExtraccionQueCoincide(Func<Task>? durante = null) : IExtraccionMetadatosDocumentoIaService

@@ -9,10 +9,8 @@ namespace CaeManager.Domain.Documentos;
 /// recrea, ver ValidacionDocumentoOficialService). Las firmas individuales
 /// que lo sustentan están en <see cref="FirmaDigitalDocumento"/>.
 ///
-/// La decisión <see cref="DecisionValidacionOficial.AutoValidado"/> es la
-/// excepción aprobada a la invariante "el análisis nunca decide solo"
-/// (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md § 6.1): solo para documentos con este nivel
-/// de trazabilidad — firma válida de emisor confiable y datos cotejados.
+/// Los resultados actuales requieren confirmación humana. AutoValidado se
+/// conserva para interpretar registros históricos.
 /// El nivel de confianza se persiste como dato consultable del documento a
 /// propósito: es el filtro natural de futuros conectores de integración
 /// ("subir solo lo FirmaValida o mejor", Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md).
@@ -112,7 +110,7 @@ public enum ResultadoCotejoDocumentoOficial
 /// <summary>La decisión final del pipeline sobre el documento.</summary>
 public enum DecisionValidacionOficial
 {
-    /// <summary>Todo cuadra: nadie tiene que mirarlo. La excepción aprobada a "el análisis nunca decide solo".</summary>
+    /// <summary>Resultado histórico de validación automática.</summary>
     AutoValidado = 0,
 
     /// <summary>Algo no cuadra: queda constancia con motivos y lo mira un Gestor CAE.</summary>

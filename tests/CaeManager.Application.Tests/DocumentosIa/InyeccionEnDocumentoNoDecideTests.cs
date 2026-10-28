@@ -18,7 +18,7 @@ namespace CaeManager.Application.Tests.DocumentosIa;
 /// falso que se comporta como un modelo que <b>obedece</b> la inyección — devuelve
 /// confianza 100, firma presente, el tipo esperado y la fecha que el documento le pida.
 /// Es el peor caso: si con un modelo así no se aprueba nada solo, con uno real tampoco.
-/// La aprobación automática es <c>ComputarMotivos(...).Count == 0</c>.
+/// Los motivos orientan la revisión humana; no aprueban el documento.
 /// </summary>
 public class InyeccionEnDocumentoNoDecideTests
 {
@@ -52,11 +52,10 @@ public class InyeccionEnDocumentoNoDecideTests
 
     /// <summary>
     /// El control del anterior: mismo modelo obediente, mismo resultado favorable, y un
-    /// documento limpio. Si esto no se aprobara solo, el test anterior no probaría que
-    /// es la inyección lo que lo frena.
+    /// documento limpio, sin motivos de discrepancia.
     /// </summary>
     [Fact]
-    public async Task Un_documento_limpio_con_la_misma_lectura_si_se_aprueba_solo()
+    public async Task Un_documento_limpio_con_la_misma_lectura_no_tiene_discrepancias()
     {
         var (motivos, _) = await LeerYDecidirAsync(TextoLegitimo);
 
@@ -102,7 +101,7 @@ public class InyeccionEnDocumentoNoDecideTests
         proveedor.Llamadas.Should().Be(1, "la segunda lectura sale de la caché documental");
         segunda.Valor.Contraste.Should().NotBeNull();
         segunda.Valor.Contraste!.PareceDirigidoAlModelo.Should().BeTrue();
-        VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), segunda.Valor).Should().NotBeEmpty();
+        VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), TipoEsperado(), segunda.Valor).Should().NotBeEmpty();
     }
 
     [Fact]
@@ -112,7 +111,7 @@ public class InyeccionEnDocumentoNoDecideTests
         var lectura = new MetadatosDocumentoExtraidosDto(
             "Certificado de aptitud médica", FechaIntroducida, null, true, 100, null, Contraste: null);
 
-        VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), lectura)
+        VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), TipoEsperado(), lectura)
             .Should().ContainSingle().Which.Should().Contain("No se pudo contrastar");
     }
 
@@ -124,7 +123,25 @@ public class InyeccionEnDocumentoNoDecideTests
         var lectura = await adaptador.ExtraerAsync([1, 2, 3], "Certificado de aptitud médica");
 
         lectura.EsExitoso.Should().BeTrue();
-        return (VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), lectura.Valor), proveedor);
+        return (VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), TipoEsperado(), lectura.Valor), proveedor);
+    }
+
+    [Theory]
+    [InlineData("Certificado de aptitud médica", false)]
+    [InlineData(" APTO MÉDICO ", false)]
+    [InlineData("Otro documento", true)]
+    public void El_tipo_detectado_se_coteja_con_nombre_y_alias(string detectado, bool discrepancia)
+    {
+        var lectura = new MetadatosDocumentoExtraidosDto(detectado, FechaIntroducida, null, true, 100, null, Contraste: null);
+        var motivos = VerificacionIaDocumentoService.ComputarMotivos(DocumentoIntroducido(), TipoEsperado(), lectura);
+        motivos.Any(m => m.Contains("tipo detectado")).Should().Be(discrepancia);
+    }
+
+    private static TipoDocumento TipoEsperado()
+    {
+        var tipo = new TipoDocumento("Certificado de aptitud médica", null, false, 0, AmbitoAplicacion.Trabajador);
+        tipo.EstablecerAliases(["Apto médico"]);
+        return tipo;
     }
 
     private static Documento DocumentoIntroducido() =>

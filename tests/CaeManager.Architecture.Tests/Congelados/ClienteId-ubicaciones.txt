@@ -125,6 +125,7 @@ src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteId = 2
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteIdDeProyecto = 2
 src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs :: ClienteId = 2
+src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: ClienteId = 7

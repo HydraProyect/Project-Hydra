@@ -193,7 +193,7 @@ public class TipoDocumento : EntidadConTenant
     /// Documento nuevo de este tipo pasa por una verificación IA que lee el
     /// archivo real y compara tipo/fecha de emisión/firma detectados contra
     /// lo introducido por el usuario, generando una <see cref="RevisionIaDocumento"/>
-    /// pendiente cuando la confianza es baja o hay una discrepancia — nunca
+    /// pendiente para confirmación humana, con los motivos detectados. Nunca
     /// corrige nada automáticamente (ver Issue #19). Empieza desactivado a
     /// propósito, mismo criterio que <see cref="DeteccionTrabajadoresActiva"/>:
     /// el Administrador lo activa explícitamente solo para los tipos donde

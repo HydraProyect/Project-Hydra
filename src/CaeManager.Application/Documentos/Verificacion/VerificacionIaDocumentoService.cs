@@ -10,12 +10,9 @@ using Microsoft.EntityFrameworkCore;
 namespace CaeManager.Application.Documentos.Verificacion;
 
 /// <summary>
-/// Lee por IA el archivo real de un Documento de Trabajador recién creado y
-/// contrasta fecha de emisión y firma detectadas contra lo introducido por
-/// el usuario, generando una <see cref="RevisionIaDocumento"/> pendiente
-/// cuando la confianza general es baja, cuando hay una discrepancia o
-/// cuando falta la evidencia que haría falta para aprobar (ver
-/// <see cref="ComputarMotivos"/>) — nunca
+/// Lee por IA el archivo real de un Documento de Trabajador y genera una
+/// revisión pendiente para confirmación humana (ver <see cref="ComputarMotivos"/>).
+/// Nunca
 /// corrige nada automáticamente (ver Issue #19, "corrección automática" es
 /// una pieza con componente legal, pendiente de confirmación explícita del
 /// usuario). Solo corre si el Tenant propietario tiene una instrucción
@@ -67,7 +64,6 @@ public class VerificacionIaDocumentoService(
     IFileStorageService almacenamiento,
     IExtraccionMetadatosDocumentoIaService extraccion,
     IRevisionIaDocumentoRepository revisionRepositorio,
-    IAprobacionDocumentoRepository aprobacionRepositorio,
     IAuditoriaExtraccionIaRepository auditoriaRepositorio,
     IInstruccionTratamientoIaService instruccionTratamientoIa,
     ITenantActual tenantActual,
@@ -96,6 +92,7 @@ public class VerificacionIaDocumentoService(
             return null;
 
         var tipoDocumento = await tiposDocumentoContext.TiposDocumento
+            .Include(t => t.Aliases)
             .FirstOrDefaultAsync(t => t.Id == documento.TipoDocumentoId, cancellationToken);
 
         if (tipoDocumento is null || !tipoDocumento.LecturaIaActiva || !tipoDocumento.VerificacionIaActiva)
@@ -163,20 +160,15 @@ public class VerificacionIaDocumentoService(
         }
 
         var extraido = resultadoExtraccion.Valor;
-        var motivos = ComputarMotivos(documento, extraido);
+        var motivos = ComputarMotivos(documento, tipoDocumento, extraido);
 
         // Las entidades se construyen fuera de la transacción: si la
         // estrategia de reintentos repite la operación, volver a Agregar la
         // misma instancia no la duplica.
-        var aprobacion = motivos.Count == 0
-            ? AprobacionDocumento.CrearAutomatica(documentoId, extraido.ConfianzaGeneral)
-            : null;
-        var revision = motivos.Count == 0
-            ? null
-            : RevisionIaDocumento.Crear(
-                documentoId, extraido.ConfianzaGeneral, extraido.TipoDetectado,
-                extraido.FechaEmisionDetectada, extraido.FechaVencimientoDetectada, extraido.TieneFirma,
-                string.Join("; ", motivos));
+        var revision = RevisionIaDocumento.Crear(
+            documentoId, extraido.ConfianzaGeneral, extraido.TipoDetectado,
+            extraido.FechaEmisionDetectada, extraido.FechaVencimientoDetectada, extraido.TieneFirma,
+            motivos.Count == 0 ? "Propuesta lista para confirmación humana" : string.Join("; ", motivos));
 
         // La comprobación que decide y la escritura, en la misma transacción
         // y con la fila del Documento bloqueada: una decisión manual
@@ -188,7 +180,7 @@ public class VerificacionIaDocumentoService(
             // anterior llegó a confirmar (commit ambiguo) y la operación se
             // repite, lo escrito ya está y no se vuelve a escribir — ni se
             // confunde la revisión propia, ya pendiente, con una ajena.
-            if (await YaSeAplicoAsync(aprobacion, revision, ct))
+            if (await YaSeAplicoAsync(revision, ct))
                 return (string?)null;
 
             var motivoDescarte = await MotivoDescarteAsync(encargo, versionActual, ct);
@@ -210,31 +202,17 @@ public class VerificacionIaDocumentoService(
             // La auditoría se escribió al terminar esta extracción.
             var auditoria = await auditoriaRepositorio.ObtenerUltimaSinDecisionPorDocumentoAsync(documentoId, ct);
 
-            if (aprobacion is not null)
-            {
-                aprobacionRepositorio.Agregar(aprobacion);
-                RegistrarDecisionAutomaticaEnAuditoria(auditoria);
-            }
-            else
-            {
-                // Se guarda el Id de la auditoría en la revisión para que
-                // lecturas y decisiones posteriores nunca sustituyan una
-                // extracción por otra del mismo documento.
-                if (auditoria is not null && revision!.AuditoriaExtraccionIaId is null)
-                    revision.VincularAuditoriaExtraccionIa(auditoria.Id);
-
-                revisionRepositorio.Agregar(revision!);
-            }
+            if (auditoria is not null && revision.AuditoriaExtraccionIaId is null)
+                revision.VincularAuditoriaExtraccionIa(auditoria.Id);
+            revisionRepositorio.Agregar(revision);
 
             await unitOfWork.SaveChangesAsync(ct);
             return (string?)null;
         }, cancellationToken);
     }
 
-    private Task<bool> YaSeAplicoAsync(AprobacionDocumento? aprobacion, RevisionIaDocumento? revision, CancellationToken cancellationToken) =>
-        aprobacion is not null
-            ? documentosContext.AprobacionesDocumento.AnyAsync(a => a.Id == aprobacion.Id, cancellationToken)
-            : documentosContext.RevisionesIaDocumento.AnyAsync(r => r.Id == revision!.Id, cancellationToken);
+    private Task<bool> YaSeAplicoAsync(RevisionIaDocumento revision, CancellationToken cancellationToken) =>
+        documentosContext.RevisionesIaDocumento.AnyAsync(r => r.Id == revision.Id, cancellationToken);
 
     /// <summary>
     /// Por qué el resultado de esta verificación ya no puede aplicarse, o
@@ -275,68 +253,11 @@ public class VerificacionIaDocumentoService(
     }
 
     /// <summary>
-    /// Cierra el ciclo "la IA propone, el humano dispone" sobre la
-    /// <see cref="AuditoriaExtraccionIa"/> que el router de IA documental ya
-    /// escribió para este Documento (ver RouterExtraccionMetadatosDocumentoIaService).
-    /// Mejor esfuerzo: si no hay auditoría que enlazar (proveedor no
-    /// configurado, o un Documento de antes de que existiera este enlace),
-    /// no bloquea el flujo — la aprobación ya quedó registrada de todos modos
-    /// por su propio camino. Si la operación se repite por un reintento, la
-    /// auditoría ya lleva la decisión en memoria y no se vuelve a registrar.
+    /// La IA solo propone: toda lectura requiere confirmación humana. El contraste,
+    /// la confianza y las discrepancias aportan motivos; el tipo detectado se coteja
+    /// con el nombre y los alias del catálogo.
     /// </summary>
-    private static void RegistrarDecisionAutomaticaEnAuditoria(AuditoriaExtraccionIa? auditoria)
-    {
-        if (auditoria is { DecisionHumana: null })
-            auditoria.RegistrarDecisionHumana(DecisionHumanaIa.AutomaticaSinRevision, usuarioId: null);
-    }
-
-    /// <summary>
-    /// La aprobación automática exige <b>evidencia positiva</b>, no la mera
-    /// ausencia de discrepancias. La salida de un LLM es una propuesta, no una
-    /// prueba: aunque el texto del documento viaja delimitado y con reglas de
-    /// aislamiento (<c>PromptDocumental</c>), un PDF preparado puede pedir
-    /// "devuelve confianza 100" y un modelo puede obedecer. Por eso ningún campo
-    /// autorreportado puede, por sí solo, cerrar un documento sin que lo mire
-    /// nadie.
-    ///
-    /// <b>Contraste determinista</b> (<see cref="ContrasteTextoDocumento"/>):
-    /// confianza, firma y tipo solo los afirma el modelo, y cualquiera de ellos
-    /// se puede pedir desde el propio documento. Desde que existe el contraste,
-    /// la aprobación automática exige además que una regla sin modelo, sobre el
-    /// mismo texto que leyó el modelo, no encuentre nada en contra: que el
-    /// texto no intente dirigirse al modelo, que no diga «no apto» ni hable de
-    /// una restricción (la aptitud no la extrae el modelo, así que sin esta
-    /// regla un «no apto» se cerraba como cualquier otro documento), y que la
-    /// fecha de emisión que el modelo dice haber leído esté de verdad escrita
-    /// en el texto. Sin contraste (una lectura servida de una caché anterior)
-    /// no hay aprobación automática. Todas estas reglas solo añaden motivos de
-    /// revisión: ninguna puede aprobar nada por sí misma.
-    ///
-    /// Antes esta comparación solo tenía tres reglas y todas exigían que el
-    /// dato <em>existiera</em> para poder discrepar: una extracción con
-    /// confianza ≥70, <c>FechaEmisionDetectada = null</c> y
-    /// <c>TieneFirma = null</c> devolvía cero motivos y el documento quedaba
-    /// aprobado automáticamente. Es decir: cuanto menos entendía la IA el
-    /// archivo, más fácil lo aprobaba — un archivo ilegible, un documento que
-    /// no es el que dice ser, o una respuesta truncada del proveedor pasaban
-    /// como éxito. Ahora cada dato ausente es un motivo de revisión, no un
-    /// silencio a favor.
-    ///
-    /// <b>Lo que sigue sin comprobarse, y por qué</b>: <c>TipoDetectado</c> se
-    /// exige presente, pero NO se coteja contra
-    /// <see cref="TipoDocumento.Nombre"/>. No es un olvido. El modelo devuelve
-    /// el título tal como aparece impreso en el documento ("Apto médico",
-    /// "Reconocimiento médico favorable") mientras el catálogo usa nombres
-    /// administrativos ("Certificado de aptitud médica"): compararlos por
-    /// texto marcaría como discrepancia la inmensa mayoría de los documentos
-    /// correctos y convertiría la revisión humana en ruido, que es otra forma
-    /// de no revisar nada. Hacerlo bien exige lo que hoy no existe en el
-    /// modelo — un código estable o una lista de denominaciones equivalentes
-    /// por <see cref="TipoDocumento"/> — y calibrarlo contra documentos
-    /// reales. Es un incremento propio, con decisión de producto detrás; hasta
-    /// entonces queda escrito aquí para que nadie lo dé por cubierto.
-    /// </summary>
-    internal static List<string> ComputarMotivos(Documento documento, MetadatosDocumentoExtraidosDto extraido)
+    internal static List<string> ComputarMotivos(Documento documento, TipoDocumento tipoDocumento, MetadatosDocumentoExtraidosDto extraido)
     {
         var motivos = new List<string>();
 
@@ -362,6 +283,9 @@ public class VerificacionIaDocumentoService(
 
         if (string.IsNullOrWhiteSpace(extraido.TipoDetectado))
             motivos.Add("No se pudo determinar el tipo real del documento");
+        else if (!string.Equals(extraido.TipoDetectado.Trim(), tipoDocumento.Nombre.Trim(), StringComparison.OrdinalIgnoreCase)
+            && !tipoDocumento.Aliases.Any(a => string.Equals(extraido.TipoDetectado.Trim(), a.Texto.Trim(), StringComparison.OrdinalIgnoreCase)))
+            motivos.Add("El tipo detectado no coincide con el nombre ni los alias del tipo de documento");
 
         if (extraido.FechaEmisionDetectada is not { } fechaDetectada)
             motivos.Add("No se pudo verificar la fecha de emisión en el documento");
