@@ -40,7 +40,7 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
 
         Assert.Equal(200, respuesta!.Status);
         await AfirmarSubidaMultipleAbiertaAsync(page);
-        await Expect(page.GetByText("Solo lectura")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Solo lectura", Exact = true })).ToBeVisibleAsync();
     }
 
     [Fact]
@@ -54,7 +54,7 @@ public class SubidaMasivaDelegadaTests(WebAppFixture fixture)
 
         Assert.Equal(200, respuesta!.Status);
         await AfirmarSubidaMultipleAbiertaAsync(page);
-        await Expect(page.GetByText("Arrastra aquí los documentos de trabajador")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Arrastra aquí los documentos de trabajador", Exact = true })).ToBeVisibleAsync();
     }
 
     [Fact]
