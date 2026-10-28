@@ -96,7 +96,8 @@ public static class PlantillaAvisoIncidente
         PlantillaAvisoIncidenteSeguridad plantilla, ContenidoAvisoIncidente contenido, string referencia,
         string organizacion, string nombreDestinatario, bool sinContactoValidado, DateTime confirmadoEnUtc)
     {
-        static string H(string texto) => WebUtility.HtmlEncode(texto.Trim());
+        // Escapa y conserva los saltos de línea de los apartados (se escriben en un textarea).
+        static string H(string texto) => WebUtility.HtmlEncode(texto.Trim()).ReplaceLineEndings("<br>");
         var confirmado = confirmadoEnUtc.EnHoraPeninsular();
         var venceCompleta = (confirmadoEnUtc + PlazosAvisoIncidenteSeguridad.NotificacionCompleta).EnHoraPeninsular();
 

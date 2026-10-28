@@ -53,6 +53,8 @@
   <data name="PlazoCumplido" xml:space="preserve"><value>Enviado</value></data>
   <data name="PlazoVencido" xml:space="preserve"><value>Vencido</value></data>
   <data name="PlazoQuedan" xml:space="preserve"><value>Quedan {0} h {1} min</value></data>
+  <data name="PorDeteccionAutomatica" xml:space="preserve"><value>por la detección automática de TALVEG</value></data>
+  <data name="EnvioSinDestinatario" xml:space="preserve"><value>{0} organizaciones afectadas no tienen destinatario: no se les ha podido avisar.</value></data>
   <data name="PorTi" xml:space="preserve"><value>por ti</value></data>
   <data name="PorOtroActor" xml:space="preserve"><value>por otro Actor de Plataforma TALVEG</value></data>
   <data name="EnvioIncompleto" xml:space="preserve"><value>Envío incompleto: {0} enviados, {1} fallidos y {2} en curso. Puedes reintentarlo.</value></data>

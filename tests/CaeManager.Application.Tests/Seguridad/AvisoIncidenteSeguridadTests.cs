@@ -174,6 +174,22 @@ public class AvisoIncidenteSeguridadTests
     }
 
     [Fact]
+    public async Task Una_excepcion_del_correo_hacia_un_destinatario_se_anota_como_fallida_y_los_demas_siguen()
+    {
+        var plataforma = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Sospechado));
+        var correo = new CorreoFalso { LanzaPara = { "admin1@b.test" } };
+
+        var resultado = await PrimerAviso(plataforma, correo)
+            .Handle(new ConfirmarYEnviarPrimerAvisoCommand(plataforma.Incidente.Id, ContenidoCompleto()), default);
+
+        resultado.Valor.Fallidos.Should().Be(1);
+        resultado.Valor.Enviados.Should().Be(2);
+        correo.Enviados.Select(e => e.Destinatario).Should().BeEquivalentTo(["seguridad@a.test", "admin2@b.test"]);
+        plataforma.Envios[(PlantillaAvisoIncidenteSeguridad.PrimerAviso, "admin1@b.test")].Estado
+            .Should().Be(EstadoEnvioAvisoIncidenteSeguridad.Fallido, "la fila reclamada no se queda Enviando");
+    }
+
+    [Fact]
     public async Task Un_error_de_la_base_que_vale_para_todos_si_corta_el_envio()
     {
         var plataforma = new IncidentesFalsos(Incidente(EstadoIncidenteSeguridad.Sospechado))
@@ -325,6 +341,17 @@ public class AvisoIncidenteSeguridadTests
     }
 
     // ── Plantilla ─────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void La_plantilla_conserva_los_saltos_de_linea_de_un_apartado_despues_de_escaparlo()
+    {
+        var contenido = ContenidoCompleto() with { Medidas = "Sesiones cerradas.\nClaves <revocadas>.\r\nAviso a la persona titular." };
+
+        var cuerpo = PlantillaAvisoIncidente.Cuerpo(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta, contenido,
+            "INC-2026-ABCDEF", "Org A", "Marta", sinContactoValidado: false, DateTime.UtcNow);
+
+        cuerpo.Should().Contain("Sesiones cerradas.<br>Claves &lt;revocadas&gt;.<br>Aviso a la persona titular.");
+    }
 
     [Fact]
     public void La_plantilla_escapa_el_HTML_de_cada_apartado_del_nombre_y_de_la_organizacion()
@@ -573,11 +600,14 @@ public class AvisoIncidenteSeguridadTests
         public const string CodigoFallo = "Correo.Fallo";
 
         public HashSet<string> FallaPara { get; } = [];
+        public HashSet<string> LanzaPara { get; } = [];
         public List<(string Destinatario, string Asunto, string Cuerpo, TipoAvisoCorreo Tipo, string? ResponderA)> Enviados { get; } = [];
 
         public Task<Result> EnviarAsync(string destinatarioEmail, string asunto, string cuerpoHtml, TipoAvisoCorreo tipo,
             string? responderA = null, CancellationToken cancellationToken = default)
         {
+            if (LanzaPara.Contains(destinatarioEmail))
+                throw new FormatException("Dirección que el servicio de correo no puede analizar.");
             if (FallaPara.Contains(destinatarioEmail))
                 return Task.FromResult(Result.Fallo(Error.Crear(CodigoFallo, "SMTP caído")));
             Enviados.Add((destinatarioEmail, asunto, cuerpoHtml, tipo, responderA));

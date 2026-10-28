@@ -94,6 +94,34 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
         plazos[1].Should().MatchRegex(@"^Quedan 5 h \d+ min$");
     }
 
+    [Fact]
+    public void Con_el_primer_aviso_enviado_solo_a_parte_de_los_destinatarios_su_plazo_sigue_contando()
+    {
+        var vista = Vista(EstadoIncidenteSeguridad.Confirmado, DateTime.UtcNow.AddHours(-2),
+            enviosPrimerAviso: EstadoEnvioAvisoIncidenteSeguridad.Enviado);
+        _mediador.Vista = vista with { Incidente = vista.Incidente with { Envios = [vista.Incidente.Envios[0]] } };
+
+        var cut = Pagina();
+
+        cut.WaitForAssertion(() => cut.FindAll(".incidente-plazo strong").Should().HaveCount(2));
+        cut.FindAll(".incidente-plazo strong")[0].TextContent.Trim().Should().MatchRegex(@"^Quedan 2\d h \d+ min$",
+            "un Tenant afectado avisado no da por cumplido el plazo de los demás");
+    }
+
+    [Fact]
+    public void Un_envio_con_Tenants_sin_destinatario_no_se_presenta_como_exito_sin_mas()
+    {
+        _mediador.Vista = Vista(EstadoIncidenteSeguridad.Sospechado, confirmadoEnUtc: null);
+        _mediador.Resumen = new ResumenEnvioAviso(2, 0, 0, 0, [TenantC]);
+        var cut = Pagina();
+        cut.WaitForAssertion(() => cut.Find("[data-testid=enviar-paso]"));
+
+        cut.Find("[data-testid=enviar-paso]").Click();
+
+        cut.WaitForAssertion(() => cut.Find(".incidente-error").TextContent.Should()
+            .Be("Aviso enviado a 2 destinatarios. 1 organizaciones afectadas no tienen destinatario: no se les ha podido avisar."));
+    }
+
     // ── Tenants afectados ─────────────────────────────────────────────────────
 
     [Fact]
@@ -202,8 +230,9 @@ public class IncidenteSeguridadPlataformaTests : BunitContext
         cut.FindAll("textarea")[0].Blur();
         cut.FindAll("button").Single(b => b.TextContent.Trim() == "Necesito más tiempo para evaluarlo").Click();
 
+        // El texto del textarea lo lleva el navegador (CampoTextarea no lo refleja en cada pulsación), así que la
+        // prueba es lo que sale en el comando tras la recarga: el borrador de la página, no el de la consulta.
         cut.WaitForAssertion(() => _mediador.Consultas.Should().Be(2, "evaluar recarga el incidente"));
-        cut.FindAll("textarea")[0].GetAttribute("value").Should().Be("Naturaleza reescrita por el Actor de Plataforma.");
 
         cut.Find("[data-testid=enviar-paso]").Click();
         cut.WaitForAssertion(() => _mediador.PrimerosAvisos.Should().ContainSingle());

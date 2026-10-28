@@ -72,6 +72,9 @@ internal static class AutorizacionAvisoIncidenteSeguridad
 /// </summary>
 internal static class EnvioAvisosIncidenteSeguridad
 {
+    private static readonly Error ErrorCorreoExcepcion = Error.Crear(
+        "IncidenteSeguridad.CorreoExcepcion", "El servicio de correo no pudo enviar el aviso a este destinatario.");
+
     /// <summary>Un envío preparado: el correo que saldría hacia un destinatario de un Tenant afectado.</summary>
     private sealed record EnvioPreparado(Guid TenantId, string Correo, EnvioAvisoSolicitado Solicitado);
 
@@ -182,17 +185,39 @@ internal static class EnvioAvisosIncidenteSeguridad
                 continue;
             }
 
-            // Sin el token de la petición: cerrar la página a mitad no puede dejar el envío a medias sin
-            // anotar si salió.
-            var resultado = await correo.EnviarAsync(
-                correoDestinatario, envio.Asunto, envio.Cuerpo, TipoAvisoCorreo.Seguridad, responderA,
-                CancellationToken.None);
-            var anotado = await plataforma.ResolverEnvioAsync(
-                envio.EnvioId, resultado.EsExitoso, resultado.EsFallido ? resultado.Error.Codigo : null,
-                CancellationToken.None);
-            if (anotado.EsFallido)
-                logger.LogError("No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}: {Error}.",
-                    envio.EnvioId, incidente.Id, anotado.Error.Codigo);
+            // Sin el token de la petición: cancelar la petición a mitad no corta el envío entre que sale y se anota.
+            // No cubre que el circuito se cierre y se disponga el contexto de datos a mitad del bucle: esa fila
+            // queda Enviando y se puede reclamar pasados 10 minutos (al menos una vez, declarado).
+            Result resultado;
+            try
+            {
+                resultado = await correo.EnviarAsync(
+                    correoDestinatario, envio.Asunto, envio.Cuerpo, TipoAvisoCorreo.Seguridad, responderA,
+                    CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Una excepción del correo (p. ej. una dirección que no se puede analizar) es un fallo de ese
+                // destinatario, no de los demás.
+                logger.LogError(ex, "El correo del aviso {Plantilla} del incidente {IncidenteId} lanzó una excepción hacia un destinatario del Tenant {TenantId}.",
+                    plantilla, incidente.Id, tenantId);
+                resultado = Result.Fallo(ErrorCorreoExcepcion);
+            }
+
+            try
+            {
+                var anotado = await plataforma.ResolverEnvioAsync(
+                    envio.EnvioId, resultado.EsExitoso, resultado.EsFallido ? resultado.Error.Codigo : null,
+                    CancellationToken.None);
+                if (anotado.EsFallido)
+                    logger.LogError("No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}: {Error}.",
+                        envio.EnvioId, incidente.Id, anotado.Error.Codigo);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "No se pudo anotar el envío {EnvioId} del aviso del incidente {IncidenteId}; queda Enviando y se podrá reclamar pasados 10 minutos.",
+                    envio.EnvioId, incidente.Id);
+            }
 
             if (resultado.EsExitoso)
             {

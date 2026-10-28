@@ -66,11 +66,11 @@
             <section class="incidente-plazos" aria-label="@Textos["Plazos"]" data-testid="plazos">
                 <div class="incidente-plazo">
                     <span class="incidente-plazo-etiqueta">@Textos["PlazoPrimerAviso"]</span>
-                    <strong>@(Restante(vencePrimero, HayEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso)))</strong>
+                    <strong>@(Restante(vencePrimero, TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso)))</strong>
                 </div>
                 <div class="incidente-plazo">
                     <span class="incidente-plazo-etiqueta">@Textos["PlazoNotificacionCompleta"]</span>
-                    <strong>@(Restante(venceCompleta, HayEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta)))</strong>
+                    <strong>@(Restante(venceCompleta, TodoEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta)))</strong>
                 </div>
                 <p class="incidente-plazo-nota">@Textos["PlazosDesdeConfirmacion", Cuando(incidente.ConfirmadoEnUtc!.Value)]</p>
             </section>

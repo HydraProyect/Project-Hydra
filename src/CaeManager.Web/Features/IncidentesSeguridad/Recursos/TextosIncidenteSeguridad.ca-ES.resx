@@ -53,6 +53,8 @@
   <data name="PlazoCumplido" xml:space="preserve"><value>Enviat</value></data>
   <data name="PlazoVencido" xml:space="preserve"><value>Vençut</value></data>
   <data name="PlazoQuedan" xml:space="preserve"><value>Queden {0} h {1} min</value></data>
+  <data name="PorDeteccionAutomatica" xml:space="preserve"><value>per la detecció automàtica de TALVEG</value></data>
+  <data name="EnvioSinDestinatario" xml:space="preserve"><value>{0} organitzacions afectades no tenen destinatari: no se'ls ha pogut avisar.</value></data>
   <data name="PorTi" xml:space="preserve"><value>per tu</value></data>
   <data name="PorOtroActor" xml:space="preserve"><value>per un altre Actor de Plataforma TALVEG</value></data>
   <data name="EnvioIncompleto" xml:space="preserve"><value>Enviament incomplet: {0} enviats, {1} fallits i {2} en curs. Pots tornar-ho a provar.</value></data>

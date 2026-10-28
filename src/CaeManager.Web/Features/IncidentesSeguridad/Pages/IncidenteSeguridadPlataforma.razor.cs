@@ -110,10 +110,10 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
             : Textos["PlazoQuedan", (int)quedan.TotalHours, quedan.Minutes];
     }
 
-    private bool HayEnviado(PlantillaAvisoIncidenteSeguridad plantilla) =>
-        _vista?.Incidente.Envios.Any(e => e.Plantilla == plantilla && e.Estado == EstadoEnvioAvisoIncidenteSeguridad.Enviado) == true;
-
-    /// <summary>Todos los destinatarios de todos los Tenants afectados tienen esa plantilla Enviada.</summary>
+    /// <summary>
+    /// Todos los destinatarios de todos los Tenants afectados tienen esa plantilla Enviada. Es también lo que
+    /// da el plazo por cumplido: con un solo Tenant afectado avisado, la cuenta atrás de los demás sigue.
+    /// </summary>
     private bool TodoEnviado(PlantillaAvisoIncidenteSeguridad plantilla)
     {
         if (_vista is null)
@@ -161,8 +161,11 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
             _ => Textos["EnvioEnviando", plantilla, nombre, correo, quien],
         };
 
+    /// <summary>Sin actor, la transición la hizo la detección automática (el alta del incidente como Sospechado).</summary>
     private string QuienDecidio(Guid? actorUsuarioId) =>
-        actorUsuarioId == _vista?.ActorUsuarioId ? Textos["PorTi"] : Textos["PorOtroActor"];
+        actorUsuarioId is null ? Textos["PorDeteccionAutomatica"]
+        : actorUsuarioId == _vista?.ActorUsuarioId ? Textos["PorTi"]
+        : Textos["PorOtroActor"];
 
     private bool HayIntento(PlantillaAvisoIncidenteSeguridad plantilla) =>
         _vista?.Incidente.Envios.Any(e => e.Plantilla == plantilla) == true;
@@ -225,8 +228,14 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
             }
 
             var resumen = resultado.Valor;
+            // Un Tenant afectado sin destinatario no es un éxito: se dice junto al resultado, no solo en la lista.
+            var sinDestinatario = resumen.TenantsSinDestinatario.Count > 0
+                ? " " + Textos["EnvioSinDestinatario", resumen.TenantsSinDestinatario.Count]
+                : "";
             if (resumen.Fallidos > 0 || resumen.EnCurso > 0)
-                _error = Textos["EnvioIncompleto", resumen.Enviados + resumen.YaEnviados, resumen.Fallidos, resumen.EnCurso];
+                _error = Textos["EnvioIncompleto", resumen.Enviados + resumen.YaEnviados, resumen.Fallidos, resumen.EnCurso] + sinDestinatario;
+            else if (sinDestinatario.Length > 0)
+                _error = Textos["EnvioCorrecto", resumen.Enviados + resumen.YaEnviados] + sinDestinatario;
             else
                 ToastService.Mostrar(Textos["EnvioCorrecto", resumen.Enviados + resumen.YaEnviados], TonoToast.Exito);
             await CargarAsync();
