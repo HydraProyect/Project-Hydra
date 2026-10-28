@@ -857,9 +857,19 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.CrearVisitaCommandHandler", "IComunicacionesQueryContext"),
         ("Visitas.CrearVisitaCommandHandler", "ISugerenciaVisitaCorreoRepository"),
         ("Visitas.CrearVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        // S-B-1: crear, editar y añadir desde el panel solo admiten Trabajadores de la Empresa del
+        // Centro (o de una Subcontrata con Relación Empresarial vigente con ella) y visibles
+        // (TrabajadoresAdmisiblesEnVisita): leen el Centro, los Trabajadores y las Relaciones.
+        ("Visitas.CrearVisitaCommandHandler", "IEmpresasQueryContext"),
+        ("Visitas.EditarVisitaCommandHandler", "ICentrosQueryContext"),
+        ("Visitas.EditarVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),
-        // Añadir un Trabajador desde el panel comprueba que existe en el Tenant, igual que EditarVisita.
+        ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ICentrosQueryContext"),
+        ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IConfiguracionQueryContext"),

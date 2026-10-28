@@ -2,6 +2,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelector;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 using CaeManager.Application.Visitas.Commands.EditarVisita;
 using CaeManager.Application.Visitas.Commands.MarcarDocumentacionGestionada;
@@ -69,6 +70,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     private Guid _visitaFuera;
     private Guid _trabajadorDentro;
     private Guid _trabajadorFuera;
+    private Guid _trabajadorLibre;
     private Guid _visitaDeOtroTenant;
     private Guid _trabajadorDeOtroTenant;
 
@@ -103,7 +105,10 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 
             var trabajadorDentro = Trabajador.DeEmpresa(propia.Id, "Nora", "Dentro", "22334455Y");
             var trabajadorFuera = Trabajador.DeSubcontrata(subcontrataFuera.Id, "Iker", "Fuera", "33445566R");
-            _propietario.Trabajadores.AddRange(trabajadorDentro, trabajadorFuera);
+            // De la Empresa propia y sin Visita: el que se puede añadir (S-B-1). Iker es de una Subcontrata
+            // que no es proveedora de la Empresa propia y queda fuera de la cartera.
+            var trabajadorLibre = Trabajador.DeEmpresa(propia.Id, "Olga", "Libre", "44556677K");
+            _propietario.Trabajadores.AddRange(trabajadorDentro, trabajadorFuera, trabajadorLibre);
 
             var visitaDentro = new Visita(centroDentro.Id, FechaOriginal, FechaOriginal.AddDays(1), null);
             var visitaFuera = new Visita(centroFuera.Id, FechaOriginal, FechaOriginal.AddDays(1), null);
@@ -123,7 +128,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
             await _propietario.SaveChangesAsync();
 
             (_clienteDentro, _visitaDentro, _visitaFuera) = (clienteDentro.Id, visitaDentro.Id, visitaFuera.Id);
-            (_trabajadorDentro, _trabajadorFuera) = (trabajadorDentro.Id, trabajadorFuera.Id);
+            (_trabajadorDentro, _trabajadorFuera, _trabajadorLibre) = (trabajadorDentro.Id, trabajadorFuera.Id, trabajadorLibre.Id);
         }
 
         using (AmbitoTenantExplicito.Establecer(otroTenant.Id))
@@ -172,17 +177,36 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
 
     /// <summary>
     /// Control positivo: la misma composición y el mismo Gestor CAE SÍ editan la Visita de un
-    /// Centro de su cartera. Añade además un Trabajador fuera de su cartera: los Trabajadores
-    /// siguen saliendo de la base general del Tenant, como al crear (#889).
+    /// Centro de su cartera, y le añaden un Trabajador de la Empresa propia (S-B-1).
     /// </summary>
     [Fact]
     public async Task Gestor_CAE_edita_la_Visita_de_un_Centro_dentro_de_su_cartera()
     {
-        var resultado = await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro, _trabajadorFuera]);
+        var resultado = await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro, _trabajadorLibre]);
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
         (await FechaInicioAsync(_visitaDentro)).Should().Be(FechaOriginal.AddDays(7));
-        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorLibre]);
+    }
+
+    /// <summary>
+    /// S-B-1 (decisión del propietario, 2026-10-28): ni editando ni desde el panel entra en la Visita
+    /// un Trabajador fuera de la cartera y de una Subcontrata que no es proveedora de la Empresa del
+    /// Centro. Tampoco para un rol de Propiedad: la Empresa gestionada activa fija el alcance.
+    /// </summary>
+    [Theory]
+    [InlineData("GestorCae")]
+    [InlineData("Administrador")]
+    public async Task No_se_anade_a_la_Visita_un_Trabajador_de_otra_Empresa_ni_fuera_de_la_cartera(string rol)
+    {
+        var usuario = rol == "GestorCae" ? _gestor : Guid.NewGuid();
+        var edicion = await EditarAsync(usuario, rol, _visitaDentro, [_trabajadorDentro, _trabajadorFuera]);
+        var alta = await AnadirTrabajadorAsync(usuario, rol, _visitaDentro, _trabajadorFuera);
+
+        edicion.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        alta.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro]);
+        (await FechaInicioAsync(_visitaDentro)).Should().Be(FechaOriginal, "la edición rechazada no guarda nada");
     }
 
     /// <summary>
@@ -256,15 +280,15 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     [Fact]
     public async Task Gestor_CAE_anade_y_quita_un_Trabajador_de_la_Visita_de_su_cartera()
     {
-        var alta = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera);
+        var alta = await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorLibre);
 
         alta.EsExitoso.Should().BeTrue(alta.EsFallido ? alta.Error.Codigo : "");
-        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorLibre]);
 
         var baja = await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro);
 
         baja.EsExitoso.Should().BeTrue(baja.EsFallido ? baja.Error.Codigo : "");
-        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorFuera]);
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorLibre]);
     }
 
     /// <summary>
@@ -276,7 +300,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     {
         var inicial = await VersionAsync(_visitaDentro);
 
-        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorLibre)).EsExitoso.Should().BeTrue();
         var trasAnadir = await VersionAsync(_visitaDentro);
         (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorDentro)).EsExitoso.Should().BeTrue();
         var trasQuitar = await VersionAsync(_visitaDentro);
@@ -300,7 +324,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         await using var rezagado = CrearContextoRuntime(usuario);
         _ = await rezagado.Visitas.SingleAsync(v => v.Id == _visitaDentro);
 
-        (await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorLibre)).EsExitoso.Should().BeTrue();
 
         var handler = new QuitarTrabajadorDeVisitaCommandHandler(
             new VisitaRepository(rezagado), new VisitaTrabajadorRepository(rezagado), new EvaluadorExpedienteNulo(), rezagado,
@@ -308,7 +332,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         var quitar = () => handler.Handle(new QuitarTrabajadorDeVisitaCommand(_visitaDentro, _trabajadorDentro), CancellationToken.None);
 
         await quitar.Should().ThrowAsync<DbUpdateConcurrencyException>();
-        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorFuera]);
+        (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro, _trabajadorLibre]);
     }
 
     [Fact]
@@ -337,18 +361,18 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
         (await GestionadaEnAsync(_visitaDentro)).Should().NotBeNull();
 
-        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorLibre)).EsExitoso.Should().BeTrue();
         (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("añadir un Trabajador la devuelve a por gestionar");
 
         (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
-        (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await QuitarTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorLibre)).EsExitoso.Should().BeTrue();
         (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("quitar un Trabajador también");
 
         (await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro)).EsExitoso.Should().BeTrue();
         (await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro])).EsExitoso.Should().BeTrue();
         (await GestionadaEnAsync(_visitaDentro)).Should().NotBeNull("editar fechas y notas con los mismos Trabajadores no la borra");
 
-        (await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro, _trabajadorFuera])).EsExitoso.Should().BeTrue();
+        (await EditarAsync(_gestor, "GestorCae", _visitaDentro, [_trabajadorDentro, _trabajadorLibre])).EsExitoso.Should().BeTrue();
         (await GestionadaEnAsync(_visitaDentro)).Should().BeNull("«Editar visita» cambiando quién entra, igual que el panel");
     }
 
@@ -357,7 +381,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
     public async Task Marcar_gestionada_con_la_version_anterior_a_un_cambio_de_Trabajadores_choca()
     {
         var vista = await VersionAsync(_visitaDentro);
-        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorFuera)).EsExitoso.Should().BeTrue();
+        (await AnadirTrabajadorAsync(_gestor, "GestorCae", _visitaDentro, _trabajadorLibre)).EsExitoso.Should().BeTrue();
 
         var resultado = await MarcarGestionadaAsync(_gestor, "GestorCae", _visitaDentro, version: vista);
 
@@ -406,23 +430,23 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         var trabajadorAjeno = await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDentro, _trabajadorDeOtroTenant);
         var visitaAjena = await AnadirTrabajadorAsync(_gestor, "Administrador", _visitaDeOtroTenant, _trabajadorDentro);
 
-        trabajadorAjeno.Error.Codigo.Should().Be("Visita.TrabajadorNoEncontrado");
+        trabajadorAjeno.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
         visitaAjena.Error.Codigo.Should().Be("Visita.NoEncontrada");
         (await TrabajadoresDeAsync(_visitaDentro)).Should().BeEquivalentTo([_trabajadorDentro]);
         (await TrabajadoresDeAsync(_visitaDeOtroTenant)).Should().BeEmpty();
     }
 
     /// <summary>
-    /// Candidatos: la base general del Tenant (la regla del selector de «Editar visita») menos
-    /// quien ya entra; nunca un Trabajador de otro Tenant.
+    /// Candidatos (S-B-1): la cartera de quien pregunta (la regla del selector de «Editar visita»),
+    /// solo de la Empresa del Centro y menos quien ya entra; nunca un Trabajador de otro Tenant.
     /// </summary>
     [Fact]
-    public async Task Los_candidatos_son_la_base_general_del_Tenant_menos_quien_ya_entra()
+    public async Task Los_candidatos_son_la_cartera_de_la_Empresa_de_la_Visita_menos_quien_ya_entra()
     {
         var candidatos = await CandidatosAsync(_gestor, "GestorCae", _visitaDentro);
 
-        candidatos.Select(c => c.Id).Should().BeEquivalentTo([_trabajadorFuera],
-            "Nora ya entra; Iker está fuera de la cartera pero en la base general; el de otro Tenant no existe aquí");
+        candidatos.Select(c => c.Id).Should().BeEquivalentTo([_trabajadorLibre],
+            "Nora ya entra; Iker está fuera de la cartera y de la Empresa; el de otro Tenant no existe aquí");
     }
 
     [Fact]
@@ -564,7 +588,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
         await using var runtime = CrearContextoRuntime(usuario);
         var handler = new EditarVisitaCommandHandler(
-            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime,
+            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime, runtime, runtime,
             new EvaluadorExpedienteNulo(), runtime, NullLogger<EditarVisitaCommandHandler>.Instance,
             CrearAlcance(runtime, usuario));
 
@@ -578,7 +602,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         var usuario = new CurrentUserServiceFalso(usuarioId, rol, tenantOrigenId: _tenant);
         await using var runtime = CrearContextoRuntime(usuario);
         var handler = new AnadirTrabajadorAVisitaCommandHandler(
-            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime, new EvaluadorExpedienteNulo(), runtime,
+            new VisitaRepository(runtime), new VisitaTrabajadorRepository(runtime), runtime, runtime, runtime, new EvaluadorExpedienteNulo(), runtime,
             NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, CrearAlcance(runtime, usuario));
 
         return await handler.Handle(new AnadirTrabajadorAVisitaCommand(visitaId, trabajadorId, version), CancellationToken.None);
@@ -621,7 +645,7 @@ public class EditarCancelarVisitaAlcanceCarteraBajoRlsTests : IAsyncLifetime
         await using var runtime = CrearContextoRuntime(usuario);
         var alcance = CrearAlcance(runtime, usuario);
         var handler = new ObtenerCandidatosTrabajadorVisitaQueryHandler(
-            runtime, alcance, new SelectorReal(new ObtenerTrabajadoresParaSelectorQueryHandler(runtime, runtime, alcance)));
+            runtime, runtime, runtime, runtime, alcance, new SelectorReal(new ObtenerTrabajadoresParaSelectorQueryHandler(runtime, runtime, alcance)));
 
         return await handler.Handle(new ObtenerCandidatosTrabajadorVisitaQuery(visitaId), CancellationToken.None);
     }

@@ -71,7 +71,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var publicador = new PublicadorDeMentira();
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
@@ -122,7 +122,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var publicador = new PublicadorDeMentira();
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
@@ -200,7 +200,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
 
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), new PublicadorDeMentira(), contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
@@ -234,7 +234,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
         var publicador = new PublicadorDeMentira();
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), publicador, contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());
@@ -274,7 +274,7 @@ public class CrearVisitaCommandTests : IAsyncLifetime
 
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalDeMentira(), new EvaluadorExpedienteDeMentira(), new CurrentUserServiceFalso(), new PublicadorDeMentira(), contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance, new AlcanceDatosServiceFalso());

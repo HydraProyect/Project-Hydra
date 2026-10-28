@@ -23,8 +23,9 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// (<see cref="CanalCorreoDeCentro"/>). Autorización idéntica a la del texto del correo
 /// (<see cref="ObtenerSolicitudAccesoCorreoQueryHandler"/>): alcance de <b>gestión</b>
 /// sobre el Centro, como <c>CrearVisita</c> (#889); fuera de alcance, lo mismo que una
-/// Visita inexistente. Los Trabajadores no se acotan a la cartera —mismo criterio que
-/// <c>CrearVisita</c>—; el Tenant propietario lo imponen el filtro de consulta y RLS.
+/// Visita inexistente. De los Trabajadores de la Visita solo entran los de su Empresa y visibles
+/// para quien descarga (S-B-1, <see cref="TrabajadoresAdmisiblesEnVisita"/>), el mismo criterio con
+/// el que <c>CrearVisita</c> los admite; el Tenant propietario lo imponen el filtro de consulta y RLS.
 /// </para>
 ///
 /// <para>
@@ -38,9 +39,8 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// fuera de él la respuesta siga siendo la de una Visita inexistente. Una Sesión Privilegiada
 /// de plataforma queda como estaba: su rol efectivo es <c>null</c> y lo que ve lo decide su
 /// alcance, no esta regla.
-/// No es una frontera de contenido: quien lee la Visita sigue abriendo cada Documento por
-/// su propio endpoint, que registra el acceso si es sensible. Lo que esta regla retiene es
-/// el lote que sale de TALVEG.
+/// Esta regla retiene el lote que sale de TALVEG; quien solo consulta la Visita abre cada
+/// Documento por su propio endpoint, que acota por alcance y registra el acceso si es sensible.
 /// </para>
 ///
 /// <para>

@@ -33,9 +33,11 @@ public enum AlcanceSelectorTrabajadores
     /// para los flujos de "elige de la base general": un mismo Trabajador de una Subcontrata puede
     /// prestar servicio a Clientes empresariales de distintos Gestores CAE, y hace falta poder
     /// añadirlo a los propios Centros —crear su primera Asignación— aunque todavía no esté en la
-    /// cartera visible (DrawerAsignacionMasiva). Visitas e Incidencias también lo piden, pero
-    /// solo porque conservan el comportamiento anterior: sus comandos no comprueban la cartera
-    /// del Trabajador y acotarlos es una decisión de producto aún no tomada.
+    /// cartera visible (DrawerAsignacionMasiva). Incidencias también lo pide, pero solo porque
+    /// conserva el comportamiento anterior: su comando no comprueba la cartera del Trabajador.
+    /// Visitas ya no: desde la decisión del propietario de 2026-10-28 (S-B-1) sus selectores piden
+    /// <see cref="Cartera"/> y sus comandos solo admiten Trabajadores de la Empresa gestionada
+    /// activa y visibles (<c>TrabajadoresAdmisiblesEnVisita</c>).
     /// </summary>
     BaseGeneralDelTenant,
 }

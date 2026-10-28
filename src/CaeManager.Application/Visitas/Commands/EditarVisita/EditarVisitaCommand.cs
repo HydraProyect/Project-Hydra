@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
@@ -36,7 +38,8 @@ public class EditarVisitaCommandValidator : AbstractValidator<EditarVisitaComman
 
 public class EditarVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
+    ITrabajadoresQueryContext trabajadoresContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
+    IEvaluadorExpedienteVisitaService evaluadorExpediente,
     IUnitOfWork unitOfWork, ILogger<EditarVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
     IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<EditarVisitaCommand, Result>
@@ -50,9 +53,10 @@ public class EditarVisitaCommandHandler(
         // alcance se responde igual que "no existe", y antes de la comprobación de
         // concurrencia, para no revelar qué hay fuera ni su versión.
         //
-        // Los Trabajadores que se añaden NO se acotan a la cartera, igual que al
-        // crear: salen de la base general del Tenant y acotarlos es una decisión
-        // de producto aún no tomada.
+        // Los Trabajadores que se AÑADEN se acotan igual que al crear: de la
+        // Empresa gestionada activa y visibles para quien edita (S-B-1,
+        // TrabajadoresAdmisiblesEnVisita). Los que ya estaban no se revalidan ni
+        // se quitan por no verse: la baja la decide lo que el usuario desmarcó.
         var visita = await repositorio.ObtenerPorIdAsync(request.Id, cancellationToken);
         if (visita is null || !await alcanceDatos.CentroParaGestionVisibleAsync(visita.CentroId, cancellationToken))
             return Result.Fallo(Error.Crear("Visita.NoEncontrada", "No encontramos esta visita."));
@@ -72,12 +76,20 @@ public class EditarVisitaCommandHandler(
 
         // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
         var trabajadorIdsNuevos = trabajadorIdsDeseados.Except(trabajadorIdsActuales).ToList();
-        // Se cargan enteros: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
-        var trabajadoresNuevos = await trabajadoresContext.Trabajadores
-            .Where(t => trabajadorIdsNuevos.Contains(t.Id))
-            .ToDictionaryAsync(t => t.Id, cancellationToken);
-        if (trabajadoresNuevos.Count != trabajadorIdsNuevos.Count)
-            return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "Alguno de los trabajadores seleccionados no existe."));
+        Dictionary<Guid, Domain.Trabajadores.Trabajador>? trabajadoresNuevos = [];
+        if (trabajadorIdsNuevos.Count > 0)
+        {
+            var empresaId = await centrosContext.Centros
+                .Where(c => c.Id == visita.CentroId)
+                .Select(c => (Guid?)c.EmpresaId)
+                .FirstOrDefaultAsync(cancellationToken);
+            trabajadoresNuevos = empresaId is { } empresa
+                ? await TrabajadoresAdmisiblesEnVisita.CargarAsync(
+                    trabajadorIdsNuevos, empresa, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken)
+                : null;
+        }
+        if (trabajadoresNuevos is null)
+            return Result.Fallo(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: true));
 
         var trabajadoresQueSalen = trabajadoresActuales.Where(vt => !trabajadorIdsDeseados.Contains(vt.TrabajadorId)).ToList();
         foreach (var vt in trabajadoresQueSalen)
