@@ -32,6 +32,14 @@ public sealed class BorradorAvisoIncidente
     public ContenidoAvisoIncidente AContenido() => new(Naturaleza, DatosEInteresados, Consecuencias, Medidas, Contacto);
 }
 
+/// <summary>Paso del aviso que la página ofrece con su único botón primario.</summary>
+public enum PasoAviso
+{
+    Ninguno,
+    PrimerAviso,
+    NotificacionCompleta,
+}
+
 public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.PaginaInteractiva
 {
     [Parameter] public Guid IncidenteId { get; set; }
@@ -108,10 +116,13 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
             return false;
         var enviados = _vista.Incidente.Envios
             .Where(e => e.Plantilla == plantilla && e.Estado == EstadoEnvioAvisoIncidenteSeguridad.Enviado)
-            .Select(e => (e.TenantAfectadoId, Correo: e.DestinatarioCorreo))
+            .Select(e => (e.TenantAfectadoId, Correo: e.DestinatarioCorreo.Trim().ToLowerInvariant()))
             .ToHashSet();
         return esperados.All(enviados.Contains);
     }
+
+    /// <summary>Repinta la página al editar un apartado: de él dependen los pendientes y el botón de enviar.</summary>
+    private static void AlCambiarBorrador() { }
 
     private List<string> Pendientes()
     {
@@ -146,11 +157,38 @@ public partial class IncidenteSeguridadPlataforma : CaeManager.Web.Components.Pa
     private string QuienDecidio(Guid? actorUsuarioId) =>
         actorUsuarioId == _vista?.ActorUsuarioId ? Textos["PorTi"] : Textos["PorOtroActor"];
 
-    private Task ConfirmarYEnviarAsync() =>
-        EnviarAsync(() => Mediator.Send(new ConfirmarYEnviarPrimerAvisoCommand(IncidenteId, _primerAviso.AContenido())));
+    /// <summary>
+    /// El paso que la página ofrece ahora: el primer aviso mientras el incidente no esté confirmado o le falte
+    /// algún destinatario; después, la notificación completa; con las dos enviadas (o descartado), ninguno.
+    /// </summary>
+    private PasoAviso PasoVigente()
+    {
+        if (_vista is null)
+            return PasoAviso.Ninguno;
+        return _vista.Incidente.Estado switch
+        {
+            EstadoIncidenteSeguridad.Sospechado or EstadoIncidenteSeguridad.EnEvaluacion => PasoAviso.PrimerAviso,
+            EstadoIncidenteSeguridad.Confirmado when !TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso) => PasoAviso.PrimerAviso,
+            EstadoIncidenteSeguridad.Confirmado when !TodoEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta) => PasoAviso.NotificacionCompleta,
+            _ => PasoAviso.Ninguno,
+        };
+    }
 
-    private Task EnviarCompletaAsync() =>
-        EnviarAsync(() => Mediator.Send(new EnviarNotificacionCompletaCommand(IncidenteId, _completa.AContenido())));
+    private string TextoEnviar(PasoAviso paso, EstadoIncidenteSeguridad estado) => paso switch
+    {
+        PasoAviso.PrimerAviso when estado == EstadoIncidenteSeguridad.Confirmado => Textos["BotonReintentarPrimerAviso"],
+        PasoAviso.PrimerAviso => Textos["BotonConfirmarYEnviar"],
+        _ => Textos["BotonEnviarCompleta"],
+    };
+
+    private Task EnviarPasoVigenteAsync() => PasoVigente() switch
+    {
+        PasoAviso.PrimerAviso =>
+            EnviarAsync(() => Mediator.Send(new ConfirmarYEnviarPrimerAvisoCommand(IncidenteId, _primerAviso.AContenido()))),
+        PasoAviso.NotificacionCompleta =>
+            EnviarAsync(() => Mediator.Send(new EnviarNotificacionCompletaCommand(IncidenteId, _completa.AContenido()))),
+        _ => Task.CompletedTask,
+    };
 
     private async Task EnviarAsync(Func<Task<Result<ResumenEnvioAviso>>> enviar)
     {

@@ -9,42 +9,42 @@
   <data name="BotonReintentar" xml:space="preserve"><value>Reintentar</value></data>
   <data name="Titulo" xml:space="preserve"><value>Incidente {0}</value></data>
   <data name="EstadoSospechado" xml:space="preserve"><value>Sospechado</value></data>
-  <data name="EstadoEnEvaluacion" xml:space="preserve"><value>En evaluaciÃ³n</value></data>
+  <data name="EstadoEnEvaluacion" xml:space="preserve"><value>En evaluación</value></data>
   <data name="EstadoConfirmado" xml:space="preserve"><value>Confirmado</value></data>
   <data name="EstadoDescartado" xml:space="preserve"><value>Descartado</value></data>
   <data name="Detectado" xml:space="preserve"><value>Detectado el {0}</value></data>
-  <data name="SinCorreoContactoTalveg" xml:space="preserve"><value>Falta configurar el correo de contacto de seguridad de TALVEG: el aviso saldrÃ¡ sin direcciÃ³n de respuesta.</value></data>
-  <data name="QueHaPasado" xml:space="preserve"><value>QuÃ© ha pasado</value></data>
+  <data name="SinCorreoContactoTalveg" xml:space="preserve"><value>Falta configurar el correo de contacto de seguridad de TALVEG: el aviso saldrá sin dirección de respuesta.</value></data>
+  <data name="QueHaPasado" xml:space="preserve"><value>Qué ha pasado</value></data>
   <data name="Plazos" xml:space="preserve"><value>Plazos del aviso</value></data>
   <data name="PlazoPrimerAviso" xml:space="preserve"><value>Primer aviso (24 h)</value></data>
-  <data name="PlazoNotificacionCompleta" xml:space="preserve"><value>NotificaciÃ³n completa (36 h)</value></data>
-  <data name="PlazosDesdeConfirmacion" xml:space="preserve"><value>Contados desde la confirmaciÃ³n, el {0}.</value></data>
+  <data name="PlazoNotificacionCompleta" xml:space="preserve"><value>Notificación completa (36 h)</value></data>
+  <data name="PlazosDesdeConfirmacion" xml:space="preserve"><value>Contados desde la confirmación, el {0}.</value></data>
   <data name="TenantsAfectados" xml:space="preserve"><value>Organizaciones afectadas ({0})</value></data>
   <data name="SinDestinatario" xml:space="preserve"><value>Sin destinatario: no se le puede avisar</value></data>
   <data name="SinContactoValidado" xml:space="preserve"><value>Sin contacto de seguridad validado: se avisa a sus Administradores</value></data>
   <data name="PrimerAvisoTitulo" xml:space="preserve"><value>Primer aviso</value></data>
-  <data name="PrimerAvisoAyuda" xml:space="preserve"><value>Revisa el texto. Al confirmar, el incidente queda confirmado y el aviso se envÃ­a a cada organizaciÃ³n afectada. Nada se envÃ­a sin este clic.</value></data>
-  <data name="BotonReintentarPrimerAviso" xml:space="preserve"><value>Reintentar los envÃ­os pendientes</value></data>
+  <data name="PrimerAvisoAyuda" xml:space="preserve"><value>Revisa el texto. Al confirmar, el incidente queda confirmado y el aviso se envía a cada organización afectada. Nada se envía sin este clic.</value></data>
+  <data name="BotonReintentarPrimerAviso" xml:space="preserve"><value>Reintentar los envíos pendientes</value></data>
   <data name="BotonConfirmarYEnviar" xml:space="preserve"><value>Confirmar y enviar el primer aviso</value></data>
-  <data name="BotonMasTiempo" xml:space="preserve"><value>Necesito mÃ¡s tiempo para evaluarlo</value></data>
+  <data name="BotonMasTiempo" xml:space="preserve"><value>Necesito más tiempo para evaluarlo</value></data>
   <data name="BotonDescartar" xml:space="preserve"><value>Descartar (falsa alarma)</value></data>
-  <data name="CompletaTitulo" xml:space="preserve"><value>NotificaciÃ³n completa</value></data>
+  <data name="CompletaTitulo" xml:space="preserve"><value>Notificación completa</value></data>
   <data name="ApartadosPendientes" xml:space="preserve"><value>Faltan por completar: {0}.</value></data>
-  <data name="BotonEnviarCompleta" xml:space="preserve"><value>Enviar la notificaciÃ³n completa</value></data>
+  <data name="BotonEnviarCompleta" xml:space="preserve"><value>Enviar la notificación completa</value></data>
   <data name="Registro" xml:space="preserve"><value>Registro</value></data>
   <data name="Transicion" xml:space="preserve"><value>{0}, {1}</value></data>
-  <data name="EnvioEnviando" xml:space="preserve"><value>{0} a {1} ({2}): enviÃ¡ndose, {3}</value></data>
+  <data name="EnvioEnviando" xml:space="preserve"><value>{0} a {1} ({2}): enviándose, {3}</value></data>
   <data name="EnvioEnviado" xml:space="preserve"><value>{0} enviado a {1} ({2}), {3}</value></data>
-  <data name="EnvioFallido" xml:space="preserve"><value>{0} a {1} ({2}): fallÃ³, {3}</value></data>
+  <data name="EnvioFallido" xml:space="preserve"><value>{0} a {1} ({2}): falló, {3}</value></data>
   <data name="PlantillaPrimerAviso" xml:space="preserve"><value>Primer aviso</value></data>
-  <data name="PlantillaNotificacionCompleta" xml:space="preserve"><value>NotificaciÃ³n completa</value></data>
+  <data name="PlantillaNotificacionCompleta" xml:space="preserve"><value>Notificación completa</value></data>
   <data name="DescartarTitulo" xml:space="preserve"><value>Descartar el incidente</value></data>
   <data name="BotonConfirmarDescarte" xml:space="preserve"><value>Descartar</value></data>
   <data name="BotonCancelar" xml:space="preserve"><value>Cancelar</value></data>
-  <data name="DescartarTexto" xml:space="preserve"><value>El incidente se cierra como falsa alarma y no se avisa a nadie. Queda registrado quiÃ©n lo descarta y por quÃ©.</value></data>
+  <data name="DescartarTexto" xml:space="preserve"><value>El incidente se cierra como falsa alarma y no se avisa a nadie. Queda registrado quién lo descarta y por qué.</value></data>
   <data name="CampoMotivo" xml:space="preserve"><value>Motivo</value></data>
-  <data name="ApartadoNaturaleza" xml:space="preserve"><value>Naturaleza de la violaciÃ³n</value></data>
-  <data name="ApartadoDatosEInteresados" xml:space="preserve"><value>CategorÃ­as de datos e interesados</value></data>
+  <data name="ApartadoNaturaleza" xml:space="preserve"><value>Naturaleza de la violación</value></data>
+  <data name="ApartadoDatosEInteresados" xml:space="preserve"><value>Categorías de datos e interesados</value></data>
   <data name="ApartadoConsecuencias" xml:space="preserve"><value>Consecuencias probables</value></data>
   <data name="ApartadoMedidas" xml:space="preserve"><value>Medidas adoptadas o propuestas</value></data>
   <data name="ApartadoContacto" xml:space="preserve"><value>Punto de contacto</value></data>
@@ -53,10 +53,10 @@
   <data name="PlazoQuedan" xml:space="preserve"><value>Quedan {0} h {1} min</value></data>
   <data name="PorTi" xml:space="preserve"><value>por ti</value></data>
   <data name="PorOtroActor" xml:space="preserve"><value>por otro Actor de Plataforma TALVEG</value></data>
-  <data name="EnvioIncompleto" xml:space="preserve"><value>EnvÃ­o incompleto: {0} enviados, {1} fallidos y {2} en curso. Puedes reintentarlo.</value></data>
+  <data name="EnvioIncompleto" xml:space="preserve"><value>Envío incompleto: {0} enviados, {1} fallidos y {2} en curso. Puedes reintentarlo.</value></data>
   <data name="EnvioCorrecto" xml:space="preserve"><value>Aviso enviado a {0} destinatarios.</value></data>
-  <data name="ErrorEnvio" xml:space="preserve"><value>No se ha podido enviar el aviso. IntÃ©ntalo de nuevo.</value></data>
-  <data name="ErrorDecidir" xml:space="preserve"><value>No se ha podido registrar la decisiÃ³n. IntÃ©ntalo de nuevo.</value></data>
+  <data name="ErrorEnvio" xml:space="preserve"><value>No se ha podido enviar el aviso. Inténtalo de nuevo.</value></data>
+  <data name="ErrorDecidir" xml:space="preserve"><value>No se ha podido registrar la decisión. Inténtalo de nuevo.</value></data>
   <data name="MotivoObligatorio" xml:space="preserve"><value>Indica el motivo.</value></data>
   <data name="DescartadoAviso" xml:space="preserve"><value>Incidente descartado.</value></data>
 </root>

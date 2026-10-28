@@ -3,11 +3,11 @@
 @inherits CaeManager.Web.Components.PaginaInteractiva
 @implements IDisposable
 @attribute [Authorize]
-@* PÃ¡gina del incidente de seguridad (aviso de violaciones, incremento 3b): el enlace de la alerta lleva aquÃ­.
-   El Actor de Plataforma TALVEG decide (confirmar y enviar el primer aviso, pedir mÃ¡s tiempo o descartar) y,
-   tras confirmar, envÃ­a la notificaciÃ³n completa. Nada se envÃ­a solo: cada envÃ­o sale de un clic. La pÃ¡gina
-   no es el enforcement: la consulta falla sin concesiÃ³n AdminPlataforma global, los comandos exigen ademÃ¡s
-   segundo factor activo y superado en la sesiÃ³n, y la RLS y las funciones de la base repiten la comprobaciÃ³n. *@
+@* Página del incidente de seguridad (aviso de violaciones, incremento 3b): el enlace de la alerta lleva aquí.
+   El Actor de Plataforma TALVEG decide (confirmar y enviar el primer aviso, pedir más tiempo o descartar) y,
+   tras confirmar, envía la notificación completa. Nada se envía solo: cada envío sale de un clic. La página
+   no es el enforcement: la consulta falla sin concesión AdminPlataforma global, los comandos exigen además
+   segundo factor activo y superado en la sesión, y la RLS y las funciones de la base repiten la comprobación. *@
 @using CaeManager.Application.Seguridad.Incidentes.Aviso
 @using CaeManager.Domain.Plataforma
 @using CaeManager.Web.Features.IncidentesSeguridad.Recursos
@@ -15,7 +15,7 @@
 @inject IStringLocalizer<TextosIncidenteSeguridad> Textos
 
 <LimiteDeErrores Pagina="this">
-<PageTitle>@Textos["TituloDocumento"] â€” @Marca.Nombre</PageTitle>
+<PageTitle>@Textos["TituloDocumento"] — @Marca.Nombre</PageTitle>
 
 <div class="contenedor-pagina pagina-incidente-seguridad">
     @if (_cargando)
@@ -99,48 +99,44 @@
             </ul>
         </section>
 
-        @if (incidente.Estado is EstadoIncidenteSeguridad.Sospechado or EstadoIncidenteSeguridad.EnEvaluacion
-             || (incidente.Estado == EstadoIncidenteSeguridad.Confirmado && !TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso)))
+        @* Un solo paso a la vista y un solo primario: el del paso vigente (primer aviso hasta que haya salido a
+           todos los destinatarios; después, la notificación completa). El botón es el mismo; cambian su texto y
+           su comando, así que la superficie nunca pinta dos primarios ni se queda sin el suyo. *@
+        @if (PasoVigente() is var paso && paso != PasoAviso.Ninguno)
         {
-            <section class="incidente-bloque" aria-labelledby="titulo-primer-aviso">
-                <h2 id="titulo-primer-aviso">@Textos["PrimerAvisoTitulo"]</h2>
-                <p class="incidente-ayuda">@Textos["PrimerAvisoAyuda"]</p>
-                <FormularioContenidoAviso Contenido="_primerAviso" ConConsecuencias="false" Textos="Textos" />
+            var esPrimerAviso = paso == PasoAviso.PrimerAviso;
+            <section class="incidente-bloque incidente-paso" aria-labelledby="titulo-paso"
+                     data-testid="@(esPrimerAviso ? "paso-primer-aviso" : "paso-notificacion-completa")">
+                <h2 id="titulo-paso">@(esPrimerAviso ? Textos["PrimerAvisoTitulo"] : Textos["CompletaTitulo"])</h2>
+                @if (esPrimerAviso)
+                {
+                    <p class="incidente-ayuda">@Textos["PrimerAvisoAyuda"]</p>
+                    <FormularioContenidoAviso Contenido="_primerAviso" ConConsecuencias="false" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
+                }
+                else
+                {
+                    @if (Pendientes() is { Count: > 0 } pendientes)
+                    {
+                        <p class="incidente-ayuda" data-testid="apartados-pendientes">@Textos["ApartadosPendientes", string.Join(", ", pendientes)]</p>
+                    }
+                    <FormularioContenidoAviso Contenido="_completa" ConConsecuencias="true" Textos="Textos" ContenidoCambiado="AlCambiarBorrador" />
+                }
                 <div class="incidente-acciones">
-                    <Boton Variante="VarianteBoton.Primario" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
-                           Cargando="@_procesando" OnClick="ConfirmarYEnviarAsync">
-                        @(incidente.Estado == EstadoIncidenteSeguridad.Confirmado ? Textos["BotonReintentarPrimerAviso"] : Textos["BotonConfirmarYEnviar"])
+                    <Boton Variante="VarianteBoton.Primario" data-testid="enviar-paso"
+                           Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null || (!esPrimerAviso && Pendientes().Count > 0))"
+                           Cargando="@_procesando" OnClick="EnviarPasoVigenteAsync">
+                        @TextoEnviar(paso, incidente.Estado)
                     </Boton>
-                    @if (incidente.Estado == EstadoIncidenteSeguridad.Sospechado)
+                    @if (esPrimerAviso && incidente.Estado == EstadoIncidenteSeguridad.Sospechado)
                     {
                         <Boton Variante="VarianteBoton.Secundario" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
                                OnClick="EvaluarAsync">@Textos["BotonMasTiempo"]</Boton>
                     }
-                    @if (incidente.Estado != EstadoIncidenteSeguridad.Confirmado)
+                    @if (esPrimerAviso && incidente.Estado != EstadoIncidenteSeguridad.Confirmado)
                     {
                         <Boton Variante="VarianteBoton.Destructivo" Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null)"
                                OnClick="AbrirDescarte">@Textos["BotonDescartar"]</Boton>
                     }
-                </div>
-            </section>
-        }
-
-        @if (incidente.Estado == EstadoIncidenteSeguridad.Confirmado && TodoEnviado(PlantillaAvisoIncidenteSeguridad.PrimerAviso)
-             && !TodoEnviado(PlantillaAvisoIncidenteSeguridad.NotificacionCompleta))
-        {
-            <section class="incidente-bloque" aria-labelledby="titulo-completa">
-                <h2 id="titulo-completa">@Textos["CompletaTitulo"]</h2>
-                @if (Pendientes() is { Count: > 0 } pendientes)
-                {
-                    <p class="incidente-ayuda" data-testid="apartados-pendientes">@Textos["ApartadosPendientes", string.Join(", ", pendientes)]</p>
-                }
-                <FormularioContenidoAviso Contenido="_completa" ConConsecuencias="true" Textos="Textos" />
-                <div class="incidente-acciones">
-                    <Boton Variante="VarianteBoton.Secundario"
-                           Deshabilitado="@(_procesando || _vista.MotivoParaNoDecidir is not null || Pendientes().Count > 0)"
-                           Cargando="@_procesando" OnClick="EnviarCompletaAsync">
-                        @Textos["BotonEnviarCompleta"]
-                    </Boton>
                 </div>
             </section>
         }
@@ -155,7 +151,7 @@
                         @Textos["Transicion", NombreEstado(transicion.EstadoNuevo), QuienDecidio(transicion.ActorUsuarioId)]
                         @if (!string.IsNullOrWhiteSpace(transicion.Motivo))
                         {
-                            <span class="incidente-motivo">â€” @transicion.Motivo</span>
+                            <span class="incidente-motivo">— @transicion.Motivo</span>
                         }
                     </li>
                 }
