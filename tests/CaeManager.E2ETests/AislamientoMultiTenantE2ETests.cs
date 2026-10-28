@@ -75,14 +75,15 @@ public class AislamientoMultiTenantE2ETests(WebAppFixtureConSegundoTenant fixtur
         await Ayudas.NavegarYEsperarAsync(paginaB, $"{fixture.BaseUrl}/empresas");
         await paginaB.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
 
-        // Se espera explícitamente a que la búsqueda termine de aplicarse (debounce de
-        // CampoTexto) y se comprueba que la fila de la Empresa del tenant A no aparece —
-        // sin esta espera, un simple IsVisible() inmediatamente después del FillAsync
-        // podría dar un falso "no visible" solo porque la lista no ha reaccionado todavía.
+        // Ancla positiva (obligatoria en una afirmación negativa de seguridad): el estado vacío con
+        // filtro activo solo aparece cuando la búsqueda ya se aplicó (debounce de CampoTexto) y la
+        // lista filtrada llegó vacía. Sin ella, un simple IsVisible() inmediatamente después del
+        // FillAsync podría dar un falso "no visible" solo porque la lista no ha reaccionado todavía.
         // El locator se acota a la lista (.lista-filas-acordeon): fuera de ella, un chip
         // o mensaje que repita el término buscado en pantalla podría coincidir aunque
         // ninguna fila real exista.
-        await paginaB.WaitForTimeoutAsync(500);
+        await paginaB.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Ningún resultado con estos filtros", Exact = true })
+            .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         var filaEmpresaTenantA = paginaB.Locator(".lista-filas-acordeon").GetByText(razonSocialEmpresa);
         Assert.False(await filaEmpresaTenantA.IsVisibleAsync());
     }

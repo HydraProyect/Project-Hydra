@@ -104,7 +104,8 @@ public class ImportarClientesTests(WebAppFixture fixture)
             // --- Verificación real: nunca se creó ningún Cliente con este nombre ---
             await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
             await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync(nombreClienteCentro);
-            await page.WaitForTimeoutAsync(500); // debounce de CampoTexto
+            await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "Ningún Cliente con estos filtros", Exact = true })
+                .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
             await Expect(page.Locator(".tarjeta-fila-acordeon", new PageLocatorOptions { HasText = nombreClienteCentro })).ToHaveCountAsync(0);
         }
         finally
