@@ -25,6 +25,9 @@ public class ObtenerContactosSeguridadPropuestosQueryHandler(
             || !await autorizacion.PuedeGlobalmenteAsync(usuarioId, cancellationToken))
             return [];
 
-        return await plataforma.ObtenerPropuestosAsync(cancellationToken);
+        // EsPropia compara con la misma cuenta autenticada (Actor real) que usa LaPropusoQuienResuelveAsync al
+        // validar y rechazar, y la calcula la propia lectura de la cola: solo decide qué botones se pintan,
+        // quien resuelve sigue siendo la función de la base.
+        return await plataforma.ObtenerPropuestosAsync(usuarioId, cancellationToken);
     }
 }

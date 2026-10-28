@@ -10,7 +10,7 @@ namespace CaeManager.Application.ContactosSeguridad;
 /// <item>Lectura: la política <c>actor_de_plataforma_lee</c> de <c>ContactosSeguridadTenant</c> (concesión
 /// AdminPlataforma global vigente sobre la identidad del contexto RLS firmado).</item>
 /// <item>Validar y rechazar: la función <c>app_resolver_contacto_seguridad</c>, que repite la concesión, la
-/// cuenta de plataforma, el estado de la fila y el motivo.</item>
+/// cuenta de plataforma, el estado de la fila, el motivo y que no resuelva la cuenta que propuso.</item>
 /// <item>Destinatarios de un aviso: la función <c>app_destinatarios_aviso_seguridad</c>, que también lee los
 /// Administradores de cada Tenant, fuera del alcance de la RLS de <c>AspNetUsers</c>.</item>
 /// </list>
@@ -19,11 +19,22 @@ namespace CaeManager.Application.ContactosSeguridad;
 /// </summary>
 public interface IContactosSeguridadPlataforma
 {
-    /// <summary>Contactos Propuestos de todos los Tenants, los más antiguos primero.</summary>
-    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Contactos Propuestos de todos los Tenants, los más antiguos primero. <paramref name="usuarioActualId"/>
+    /// es la cuenta autenticada (Actor real): la misma lectura marca <see cref="ContactoSeguridadPropuestoDto.EsPropia"/>
+    /// en los que propuso esa cuenta, sin sacar de Infrastructure el id de la cuenta proponente.
+    /// </summary>
+    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+        Guid usuarioActualId, CancellationToken cancellationToken);
 
     /// <summary>El contacto Validado del Tenant, o null si no tiene.</summary>
     Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// La cuenta que propuso el contacto, o null si no existe o el actor no la puede leer. Solo sirve para
+    /// fallar pronto con mensaje en la regla de cuatro ojos; la función de resolución la vuelve a aplicar.
+    /// </summary>
+    Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken);
 
     /// <summary>Valida (<paramref name="motivoRechazo"/> nulo) o rechaza (con motivo) un contacto Propuesto.</summary>
     Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken);
@@ -49,7 +60,8 @@ public record ContactoSeguridadPropuestoDto(
     string Nombre,
     string Correo,
     string? Telefono,
-    DateTime PropuestoEnUtc);
+    DateTime PropuestoEnUtc,
+    bool EsPropia = false);
 
 /// <summary>
 /// A quién avisar de un incidente que afecta a un Tenant. Con <see cref="SinContactoValidado"/>, los
@@ -78,6 +90,12 @@ public static class ErroresContactoSeguridad
 
     public static readonly Error YaResuelto = Error.Crear(
         "ContactoSeguridad.YaResuelto", "Esta propuesta ya no está pendiente: otra persona la ha resuelto o sustituido.");
+
+    public static readonly Error PropuestaConcurrente = Error.Crear(
+        "ContactoSeguridad.PropuestaConcurrente", "Se acaba de enviar otra propuesta para tu organización. Recarga la página para verla.");
+
+    public static readonly Error MismaCuentaProponente = Error.Crear(
+        "ContactoSeguridad.MismaCuentaProponente", "Propusiste tú este contacto: tiene que validarlo o rechazarlo otra persona con administración de plataforma.");
 
     public static readonly Error MotivoObligatorio = Error.Crear(
         "ContactoSeguridad.MotivoObligatorio", "Indica el motivo del rechazo.");

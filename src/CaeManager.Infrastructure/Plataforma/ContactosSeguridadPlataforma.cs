@@ -20,7 +20,8 @@ public sealed class ContactosSeguridadPlataforma(
     CaeManagerDbContext contexto,
     PuertaAccesoDatos puertaAccesoDatos) : IContactosSeguridadPlataforma
 {
-    public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+        Guid usuarioActualId, CancellationToken cancellationToken) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ContactoSeguridadPropuestoDto>>(async () =>
             await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
                 .Where(c => c.Estado == EstadoContactoSeguridad.Propuesto)
@@ -29,7 +30,8 @@ public sealed class ContactosSeguridadPlataforma(
                 .OrderBy(x => x.Contacto.PropuestoEnUtc)
                 .Select(x => new ContactoSeguridadPropuestoDto(
                     x.Contacto.Id, x.Contacto.TenantId, x.Organizacion, x.Contacto.Nombre, x.Contacto.Correo,
-                    x.Contacto.Telefono, x.Contacto.PropuestoEnUtc))
+                    x.Contacto.Telefono, x.Contacto.PropuestoEnUtc,
+                    x.Contacto.PropuestoPorUsuarioId == usuarioActualId))
                 .ToListAsync(cancellationToken), cancellationToken);
 
     public Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken) =>
@@ -38,6 +40,13 @@ public sealed class ContactosSeguridadPlataforma(
                 .Where(c => c.TenantId == tenantId && c.Estado == EstadoContactoSeguridad.Validado)
                 .Select(c => new ContactoSeguridadDto(
                     c.Id, c.Nombre, c.Correo, c.Telefono, c.PropuestoEnUtc, c.ResueltoEnUtc, c.MotivoRechazo))
+                .SingleOrDefaultAsync(cancellationToken), cancellationToken);
+
+    public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken) =>
+        puertaAccesoDatos.EjecutarAsync(() =>
+            contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
+                .Where(c => c.Id == contactoId)
+                .Select(c => (Guid?)c.PropuestoPorUsuarioId)
                 .SingleOrDefaultAsync(cancellationToken), cancellationToken);
 
     public Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken) =>
@@ -69,6 +78,7 @@ public sealed class ContactosSeguridadPlataforma(
                 "no_encontrado" => Result.Fallo(ErroresContactoSeguridad.NoEncontrado),
                 "no_propuesto" => Result.Fallo(ErroresContactoSeguridad.YaResuelto),
                 "motivo_no_valido" => Result.Fallo(ErroresContactoSeguridad.MotivoObligatorio),
+                "misma_cuenta" => Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente),
                 _ => Result.Fallo(ErroresContactoSeguridad.SoloActorDePlataforma),
             };
         }, cancellationToken);

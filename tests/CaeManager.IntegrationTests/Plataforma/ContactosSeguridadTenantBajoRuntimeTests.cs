@@ -3,6 +3,7 @@ using CaeManager.Application.ContactosSeguridad;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plataforma;
 using CaeManager.Domain.Tenants;
+using CaeManager.Infrastructure.Auditing;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -28,7 +29,8 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// restrictiva de INSERT); el Tenant no puede validarse a sí mismo ni por la tabla (GRANT por columna y
 /// política restrictiva de UPDATE) ni por la función; un Actor de Plataforma TALVEG sin la concesión
 /// AdminPlataforma global vigente no lee la cola, no valida y no resuelve destinatarios; con ella, valida,
-/// sustituye al vigente y deja auditoría. Las reglas de Application están en
+/// sustituye al vigente y deja auditoría, salvo la propuesta que hizo su propia cuenta (cuatro ojos); y dos
+/// propuestas del mismo Tenant que se cruzan dejan una sola. Las reglas de Application están en
 /// <c>ContactoSeguridadTenantTests</c>; la forma de las políticas, en <c>CoberturaRlsDelModeloTests</c>.
 /// </para>
 /// </summary>
@@ -39,6 +41,7 @@ public class ContactosSeguridadTenantBajoRuntimeTests : IAsyncLifetime
     private readonly Guid _tenantA = Guid.NewGuid();
     private readonly Guid _tenantB = Guid.NewGuid();
     private readonly Guid _adminPlataforma = Guid.NewGuid();
+    private readonly Guid _adminPlataformaAdministradorDelTenant = Guid.NewGuid();
     private readonly Guid _actorPlataformaSinConcesion = Guid.NewGuid();
     private readonly Guid _actorPlataformaCaducado = Guid.NewGuid();
     private readonly Guid _administradorDeA = Guid.NewGuid();
@@ -55,6 +58,8 @@ public class ContactosSeguridadTenantBajoRuntimeTests : IAsyncLifetime
         contexto.Tenants.Add(CrearTenant(_tenantB, "Tenant beneficiario B S.L."));
         var roles = await contexto.Roles.ToDictionaryAsync(r => r.Name!, r => r.Id);
         SembrarCuenta(contexto, "admin-plataforma", _tenantPlataforma, _adminPlataforma, null);
+        SembrarCuenta(contexto, "admin-plataforma-y-del-tenant", _tenantPlataforma, _adminPlataformaAdministradorDelTenant,
+            roles[Roles.Administrador]);
         SembrarCuenta(contexto, "sin-concesion", _tenantPlataforma, _actorPlataformaSinConcesion, null);
         SembrarCuenta(contexto, "caducado", _tenantPlataforma, _actorPlataformaCaducado, null);
         SembrarCuenta(contexto, "admin-a", _tenantA, _administradorDeA, roles[Roles.Administrador]);
@@ -63,6 +68,8 @@ public class ContactosSeguridadTenantBajoRuntimeTests : IAsyncLifetime
         var ahora = DateTime.UtcNow;
         contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
             _adminPlataforma, vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: null));
+        contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+            _adminPlataformaAdministradorDelTenant, vigenciaDesde: ahora.AddMinutes(-10), vigenciaHasta: null));
         contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
             _actorPlataformaCaducado, vigenciaDesde: ahora.AddDays(-10), vigenciaHasta: ahora.AddDays(-1)));
         await contexto.SaveChangesAsync();
@@ -201,7 +208,7 @@ UPDATE ""ContactosSeguridadTenant"" SET ""Estado"" = 'Sustituido', ""Sustitucion
         var actor = caducada ? _actorPlataformaCaducado : _actorPlataformaSinConcesion;
         await using var contexto = CrearContexto(_tenantPlataforma, actor: actor);
 
-        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos()).ObtenerPropuestosAsync(CancellationToken.None))
+        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos()).ObtenerPropuestosAsync(actor, CancellationToken.None))
             .Should().BeEmpty("sin la concesión la política de lectura de plataforma no abre nada");
         (await LlamarResolverAsync(contexto, contacto, validar: true, motivo: null)).Should().Be("no_autorizado");
         (await EstadoAsync(contacto)).Should().Be("Propuesto");
@@ -220,7 +227,7 @@ UPDATE ""ContactosSeguridadTenant"" SET ""Estado"" = 'Sustituido', ""Sustitucion
         await using (var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma))
         {
             var plataforma = new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos());
-            (await plataforma.ObtenerPropuestosAsync(CancellationToken.None)).Should().ContainSingle()
+            (await plataforma.ObtenerPropuestosAsync(_adminPlataforma, CancellationToken.None)).Should().ContainSingle()
                 .Which.NombreOrganizacion.Should().Be("Tenant beneficiario A S.L.");
             (await plataforma.ResolverAsync(primero, motivoRechazo: null, CancellationToken.None)).EsExitoso.Should().BeTrue();
         }
@@ -309,6 +316,94 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
         (await EstadoAsync(contacto)).Should().Be("Propuesto");
     }
 
+    [Fact]
+    public async Task La_cuenta_que_propuso_no_resuelve_por_la_funcion_y_otro_Actor_de_Plataforma_si()
+    {
+        // Un Actor de Plataforma TALVEG que además es Administrador del Tenant de plataforma propone el contacto
+        // de ese Tenant: tiene la concesión global, trabaja desde su Tenant de plataforma, y aun así no se lo
+        // resuelve él mismo.
+        var contacto = await ProponerAsync(_tenantPlataforma, _adminPlataformaAdministradorDelTenant, "Marta");
+        await using (var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataformaAdministradorDelTenant))
+        {
+            (await LlamarResolverAsync(contexto, contacto, validar: true, motivo: null)).Should().Be("misma_cuenta");
+            (await LlamarResolverAsync(contexto, contacto, validar: false, motivo: "No es quien debe")).Should().Be("misma_cuenta");
+
+            var plataforma = new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos());
+            (await plataforma.ObtenerCuentaProponenteAsync(contacto, CancellationToken.None))
+                .Should().Be(_adminPlataformaAdministradorDelTenant);
+            (await plataforma.ResolverAsync(contacto, motivoRechazo: null, CancellationToken.None))
+                .Error.Should().Be(ErroresContactoSeguridad.MismaCuentaProponente);
+        }
+        (await EstadoAsync(contacto)).Should().Be("Propuesto", "la función se para antes de escribir");
+
+        await using (var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma))
+            (await LlamarResolverAsync(contexto, contacto, validar: true, motivo: null)).Should().Be("validado");
+        (await EstadoAsync(contacto)).Should().Be("Validado");
+    }
+
+    [Fact]
+    public async Task El_Actor_de_Plataforma_lee_la_cuenta_proponente_de_otro_Tenant()
+    {
+        // La comprobación temprana de cuatro ojos lee la fila de otro Tenant desde el Tenant de plataforma: sin la
+        // política de lectura del Actor de Plataforma devolvería null y nunca daría MismaCuentaProponente.
+        var contacto = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+
+        (await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+                .ObtenerCuentaProponenteAsync(contacto, CancellationToken.None))
+            .Should().Be(_administradorDeA);
+    }
+
+    [Fact]
+    public async Task La_cola_marca_como_propia_solo_la_propuesta_de_la_cuenta_autenticada()
+    {
+        var deA = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        var dePlataforma = await ProponerAsync(_tenantPlataforma, _adminPlataformaAdministradorDelTenant, "Jordi");
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataformaAdministradorDelTenant);
+
+        var cola = await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+            .ObtenerPropuestosAsync(_adminPlataformaAdministradorDelTenant, CancellationToken.None);
+
+        cola.Single(p => p.Id == dePlataforma).EsPropia.Should().BeTrue();
+        cola.Single(p => p.Id == deA).EsPropia.Should().BeFalse();
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_propuestas_que_se_cruzan_dejan_una_y_la_otra_no_guarda_ni_deja_nada_pendiente(bool conPendientePrevia)
+    {
+        // Las dos leen el mismo estado antes de que la otra guarde. Sin pendiente previa, el índice único parcial
+        // deja pasar la primera (23505 para la segunda); con ella, la segunda encuentra ya Sustituida la pendiente
+        // que también quería sustituir. En los dos casos la segunda recibe false, no una excepción.
+        var previa = conPendientePrevia ? await ProponerAsync(_tenantA, _administradorDeA, "Antigua") : (Guid?)null;
+        await using var primero = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA, conAuditoria: true);
+        await using var segundo = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA, conAuditoria: true);
+        var repositorioPrimero = new ContactoSeguridadTenantRepository(primero);
+        var repositorioSegundo = new ContactoSeguridadTenantRepository(segundo);
+        var ahora = DateTime.UtcNow;
+        foreach (var (repositorio, nombre) in new[] { (repositorioPrimero, "Marta"), (repositorioSegundo, "Jordi") })
+        {
+            foreach (var pendiente in (await repositorio.ObtenerPendienteYVigenteAsync(CancellationToken.None))
+                         .Where(c => c.Estado == EstadoContactoSeguridad.Propuesto))
+                pendiente.SustituirPropuestaPendiente(ahora);
+            repositorio.Agregar(ContactoSeguridadTenant.Proponer(
+                nombre, $"{nombre.ToLowerInvariant()}@ejemplo.test", null, _administradorDeA, ahora));
+        }
+
+        (await repositorioPrimero.GuardarPropuestaAsync(CancellationToken.None)).Should().BeTrue();
+        (await repositorioSegundo.GuardarPropuestaAsync(CancellationToken.None)).Should().BeFalse();
+
+        segundo.ChangeTracker.Entries().Should().NotContain(
+            e => e.State == EntityState.Added || e.State == EntityState.Modified || e.State == EntityState.Deleted,
+            "ni la propuesta perdedora ni su auditoría pueden colarse en el siguiente guardado del circuito");
+        (await EscalarAsync<long>(@"
+SELECT count(*) FROM ""ContactosSeguridadTenant"" WHERE ""TenantId"" = @u AND ""Estado"" = 'Propuesto';", _tenantA))
+            .Should().Be(1);
+        if (previa is { } id)
+            (await EstadoAsync(id)).Should().Be("Sustituido");
+    }
+
     // ── Preparación y lectura ─────────────────────────────────────────────────
 
     private async Task<Guid> ProponerAsync(Guid tenant, Guid administrador, string nombre)
@@ -376,19 +471,27 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
     /// Por defecto conecta como <c>cae_app_runtime</c>: la identidad de producción. Solo la siembra pasa la
     /// cadena del propietario.
     /// </summary>
-    private CaeManagerDbContext CrearContexto(Guid tenantId, string? cadena = null, Guid? actor = null, Guid? tenantOrigen = null)
+    private CaeManagerDbContext CrearContexto(
+        Guid tenantId, string? cadena = null, Guid? actor = null, Guid? tenantOrigen = null, bool conAuditoria = false)
     {
         var tenantActual = new TenantActualAmbiental { TenantId = tenantId };
+        var actorEfectivo = actor ?? _adminPlataforma;
         var usuario = new CurrentUserServiceFalso(
-            actor ?? _adminPlataforma, rol: null, tenantOrigenId: tenantOrigen ?? _tenantPlataforma, tieneDobleFactorActivo: true);
+            actorEfectivo, rol: null, tenantOrigenId: tenantOrigen ?? _tenantPlataforma, tieneDobleFactorActivo: true);
+        var interceptores = new List<Microsoft.EntityFrameworkCore.Diagnostics.IInterceptor>
+        {
+            new TenantSelladoInterceptor(tenantActual),
+            new TenantRlsConnectionInterceptor(
+                tenantActual, new SinSeleccion(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls),
+        };
+        // Solo donde el test mira lo que el interceptor de auditoría deja en el rastreo tras un fallo.
+        if (conAuditoria)
+            interceptores.Insert(0, new AuditoriaInterceptor(new ActorFijo(actorEfectivo)));
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseNpgsql(
                 cadena ?? BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion),
                 npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"))
-            .AddInterceptors(
-                new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(
-                    tenantActual, new SinSeleccion(), usuario, BaseDatosPostgresDePruebas.FirmanteContextoRls))
+            .AddInterceptors(interceptores)
             .Options;
 
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
@@ -400,6 +503,13 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
         typeof(Entity).GetProperty(nameof(Entity.Id))!.SetValue(tenant, id);
         if (esPlataforma) tenant.MarcarComoPlataforma();
         return tenant;
+    }
+
+    private sealed class ActorFijo(Guid actor) : IActorAuditoria
+    {
+        public Task<ActorAuditoria> ObtenerAsync() => Task.FromResult(ActorAuditoria.Normal(actor));
+
+        public ActorAuditoria? ObtenerSiYaEstaResuelto() => ActorAuditoria.Normal(actor);
     }
 
     private sealed class SinSeleccion : IClienteActivoSeleccionado

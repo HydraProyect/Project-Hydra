@@ -150,4 +150,13 @@
   <data name="ErrorResolver" xml:space="preserve">
     <value>No se pudo resolver la propuesta. Inténtalo de nuevo.</value>
   </data>
+  <data name="PropuestaConcurrente" xml:space="preserve">
+    <value>Se acaba de enviar otra propuesta para tu organización. Recarga la página para verla.</value>
+  </data>
+  <data name="MismaCuentaProponente" xml:space="preserve">
+    <value>Propusiste tú este contacto: tiene que validarlo o rechazarlo otra persona con administración de plataforma.</value>
+  </data>
+  <data name="PropuestaPropia" xml:space="preserve">
+    <value>La propusiste tú: la valida otro Actor de Plataforma TALVEG</value>
+  </data>
 </root>

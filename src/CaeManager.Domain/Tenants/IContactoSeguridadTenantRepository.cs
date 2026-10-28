@@ -14,4 +14,12 @@ public interface IContactoSeguridadTenantRepository
     Task<ContactoSeguridadTenant?> ObtenerUltimoRechazadoAsync(CancellationToken cancellationToken);
 
     void Agregar(ContactoSeguridadTenant contacto);
+
+    /// <summary>
+    /// Guarda la propuesta y la sustitución de la pendiente. Devuelve <c>false</c>, sin guardar nada ni dejar
+    /// nada pendiente en el rastreo, si otra propuesta del mismo Tenant ganó la carrera: sin pendiente previa,
+    /// por la violación del índice único de una Propuesta por Tenant; con ella, porque la otra ya la pasó a
+    /// Sustituida. Cualquier otro error se propaga.
+    /// </summary>
+    Task<bool> GuardarPropuestaAsync(CancellationToken cancellationToken);
 }
