@@ -1,7 +1,5 @@
 using CaeManager.Application.Common;
 using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Encodings.Web;
 using CaeManager.Domain.ApiKeys;
 using CaeManager.Infrastructure.Identity;
@@ -63,22 +61,21 @@ public class ApiKeyAuthenticationHandler(
     IUnitOfWork unitOfWork)
     : AuthenticationHandler<ApiKeyAuthenticationSchemeOptions>(options, logger, encoder)
 {
-    private const string EsquemaCabecera = "ApiKey";
-
     protected override async Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         if (!Request.Headers.TryGetValue("Authorization", out var valorCabecera))
             return AuthenticateResult.NoResult();
 
-        var cabecera = valorCabecera.ToString();
-        if (!cabecera.StartsWith($"{EsquemaCabecera} ", StringComparison.OrdinalIgnoreCase))
+        // La lectura de la cabecera es la misma que usa el limitador de la API para repartir el
+        // cupo (CabeceraClaveApi): una sola interpretación del valor.
+        var claveEnClaro = CabeceraClaveApi.ExtraerClave(valorCabecera.ToString());
+        if (claveEnClaro is null)
             return AuthenticateResult.NoResult();
 
-        var claveEnClaro = cabecera[(EsquemaCabecera.Length + 1)..].Trim();
         if (claveEnClaro.Length == 0)
             return AuthenticateResult.Fail("Falta la clave.");
 
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(claveEnClaro))).ToLowerInvariant();
+        var hash = CabeceraClaveApi.HashDeClave(claveEnClaro);
 
         // Dos pasos, y el orden es el contrato. Primero se averigua DE QUIÉN es
         // la clave —lo único que no se puede leer sin tenant, por una función
