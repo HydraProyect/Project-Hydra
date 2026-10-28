@@ -175,6 +175,10 @@ public class PlataformaGen2Tests : BunitContext
         cut.FindAll("[role=dialog]").Should().ContainSingle();
         cut.Find("[role=dialog]").TextContent.Should().Contain("vigencia indefinida");
 
+        var primario = cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar");
+        primario.HasAttribute("disabled").Should().BeTrue();
+        primario.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+
         await cut.Find(".administracion-global-confirmacion input").ChangeAsync(new ChangeEventArgs { Value = true });
         await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Sí, inicializar").ClickAsync(new MouseEventArgs());
 
@@ -183,6 +187,22 @@ public class PlataformaGen2Tests : BunitContext
         comando.DiasDeVigencia.Should().Be(1);
         cut.FindAll("[role=dialog]").Should().BeEmpty();
         cut.Find(".administracion-global-estado-consumido").TextContent.Should().Contain("No hay nada que inicializar aquí");
+    }
+
+    [Fact]
+    public async Task Cerrar_la_confirmacion_con_cambios_pide_descartar()
+    {
+        var (cut, _) = Renderizar(peticion => peticion switch
+        {
+            PuedeInicializarPlataformaQuery => true,
+            ObtenerIdentidadPlataformaQuery => IdentidadNormal,
+            _ => throw new NotSupportedException()
+        });
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Inicializar administración global").ClickAsync(new MouseEventArgs());
+        await cut.Find(".administracion-global-confirmacion input").ChangeAsync(new ChangeEventArgs { Value = true });
+        await cut.FindAll("[role=dialog] button").Single(b => b.TextContent.Trim() == "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.Markup.Should().Contain("Descartar cambios");
+        cut.Find(".administracion-global-confirmacion input").HasAttribute("checked").Should().BeTrue();
     }
 
     [Fact]

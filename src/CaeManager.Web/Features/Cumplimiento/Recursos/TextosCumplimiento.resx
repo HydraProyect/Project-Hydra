@@ -33,4 +33,5 @@
   <data name="ErrorRegistro" xml:space="preserve">
     <value>No pudimos registrar tu aceptación. Intenta nuevamente.</value>
   </data>
+  <data name="MotivoAceptar" xml:space="preserve"><value>Marca la casilla para aceptar.</value></data>
 </root>

@@ -320,10 +320,11 @@
     </section>
 </div>
 
-<Modal Visible="_confirmacionVisible"
-       VisibleChanged="(bool visible) => CerrarConfirmacion(visible)"
-       Titulo="Confirmar el acto fundacional"
-       CerrarAlHacerClicFuera="!_ejecutando">
+<ModalFormulario Visible="_confirmacionVisible"
+                 VisibleChanged="(bool visible) => CerrarConfirmacion(visible)"
+                 Titulo="Confirmar el acto fundacional" HayCambios="() => _confirmacionAceptada"
+                 Guardando="_ejecutando" MotivoGuardarDeshabilitado="@(!_confirmacionAceptada ? Textos["MotivoConfirmacion"].Value : null)"
+                 TextoCancelar="Cancelar" TextoGuardar="Sí, inicializar" OnGuardar="InicializarAsync">
     <ChildContent>
         <p>
             Vas a concederte la capacidad de administración global con vigencia indefinida. El acto se consume en la
@@ -334,19 +335,7 @@
             <span>Entiendo que este paso se ejecuta una sola vez y no vuelve a estar disponible.</span>
         </label>
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario"
-               Deshabilitado="_ejecutando"
-               OnClick="() => CerrarConfirmacion(false)">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Primario" Cargando="_ejecutando"
-               Deshabilitado="!_confirmacionAceptada"
-               OnClick="InicializarAsync">
-            Sí, inicializar
-        </Boton>
-    </Pie>
-</Modal>
+</ModalFormulario>
 
 <Modal Visible="_administradorARestablecer is not null"
        VisibleChanged="(bool visible) => CerrarConfirmacionRestablecer(visible)"
