@@ -249,13 +249,13 @@
     }
 </section>
 <DrawerFormulario Visible="_correccionManualVisible" VisibleChanged="v => _correccionManualVisible = v" Titulo="Corregir a mano"
-                  HayCambios="() => HayCambiosSinGuardar" Guardando="_operacionEnCurso" HayErroresDeCampo="@(_errorFechaManual is not null)"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_operacionEnCurso" HayErroresDeCampo="@(_errorFechaManual is not null)" MensajeError="@_mensajeErrorCorreccion"
                   OnGuardar="CorregirSeleccionadaAsync" TextoCancelar="Cancelar" TextoGuardar="Guardar y cerrar el aviso">
     <ChildContent>
         @if (RevisionSeleccionada is { } seleccionada)
         {
             <p>@seleccionada.PropietarioNombre · @seleccionada.TipoDocumentoNombre</p>
-            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => _fechaEmisionManual = v" MensajeError="@_errorFechaManual" />
+            <CampoTexto Etiqueta="Fecha de emisión" Type="date" Valor="@_fechaEmisionManual" ValorChanged="v => { _fechaEmisionManual = v; _errorFechaManual = null; }" MensajeError="@_errorFechaManual" />
             <p class="revision-ia-consecuencia">La IA leyó: @Fecha(seleccionada.FechaEmisionDetectada)</p>
             <p class="revision-ia-consecuencia">Guardar corrige la fecha y cierra el aviso en una sola operación. El vencimiento se recalcula solo cuando el tipo lo hace automáticamente.</p>
         }

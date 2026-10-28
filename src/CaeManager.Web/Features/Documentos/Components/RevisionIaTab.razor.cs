@@ -35,6 +35,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
     private Guid? _documentoIdExpandido;
     private string _fechaEmisionManual = string.Empty;
     private string? _errorFechaManual;
+    private string? _mensajeErrorCorreccion;
     private FiltroRevision _filtro;
     private CancellationTokenSource? _cargaCts;
     private int _generacionCarga;
@@ -222,6 +223,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _operacionEnCurso = true;
         _procesandoId = revisionId;
         _errorFechaManual = null;
+        _mensajeErrorCorreccion = null;
         StateHasChanged();
 
         try
@@ -229,6 +231,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
             var resultado = await Mediator.Send(new CorregirRevisionIaDocumentoCommand(revisionId, fechaEmision));
             if (resultado.EsFallido)
             {
+                _mensajeErrorCorreccion = resultado.Error.Mensaje;
                 if (!_dispose && generacionEntidad == _generacionEntidad)
                 {
                     ToastService.MostrarError(resultado.Error);
@@ -411,6 +414,7 @@ public partial class RevisionIaTab : ComponentBase, IDisposable
         _fechaEmisionManual = revision.FechaEmisionIntroducida?.ToString("yyyy-MM-dd") ?? string.Empty;
         _fechaEmisionManualAlAbrir = _fechaEmisionManual;
         _errorFechaManual = null;
+        _mensajeErrorCorreccion = null;
         _correccionManualVisible = true;
     }
 

@@ -233,4 +233,17 @@ public class AsignacionesCentroAvisoCambiosSinGuardarTests : BunitContext
         cut.FindAll(".drawer-panel").Should().BeEmpty("barrera: el alta se guardó y el drawer se cerró");
         await cut.SalirYComprobarQueNoPreguntaAsync(Navegacion, "cerrado tras guardar no hay nada que perder");
     }
+
+    [Fact]
+    public async Task Guardar_sin_trabajador_muestra_el_aviso_en_el_drawer_y_el_fondo_no_lo_cierra()
+    {
+        var (cut, _) = await AbrirAltaMasivaAsync();
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Guardar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Selecciona al menos un trabajador.");
+        await cut.Find(".drawer-superposicion").MouseDownAsync(new MouseEventArgs());
+        await cut.Find(".drawer-superposicion").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().NotBeEmpty("con un error visible el clic fuera no cierra el drawer");
+    }
 }
