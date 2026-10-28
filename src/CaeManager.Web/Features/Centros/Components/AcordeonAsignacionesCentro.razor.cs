@@ -28,7 +28,6 @@ namespace CaeManager.Web.Features.Centros.Components;
 
 public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 {
-    private Modal? _modalBajaLote;
     [Inject] private ContextWorkspaceService WorkspaceService { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosCentros> Textos { get; set; } = default!;
 
@@ -304,6 +303,9 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private readonly InstantaneaFormulario _instantaneaBajaLote = new();
     private bool _procesandoBajaLote;
 
+    // El último intento de baja terminó mal (fallo, errores parciales o excepción): el kit no enseña el «Hecho» de un guardado bueno.
+    private bool _bajaLoteFallida;
+
     private DrawerAsignacionMasiva _drawerAsignacion = default!;
 
     protected override void OnInitialized()
@@ -364,6 +366,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
         _busquedaTrabajador = string.Empty;
         _confirmarBajaLoteVisible = false;
         _procesandoBajaLote = false;
+        _bajaLoteFallida = false;
         _fechaBajaLote = string.Empty;
     }
 
@@ -883,6 +886,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
     private void AbrirConfirmarBajaLoteAsync()
     {
         _fechaBajaLote = DiaDeNegocio.Hoy().ToString("yyyy-MM-dd");
+        _bajaLoteFallida = false;
         _confirmarBajaLoteVisible = true;
         _instantaneaBajaLote.Fijar(_fechaBajaLote);
     }
@@ -942,6 +946,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
         var generacion = _generacion;
         _procesandoBajaLote = true;
+        _bajaLoteFallida = false;
 
         try
         {
@@ -949,6 +954,7 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
+                _bajaLoteFallida = generacion == _generacion;
                 ToastService.MostrarError(resultado.Error);
                 return;
             }
@@ -964,11 +970,14 @@ public partial class AcordeonAsignacionesCentro : ComponentBase, IDisposable
             // procesó; cerrarla dejaría el fallo contado en un toast que se va.
             if (dto.Errores.Count == 0)
                 _confirmarBajaLoteVisible = false;
+            else
+                _bajaLoteFallida = true;
 
             await CargarAsync();
         }
         catch (Exception)
         {
+            _bajaLoteFallida = generacion == _generacion;
             ToastService.Mostrar("No pudimos procesar la baja. Intenta nuevamente en unos segundos.", TonoToast.Error);
         }
         finally

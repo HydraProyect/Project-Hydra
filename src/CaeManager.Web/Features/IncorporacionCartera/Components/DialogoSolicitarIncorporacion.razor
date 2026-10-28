@@ -2,7 +2,9 @@
 @using CaeManager.Web.Features.IncorporacionCartera.Recursos
 @using Microsoft.Extensions.Localization
 
-<Modal @ref="_modal" HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]">
+<ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@Textos["DialogoTitulo"]" Guardando="_enviando" HayErroresDeCampo="@(_error is not null)" MostrarGuardar="_candidatos.Count > 0"
+                 TextoGuardar="@Textos["DialogoEnviar"]" TextoCancelar="@Textos["Cancelar"]" OnGuardar="EnviarAsync"
+                 MotivoGuardarDeshabilitado="@MotivoEnviarDeshabilitado">
     <ChildContent>
         @if (_cargando)
         {
@@ -39,13 +41,4 @@
             </div>
         }
     </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" OnClick="() => _modal?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviando">@Textos["Cancelar"]</Boton>
-        @if (_candidatos.Count > 0)
-        {
-            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarAsync" Deshabilitado="!PuedeEnviar" Cargando="_enviando">@Textos["DialogoEnviar"]</Boton>
-        }
-    </Pie>
-</Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="CerrarAsync" />
+</ModalFormulario>

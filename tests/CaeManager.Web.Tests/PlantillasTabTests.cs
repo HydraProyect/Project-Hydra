@@ -58,6 +58,7 @@ public class PlantillasTabTests : BunitContext
     private IRenderedComponent<PlantillasTab> RenderizarEnGenerados(int avisosPendientes)
     {
         this.ConRolDeEscritura();
+        Services.AddLocalization();
         Services.AddScoped<IMediator>(_ => new MediatorFalso(avisosPendientes));
         Services.AddScoped<ToastService>();
 
