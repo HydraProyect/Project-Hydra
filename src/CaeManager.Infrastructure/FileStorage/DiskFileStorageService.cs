@@ -55,15 +55,20 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// criptografía: un archivo de otro tenant no se descifra ni aunque se
 /// consiguiera leer su ruta.
 ///
-/// <b>Compatibilidad con lo ya escrito</b>: un fichero SIN la marca conserva
-/// exactamente el comportamiento anterior —se intenta descifrar con el
-/// protector global y, si falla, se sirve tal cual como legado en claro—,
-/// así que este cambio no rompe ninguna descarga existente y no exige
-/// migración. La ambigüedad queda acotada a lo escrito antes de esta versión
-/// y se extingue sola: un archivo legado pasa a v2 la próxima vez que algo lo
-/// reescriba. Cada lectura por esa vía deja un aviso, de modo que "¿quedan
-/// blobs legados?" pasa a ser una pregunta medible en vez de una suposición
-/// — que es lo que hace falta antes de poder retirar la rama legada del todo.
+/// <b>Compatibilidad con lo ya escrito</b>: un fichero SIN la marca se intenta
+/// descifrar con el protector global v1 (autenticado). Si eso falla, por
+/// defecto se sigue sirviendo tal cual como legado en claro —así ninguna
+/// descarga existente se rompe ni hace falta migración—, pero ya no en
+/// silencio: emite una alerta operativa crítica, igual que un v2 que no supera
+/// la verificación, porque un fichero así no se distingue de uno manipulado en
+/// el volumen ni de un v1 cuya clave se perdió. Con
+/// <see cref="DiskFileStorageServiceOptions.RechazarLegadoEnClaro"/> a
+/// <c>true</c>, esa rama falla cerrado. La ambigüedad queda acotada a lo
+/// escrito antes de esta versión: un archivo legado pasa a v2 la próxima vez
+/// que algo lo reescriba. Cada lectura legada deja un aviso, de modo que
+/// "¿quedan blobs legados?" pasa a ser una pregunta medible en vez de una
+/// suposición — que es lo que hace falta antes de poder retirar la rama
+/// legada del todo.
 /// </summary>
 public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInbound
 {
@@ -81,6 +86,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
     private readonly IDataProtector _protectorLegado;
     private readonly IAlertaOperativa _alertaOperativa;
     private readonly ILogger<DiskFileStorageService> _logger;
+    private readonly bool _rechazarLegadoEnClaro;
 
     public DiskFileStorageService(
         IOptions<DiskFileStorageServiceOptions> opciones,
@@ -96,6 +102,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         _rutaBase = Path.IsPathRooted(opciones.Value.Ruta)
             ? opciones.Value.Ruta
             : Path.Combine(entorno.ContentRootPath, opciones.Value.Ruta);
+        _rechazarLegadoEnClaro = opciones.Value.RechazarLegadoEnClaro;
         _tenantActual = tenantActual;
         // Nombre sin cambiar: renombrarlo rompería el descifrado de los
         // archivos ya escritos con él (mismo criterio que los protectores de
@@ -274,9 +281,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
             }
         }
 
-        // Sin marca: escrito antes del formato v2. Comportamiento anterior
-        // intacto, incluida la ambigüedad — es la única forma de no romper lo
-        // que ya está en disco. Ver el comentario de clase.
+        // Sin marca: escrito antes del formato v2. Ver el comentario de clase.
         //
         // AMBAS salidas de aquí dejan constancia, y son dos poblaciones
         // distintas de archivo, no una:
@@ -286,13 +291,14 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         //     formato v2;
         //   · en claro, anterior al cifrado en reposo.
         //
-        // El aviso original solo cubría la segunda, que es la que NO existe en
-        // producción: el primer despliegue real fue el 2026-08-24, o sea
-        // posterior al cifrado v1. La población que sí puede haber allí se
-        // servía en silencio, de modo que un registro sin avisos se leía como
-        // "ya no queda nada legado" justo cuando quedaba todo. Retirar la rama
-        // con esa lectura dejaría ilegible cada documento subido antes del
-        // despliegue del formato v2. De ahí que se registren las dos.
+        // Por la cronología, la segunda no debería existir en producción (el
+        // primer despliegue real se fecha el 2026-08-24, posterior al cifrado
+        // v1), pero eso no está comprobado sobre el volumen. La primera sí
+        // puede haberla, y se servía en silencio, de modo que un registro sin
+        // avisos se leía como "ya no queda nada legado" justo cuando quedaba
+        // todo. Retirar la rama con esa lectura dejaría ilegible cada
+        // documento subido antes del despliegue del formato v2. De ahí que se
+        // registren las dos.
         try
         {
             var descifrado = _protectorLegado.Unprotect(bytesDisco);
@@ -304,8 +310,39 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
 
             return descifrado;
         }
-        catch (CryptographicException)
+        catch (CryptographicException ex)
         {
+            // Ni marca v2 ni payload v1 autenticado. Puede ser un legado en
+            // claro, pero también un fichero escrito por quien tenga acceso al
+            // volumen (ese contenido se entregaría como legítimo del Tenant
+            // propietario) o un v1 cuya clave ya no está en el llavero (se
+            // entregaría ciphertext como si fuera el documento). Las tres son
+            // para mirarlas ya, no mañana: alerta crítica, como la rama v2.
+            //
+            // La alerta solo nombra al Tenant propietario: ni contenido ni
+            // nombre de archivo, que en disco conserva la extensión que trajo
+            // el original y esa puede ser personal. El mensaje es el mismo
+            // para todos los archivos de un Tenant, así que una población
+            // legada agrupa en una incidencia por Tenant en vez de abrir una
+            // por archivo. El aviso del registro, a continuación, es el que
+            // lleva el identificador para localizarlo.
+            var mensajeAlerta =
+                $"{(_rechazarLegadoEnClaro ? "Se rechazó" : "Se sirvió en claro")} un archivo sin cifrar ni marca de formato " +
+                $"del Tenant propietario {tenantId:N}. Puede ser un legado en claro, manipulación del volumen de " +
+                "almacenamiento o pérdida de la clave del protector v1; el identificador está en el aviso del registro.";
+            _alertaOperativa.Emitir(mensajeAlerta, NivelAlertaOperativa.Critica);
+
+            if (_rechazarLegadoEnClaro)
+            {
+                _logger.LogWarning(
+                    "Se rechazó un archivo sin cifrar ni marca de formato ({Identificador}): " +
+                    "AlmacenamientoArchivos:RechazarLegadoEnClaro está activo.",
+                    identificador);
+
+                throw new InvalidDataException(
+                    "El archivo no supera la verificación de integridad y no se puede servir.", ex);
+            }
+
             _logger.LogWarning(
                 "Se sirvió un archivo legado sin cifrar ni marca de formato ({Identificador}). " +
                 "Mientras existan, la rama legada no se puede retirar y un contenido manipulado no se distingue de uno antiguo.",
