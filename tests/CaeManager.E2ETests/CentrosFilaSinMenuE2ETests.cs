@@ -97,7 +97,7 @@ public class CentrosFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
         await page.Keyboard.PressAsync("j");
         var enfocada = page.Locator(".lista-filas-acordeon .fila-enfocada");
-        await Expect(enfocada).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
         var nombre = (await enfocada.Locator(".enlace-nombre-fila").InnerTextAsync()).Trim();
         await Expect(panel).ToHaveCountAsync(0);
 

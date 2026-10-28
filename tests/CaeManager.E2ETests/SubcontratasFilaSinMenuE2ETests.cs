@@ -115,7 +115,7 @@ public class SubcontratasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var page = await AbrirSubcontratasAsync(contexto);
 
         await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator(".lista-filas-acordeon .fila-enfocada")).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(page.Locator(".lista-filas-acordeon .fila-enfocada"));
         await page.Keyboard.PressAsync("e");
 
         await page.WaitForURLAsync(EntrarEnEdicion);
