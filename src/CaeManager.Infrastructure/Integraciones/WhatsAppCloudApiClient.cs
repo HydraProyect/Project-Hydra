@@ -33,6 +33,23 @@ public class WhatsAppCloudApiClient(
     private static readonly string[] HostsPermitidosMedia =
         [".fbsbx.com", ".facebook.com", ".fbcdn.net", ".cdninstagram.com", ".whatsapp.net"];
 
+    /// <summary>
+    /// Manejador primario del cliente HTTP: sin seguimiento automático de
+    /// redirecciones (S-C-3). La comprobación de host de
+    /// <see cref="EsHostDeMediaPermitido"/> solo cubre la URL que devuelve
+    /// Meta; si el HttpClient siguiera un 3xx, el Bearer token de la línea
+    /// podría viajar a un host que nadie ha validado. Una respuesta 3xx
+    /// llega al código como respuesta no exitosa y se trata como error
+    /// controlado (ver <see cref="DescargarMediaAsync"/>).
+    /// </summary>
+    public static SocketsHttpHandler CrearManejadorSinRedirecciones() => new()
+    {
+        AllowAutoRedirect = false,
+        // Mismo reciclado de conexiones (DNS) que aplica IHttpClientFactory
+        // a su manejador por defecto.
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2),
+    };
+
     public IReadOnlyList<string> ExtraerPhoneNumberIds(string payloadJson)
     {
         var resultado = new List<string>();
@@ -282,6 +299,18 @@ public class WhatsAppCloudApiClient(
 
             using var respuestaBinario = await httpClient.SendAsync(
                 peticionBinario, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+            if ((int)respuestaBinario.StatusCode is >= 300 and < 400)
+            {
+                // Redirección no seguida (ver CrearManejadorSinRedirecciones): el
+                // destino no pasó por EsHostDeMediaPermitido. Solo el código, nunca
+                // el Location ni la URL (llevan identificadores de media).
+                logger.LogWarning(
+                    "Meta respondió con una redirección ({Codigo}) al descargar el media {MediaId}; no se sigue.",
+                    (int)respuestaBinario.StatusCode, mediaId);
+                return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
+                    "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));
+            }
+
             if (!respuestaBinario.IsSuccessStatusCode)
                 return Result.Fallo<MediaDescargadoWhatsAppDto>(Error.Crear(
                     "Integraciones.WhatsApp.ErrorMedia", "No pudimos descargar el archivo adjunto de Meta."));

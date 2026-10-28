@@ -139,6 +139,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private static readonly IReadOnlyList<FiltroPlan> FiltrosPlan = [FiltroPlan.Todas, FiltroPlan.Crear, FiltroPlan.Omitir];
 
+    /// <summary>Extensión del archivo subido para el log (S-D-7): acotada, sin el nombre.</summary>
+    private static string ExtensionParaLog(string nombreArchivo)
+    {
+        var extension = Path.GetExtension(nombreArchivo);
+        if (string.IsNullOrEmpty(extension)) return string.Empty;
+        extension = extension.ToLowerInvariant();
+        return extension.Length > 10 ? extension[..10] : extension;
+    }
+
     private static string ClaveFiltroPlan(FiltroPlan filtro) => filtro switch
     {
         FiltroPlan.Crear => "FiltroPlanCrear",
@@ -595,7 +604,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         catch (Exception ex)
         {
             if (version != _versionAnalisis) return;
-            Logger.LogError(ex, "Error al analizar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", archivo.Name, plantilla.Id);
+            // S-D-7: el nombre del archivo puede contener datos personales; al log van solo extensión y tamaño.
+            Logger.LogError(ex, "Error al analizar un archivo {ExtensionArchivo} de {TamanoBytes} bytes con la plantilla {PlantillaId}.",
+                ExtensionParaLog(archivo.Name), archivo.Size, plantilla.Id);
             _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         finally
@@ -887,7 +898,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", nombreArchivo, plantilla.Id);
+            // S-D-7: sin el nombre del archivo en el log (puede contener datos personales).
+            Logger.LogError(ex, "Excepción no controlada al importar un archivo {ExtensionArchivo} con la plantilla {PlantillaId}.",
+                ExtensionParaLog(nombreArchivo), plantilla.Id);
             // Se persiste en HistorialImportacion.MensajeError: es dato, no se localiza.
             await RegistrarFalloAsync(plantilla, nombreArchivo, "Excepción no controlada durante la importación.");
             if (!_desechada)

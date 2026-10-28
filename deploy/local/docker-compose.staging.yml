@@ -146,6 +146,11 @@ services:
       # REC-017/P39 y P0-2 — ver el comentario de más arriba, junto a `restart:`.
       Migraciones__AlArrancar: "false"
       Siembra__AlArrancar: "false"
+      # S-D-10 — filtrado de Host (HostFiltering). El dominio de staging está
+      # escrito literal en el Caddyfile de producción (staging.talveg.es), que es
+      # quien lo enruta; aquí se repite por el mismo motivo y debe cambiar a la vez.
+      # `localhost` es el Host del healthcheck y de las sondas por `docker exec`.
+      AllowedHosts: "staging.talveg.es;localhost"
     volumes:
       - caemanager-staging-data:/data
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM); ver el
