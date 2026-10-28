@@ -25,6 +25,17 @@ public class ObtenerContactosSeguridadPropuestosQueryHandler(
             || !await autorizacion.PuedeGlobalmenteAsync(usuarioId, cancellationToken))
             return [];
 
-        return await plataforma.ObtenerPropuestosAsync(cancellationToken);
+        var propuestos = await plataforma.ObtenerPropuestosAsync(cancellationToken);
+        if (propuestos.Count == 0)
+            return propuestos;
+
+        // Una sola lectura para toda la cola. EsPropia compara con la misma cuenta autenticada (Actor real)
+        // que usa LaPropusoQuienResuelveAsync al validar y rechazar, y solo decide qué botones se pintan:
+        // quien resuelve sigue siendo la función de la base.
+        var cuentas = await plataforma.ObtenerCuentasProponentesAsync(
+            propuestos.Select(p => p.Id).ToList(), cancellationToken);
+        return propuestos
+            .Select(p => p with { EsPropia = cuentas.TryGetValue(p.Id, out var cuenta) && cuenta == usuarioId })
+            .ToList();
     }
 }

@@ -354,6 +354,21 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
             .Should().Be(_administradorDeA);
     }
 
+    [Fact]
+    public async Task El_Actor_de_Plataforma_lee_las_cuentas_proponentes_de_varios_Tenants_en_una_lectura()
+    {
+        var deA = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        var dePlataforma = await ProponerAsync(_tenantPlataforma, _adminPlataformaAdministradorDelTenant, "Jordi");
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+
+        var cuentas = await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+            .ObtenerCuentasProponentesAsync([deA, dePlataforma, Guid.NewGuid()], CancellationToken.None);
+
+        cuentas.Should().HaveCount(2);
+        cuentas[deA].Should().Be(_administradorDeA);
+        cuentas[dePlataforma].Should().Be(_adminPlataformaAdministradorDelTenant);
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

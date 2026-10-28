@@ -31,6 +31,14 @@ public interface IContactosSeguridadPlataforma
     /// </summary>
     Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Lo mismo que <see cref="ObtenerCuentaProponenteAsync"/> para varios contactos en una sola lectura,
+    /// para marcar en la cola cuáles propuso la cuenta autenticada. Los que no existen o no se pueden leer
+    /// no aparecen en el resultado.
+    /// </summary>
+    Task<IReadOnlyDictionary<Guid, Guid>> ObtenerCuentasProponentesAsync(
+        IReadOnlyCollection<Guid> contactoIds, CancellationToken cancellationToken);
+
     /// <summary>Valida (<paramref name="motivoRechazo"/> nulo) o rechaza (con motivo) un contacto Propuesto.</summary>
     Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken);
 
@@ -55,7 +63,8 @@ public record ContactoSeguridadPropuestoDto(
     string Nombre,
     string Correo,
     string? Telefono,
-    DateTime PropuestoEnUtc);
+    DateTime PropuestoEnUtc,
+    bool EsPropia = false);
 
 /// <summary>
 /// A quién avisar de un incidente que afecta a un Tenant. Con <see cref="SinContactoValidado"/>, los

@@ -47,6 +47,16 @@ public sealed class ContactosSeguridadPlataforma(
                 .Select(c => (Guid?)c.PropuestoPorUsuarioId)
                 .SingleOrDefaultAsync(cancellationToken), cancellationToken);
 
+    public Task<IReadOnlyDictionary<Guid, Guid>> ObtenerCuentasProponentesAsync(
+        IReadOnlyCollection<Guid> contactoIds, CancellationToken cancellationToken)
+    {
+        var ids = contactoIds.Distinct().ToList();
+        return puertaAccesoDatos.EjecutarAsync<IReadOnlyDictionary<Guid, Guid>>(async () =>
+            await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
+                .Where(c => ids.Contains(c.Id))
+                .ToDictionaryAsync(c => c.Id, c => c.PropuestoPorUsuarioId, cancellationToken), cancellationToken);
+    }
+
     public Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {

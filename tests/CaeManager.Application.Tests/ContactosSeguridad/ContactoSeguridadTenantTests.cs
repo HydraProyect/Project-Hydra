@@ -307,6 +307,22 @@ public class ContactoSeguridadTenantTests
     }
 
     [Fact]
+    public async Task La_cola_identifica_la_propuesta_de_la_cuenta_autenticada()
+    {
+        var propia = new ContactoSeguridadPropuestoDto(Guid.NewGuid(), TenantA, "Org A", "Marta", "m@ejemplo.test", null, DateTime.UtcNow);
+        var ajena = propia with { Id = Guid.NewGuid() };
+        var plataforma = new PlataformaFalsa { Propuestos = [propia, ajena], CuentasProponentes = { [propia.Id] = Usuario, [ajena.Id] = Guid.NewGuid() } };
+
+        var resultado = await new ObtenerContactosSeguridadPropuestosQueryHandler(new CurrentUserServiceFalso(Usuario),
+                AutorizacionAdminPlataformaFalsa.Global(), plataforma)
+            .Handle(new ObtenerContactosSeguridadPropuestosQuery(), default);
+
+        resultado[0].EsPropia.Should().BeTrue();
+        resultado[1].EsPropia.Should().BeFalse();
+        plataforma.LecturasDeCuentasProponentes.Should().Be(1, "la cola identifica las propuestas propias en una sola lectura, no una por fila");
+    }
+
+    [Fact]
     public async Task Los_destinatarios_solo_se_resuelven_con_concesion_global_y_sin_ids_repetidos()
     {
         var plataforma = new PlataformaFalsa();
@@ -407,12 +423,23 @@ public class ContactoSeguridadTenantTests
     private sealed class PlataformaFalsa : IContactosSeguridadPlataforma
     {
         public Guid? CuentaProponente { get; init; }
+        public Dictionary<Guid, Guid> CuentasProponentes { get; } = [];
         public int LecturasDeCuentaProponente { get; private set; }
 
         public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken)
         {
             LecturasDeCuentaProponente++;
             return Task.FromResult(CuentaProponente);
+        }
+
+        public int LecturasDeCuentasProponentes { get; private set; }
+
+        public Task<IReadOnlyDictionary<Guid, Guid>> ObtenerCuentasProponentesAsync(
+            IReadOnlyCollection<Guid> contactoIds, CancellationToken cancellationToken)
+        {
+            LecturasDeCuentasProponentes++;
+            return Task.FromResult<IReadOnlyDictionary<Guid, Guid>>(
+                contactoIds.Where(CuentasProponentes.ContainsKey).ToDictionary(id => id, id => CuentasProponentes[id]));
         }
 
         public IReadOnlyList<ContactoSeguridadPropuestoDto> Propuestos { get; init; } = [];
