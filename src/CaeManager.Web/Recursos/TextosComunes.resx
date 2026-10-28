@@ -716,4 +716,10 @@
   <data name="SelectorTenantTodas" xml:space="preserve">
     <value>Todas las empresas</value>
   </data>
+  <data name="CompletaCamposObligatorios" xml:space="preserve">
+    <value>Completa los campos obligatorios.</value>
+  </data>
+  <data name="FormularioRapidoCrear" xml:space="preserve">
+    <value>Crear</value>
+  </data>
 </root>

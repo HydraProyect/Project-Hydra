@@ -15,7 +15,7 @@ public class IdentificacionFiscalFormulariosRapidosTests : BunitContext
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task Sin_identificacion_fiscal_muestra_error_y_no_envia(bool clienteEmpresarial)
+    public async Task Identificacion_fiscal_invalida_muestra_error_y_no_envia(bool clienteEmpresarial)
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         var mediador = new MediadorVigilado();
@@ -25,11 +25,38 @@ public class IdentificacionFiscalFormulariosRapidosTests : BunitContext
             ? Render<FormularioRapidoCliente>(p => p.Add(x => x.Visible, true).Add(x => x.NombreInicial, "Empresa de prueba"))
             : Render<FormularioRapidoEmpresa>(p => p.Add(x => x.Visible, true).Add(x => x.NombreInicial, "Empresa de prueba"));
         var fiscal = cut.FindComponents<CampoTexto>().Single(c => c.Instance.Placeholder == "CIF, DNI o NIE");
-        await Renderer.Dispatcher.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync(""));
+        await Renderer.Dispatcher.InvokeAsync(() => fiscal.Instance.ValorChanged.InvokeAsync("invalido"));
         await cut.FindAll("button").Single(b => b.TextContent.Trim().StartsWith("Crear", StringComparison.Ordinal)).ClickAsync(new MouseEventArgs());
 
         cut.Find("input[aria-required='true']").Should().NotBeNull();
-        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent == "La identificación fiscal es obligatoria.");
+        cut.FindAll(".campo-mensaje-error").Should().Contain(e => e.TextContent.Contains("no es válida"));
+        mediador.Envios.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Campos_obligatorios_vacios_deshabilitan_guardado_y_cierre_con_cambios_pregunta(bool clienteEmpresarial)
+    {
+        JSInterop.Mode = JSRuntimeMode.Loose;
+        var mediador = new MediadorVigilado();
+        Services.AddSingleton<IMediator>(mediador);
+        Services.AddLocalization();
+        var visible = true;
+        IRenderedComponent<IComponent> cut = clienteEmpresarial
+            ? Render<FormularioRapidoCliente>(p => p.Add(x => x.Visible, true).Add(x => x.VisibleChanged, v => visible = v))
+            : Render<FormularioRapidoEmpresa>(p => p.Add(x => x.Visible, true).Add(x => x.VisibleChanged, v => visible = v));
+
+        var guardar = cut.Find(".modal-pie .boton-primario");
+        guardar.HasAttribute("disabled").Should().BeTrue();
+        guardar.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+        var razonSocial = cut.FindComponents<CampoTexto>().First();
+        await Renderer.Dispatcher.InvokeAsync(() => razonSocial.Instance.ValorChanged.InvokeAsync("Empresa de prueba"));
+        cut.Find(".modal-pie .boton-primario").HasAttribute("disabled").Should().BeTrue();
+        await cut.Find(".modal-cerrar").ClickAsync(new MouseEventArgs());
+
+        visible.Should().BeTrue();
+        cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
         mediador.Envios.Should().Be(0);
     }
 

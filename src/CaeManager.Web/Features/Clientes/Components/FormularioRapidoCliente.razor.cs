@@ -8,7 +8,6 @@ namespace CaeManager.Web.Features.Clientes.Components;
 
 public partial class FormularioRapidoCliente : ComponentBase
 {
-    private Modal? _modal;
     private string _razonSocial = string.Empty;
     private string _cif = string.Empty;
     private bool _guardando;
@@ -28,9 +27,7 @@ public partial class FormularioRapidoCliente : ComponentBase
 
     /// <summary>
     /// P1-E2b: si hay algo escrito que se perdería al cerrar este modal. Lo recibe su
-    /// Modal (la X, Escape o el fondo preguntan «¿Descartar cambios?») y lo lee la pantalla
-    /// que lo monta para sumarlo a su único AvisoCambiosSinGuardar: el modal no monta un
-    /// aviso propio, que con cambios también debajo haría dos preguntas seguidas al salir.
+    /// ModalFormulario y la pantalla que lo monta para su aviso de navegación.
     /// El nombre traído del selector que disparó la creación no es un cambio.
     /// </summary>
     public bool HayCambiosSinGuardar => Visible && _instantanea.Difiere(ValoresFormulario());
