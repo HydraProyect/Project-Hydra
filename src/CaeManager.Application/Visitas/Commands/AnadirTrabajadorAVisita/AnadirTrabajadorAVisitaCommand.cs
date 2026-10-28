@@ -1,4 +1,6 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Empresas;
 using CaeManager.Application.Trabajadores;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Domain.Common;
@@ -13,8 +15,9 @@ namespace CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
 /// <summary>
 /// Añade un Trabajador a una Visita desde el panel, sin pasar por el formulario de edición.
 /// Misma autorización, Tenant y alcance que <c>EditarVisitaCommand</c>: rol de escritura
-/// (<c>ICommand</c>), alcance de GESTIÓN sobre el Centro de la Visita, y el Trabajador sale de la
-/// base general del Tenant —no se acota a la cartera, igual que al crear o editar—.
+/// (<c>ICommand</c>), alcance de GESTIÓN sobre el Centro de la Visita, y el Trabajador tiene que
+/// ser de la Empresa gestionada activa y visible para quien lo añade, igual que al crear o editar
+/// (<see cref="TrabajadoresAdmisiblesEnVisita"/>).
 /// </summary>
 public record AnadirTrabajadorAVisitaCommand(Guid VisitaId, Guid TrabajadorId, Guid Version = default) : ICommand;
 
@@ -29,7 +32,8 @@ public class AnadirTrabajadorAVisitaCommandValidator : AbstractValidator<AnadirT
 
 public class AnadirTrabajadorAVisitaCommandHandler(
     IVisitaRepository repositorio, IVisitaTrabajadorRepository visitaTrabajadorRepositorio,
-    ITrabajadoresQueryContext trabajadoresContext, IEvaluadorExpedienteVisitaService evaluadorExpediente,
+    ITrabajadoresQueryContext trabajadoresContext, ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext,
+    IEvaluadorExpedienteVisitaService evaluadorExpediente,
     IUnitOfWork unitOfWork, ILogger<AnadirTrabajadorAVisitaCommandHandler> logger, IAlcanceDatosService alcanceDatos,
     IActorAuditoria? actorAuditoria = null)
     : IRequestHandler<AnadirTrabajadorAVisitaCommand, Result>
@@ -55,11 +59,18 @@ public class AnadirTrabajadorAVisitaCommandHandler(
         if (actuales.Any(vt => vt.TrabajadorId == request.TrabajadorId))
             return Result.Exito();
 
-        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md.
-        // Se carga entero: la asignación guarda su foto (VisitaTrabajador.EsExtranjeroCobrable).
-        var trabajador = await trabajadoresContext.Trabajadores.FirstOrDefaultAsync(t => t.Id == request.TrabajadorId, cancellationToken);
-        if (trabajador is null)
-            return Result.Fallo(Error.Crear("Visita.TrabajadorNoEncontrado", "No encontramos este trabajador."));
+        // Verificación de Ids ajenos — ver P0-1 de Project-Hydra-Negocio/MATURITY_REVIEW.md — y de
+        // la Empresa gestionada activa y el alcance de datos (S-B-1, TrabajadoresAdmisiblesEnVisita).
+        var empresaId = await centrosContext.Centros
+            .Where(c => c.Id == visita.CentroId)
+            .Select(c => (Guid?)c.EmpresaId)
+            .FirstOrDefaultAsync(cancellationToken);
+        var admitidos = empresaId is { } empresa
+            ? await TrabajadoresAdmisiblesEnVisita.CargarAsync(
+                [request.TrabajadorId], empresa, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken)
+            : null;
+        if (admitidos is null || !admitidos.TryGetValue(request.TrabajadorId, out var trabajador))
+            return Result.Fallo(TrabajadoresAdmisiblesEnVisita.NoAdmisible(varios: false));
 
         visitaTrabajadorRepositorio.Agregar(new VisitaTrabajador(visita.Id, trabajador,
             await GestorDeLaAsignacion.ActorRealAsync(actorAuditoria)));

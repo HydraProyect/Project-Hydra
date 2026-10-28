@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Antelacion;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Visitas.Commands.AnadirTrabajadorAVisita;
@@ -52,7 +53,10 @@ public class TrabajadoresDeVisitaCommandHandlerTests
 
     private sealed class Escenario
     {
-        public Visita Visita { get; } = new(Guid.NewGuid(), Fecha, Fecha.AddDays(1), null);
+        public Domain.Centros.Centro Centro { get; } = new(Guid.NewGuid(), Guid.NewGuid(), "Nave norte");
+        public Visita Visita { get; }
+        public CentrosQueryContextFalso Centros { get; } = new();
+        public Documentos.EmpresasQueryContextFalso Empresas { get; } = new();
         public VisitaRepositorioFalso Visitas { get; } = new();
         public VisitaTrabajadorRepositorioFalso Union { get; } = new();
         public EvaluadorFalso Evaluador { get; } = new();
@@ -61,6 +65,8 @@ public class TrabajadoresDeVisitaCommandHandlerTests
 
         public Escenario(params Guid[] trabajadorIds)
         {
+            Visita = new(Centro.Id, Fecha, Fecha.AddDays(1), null);
+            Centros.ListaCentros.Add(Centro);
             Visitas.Agregar(Visita);
             foreach (var id in trabajadorIds)
                 Union.Agregar(new VisitaTrabajador(Visita.Id, id));
@@ -75,7 +81,7 @@ public class TrabajadoresDeVisitaCommandHandlerTests
             Guid trabajadorId, Guid version = default, TrabajadoresQueryContextFalso? trabajadores = null,
             IActorAuditoria? actor = null) =>
             new AnadirTrabajadorAVisitaCommandHandler(
-                    Visitas, Union, trabajadores!, Evaluador, UnitOfWork, NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, Alcance,
+                    Visitas, Union, trabajadores!, Centros, Empresas, Evaluador, UnitOfWork, NullLogger<AnadirTrabajadorAVisitaCommandHandler>.Instance, Alcance,
                     actor)
                 .Handle(new AnadirTrabajadorAVisitaCommand(Visita.Id, trabajadorId, version), CancellationToken.None);
 
@@ -87,7 +93,7 @@ public class TrabajadoresDeVisitaCommandHandlerTests
             IReadOnlyList<Guid> trabajadorIds, string? notas = null, TrabajadoresQueryContextFalso? trabajadores = null,
             IActorAuditoria? actor = null) =>
             new EditarVisitaCommandHandler(
-                    Visitas, Union, trabajadores ?? new TrabajadoresQueryContextFalso(), Evaluador, UnitOfWork,
+                    Visitas, Union, trabajadores ?? new TrabajadoresQueryContextFalso(), Centros, Empresas, Evaluador, UnitOfWork,
                     NullLogger<EditarVisitaCommandHandler>.Instance, Alcance, actor)
                 .Handle(new EditarVisitaCommand(Visita.Id, Visita.FechaInicio, Visita.FechaFin, trabajadorIds, notas), CancellationToken.None);
 
@@ -109,9 +115,11 @@ public class TrabajadoresDeVisitaCommandHandlerTests
     private static ActorFijo Impersonacion() =>
         new(new ActorAuditoria(AdminTalveg, UsuarioSimulado, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid()));
 
-    private static (TrabajadoresQueryContextFalso Contexto, Guid Id) UnTrabajador()
+    /// <summary>Un Trabajador de la Empresa del Centro de la Visita (o de otra, si se pide).</summary>
+    private static (TrabajadoresQueryContextFalso Contexto, Guid Id) UnTrabajador(Escenario escenario, bool deOtraEmpresa = false)
     {
-        var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(Guid.NewGuid(), "Amina", "El Idrissi", "AB1234567");
+        var trabajador = Domain.Trabajadores.Trabajador.DeEmpresa(
+            deOtraEmpresa ? Guid.NewGuid() : escenario.Centro.EmpresaId, "Amina", "El Idrissi", "AB1234567");
         var contexto = new TrabajadoresQueryContextFalso();
         contexto.ListaTrabajadores.Add(trabajador);
         return (contexto, trabajador.Id);
@@ -121,7 +129,7 @@ public class TrabajadoresDeVisitaCommandHandlerTests
     public async Task Anadir_guarda_como_gestor_al_Actor_real_y_no_al_usuario_simulado()
     {
         var escenario = new Escenario(Guid.NewGuid());
-        var (trabajadores, nuevo) = UnTrabajador();
+        var (trabajadores, nuevo) = UnTrabajador(escenario);
 
         (await escenario.AnadirAsync(nuevo, trabajadores: trabajadores, actor: Impersonacion())).EsExitoso.Should().BeTrue();
 
@@ -136,7 +144,7 @@ public class TrabajadoresDeVisitaCommandHandlerTests
         var queda = Guid.NewGuid();
         var escenario = new Escenario(queda);
         var previa = escenario.Union.Filas.Single();
-        var (trabajadores, nuevo) = UnTrabajador();
+        var (trabajadores, nuevo) = UnTrabajador(escenario);
 
         (await escenario.EditarAsync([queda, nuevo], trabajadores: trabajadores, actor: Impersonacion()))
             .EsExitoso.Should().BeTrue();
@@ -144,6 +152,63 @@ public class TrabajadoresDeVisitaCommandHandlerTests
         escenario.Union.Filas.Single(f => f.TrabajadorId == nuevo).GestionadoPorUsuarioId.Should().Be(AdminTalveg);
         escenario.Union.Filas.Single(f => f.TrabajadorId == queda).Should().BeSameAs(previa);
         previa.GestionadoPorUsuarioId.Should().BeNull("la asignación que ya existía conserva su gestor");
+    }
+
+    // ---- S-B-1: solo entran Trabajadores de la Empresa gestionada activa y visibles (decisión del propietario, 2026-10-28)
+
+    [Fact]
+    public async Task Anadir_rechaza_un_Trabajador_de_otra_Empresa_y_no_guarda()
+    {
+        var escenario = new Escenario(Guid.NewGuid());
+        var (trabajadores, ajeno) = UnTrabajador(escenario, deOtraEmpresa: true);
+
+        var resultado = await escenario.AnadirAsync(ajeno, trabajadores: trabajadores);
+
+        resultado.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        escenario.Union.Filas.Should().HaveCount(1);
+        escenario.UnitOfWork.VecesGuardado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Anadir_rechaza_un_Trabajador_de_la_Empresa_fuera_del_alcance_de_datos()
+    {
+        var escenario = new Escenario(Guid.NewGuid()) { Alcance = new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [Guid.NewGuid()]) };
+        var (trabajadores, fueraDeCartera) = UnTrabajador(escenario);
+
+        var resultado = await escenario.AnadirAsync(fueraDeCartera, trabajadores: trabajadores);
+
+        resultado.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        escenario.Union.Filas.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task Anadir_admite_un_Trabajador_de_una_Subcontrata_proveedora_vigente_de_la_Empresa()
+    {
+        var escenario = new Escenario(Guid.NewGuid());
+        var subcontrataId = Guid.NewGuid();
+        escenario.Empresas.ListaRelacionesEmpresariales.Add(
+            Domain.RelacionesEmpresariales.RelacionEmpresarial.Crear(subcontrataId, escenario.Centro.EmpresaId, DateTime.UtcNow));
+        var trabajador = Domain.Trabajadores.Trabajador.DeSubcontrata(subcontrataId, "Iker", "Proveedor", "33445566R");
+        var trabajadores = new TrabajadoresQueryContextFalso();
+        trabajadores.ListaTrabajadores.Add(trabajador);
+
+        (await escenario.AnadirAsync(trabajador.Id, trabajadores: trabajadores)).EsExitoso.Should().BeTrue();
+        escenario.Union.Filas.Should().Contain(f => f.TrabajadorId == trabajador.Id);
+    }
+
+    [Fact]
+    public async Task Editar_rechaza_anadir_un_Trabajador_de_otra_Empresa_pero_no_revalida_a_quien_ya_entraba()
+    {
+        var yaEntraba = Guid.NewGuid();
+        var escenario = new Escenario(yaEntraba);
+        var (trabajadores, ajeno) = UnTrabajador(escenario, deOtraEmpresa: true);
+
+        var conAjeno = await escenario.EditarAsync([yaEntraba, ajeno], trabajadores: trabajadores);
+        var sinCambios = await escenario.EditarAsync([yaEntraba], notas: "solo notas", trabajadores: trabajadores);
+
+        conAjeno.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        sinCambios.EsExitoso.Should().BeTrue("quien ya entraba no se revalida: no existe en el contexto y aun así se conserva");
+        escenario.Union.Filas.Select(f => f.TrabajadorId).Should().BeEquivalentTo([yaEntraba]);
     }
 
     // ---- Documentación gestionada: cambiar quién entra la devuelve a «Por gestionar»
