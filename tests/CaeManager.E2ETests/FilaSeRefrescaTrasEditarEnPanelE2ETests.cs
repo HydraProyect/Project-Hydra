@@ -224,34 +224,9 @@ public class FilaSeRefrescaTrasEditarEnPanelE2ETests(WebAppFixtureListados fixtu
         }
     }
 
-    /// <summary>
-    /// «j» enfoca la única fila. Se reintenta porque QuickGrid vuelve a pedir la página por su
-    /// cuenta cuando el total cambia (aquí, al filtrar), y cada carga limpia la fila enfocada
-    /// (misma espera que <c>VehiculosFilaSinMenuE2ETests</c>). El foco se saca antes del campo
-    /// de filtro, donde «j» sería texto.
-    /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page)
     {
-        var enfocada = page.Locator("tbody tr.fila-enfocada");
-        // «Enfocada» es la clase y además el foco real del DOM (:focus): la clase puede quedarse sin foco tras
-        // un repintado, y entonces Enter lo recibiría el control de origen (#1756).
-        var conFoco = page.Locator("tbody tr.fila-enfocada:focus");
-        for (var intento = 0; intento < 5; intento++)
-        {
-            if (await conFoco.CountAsync() == 0)
-            {
-                await page.Locator("thead th.col-estado button.col-title").FocusAsync();
-                await page.Keyboard.PressAsync("j");
-            }
-
-            await page.WaitForTimeoutAsync(400);
-            if (await conFoco.CountAsync() == 1)
-            {
-                await page.WaitForTimeoutAsync(600);
-                if (await conFoco.CountAsync() == 1) return;
-            }
-        }
-
-        await Ayudas.EsperarFocoRealEnFilaAsync(enfocada);
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.vehiculos-rejilla-propia"));
+        await Ayudas.EnfocarFilaAsync(page, page.Locator("thead th.col-estado button.col-title"), page.Locator("tbody tr.fila-enfocada"));
     }
 }

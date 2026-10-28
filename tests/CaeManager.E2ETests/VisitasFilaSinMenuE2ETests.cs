@@ -69,32 +69,35 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     }
 
     /// <summary>
-    /// «j» hasta que la fila del test es la enfocada. Se insiste porque QuickGrid vuelve a pedir la
-    /// página por su cuenta cuando el total cambia (aquí, tras el alta), y cada carga limpia la fila
-    /// enfocada: una «j» que llegue antes de esa segunda carga pierde el foco sin que nada en el DOM
-    /// lo anuncie, y la siguiente vuelve a empezar por la primera fila.
+    /// «j» hasta que la fila del test es la enfocada y tiene el foco real del DOM. Antes se espera a que
+    /// la rejilla termine de cargar (<c>aria-busy</c>) con la fila ya pintada; cada «j» se da por buena
+    /// cuando el foco ha pasado a otra fila, y si una carga tardía la pierde se vuelve a pulsar.
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, ILocator fila)
     {
-        // «Enfocada» es la clase y además el foco real del DOM: la clase puede quedarse sin foco tras un
-        // repintado, y entonces Enter lo recibiría el control de origen (#1756).
-        const string EstaEnfocada = "f => f.classList.contains('fila-enfocada') && document.activeElement === f";
+        await Ayudas.EsperarListaListaAsync(page.Locator("table.visitas-lista"), fila);
         for (var intento = 0; intento < 80; intento++)
         {
-            if (await fila.EvaluateAsync<bool>(EstaEnfocada))
+            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
             {
-                await page.WaitForTimeoutAsync(600);
-                if (await fila.EvaluateAsync<bool>(EstaEnfocada)) return;
-                continue;
+                await fila.FocusAsync();
+                await Ayudas.EsperarFocoRealEnFilaAsync(fila);
+                return;
             }
 
-            // Con la clase pero sin foco, «j» pasaría a la fila siguiente (solo avanza): se devuelve el
-            // foco a la fila, como hace enfocarFilaActiva de atajos-lista.js.
-            if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
-                await fila.FocusAsync();
-            else
-                await page.Keyboard.PressAsync("j");
-            await page.WaitForTimeoutAsync(250);
+            var anterior = await page.EvaluateAsync<int>("() => [...document.querySelectorAll('tbody tr')].findIndex(f => f.classList.contains('fila-enfocada'))");
+            await page.Keyboard.PressAsync("j");
+            try
+            {
+                await page.WaitForFunctionAsync(
+                    "anterior => { const filas = [...document.querySelectorAll('tbody tr')]; const indice = filas.findIndex(f => f.classList.contains('fila-enfocada')); return indice >= 0 && indice !== anterior && document.activeElement === filas[indice]; }",
+                    anterior,
+                    new PageWaitForFunctionOptions { Timeout = 5_000 });
+            }
+            catch (Microsoft.Playwright.TimeoutException)
+            {
+                // La «j» se perdió (una recarga limpió la fila enfocada): se recalcula desde el DOM y se repite.
+            }
         }
 
         await Expect(fila).ToHaveClassAsync(new Regex("fila-enfocada"));

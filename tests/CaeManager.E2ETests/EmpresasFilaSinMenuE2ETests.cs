@@ -99,20 +99,21 @@ public class EmpresasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         var page = await AbrirEmpresasAsync(contexto);
         var panel = page.Locator(".workspace-panel");
 
+        // El parámetro «e2e» no es ningún filtro de la lista (no la recarga): solo hace que la URL de
+        // partida difiera de «/empresas», de modo que la URL final demuestra que «g e» navegó.
+        await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas?e2e=atajo");
+        await Expect(page.Locator(".marco-lista-empresas .fila-pulsable")).Not.ToHaveCountAsync(0);
         await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator(".marco-lista-empresas .fila-enfocada")).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(page.Locator(".marco-lista-empresas .fila-enfocada"));
 
         // «g e» es «ir a Empresas»: la «e» que sigue a una «g» no es la de editar.
         await page.Keyboard.PressAsync("g");
         await page.Keyboard.PressAsync("e");
-        await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(panel).ToHaveCountAsync(0);
         await Expect(page).ToHaveURLAsync(new Regex(@"/empresas$"));
+        await Expect(panel).ToHaveCountAsync(0);
 
-        // Barrera: pasada la ventana del prefijo, la misma tecla sí edita.
-        await page.WaitForTimeoutAsync(1_200);
         await page.Keyboard.PressAsync("j");
-        await Expect(page.Locator(".marco-lista-empresas .fila-enfocada")).ToHaveCountAsync(1);
+        await Ayudas.EsperarFocoRealEnFilaAsync(page.Locator(".marco-lista-empresas .fila-enfocada"));
         await page.Keyboard.PressAsync("e");
 
         await page.WaitForURLAsync(EntrarEnEdicion);
