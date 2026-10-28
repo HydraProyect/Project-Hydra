@@ -318,11 +318,12 @@
     else
     {
         <div class="alertas-grupos">
+            @{ var clavesGrupos = new ClavesDeHermanos(); }
             @foreach (var (grupo, filas) in GruposDePagina)
             {
                 var abierto = _gruposAbiertos.Contains(grupo.Clave);
 
-                <section class="@(grupo.Critico ? "alertas-grupo alertas-grupo-critico" : "alertas-grupo")" @key="grupo.Clave">
+                <section class="@(grupo.Critico ? "alertas-grupo alertas-grupo-critico" : "alertas-grupo")" @key="clavesGrupos.De(grupo.Clave)">
                     <button type="button" class="alertas-grupo-cabecera" aria-expanded="@(abierto ? "true" : "false")"
                             @onclick="() => AlternarGrupo(grupo.Clave)">
                         <span class="@(abierto ? "alertas-grupo-chevron" : "alertas-grupo-chevron alertas-grupo-chevron-cerrado")" aria-hidden="true">
