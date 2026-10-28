@@ -100,7 +100,7 @@ public class DrawerReclamacionLoteConfirmacionEnvioTests : BunitContext
             .Add(x => x.EntidadIdInicial, TrabajadorId)
             .Add(x => x.OnReclamacionEnviada, EventCallback.Factory.Create(this, () => _reclamacionesEnviadas++)));
         cut.WaitForAssertion(() => cut.FindAll(".selector-lote-documental input[type=checkbox]").Should().NotBeEmpty());
-        await cut.FindAll(".selector-lote-acciones button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Continuar").ClickAsync(new MouseEventArgs());
         cut.WaitForAssertion(() => cut.FindAll(".tabla-datos").Should().NotBeEmpty());
         return cut;
     }

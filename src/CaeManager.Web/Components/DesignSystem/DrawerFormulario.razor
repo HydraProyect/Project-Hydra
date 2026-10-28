@@ -72,7 +72,7 @@
             @* Mientras se guarda, las acciones extra se deshabilitan solas (fieldset): la pantalla no puede olvidarlo. *@
             <fieldset class="formulario-drawer-pie-extra" disabled="@Guardando"><CascadingValue Name="PieFormularioDeshabilitado" Value="Guardando">@PieExtra</CascadingValue></fieldset>
         }
-        @if (PasoIntermedio)
+        @if (PasoIntermedio && MostrarGuardar)
         {
             @* «Guardar y terminar»: guarda lo escrito hasta aquí (el mismo comando que «Guardar») sin pasar por los pasos que faltan. *@
             <span class="formulario-drawer-accion formulario-drawer-terminar">
@@ -85,11 +85,11 @@
         }
         @* La primaria va siempre en el mismo sitio del árbol (también al pasar de «Siguiente» a «Guardar»): si el envoltorio cambiara,
            Blazor recrearía el botón y el foco, que estaba en él, se perdería. *@
-        @if (EnPasos)
+        @if (MostrarGuardar && EnPasos)
         {
             <span class="@(PasoIntermedio ? "formulario-drawer-accion formulario-drawer-siguiente" : "formulario-drawer-accion")">@Primaria</span>
         }
-        else
+        else if (MostrarGuardar)
         {
             @Primaria
         }
@@ -174,6 +174,12 @@
     [Parameter, EditorRequired] public string TextoGuardar { get; set; } = string.Empty;
     [Parameter, EditorRequired] public string TextoCancelar { get; set; } = string.Empty;
     [Parameter] public EventCallback OnGuardar { get; set; }
+
+    /// <summary>
+    /// Falso: el pie solo ofrece «Cancelar». Para un paso del Drawer en el que no hay nada que guardar (el resultado de una
+    /// consulta, o quien no tiene permiso de escritura). Por defecto, «Guardar» se muestra siempre.
+    /// </summary>
+    [Parameter] public bool MostrarGuardar { get; set; } = true;
 
     /// <summary>
     /// Acciones secundarias que no cierran (p. ej. «Añadir otro centro»), entre «Cancelar» y «Guardar». Se deshabilitan solas
@@ -348,7 +354,7 @@
         // registro dos veces. Antes lo escribía cada pantalla (`if (_guardando) return;`) o no lo escribía.
         // El botón «Guardar» deshabilitado se reafirma aquí (CWE-602): quitar `disabled` en el DOM del navegador deja pasar el clic
         // hasta este manejador, y el estado del servidor es el que manda, como en DialogoConfirmacion.
-        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado) return;
+        if (_guardadoEnCurso || Guardando || TieneMotivoDeshabilitado || !MostrarGuardar) return;
         _guardadoEnCurso = true;
         try
         {

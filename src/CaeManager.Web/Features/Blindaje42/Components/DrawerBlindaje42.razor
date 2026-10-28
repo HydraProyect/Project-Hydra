@@ -16,9 +16,9 @@
 @inject ToastService Toasts
 @inject TimeProvider Reloj
 
-<Drawer Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
-        CerrarAlHacerClicFuera="@(!_guardandoSolicitud && !_guardandoRespuesta)"
-        HayCambios="() => HayCambiosSinGuardar">
+<DrawerFormulario Visible="Visible" VisibleChanged="CerrarAsync" Titulo="@($"Blindaje 42.1 · {EmpresaRazonSocial}")"
+                  HayCambios="() => HayCambiosSinGuardar" Guardando="_guardandoSolicitud"                  MostrarGuardar="_puedeEscribir" TextoGuardar="Registrar solicitud" TextoCancelar="Cancelar" OnGuardar="RegistrarSolicitudAsync"
+                  MensajeError="@MensajeErrorFormulario">
     <ChildContent>
         <p class="texto-vacio-seccion">
             Certificación negativa por descubiertos en la TGSS sobre esta empresa (art. 42.1 ET). La TGSS debe
@@ -33,13 +33,6 @@
             <div class="workspace-grupo-campos">
                 <CampoTexto Etiqueta="Fecha de la nueva solicitud" Type="date" Valor="@_fechaSolicitud" ValorChanged="v => _fechaSolicitud = v" />
                 <CampoTextarea Etiqueta="Observaciones (opcional)" Valor="@_observacionesNueva" ValorChanged="v => _observacionesNueva = v" Filas="2" />
-                @if (_errorSolicitud is not null)
-                {
-                    <span class="campo-mensaje-error" role="alert">@_errorSolicitud</span>
-                }
-                <Boton Variante="VarianteBoton.Primario" OnClick="RegistrarSolicitudAsync" Cargando="_guardandoSolicitud" Deshabilitado="_guardandoSolicitud">
-                    Registrar solicitud
-                </Boton>
             </div>
 
             <hr />
@@ -106,10 +99,6 @@
                                                     Accept=".pdf,application/pdf,.jpg,.jpeg,.png,image/jpeg,image/png"
                                                     Cargando="_subiendoEvidencia" OnChange="ManejarEvidenciaAsync"
                                                     NombreArchivoActual="@_evidenciaNombreArchivo" />
-                                @if (_errorRespuesta is not null)
-                                {
-                                    <span class="campo-mensaje-error" role="alert">@_errorRespuesta</span>
-                                }
                                 <div class="workspace-tarjeta-requisito-acciones">
                                     <Boton Variante="VarianteBoton.Secundario" Tamano="TamanoBoton.Pequeno"
                                            OnClick="() => _respondiendoSolicitudId = null" Deshabilitado="_guardandoRespuesta">
@@ -134,7 +123,7 @@
             }
         }
     </ChildContent>
-</Drawer>
+</DrawerFormulario>
 
 @code {
     [Parameter] public bool Visible { get; set; }
@@ -151,6 +140,8 @@
     private bool _cargando = true;
     private bool _error;
     private bool _visibleAnterior;
+    [CascadingParameter] private Task<AuthenticationState>? EstadoAutenticacion { get; set; }
+    private bool _puedeEscribir;
     private Guid _empresaCargada;
 
     private string _fechaSolicitud = string.Empty;
@@ -169,8 +160,12 @@
     private bool _guardandoRespuesta;
     private string? _errorRespuesta;
 
+    private string? MensajeErrorFormulario => string.Join(" ",
+        new[] { _errorSolicitud, RespuestaALaVista ? _errorRespuesta : null }.Where(e => !string.IsNullOrEmpty(e)));
+
     protected override async Task OnParametersSetAsync()
     {
+        _puedeEscribir = await SoloConEscritura.PuedeEscribirAsync(EstadoAutenticacion);
         if (Visible && (!_visibleAnterior || EmpresaId != _empresaCargada))
         {
             _empresaCargada = EmpresaId;
@@ -238,6 +233,9 @@
 
     private async Task RegistrarSolicitudAsync()
     {
+        // El pie del kit solo conoce el guardado de la solicitud: mientras se guarda la respuesta, «Registrar solicitud» no hace nada.
+        if (_guardandoRespuesta) return;
+
         if (!DateOnly.TryParse(_fechaSolicitud, out var fecha))
         {
             _errorSolicitud = "Indica una fecha de solicitud válida.";
