@@ -19,8 +19,13 @@ namespace CaeManager.Application.ContactosSeguridad;
 /// </summary>
 public interface IContactosSeguridadPlataforma
 {
-    /// <summary>Contactos Propuestos de todos los Tenants, los más antiguos primero.</summary>
-    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken);
+    /// <summary>
+    /// Contactos Propuestos de todos los Tenants, los más antiguos primero. <paramref name="usuarioActualId"/>
+    /// es la cuenta autenticada (Actor real): la misma lectura marca <see cref="ContactoSeguridadPropuestoDto.EsPropia"/>
+    /// en los que propuso esa cuenta, sin sacar de Infrastructure el id de la cuenta proponente.
+    /// </summary>
+    Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+        Guid usuarioActualId, CancellationToken cancellationToken);
 
     /// <summary>El contacto Validado del Tenant, o null si no tiene.</summary>
     Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken);
@@ -55,7 +60,8 @@ public record ContactoSeguridadPropuestoDto(
     string Nombre,
     string Correo,
     string? Telefono,
-    DateTime PropuestoEnUtc);
+    DateTime PropuestoEnUtc,
+    bool EsPropia = false);
 
 /// <summary>
 /// A quién avisar de un incidente que afecta a un Tenant. Con <see cref="SinContactoValidado"/>, los

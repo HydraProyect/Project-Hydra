@@ -156,4 +156,7 @@
   <data name="MismaCuentaProponente" xml:space="preserve">
     <value>Propusiste tú este contacto: tiene que validarlo o rechazarlo otra persona con administración de plataforma.</value>
   </data>
+  <data name="PropuestaPropia" xml:space="preserve">
+    <value>La propusiste tú: la valida otro Actor de Plataforma TALVEG</value>
+  </data>
 </root>

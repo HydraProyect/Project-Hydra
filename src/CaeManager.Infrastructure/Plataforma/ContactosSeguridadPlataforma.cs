@@ -20,7 +20,8 @@ public sealed class ContactosSeguridadPlataforma(
     CaeManagerDbContext contexto,
     PuertaAccesoDatos puertaAccesoDatos) : IContactosSeguridadPlataforma
 {
-    public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken) =>
+    public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+        Guid usuarioActualId, CancellationToken cancellationToken) =>
         puertaAccesoDatos.EjecutarAsync<IReadOnlyList<ContactoSeguridadPropuestoDto>>(async () =>
             await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
                 .Where(c => c.Estado == EstadoContactoSeguridad.Propuesto)
@@ -29,7 +30,8 @@ public sealed class ContactosSeguridadPlataforma(
                 .OrderBy(x => x.Contacto.PropuestoEnUtc)
                 .Select(x => new ContactoSeguridadPropuestoDto(
                     x.Contacto.Id, x.Contacto.TenantId, x.Organizacion, x.Contacto.Nombre, x.Contacto.Correo,
-                    x.Contacto.Telefono, x.Contacto.PropuestoEnUtc))
+                    x.Contacto.Telefono, x.Contacto.PropuestoEnUtc,
+                    x.Contacto.PropuestoPorUsuarioId == usuarioActualId))
                 .ToListAsync(cancellationToken), cancellationToken);
 
     public Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken) =>

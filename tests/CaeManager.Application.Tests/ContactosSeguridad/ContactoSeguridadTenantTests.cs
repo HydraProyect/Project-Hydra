@@ -307,6 +307,21 @@ public class ContactoSeguridadTenantTests
     }
 
     [Fact]
+    public async Task La_cola_pide_la_lectura_con_la_cuenta_autenticada_del_Actor_real()
+    {
+        var propia = new ContactoSeguridadPropuestoDto(Guid.NewGuid(), TenantA, "Org A", "Marta", "m@ejemplo.test", null, DateTime.UtcNow);
+        var ajena = propia with { Id = Guid.NewGuid() };
+        var plataforma = new PlataformaFalsa { Propuestos = [propia, ajena], CuentasProponentes = { [propia.Id] = Usuario, [ajena.Id] = Guid.NewGuid() } };
+
+        var resultado = await new ObtenerContactosSeguridadPropuestosQueryHandler(new CurrentUserServiceFalso(Usuario),
+                AutorizacionAdminPlataformaFalsa.Global(), plataforma)
+            .Handle(new ObtenerContactosSeguridadPropuestosQuery(), default);
+
+        resultado[0].EsPropia.Should().BeTrue();
+        resultado[1].EsPropia.Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Los_destinatarios_solo_se_resuelven_con_concesion_global_y_sin_ids_repetidos()
     {
         var plataforma = new PlataformaFalsa();
@@ -407,6 +422,7 @@ public class ContactoSeguridadTenantTests
     private sealed class PlataformaFalsa : IContactosSeguridadPlataforma
     {
         public Guid? CuentaProponente { get; init; }
+        public Dictionary<Guid, Guid> CuentasProponentes { get; } = [];
         public int LecturasDeCuentaProponente { get; private set; }
 
         public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken)
@@ -420,8 +436,11 @@ public class ContactoSeguridadTenantTests
         public List<(Guid ContactoId, string? Motivo)> Resoluciones { get; } = [];
         public IReadOnlyCollection<Guid>? TenantsResueltos { get; private set; }
 
-        public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(CancellationToken cancellationToken) =>
-            Task.FromResult(Propuestos);
+        public Task<IReadOnlyList<ContactoSeguridadPropuestoDto>> ObtenerPropuestosAsync(
+            Guid usuarioActualId, CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<ContactoSeguridadPropuestoDto>>(Propuestos
+                .Select(p => p with { EsPropia = CuentasProponentes.TryGetValue(p.Id, out var cuenta) && cuenta == usuarioActualId })
+                .ToList());
 
         public Task<ContactoSeguridadDto?> ObtenerVigenteAsync(Guid tenantId, CancellationToken cancellationToken) =>
             Task.FromResult(Vigente);
