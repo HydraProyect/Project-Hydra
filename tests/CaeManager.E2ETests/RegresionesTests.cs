@@ -25,12 +25,7 @@ public class RegresionesTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        // .First: desde que el tenant del Administrador (Consultora, ver
-        // ADR-004 § 5.1) no tiene datos operativos propios, la lista de
-        // Clientes arranca vacía y el botón "+ Nuevo Cliente empresarial" aparece dos
-        // veces — en la cabecera y en el EstadoVacio — ambos abren el mismo
-        // drawer, así que cualquiera de los dos sirve para este test.
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
 
         var panel = page.Locator(".drawer-panel");
         var superposicion = page.Locator(".drawer-superposicion");

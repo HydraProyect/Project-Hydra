@@ -26,7 +26,7 @@ public class ClientesListaLeeEmpresasE2ETests(WebAppFixtureListados fixture)
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, Ayudas.EmailAdministrador, Ayudas.ContrasenaAdministrador);
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
 
-        await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente" }).First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
         await page.GetByLabel("Razón social").FillAsync(razonSocial);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_801));
         await page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Guardar", Exact = true }).ClickAsync();
@@ -39,7 +39,7 @@ public class ClientesListaLeeEmpresasE2ETests(WebAppFixtureListados fixture)
         // propio listado sin recargar manualmente ni buscar por CIF — antes
         // de esta corrección, esta fila jamás aparecía (ObtenerClientesQuery
         // seguía leyendo la tabla Clientes, sin escrituras desde F3b).
-        await Expect(page.GetByText(razonSocial)).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = $"Abrir la vista rápida de {razonSocial}", Exact = true })).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

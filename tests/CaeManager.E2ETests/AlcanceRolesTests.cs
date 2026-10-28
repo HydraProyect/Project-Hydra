@@ -138,7 +138,7 @@ public partial class AlcanceRolesTests(WebAppFixture fixture)
         // La denegación de verdad (AutorizacionEscrituraBehavior, «Autorizacion.SoloLectura»)
         // sigue siendo la que decide, y la vigila RolesConEscrituraParidadTests contra la
         // lista que usa la interfaz.
-        await Assertions.Expect(page.GetByText("+ Nuevo Cliente")).ToHaveCountAsync(0);
+        await Assertions.Expect(page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "+ Nuevo Cliente" })).ToHaveCountAsync(0);
         await Assertions.Expect(page.Locator(".aviso-solo-consulta")).ToBeVisibleAsync();
     }
 
