@@ -412,6 +412,12 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // intento, y rompería la minimización del RGPD.
             if (entrada.Entity is CaeManager.Domain.Seguridad.RegistroInicioSesion) continue;
 
+            // Sesiones de cookie: cada fila lleva el identificador de sesión que viaja en la cookie,
+            // y copiarlo a RegistroAuditoria (sin purga) lo dejaría fuera de la conservación de
+            // 5 años de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
+            // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión.
+            if (entrada.Entity is CaeManager.Domain.Seguridad.SesionUsuario) continue;
+
             // Estado materializado: dato derivado que el recálculo rehace en la misma transacción que la acción. La acción
             // ya se audita; auditar además cada fila recalculada metería miles de «Creado» o «Modificado» por una sola
             // acción (una Empresa con 800 Centros) en una tabla sin purga.

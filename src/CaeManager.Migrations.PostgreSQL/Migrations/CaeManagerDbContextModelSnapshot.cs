@@ -9382,6 +9382,39 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                     b.ToTable("RegistrosInicioSesion", (string)null);
                 });
 
+            modelBuilder.Entity("CaeManager.Domain.Seguridad.SesionUsuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("EmitidaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("RevocadaEnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("Sid")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("UsuarioId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmitidaEnUtc");
+
+                    b.HasIndex("Sid")
+                        .IsUnique();
+
+                    b.HasIndex("TenantId", "UsuarioId", "RevocadaEnUtc");
+
+                    b.ToTable("SesionesUsuario", (string)null);
+                });
+
             modelBuilder.Entity("CaeManager.Domain.Soporte.RegistroActividadSoporte", b =>
                 {
                     b.Property<Guid>("Id")

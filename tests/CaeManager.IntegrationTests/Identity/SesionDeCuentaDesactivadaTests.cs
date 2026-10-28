@@ -85,6 +85,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
+        servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
+        servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -592,11 +595,12 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         salida.WriteLine($"CONSULTAS: revalidar circuito = {soloValidar}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
 
-        // Presupuesto, no una medida exacta: el circuito lee el usuario una
-        // vez por ciclo; la cookie, además, los roles. Si esto crece sin
-        // querer, el coste por sesión activa y minuto deja de ser el medido.
-        soloValidar.Should().BeLessThanOrEqualTo(1);
-        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(6);
+        // Presupuesto, no una medida exacta: el circuito lee el usuario y
+        // pregunta si su sesión sigue sin revocar (app_sesion_vigente) una vez
+        // por ciclo; la cookie, además, los roles. Si esto crece sin querer,
+        // el coste por sesión activa y minuto deja de ser el medido.
+        soloValidar.Should().BeLessThanOrEqualTo(2);
+        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(7);
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(string email)
@@ -628,6 +632,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // sin ella el circuito falla cerrado antes de preguntar a la base.
         ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(CaeManager.Web.Services.CaducidadSesion.MarcaInicio,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        // Y su identificador de sesión, registrado como lo registra el inicio de sesión.
+        var sid = Guid.NewGuid();
+        await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().RegistrarAsync(usuario.Id, usuario.TenantId, sid);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimSid, sid.ToString("N")));
         return principal;
     }
 

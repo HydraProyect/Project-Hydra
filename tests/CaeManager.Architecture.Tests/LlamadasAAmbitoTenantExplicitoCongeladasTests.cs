@@ -453,6 +453,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
         ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
+        ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant propietario de la cuenta: user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para insertar su SesionUsuario; y cuenta.TenantId leída con AmbitoIdentificacionSinTenant para revocar una o todas sus sesiones, nunca el Tenant del workspace abierto; la RLS (solo_la_propia_cuenta_revoca) exige además que la cuenta sea quien firma el contexto"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 
@@ -595,6 +597,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,

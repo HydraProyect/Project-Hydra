@@ -72,7 +72,7 @@ public class CaducidadSesionTests
         var http = new DefaultHttpContext { RequestServices = servicios };
         var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
         var propiedades = new AuthenticationProperties { IsPersistent = true };
-        var principal = new ClaimsPrincipal(new ClaimsIdentity("cookie"));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity([ClaimSid()], "cookie"));
         await opciones.Events.OnSigningIn(new CookieSigningInContext(http, esquema, opciones, principal, propiedades, new CookieOptions()));
         propiedades.Items[CaducidadSesion.MarcaInicio].Should().Be(Marca(Ahora));
         principal.FindFirst(CaducidadSesion.MarcaInicio)!.Value.Should().Be(Marca(Ahora));
@@ -105,7 +105,7 @@ public class CaducidadSesionTests
             var http = new DefaultHttpContext { RequestServices = servicios };
             var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddMinutes(-1), IsPersistent = true };
             propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddMinutes(-minutos));
-            var principal = new ClaimsPrincipal(new ClaimsIdentity("cookie"));
+            var principal = new ClaimsPrincipal(new ClaimsIdentity([ClaimSid()], "cookie"));
             var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
             var contexto = new CookieValidatePrincipalContext(http, esquema, opciones, new AuthenticationTicket(principal, propiedades, esquema.Name));
             await opciones.Events.OnValidatePrincipal(contexto);
@@ -139,6 +139,54 @@ public class CaducidadSesionTests
         }
     }
 
+    /// <summary>
+    /// La cookie emitida antes de la revocación en servidor no lleva identificador de sesión:
+    /// se rechaza y se borra en la primera petición, aunque su hora de inicio valga, y sin llegar
+    /// al SecurityStampValidator.
+    /// </summary>
+    [Fact]
+    public async Task Una_cookie_sin_identificador_de_sesion_se_rechaza_y_se_borra()
+    {
+        var opciones = new CookieAuthenticationOptions();
+        var llamadas = 0;
+        opciones.Events.OnValidatePrincipal = _ => { llamadas++; return Task.CompletedTask; };
+        CaducidadSesion.Configurar(opciones, Entorno("Production"));
+        var servicios = new ServiceCollection().AddSingleton<TimeProvider>(new RelojManual(Ahora))
+            .AddSingleton<IAuthenticationService, AutenticacionFalsa>().BuildServiceProvider();
+        await using (servicios)
+        {
+            var http = new DefaultHttpContext { RequestServices = servicios };
+            var propiedades = new AuthenticationProperties { IssuedUtc = Ahora.AddMinutes(-1), IsPersistent = true };
+            propiedades.Items[CaducidadSesion.MarcaInicio] = Marca(Ahora.AddMinutes(-5));
+            var esquema = new AuthenticationScheme("aplicacion", null, typeof(CookieAuthenticationHandler));
+            var contexto = new CookieValidatePrincipalContext(http, esquema, opciones, new AuthenticationTicket(
+                new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "cookie")), propiedades, esquema.Name));
+            await opciones.Events.OnValidatePrincipal(contexto);
+            contexto.Principal.Should().BeNull();
+            llamadas.Should().Be(0);
+            servicios.GetRequiredService<IAuthenticationService>().As<AutenticacionFalsa>().Salidas.Should().Be(1);
+        }
+    }
+
+    [Fact]
+    public async Task El_circuito_sin_identificador_de_sesion_falla_cerrado_sin_consultar_la_base()
+    {
+        // Sin SignInManager registrado: llegar a la base dejaría un aviso de error en el log.
+        var registro = new RegistroDeAvisos();
+        var servicios = new ServiceCollection().BuildServiceProvider();
+        using var proveedor = new ProveedorAutenticacionRevalidada(new FabricaDeRegistro(registro),
+            servicios.GetRequiredService<IServiceScopeFactory>(), Options.Create(new SecurityStampValidatorOptions()), new RelojManual(Ahora));
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, "1"), new Claim(CaducidadSesion.MarcaInicio, Marca(Ahora.AddMinutes(-5)))], "cookie"));
+        var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync", BindingFlags.NonPublic | BindingFlags.Instance)!;
+        (await (Task<bool>)metodo.Invoke(proveedor, [new AuthenticationState(principal), CancellationToken.None])!).Should().BeFalse();
+        proveedor.SesionInvalidada.Should().BeTrue();
+        registro.Avisos.Should().Be(0);
+    }
+
+    private static Claim ClaimSid() =>
+        new(CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.ClaimSid, Guid.NewGuid().ToString("N"));
+
     public enum Reemision { Deslizante, ConPropiedadesDelTicket }
 
     /// <summary>
@@ -156,19 +204,20 @@ public class CaducidadSesionTests
         builder.WebHost.UseUrls("http://127.0.0.1:0");
         builder.Logging.ClearProviders();
         builder.Services.AddSingleton<TimeProvider>(reloj);
+        var sid = ClaimSid();
         builder.Services.AddAuthentication("aplicacion").AddCookie("aplicacion");
         builder.Services.Configure<CookieAuthenticationOptions>("aplicacion",
             opciones => CaducidadSesion.Configurar(opciones, builder.Environment));
         await using var app = builder.Build();
         app.UseAuthentication();
         app.MapGet("/entrar", (HttpContext contexto) => contexto.SignInAsync("aplicacion",
-            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "aplicacion")),
+            new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1"), sid], "aplicacion")),
             new AuthenticationProperties { IsPersistent = true }));
         app.MapGet("/refrescar", async (HttpContext contexto) =>
         {
             var actual = await contexto.AuthenticateAsync("aplicacion");
             await contexto.SignInAsync("aplicacion",
-                new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1")], "aplicacion")), actual.Properties);
+                new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "1"), sid], "aplicacion")), actual.Properties);
         });
         app.MapGet("/yo", (HttpContext contexto) => contexto.User.Identity?.IsAuthenticated == true
             ? Results.Text(contexto.User.FindFirst(CaducidadSesion.MarcaInicio)?.Value)
