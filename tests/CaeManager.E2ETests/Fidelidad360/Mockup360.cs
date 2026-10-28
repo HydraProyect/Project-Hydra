@@ -137,6 +137,7 @@ public static class Fidelidad360
         var anterior = await MedidorPiezas360.MedirAsync(page, lado, selectores);
         for (var intento = 0; intento < 20; intento++)
         {
+            // Intervalo entre mediciones para detectar cambios tardíos de geometría antes de la captura.
             await page.WaitForTimeoutAsync(400);
             var actual = await MedidorPiezas360.MedirAsync(page, lado, selectores);
             if (actual.Magnitudes.Count > 0 && Iguales(anterior, actual))

@@ -46,6 +46,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
 
         // El circuito moría en el primer segundo tras pintar la cola; se deja pasar con margen.
         // Se comprueba que el circuito no muere durante ese intervalo.
+        // Ventana temporal del repintado tardío del circuito, sin señal observable de que no vaya a fallar.
         await page.WaitForTimeoutAsync(4_000);
 
         // Una observación positiva que exige circuito vivo: el disparador del selector es un islote interactivo.
@@ -96,6 +97,7 @@ public class CoordinadorCaeTenantBeneficiarioTests(WebAppFixtureEscenariosDirecc
                 donde = $"menú lateral → {destino}";
                 await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);
                 // Se comprueba que la revalidación no interrumpe el circuito durante ese intervalo.
+                // Intervalo de revalidación periódica del circuito en el servidor, sin señal observable de cada ciclo.
                 await page.WaitForTimeoutAsync(5_000);
                 donde = $"{destino} tras revalidar el circuito";
                 await RecorridoFichas360.ComprobarQueElTenantSigueActivoAsync(page, tenantPizza, donde);

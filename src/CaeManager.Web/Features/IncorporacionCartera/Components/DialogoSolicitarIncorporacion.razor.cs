@@ -20,7 +20,6 @@ namespace CaeManager.Web.Features.IncorporacionCartera.Components;
 /// </summary>
 public partial class DialogoSolicitarIncorporacion : ComponentBase
 {
-    private Modal? _modal;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService Toasts { get; set; } = default!;
     [Inject] private IStringLocalizer<TextosIncorporacionCartera> Textos { get; set; } = default!;
@@ -53,6 +52,13 @@ public partial class DialogoSolicitarIncorporacion : ComponentBase
 
     private bool PuedeEnviar =>
         !_enviando && Seleccionado is not null && !TienePendiente && LongitudMensaje > 0 && !MensajeDemasiadoLargo;
+
+    // Mientras se envía, «Enviar» se deshabilita por el spinner del kit y no por falta de datos: sin motivo que engañe.
+    private string? MotivoEnviarDeshabilitado =>
+        _enviando || PuedeEnviar ? null
+        : TienePendiente ? Textos["DialogoYaPendiente"].Value
+        : MensajeDemasiadoLargo ? Textos["DialogoMensajeDemasiadoLargo", SolicitudIncorporacionCartera.LongitudMaximaMensaje].Value
+        : Textos["DialogoCompletarSolicitud"].Value;
 
     protected override async Task OnParametersSetAsync()
     {

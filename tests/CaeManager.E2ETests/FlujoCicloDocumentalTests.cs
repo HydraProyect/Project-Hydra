@@ -145,6 +145,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
+        // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
         await page.WaitForTimeoutAsync(500);
         await drawer.GetByLabel("Tipo de documento").SelectOptionAsync(new SelectOptionValue { Label = nombreTipoDocumento });
 
@@ -247,6 +248,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // que ".modal-pie" desapareciera).
         await page.Locator(".modal-cuerpo").GetByLabel("Centro", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreCentro} ({razonSocialCliente})");
+        // El debounce del servidor resuelve el Id del Centro; sin documentos faltantes no hay señal visible.
         await page.WaitForTimeoutAsync(500);
         // El botón de confirmar cambia de texto a "Asignar igualmente" si al
         // comprobarlo faltaba algún documento de los que se piden (ver
