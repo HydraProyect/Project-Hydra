@@ -671,6 +671,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     {
         ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
             "tests/CaeManager.IntegrationTests/MultiTenancy/WebhookLoopSinCreateScopeEntreTenantsTests.cs",
+        // El bucle de WebhookWhatsAppEndpoints llama a este resolutor con el mismo DbContext para líneas de
+        // Tenants distintos, y cada llamada abre el ámbito de su Tenant (S-C-5). Solo proyecta, sin rastreo.
+        ["src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs"] =
+            "tests/CaeManager.IntegrationTests/Integraciones/WebhookTenantResolverTests.cs",
     };
 
     [Fact]

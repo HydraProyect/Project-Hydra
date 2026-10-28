@@ -20,6 +20,13 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// único es por Tenant), en vez de elegir uno por el orden de la consulta; la de WhatsApp se apoya en el
     /// índice único global de <c>PhoneNumberId</c>. No se relaja ninguna política ni se concede BYPASSRLS.
     /// </para>
+    ///
+    /// <para>
+    /// Igual que <c>app_tenant_de_clave_api</c>, saltan el FORCE ROW LEVEL SECURITY de las dos tablas solo porque
+    /// su propietario es el migrador, superusuario o con BYPASSRLS (ver <see cref="LineaBaseCompactada"/>): si la
+    /// propiedad pasara a un rol sin ese atributo devolverían NULL sin error y volvería el defecto S-C-5. Son dos
+    /// caminos definidores más entre Tenants, del mismo inventario que <c>CoberturaRlsDelModeloTests</c>.
+    /// </para>
     /// </summary>
     public partial class ResolucionTenantWebhooksBajoRls : Migration
     {

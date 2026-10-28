@@ -123,7 +123,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // Visita eliminada sigue fuera: su filtro global no se quita.
         [("src/CaeManager.Application/Dashboard/Queries/ObtenerExtranjerosDelMesQuery.cs", ".IgnoreQueryFilters()")] = 3,
 
-        // Las funciones devuelven solo el Tenant propietario; las demás lecturas pasan por RLS.
+        // Resolución del Tenant de un webhook entrante (Graph/WhatsApp, S-C-5): en ese punto no hay Tenant en el
+        // contexto, que es justo lo que se calcula, y bajo FORCE RLS IgnoreQueryFilters() no veía ninguna fila.
+        // Las funciones SECURITY DEFINER devuelven solo el Tenant propietario (la de Graph, NULL si la conexión
+        // está en dos Tenants, en vez de elegir uno); la suscripción y la línea se leen después bajo RLS.
         [("src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs",
             """.SqlQuery<Guid?>($"SELECT app_tenant_de_webhook_graph({conexionIntegracionId}) AS \"Value\"")""")] = 1,
         [("src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs",
