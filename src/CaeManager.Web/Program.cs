@@ -62,6 +62,11 @@ GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
 
+// S-B-6: en Production no se arranca con la válvula que deja el tráfico en la
+// identidad propietaria, exenta de RLS. ResolverCadenaDeTrafico repite la
+// comprobación; aquí falla antes de registrar nada.
+InfrastructureServiceCollectionExtensions.RechazarIdentidadAdministrativaEnProduccion(builder.Configuration, builder.Environment);
+
 // es-ES es el fallback del proceso para toda ejecución sin una cultura de
 // petición explícita (HostedServices, workers, arranque). Dentro de cada
 // petición, RequestLocalization (más abajo) sustituye CurrentCulture y
@@ -338,11 +343,13 @@ if (azureAd.EstaConfigurado)
 // Antes eran los 30 minutos por defecto de Identity para la cookie y NADA para
 // el circuito: desactivar a alguien no cortaba nada (auditoría de seguridad
 // 2026-09-20). Es el tope de cuánto sobrevive una sesión a la desactivación;
-// el coste es una lectura de usuario por ventana y sesión activa.
-var intervaloRevalidacionSesion = TimeSpan.FromSeconds(
-    Math.Max(1, builder.Configuration.GetValue("Sesion:IntervaloRevalidacionSegundos", 60)));
-builder.Services.Configure<SecurityStampValidatorOptions>(
-    opciones => opciones.ValidationInterval = intervaloRevalidacionSesion);
+// el coste es una lectura de usuario por ventana y sesión activa. El rango
+// (de 1 a 60 s, para la sesión y para el circuito) se valida al arrancar en
+// IntervalosRevalidacionOptions (S-B-7).
+builder.Services.AddIntervalosRevalidacion(builder.Configuration);
+builder.Services.AddOptions<SecurityStampValidatorOptions>()
+    .Configure<Microsoft.Extensions.Options.IOptions<IntervalosRevalidacionOptions>>((opciones, intervalos) =>
+        opciones.ValidationInterval = TimeSpan.FromSeconds(intervalos.Value.SesionSegundos));
 // HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
 CaducidadSesion.ConfigurarHsts(builder.Services);
 
@@ -1097,7 +1104,8 @@ using (var scope = app.Services.CreateScope())
     //
     // Y si NO está declarada, aquí solo se llega habiendo pasado por la puerta
     // de ResolverCadenaDeTrafico: o esto es Development, o alguien puso
-    // Rls:PermitirIdentidadAdministrativaInsegura. En los dos casos el tráfico
+    // Rls:PermitirIdentidadAdministrativaInsegura en un entorno que no es
+    // Production (en Production esa clave impide arrancar). En los dos casos el tráfico
     // corre con el rol propietario, al que PostgreSQL no somete a RLS, y eso
     // tiene que decirse en CADA arranque y no solo en un comentario que nadie
     // vuelve a mirar — es lo que aportaba VerificacionRolRuntimeHostedService

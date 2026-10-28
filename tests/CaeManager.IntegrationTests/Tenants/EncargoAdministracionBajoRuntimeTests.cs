@@ -28,7 +28,6 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -981,12 +980,7 @@ public class EncargoAdministracionBajoRuntimeTests : IAsyncLifetime
     {
         public RevalidacionCircuitoActivoHandler Revalidacion(int intervaloSegundos) =>
             new(Seleccion, Usuario, Usuario, Estado, Contexto, Contexto, new SesionPrivilegiadaAusente(), new PuertaAccesoDatos(),
-                new ConfigurationBuilder()
-                    .AddInMemoryCollection(new Dictionary<string, string?>
-                    {
-                        ["Circuit:RevalidacionIntervaloSegundos"] = intervaloSegundos.ToString(),
-                    })
-                    .Build(),
+                Options.Create(new IntervalosRevalidacionOptions { CircuitoSegundos = intervaloSegundos }),
                 NullLogger<RevalidacionCircuitoActivoHandler>.Instance);
     }
 

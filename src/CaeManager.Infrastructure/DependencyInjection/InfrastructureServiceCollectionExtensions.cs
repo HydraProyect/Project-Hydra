@@ -991,9 +991,30 @@ public static class InfrastructureServiceCollectionExtensions
     /// <summary>
     /// Clave de configuración que permite arrancar el tráfico con la identidad
     /// administrativa. Es una opción <b>insegura</b> y se llama como se llama
-    /// para que nadie la ponga sin leer qué apaga.
+    /// para que nadie la ponga sin leer qué apaga. En Production no vale nunca:
+    /// ver <see cref="RechazarIdentidadAdministrativaEnProduccion"/>.
     /// </summary>
     internal const string ClaveDegradacionInsegura = "Rls:PermitirIdentidadAdministrativaInsegura";
+
+    /// <summary>
+    /// Guarda dura del hallazgo S-B-6 (auditoría 2026-10-28; ASVS V14.1): con
+    /// <c>ASPNETCORE_ENVIRONMENT=Production</c> —el del contenedor de staging y de
+    /// producción, fijado en el Dockerfile— el arranque se niega si
+    /// <see cref="ClaveDegradacionInsegura"/> vale <c>true</c>, haya o no conexión
+    /// de runtime. Antes solo lo impedía la lista blanca de secretos de
+    /// <c>deploy/ci-deploy.sh</c>, que no cubre un <c>.env</c> editado a mano.
+    /// La guarda se apoya en el nombre del entorno: un <c>.env</c> que además cambie
+    /// <c>ASPNETCORE_ENVIRONMENT</c> a Development la esquiva, igual que ya esquivaba la
+    /// exigencia de conexión de runtime de <see cref="ResolverCadenaDeTrafico"/>. Fijar el
+    /// entorno del contenedor corresponde al despliegue, no a esta comprobación.
+    /// </summary>
+    public static void RechazarIdentidadAdministrativaEnProduccion(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        if (entorno.IsProduction() && configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
+            throw new InvalidOperationException(
+                $"{ClaveDegradacionInsegura}=true está prohibido en Production: el tráfico podría correr con una " +
+                "identidad de PostgreSQL exenta de RLS. Quita la clave y configura ConnectionStrings:CaeManagerDbRuntime.");
+    }
 
     /// <summary>
     /// Con qué identidad conecta el tráfico. Función pura de (configuración,
@@ -1006,7 +1027,8 @@ public static class InfrastructureServiceCollectionExtensions
     /// y solo define <c>ConnectionStrings__CaeManagerDb</c>—, y fuera de
     /// desarrollo hace falta decirlo a propósito con
     /// <see cref="ClaveDegradacionInsegura"/>; sin esa declaración, el arranque
-    /// se niega.
+    /// se niega. En Production la declaración tampoco vale: se niega siempre
+    /// (<see cref="RechazarIdentidadAdministrativaEnProduccion"/>).
     /// </para>
     ///
     /// <para>
@@ -1020,6 +1042,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     public static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
     {
+        RechazarIdentidadAdministrativaEnProduccion(configuration, entorno);
         var cadenaRuntime = configuration.GetConnectionString("CaeManagerDbRuntime");
         if (!string.IsNullOrWhiteSpace(cadenaRuntime))
             return cadenaRuntime;
