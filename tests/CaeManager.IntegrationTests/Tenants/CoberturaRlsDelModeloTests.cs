@@ -353,7 +353,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                             // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests,
                             // ContactosSeguridadTenantBajoRuntimeTests); esto solo cierra la
                             // reescritura más barata.
-                            || TieneDisyuncion(x.Politica.Using) || TieneDisyuncion(x.Politica.WithCheck)))
+                            || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.Using) || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.WithCheck)))
             .Select(x => $"{x.Revisada.Tabla}.{x.Revisada.Politica} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -371,7 +371,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                         || !x.Politica.Using.Contains("app_es_admin_plataforma_global(", StringComparison.Ordinal)
                         || !x.Politica.Using.Contains("app_ctx_usuario_id()", StringComparison.Ordinal)
                         || x.Politica.Using.Contains("current_setting(", StringComparison.Ordinal)
-                        || TieneDisyuncion(x.Politica.Using))
+                        || InspeccionTextoPoliticaRls.TieneDisyuncion(x.Politica.Using))
             .Select(x => $"{x.Key}.{x.Item2} → {(x.Politica is null ? "(no existe)" : $"USING {x.Politica.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"} / comando {x.Politica.Comando}")}")
             .ToList();
 
@@ -391,7 +391,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         var conExpresionSospechosa = conRls
             .Select(t => (Tabla: t, Politica: estado[t].Politicas.FirstOrDefault(p => p.Nombre == PoliticaAislamiento)))
             .Where(x => x.Politica is not null)
-            .Where(x => !MencionaElAislamiento(x.Politica!.Using) || !MencionaElAislamiento(x.Politica.WithCheck))
+            .Where(x => !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica!.Using) || !InspeccionTextoPoliticaRls.MencionaElAislamiento(x.Politica.WithCheck))
             .Select(x => $"{x.Tabla} → USING {x.Politica!.Using ?? "(ninguna)"} / WITH CHECK {x.Politica.WithCheck ?? "(ninguna)"}")
             .ToList();
 
@@ -966,15 +966,6 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
 
         return actual.FullName;
     }
-
-    private static bool TieneDisyuncion(string? expresion) =>
-        expresion is not null && System.Text.RegularExpressions.Regex.IsMatch(expresion, @"\bOR\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-
-    private static bool MencionaElAislamiento(string? expresion) =>
-        expresion is not null
-        && expresion.Contains("TenantId", StringComparison.Ordinal)
-        && expresion.Contains("app_ctx_tenant_id()", StringComparison.Ordinal)
-        && !expresion.Contains("current_setting(", StringComparison.Ordinal);
 
     private sealed record PoliticaRls(
         string Nombre, string? Using, string? WithCheck, bool Permisiva = true, char Comando = '*');
