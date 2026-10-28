@@ -77,7 +77,9 @@ public class SubidaMasivaTests(WebAppFixture fixture)
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
+        // El alta de Trabajador es un panel de tres pasos: en el primero el pie solo ofrece «Siguiente» y el secundario
+        // «Guardar y terminar» (el mismo guardado); «Guardar» a secas solo existe en el último paso.
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Subida múltiple: un único PDF, sin detección IA activa en el entorno de test ---
