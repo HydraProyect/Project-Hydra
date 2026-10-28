@@ -55,7 +55,6 @@ using Sentry;
 using Serilog;
 using System.Globalization;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
 
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
@@ -450,21 +449,18 @@ builder.Services.AddAuthorization(options =>
             .RequireClaim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimPermisoConsultarAccesoDocumentosSensibles));
 });
 
-// Rate limiting de la API pública, por tenant (no por IP — varias
-// integraciones del mismo cliente comparten cupo, coherente con "por tenant"
-// del ítem P3-29). Configurable sin recompilar, mismo patrón que
-// RetencionDatosOptions.
+// Rate limiting de la API pública, por clave presentada (huella SHA-256, nunca la
+// clave en claro) y, sin clave, por IP; más un techo por IP más holgado en el
+// limitador global (ver LimitadorApiPublica: por qué no se parte del principal
+// autenticado, que a esta altura del pipeline aún no existe). Configurables sin
+// recompilar, mismo patrón que RetencionDatosOptions.
 var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinuto", 300);
+var rateLimitPorMinutoPorIp = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 1200);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("ApiPublica", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: httpContext.User.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value ?? "sin-tenant",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = rateLimitPorMinuto,
-            Window = TimeSpan.FromMinutes(1),
-        }));
+    options.AddPolicy(LimitadorApiPublica.Politica, httpContext =>
+        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto));
 });
 
 // Los enums viajan por JSON como CADENA, no como número. Sin esto salían
@@ -526,6 +522,10 @@ builder.Services.AddRateLimiter(opciones =>
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
     {
+        // Techo por IP bajo /api/v1, delante del cupo por clave de la política ApiPublica.
+        if (LimitadorApiPublica.ParticionGlobal(contexto, rateLimitPorMinutoPorIp) is { } particionApi)
+            return particionApi;
+
         var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
             && contexto.Request.Path.StartsWithSegments("/cuenta");
 
