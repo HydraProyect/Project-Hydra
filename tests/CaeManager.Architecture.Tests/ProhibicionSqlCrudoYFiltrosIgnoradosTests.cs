@@ -198,9 +198,10 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // del PuedeGlobalmenteAsync del handler. Validar y rechazar van por la función SECURITY DEFINER
         // app_resolver_contacto_seguridad, que repite concesión, cuenta de plataforma, estado y motivo, y
         // devuelve un código; los destinatarios del aviso, por app_destinatarios_aviso_seguridad, que lanza
-        // 42501 sin la concesión. Valores parametrizados por EF.
+        // 42501 sin la concesión. Valores parametrizados por EF. La segunda lectura sin await es la cuenta que
+        // propuso un contacto, para la comprobación temprana de cuatro ojos, con la misma política de lectura.
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "await contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 1,
-        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 1,
+        [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", "contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()")] = 2,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<string>(")] = 1,
         [("src/CaeManager.Infrastructure/Plataforma/ContactosSeguridadPlataforma.cs", ".SqlQuery<FilaDestinatarioAvisoSeguridad>(")] = 1,
 

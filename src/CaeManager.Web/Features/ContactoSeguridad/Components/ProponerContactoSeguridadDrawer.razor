@@ -1,3 +1,4 @@
+@using CaeManager.Application.ContactosSeguridad
 @using CaeManager.Application.ContactosSeguridad.Commands.ProponerContactoSeguridad
 @using CaeManager.Web.Features.ContactoSeguridad.Recursos
 @using FluentValidation
@@ -70,7 +71,8 @@
             if (generacion != _generacion) return;
             if (resultado.EsFallido)
             {
-                _error = resultado.Error.Mensaje;
+                _error = resultado.Error == ErroresContactoSeguridad.PropuestaConcurrente
+                    ? Textos["PropuestaConcurrente"] : resultado.Error.Mensaje;
                 return;
             }
             _instantanea.Fijar(Instantanea());

@@ -40,6 +40,13 @@ public sealed class ContactosSeguridadPlataforma(
                     c.Id, c.Nombre, c.Correo, c.Telefono, c.PropuestoEnUtc, c.ResueltoEnUtc, c.MotivoRechazo))
                 .SingleOrDefaultAsync(cancellationToken), cancellationToken);
 
+    public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken) =>
+        puertaAccesoDatos.EjecutarAsync(() =>
+            contexto.ContactosSeguridadTenant.IgnoreQueryFilters().AsNoTracking()
+                .Where(c => c.Id == contactoId)
+                .Select(c => (Guid?)c.PropuestoPorUsuarioId)
+                .SingleOrDefaultAsync(cancellationToken), cancellationToken);
+
     public Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
@@ -69,6 +76,7 @@ public sealed class ContactosSeguridadPlataforma(
                 "no_encontrado" => Result.Fallo(ErroresContactoSeguridad.NoEncontrado),
                 "no_propuesto" => Result.Fallo(ErroresContactoSeguridad.YaResuelto),
                 "motivo_no_valido" => Result.Fallo(ErroresContactoSeguridad.MotivoObligatorio),
+                "misma_cuenta" => Result.Fallo(ErroresContactoSeguridad.MismaCuentaProponente),
                 _ => Result.Fallo(ErroresContactoSeguridad.SoloActorDePlataforma),
             };
         }, cancellationToken);

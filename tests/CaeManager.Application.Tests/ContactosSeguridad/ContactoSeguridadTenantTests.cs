@@ -36,9 +36,8 @@ public class ContactoSeguridadTenantTests
     public async Task El_Administrador_del_Tenant_propone_y_queda_Propuesto()
     {
         var repo = new RepositorioFalso();
-        var uow = new UnitOfWorkFalso();
 
-        var resultado = await Proponer(repo, uow, tenantActual: TenantA, administradorDe: TenantA)
+        var resultado = await Proponer(repo, tenantActual: TenantA, administradorDe: TenantA)
             .Handle(new ProponerContactoSeguridadCommand("Marta Ruiz", "marta@ejemplo.test", null), default);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -46,22 +45,21 @@ public class ContactoSeguridadTenantTests
         var propuesto = repo.Agregados[0];
         propuesto.Estado.Should().Be(EstadoContactoSeguridad.Propuesto);
         propuesto.PropuestoPorUsuarioId.Should().Be(Usuario);
-        uow.VecesGuardado.Should().Be(1);
+        repo.VecesGuardado.Should().Be(1);
     }
 
     [Fact]
     public async Task Quien_no_es_Administrador_del_Tenant_actual_no_propone()
     {
         var repo = new RepositorioFalso();
-        var uow = new UnitOfWorkFalso();
 
         // Administrador de B con A seleccionado (p. ej. por la vía de Operación): no es Administrador de A.
-        var resultado = await Proponer(repo, uow, tenantActual: TenantA, administradorDe: TenantB)
+        var resultado = await Proponer(repo, tenantActual: TenantA, administradorDe: TenantB)
             .Handle(new ProponerContactoSeguridadCommand("Marta Ruiz", "marta@ejemplo.test", null), default);
 
         resultado.Error.Should().Be(ErroresContactoSeguridad.SoloAdministradorDelTenant);
         repo.Agregados.Should().BeEmpty();
-        uow.VecesGuardado.Should().Be(0);
+        repo.VecesGuardado.Should().Be(0);
     }
 
     [Fact]
@@ -69,7 +67,7 @@ public class ContactoSeguridadTenantTests
     {
         var repo = new RepositorioFalso();
 
-        var resultado = await Proponer(repo, new UnitOfWorkFalso(), tenantActual: null, administradorDe: TenantA)
+        var resultado = await Proponer(repo, tenantActual: null, administradorDe: TenantA)
             .Handle(new ProponerContactoSeguridadCommand("Marta Ruiz", "marta@ejemplo.test", null), default);
 
         resultado.Error.Should().Be(ErroresContactoSeguridad.SoloAdministradorDelTenant);
@@ -85,7 +83,7 @@ public class ContactoSeguridadTenantTests
             .SetValue(validada, EstadoContactoSeguridad.Validado);
         var repo = new RepositorioFalso { PendienteYVigente = [pendiente, validada] };
 
-        var resultado = await Proponer(repo, new UnitOfWorkFalso(), tenantActual: TenantA, administradorDe: TenantA)
+        var resultado = await Proponer(repo, tenantActual: TenantA, administradorDe: TenantA)
             .Handle(new ProponerContactoSeguridadCommand("Nueva", "nueva@ejemplo.test", "+34 600 000 000"), default);
 
         resultado.EsExitoso.Should().BeTrue();
@@ -127,12 +125,67 @@ public class ContactoSeguridadTenantTests
             .Errors.Should().Contain(e => e.PropertyName == nameof(ProponerContactoSeguridadCommand.Nombre));
     }
 
+    [Fact]
+    public async Task Si_otra_propuesta_del_Tenant_gana_la_carrera_devuelve_error_de_negocio()
+    {
+        var repo = new RepositorioFalso { GanaLaCarrera = false };
+
+        var resultado = await Proponer(repo, tenantActual: TenantA, administradorDe: TenantA)
+            .Handle(new ProponerContactoSeguridadCommand("Marta", "marta@ejemplo.test", null), default);
+
+        resultado.Error.Should().Be(ErroresContactoSeguridad.PropuestaConcurrente);
+        repo.VecesGuardado.Should().Be(1);
+    }
+
     // ── Validar y rechazar ────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task La_cuenta_que_propuso_no_valida_ni_rechaza_aunque_tenga_la_concesion_global()
+    {
+        // Un Actor de Plataforma TALVEG que, como Administrador del Tenant de plataforma, propuso el contacto.
+        var plataforma = new PlataformaFalsa { CuentaProponente = Usuario };
+
+        var validar = await Validar(plataforma, AutorizacionAdminPlataformaFalsa.Global())
+            .Handle(new ValidarContactoSeguridadCommand(Guid.NewGuid()), default);
+        var rechazar = await Rechazar(plataforma, AutorizacionAdminPlataformaFalsa.Global())
+            .Handle(new RechazarContactoSeguridadCommand(Guid.NewGuid(), "Motivo"), default);
+
+        validar.Error.Should().Be(ErroresContactoSeguridad.MismaCuentaProponente);
+        rechazar.Error.Should().Be(ErroresContactoSeguridad.MismaCuentaProponente);
+        plataforma.Resoluciones.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Quien_propuso_sin_la_concesion_recibe_la_falta_de_autoridad_y_no_los_cuatro_ojos()
+    {
+        // El orden importa: los cuatro ojos leen la cola de otro Tenant, y eso solo puede hacerlo quien ya
+        // tiene la autoridad. Al revés, el mensaje revelaría a cualquiera de quién es una propuesta.
+        var plataforma = new PlataformaFalsa { CuentaProponente = Usuario };
+
+        var resultado = await Validar(plataforma, AutorizacionAdminPlataformaFalsa.SinNada())
+            .Handle(new ValidarContactoSeguridadCommand(Guid.NewGuid()), default);
+
+        resultado.Error.Should().Be(ErroresContactoSeguridad.SoloActorDePlataforma);
+        plataforma.LecturasDeCuentaProponente.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Otra_cuenta_con_la_concesion_global_rechaza_la_propuesta_de_un_Actor_de_Plataforma()
+    {
+        var plataforma = new PlataformaFalsa { CuentaProponente = Guid.NewGuid() };
+        var contacto = Guid.NewGuid();
+
+        var resultado = await Rechazar(plataforma, AutorizacionAdminPlataformaFalsa.Global())
+            .Handle(new RechazarContactoSeguridadCommand(contacto, " Motivo "), default);
+
+        resultado.EsExitoso.Should().BeTrue();
+        plataforma.Resoluciones.Should().ContainSingle().Which.Should().Be((contacto, (string?)"Motivo"));
+    }
 
     [Fact]
     public async Task El_Actor_de_Plataforma_con_concesion_global_valida()
     {
-        var plataforma = new PlataformaFalsa();
+        var plataforma = new PlataformaFalsa { CuentaProponente = Guid.NewGuid() };
         var contacto = Guid.NewGuid();
 
         var resultado = await Validar(plataforma, AutorizacionAdminPlataformaFalsa.Global())
@@ -318,9 +371,9 @@ public class ContactoSeguridadTenantTests
     // ── Dobles ────────────────────────────────────────────────────────────────
 
     private static ProponerContactoSeguridadCommandHandler Proponer(
-        RepositorioFalso repo, UnitOfWorkFalso uow, Guid? tenantActual, Guid? administradorDe) =>
+        RepositorioFalso repo, Guid? tenantActual, Guid? administradorDe) =>
         new(new TenantActualFijo(tenantActual), new CurrentUserServiceFalso(Usuario),
-            new AdministradorFalso(administradorDe), repo, uow);
+            new AdministradorFalso(administradorDe), repo);
 
     private static ValidarContactoSeguridadCommandHandler Validar(PlataformaFalsa plataforma, IAutorizacionAdminPlataforma autorizacion) =>
         new(new CurrentUserServiceFalso(Usuario), new SesionPrivilegiadaFalsa(null), autorizacion, plataforma);
@@ -333,6 +386,14 @@ public class ContactoSeguridadTenantTests
         public IReadOnlyList<ContactoSeguridadTenant> PendienteYVigente { get; init; } = [];
         public ContactoSeguridadTenant? UltimoRechazado { get; init; }
         public List<ContactoSeguridadTenant> Agregados { get; } = [];
+        public bool GanaLaCarrera { get; init; } = true;
+        public int VecesGuardado { get; private set; }
+
+        public Task<bool> GuardarPropuestaAsync(CancellationToken cancellationToken)
+        {
+            VecesGuardado++;
+            return Task.FromResult(GanaLaCarrera);
+        }
 
         public Task<IReadOnlyList<ContactoSeguridadTenant>> ObtenerPendienteYVigenteAsync(CancellationToken cancellationToken) =>
             Task.FromResult(PendienteYVigente);
@@ -345,6 +406,15 @@ public class ContactoSeguridadTenantTests
 
     private sealed class PlataformaFalsa : IContactosSeguridadPlataforma
     {
+        public Guid? CuentaProponente { get; init; }
+        public int LecturasDeCuentaProponente { get; private set; }
+
+        public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken)
+        {
+            LecturasDeCuentaProponente++;
+            return Task.FromResult(CuentaProponente);
+        }
+
         public IReadOnlyList<ContactoSeguridadPropuestoDto> Propuestos { get; init; } = [];
         public ContactoSeguridadDto? Vigente { get; init; }
         public List<(Guid ContactoId, string? Motivo)> Resoluciones { get; } = [];

@@ -579,6 +579,9 @@ public class AvisoIncidenteSeguridadTests
         public Task<Result> ResolverAsync(Guid contactoId, string? motivoRechazo, CancellationToken cancellationToken) =>
             Task.FromResult(Result.Exito());
 
+        public Task<Guid?> ObtenerCuentaProponenteAsync(Guid contactoId, CancellationToken cancellationToken) =>
+            Task.FromResult<Guid?>(null);
+
         public Task<Result<IReadOnlyList<DestinatariosAvisoSeguridadTenant>>> ResolverDestinatariosAsync(
             IReadOnlyCollection<Guid> tenantIds, CancellationToken cancellationToken)
         {
