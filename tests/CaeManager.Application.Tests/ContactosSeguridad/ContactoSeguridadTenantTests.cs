@@ -102,6 +102,9 @@ public class ContactoSeguridadTenantTests
     [InlineData("Marta", "no-es-un-correo", null, nameof(ProponerContactoSeguridadCommand.Correo))]
     [InlineData("Marta", "marta@ejemplo.test", "abc", nameof(ProponerContactoSeguridadCommand.Telefono))]
     [InlineData("Marta", "marta@ejemplo.test", "12", nameof(ProponerContactoSeguridadCommand.Telefono))]
+    [InlineData("Marta\r\nBcc: x", "marta@ejemplo.test", null, nameof(ProponerContactoSeguridadCommand.Nombre))]
+    [InlineData("Marta", "marta@ejemplo.test\r\nBcc: otro@ejemplo.test", null, nameof(ProponerContactoSeguridadCommand.Correo))]
+    [InlineData("Marta", "marta@ejemplo.test", "600000000\n", nameof(ProponerContactoSeguridadCommand.Telefono))]
     public void El_validador_de_la_propuesta_rechaza_datos_no_validos(string nombre, string correo, string? telefono, string campo)
     {
         var resultado = new ProponerContactoSeguridadCommandValidator()

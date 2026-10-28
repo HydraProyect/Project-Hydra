@@ -31,20 +31,26 @@ public class ProponerContactoSeguridadCommandValidator : AbstractValidator<Propo
         RuleFor(c => c.Nombre)
             .Must(n => !string.IsNullOrWhiteSpace(n)).WithMessage("Indica el nombre de la persona de contacto.")
             .MaximumLength(ContactoSeguridadTenant.LongitudMaximaNombre)
-            .WithMessage($"El nombre no puede superar {ContactoSeguridadTenant.LongitudMaximaNombre} caracteres.");
+            .WithMessage($"El nombre no puede superar {ContactoSeguridadTenant.LongitudMaximaNombre} caracteres.")
+            .Must(SinCaracteresDeControl).WithMessage("El nombre no admite saltos de línea ni caracteres de control.");
 
         RuleFor(c => c.Correo)
             .Must(c => !string.IsNullOrWhiteSpace(c)).WithMessage("Indica el correo de la persona de contacto.")
             .MaximumLength(ContactoSeguridadTenant.LongitudMaximaCorreo)
             .WithMessage($"El correo no puede superar {ContactoSeguridadTenant.LongitudMaximaCorreo} caracteres.")
-            .EmailAddress().WithMessage("El correo no tiene un formato válido.");
+            .EmailAddress().WithMessage("El correo no tiene un formato válido.")
+            // EmailAddress solo exige una arroba: un salto de línea en el correo acabaría en una cabecera del
+            // aviso que lo use (incremento 3b).
+            .Must(SinCaracteresDeControl).WithMessage("El correo no tiene un formato válido.");
 
         RuleFor(c => c.Telefono)
             .MaximumLength(ContactoSeguridadTenant.LongitudMaximaTelefono)
             .WithMessage($"El teléfono no puede superar {ContactoSeguridadTenant.LongitudMaximaTelefono} caracteres.")
-            .Matches(@"^\+?[0-9 ().-]{6,}$").WithMessage("El teléfono solo admite cifras, espacios, paréntesis, guiones y un + inicial.")
+            .Matches(@"^\+?[0-9 ().-]{6,}\z").WithMessage("El teléfono solo admite cifras, espacios, paréntesis, guiones y un + inicial.")
             .When(c => !string.IsNullOrWhiteSpace(c.Telefono));
     }
+
+    private static bool SinCaracteresDeControl(string? valor) => valor is null || !valor.Any(char.IsControl);
 }
 
 public class ProponerContactoSeguridadCommandHandler(

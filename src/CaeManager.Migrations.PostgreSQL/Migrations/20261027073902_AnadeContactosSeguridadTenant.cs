@@ -59,12 +59,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // - solo_el_administrador_propone (RESTRICTIVE, INSERT): el alta solo nace Propuesta, sin resolución,
             //   a nombre de quien firma el contexto y si es Administrador de ese Tenant
             //   (app_es_administrador_del_tenant, la misma función que ya usan otras políticas).
-            // - solo_el_administrador_sustituye_su_propuesta (RESTRICTIVE, UPDATE): lo único que el Tenant
+            // - solo_el_administrador_sustituye_la_propuesta (RESTRICTIVE, UPDATE): lo único que el Tenant
             //   cambia es una Propuesta a Sustituida, sin resolución, y además solo puede tocar Estado y
             //   SustitucionEnUtc (GRANT UPDATE por columna). Validar y rechazar quedan fuera de su alcance.
-            // - actor_de_plataforma_lee (PERMISSIVE, solo SELECT, cae_app_runtime): el mismo patrón que el
-            //   incremento 1 (IncidentesSeguridadSospechados): concesión AdminPlataforma global vigente sobre
-            //   app_ctx_usuario_id(). Da lectura, nunca escritura.
+            // - actor_de_plataforma_lee (PERMISSIVE, solo SELECT, cae_app_runtime): concesión AdminPlataforma
+            //   global vigente sobre app_ctx_usuario_id(), con app_es_admin_plataforma_global, la misma función
+            //   que ya usan las políticas de plataforma. Da lectura, nunca escritura.
             //
             // Validar y rechazar escriben filas de otro Tenant, y ninguna política se abre para eso: lo hace la
             // función SECURITY DEFINER app_resolver_contacto_seguridad, con search_path fijado, mismo régimen que
@@ -81,7 +81,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
             // solo responde a un Actor de Plataforma TALVEG con concesión AdminPlataforma global vigente y, si
             // no, lanza 42501 en vez de devolver una lista vacía que se leería como «nadie a quien avisar».
             //
-            // Como app_registrar_incidente_seguridad, las dos dependen de que su propietario (el rol de las
+            // Como las funciones de 20261023221557_AnadeRegistroIniciosSesion, las dos dependen de que su propietario (el rol de las
             // migraciones) sea superusuario o tenga BYPASSRLS: con FORCE, sin eso no verían las filas. Lo
             // comprueban y fallan en vez de callar.
             //
@@ -107,7 +107,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         AND "SustitucionEnUtc" IS NULL
                         AND public.app_es_administrador_del_tenant((SELECT public.app_ctx_usuario_id()), "TenantId"));
 
-                CREATE POLICY solo_el_administrador_sustituye_su_propuesta ON public."ContactosSeguridadTenant"
+                CREATE POLICY solo_el_administrador_sustituye_la_propuesta ON public."ContactosSeguridadTenant"
                     AS RESTRICTIVE FOR UPDATE
                     USING ("Estado" = 'Propuesto'
                         AND public.app_es_administrador_del_tenant((SELECT public.app_ctx_usuario_id()), "TenantId"))

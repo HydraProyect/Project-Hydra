@@ -113,8 +113,71 @@ public class ContactosSeguridadTenantBajoRuntimeTests : IAsyncLifetime
                 "la política restrictiva de UPDATE solo admite pasar una propuesta a Sustituida");
         (await validarConResolucion.Should().ThrowAsync<PostgresException>())
             .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
-                "el GRANT de UPDATE es solo de Estado y SustituidoEnUtc");
+                "el GRANT de UPDATE es solo de Estado y SustitucionEnUtc");
         (await EstadoAsync(contacto)).Should().Be("Propuesto");
+    }
+
+    [Fact]
+    public async Task Proponer_dos_veces_sin_resolver_sustituye_la_primera_propuesta_en_el_mismo_guardado()
+    {
+        // El índice único parcial admite una sola Propuesta por Tenant: si EF insertara la nueva antes de
+        // pasar la anterior a Sustituida, el guardado fallaría con 23505.
+        var primera = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        var segunda = await ProponerAsync(_tenantA, _administradorDeA, "Jordi");
+
+        (await EstadoAsync(primera)).Should().Be("Sustituido");
+        (await EstadoAsync(segunda)).Should().Be("Propuesto");
+    }
+
+    [Fact]
+    public async Task El_Administrador_de_otro_Tenant_no_propone_aunque_el_contexto_apunte_al_Tenant()
+    {
+        await using var contexto = CrearContexto(_tenantA, actor: _administradorDeB, tenantOrigen: _tenantB);
+        contexto.ContactosSeguridadTenant.Add(
+            ContactoSeguridadTenant.Proponer("Intruso", "intruso@ejemplo.test", null, _administradorDeB, DateTime.UtcNow));
+
+        var guardar = () => contexto.SaveChangesAsync();
+
+        (await guardar.Should().ThrowAsync<DbUpdateException>())
+            .WithInnerException<PostgresException>()
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "ser Administrador de un Tenant no lo hace Administrador del Tenant del contexto");
+        (await ContarAsync()).Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("Validado", false)]
+    [InlineData("Propuesto", true)]
+    public async Task El_alta_directa_por_la_tabla_solo_nace_Propuesta_y_a_nombre_de_quien_firma(string estado, bool aNombreDeOtro)
+    {
+        await using var contexto = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA);
+        var proponente = aNombreDeOtro ? _tecnicoDeA : _administradorDeA;
+        var resolutor = estado == "Validado" ? _administradorDeA : (Guid?)null;
+        var resueltoEn = estado == "Validado" ? DateTime.UtcNow : (DateTime?)null;
+
+        var insertar = () => contexto.Database.ExecuteSqlAsync($@"
+INSERT INTO ""ContactosSeguridadTenant""
+  (""Id"", ""Nombre"", ""Correo"", ""Estado"", ""PropuestoPorUsuarioId"", ""PropuestoEnUtc"", ""ResueltoPorUsuarioId"", ""ResueltoEnUtc"", ""TenantId"")
+VALUES ({Guid.NewGuid()}, 'Intruso', 'intruso@ejemplo.test', {estado}, {proponente}, now(), {resolutor}, {resueltoEn}, {_tenantA})");
+
+        (await insertar.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege);
+        (await ContarAsync()).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_Tenant_no_sustituye_por_la_tabla_un_contacto_ya_validado()
+    {
+        var contacto = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        await using (var plataforma = CrearContexto(_tenantPlataforma, actor: _adminPlataforma))
+            (await LlamarResolverAsync(plataforma, contacto, validar: true, motivo: null)).Should().Be("validado");
+        await using var contexto = CrearContexto(_tenantA, actor: _administradorDeA, tenantOrigen: _tenantA);
+
+        var filas = await contexto.Database.ExecuteSqlAsync($@"
+UPDATE ""ContactosSeguridadTenant"" SET ""Estado"" = 'Sustituido', ""SustitucionEnUtc"" = now() WHERE ""Id"" = {contacto}");
+
+        filas.Should().Be(0, "el USING de la política de sustitución solo deja ver Propuestas para actualizar");
+        (await EstadoAsync(contacto)).Should().Be("Validado");
     }
 
     [Fact]
@@ -210,6 +273,40 @@ WHERE ""EntidadTipo"" = 'ContactoSeguridadTenant' AND ""UsuarioId"" = @u;", _adm
         deB.SinContactoValidado.Should().BeTrue();
         deB.Destinatarios.Should().ContainSingle().Which.Correo.Should().Be("admin-b@contacto-seguridad.test",
             "sin contacto validado el aviso va a los Administradores del Tenant");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Una_propuesta_pendiente_o_rechazada_no_recibe_avisos(bool rechazada)
+    {
+        var contacto = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        await using var contexto = CrearContexto(_tenantPlataforma, actor: _adminPlataforma);
+        if (rechazada)
+            (await LlamarResolverAsync(contexto, contacto, validar: false, motivo: "No pertenece a la organización"))
+                .Should().Be("rechazado");
+
+        var resultado = await new ContactosSeguridadPlataforma(contexto, new PuertaAccesoDatos())
+            .ResolverDestinatariosAsync([_tenantA], CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var deA = resultado.Valor.Single(d => d.TenantId == _tenantA);
+        deA.SinContactoValidado.Should().BeTrue();
+        deA.Destinatarios.Should().ContainSingle().Which.Correo.Should().Be("admin-a@contacto-seguridad.test",
+            "solo un contacto validado recibe avisos; el técnico de A no es Administrador");
+    }
+
+    [Fact]
+    public async Task Con_concesion_global_pero_dentro_de_otro_Tenant_no_se_valida()
+    {
+        var contacto = await ProponerAsync(_tenantA, _administradorDeA, "Marta");
+        await using var contexto = CrearContexto(_tenantA, actor: _adminPlataforma, tenantOrigen: _tenantPlataforma);
+
+        // Según firme el interceptor ese contexto, la función se para en la firma o en la comprobación de que
+        // el actor trabaja desde su propio Tenant de plataforma; en los dos casos, sin escribir.
+        (await LlamarResolverAsync(contexto, contacto, validar: true, motivo: null))
+            .Should().BeOneOf("no_autorizado", "contexto_no_valido");
+        (await EstadoAsync(contacto)).Should().Be("Propuesto");
     }
 
     // ── Preparación y lectura ─────────────────────────────────────────────────

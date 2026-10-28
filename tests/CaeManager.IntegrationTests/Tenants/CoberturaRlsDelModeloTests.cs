@@ -115,27 +115,30 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// una de la lista que falte en la base, pone el test en rojo. <c>Menciona</c>
     /// son los fragmentos que su USING y su WITH CHECK tienen que contener: sin
     /// ellos, una restrictiva reescrita a <c>true</c> seguiría contando como revisada.
-    /// Una restrictiva solo de INSERT no tiene USING: ahí basta con su WITH CHECK.
+    /// <c>Comando</c> es el pg_policy.polcmd que la política tiene que tener ('*' todas, 'a' INSERT,
+    /// 'w' UPDATE): una restrictiva solo de INSERT no tiene USING y ahí basta con su WITH CHECK, pero eso
+    /// solo vale para la que se revisó como de INSERT. <c>SoloUsing</c> y <c>SoloWithCheck</c> son los
+    /// fragmentos que solo lleva una de las dos expresiones (el estado de partida y el de llegada).
     /// Una tabla puede tener más de una.
     /// </summary>
-    private static readonly (string Tabla, string Politica, string Motivo, string[] Menciona)[] PoliticasRestrictivasRevisadas =
+    private static readonly (string Tabla, string Politica, char Comando, string Motivo, string[] Menciona, string[] SoloUsing, string[] SoloWithCheck)[] PoliticasRestrictivasRevisadas =
     [
-        ("TareasAsistente", "solo_su_persona",
+        ("TareasAsistente", "solo_su_persona", '*',
             "cada Tarea del asistente es de una sola persona dentro del Tenant: ActorRealUsuarioId = app_ctx_usuario_id()",
-            ["\"ActorRealUsuarioId\"", "app_ctx_usuario_id()"]),
-        ("TurnosTareaAsistente", "solo_su_persona",
+            ["\"ActorRealUsuarioId\"", "app_ctx_usuario_id()"], [], []),
+        ("TurnosTareaAsistente", "solo_su_persona", '*',
             "un turno solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
-            ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""]),
-        ("PasosTareaAsistente", "solo_su_persona",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"TurnosTareaAsistente\".\"TareaAsistenteId\""], [], []),
+        ("PasosTareaAsistente", "solo_su_persona", '*',
             "un paso solo es visible si su Tarea del asistente lo es (EXISTS sobre la raíz)",
-            ["EXISTS", "FROM \"TareasAsistente\"", "\"PasosTareaAsistente\".\"TareaAsistenteId\""]),
-        ("ContactosSeguridadTenant", "solo_el_administrador_propone",
+            ["EXISTS", "FROM \"TareasAsistente\"", "\"PasosTareaAsistente\".\"TareaAsistenteId\""], [], []),
+        ("ContactosSeguridadTenant", "solo_el_administrador_propone", 'a',
             "el Tenant propietario solo da de alta contactos Propuestos, sin resolución, a nombre de quien firma el " +
             "contexto y si es su Administrador (validar y rechazar son de app_resolver_contacto_seguridad)",
-            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "'Propuesto'"]),
-        ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_su_propuesta",
-            "lo único que el Tenant propietario actualiza es su propuesta pendiente a Sustituida, y solo su Administrador",
-            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"]),
+            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()", "'Propuesto'"], [], []),
+        ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_la_propuesta", 'w',
+            "lo único que el Tenant propietario actualiza es la propuesta pendiente a Sustituida, y solo su Administrador",
+            ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"], ["'Propuesto'"], ["'Sustituido'"]),
     ];
 
     /// <summary>
@@ -143,8 +146,7 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
     /// <c>aislamiento_tenant</c>, por tabla. Ensanchan la lectura —por eso cada una va aquí, con motivo, en
     /// el commit que la introduce— y nada más: tienen que ser solo de SELECT, sin WITH CHECK, y su USING
     /// tiene que ser la concesión AdminPlataforma global vigente sobre la identidad del contexto RLS firmado,
-    /// sin disyunciones. Mismo patrón que <c>actor_de_plataforma_lee</c> de las tablas de incidentes de
-    /// seguridad, que no llevan <c>TenantId</c>.
+    /// sin disyunciones.
     /// </summary>
     private static readonly Dictionary<string, (string Politica, string Motivo)> LecturasDePlataformaRevisadas = new()
     {
@@ -341,8 +343,11 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
                 ? e.Politicas.FirstOrDefault(p => p.Nombre == r.Politica)
                 : null))
             .Where(x => x.Politica is not null
-                        && (!x.Revisada.Menciona.All(m => (x.Politica.Comando == 'a' || (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal))
+                        && (x.Politica.Comando != x.Revisada.Comando
+                            || !x.Revisada.Menciona.All(m => (x.Revisada.Comando == 'a' || (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal))
                                                           && (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
+                            || !x.Revisada.SoloUsing.All(m => (x.Politica.Using ?? "").Contains(m, StringComparison.Ordinal))
+                            || !x.Revisada.SoloWithCheck.All(m => (x.Politica.WithCheck ?? "").Contains(m, StringComparison.Ordinal))
                             // Ninguna lleva disyunciones: un "... OR true" conservaría
                             // los fragmentos y dejaría de restringir. Que restringe de verdad lo
                             // prueban los tests de runtime (TareasAsistenteRlsRuntimeTests,
