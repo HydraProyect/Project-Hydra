@@ -829,7 +829,7 @@ public class ComunicacionesGen2Tests : BunitContext
     /// buzón para «Redactar»: lo mínimo para abrir los cinco formularios de la página.
     /// </summary>
     private async Task<(IRenderedComponent<Bandeja> Cut, NavigationManager Navegacion)> RenderizarConversacionAbiertaAsync(
-        bool laDeteccionLeeLaFechaDeEmision = true, bool conBuzon = true, bool borradorFalla = false)
+        bool laDeteccionLeeLaFechaDeEmision = true, bool conBuzon = true, bool borradorFalla = false, bool envioFalla = false)
     {
         var conversacion = Conversacion("Documentación pendiente", ClienteRefrielectric);
         var detalle = DetalleDe(conversacion);
@@ -853,6 +853,8 @@ public class ComunicacionesGen2Tests : BunitContext
                 ObtenerConexionesIntegracionQuery when !conBuzon => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>()),
                 ObtenerConexionesIntegracionQuery => Task.FromResult<object?>(new List<ConexionIntegracionListaDto>
                     { new(Guid.NewGuid(), "cae@example.invalid", "CAE Norte", null, null, EstadoConexionIntegracion.Habilitada, DateTime.UtcNow, null, null) }),
+                EnviarMensajeNuevoCommand when envioFalla => Task.FromResult<object?>(
+                    Result.Fallo<Guid>(Error.Crear("Mensaje.NoEnviado", "El buzón rechazó el envío."))),
                 EnviarMensajeNuevoCommand => Task.FromResult<object?>(Result.Exito(Guid.NewGuid())),
                 ObtenerEmpresasParaSelectorQuery => Task.FromResult<object?>(new List<EmpresaSelectorDto>()),
                 DetectarActualizacionDocumentoDesdeAdjuntoQuery => Task.FromResult<object?>(Result.Exito(new DeteccionActualizacionDocumentoDto(
@@ -1122,9 +1124,24 @@ public class ComunicacionesGen2Tests : BunitContext
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
 
-        cut.Find(".drawer-panel").TextContent.Should().Contain("Indica al menos un destinatario.");
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Indica al menos un destinatario.", "el error sale en el aviso del kit, fuera del cuerpo desplazable");
         cut.FindAll(".drawer-panel").Should().ContainSingle();
         MediadorDeLaPagina.Enviados.OfType<EnviarMensajeNuevoCommand>().Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Si_el_envio_de_Redactar_falla_el_Drawer_sigue_abierto_con_lo_escrito_y_el_motivo()
+    {
+        var (cut, _) = await RenderizarConversacionAbiertaAsync(envioFalla: true);
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await cut.FindAll(".drawer-panel input.campo-input")[0].InputAsync(new ChangeEventArgs { Value = "contacto@example.invalid" });
+
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("El buzón rechazó el envío.");
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        cut.FindComponents<CampoTexto>().Should().Contain(c => c.Instance.Valor == "contacto@example.invalid", "lo escrito se conserva para corregir");
+        cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").HasAttribute("disabled").Should().BeFalse("se puede corregir y reintentar");
     }
 
     [Fact]
@@ -1157,7 +1174,7 @@ public class ComunicacionesGen2Tests : BunitContext
 
         await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
 
-        cut.Find(".drawer-panel").TextContent.Should().Contain("Indica al menos un destinatario.");
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Indica al menos un destinatario.");
         cut.FindAll(".drawer-panel").Should().ContainSingle();
         MediadorDeLaPagina.Enviados.OfType<PedirPrioridadValidacionCommand>().Should().BeEmpty();
     }

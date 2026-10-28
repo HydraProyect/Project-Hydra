@@ -528,7 +528,7 @@ else
 
     <DrawerFormulario HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
             Guardando="_guardandoVerificacion" MensajeError="@_mensajeErrorVerificacion"
-            TextoCancelar="@Textos["BotonCancelar"]" TextoGuardar="@Textos["BotonRegistrar"]" OnGuardar="GuardarVerificacionAsync">
+            TextoCancelar="@Textos["BotonCancelar"]" TextoGuardar="@Textos["BotonRegistrar"]" TextoGuardando="@Textos["BotonRegistrar"]" OnGuardar="GuardarVerificacionAsync">
         <ChildContent>
             <CampoSelect Etiqueta="@Textos["RotuloCentro"]" Valor="@_verificacionCentroId" ValorChanged="v => _verificacionCentroId = v">
                 <option value="">@Textos["OpcionSeleccionaCentro"]</option>

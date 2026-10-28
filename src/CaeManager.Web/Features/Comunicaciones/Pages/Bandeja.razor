@@ -607,7 +607,7 @@
     <DrawerFormulario HayCambios="() => HayCambiosRedactar" Visible="_redactarVisible" VisibleChanged="v => _redactarVisible = v" Titulo="Redactar mensaje"
             Guardando="_enviandoRedaccion" MensajeError="@_redactarError" SinContenido="@(_conexionesRedactar.Count == 0 ? SinBuzonRedactar : null)"
             MotivoGuardarDeshabilitado="@(_conexionesRedactar.Count == 0 ? TextosComunesPagina["SinBuzonMotivo"].Value : null)"
-            TextoCancelar="Cancelar" TextoGuardar="Enviar" OnGuardar="EnviarMensajeNuevoDesdeRedactarAsync">
+            TextoCancelar="Cancelar" TextoGuardar="Enviar" TextoGuardando="Enviar" OnGuardar="EnviarMensajeNuevoDesdeRedactarAsync">
         <ChildContent>
             @if (_conexionesRedactar.Count > 1)
             {
@@ -631,7 +631,7 @@
             Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" Cargando="_cargandoBorradorPrioridad" FilasCargando="3"
             MensajeError="@(_borradorPrioridad is null ? null : _mensajeErrorPrioridad)" SinContenido="SinBorradorPrioridad"
             MotivoGuardarDeshabilitado="@(_borradorPrioridad is null ? (_mensajeErrorPrioridad ?? ErroresTextos["ErrorBorradorPrioridad"].Value) : null)"
-            TextoCancelar="Cancelar" TextoGuardar="Enviar" OnGuardar="EnviarPrioridadAsync">
+            TextoCancelar="Cancelar" TextoGuardar="Enviar" TextoGuardando="Enviar" OnGuardar="EnviarPrioridadAsync">
         <ChildContent>
             @if (_borradorPrioridad is not null)
             {
