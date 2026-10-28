@@ -219,13 +219,13 @@ public class VinculacionUsuarioClienteRelacionEmpresarialE2ETests(WebAppFixture 
 
     /// <summary>
     /// Algunos drawers (Subcontratas.razor) tienen DOS SelectorMultiple a la
-    /// vez ("Clientes empresariales que la contrataron" + "Empresas a las que presta
+    /// vez ("Clientes que la contrataron" + "Empresas a las que presta
     /// servicio") — y el catálogo de Empresas es global a propósito (ver
     /// ObtenerEmpresasParaSelectorQuery), así que un Cliente recién creado
     /// (que también es una fila de Empresas) puede aparecer como opción en
     /// AMBOS selectores del mismo drawer. Buscar por <c>drawer.GetByLabel</c>
-    /// a secas es ambiguo ahí — hay que acotar primero al contenedor
-    /// ".campo" del selector correcto, identificado por su propia etiqueta.
+    /// a secas es ambiguo ahí — hay que acotar primero al grupo (role="group"
+    /// con aria-label) del selector correcto, identificado por su propia etiqueta.
     /// </summary>
     private static async Task MarcarCasillaEnSelectorMultipleAsync(ILocator drawer, string etiquetaSelector, string nombreElemento)
     {
