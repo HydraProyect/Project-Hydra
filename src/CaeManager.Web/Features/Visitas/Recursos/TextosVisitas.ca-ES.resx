@@ -16,19 +16,19 @@
     <value>Visitas</value>
   </data>
   <data name="BotonNuevaVisita" xml:space="preserve">
-    <value>+ Nueva visita</value>
+    <value>+ Nova visita</value>
   </data>
   <data name="PlaceholderBusqueda" xml:space="preserve">
-    <value>Buscar por centro, titular o empresa…</value>
+    <value>Cercar per centre, titular o empresa…</value>
   </data>
   <data name="FiltroSoloActivas" xml:space="preserve">
-    <value>Solo activas</value>
+    <value>Només actives</value>
   </data>
   <data name="FiltroSoloUrgentes" xml:space="preserve">
-    <value>Solo urgentes</value>
+    <value>Només urgents</value>
   </data>
   <data name="EtiquetaNotificadaTitular" xml:space="preserve">
-    <value>Notificada al titular del Centro</value>
+    <value>Notificada al titular del Centre</value>
   </data>
   <data name="OpcionTodas" xml:space="preserve">
     <value>Todas</value>
@@ -40,16 +40,16 @@
     <value>No</value>
   </data>
   <data name="ErrorCargaTitulo" xml:space="preserve">
-    <value>No pudimos cargar las visitas</value>
+    <value>No hem pogut carregar les visites</value>
   </data>
   <data name="ErrorCargaDescripcion" xml:space="preserve">
-    <value>Intenta nuevamente en unos segundos.</value>
+    <value>Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="NotaUrgenciaCalculada" xml:space="preserve">
-    <value>Urgencia calculada al cargar la lista, sobre las fechas de cada visita</value>
+    <value>Urgència calculada en carregar la llista, sobre les dates de cada visita</value>
   </data>
   <data name="AriaSeleccionarPagina" xml:space="preserve">
-    <value>Seleccionar las visitas de esta página</value>
+    <value>Seleccionar les visites d'aquesta pàgina</value>
   </data>
   <data name="AriaSeleccionarVisita" xml:space="preserve">
     <value>Seleccionar la visita de {0} a {1}, {2}</value>
@@ -61,85 +61,85 @@
     <value>Fechas</value>
   </data>
   <data name="EtiquetaTrabajadores" xml:space="preserve">
-    <value>Trabajadores</value>
+    <value>Treballadors</value>
   </data>
   <data name="EtiquetaOrigen" xml:space="preserve">
     <value>Origen</value>
   </data>
   <data name="ColumnaDocumentacion" xml:space="preserve">
-    <value>Documentación</value>
+    <value>Documentació</value>
   </data>
   <data name="BadgeDocumentacionPorGestionar" xml:space="preserve">
-    <value>Por gestionar</value>
+    <value>Per gestionar</value>
   </data>
   <data name="AriaNotificadaTitular" xml:space="preserve">
-    <value>Notificada al titular del Centro: {0}, {1}</value>
+    <value>Notificada al titular del Centre: {0}, {1}</value>
   </data>
   <data name="AccionEditar" xml:space="preserve">
     <value>Editar</value>
   </data>
   <data name="AccionCancelar" xml:space="preserve">
-    <value>Cancelar visita</value>
+    <value>Cancel·lar visita</value>
   </data>
   <data name="EtiquetaPaginador" xml:space="preserve">
     <value>visita(s)</value>
   </data>
   <data name="VacioFiltroTitulo" xml:space="preserve">
-    <value>Ninguna visita con estos filtros</value>
+    <value>Cap visita amb aquests filtres</value>
   </data>
   <data name="VacioFiltroDescripcion" xml:space="preserve">
-    <value>Ninguna coincide con la búsqueda ni con los filtros de documentación, urgencia o notificación.</value>
+    <value>Cap no coincideix amb la cerca ni amb els filtres de documentació, urgència o notificació.</value>
   </data>
   <data name="BotonQuitarFiltros" xml:space="preserve">
-    <value>Quitar los filtros</value>
+    <value>Treure els filtres</value>
   </data>
   <data name="VacioActivasTitulo" xml:space="preserve">
-    <value>No hay visitas activas</value>
+    <value>No hi ha visites actives</value>
   </data>
   <data name="VacioActivasDescripcion" xml:space="preserve">
-    <value>Puede haber visitas ya finalizadas: la lista llega filtrada por «Solo activas».</value>
+    <value>Pot haver-hi visites ja finalitzades: la llista arriba filtrada per «Només actives».</value>
   </data>
   <data name="BotonVerFinalizadas" xml:space="preserve">
-    <value>Ver también las finalizadas</value>
+    <value>Veure també les finalitzades</value>
   </data>
   <data name="VacioInicialTitulo" xml:space="preserve">
-    <value>Todavía no hay visitas programadas</value>
+    <value>Encara no hi ha visites programades</value>
   </data>
   <data name="VacioInicialDescripcion" xml:space="preserve">
-    <value>Crea la primera visita para empezar a llevar el control de accesos programados.</value>
+    <value>Crea la primera visita per començar a portar el control dels accessos programats.</value>
   </data>
   <data name="DrawerTituloNueva" xml:space="preserve">
-    <value>Nueva visita</value>
+    <value>Nova visita</value>
   </data>
   <data name="DrawerTituloEditar" xml:space="preserve">
     <value>Editar visita</value>
   </data>
   <data name="AvisoPrellenado" xml:space="preserve">
-    <value>Prellenado desde un correo: {0} — revisa los datos y elige los trabajadores antes de guardar.</value>
+    <value>Emplenat prèviament des d'un correu: {0} — revisa les dades i tria els treballadors abans de desar.</value>
   </data>
   <data name="AvisoCentroSinTrabajadoresAsignados" xml:space="preserve">
-    <value>Este centro no tiene trabajadores asignados.</value>
+    <value>Aquest centre no té treballadors assignats.</value>
   </data>
   <data name="OpcionSeleccionaCentro" xml:space="preserve">
-    <value>Selecciona un centro…</value>
+    <value>Selecciona un centre…</value>
   </data>
   <data name="EtiquetaFechaInicio" xml:space="preserve">
-    <value>Fecha de inicio</value>
+    <value>Data d'inici</value>
   </data>
   <data name="EtiquetaFechaFin" xml:space="preserve">
     <value>Fecha de fin</value>
   </data>
   <data name="EtiquetaHoraEntrada" xml:space="preserve">
-    <value>Hora de entrada (opcional — si se deja vacía se asume la apertura de la jornada)</value>
+    <value>Hora d'entrada (opcional — si es deixa buida s'assumeix l'obertura de la jornada)</value>
   </data>
   <data name="EtiquetaTrabajadoresQueEntran" xml:space="preserve">
-    <value>Trabajadores que entran</value>
+    <value>Treballadors que entren</value>
   </data>
   <data name="SelectorTrabajadoresVacio" xml:space="preserve">
-    <value>Todavía no hay trabajadores creados.</value>
+    <value>Encara no hi ha treballadors creats.</value>
   </data>
   <data name="CasillaNotificadaTitularCentro" xml:space="preserve">
-    <value>Marcar como avisado al titular del Centro (no envía nada)</value>
+    <value>Marcar el titular del Centre com a avisat (no envia res)</value>
   </data>
   <data name="EtiquetaNotas" xml:space="preserve">
     <value>Notas</value>
@@ -151,10 +151,10 @@
     <value>Guardar</value>
   </data>
   <data name="DetalleTitulo" xml:space="preserve">
-    <value>Detalle de la visita</value>
+    <value>Detall de la visita</value>
   </data>
   <data name="DetalleTitularCentro" xml:space="preserve">
-    <value>Titular del centro</value>
+    <value>Titular del centre</value>
   </data>
   <data name="DetalleEmpresa" xml:space="preserve">
     <value>Empresa</value>
@@ -163,88 +163,88 @@
     <value>Entrada</value>
   </data>
   <data name="DetalleSinHora" xml:space="preserve">
-    <value>Sin hora fijada</value>
+    <value>Sense hora fixada</value>
   </data>
   <data name="DetalleAntelacion" xml:space="preserve">
     <value>Antelación</value>
   </data>
   <data name="DetalleAntelacionHoras" xml:space="preserve">
-    <value>Aviso recibido con {0} de antelación; el expediente quedó completo {1} antes de la entrada.</value>
+    <value>Avís rebut amb {0} d'antelació; l'expedient va quedar complet {1} abans de l'entrada.</value>
   </data>
   <data name="SubtituloComprobacionPrevia" xml:space="preserve">
-    <value>Comprobación previa</value>
+    <value>Comprovació prèvia</value>
   </data>
   <data name="ErrorDocumentacionTitulo" xml:space="preserve">
-    <value>No pudimos cargar la documentación</value>
+    <value>No hem pogut carregar la documentació</value>
   </data>
   <data name="SeccionDocumentacionEmpresa" xml:space="preserve">
-    <value>Documentación de la empresa</value>
+    <value>Documentació de l'empresa</value>
   </data>
   <data name="VacioDocumentosTitulo" xml:space="preserve">
-    <value>Todo en orden</value>
+    <value>Tot en ordre</value>
   </data>
   <data name="VacioDocumentosEmpresaDescripcion" xml:space="preserve">
-    <value>No hay documentación de empresa pendiente para este centro.</value>
+    <value>No hi ha documentació d'empresa pendent per a aquest centre.</value>
   </data>
   <data name="SubtituloVence" xml:space="preserve">
     <value>Vence: {0:dd/MM/yyyy}</value>
   </data>
   <data name="SubtituloTrabajadoresQueEntran" xml:space="preserve">
-    <value>Trabajadores que entran ({0})</value>
+    <value>Treballadors que entren ({0})</value>
   </data>
   <data name="VacioTrabajadoresTitulo" xml:space="preserve">
-    <value>Sin trabajadores</value>
+    <value>Sense treballadors</value>
   </data>
   <data name="VacioTrabajadoresDescripcion" xml:space="preserve">
-    <value>Esta visita todavía no tiene trabajadores asignados.</value>
+    <value>Aquesta visita encara no té treballadors assignats.</value>
   </data>
   <data name="VacioDocumentosTrabajadorDescripcion" xml:space="preserve">
-    <value>No hay documentación pendiente para este centro.</value>
+    <value>No hi ha documentació pendent per a aquest centre.</value>
   </data>
   <data name="BotonQuitarMarcaNotificada" xml:space="preserve">
-    <value>Quitar la marca de notificada</value>
+    <value>Treure la marca de notificada</value>
   </data>
   <data name="BotonMarcarNotificada" xml:space="preserve">
-    <value>Marcar como notificada</value>
+    <value>Marcar com a notificada</value>
   </data>
   <data name="BotonCerrar" xml:space="preserve">
     <value>Cerrar</value>
   </data>
   <data name="ConfirmarCancelarTitulo" xml:space="preserve">
-    <value>¿Cancelar la visita a {0}?</value>
+    <value>Vols cancel·lar la visita a {0}?</value>
   </data>
   <data name="ConfirmarCancelarMensaje" xml:space="preserve">
-    <value>Saldrá de Mi trabajo, del Calendario y de los contadores, pero se conserva en el historial con sus fechas, trabajadores y notas. Podrás reactivarla después. El motivo queda en el historial.</value>
+    <value>Sortirà de La meva feina, del Calendari i dels comptadors, però es conserva a l'historial amb les seves dates, treballadors i notes. Podràs reactivar-la més endavant. El motiu queda a l'historial.</value>
   </data>
   <data name="ConfirmarCancelarLoteTitulo" xml:space="preserve">
-    <value>¿Cancelar {0} visita(s)?</value>
+    <value>Vols cancel·lar {0} visita(es)?</value>
   </data>
   <data name="ConfirmarCancelarLoteMensaje" xml:space="preserve">
-    <value>Saldrán de Mi trabajo, del Calendario y de los contadores, pero se conservan en el historial. Podrás deshacerlo desde el aviso que aparecerá o reactivarlas después, una a una.</value>
+    <value>Sortiran de La meva feina, del Calendari i dels comptadors, però es conserven a l'historial. Ho podràs desfer des de l'avís que apareixerà o reactivar-les més endavant, una a una.</value>
   </data>
   <data name="ToastSugerenciaNoEncontrada" xml:space="preserve">
-    <value>No encontramos esta sugerencia. Puede que ya se haya resuelto.</value>
+    <value>No hem trobat aquest suggeriment. Pot ser que ja s'hagi resolt.</value>
   </data>
   <data name="ToastVisitaNoEncontrada" xml:space="preserve">
-    <value>No encontramos esta visita. Puede que ya se haya eliminado.</value>
+    <value>No hem trobat aquesta visita. Pot ser que ja s'hagi eliminat.</value>
   </data>
   <data name="ToastErrorDetalle" xml:space="preserve">
-    <value>No pudimos cargar el detalle de la visita. Intenta nuevamente.</value>
+    <value>No hem pogut carregar el detall de la visita. Torna-ho a provar.</value>
   </data>
   <data name="ResumenSinPendientesUno" xml:space="preserve">
-    <value>El trabajador que entra no tiene documentación pendiente para este centro.</value>
+    <value>El treballador que entra no té documentació pendent per a aquest centre.</value>
   </data>
   <data name="ResumenSinPendientesVarios" xml:space="preserve">
-    <value>Ninguno de los {0} trabajadores que entran tiene documentación pendiente para este centro.</value>
+    <value>Cap dels {0} treballadors que entren no té documentació pendent per a aquest centre.</value>
   </data>
   <data name="ResumenPendientesUno" xml:space="preserve">
-    <value>1 de {0} trabajadores tiene documentación pendiente para este centro.</value>
+    <value>1 de {0} treballadors té documentació pendent per a aquest centre.</value>
   </data>
   <data name="ResumenPendientesVarios" xml:space="preserve">
-    <value>{0} de {1} trabajadores tienen documentación pendiente para este centro.</value>
+    <value>{0} de {1} treballadors tenen documentació pendent per a aquest centre.</value>
   </data>
   <data name="ToastErrorNotificacion" xml:space="preserve">
-    <value>No pudimos actualizar el estado de notificación. Intenta nuevamente.</value>
+    <value>No hem pogut actualitzar l'estat de notificació. Torna-ho a provar.</value>
   </data>
   <data name="OrigenCorreo" xml:space="preserve">
     <value>Correo</value>
@@ -256,52 +256,52 @@
     <value>Plataforma</value>
   </data>
   <data name="ErrorFechasNoValidas" xml:space="preserve">
-    <value>Las fechas no son válidas.</value>
+    <value>Les dates no són vàlides.</value>
   </data>
   <data name="ErrorSeleccionaCentro" xml:space="preserve">
-    <value>Selecciona un centro.</value>
+    <value>Selecciona un centre.</value>
   </data>
   <data name="ToastCreada" xml:space="preserve">
-    <value>Visita creada correctamente.</value>
+    <value>Visita creada correctament.</value>
   </data>
   <data name="ToastActualizada" xml:space="preserve">
-    <value>Visita actualizada correctamente.</value>
+    <value>Visita actualitzada correctament.</value>
   </data>
   <data name="ErrorGuardar" xml:space="preserve">
-    <value>No pudimos guardar los cambios. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut desar els canvis. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastCancelada" xml:space="preserve">
-    <value>Visita cancelada.</value>
+    <value>Visita cancel·lada.</value>
   </data>
   <data name="ToastErrorCancelar" xml:space="preserve">
-    <value>No pudimos cancelar la visita. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut cancel·lar la visita. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastLoteCanceladas" xml:space="preserve">
-    <value>{0} visitas canceladas.</value>
+    <value>{0} visites cancel·lades.</value>
   </data>
   <data name="ToastLoteParcial" xml:space="preserve">
-    <value>{0} cancelada(s). {1} no se pudieron cancelar: {2}</value>
+    <value>{0} cancel·lada(es). {1} no s'han pogut cancel·lar: {2}</value>
   </data>
   <data name="ToastErrorCancelarLote" xml:space="preserve">
-    <value>No pudimos cancelar las visitas seleccionadas. Intenta nuevamente.</value>
+    <value>No hem pogut cancel·lar les visites seleccionades. Torna-ho a provar.</value>
   </data>
   <data name="BadgeSinGestionCae" xml:space="preserve">
-    <value>No requiere gestión CAE</value>
+    <value>No requereix gestió CAE</value>
   </data>
   <data name="SubtituloAvisoVisita" xml:space="preserve">
-    <value>Aviso de visita</value>
+    <value>Avís de visita</value>
   </data>
   <data name="AvisoVisitaExplicacion" xml:space="preserve">
-    <value>Este centro no requiere gestión CAE: el técnico solo tiene que llegar. Copia este aviso y envíalo por correo al centro.</value>
+    <value>Aquest centre no requereix gestió CAE: el tècnic només ha d'arribar. Copia aquest avís i envia'l per correu al centre.</value>
   </data>
   <data name="AvisoVisitaCopiar" xml:space="preserve">
-    <value>Copiar aviso</value>
+    <value>Copiar avís</value>
   </data>
   <data name="AvisoVisitaEtiquetaCopiar" xml:space="preserve">
-    <value>el aviso de la visita</value>
+    <value>l'avís de la visita</value>
   </data>
   <data name="ErrorAvisoVisita" xml:space="preserve">
-    <value>No pudimos preparar el aviso de la visita.</value>
+    <value>No hem pogut preparar l'avís de la visita.</value>
   </data>
   <data name="SubtituloSolicitudAccesoCorreo" xml:space="preserve">
     <value>Sol·licitud d'accés per correu</value>
@@ -337,52 +337,52 @@
     <value>Treballador tornat a la visita.</value>
   </data>
   <data name="EtiquetaMotivoOpcional" xml:space="preserve">
-    <value>Motivo (opcional)</value>
+    <value>Motiu (opcional)</value>
   </data>
   <data name="BotonVolver" xml:space="preserve">
     <value>Volver</value>
   </data>
   <data name="BotonCancelarSeleccionadas" xml:space="preserve">
-    <value>Cancelar seleccionadas</value>
+    <value>Cancel·lar seleccionades</value>
   </data>
   <data name="ConfirmarReactivarTitulo" xml:space="preserve">
-    <value>¿Reactivar la visita a {0}?</value>
+    <value>Vols reactivar la visita a {0}?</value>
   </data>
   <data name="ConfirmarReactivarMensaje" xml:space="preserve">
-    <value>Vuelve a su estado anterior: activa o finalizada según sus fechas. Quedará registrado en Auditoría quién la reactivó, cuándo y por qué.</value>
+    <value>Torna al seu estat anterior: activa o finalitzada segons les seves dates. Quedarà registrat a Auditoria qui la va reactivar, quan i per què.</value>
   </data>
   <data name="ToastReactivada" xml:space="preserve">
     <value>Visita reactivada.</value>
   </data>
   <data name="ToastErrorReactivar" xml:space="preserve">
-    <value>No pudimos reactivar la visita. Intenta nuevamente en unos segundos.</value>
+    <value>No hem pogut reactivar la visita. Torna-ho a provar d'aquí a uns segons.</value>
   </data>
   <data name="ToastLoteReactivadas" xml:space="preserve">
-    <value>{0} visita(s) reactivada(s).</value>
+    <value>{0} visita(es) reactivada(es).</value>
   </data>
   <data name="ToastLoteReactivadasConErrores" xml:space="preserve">
-    <value>{0} visita(s) reactivada(s); {1} no se pudieron reactivar: {2}</value>
+    <value>{0} visita(es) reactivada(es); {1} no s'han pogut reactivar: {2}</value>
   </data>
   <data name="ToastAccionDeshacer" xml:space="preserve">
     <value>Deshacer</value>
   </data>
   <data name="DetalleCancelada" xml:space="preserve">
-    <value>Visita cancelada</value>
+    <value>Visita cancel·lada</value>
   </data>
   <data name="DetalleCanceladaMotivo" xml:space="preserve">
-    <value>Visita cancelada. Motivo: {0}</value>
+    <value>Visita cancel·lada. Motiu: {0}</value>
   </data>
   <data name="DetalleCanceladaSinAcciones" xml:space="preserve">
-    <value>Una visita cancelada no pide acceso ni se comprueba su documentación. Reactívala para retomarla.</value>
+    <value>Una visita cancel·lada no demana accés ni se'n comprova la documentació. Reactiva-la per reprendre-la.</value>
   </data>
   <data name="BotonQuitarSeleccion" xml:space="preserve">
-    <value>Quitar selección</value>
+    <value>Treure selecció</value>
   </data>
   <data name="ErrorSeleccionaTrabajador" xml:space="preserve">
-    <value>Marca al menos un trabajador que entra.</value>
+    <value>Marca almenys un treballador que entra.</value>
   </data>
   <data name="AyudaNotificadaSoloMarca" xml:space="preserve">
-    <value>Solo marca la visita como avisada a la empresa titular; no envía ningún aviso.</value>
+    <value>Només marca la visita com a avisada a l'empresa titular; no envia cap avís.</value>
   </data>
   <data name="OrigenManual" xml:space="preserve">
     <value>Manual</value>
