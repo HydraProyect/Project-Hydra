@@ -606,22 +606,11 @@ else
     }
 }
 
-<Modal @ref="_modalBajaLote" HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")">
-    <ChildContent>
-        <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
-        <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
-    </ChildContent>
-    <Pie>
-        <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_procesandoBajaLote" OnClick="() => _modalBajaLote?.SolicitarCierreAsync() ?? Task.CompletedTask">
-            Cancelar
-        </Boton>
-        <Boton Variante="VarianteBoton.Destructivo" Cargando="_procesandoBajaLote" OnClick="ConfirmarBajaLoteAsync">
-            Dar de baja
-        </Boton>
-    </Pie>
-</Modal>
-
-<AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="() => _confirmarBajaLoteVisible = false" />
+<ModalFormulario HayCambios="() => HayCambiosSinGuardar" Visible="_confirmarBajaLoteVisible" VisibleChanged="v => _confirmarBajaLoteVisible = v" Titulo="@($"Dar de baja a {_seleccionados.Count} trabajador(es)")"
+                 Guardando="_procesandoBajaLote" HayErroresDeCampo="_bajaLoteFallida" GuardarDestructivo="true" TextoGuardar="Dar de baja" TextoCancelar="Cancelar" OnGuardar="ConfirmarBajaLoteAsync">
+    <p>Dejarán de estar activos en @CentroNombre a partir de la fecha indicada. El historial de la asignación se conserva.</p>
+    <CampoTexto Etiqueta="Fecha de baja" Type="date" Valor="@_fechaBajaLote" ValorChanged="v => _fechaBajaLote = v" />
+</ModalFormulario>
 
 <DrawerGestionDocumento @ref="_drawerGestion" OnGuardado="ManejarDocumentoGuardadoAsync" />
 @if (_acreditacionAGestionar is { } gestion)

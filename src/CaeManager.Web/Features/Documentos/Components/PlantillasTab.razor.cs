@@ -133,6 +133,9 @@ public partial class PlantillasTab : ComponentBase, IDisposable
     private string? _nombreArchivoNuevaVersion;
     private bool _subiendoNuevaVersion;
 
+    // La última subida terminó con error: el kit no enseña el «Hecho» de un guardado bueno.
+    private bool _subidaNuevaVersionFallida;
+
     private bool ModalNuevaVersionVisible => _plantillaParaNuevaVersionId is not null;
 
     /// <summary>P1-E2b: un PDF de nueva versión ya elegido y sin subir se pierde al cerrar, salir o cambiar de pestaña.</summary>
@@ -226,6 +229,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         _plantillaParaNuevaVersionNombre = nombre;
         _archivoNuevaVersion = null;
         _nombreArchivoNuevaVersion = null;
+        _subidaNuevaVersionFallida = false;
     }
 
     private void CerrarModalNuevaVersion(bool visible)
@@ -250,6 +254,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
         if (!PuedeSubirNuevaVersion || _plantillaParaNuevaVersionId is not { } plantillaId || _archivoNuevaVersion is null) return;
 
         _subiendoNuevaVersion = true;
+        _subidaNuevaVersionFallida = false;
         StateHasChanged();
 
         try
@@ -259,6 +264,7 @@ public partial class PlantillasTab : ComponentBase, IDisposable
 
             if (resultado.EsFallido)
             {
+                _subidaNuevaVersionFallida = true;
                 Toasts.MostrarError(resultado.Error);
                 return;
             }

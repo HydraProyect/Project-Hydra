@@ -2,6 +2,7 @@ using Bunit;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Commands;
 using CaeManager.Application.Operaciones.IncorporacionCartera.Queries;
 using CaeManager.Domain.Common;
+using CaeManager.Domain.Operaciones;
 using CaeManager.Web.Components.DesignSystem;
 using CaeManager.Web.Features.IncorporacionCartera.Components;
 using FluentAssertions;
@@ -35,6 +36,7 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
     private sealed class MediatorFalso : IMediator
     {
         public List<object> Enviadas { get; } = [];
+        public bool SinCandidatos { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -42,7 +44,7 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
             return Task.FromResult((TResponse)(object)(request switch
             {
                 ObtenerCandidatosIncorporacionCarteraQuery => Result.Exito<IReadOnlyList<CandidatoIncorporacionCarteraDto>>(
-                    [new CandidatoIncorporacionCarteraDto(TenantPropietario, "Refrigeración Norte", null)]),
+                    SinCandidatos ? [] : [new CandidatoIncorporacionCarteraDto(TenantPropietario, "Refrigeración Norte", null)]),
                 SolicitarIncorporacionCarteraCommand => Result.Exito(Guid.NewGuid()),
                 _ => throw new NotSupportedException($"Petición no prevista en este test: {request.GetType().Name}.")
             }));
@@ -123,6 +125,51 @@ public class DialogoSolicitarIncorporacionAvisoCambiosSinGuardarTests : BunitCon
         cut.FindAll("h2").Should().Contain(h => h.TextContent.Trim() == "¿Descartar cambios?");
         await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Descartar cambios").ClickAsync(new MouseEventArgs());
         _visibleNotificado.Should().BeFalse("descartar cierra el diálogo");
+    }
+
+    /// <summary>Kit ModalFormulario: «Enviar solicitud» sigue deshabilitado sin mensaje, ahora con su motivo, y se habilita al escribirlo.</summary>
+    [Fact]
+    public async Task Enviar_solicitud_esta_deshabilitado_con_motivo_sin_mensaje_y_se_habilita_al_escribirlo()
+    {
+        var cut = Renderizar();
+
+        var enviar = cut.FindAll(".modal-pie .boton-primario").Should().ContainSingle().Which;
+        enviar.TextContent.Trim().Should().Be("Enviar solicitud");
+        enviar.HasAttribute("disabled").Should().BeTrue("la Empresa está elegida pero falta el mensaje");
+        enviar.GetAttribute("title").Should().Be("Completa la Empresa y el mensaje para enviar la solicitud.");
+
+        await EscribirMensajeAsync(cut, "Llevo su coordinación desde enero.");
+
+        var habilitado = cut.Find(".modal-pie .boton-primario");
+        habilitado.HasAttribute("disabled").Should().BeFalse();
+        habilitado.HasAttribute("title").Should().BeFalse();
+    }
+
+    /// <summary>Con el mensaje pasado de largo el motivo dice qué falta (acortarlo), no que haya que completarlo.</summary>
+    [Fact]
+    public async Task Con_el_mensaje_demasiado_largo_el_motivo_pide_acortarlo()
+    {
+        var cut = Renderizar();
+
+        await EscribirMensajeAsync(cut, new string('a', SolicitudIncorporacionCartera.LongitudMaximaMensaje + 1));
+
+        var enviar = cut.Find(".modal-pie .boton-primario");
+        enviar.HasAttribute("disabled").Should().BeTrue();
+        enviar.GetAttribute("title").Should().Contain($"{SolicitudIncorporacionCartera.LongitudMaximaMensaje} caracteres").And.Contain("acórtalo");
+    }
+
+    /// <summary>Sin Empresas que pedir no hay nada que enviar: el pie queda solo con «Cancelar», como antes.</summary>
+    [Fact]
+    public void Sin_candidatas_el_pie_solo_ofrece_Cancelar()
+    {
+        _mediador.SinCandidatos = true;
+        var cut = Render<DialogoSolicitarIncorporacion>(p => p
+            .Add(c => c.Visible, true)
+            .Add(c => c.VisibleChanged, v => _visibleNotificado = v));
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No hay Empresas que puedas pedir"));
+
+        cut.FindAll(".modal-pie button").Select(b => b.TextContent.Trim()).Should().Equal("Cancelar");
+        cut.FindAll(".modal-pie .boton-primario").Should().BeEmpty();
     }
 
     [Fact]
