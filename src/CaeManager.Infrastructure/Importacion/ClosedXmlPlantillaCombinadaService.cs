@@ -111,6 +111,9 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
     public async Task<PlanImportacionCombinadaDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
+        // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
+        InspectorXlsxSeguro.Verificar(archivo);
+
         // F3b — Empresas, no la tabla legacy Clientes: la unicidad de Cif y
         // RazonSocial ya es global sobre esa tabla, así que comprobar aquí
         // contra Empresas es lo que de verdad evita el 23505 al guardar.

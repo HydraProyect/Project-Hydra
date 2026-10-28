@@ -83,6 +83,8 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
 
     public async Task<PlanImportacionDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
+        // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
+        InspectorXlsxSeguro.Verificar(archivo);
         using var libro = new XLWorkbook(archivo);
 
         // F3b — Empresas, no la tabla legacy Clientes. Cliente empresarial
