@@ -12,12 +12,8 @@ namespace CaeManager.Application.Documentos.ValidacionOficial;
 /// El pipeline de la épica "Documentación mensual auto-validada"
 /// (Project-Hydra-Negocio/tecnico/PLAN-FIRMA-DIGITAL-PDF.md): verifica criptográficamente la firma del
 /// PDF, extrae los campos del perfil con un parser determinista (sin IA) y
-/// coteja contra lo registrado. Si todo cuadra, el documento queda
-/// <see cref="DecisionValidacionOficial.AutoValidado"/> — la excepción
-/// aprobada a "el análisis nunca decide solo", reservada a documentos con
-/// firma válida de emisor confiable. Cualquier otra cosa deja constancia
-/// con motivos y (desde el PR-5 del plan, cuando la bandeja de revisión
-/// sepa mostrar documentos de Empresa) una revisión pendiente.
+/// coteja contra lo registrado. El resultado queda pendiente de
+/// confirmación humana, también cuando el cotejo coincide.
 ///
 /// Mismo criterio de "mejor esfuerzo" que el resto de la cola: un fallo
 /// aquí jamás invalida el Documento ya guardado. Y el resultado siempre
@@ -34,7 +30,6 @@ public class ValidacionDocumentoOficialService(
     IParserDocumentoOficialRegistry parsers,
     IFirmaDigitalDocumentoRepository firmasRepositorio,
     IVerificacionDocumentoOficialRepository verificacionesRepositorio,
-    IAprobacionDocumentoRepository aprobacionRepositorio,
     IRevisionIaDocumentoRepository revisionRepositorio,
     IUnitOfWork unitOfWork,
     ILogger<ValidacionDocumentoOficialService> logger) : IValidacionDocumentoOficialService
@@ -114,33 +109,17 @@ public class ValidacionDocumentoOficialService(
 
         await ReemplazarResultadosAsync(documentoId, verificacion, firmas, cancellationToken);
 
-        if (verificacion.Decision == DecisionValidacionOficial.AutoValidado)
+        // La comprobación oficial también requiere una decisión humana.
+        var yaHayRevisionPendiente = await documentosContext.RevisionesIaDocumento
+            .AnyAsync(r => r.DocumentoId == documentoId && !r.Resuelta, cancellationToken);
+        if (!yaHayRevisionPendiente)
         {
-            // Confianza 100: el cotejo es determinista (firma criptográfica +
-            // texto digital exacto), no una estimación de un LLM — mantiene
-            // comparables las estadísticas de AprobacionDocumento existentes.
-            aprobacionRepositorio.Agregar(AprobacionDocumento.CrearAutomatica(documentoId, 100));
-        }
-        else
-        {
-            // Todo lo que no se auto-valida pasa por la bandeja de revisión
-            // humana existente. Idempotencia igual que en
-            // VerificacionIaDocumentoService: si ya hay una revisión sin
-            // resolver de este documento, no se apila otra. Confianza 0 a
-            // propósito: mantiene estas revisiones fuera del "Confirmar
-            // todos los ≥85%" de la bandeja — un documento manipulado no
-            // debe poder confirmarse en lote.
-            var yaHayRevisionPendiente = await documentosContext.RevisionesIaDocumento
-                .AnyAsync(r => r.DocumentoId == documentoId && !r.Resuelta, cancellationToken);
-            if (!yaHayRevisionPendiente)
-            {
-                revisionRepositorio.Agregar(RevisionIaDocumento.Crear(
-                    documentoId, confianzaGeneral: 0, tipoDetectado: null,
-                    verificacion.FechaEmisionDetectada, fechaVencimientoDetectada: null,
-                    tieneFirmaDetectada: verificacion.NivelConfianza > NivelConfianzaDocumental.SoloLectura
-                        || verificacion.NivelConfianza == NivelConfianzaDocumental.Manipulado,
-                    verificacion.Motivos));
-            }
+            revisionRepositorio.Agregar(RevisionIaDocumento.Crear(
+                documentoId, confianzaGeneral: 0, tipoDetectado: null,
+                verificacion.FechaEmisionDetectada, fechaVencimientoDetectada: null,
+                tieneFirmaDetectada: verificacion.NivelConfianza > NivelConfianzaDocumental.SoloLectura
+                    || verificacion.NivelConfianza == NivelConfianzaDocumental.Manipulado,
+                verificacion.Motivos));
         }
 
         await unitOfWork.SaveChangesAsync(cancellationToken);
@@ -283,18 +262,11 @@ public class ValidacionDocumentoOficialService(
             }
         }
 
-        var decision = motivos.Count == 0 ? DecisionValidacionOficial.AutoValidado : DecisionValidacionOficial.RevisionRequerida;
-
-        // Auditoría de seguridad del módulo (2026-08-30): el cotejo puede
-        // coincidir con anclas todavía no calibradas con muestras reales
-        // (ParserCorrienteAeat) por pura casualidad — nunca es evidencia de
-        // que el parser realmente reconoce el documento. Perfiles no
-        // calibrados nunca auto-validan, aunque motivos quede vacío.
-        if (decision == DecisionValidacionOficial.AutoValidado && !parserDelPerfil.Calibrado)
-        {
-            decision = DecisionValidacionOficial.RevisionRequerida;
+        if (!parserDelPerfil.Calibrado && motivos.Count == 0)
             motivos.Add("El parser de este perfil de documento oficial aún no está calibrado con muestras reales — se revisa manualmente.");
-        }
+        if (motivos.Count == 0)
+            motivos.Add("Cotejo oficial completado; pendiente de confirmación humana.");
+        var decision = DecisionValidacionOficial.RevisionRequerida;
 
         return new VerificacionDocumentoOficial(
             documentoId, perfil, nivel, extraido.CodigoVerificacion, extraido.Cif,

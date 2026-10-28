@@ -60,7 +60,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
 
     private VerificacionIaDocumentoService CrearServicio(IExtraccionMetadatosDocumentoIaService extraccion, IFileStorageService? almacenamiento = null, ITransaccionDocumentoBloqueado? transaccion = null) =>
         new(_dbContext, _dbContext, almacenamiento ?? new AlmacenamientoFalso(), extraccion,
-            new RevisionIaDocumentoRepository(_dbContext), new AprobacionDocumentoRepository(_dbContext),
+            new RevisionIaDocumentoRepository(_dbContext),
             new AuditoriaExtraccionIaRepository(_dbContext), new InstruccionTratamientoIaSiempreHabilitada(), _tenantActual,
             transaccion ?? new TransaccionDocumentoBloqueado(_dbContext, _tenantActual), _dbContext);
 
@@ -100,7 +100,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision.AddDays(-30), null, true, 99, null, ContrasteLimpio(fechaEmision.AddDays(-30)));
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision.AddDays(-30), null, true, 99, null, ContrasteLimpio(fechaEmision.AddDays(-30)));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
@@ -122,7 +122,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, confianza, null, ContrasteLimpio(fechaEmision));
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, true, confianza, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)),
             transaccion: new TransaccionQueRepiteTrasConfirmar(documento.Version));
 
@@ -135,7 +135,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task No_genera_ninguna_revision_cuando_todo_coincide_con_alta_confianza()
+    public async Task Genera_revision_para_confirmacion_cuando_todo_coincide_con_alta_confianza()
     {
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
@@ -144,23 +144,22 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.Documentos.Add(documento);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var revisiones = await _dbContext.RevisionesIaDocumento.Where(r => r.DocumentoId == documento.Id).ToListAsync();
-        revisiones.Should().BeEmpty();
-
-        var aprobaciones = await _dbContext.AprobacionesDocumento.Where(a => a.DocumentoId == documento.Id).ToListAsync();
-        aprobaciones.Should().ContainSingle();
-        aprobaciones[0].Tipo.Should().Be(TipoAprobacionDocumento.Automatica);
-        aprobaciones[0].ConfianzaGeneral.Should().Be(99);
-        aprobaciones[0].UsuarioId.Should().BeNull();
+        revisiones.Should().ContainSingle();
+        revisiones[0].Resuelta.Should().BeFalse();
+        revisiones[0].Motivo.Should().Contain("confirmación humana");
+        revisiones[0].TipoDetectado.Should().Be(_tipoApto.Nombre);
+        revisiones[0].ConfianzaGeneral.Should().Be(99);
+        (await _dbContext.AprobacionesDocumento.AnyAsync(a => a.DocumentoId == documento.Id)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Cierra_la_auditoria_ligada_al_documento_como_automatica_sin_revision_cuando_aprueba_solo()
+    public async Task Vincula_la_auditoria_y_espera_la_decision_humana()
     {
         var trabajador = CrearTrabajador();
         _dbContext.Trabajadores.Add(trabajador);
@@ -173,15 +172,16 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         _dbContext.AuditoriasExtraccionIa.Add(auditoria);
         await _dbContext.SaveChangesAsync();
 
-        var extraido = new MetadatosDocumentoExtraidosDto("Apto médico", fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
+        var extraido = new MetadatosDocumentoExtraidosDto(_tipoApto.Nombre, fechaEmision, null, true, 99, null, ContrasteLimpio(fechaEmision));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 
         await servicio.ProcesarDocumentoAsync(Encargo(documento));
 
         var auditoriaActualizada = await _dbContext.AuditoriasExtraccionIa.SingleAsync(a => a.Id == auditoria.Id);
-        auditoriaActualizada.DecisionHumana.Should().Be(DecisionHumanaIa.AutomaticaSinRevision);
+        auditoriaActualizada.DecisionHumana.Should().BeNull();
+        (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id)).AuditoriaExtraccionIaId.Should().Be(auditoria.Id);
         auditoriaActualizada.UsuarioDecisionId.Should().BeNull();
-        auditoriaActualizada.FechaDecisionUtc.Should().NotBeNull();
+        auditoriaActualizada.FechaDecisionUtc.Should().BeNull();
     }
 
     /// <summary>
@@ -204,7 +204,7 @@ public class VerificacionIaDocumentoServiceTests : IAsyncLifetime
         await _dbContext.SaveChangesAsync();
 
         var extraido = new MetadatosDocumentoExtraidosDto(
-            "Apto médico", fechaEmision, null, true, 99, null,
+            _tipoApto.Nombre, fechaEmision, null, true, 99, null,
             new ContrasteTextoDocumentoDto(dirigidoAlModelo, noApto, [fechaEmision]));
         var servicio = CrearServicio(new ExtraccionIaFalsa(Result.Exito(extraido)));
 

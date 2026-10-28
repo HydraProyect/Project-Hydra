@@ -40,7 +40,7 @@ public class ResolverRevisionIaDocumentoCommandHandler(
 
         var propietario = await dbContext.Documentos
             .Where(d => d.Id == revision.DocumentoId)
-            .Select(d => new { d.TrabajadorId, d.EmpresaId })
+            .Select(d => new { d.TrabajadorId, d.EmpresaId, d.ClienteId })
             .FirstOrDefaultAsync(cancellationToken);
 
         // Mismo alcance que la bandeja (ObtenerRevisionesIaPendientesQuery):
@@ -48,7 +48,7 @@ public class ResolverRevisionIaDocumentoCommandHandler(
         // oficial) ⇒ solo roles de visión total.
         var visible = propietario?.TrabajadorId is { } trabajadorId
             ? await alcanceDatos.TrabajadorVisibleAsync(trabajadorId, cancellationToken)
-            : propietario?.EmpresaId is not null
+            : (propietario?.EmpresaId is not null || propietario?.ClienteId is not null)
                 && await alcanceDatos.ObtenerTrabajadorIdsVisiblesAsync(cancellationToken) is null;
 
         if (!visible)
