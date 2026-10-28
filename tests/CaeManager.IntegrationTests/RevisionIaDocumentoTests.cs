@@ -128,9 +128,11 @@ public class RevisionIaDocumentoTests : IAsyncLifetime
     [InlineData(false)]
     public async Task Revision_de_documento_de_cliente_exige_vision_total(bool visionTotal)
     {
-        var empresa = new Empresa("Empresa contraparte");
+        var empresa = Empresa.CrearComoCliente("Montajes Ficticios S.L.", "B12345674", false, null, null);
         _dbContext.Empresas.Add(empresa);
-        var tipo = await _dbContext.TiposDocumento.FirstAsync(t => t.AmbitoAplicacion == AmbitoAplicacion.Cliente);
+        var tipo = new TipoDocumento("Certificado de prueba", null, aplicaVencimientoAutomatico: false, 1,
+            AmbitoAplicacion.Cliente, requerido: RequisitoDocumental.Si);
+        _dbContext.TiposDocumento.Add(tipo);
         var documento = Documento.DeCliente(empresa.Id, tipo.Id, DiaDeNegocio.Hoy(), VigenciaDocumento.NoCaduca, "archivo.pdf");
         _dbContext.Documentos.Add(documento);
         var revision = RevisionIaDocumento.Crear(documento.Id, 0, null, null, null, true, "Confirmación humana");
