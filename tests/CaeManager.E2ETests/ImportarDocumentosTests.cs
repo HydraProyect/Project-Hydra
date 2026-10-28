@@ -47,28 +47,28 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
 
         // --- Preparación: Cliente → Empresa → Trabajador reales, mismo patrón que FlujoCriticoTests ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_101));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_995_102));
         await drawer.GetByPlaceholder("Buscar…").FillAsync(razonSocialCliente);
         await drawer.GetByLabel(razonSocialCliente).CheckAsync();
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
         await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Plantilla de Documentos: una fila válida, una con DNI inexistente ---
@@ -95,7 +95,7 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
 
             // --- Paso 2: una fila nueva, la del DNI inexistente ya aparece omitida ---
             await Ayudas.EsperarPlanDeImportacionAsync(page);
-            await page.GetByText("Ver plan de importación").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Ver plan de importación", Exact = true }).ClickAsync();
 
             // GetByText("Revisar plan") a secas es ambigua: el nombre del paso
             // 3 aparece tanto en el botón del stepper del wizard como en el <h2>
@@ -109,9 +109,9 @@ public class ImportarDocumentosTests(WebAppFixture fixture)
             await filaOmitidaEnPlan.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
             await Expect(filaOmitidaEnPlan).ToContainTextAsync("No existe ningún trabajador con este DNI");
 
-            await page.GetByText("Continuar a confirmar").ClickAsync();
-            await page.GetByText("He revisado el plan y quiero escribir estos datos").ClickAsync();
-            await page.GetByText("Importar ahora").ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Continuar a confirmar", Exact = true }).ClickAsync();
+            await page.GetByLabel("He revisado el plan y quiero escribir estos datos", new() { Exact = true }).ClickAsync();
+            await page.GetByRole(AriaRole.Button, new() { Name = "Importar ahora", Exact = true }).ClickAsync();
             // «Importar ahora» abre el DialogoConfirmacion; escribe su botón.
             await page.GetByRole(AriaRole.Dialog)
                 .GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Sí, importar" }).ClickAsync();

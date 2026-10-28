@@ -42,7 +42,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         // empresarial son Empresas). Ambos admiten CIF, DNI o NIE: un autónomo se identifica
         // con el suyo.
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_702));
-        await page.GetByText("Guardar y continuar").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar", Exact = true }).ClickAsync();
 
         // --- Paso 2: Cliente ---
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "2. Cliente" }).WaitForAsync();
@@ -58,7 +58,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         await page.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await page.GetByLabel("Identificación fiscal *", new PageGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_997_701));
-        await page.GetByText("Guardar y continuar a Centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar y continuar a Centro", Exact = true }).ClickAsync();
 
         // --- Paso 3: Centro ---
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "3. Centro" }).WaitForAsync();
@@ -67,10 +67,10 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         // Antes de guardar el primer Centro, "Terminar aquí" está visible
         // (_centrosCreados == 0) — confirma el estado de partida del paso.
-        await Expect(page.GetByText("Terminar aquí")).ToBeVisibleAsync();
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Terminar aquí", Exact = true })).ToBeVisibleAsync();
 
         await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreCentro);
-        await page.GetByText("Guardar centro").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar centro", Exact = true }).ClickAsync();
 
         // "Terminar aquí" desaparece (_centrosCreados pasa a 1) — es la señal
         // de que el Centro se guardó de verdad, sin depender de leer un
@@ -84,16 +84,16 @@ public class AltaGuiadaTests(WebAppFixture fixture)
         // — antes, devolver el campo al mismo valor que Blazor ya tenía
         // renderizado no producía diff y el DOM se quedaba con lo tecleado.
         // El paso 3 ya afirma en pantalla que el formulario se ha vaciado.
-        await Expect(page.GetByText("Terminar aquí")).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Terminar aquí", Exact = true })).Not.ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         // --- Paso 4: Trabajadores, encadenado desde el resumen del Centro ---
-        await page.GetByText("Continuar a Trabajadores").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Continuar a Trabajadores", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = "4. Trabajadores" }).WaitForAsync();
 
         await page.GetByLabel("Nombre", new PageGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await page.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
         await page.GetByLabel("DNI / NIE").FillAsync(Ayudas.GenerarDniValido(9_997_703));
-        await page.GetByText("Guardar trabajador").ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "Guardar trabajador", Exact = true }).ClickAsync();
 
         // El trabajador queda creado y asignado al Centro del paso 3 sin
         // salir del asistente — confirma en pantalla, no solo por ausencia
@@ -112,13 +112,13 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(razonSocialEmpresa);
-        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = razonSocialEmpresa })
+        await page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialEmpresa}", Exact = true })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombreCentro);
         // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
-        await page.Locator(".lista-filas-acordeon").GetByText(nombreCentro).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await page.GetByRole(AriaRole.Button, new() { Name = nombreCentro, Exact = true }).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }
 
     private static ILocatorAssertions Expect(ILocator locator) => Assertions.Expect(locator);

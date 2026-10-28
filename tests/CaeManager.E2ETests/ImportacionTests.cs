@@ -135,8 +135,9 @@ public class ImportacionTests(WebAppFixture fixture)
             Assert.Equal("2", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             var filasOmitidas = page.Locator(".tabla-datos tbody tr");
-            await filasOmitidas.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-            await Expect(filasOmitidas).ToHaveCountAsync(2);
+            await Expect(filasOmitidas).ToHaveCountAsync(2, new() { Timeout = 10_000 });
+            foreach (var filaOmitida in await filasOmitidas.AllAsync())
+                await Expect(filaOmitida).ToBeVisibleAsync(new() { Timeout = 10_000 });
 
             // La fila de Cliente/Centro, que ya se registraba antes de DCR-12 B.
             var filaClienteCentro = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = "CIF" });
@@ -161,7 +162,7 @@ public class ImportacionTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(Ayudas.EmpresaDeHojaEmpleadosImportacion);
         // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
         // hasta que llega el filtro la lista las enseña todas.
-        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = Ayudas.EmpresaDeHojaEmpleadosImportacion })
+        await page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {Ayudas.EmpresaDeHojaEmpleadosImportacion}", Exact = true })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");

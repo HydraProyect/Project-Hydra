@@ -56,28 +56,28 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
         // --- Preparación: Cliente → Empresa → Trabajador reales, mismo patrón que FlujoCriticoTests ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_101));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).First.ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_994_102));
         await drawer.GetByPlaceholder("Buscar…").FillAsync(razonSocialCliente);
         await drawer.GetByLabel(razonSocialCliente).CheckAsync();
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
         await Ayudas.SeleccionarEmpresaEnDrawerTrabajadorAsync(drawer, razonSocialEmpresa);
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         // --- Subida múltiple: un único PDF, sin detección IA activa en el entorno de test ---
@@ -93,7 +93,7 @@ public class SubidaMasivaTests(WebAppFixture fixture)
             await Expect(item).ToContainTextAsync("Pendiente de confirmar", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
             await Expect(page.Locator(".progreso-subida-masiva")).ToContainTextAsync("1 por confirmar");
 
-            await item.GetByText("Gestionar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+            await item.GetByRole(AriaRole.Button, new() { Name = "Gestionar", Exact = true }).ClickAsync();
 
             var confirmacion = item.Locator(".item-subida-masiva-confirmacion");
             await confirmacion.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
@@ -107,14 +107,14 @@ public class SubidaMasivaTests(WebAppFixture fixture)
 
             // Sin fecha leída del archivo el campo NO se rellena con la de hoy: la persona la indica o no hay Documento.
             await Expect(confirmacion.GetByLabel("Fecha de emisión")).ToHaveValueAsync("");
-            await confirmacion.GetByText("Confirmar y crear").ClickAsync();
+            await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Confirmar y crear", Exact = true }).ClickAsync();
             // Barrera antes de afirmar la ausencia: sin ver el aviso, "no está Creado" podría cumplirse antes de que el clic se procese.
             await Expect(page.GetByText("Indica la fecha de emisión antes de confirmar.")).ToBeVisibleAsync();
             await Expect(item).ToContainTextAsync("Pendiente de confirmar");
             await Expect(item).Not.ToContainTextAsync("Creado tras confirmar");
 
             await confirmacion.GetByLabel("Fecha de emisión").FillAsync(Ayudas.HoyDeNegocio().ToString("yyyy-MM-dd"));
-            await confirmacion.GetByText("Confirmar y crear").ClickAsync();
+            await confirmacion.GetByRole(AriaRole.Button, new() { Name = "Confirmar y crear", Exact = true }).ClickAsync();
 
             await Expect(item).ToContainTextAsync("Creado", new LocatorAssertionsToContainTextOptions { Timeout = 15_000 });
         }
