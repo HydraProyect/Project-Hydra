@@ -1,6 +1,10 @@
 using AngleSharp.Dom;
 using Bunit;
 using CaeManager.Application.Centros.Commands.CrearCanalGestion;
+using CaeManager.Application.Centros.Commands.EstablecerDocumentacionRequeridaCentro;
+using CaeManager.Application.Comunicaciones.Commands.PedirPrioridadValidacion;
+using CaeManager.Application.Reclamaciones;
+using CaeManager.Application.Reclamaciones.Commands.EnviarReclamacion;
 using CaeManager.Application.Centros.Queries.ObtenerCanalesGestionDeCentro;
 using CaeManager.Application.Centros.Queries.ObtenerCentroPorId;
 using CaeManager.Application.Centros.Queries.ObtenerDocumentacionRequeridaDeCentro;
@@ -52,10 +56,16 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
         public bool SinDobleFactor { get; set; }
         public IReadOnlyList<CanalGestionResumenDto> Canales { get; set; } = [];
         public List<object> Enviadas { get; } = [];
+        public bool BorradorPrioridadFalla { get; set; }
+        public TaskCompletionSource? PausaEnvioPrioridad { get; set; }
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
             Enviadas.Add(request);
+            if (BorradorPrioridadFalla && request is ObtenerBorradorPedirPrioridadQuery)
+                return Task.FromException<TResponse>(new InvalidOperationException("borrador no disponible"));
+            if (PausaEnvioPrioridad is not null && request is PedirPrioridadValidacionCommand)
+                return PausaEnvioPrioridad.Task.ContinueWith(_ => (TResponse)(object)Result.Exito());
             if (SinDobleFactor && request is IEscrituraDeDatosDeCredencial { EscribeDatosDeCredencial: true })
                 return Task.FromException<TResponse>(new SegundoFactorRequeridoParaCredencialesException());
 
@@ -86,6 +96,9 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
                 ObtenerBorradorPedirPrioridadQuery => Result.Exito(new BorradorPedirPrioridadDto(
                     "validacion@refrielectric.example", "Prioridad de validación", "Os pedimos prioridad.", true, null, 1)),
                 CrearCanalGestionCommand => Result.Exito(Guid.NewGuid()),
+                EstablecerDocumentacionRequeridaCentroCommand => Result.Exito(),
+                PedirPrioridadValidacionCommand => Result.Exito(),
+                EnviarReclamacionCommand => Result.Exito(new EnvioReclamacionResultado([], [])),
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)valor!);
@@ -492,6 +505,50 @@ public class CentroWorkspacePanelAvisoCambiosSinGuardarTests : BunitContext
     }
 
     // ------------------------------------------------ lote 1: edición en línea de Información
+
+    [Theory]
+    [InlineData("prioridad")]
+    [InlineData("reclamacion")]
+    [InlineData("acceso")]
+    [InlineData("requisito")]
+    public async Task Guardar_envia_el_comando_del_drawer(string drawer)
+    {
+        var cut = await AbrirDrawerAsync(drawer);
+        await TocarAlgoAsync(cut, drawer);
+        await PulsarAsync(cut, drawer is "prioridad" or "reclamacion" ? "Enviar" : "Guardar");
+        _mediador.Enviadas.Should().ContainSingle(c => drawer == "prioridad" ? c is PedirPrioridadValidacionCommand
+            : drawer == "reclamacion" ? c is EnviarReclamacionCommand
+            : drawer == "acceso" ? c is CrearCanalGestionCommand
+            : c is EstablecerDocumentacionRequeridaCentroCommand);
+    }
+
+    [Fact]
+    public async Task Pedir_prioridad_sin_borrador_deja_Enviar_deshabilitado_con_su_motivo_y_el_error_en_el_aviso_del_kit()
+    {
+        var cut = Renderizar("informacion");
+        _mediador.BorradorPrioridadFalla = true;
+        await PulsarAsync(cut, "Pedir prioridad");
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain("No pudimos preparar el borrador"));
+        var enviar = cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar");
+        enviar.HasAttribute("disabled").Should().BeTrue();
+        enviar.GetAttribute("title").Should().Be("El borrador no está disponible");
+        cut.FindAll("[role=alert]").Should().Contain(a => a.TextContent.Contains("No pudimos preparar el borrador"));
+    }
+
+    [Fact]
+    public async Task Enviar_la_prioridad_dice_Enviando_mientras_envia_y_no_Guardando()
+    {
+        var cut = await AbrirPrioridadAsync();
+        _mediador.PausaEnvioPrioridad = new TaskCompletionSource();
+
+        var clic = PulsarAsync(cut, "Enviar");
+        cut.WaitForAssertion(() => cut.FindAll(".drawer-pie button").Should().Contain(b => b.TextContent.Contains("Enviando")));
+        cut.FindAll(".drawer-pie button").Should().NotContain(b => b.TextContent.Contains("Guardando"));
+
+        _mediador.PausaEnvioPrioridad.SetResult();
+        await clic;
+    }
 
     private async Task<IRenderedComponent<CentroWorkspacePanel>> EditarInformacionAsync()
     {
