@@ -229,6 +229,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         // Ni la marca del TOTP de la sesión, que exige la apertura de una Sesión Privilegiada.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
+        // Ni el identificador de sesión: sin él, la cookie renovada se rechaza en la revalidación siguiente.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.

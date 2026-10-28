@@ -352,6 +352,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // dentro de la función, runtime solo tiene EXECUTE). No existe
         // equivalente EF para invocar una función que devuelve un escalar.
         [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_inicios_sesion() AS \\\"Value\\\"\")")] = 1,
+        // Conservación de 5 años de SesionesUsuario, en la misma pasada y con el
+        // mismo criterio: app_purgar_sesiones_usuario, sin parámetros.
+        [("src/CaeManager.Infrastructure/Seguridad/PurgaIniciosSesionHostedService.cs", ".SqlQuery<int>($\"SELECT public.app_purgar_sesiones_usuario() AS \\\"Value\\\"\")")] = 1,
+        // Revocación de sesión en servidor: cada revalidación (cookie y circuito)
+        // pregunta a app_sesion_vigente (SECURITY DEFINER, solo un booleano) antes
+        // de que haya Tenant en el contexto. Parámetros interpolados de
+        // FormattableString: EF los envía como parámetros, no como texto.
+        [("src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs", ".SqlQuery<bool>($\"SELECT public.app_sesion_vigente({sid}, {usuarioId}) AS \\\"Value\\\"\")")] = 1,
 
         // P1-M3: transición de __EFMigrationsHistory a la línea base
         // compactada, con la conexión PROPIETARIA y solo desde el migrador.

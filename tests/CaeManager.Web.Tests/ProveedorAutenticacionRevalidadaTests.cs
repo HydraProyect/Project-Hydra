@@ -47,6 +47,7 @@ public class ProveedorAutenticacionRevalidadaTests
         try
         {
             var principal = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, "prueba"),
+                new Claim(CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.ClaimSid, Guid.NewGuid().ToString("N")),
                 new Claim(CaducidadSesion.MarcaInicio, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture))], "sesion"));
             var metodo = typeof(ProveedorAutenticacionRevalidada).GetMethod("ValidateAuthenticationStateAsync",
                 BindingFlags.NonPublic | BindingFlags.Instance)!;

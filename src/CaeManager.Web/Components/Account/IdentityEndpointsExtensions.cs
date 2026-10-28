@@ -19,9 +19,32 @@ public static class IdentityEndpointsExtensions
             IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
         {
             var usuarioId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-            loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
-                .LogInformation("Cierre de sesión: {UsuarioId}", usuarioId);
+            var logger = loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+            logger.LogInformation("Cierre de sesión: {UsuarioId}", usuarioId);
 
+            // Revoca en el servidor solo esta sesión (una copia de la cookie deja de valer) y
+            // cierra la Sesión Privilegiada que la petición tenga seleccionada. Ver CierreSesionEnServidor.
+            await CierreSesionEnServidor.CerrarEstaSesionAsync(httpContext, logger);
+
+            return await SalirAsync(signInManager, httpContext);
+        });
+
+        // Cerrar sesión en todos los dispositivos: rota el sello de seguridad y revoca todas las
+        // sesiones de la cuenta, esta incluida. Formulario POST con antiforgery, como el de arriba.
+        endpoints.MapPost("/cuenta/cerrar-sesion-en-todos-los-dispositivos", async (
+            IFormCollection formulario, SignInManager<ApplicationUser> signInManager, HttpContext httpContext, ILoggerFactory loggerFactory) =>
+        {
+            var logger = loggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+            logger.LogInformation("Cierre de sesión en todos los dispositivos: {UsuarioId}",
+                httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+
+            await CierreSesionEnServidor.CerrarTodasLasSesionesAsync(httpContext, logger);
+
+            return await SalirAsync(signInManager, httpContext);
+        }).RequireAuthorization();
+
+        static async Task<IResult> SalirAsync(SignInManager<ApplicationUser> signInManager, HttpContext httpContext)
+        {
             await signInManager.SignOutAsync();
 
             // La cookie de Delegated Workspace no la borra SignOutAsync: es
@@ -38,7 +61,7 @@ public static class IdentityEndpointsExtensions
             CulturaUsuarioCookie.Eliminar(httpContext);
 
             return Results.LocalRedirect("/cuenta/iniciar-sesion");
-        });
+        }
 
         // Punto de entrada del botón "Iniciar sesión con Microsoft" (Login.razor)
         // — solo se muestra si AzureAdOptions.EstaConfigurado. El propio

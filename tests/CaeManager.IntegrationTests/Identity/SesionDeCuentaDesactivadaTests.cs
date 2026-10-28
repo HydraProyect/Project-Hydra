@@ -85,6 +85,9 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // El mismo gancho que registra InfrastructureServiceCollectionExtensions.
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
+        servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
+        servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
 
         _servicios = servicios.BuildServiceProvider();
 
@@ -456,6 +459,34 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Un_identificador_de_sesion_guardado_en_la_cuenta_no_llega_a_la_sesion()
+    {
+        // Con un talveg:sid en AspNetUserClaims, todas las sesiones de la cuenta compartirían uno:
+        // la fábrica lo descarta y la cookie lleva solo el que registra el inicio de sesión.
+        var usuario = await CrearUsuarioAsync("sid-guardado@x.test");
+        var guardado = Guid.NewGuid();
+        using (var preparacion = _servicios.CreateScope())
+        {
+            var userManager = preparacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
+            (await userManager.AddClaimAsync(cuenta, new Claim(SignInManagerCuentaDesactivada.ClaimSid, guardado.ToString("N")))).Succeeded.Should().BeTrue();
+            (await userManager.GetClaimsAsync(cuenta)).Should().Contain(c => c.Type == SignInManagerCuentaDesactivada.ClaimSid,
+                "control: el claim quedó guardado en la cuenta");
+        }
+
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+        cookie.Should().NotBeEmpty("control: se emitió la cookie");
+        var principal = PrincipalDeLaCookie(cookie)!;
+        principal.FindAll(SignInManagerCuentaDesactivada.ClaimSid).Should().ContainSingle();
+        SignInManagerCuentaDesactivada.LeerSid(principal).Should().NotBe(guardado);
+
+        using var ambito = _servicios.CreateScope();
+        var fabrica = ambito.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var cuentaLeida = (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString()))!;
+        (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimSid).Should().BeFalse();
+    }
+
     /// <summary>Cookie de aplicación («nombre=valor») con la marca de TOTP que solo pone el segundo factor.</summary>
     private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca, DateTimeOffset? emitidaEnUtc = null)
     {
@@ -592,11 +623,12 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
 
         salida.WriteLine($"CONSULTAS: revalidar circuito = {soloValidar}; revalidar cookie (validar + renovar principal) = {conRenovacionDeCookie}");
 
-        // Presupuesto, no una medida exacta: el circuito lee el usuario una
-        // vez por ciclo; la cookie, además, los roles. Si esto crece sin
-        // querer, el coste por sesión activa y minuto deja de ser el medido.
-        soloValidar.Should().BeLessThanOrEqualTo(1);
-        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(6);
+        // Presupuesto, no una medida exacta: el circuito lee el usuario y
+        // pregunta si su sesión sigue sin revocar (app_sesion_vigente) una vez
+        // por ciclo; la cookie, además, los roles. Si esto crece sin querer,
+        // el coste por sesión activa y minuto deja de ser el medido.
+        soloValidar.Should().BeLessThanOrEqualTo(2);
+        conRenovacionDeCookie.Should().BeLessThanOrEqualTo(7);
     }
 
     private async Task<ApplicationUser> CrearUsuarioAsync(string email)
@@ -628,6 +660,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         // sin ella el circuito falla cerrado antes de preguntar a la base.
         ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(CaeManager.Web.Services.CaducidadSesion.MarcaInicio,
             DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        // Y su identificador de sesión, registrado como lo registra el inicio de sesión.
+        var sid = Guid.NewGuid();
+        await ambito.ServiceProvider.GetRequiredService<IRegistroSesionesUsuario>().RegistrarAsync(usuario.Id, usuario.TenantId, sid);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimSid, sid.ToString("N")));
         return principal;
     }
 

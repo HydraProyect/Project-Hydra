@@ -38,6 +38,16 @@ namespace CaeManager.Infrastructure.Identity;
 /// repetirlo cada menos de un intervalo la mantenía dentro para siempre.</item>
 /// </list>
 ///
+/// <para>
+/// <b>Identificador de sesión (<see cref="ClaimSid"/>).</b> Cada emisión nueva de la cookie
+/// lleva un identificador aleatorio de sesión, registrado en <c>SesionesUsuario</c>
+/// (<see cref="IRegistroSesionesUsuario"/>); <c>RefreshSignInAsync</c> y la revalidación
+/// periódica conservan el de la cookie. La validación exige que la cookie lo lleve y que su
+/// sesión siga sin revocar: cerrar sesión revoca solo esa sesión, y una copia de la cookie deja
+/// de valer en la siguiente revalidación. Una cookie emitida antes de este cambio no lo lleva y
+/// se rechaza: al desplegarlo, todos vuelven a iniciar sesión una vez.
+/// </para>
+///
 /// No toca autorización de datos, RLS ni roles: solo decide si hay o no un
 /// principal autenticado. Sin principal, <c>TenantActual.TenantId</c> es nulo
 /// y el filtro global de EF deniega, como con cualquier petición anónima.
@@ -50,9 +60,25 @@ public class SignInManagerCuentaDesactivada(
     ILogger<SignInManager<ApplicationUser>> logger,
     IAuthenticationSchemeProvider schemes,
     IUserConfirmation<ApplicationUser> confirmation,
-    IVigilanciaInicioSesion vigilancia)
+    IVigilanciaInicioSesion vigilancia,
+    IRegistroSesionesUsuario sesiones)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
+    /// <summary>
+    /// Tipo del claim con el identificador de sesión (Guid en formato <c>N</c>). Con prefijo propio y
+    /// no <c>sid</c> a secas: ese nombre lo usan los tokens de Entra ID para su propia sesión. Solo lo
+    /// escribe este tipo; cualquier otro que llegue se descarta.
+    /// </summary>
+    public const string ClaimSid = "talveg:sid";
+
+    /// <summary>El identificador de sesión del principal, o nulo si no lleva uno legible.</summary>
+    public static Guid? LeerSid(ClaimsPrincipal? principal) =>
+        principal?.FindFirst(ClaimSid)?.Value is { } valor
+        && Guid.TryParseExact(valor, "N", out var sid)
+        && sid != Guid.Empty
+            ? sid
+            : null;
+
     /// <summary>
     /// Punto de entrada de la validación periódica de la cookie y del circuito: busca
     /// la cuenta por el <c>Id</c> del principal. En el <c>SecurityStampValidator</c>
@@ -62,11 +88,34 @@ public class SignInManagerCuentaDesactivada(
     /// sesión moriría en el primer refresco. Con Tenant en el contexto (el circuito
     /// ya autenticado) el ámbito no cambia nada: la cuenta se lee por la rama de la
     /// propia cuenta de la política.
+    ///
+    /// <para>
+    /// Además del sello y de la desactivación, exige el identificador de sesión y que su sesión
+    /// siga sin revocar (<c>app_sesion_vigente</c>, sin Tenant). Lo llaman los dos revalidadores,
+    /// el de la cookie y el del circuito, con el mismo intervalo
+    /// (<see cref="SecurityStampValidatorOptions.ValidationInterval"/>).
+    /// </para>
     /// </summary>
     public override async Task<ApplicationUser?> ValidateSecurityStampAsync(ClaimsPrincipal? principal)
     {
         using var identificacion = AmbitoIdentificacionSinTenant.Abrir();
-        return await base.ValidateSecurityStampAsync(principal);
+        var usuario = await base.ValidateSecurityStampAsync(principal);
+        if (usuario is null)
+            return null;
+
+        if (LeerSid(principal) is not { } sid)
+        {
+            Logger.LogWarning("Sesión rechazada: la cookie de la cuenta {UsuarioId} no lleva identificador de sesión.", usuario.Id);
+            return null;
+        }
+
+        if (!await sesiones.EstaVigenteAsync(usuario.Id, sid))
+        {
+            Logger.LogWarning("Sesión rechazada: la sesión de la cuenta {UsuarioId} está revocada o no existe.", usuario.Id);
+            return null;
+        }
+
+        return usuario;
     }
 
     public override async Task<bool> ValidateSecurityStampAsync(ApplicationUser? user, string? securityStamp)
@@ -131,10 +180,12 @@ public class SignInManagerCuentaDesactivada(
             && actual.HasClaim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
                 RestriccionLoginLocalClaimsTransformation.MetodoLoginSso)
             && UserManager.GetUserId(actual) == user.Id.ToString();
-        _marcaTotpConservada = autenticada.Principal is { } principal
-            && UserManager.GetUserId(principal) == user.Id.ToString()
-                ? principal.FindFirst(ClaimTotpSesion)?.Value
-                : null;
+        var mismaCuenta = autenticada.Principal is { } principal
+            && UserManager.GetUserId(principal) == user.Id.ToString();
+        _marcaTotpConservada = mismaCuenta ? autenticada.Principal!.FindFirst(ClaimTotpSesion)?.Value : null;
+        // Refrescar la cookie no abre una sesión nueva: conserva su identificador (y con él su
+        // revocación). Sin cookie de la misma cuenta, la emisión registra una sesión nueva.
+        _sidConservado = mismaCuenta ? LeerSid(autenticada.Principal) : null;
         try
         {
             await base.RefreshSignInAsync(user);
@@ -143,8 +194,11 @@ public class SignInManagerCuentaDesactivada(
         {
             _conservarMarcaSso = false;
             _marcaTotpConservada = null;
+            _sidConservado = null;
         }
     }
+
+    private Guid? _sidConservado;
 
     /// <summary>
     /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
@@ -177,11 +231,68 @@ public class SignInManagerCuentaDesactivada(
             nueva.AddClaim(new Claim(ClaimTotpSesion, marca));
     }
 
-    public override Task SignInWithClaimsAsync(
+    /// <summary>
+    /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación del
+    /// identificador de sesión (<see cref="ClaimSid"/>), con el mismo criterio que
+    /// <see cref="ConservarMarcaTotpAlRevalidar"/>: el validador de la cookie rehace el principal cada
+    /// intervalo de revalidación, y sin esto la cookie renovada saldría sin identificador y la sesión
+    /// moriría en el minuto siguiente. Copia el de la cookie validada, de la misma cuenta; descarta
+    /// cualquiera que traiga el principal rehecho y nunca lo crea donde no estaba. Respeta un gancho anterior.
+    /// </summary>
+    public static void ConservarSidAlRevalidar(SecurityStampValidatorOptions opciones)
+    {
+        var anterior = opciones.OnRefreshingPrincipal;
+        opciones.OnRefreshingPrincipal = async contexto =>
+        {
+            if (anterior is not null) await anterior(contexto);
+            CopiarSid(contexto);
+        };
+    }
+
+    private static void CopiarSid(SecurityStampRefreshingPrincipalContext contexto)
+    {
+        if (contexto.NewPrincipal?.Identity is not ClaimsIdentity nueva) return;
+        foreach (var ajeno in nueva.FindAll(ClaimSid).ToList())
+            nueva.RemoveClaim(ajeno);
+
+        var actual = contexto.CurrentPrincipal;
+        if (LeerSid(actual) is { } sid
+            && actual!.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } cuentaActual
+            && cuentaActual == contexto.NewPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value)
+            nueva.AddClaim(new Claim(ClaimSid, sid.ToString("N")));
+    }
+
+    /// <summary>
+    /// Una sesión nueva emitida sobre una cookie de aplicación que todavía vale (iniciar sesión otra vez,
+    /// o con otra cuenta, sin cerrar antes) sustituye a la de esa cookie en este navegador: se revoca su
+    /// identificador, para que una copia de la cookie anterior no siga valiendo hasta su caducidad. La
+    /// revoca la cuenta de la cookie anterior, que es quien firma el contexto de esta petición
+    /// (<c>solo_la_propia_cuenta_revoca</c>). Sin cookie anterior, o sin identificador en ella, no hace
+    /// nada. Un fallo se registra y no impide el inicio de sesión: la cookie anterior se sobrescribe igual.
+    /// </summary>
+    private async Task RevocarSesionQueSustituyeAsync()
+    {
+        try
+        {
+            var anterior = await Context.AuthenticateAsync(AuthenticationScheme);
+            if (anterior.Principal is not { } principal
+                || LeerSid(principal) is not { } sidAnterior
+                || !Guid.TryParse(UserManager.GetUserId(principal), out var cuentaAnterior))
+                return;
+            await sesiones.RevocarAsync(cuentaAnterior, sidAnterior);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning("No se pudo revocar la sesión que sustituye el nuevo inicio de sesión ({TipoError}).",
+                ex.GetType().Name);
+        }
+    }
+
+    public override async Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
-        // La marca solo la escribe este tipo: se descarta cualquier otra que llegue.
-        additionalClaims = additionalClaims.Where(c => c.Type != ClaimTotpSesion);
+        // La marca y el identificador de sesión solo los escribe este tipo: se descarta cualquier otro que llegue.
+        additionalClaims = additionalClaims.Where(c => c.Type != ClaimTotpSesion && c.Type != ClaimSid);
         var marcaTotp = _verificandoTotp
             ? DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
             : _marcaTotpConservada;
@@ -197,10 +308,30 @@ public class SignInManagerCuentaDesactivada(
             // 2FA solo quería refrescar una cookie, y la cuenta desactivada ya
             // no debe tenerla; la cookie vieja muere en la siguiente validación.
             Logger.LogWarning("No se emite sesión: la cuenta {UsuarioId} está desactivada.", user.Id);
-            return Task.CompletedTask;
+            return;
         }
 
-        return base.SignInWithClaimsAsync(user, authenticationProperties, ConMarcaDeInicioConMicrosoft(additionalClaims));
+        // Una sesión nueva (contraseña, segundo factor, callback de Microsoft) se registra antes de
+        // emitir la cookie; si el registro falla, no se emite. Un refresco conserva la suya.
+        var sid = _sidConservado;
+        if (sid is { } conservado && !await sesiones.EstaVigenteAsync(user.Id, conservado))
+        {
+            // Un refresco (cambiar la contraseña, activar el segundo factor) no reemite la cookie de una
+            // sesión revocada: con un IssuedUtc nuevo aplazaría su rechazo otro intervalo de
+            // revalidación, y repetirlo la mantendría viva. Mismo criterio que la cuenta desactivada:
+            // no se lanza, y la cookie vieja muere en la siguiente validación.
+            Logger.LogWarning("No se refresca la sesión: la sesión de la cuenta {UsuarioId} está revocada.", user.Id);
+            return;
+        }
+        if (sid is null)
+        {
+            sid = Guid.NewGuid();
+            await sesiones.RegistrarAsync(user.Id, user.TenantId, sid.Value);
+            await RevocarSesionQueSustituyeAsync();
+        }
+        additionalClaims = additionalClaims.Append(new Claim(ClaimSid, sid.Value.ToString("N")));
+
+        await base.SignInWithClaimsAsync(user, authenticationProperties, ConMarcaDeInicioConMicrosoft(additionalClaims));
     }
 
     /// <summary>

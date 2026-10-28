@@ -42,6 +42,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
         // SecurityStamp de Identity: invalida sesiones abiertas y enlaces de activación emitidos; es un secreto.
         ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 2,
         ["src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs"] = 1,
+        // Identificador de sesión de la cookie (talveg:sid): lo que hace revocable una sesión; no
+        // debe poder adivinarse ni ordenarse por fecha.
+        ["src/CaeManager.Infrastructure/Identity/SignInManagerCuentaDesactivada.cs"] = 1,
         // jti del aserto de cliente de Microsoft 365: nonce anti-repetición.
         ["src/CaeManager.Infrastructure/Integraciones/AsertoClienteMicrosoft365.cs"] = 1,
         // Identificador de la clave HMAC del contexto RLS firmado.

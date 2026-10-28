@@ -34,6 +34,15 @@ namespace CaeManager.Web.Services;
 /// </para>
 ///
 /// <para>
+/// <b>Identificador de sesión.</b> La cookie sin identificador de sesión
+/// (<c>SignInManagerCuentaDesactivada.ClaimSid</c>), es decir, la emitida antes
+/// de la revocación en servidor, también se rechaza y se borra aquí, en la primera
+/// petición. Que el identificador siga vivo en la base lo comprueba la revalidación
+/// del sello (<c>SignInManagerCuentaDesactivada.ValidateSecurityStampAsync</c>),
+/// cada 60 s, para la cookie y para el circuito por igual.
+/// </para>
+///
+/// <para>
 /// <b>Cookie Secure.</b> Siempre, salvo en Development: el arnés E2E de CI sirve
 /// por http://127.0.0.1 en Development, y una cookie Secure no viaja por http.
 /// </para>
@@ -79,7 +88,10 @@ public static class CaducidadSesion
         {
             if (!contexto.Properties.Items.TryGetValue(MarcaInicio, out var inicio)
                 || inicio is null
-                || !EsVigente(inicio, Reloj(contexto.HttpContext).GetUtcNow()))
+                || !EsVigente(inicio, Reloj(contexto.HttpContext).GetUtcNow())
+                // La cookie emitida antes de los identificadores de sesión no se puede revocar:
+                // se rechaza en la primera petición, sin esperar a la revalidación del sello.
+                || CaeManager.Infrastructure.Identity.SignInManagerCuentaDesactivada.LeerSid(contexto.Principal) is null)
             {
                 contexto.RejectPrincipal();
                 await contexto.HttpContext.SignOutAsync(contexto.Scheme.Name);
