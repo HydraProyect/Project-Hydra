@@ -78,7 +78,7 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
 
         await boton.EvaluateAsync("el => { el.click(); el.click(); }");
 
-        await Assertions.Expect(page.GetByText("Revisa tu correo")).ToBeVisibleAsync(
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Revisa tu correo", Exact = true })).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         page.Request -= RegistrarPeticion;
@@ -112,7 +112,7 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
         await page.FillAsync("#email", CorreoInexistente);
         await page.Locator("form button[type=submit]").ClickAsync();
 
-        await Assertions.Expect(page.GetByText("Revisa tu correo")).ToBeVisibleAsync(
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Revisa tu correo", Exact = true })).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         var peticiones = new List<string>();
@@ -125,7 +125,7 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
 
         await page.Locator("button.acceso-enlace-boton").ClickAsync();
 
-        await Assertions.Expect(page.GetByText("Revisa tu correo")).ToBeVisibleAsync(
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Revisa tu correo", Exact = true })).ToBeVisibleAsync(
             new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         page.Request -= RegistrarPeticion;
@@ -177,8 +177,8 @@ public class DobleEnvioAccesoTests(WebAppFixture fixture)
 
         await Task.WhenAll(boton1.ClickAsync(), boton2.ClickAsync());
 
-        await Assertions.Expect(page1.GetByText("Revisa tu correo")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
-        await Assertions.Expect(page2.GetByText("Revisa tu correo")).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(page1.GetByRole(AriaRole.Heading, new() { Name = "Revisa tu correo", Exact = true })).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
+        await Assertions.Expect(page2.GetByRole(AriaRole.Heading, new() { Name = "Revisa tu correo", Exact = true })).ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 15_000 });
 
         Assert.True(peticiones.Count == 2,
             "Comportamiento aceptado: dos pestañas distintas no comparten guarda de cliente, y "

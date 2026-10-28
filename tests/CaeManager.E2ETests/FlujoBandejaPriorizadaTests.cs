@@ -36,23 +36,23 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
 
         // --- Preparación: Cliente → Empresa → Trabajador → Documento a 10 días (Urgente) ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/clientes");
-        await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialCliente);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_601));
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/empresas");
-        await page.GetByText("+ Nueva empresa").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nueva empresa", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Razón social").FillAsync(razonSocialEmpresa);
         await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true }).FillAsync(Ayudas.GenerarCifValido(9_996_602));
         await drawer.GetByPlaceholder("Buscar…").FillAsync(razonSocialCliente);
         await drawer.GetByLabel(razonSocialCliente).CheckAsync();
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByText("+ Nuevo trabajador").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).ClickAsync();
         // A diferencia de FlujoCriticoTests (tenant con una única Empresa en
         // ese momento), en esta colección compartida el tenant ya puede
         // tener varias Empresas de otros tests -- DDL-076 (resolución
@@ -64,11 +64,12 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         await drawer.GetByLabel("Documento de identidad (DNI, NIE, TIE o pasaporte)").FillAsync(dniTrabajador);
         await drawer.GetByLabel("Nombre", new LocatorGetByLabelOptions { Exact = true }).FillAsync(nombreTrabajador);
         await drawer.GetByLabel("Apellidos").FillAsync(apellidosTrabajador);
-        await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+        // El alta de Trabajador es un panel de pasos: en el primero el primario es «Siguiente» y «Guardar y terminar» guarda ya.
+        await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar y terminar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByText("+ Nuevo documento").First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
         // El debounce del servidor resuelve el Id del Trabajador sin exponer su resultado en el DOM.
@@ -84,7 +85,7 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         {
             await drawer.Locator("input[type=\"file\"]").SetInputFilesAsync(rutaPdf);
             await drawer.GetByText("Archivo adjuntado correctamente.").WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
         finally
@@ -103,19 +104,14 @@ public class FlujoBandejaPriorizadaTests(WebAppFixture fixture)
         // otro tipo (Vencido) debe ocultarla, confirmando que el filtro de
         // verdad reduce la lista y no solo decora. Chips en vez de <select>
         // desde el rediseño (mockup "Mi trabajo TALVEG"): cada chip es un
-        // <button> con su propio nombre accesible ("Urgente N" — el recuento
+        // <button> con su propio nombre accesible ("Por vencer N" — el recuento
         // perdió los paréntesis al pasar el chip a píldora, y su explicación
         // vive ahora en el title, que no entra en el nombre accesible), único
-        // por texto exacto entre los diez tipos — sustituye al SelectOptionAsync
-        // por Value que usaba el <select> anterior.
-        // Acotado a .bandeja-chip (no GetByRole a secas): la agrupación por
-        // cola (GrupoCola.razor) añade cabeceras de grupo cuyo nombre
-        // accesible puede contener "Vencido"/"Urgente" como sustring (p. ej.
-        // un recuento por tipo dentro del propio grupo), lo que rompía la
-        // coincidencia única que este chip sí garantiza por clase.
+        // por la expresión anclada entre los chips del grupo «Filtrar por tipo» —
+        // sustituye al SelectOptionAsync por Value que usaba el <select> anterior.
         // El tipo Urgente se rotula «Por vencer» desde el 2026-10-08 (el tipo de código no cambia).
-        var chipUrgente = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Por vencer" });
-        var chipVencido = page.Locator("button.bandeja-chip", new PageLocatorOptions { HasText = "Vencido" });
+        var chipUrgente = page.GetByRole(AriaRole.Group, new() { Name = "Filtrar por tipo", Exact = true }).GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex(@"^Por vencer \d+$") });
+        var chipVencido = page.GetByRole(AriaRole.Group, new() { Name = "Filtrar por tipo", Exact = true }).GetByRole(AriaRole.Button, new() { NameRegex = new System.Text.RegularExpressions.Regex(@"^Vencido \d+$") });
 
         await chipUrgente.ClickAsync();
         await Expect(chipUrgente).ToHaveAttributeAsync("aria-pressed", "true");
