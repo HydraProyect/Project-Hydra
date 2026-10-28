@@ -97,6 +97,24 @@ cat > "$MOCK_BIN/borg" <<'EOF'
 #!/bin/bash
 echo "borg $*" >> "$LOG_BORG"
 echo "borg $1" >> "$LOG_ORDEN"
+# `borg info --json` (comprobación de que el repositorio está cifrado, S-D-11):
+# ESC_CIFRADO = modo de encriptación que devuelve (por defecto repokey-blake2;
+# SINJSON = un JSON sin el bloque encryption); ESC_INFO_FALLA=1 = borg info falla.
+if [ "$1" = "info" ]; then
+  [ "${ESC_INFO_FALLA:-0}" = "1" ] && exit 2
+  modo="${ESC_CIFRADO-repokey-blake2}"
+  if [ "$modo" = "SINJSON" ]; then printf '{\n    "cache": {},\n    "repository": {"id": "x"}\n}\n'; exit 0; fi
+  printf '{\n    "cache": {},\n    "encryption": {\n        "mode": "%s"\n    },\n    "repository": {\n        "id": "x"\n    }\n}\n' "$modo"
+  exit 0
+fi
+# En `create`: umask, ruta y permisos del directorio de trabajo (S-D-12) y, con
+# ESC_TERM_EN_BORG=1, un SIGTERM al guion mientras borg corre.
+if [ "$1" = "create" ]; then
+  echo "umask $(umask)" >> "$LOG_ORDEN"
+  echo "dir-trabajo $PWD" >> "$LOG_ORDEN"
+  echo "permisos-trabajo $(stat -c %a "$PWD" 2>/dev/null || stat -f %Lp "$PWD")" >> "$LOG_ORDEN"
+  if [ "${ESC_TERM_EN_BORG:-0}" = "1" ]; then kill -TERM "$PPID"; fi
+fi
 # ESC_PROBAR_RO=1 (escenario con root real): ¿documentos/ es de solo lectura y
 # está montado, visto desde el propio borg?
 if [ "$1" = "create" ] && [ "${ESC_PROBAR_RO:-0}" = "1" ]; then
@@ -323,6 +341,63 @@ echo "== el remount de solo lectura falla: borg NO lee documentos/ con permiso d
 ejecutar sinro BETTERSTACK_HEARTBEAT_URL="$URL" ESC_RO_FALLA=1
 comprobar "termina distinto de 0, avisa /fail y no llega a borg create ni a prune" \
   '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^borg create" "$LOG_BORG" && ! grep -q "^borg prune" "$LOG_BORG"'
+
+echo "== repositorio cifrado (S-D-11): borg info --json antes de volcar nada"
+for modo in repokey-blake2 repokey keyfile-blake2; do
+  ejecutar "cifrado-$modo" ESC_CIFRADO="$modo"
+  comprobar "modo $modo: se comprueba con borg info --json y el backup sigue" \
+    '[ "$CODIGO" -eq 0 ] && grep -q "^borg info --json\$" "$LOG_BORG" && grep -q "^borg create" "$LOG_BORG"'
+done
+for modo in none authenticated authenticated-blake2; do
+  ejecutar "sincifrar-$modo" BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CIFRADO="$modo"
+  comprobar "modo $modo: aborta, avisa /fail y no vuelca ni crea archivo" \
+    '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && printf "%s" "$SALIDA" | grep -q "NO está cifrado"'
+done
+ejecutar infosinjson BETTERSTACK_HEARTBEAT_URL="$URL" ESC_CIFRADO=SINJSON
+comprobar "salida de borg info sin el modo de encriptación: aborta (no se supone cifrado)" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG" && printf "%s" "$SALIDA" | grep -q "no se pudo leer la encriptación"'
+ejecutar infofalla BETTERSTACK_HEARTBEAT_URL="$URL" ESC_INFO_FALLA=1
+comprobar "borg info falla (repo inaccesible, passphrase incorrecta): aborta y avisa /fail" \
+  '[ "$CODIGO" -ne 0 ] && grep -q "$URL/fail" "$LOG_CURL" && ! grep -q "^docker exec" "$LOG_DOCKER" && ! grep -q "^borg create" "$LOG_BORG"'
+
+echo "== registro con hora de inicio y fin de cada fase (S-D-10)"
+ejecutar ventana
+comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+comprobar "cada fase deja su hora UTC" \
+  '( for f in "inicio del volcado de la BD" "fin del volcado de la BD" "inicio de la copia de dataprotection-keys" "fin de la copia de dataprotection-keys" "inicio de borg create" "fin de borg create"; do printf "%s" "$SALIDA" | grep -Eq "\[[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z\] $f" || exit 1; done )'
+comprobar "y un resumen de la ventana con el nombre del archivo" \
+  'printf "%s" "$SALIDA" | grep -Eq "VENTANA \(caemanager-[0-9T-]+\): BD volcada entre [0-9TZ:-]+ y [0-9TZ:-]+; claves copiadas desde [0-9TZ:-]+; documentos/ leídos entre [0-9TZ:-]+ y [0-9TZ:-]+\."'
+
+echo "== directorio de trabajo (S-D-12): umask 077, 0700, prefijo fijo y limpieza de restos"
+TMP_BACKUP="$TMP_ROOT/tmpbackup"
+mkdir -p "$TMP_BACKUP"
+# Un resto de una ejecución muerta a la fuerza (PID inexistente), otro de una ejecución
+# VIVA (el PID de esta prueba) y un directorio de otro prefijo que no es suyo.
+RESTO_MUERTO="$TMP_BACKUP/caemanager-backup.2147483646.restoMuerto"
+RESTO_VIVO="$TMP_BACKUP/caemanager-backup.$$.restoVivo"
+OTRO_PREFIJO="$TMP_BACKUP/otro-prefijo.2147483646.x"
+mkdir -p "$RESTO_MUERTO" "$RESTO_VIVO" "$OTRO_PREFIJO"
+echo secreto > "$RESTO_MUERTO/CaeManager.dump"
+ejecutar restos TMPDIR="$TMP_BACKUP"
+comprobar "termina con 0" '[ "$CODIGO" -eq 0 ]'
+comprobar "borra el resto de un PID que ya no vive, y avisa" \
+  '[ ! -e "$RESTO_MUERTO" ] && printf "%s" "$SALIDA" | grep -q "borrando el directorio de trabajo que dejó una ejecución anterior"'
+comprobar "respeta el de una ejecución viva" '[ -d "$RESTO_VIVO" ]'
+comprobar "no toca directorios de otro prefijo" '[ -d "$OTRO_PREFIJO" ]'
+comprobar "su propio directorio de trabajo se borra al terminar" '[ "$(ls -A "$TMP_BACKUP" | wc -l)" -eq 2 ]'
+comprobar "borg create corre con umask 0077" 'grep -q "^umask 0077\$" "$LOG_ORDEN"'
+comprobar "en un directorio caemanager-backup.<pid>.<aleatorio> de modo 0700" \
+  'grep -Eq "^dir-trabajo $TMP_BACKUP/caemanager-backup\.[0-9]+\.[A-Za-z0-9]+\$" "$LOG_ORDEN" && grep -q "^permisos-trabajo 700\$" "$LOG_ORDEN"'
+
+echo "== SIGTERM durante borg create: el trap borra el directorio de trabajo y avisa /fail"
+ejecutar sigterm TMPDIR="$TMP_BACKUP" BETTERSTACK_HEARTBEAT_URL="$URL" ESC_TERM_EN_BORG=1
+comprobar "termina con 143 (128 + SIGTERM)" '[ "$CODIGO" -eq 143 ]'
+comprobar "avisa /fail y no manda el ping de éxito" '[ "$(llamadas_curl)" -eq 1 ] && grep -q "$URL/fail" "$LOG_CURL"'
+comprobar "no deja su directorio de trabajo" '[ "$(ls -A "$TMP_BACKUP" | wc -l)" -eq 2 ]'
+# Bash ya corre el trap de EXIT ante una señal con él armado, así que la prueba de
+# arriba no distingue los manejadores explícitos: se fijan además por su texto.
+comprobar "el guion atrapa INT, TERM y HUP con exit (para que corra el trap de EXIT)" \
+  'grep -q "^trap .exit 130. INT\$" "$SCRIPT" && grep -q "^trap .exit 143. TERM\$" "$SCRIPT" && grep -q "^trap .exit 129. HUP\$" "$SCRIPT"'
 
 echo "== con root real (CI de Linux): bind de solo lectura en un espacio de nombres privado, sin montaje colgado"
 # Aquí `unshare` y `mount` son los de verdad (solo docker, borg y curl son falsos):
