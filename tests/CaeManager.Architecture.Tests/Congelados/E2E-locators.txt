@@ -2,7 +2,6 @@ tests/CaeManager.E2ETests/AislamientoMultiTenantE2ETests.cs :: GetByText = 5
 tests/CaeManager.E2ETests/AislamientoMultiTenantE2ETests.cs :: Posicional = 1
 tests/CaeManager.E2ETests/AltaGuiadaTests.cs :: FiltroPorTexto = 1
 tests/CaeManager.E2ETests/Ayudas.cs :: FiltroPorTexto = 4
-tests/CaeManager.E2ETests/Ayudas.cs :: GetByText = 1
 tests/CaeManager.E2ETests/Ayudas.cs :: Posicional = 4
 tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs :: FiltroPorTexto = 1
 tests/CaeManager.E2ETests/BucleCorreccionPlataformaTests.cs :: GetByText = 1

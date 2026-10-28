@@ -513,7 +513,8 @@ public static class Ayudas
                 // agotar IntentosPulsarAccionDeMenu — el reintento de más
                 // arriba nunca llegaba a ejecutarse.
                 var panel = await AbrirMenuAccionesAsync(disparador);
-                var item = panel.GetByText(textoAccion, new LocatorGetByTextOptions { Exact = true });
+                var item = panel.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true })
+                    .Or(panel.GetByRole(AriaRole.Menuitemradio, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true }));
                 await item.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
 
                 // Menu?.Cerrar() en ItemMenuAccion.EjecutarAsync solo corre
