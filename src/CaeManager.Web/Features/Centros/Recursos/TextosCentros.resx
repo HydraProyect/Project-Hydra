@@ -742,4 +742,6 @@
   <data name="VehiculosErrorCargaDescripcion360" xml:space="preserve"><value>Intenta nuevamente en unos segundos.</value></data>
   <data name="SubiendoArchivoMotivoGuardar" xml:space="preserve"><value>Subiendo archivo…</value></data>
   <data name="BorradorPrioridadNoDisponibleMotivo" xml:space="preserve"><value>El borrador no está disponible</value></data>
+  <data name="BorradorPrioridadCargandoMotivo" xml:space="preserve"><value>Cargando el borrador…</value></data>
+  <data name="EnviandoPrioridadTexto" xml:space="preserve"><value>Enviando…</value></data>
 </root>

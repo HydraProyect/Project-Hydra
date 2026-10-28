@@ -623,8 +623,8 @@ else
 
     <DrawerFormulario HayCambios="() => !_saliendoAConfigurarSegundoFactor && _instantaneaPrioridad.Difiere(ValoresPrioridad())" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
             Titulo="Pedir prioridad de validación"
-            Guardando="_enviandoPrioridad" MensajeError="@_mensajeErrorPrioridad" OnGuardar="EnviarPrioridadAsync" TextoGuardar="Enviar" TextoCancelar="Cancelar"
-            MotivoGuardarDeshabilitado="@(_cargandoBorradorPrioridad || _borradorPrioridad is null ? Textos["BorradorPrioridadNoDisponibleMotivo"].Value : null)">
+            Guardando="_enviandoPrioridad" MensajeError="@_mensajeErrorPrioridad" OnGuardar="EnviarPrioridadAsync" TextoGuardar="Enviar" TextoGuardando="@Textos["EnviandoPrioridadTexto"]" TextoCancelar="Cancelar"
+            MotivoGuardarDeshabilitado="@(_cargandoBorradorPrioridad ? Textos["BorradorPrioridadCargandoMotivo"].Value : _borradorPrioridad is null ? Textos["BorradorPrioridadNoDisponibleMotivo"].Value : null)">
         <ChildContent>
             @if (_cargandoBorradorPrioridad)
             {
