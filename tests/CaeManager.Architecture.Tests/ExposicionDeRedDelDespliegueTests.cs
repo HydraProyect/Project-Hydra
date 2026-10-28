@@ -41,6 +41,19 @@ public class ExposicionDeRedDelDespliegueTests
         lineasActivas[0].Should().NotContain("*", "un comodín deja la app aceptando cualquier cabecera Host");
         lineasActivas[0].Should().Contain("localhost",
             "el healthcheck del contenedor y las sondas por docker exec llaman a http://localhost:8080/salud");
+        lineasActivas[0].Should().Contain(fichero.Contains("produccion", StringComparison.Ordinal) ? "${DOMINIO}" : "staging.talveg.es",
+            "sin el dominio público en AllowedHosts la app rechazaría con 400 todo el tráfico que llega por Caddy");
+    }
+
+    /// <summary>S-C-3: el cliente de WhatsApp Cloud API se registra con el manejador sin redirecciones.</summary>
+    [Fact]
+    public void El_cliente_http_de_whatsapp_se_registra_sin_seguir_redirecciones()
+    {
+        var registro = File.ReadAllText(Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Infrastructure",
+            "DependencyInjection", "InfrastructureServiceCollectionExtensions.cs"));
+
+        registro.Should().Contain("ConfigurePrimaryHttpMessageHandler(WhatsAppCloudApiClient.CrearManejadorSinRedirecciones)",
+            "el HttpClient de WhatsApp lleva el Bearer de la línea; no debe seguir un 3xx a un destino sin validar.");
     }
 
     private static string RaizDelRepositorio()

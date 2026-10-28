@@ -136,6 +136,7 @@ public class WhatsAppCloudApiClientDescargarMediaTests
         using var manejador = WhatsAppCloudApiClient.CrearManejadorSinRedirecciones();
 
         manejador.AllowAutoRedirect.Should().BeFalse();
+        manejador.UseCookies.Should().BeFalse("el cliente lo comparten las líneas de todos los Tenants");
     }
 
     /// <summary>Con un servidor real: el manejador devuelve el 302 tal cual, sin llegar al destino.</summary>

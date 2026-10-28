@@ -35,16 +35,18 @@ public class WhatsAppCloudApiClient(
 
     /// <summary>
     /// Manejador primario del cliente HTTP: sin seguimiento automático de
-    /// redirecciones (S-C-3). La comprobación de host de
+    /// redirecciones (S-C-3), defensa en profundidad. La comprobación de host de
     /// <see cref="EsHostDeMediaPermitido"/> solo cubre la URL que devuelve
-    /// Meta; si el HttpClient siguiera un 3xx, el Bearer token de la línea
-    /// podría viajar a un host que nadie ha validado. Una respuesta 3xx
-    /// llega al código como respuesta no exitosa y se trata como error
-    /// controlado (ver <see cref="DescargarMediaAsync"/>).
+    /// Meta; si el HttpClient siguiera un 3xx, la petición iría a un destino que
+    /// nadie ha validado. Una respuesta 3xx llega al código como respuesta no
+    /// exitosa y se trata como error controlado (ver
+    /// <see cref="DescargarMediaAsync"/>). Sin cookies, como el manejador por
+    /// defecto de IHttpClientFactory: este cliente lo comparten todas las líneas.
     /// </summary>
     public static SocketsHttpHandler CrearManejadorSinRedirecciones() => new()
     {
         AllowAutoRedirect = false,
+        UseCookies = false,
         // Mismo reciclado de conexiones (DNS) que aplica IHttpClientFactory
         // a su manejador por defecto.
         PooledConnectionLifetime = TimeSpan.FromMinutes(2),

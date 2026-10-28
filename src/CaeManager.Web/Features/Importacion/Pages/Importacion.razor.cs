@@ -142,10 +142,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     /// <summary>Extensión del archivo subido para el log (S-D-7): acotada, sin el nombre.</summary>
     private static string ExtensionParaLog(string nombreArchivo)
     {
-        var extension = Path.GetExtension(nombreArchivo);
-        if (string.IsNullOrEmpty(extension)) return string.Empty;
-        extension = extension.ToLowerInvariant();
-        return extension.Length > 10 ? extension[..10] : extension;
+        // Lista cerrada: una extensión arbitraria podría ser parte del nombre
+        // («Juan Perez.Garcia Lopez»).
+        var extension = Path.GetExtension(nombreArchivo).ToLowerInvariant();
+        return extension is ".xlsx" or ".xlsm" or ".xls" or ".csv" ? extension : "otra";
     }
 
     private static string ClaveFiltroPlan(FiltroPlan filtro) => filtro switch
