@@ -79,6 +79,21 @@ public class SesionRevocableEnServidorTests
     }
 
     [Fact]
+    public async Task Refrescar_una_sesion_revocada_no_reemite_la_cookie()
+    {
+        var (gestor, autenticacion, sesiones, cuenta) = Montar();
+        await gestor.SignInAsync(cuenta, isPersistent: false);
+        var emitida = autenticacion.Emitido;
+        autenticacion.Cookie = emitida;
+        sesiones.Revocadas.Add(SignInManagerCuentaDesactivada.LeerSid(emitida)!.Value);
+
+        await gestor.RefreshSignInAsync(cuenta);
+
+        autenticacion.Emitido.Should().BeSameAs(emitida, "una cookie nueva aplazaría el rechazo de la sesión revocada");
+        sesiones.Registradas.Should().ContainSingle("tampoco abre una sesión nueva en su lugar");
+    }
+
+    [Fact]
     public async Task Iniciar_sesion_sobre_una_cookie_viva_revoca_la_sesion_que_sustituye()
     {
         var (gestor, autenticacion, sesiones, cuenta) = Montar();

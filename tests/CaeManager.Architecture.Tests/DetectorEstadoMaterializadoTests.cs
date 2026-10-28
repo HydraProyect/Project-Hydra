@@ -179,6 +179,7 @@ public class DetectorEstadoMaterializadoTests
             "PilotoOutboundSeeder.cs",       // siembra (en el arranque y en el modo CLI, dentro del ámbito «sin recálculo», que encola sus Tenants al cerrar)
             "RetiradaTenantDemoService.cs",  // tarifas, filtros y órdenes de cajas de otro Tenant; el Tenant se retira entero
             "AvatarDeCuentasIdentity.cs",    // avatar de la cuenta de Identity
+            "RegistroSesionesUsuario.cs",    // revocación de sesiones de cookie (SesionesUsuario): idempotente con «RevocadaEnUtc IS NULL»; no es entrada del cálculo
         };
 
         var fuera = FicherosDeSrc()

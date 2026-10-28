@@ -314,6 +314,15 @@ public class SignInManagerCuentaDesactivada(
         // Una sesión nueva (contraseña, segundo factor, callback de Microsoft) se registra antes de
         // emitir la cookie; si el registro falla, no se emite. Un refresco conserva la suya.
         var sid = _sidConservado;
+        if (sid is { } conservado && !await sesiones.EstaVigenteAsync(user.Id, conservado))
+        {
+            // Un refresco (cambiar la contraseña, activar el segundo factor) no reemite la cookie de una
+            // sesión revocada: con un IssuedUtc nuevo aplazaría su rechazo otro intervalo de
+            // revalidación, y repetirlo la mantendría viva. Mismo criterio que la cuenta desactivada:
+            // no se lanza, y la cookie vieja muere en la siguiente validación.
+            Logger.LogWarning("No se refresca la sesión: la sesión de la cuenta {UsuarioId} está revocada.", user.Id);
+            return;
+        }
         if (sid is null)
         {
             sid = Guid.NewGuid();

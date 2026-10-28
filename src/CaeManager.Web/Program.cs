@@ -1634,6 +1634,20 @@ namespace CaeManager.Web.Services
                 contexto.ShouldRenew = false;
                 return Task.CompletedTask;
             };
+
+            // ShouldRenew = false en OnValidatePrincipal no basta: el handler ya pidió la renovación
+            // deslizante en CheckForRefreshAsync, antes de ese evento, y se emitía igual la cookie con un
+            // IssuedUtc nuevo (una copia revocada ganaba otro intervalo sin revalidar). La renovación
+            // deslizante se cancela en su propio evento, para la misma ruta exacta.
+            var deslizanteOriginal = options.Events.OnCheckSlidingExpiration;
+            options.Events.OnCheckSlidingExpiration = contexto =>
+            {
+                if (!contexto.Request.Path.Equals(rutaExacta, StringComparison.OrdinalIgnoreCase))
+                    return deslizanteOriginal(contexto);
+
+                contexto.ShouldRenew = false;
+                return Task.CompletedTask;
+            };
         }
     }
 }
