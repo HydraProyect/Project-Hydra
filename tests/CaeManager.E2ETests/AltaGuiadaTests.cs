@@ -117,7 +117,7 @@ public class AltaGuiadaTests(WebAppFixture fixture)
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/centros");
         await page.GetByPlaceholder("Filtrar esta pantalla: Centro, código, Cliente o Empresa").FillAsync(nombreCentro);
-        // Acotado a la lista: el nombre buscado también sale en el chip «Búsqueda: …».
+        // Botón de nombre exacto: el nombre buscado también sale en el chip «Búsqueda: …», que no se llama así.
         await page.GetByRole(AriaRole.Button, new() { Name = nombreCentro, Exact = true }).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
     }
 
