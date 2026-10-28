@@ -644,9 +644,10 @@
     </Drawer>
 
     @* "Pedir prioridad" a nivel conversación — mismo Drawer que ya usa CentroWorkspacePanel, aquí sobre el Centro elegido en el composer. *@
-    <Drawer @ref="_drawerPrioridad" HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
-            Titulo="Pedir prioridad de validación"
-            CerrarAlHacerClicFuera="@(_mensajeErrorPrioridad is null && !_enviandoPrioridad)">
+    <DrawerFormulario HayCambios="() => HayCambiosPrioridad" Visible="_drawerPrioridadVisible" VisibleChanged="v => _drawerPrioridadVisible = v"
+            Titulo="Pedir prioridad de validación" Guardando="_enviandoPrioridad" HayErroresDeCampo="@(_mensajeErrorPrioridad is not null)"
+            MotivoGuardarDeshabilitado="@(_cargandoBorradorPrioridad || _borradorPrioridad is null ? (_mensajeErrorPrioridad ?? "Cargando…") : null)"
+            TextoCancelar="Cancelar" TextoGuardar="Enviar" OnGuardar="EnviarPrioridadAsync">
         <ChildContent>
             @if (_cargandoBorradorPrioridad)
             {
@@ -676,11 +677,7 @@
                 <p class="workspace-nota-contextual">@_borradorPrioridad.TotalDocumentosPendientes documento(s) pendiente(s) incluido(s) en el mensaje. Revisa y adapta el texto antes de enviarlo — se envía desde el buzón conectado de la plataforma.</p>
             }
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" OnClick="() => _drawerPrioridad?.SolicitarCierreAsync() ?? Task.CompletedTask" Deshabilitado="_enviandoPrioridad">Cancelar</Boton>
-            <Boton Variante="VarianteBoton.Primario" OnClick="EnviarPrioridadAsync" Cargando="_enviandoPrioridad" Deshabilitado="_cargandoBorradorPrioridad || _borradorPrioridad is null">Enviar</Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 </div>
 
 <CascadingValue Value="_ambitoConversacion" IsFixed="true">

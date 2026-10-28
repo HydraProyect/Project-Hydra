@@ -526,8 +526,9 @@ else
         EnProgreso="_eliminandoVerificacion"
         OnConfirmar="ConfirmarEliminarVerificacionAsync" />
 
-    <Drawer @ref="_drawerVerificacion" HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
-            CerrarAlHacerClicFuera="@(_mensajeErrorVerificacion is null && !_guardandoVerificacion)">
+    <DrawerFormulario HayCambios="() => HayCambiosEnElDrawer" Visible="_drawerVerificacionVisible" VisibleChanged="CerrarDrawerVerificacion" Titulo="@Textos["TituloDrawerVerificacion"]"
+            Guardando="_guardandoVerificacion" HayErroresDeCampo="@(_mensajeErrorVerificacion is not null)"
+            TextoCancelar="@Textos["BotonCancelar"]" TextoGuardar="@Textos["BotonRegistrar"]" OnGuardar="GuardarVerificacionAsync">
         <ChildContent>
             @if (_mensajeErrorVerificacion is not null)
             {
@@ -574,15 +575,7 @@ else
                 }
             </div>
         </ChildContent>
-        <Pie>
-            <Boton Variante="VarianteBoton.Secundario" Deshabilitado="_guardandoVerificacion" OnClick="() => _drawerVerificacion?.SolicitarCierreAsync() ?? Task.CompletedTask">
-                @Textos["BotonCancelar"]
-            </Boton>
-            <Boton Variante="VarianteBoton.Primario" Cargando="_guardandoVerificacion" OnClick="GuardarVerificacionAsync">
-                @Textos["BotonRegistrar"]
-            </Boton>
-        </Pie>
-    </Drawer>
+    </DrawerFormulario>
 }
 
 @* P1-E2b: un aviso para la edición en línea (Información y credenciales) y el drawer de
@@ -594,7 +587,6 @@ else
 <AvisoCambiosSinGuardar HayCambios="() => HayCambiosSinGuardar" AlDescartar="DescartarCambios" />
 
 @code {
-    private Drawer? _drawerVerificacion;
     private IReadOnlyList<PestanaDefinicion> PestanasBase =>
     [
         new("informacion", Textos["PestanaInformacion"]),

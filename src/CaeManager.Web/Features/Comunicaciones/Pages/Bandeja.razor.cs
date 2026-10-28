@@ -65,7 +65,6 @@ public record EjecutivoSelectorDto(Guid Id, string NombreCompleto);
 /// </summary>
 public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsyncDisposable
 {
-    private Drawer? _drawerPrioridad;
     private Drawer? _drawerRedactar;
     private Modal? _modalActualizarDocumento;
     [Inject] private DirectorioUsuariosTenant DirectorioUsuarios { get; set; } = default!;

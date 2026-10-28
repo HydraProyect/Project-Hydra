@@ -844,6 +844,22 @@ public partial class Subcontrata360Gen2Tests : BunitContext
     // ------------------------------------------------ registrar una verificación
 
     [Fact]
+    public async Task Cancelar_verificacion_cierra_sin_cambios_y_pregunta_si_se_edita()
+    {
+        var escena = PrepararRegistro(new MediatorFalso());
+        var cut = Renderizar(escena.Id, "supervision");
+        await Boton(cut, "+ Registrar verificación").ClickAsync(new MouseEventArgs());
+        await BotonDelPie(cut, ".drawer-pie", "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().BeEmpty();
+
+        await Boton(cut, "+ Registrar verificación").ClickAsync(new MouseEventArgs());
+        await Control(cut, "Centro").ChangeAsync(new ChangeEventArgs { Value = escena.Zaragoza.ToString() });
+        await BotonDelPie(cut, ".drawer-pie", "Cancelar").ClickAsync(new MouseEventArgs());
+        cut.FindAll(".drawer-panel").Should().ContainSingle();
+        cut.FindAll("button").Should().Contain(b => b.TextContent.Trim() == "Descartar cambios");
+    }
+
+    [Fact]
     public async Task Registrar_una_verificacion_envia_la_subcontrata_el_centro_el_tipo_y_la_evidencia_elegidos_y_refresca_la_supervision()
     {
         var escena = PrepararRegistro(new MediatorFalso());
