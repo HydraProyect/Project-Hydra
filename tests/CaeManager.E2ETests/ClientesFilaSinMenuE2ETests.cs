@@ -73,6 +73,10 @@ public class ClientesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, string razonSocial)
     {
+        // El buscador ya ha notificado su valor (la URL lleva «q») y la lista filtrada está pintada: el
+        // Tab no relanza la carga y la «j» no cae en una recarga que limpie la fila enfocada.
+        await Expect(page).ToHaveURLAsync(new Regex(@"[?&]q="));
+        await Expect(page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon")).ToHaveCountAsync(1);
         await page.Keyboard.PressAsync("Tab");
         await Ayudas.EsperarListaListaAsync(page.Locator(".lista-filas-acordeon"), FilaDe(page, razonSocial));
 

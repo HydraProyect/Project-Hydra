@@ -58,6 +58,8 @@ public class GestionesFilaSinMenuE2ETests(WebAppFixtureListados fixture)
         await vista.Locator("button.boton-cerrar-vista-rapida-gestion").ClickAsync();
         await Expect(vista).ToHaveCountAsync(0);
 
+        // La rejilla no marca su carga: si QuickGrid volvió a pedir la página, las filas desaparecen hasta que llega.
+        await Expect(Filas(page)).Not.ToHaveCountAsync(0);
         var enfocada = page.Locator("tbody tr.fila-enfocada");
         await Ayudas.EnfocarFilaAsync(page, page.Locator("thead th.col-estado button.col-title"), enfocada);
         var (trabajadorEnfocado, centroEnfocado, _) = await IdentidadAsync(enfocada);

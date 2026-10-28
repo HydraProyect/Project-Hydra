@@ -70,12 +70,15 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
 
     /// <summary>
     /// «j» hasta que la fila del test es la enfocada y tiene el foco real del DOM. Antes se espera a que
-    /// la rejilla termine de cargar (<c>aria-busy</c>) con la fila ya pintada; cada «j» se da por buena
+    /// la tabla termine de cargar (sin <c>aria-busy</c>) con la fila ya pintada; cada «j» se da por buena
     /// cuando el foco ha pasado a otra fila, y si una carga tardía la pierde se vuelve a pulsar.
     /// </summary>
     private static async Task EnfocarLaFilaConJAsync(IPage page, ILocator fila)
     {
-        await Ayudas.EsperarListaListaAsync(page.Locator("table.visitas-lista"), fila);
+        // La tabla pinta «aria-busy» desde un bool: con la carga terminada el atributo no existe (no vale
+        // EsperarListaListaAsync, que exige aria-busy="false").
+        await Expect(page.Locator("table.visitas-lista:not([aria-busy])")).ToHaveCountAsync(1);
+        await Expect(fila).ToHaveCountAsync(1);
         for (var intento = 0; intento < 80; intento++)
         {
             if (await fila.EvaluateAsync<bool>("f => f.classList.contains('fila-enfocada')"))
@@ -94,7 +97,7 @@ public partial class VisitasFilaSinMenuE2ETests(WebAppFixtureListados fixture)
                     anterior,
                     new PageWaitForFunctionOptions { Timeout = 5_000 });
             }
-            catch (Microsoft.Playwright.TimeoutException)
+            catch (TimeoutException)
             {
                 // La «j» se perdió (una recarga limpió la fila enfocada): se recalcula desde el DOM y se repite.
             }
