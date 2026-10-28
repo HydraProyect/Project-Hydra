@@ -82,7 +82,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         await modalNueva.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
         await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
-        var tarjeta = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
+        var tarjeta = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { Has = page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = $"Gestionamos a {nombreClienteDelegante}", Exact = true }) });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await Expect(tarjeta).ToContainTextAsync("Activa");
         // El Administrador del Operador CAE externo alcanza a toda la organización (decisiones del
@@ -118,7 +118,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // existiera en el DOM (confirmado en CI: 34 reintentos, siempre
         // resuelto pero "hidden").
         await Ayudas.AbrirSelectorTenantAsync(page);
-        await Ayudas.OpcionesSelectorTenant(page).Filter(new LocatorFilterOptions { HasText = nombreClienteDelegante })
+        await page.Locator(".selector-tenant-panel").GetByRole(AriaRole.Option, new LocatorGetByRoleOptions { Name = nombreClienteDelegante })
             .WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Attached, Timeout = 15_000 });
         await Ayudas.CerrarSelectorTenantAsync(page);
 
@@ -151,7 +151,7 @@ public class FlujoAltaYRevocacionDelegacionTests(WebAppFixture fixture)
         // (PuedeRevocarQuery y PuedeReactivarQuery), no solo !OperandoWorkspaceAjeno.
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/delegaciones");
         await Ayudas.AbrirDetalleDeDelegacionAsync(page, nombreClienteDelegante);
-        var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { HasText = nombreClienteDelegante });
+        var tarjetaTrasVolver = page.Locator(".delegaciones-tarjeta", new PageLocatorOptions { Has = page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = $"Gestionamos a {nombreClienteDelegante}", Exact = true }) });
         var revocar = tarjetaTrasVolver.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true });
         var modalRevocar = page.GetByRole(AriaRole.Dialog, new PageGetByRoleOptions { Name = "Revocar el acceso", Exact = true });
         var confirmarRevocar = modalRevocar.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Revocar acceso", Exact = true });
