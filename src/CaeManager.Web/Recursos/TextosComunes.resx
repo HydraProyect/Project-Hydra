@@ -387,6 +387,9 @@
   <data name="MenuAuditoria" xml:space="preserve">
     <value>Auditoría</value>
   </data>
+  <data name="MenuContactosSeguridad" xml:space="preserve">
+    <value>Contactos de seguridad</value>
+  </data>
   <data name="MenuAdministracionPlataforma" xml:space="preserve">
     <value>Administración de plataforma</value>
   </data>

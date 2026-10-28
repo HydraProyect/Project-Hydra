@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="SeccionTitulo" xml:space="preserve">
+    <value>Contacto de seguridad</value>
+  </data>
+  <data name="SeccionDescripcion" xml:space="preserve">
+    <value>La persona a la que TALVEG avisará si una violación de seguridad afecta a los datos de tu organización. Solo recibe avisos cuando TALVEG la ha validado; mientras tanto, los avisos van a los Administradores de la organización.</value>
+  </data>
+  <data name="SinContactoValidado" xml:space="preserve">
+    <value>Tu organización todavía no tiene un contacto de seguridad validado.</value>
+  </data>
+  <data name="EstadoValidado" xml:space="preserve">
+    <value>Validado</value>
+  </data>
+  <data name="EstadoEnRevision" xml:space="preserve">
+    <value>En revisión</value>
+  </data>
+  <data name="EstadoRechazado" xml:space="preserve">
+    <value>Rechazado</value>
+  </data>
+  <data name="ContactoVigente" xml:space="preserve">
+    <value>Contacto validado</value>
+  </data>
+  <data name="PropuestaPendiente" xml:space="preserve">
+    <value>Propuesta en revisión</value>
+  </data>
+  <data name="PropuestaPendienteNota" xml:space="preserve">
+    <value>Hasta que TALVEG la valide, los avisos siguen yendo al contacto validado o, si no lo hay, a los Administradores.</value>
+  </data>
+  <data name="UltimoRechazo" xml:space="preserve">
+    <value>Última propuesta rechazada</value>
+  </data>
+  <data name="MotivoDelRechazo" xml:space="preserve">
+    <value>Motivo: {0}</value>
+  </data>
+  <data name="BotonProponer" xml:space="preserve">
+    <value>Proponer contacto</value>
+  </data>
+  <data name="BotonProponerOtro" xml:space="preserve">
+    <value>Proponer otro contacto</value>
+  </data>
+  <data name="DrawerTitulo" xml:space="preserve">
+    <value>Proponer contacto de seguridad</value>
+  </data>
+  <data name="DrawerNota" xml:space="preserve">
+    <value>Si ya hay una propuesta en revisión, esta la sustituye.</value>
+  </data>
+  <data name="CampoNombre" xml:space="preserve">
+    <value>Nombre y apellidos</value>
+  </data>
+  <data name="CampoCorreo" xml:space="preserve">
+    <value>Correo electrónico</value>
+  </data>
+  <data name="CampoTelefono" xml:space="preserve">
+    <value>Teléfono (opcional)</value>
+  </data>
+  <data name="BotonEnviar" xml:space="preserve">
+    <value>Enviar a revisión</value>
+  </data>
+  <data name="BotonCancelar" xml:space="preserve">
+    <value>Cancelar</value>
+  </data>
+  <data name="PropuestaEnviada" xml:space="preserve">
+    <value>Propuesta enviada. TALVEG la revisará.</value>
+  </data>
+  <data name="ErrorGuardar" xml:space="preserve">
+    <value>No se pudo enviar la propuesta. Inténtalo de nuevo.</value>
+  </data>
+  <data name="ErrorCarga" xml:space="preserve">
+    <value>No se pudo cargar el contacto de seguridad.</value>
+  </data>
+  <data name="BotonReintentar" xml:space="preserve">
+    <value>Reintentar</value>
+  </data>
+  <data name="ColaTituloDocumento" xml:space="preserve">
+    <value>Contactos de seguridad</value>
+  </data>
+  <data name="ColaTitulo" xml:space="preserve">
+    <value>Contactos de seguridad propuestos</value>
+  </data>
+  <data name="ColaDescripcion" xml:space="preserve">
+    <value>Cada organización propone la persona que recibirá los avisos de violaciones de seguridad. Comprueba por otro canal que la persona existe y pertenece a la organización antes de validarla.</value>
+  </data>
+  <data name="ColaVaciaTitulo" xml:space="preserve">
+    <value>Sin propuestas en revisión</value>
+  </data>
+  <data name="ColaVaciaDescripcion" xml:space="preserve">
+    <value>Ninguna organización tiene un contacto de seguridad pendiente de validar.</value>
+  </data>
+  <data name="ColaErrorCarga" xml:space="preserve">
+    <value>No se pudo cargar la cola de propuestas.</value>
+  </data>
+  <data name="ColumnaOrganizacion" xml:space="preserve">
+    <value>Organización</value>
+  </data>
+  <data name="ColumnaContacto" xml:space="preserve">
+    <value>Persona de contacto</value>
+  </data>
+  <data name="ColumnaCorreo" xml:space="preserve">
+    <value>Correo electrónico</value>
+  </data>
+  <data name="ColumnaTelefono" xml:space="preserve">
+    <value>Teléfono</value>
+  </data>
+  <data name="ColumnaPropuesto" xml:space="preserve">
+    <value>Propuesto el</value>
+  </data>
+  <data name="ColumnaAcciones" xml:space="preserve">
+    <value>Acciones</value>
+  </data>
+  <data name="BotonValidar" xml:space="preserve">
+    <value>Validar</value>
+  </data>
+  <data name="BotonRechazar" xml:space="preserve">
+    <value>Rechazar</value>
+  </data>
+  <data name="ContactoValidadoAviso" xml:space="preserve">
+    <value>Contacto de seguridad validado.</value>
+  </data>
+  <data name="ContactoRechazadoAviso" xml:space="preserve">
+    <value>Propuesta rechazada.</value>
+  </data>
+  <data name="RechazarTitulo" xml:space="preserve">
+    <value>Rechazar la propuesta</value>
+  </data>
+  <data name="RechazarTexto" xml:space="preserve">
+    <value>La organización verá el motivo y podrá proponer otro contacto.</value>
+  </data>
+  <data name="CampoMotivo" xml:space="preserve">
+    <value>Motivo del rechazo</value>
+  </data>
+  <data name="MotivoObligatorio" xml:space="preserve">
+    <value>Indica el motivo del rechazo.</value>
+  </data>
+  <data name="BotonConfirmarRechazo" xml:space="preserve">
+    <value>Rechazar propuesta</value>
+  </data>
+  <data name="ErrorResolver" xml:space="preserve">
+    <value>No se pudo resolver la propuesta. Inténtalo de nuevo.</value>
+  </data>
+</root>

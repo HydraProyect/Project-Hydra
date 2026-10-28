@@ -1,0 +1,95 @@
+@page "/plataforma/contactos-seguridad"
+@rendermode InteractiveServer
+@inherits CaeManager.Web.Components.PaginaInteractiva
+@attribute [Authorize]
+@* Cola de contactos de seguridad Propuestos de todas las organizaciones (incremento 3a del aviso de
+   violaciones de seguridad). Transversal a los Tenants, así que la autoriza la concesión AdminPlataforma
+   global del Actor de Plataforma TALVEG, no el rol Administrador de ningún Tenant: mismo criterio que
+   ConectoresCae.razor y EstadoComercial.razor. La página no es el enforcement: la consulta devuelve la
+   lista vacía sin esa concesión, los comandos fallan cerrado y la RLS y la función de resolución repiten
+   la comprobación. *@
+@using CaeManager.Web.Features.ContactoSeguridad.Recursos
+@using Microsoft.Extensions.Localization
+@inject IStringLocalizer<TextosContactoSeguridad> Textos
+
+<LimiteDeErrores Pagina="this">
+<PageTitle>@Textos["ColaTituloDocumento"] — @Marca.Nombre</PageTitle>
+
+<div class="contenedor-pagina pagina-contactos-seguridad">
+    <CabeceraPagina Titulo="@Textos["ColaTitulo"]">
+        <Descripcion>@Textos["ColaDescripcion"]</Descripcion>
+    </CabeceraPagina>
+
+    @if (_error is not null)
+    {
+        <p class="contactos-seguridad-error" role="alert">@_error</p>
+    }
+
+    @if (_cargando)
+    {
+        <EstadoCargando Filas="4" />
+    }
+    else if (_errorCarga)
+    {
+        <EstadoVacio NombreIcono="error-circulo" Titulo="@Textos["ColaErrorCarga"]">
+            <Accion>
+                <Boton Variante="VarianteBoton.Secundario" OnClick="CargarAsync">@Textos["BotonReintentar"]</Boton>
+            </Accion>
+        </EstadoVacio>
+    }
+    else if (_propuestos.Count == 0)
+    {
+        <EstadoVacio Titulo="@Textos["ColaVaciaTitulo"]" Descripcion="@Textos["ColaVaciaDescripcion"]" />
+    }
+    else
+    {
+        <table class="tabla-datos">
+            <thead>
+                <tr>
+                    <th>@Textos["ColumnaOrganizacion"]</th>
+                    <th>@Textos["ColumnaContacto"]</th>
+                    <th>@Textos["ColumnaCorreo"]</th>
+                    <th>@Textos["ColumnaTelefono"]</th>
+                    <th>@Textos["ColumnaPropuesto"]</th>
+                    <th><span class="sr-only">@Textos["ColumnaAcciones"]</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var propuesto in _propuestos)
+                {
+                    <tr>
+                        <td>@propuesto.NombreOrganizacion</td>
+                        <td>@propuesto.Nombre</td>
+                        <td>@propuesto.Correo</td>
+                        <td>@propuesto.Telefono</td>
+                        <td>@Cuando(propuesto.PropuestoEnUtc)</td>
+                        <td class="contactos-seguridad-acciones">
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Primario"
+                                   Deshabilitado="@(_procesandoId is not null)"
+                                   Cargando="@(_procesandoId == propuesto.Id && _rechazando is null)"
+                                   OnClick="() => ValidarAsync(propuesto.Id)">
+                                @Textos["BotonValidar"]
+                            </Boton>
+                            <Boton Tamano="TamanoBoton.Pequeno" Variante="VarianteBoton.Destructivo"
+                                   Deshabilitado="@(_procesandoId is not null)"
+                                   OnClick="() => AbrirRechazo(propuesto)">
+                                @Textos["BotonRechazar"]
+                            </Boton>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<ModalFormulario Visible="@(_rechazando is not null)" VisibleChanged="CerrarRechazo" Titulo="@Textos["RechazarTitulo"]"
+                 Subtitulo="@_rechazando?.NombreOrganizacion" Ancho="AnchoModal.Pequeno"
+                 HayCambios="() => !string.IsNullOrWhiteSpace(_motivo)"
+                 Guardando="@(_procesandoId is not null)" MensajeError="@_errorRechazo" HayErroresDeCampo="@(_errorMotivo is not null)"
+                 OnGuardar="RechazarAsync" TextoGuardar="@Textos["BotonConfirmarRechazo"]" TextoCancelar="@Textos["BotonCancelar"]">
+    <p>@Textos["RechazarTexto"]</p>
+    <CampoTextarea Etiqueta="@Textos["CampoMotivo"]" Valor="@_motivo" ValorChanged="v => _motivo = v"
+                   MensajeError="@_errorMotivo" />
+</ModalFormulario>
+</LimiteDeErrores>

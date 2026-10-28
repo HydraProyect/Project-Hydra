@@ -53,6 +53,12 @@ public class FronterasEntrePersistenciaDeFeaturesTests
     // interfaz de persistencia ajena de la que depende).
     private static readonly HashSet<(string Handler, string Interfaz)> ReferenciasCruzadasPermitidas = new()
     {
+        // El contacto de seguridad cuelga del Tenant beneficiario (decisión del propietario del 2026-10-26: no
+        // existe la entidad Cliente comercial TALVEG), así que su entidad y su repositorio viven en Domain/Tenants;
+        // la Feature ContactosSeguridad es solo la superficie de commands y queries sobre ese agregado.
+        ("ContactosSeguridad.ProponerContactoSeguridadCommandHandler", "IContactoSeguridadTenantRepository"),
+        ("ContactosSeguridad.ObtenerContactoSeguridadDeMiOrganizacionQueryHandler", "IContactoSeguridadTenantRepository"),
+        ("ContactosSeguridad.ObtenerContactoSeguridadVigenteQueryHandler", "IContactoSeguridadTenantRepository"),
         // La Delegación y el Oficio del Trabajador son el catálogo de su Empresa (2026-10-18): el handler lee ese
         // catálogo para comprobar que lo elegido es de la Empresa del Trabajador.
         ("Trabajadores.FijarDelegacionEmpresaYOficioTrabajadorCommandHandler", "ICatalogoTrabajadoresEmpresaRepository"),

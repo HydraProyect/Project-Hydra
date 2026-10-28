@@ -77,6 +77,10 @@ public static class ActosExcluidosDelEncargo
         // efectivo Administrador (AutorizacionLecturaAutoridad). Con encargo no pleno el Tenant propietario tiene
         // Administrador propio, que es quien las concede; con encargo pleno esta lista no rige.
         "AutorizacionesLectura",
+        // Contacto de seguridad del Tenant beneficiario: lo propone su propio Administrador (leído en la base,
+        // IAdministradorDelTenantPropietario) y lo valida un Actor de Plataforma TALVEG; ninguno de los dos actos
+        // es de quien administra por encargo.
+        "ContactosSeguridad",
         "Facturacion",  // tarifas, resumen y su exportación
         "Importacion",  // importaciones masivas (Clientes empresariales, Documentos, combinada)
         "Retencion",    // purga y retención

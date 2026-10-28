@@ -328,6 +328,11 @@ public static class CatalogoMenuLateral
         new("delegaciones", "plataforma", "delegaciones", "delegacion", "Delegaciones"),
         new("estado-comercial", "plataforma", "configuracion/comercial", "etiqueta", "Estado comercial"),
         new("conectores-cae", "plataforma", "plataforma/conectores-cae", "importar", "Conectores CAE"),
+        // Cola de validación de contactos de seguridad (aviso de violaciones de seguridad, incremento 3a). Solo
+        // con capacidad de plataforma, como «Administración de plataforma»: la autoriza la concesión
+        // AdminPlataforma global en Application y en la RLS, no el rol de ningún Tenant.
+        new("contactos-seguridad", "plataforma", "plataforma/contactos-seguridad", "seguridad", "MenuContactosSeguridad",
+            Condicion: c => c.EsAdministradorPlataforma, ClaveRotulo: "MenuContactosSeguridad"),
     ];
 
     /// <summary>
