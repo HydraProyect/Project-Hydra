@@ -167,20 +167,15 @@
                   Guardando="_guardando" MensajeError="@_mensajeErrorFormulario" HayErroresDeCampo="@(_erroresCampo.Count > 0 || _conflicto)"
                   MotivoGuardarDeshabilitado="@(_conflicto ? Comunes["MotivoGuardarConflictoVersion"].Value : null)"
                   OnGuardar="GuardarAsync" TextoGuardar="Guardar" TextoCancelar="Cancelar">
-    <ChildContent>
-        <p class="macros-drawer-subtitulo">
-            @(_editandoId is null
-                ? "Se ofrecerá al responder desde la bandeja, en las conversaciones vinculadas a un Cliente."
-                : "Los cambios valen para las respuestas que se redacten a partir de ahora; las ya enviadas no cambian.")
-        </p>
-
+    <AvisoFijo>
         @if (_conflicto)
         {
             @* Concurrencia optimista: EditarMacroCommand devuelve
                Concurrencia.Conflicto y no pisa nada. El mockup dice también
                quién guardó y cuándo («Guardado el 6 sep 2026, 09:14 por
                Álvaro B.»): el comando no devuelve ese dato, así que no se
-               escribe. *@
+               escribe. Va en AvisoFijo del kit: fuera del cuerpo desplazable,
+               siempre a la vista. *@
             <div class="macros-conflicto" role="status" aria-live="assertive">
                 <strong class="macros-conflicto-titulo">Otra persona editó esta macro mientras la tenías abierta</strong>
                 <span class="macros-conflicto-texto">
@@ -196,6 +191,13 @@
                 </div>
             </div>
         }
+    </AvisoFijo>
+    <ChildContent>
+        <p class="macros-drawer-subtitulo">
+            @(_editandoId is null
+                ? "Se ofrecerá al responder desde la bandeja, en las conversaciones vinculadas a un Cliente."
+                : "Los cambios valen para las respuestas que se redacten a partir de ahora; las ya enviadas no cambian.")
+        </p>
 
         <CampoSelect Etiqueta="Cliente (opcional)" Valor="@_clienteIdFormulario" ValorChanged="v => _clienteIdFormulario = v">
             <option value="">Genérica (todos los Clientes)</option>

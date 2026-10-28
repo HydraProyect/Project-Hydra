@@ -417,14 +417,17 @@ public class MacrosGen2Tests : BunitContext
         await Guardar(cut);
 
         mediador.Enviados.OfType<EditarMacroCommand>().Should().ContainSingle().Which.Version.Should().Be(original.Version);
-        cut.Find(".macros-conflicto .macros-conflicto-titulo").TextContent.Trim()
+        cut.Find(".drawer-aviso .macros-conflicto .macros-conflicto-titulo").TextContent.Trim()
             .Should().Be("Otra persona editó esta macro mientras la tenías abierta");
+        cut.FindAll(".drawer-cuerpo .macros-conflicto").Should().BeEmpty("el aviso va fuera del cuerpo desplazable");
+        cut.Find(".drawer-aviso .macros-conflicto").GetAttribute("role").Should().Be("status");
+        cut.Find(".drawer-aviso .macros-conflicto").GetAttribute("aria-live").Should().Be("assertive");
         Boton(cut, ".drawer-pie button", "Guardar").HasAttribute("disabled").Should().BeTrue(
             "guardar otra vez con la versión vieja volvería a chocar");
         cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeFalse(
             "con el aviso de conflicto a la vista un clic fuera no puede cerrar el formulario sin que se lea");
 
-        await Pulsar(cut, ".macros-conflicto button", "Cargar la versión actual");
+        await Pulsar(cut, ".drawer-aviso .macros-conflicto button", "Cargar la versión actual");
 
         cut.FindAll(".macros-conflicto").Should().BeEmpty();
         cut.Find(".drawer-cuerpo input.campo-input").GetAttribute("value").Should().Be("Acuse de recibo (revisado)");

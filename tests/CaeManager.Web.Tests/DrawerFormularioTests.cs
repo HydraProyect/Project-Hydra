@@ -65,6 +65,23 @@ public class DrawerFormularioTests : BunitContext
     }
 
     [Fact]
+    public void Aviso_fijo_y_error_se_ven_fuera_del_cuerpo_y_sin_aviso_no_se_altera_el_marcado()
+    {
+        var sinAviso = Renderizar();
+        var marcado = sinAviso.Markup;
+        sinAviso.Render(p => p.Add(x => x.AvisoFijo, (RenderFragment?)null));
+        sinAviso.Markup.Should().Be(marcado);
+        sinAviso.FindAll(".drawer-aviso").Should().BeEmpty();
+
+        var cut = Renderizar(p => p.Add(x => x.AvisoFijo, (RenderFragment)(b => b.AddContent(0, "Aviso fijo"))));
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Aviso fijo");
+        cut.Find(".drawer-cuerpo").TextContent.Should().NotContain("Aviso fijo");
+        cut.FindComponent<Drawer>().Instance.CerrarAlHacerClicFuera.Should().BeTrue();
+        cut.Render(p => p.Add(x => x.MensajeError, "Error de guardado"));
+        cut.Find(".drawer-aviso").TextContent.Should().Contain("Error de guardado").And.Contain("Aviso fijo");
+    }
+
+    [Fact]
     public void Sin_MostrarGuardar_el_pie_solo_tiene_Cancelar_y_por_defecto_se_muestra_Guardar()
     {
         Renderizar(p => p.Add(x => x.MostrarGuardar, false))
