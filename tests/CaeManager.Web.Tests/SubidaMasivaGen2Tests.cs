@@ -11,6 +11,7 @@ using CaeManager.Application.Trabajadores.Queries.ObtenerTrabajadoresParaSelecto
 using CaeManager.Domain.Common;
 using CaeManager.Infrastructure.Identity;
 using CaeManager.Web.Components.DesignSystem;
+using CaeManager.Web.Documentos;
 using CaeManager.Web.Features.Documentos.Pages;
 using FluentAssertions;
 using MediatR;
@@ -19,6 +20,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using PdfSharp.Pdf;
 
 namespace CaeManager.Web.Tests;
@@ -27,6 +29,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
 {
     private readonly Mediador _mediador = new();
     private readonly Almacenamiento _almacenamiento = new();
+    private readonly Rasterizador _rasterizador = new();
 
     public SubidaMasivaGen2Tests()
     {
@@ -35,12 +38,20 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         Services.AddSingleton(new ToastService());
         Services.AddSingleton<IFileStorageService>(_almacenamiento);
         Services.AddSingleton<IConversorWordPdfService>(new Conversor());
-        Services.AddSingleton<IRasterizadorPaginasPdfService>(new Rasterizador());
+        Services.AddSingleton<IRasterizadorPaginasPdfService>(_rasterizador);
         Services.AddSingleton<ICurrentUserService>(new UsuarioActualFalso(Roles.GestorCae));
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddSingleton(typeof(Microsoft.Extensions.Logging.ILogger<SubidaMasiva>), NullLogger<SubidaMasiva>.Instance);
         Services.AddLocalization();
+        // Se resuelve en el primer Render: un test puede bajar el tope antes de pintar.
+        Services.AddSingleton(_ => new CuotaSubidaMasiva(Options.Create(new OpcionesSubidaMasiva
+        {
+            MaximoBytesPorCircuito = _maximoPorCircuito,
+            DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-subida-masiva-tests")
+        })));
     }
+
+    private long _maximoPorCircuito = 600L * 1024 * 1024;
 
     [Fact]
     public void El_mockup_se_pinta_con_miga_zona_de_subida_y_acciones_de_documentos()
@@ -402,7 +413,7 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         var tipoItem = typeof(SubidaMasiva).GetNestedType("ItemLote", BindingFlags.NonPublic)!;
         var item = Activator.CreateInstance(tipoItem, nonPublic: true)!;
         tipoItem.GetProperty("NombreArchivo")!.SetValue(item, "consulta.pdf");
-        tipoItem.GetProperty("ContenidoPdf")!.SetValue(item, CrearPdf());
+        tipoItem.GetProperty("Pdf")!.SetValue(item, await Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen").GuardarAsync(CrearPdf()));
         var crear = typeof(SubidaMasiva).GetMethod("CrearDocumentoDelItemAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
 
         await cut.InvokeAsync(() => (Task)crear.Invoke(cut.Instance, [item, Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 3, 1), 1])!)
@@ -775,6 +786,139 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    /// <summary>
+    /// S-C-3 (ASVS 4.0.3 V12.1.1): lo que no cabe en lo que la pantalla ya retiene se marca con error
+    /// sin pedir un solo byte al navegador, y el archivo que sí cabe del mismo lote sigue adelante.
+    /// </summary>
+    [Fact]
+    public async Task Un_archivo_que_no_cabe_en_lo_retenido_se_rechaza_sin_leerlo_y_el_que_cabe_sigue()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var pdf = CrearPdf();
+        _maximoPorCircuito = pdf.Length * 3L;
+        var cut = Render<SubidaMasiva>();
+        var cabe = new ArchivoContado("cabe.pdf", pdf);
+        var excede = new ArchivoContado("excede.pdf", new byte[pdf.Length * 3 + 1]);
+        var manejador = typeof(SubidaMasiva).GetMethod("ManejarArchivosSeleccionadosAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        await cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [new InputFileChangeEventArgs([excede, cabe])])!)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => FilaDe(cut, "cabe.pdf").TextContent.Should().Contain("Pendiente de confirmar"), TimeSpan.FromSeconds(10));
+
+        FilaDe(cut, "excede.pdf").QuerySelector(".item-subida-masiva-error")!.TextContent.Should()
+            .Be("No cabe en esta subida: confirma o descarta los archivos pendientes y vuelve a soltarlo.");
+        excede.Aperturas.Should().Be(0, "el excedente se rechaza antes de abrir su flujo");
+        cabe.Aperturas.Should().Be(1, "control: el que cabe sí se lee");
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().ContainSingle();
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>S-C-3: confirmar, descartar o cerrar la pantalla borra el temporal del PDF y devuelve su reserva.</summary>
+    [Fact]
+    public async Task Confirmar_y_descartar_borran_el_temporal_del_pdf_y_la_vista_previa_solo_existe_abierta()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        var almacen = Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen");
+        await ProcesarAsync(cut, "confirmar.pdf");
+        await ProcesarAsync(cut, "descartar.pdf");
+        Directory.GetFiles(almacen.Directorio).Should().HaveCount(2, "control: cada pendiente espera en su temporal");
+        cut.FindAll("iframe").Should().BeEmpty("sin fila abierta no hay base64 del PDF");
+
+        await FilaDe(cut, "confirmar.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        cut.Find("iframe").GetAttribute("src").Should().StartWith("data:application/pdf;base64,");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+        Directory.GetFiles(almacen.Directorio).Should().ContainSingle("el PDF confirmado ya está en el almacenamiento");
+        cut.FindAll("iframe").Should().BeEmpty();
+
+        var item = ((System.Collections.IList)Campo<object>(cut.Instance, "_items")).Cast<object>()
+            .Single(i => (string)i.GetType().GetProperty("NombreArchivo")!.GetValue(i)! == "descartar.pdf");
+        typeof(SubidaMasiva).GetField("_paraDescartar", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cut.Instance, item);
+        var descartar = typeof(SubidaMasiva).GetMethod("ConfirmarDescarteAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await cut.InvokeAsync(() => (Task)descartar.Invoke(cut.Instance, [])!).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Directory.GetFiles(almacen.Directorio).Should().BeEmpty();
+        almacen.Reservado.Should().Be(0);
+        await DisposeComponentsAsync();
+    }
+
+    [Fact]
+    public async Task Cerrar_la_pantalla_borra_los_temporales_pendientes_y_devuelve_la_reserva()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        var almacen = Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen");
+        var cuota = Services.GetRequiredService<CuotaSubidaMasiva>();
+        await ProcesarAsync(cut, "pendiente.pdf");
+        Directory.GetFiles(almacen.Directorio).Should().ContainSingle("control: el pendiente está en disco");
+        cuota.ReservadoGlobal.Should().BePositive();
+
+        await DisposeComponentsAsync();
+
+        Directory.Exists(almacen.Directorio).Should().BeFalse();
+        cuota.ReservadoGlobal.Should().Be(0);
+    }
+
+    /// <summary>
+    /// S-C-3: la miniatura se pide reducida (no la página entera a 150 ppp), su base64 en memoria
+    /// descuenta del tope de la pantalla, y quitar o limpiar la fila lo devuelve. Si no cabe, la fila
+    /// sigue sin miniatura.
+    /// </summary>
+    [Fact]
+    public async Task La_miniatura_se_pide_reducida_descuenta_del_tope_y_quitar_o_limpiar_la_devuelve()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _rasterizador.Miniatura = new byte[3000];
+        // 1 MiB: caben el PDF y una miniatura pequeña, no una de 600 KB (1,6 MB de base64 en UTF-16).
+        _maximoPorCircuito = 1024 * 1024;
+        var cut = Render<SubidaMasiva>();
+        var almacen = Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen");
+        await ProcesarAsync(cut, "con-miniatura.pdf");
+
+        _rasterizador.AnchoPedido.Should().Be(144);
+        _rasterizador.PaginasEnteras.Should().Be(0, "la miniatura ya no rasteriza la página entera");
+        var dataUri = "data:image/png;base64," + Convert.ToBase64String(_rasterizador.Miniatura);
+        FilaDe(cut, "con-miniatura.pdf").QuerySelector("img")!.GetAttribute("src").Should().Be(dataUri);
+        var pdfEnDisco = new FileInfo(Directory.GetFiles(almacen.Directorio).Should().ContainSingle().Subject).Length;
+        almacen.Reservado.Should().Be(pdfEnDisco + dataUri.Length * sizeof(char), "el PDF en disco y la miniatura en memoria");
+
+        // El Documento creado sigue en la lista con su miniatura hasta limpiar los resueltos.
+        await FilaDe(cut, "con-miniatura.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+        cut.WaitForAssertion(() => almacen.Reservado.Should().Be(dataUri.Length * sizeof(char),
+            "control: el temporal del PDF se borró y la miniatura sigue a la vista"), TimeSpan.FromSeconds(10));
+        var limpiar = typeof(SubidaMasiva).GetMethod("LimpiarResueltos", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await cut.InvokeAsync(() => limpiar.Invoke(cut.Instance, []));
+        almacen.Reservado.Should().Be(0);
+
+        // Sin sitio para la miniatura, la fila llega igual a Pendiente, sin imagen; descartarla lo devuelve todo.
+        _rasterizador.Miniatura = new byte[600 * 1024];
+        await ProcesarAsync(cut, "sin-sitio.pdf");
+        FilaDe(cut, "sin-sitio.pdf").QuerySelector("img").Should().BeNull();
+        almacen.Reservado.Should().Be(new FileInfo(Directory.GetFiles(almacen.Directorio).Should().ContainSingle().Subject).Length);
+
+        var segundo = ((System.Collections.IList)Campo<object>(cut.Instance, "_items")).Cast<object>().Single();
+        typeof(SubidaMasiva).GetField("_paraDescartar", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(cut.Instance, segundo);
+        var descartar = typeof(SubidaMasiva).GetMethod("ConfirmarDescarteAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        await cut.InvokeAsync(() => (Task)descartar.Invoke(cut.Instance, [])!).WaitAsync(TimeSpan.FromSeconds(10));
+        almacen.Reservado.Should().Be(0);
+        Directory.GetFiles(almacen.Directorio).Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+    private sealed class ArchivoContado(string nombre, byte[] contenido) : IBrowserFile
+    {
+        public int Aperturas { get; private set; }
+        public string Name => nombre;
+        public DateTimeOffset LastModified => DateTimeOffset.UnixEpoch;
+        public long Size => contenido.Length;
+        public string ContentType => "application/pdf";
+        public Stream OpenReadStream(long maxAllowedSize = 512000, CancellationToken cancellationToken = default)
+        {
+            Aperturas++;
+            return new MemoryStream(contenido);
+        }
+    }
+
     private sealed class ArchivoFalso(string nombre) : IBrowserFile
     {
         public string Name => nombre;
@@ -934,8 +1078,24 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     private sealed class Conversor : IConversorWordPdfService { public Task<byte[]> ConvertirAPdfAsync(byte[] contenidoDocx, CancellationToken cancellationToken = default) => throw new NotSupportedException(); }
     private sealed class Rasterizador : IRasterizadorPaginasPdfService
     {
-        public Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default) =>
-            Result.Fallo<byte[]>(Error.Crear("Pdf.SinMiniatura", "No hay miniatura."));
+        /// <summary>Sin valor, no hay miniatura: es el caso de casi todos los tests.</summary>
+        public byte[]? Miniatura { get; set; }
+        public int? AnchoPedido { get; private set; }
+        public int PaginasEnteras { get; private set; }
+
+        public Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default)
+        {
+            PaginasEnteras++;
+            return Result.Fallo<byte[]>(Error.Crear("Pdf.SinMiniatura", "No hay miniatura."));
+        }
+
+        public Result<byte[]> RasterizarMiniatura(byte[] contenidoPdf, int indicePagina, int anchoPixeles, CancellationToken cancellationToken = default)
+        {
+            AnchoPedido = anchoPixeles;
+            return Miniatura is { } miniatura
+                ? Result.Exito(miniatura)
+                : Result.Fallo<byte[]>(Error.Crear("Pdf.SinMiniatura", "No hay miniatura."));
+        }
     }
 
     private sealed class UsuarioActualFalso(string rol) : ICurrentUserService

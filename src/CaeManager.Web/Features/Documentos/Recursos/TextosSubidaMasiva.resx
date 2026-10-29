@@ -378,6 +378,9 @@
   <data name="ErrorZipIlegible" xml:space="preserve">
     <value>No pudimos abrir este archivo .zip.</value>
   </data>
+  <data name="ErrorSinEspacio" xml:space="preserve">
+    <value>No cabe en esta subida: confirma o descarta los archivos pendientes y vuelve a soltarlo.</value>
+  </data>
   <data name="ErrorSubida" xml:space="preserve">
     <value>No pudimos subir este archivo.</value>
   </data>
