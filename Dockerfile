@@ -92,6 +92,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=build --chown=$APP_UID:$APP_UID /app/publish .
+RUN mkdir -p /app/temporales-conversion-word && chown "$APP_UID:$APP_UID" /app/temporales-conversion-word
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
