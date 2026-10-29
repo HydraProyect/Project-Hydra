@@ -187,7 +187,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         // que tampoco cookie de cultura.
         Assert.DoesNotContain(await SetCookieAsync(respuestaPassword), c => c.StartsWith($"{NombreCookie}="));
 
-        await page.FillAsync("#codigo", Ayudas.GenerarCodigoTotp(Ayudas.ClaveTotpAdministrador));
+        await page.FillAsync("#codigo", await Ayudas.SiguienteCodigoTotpAsync(Ayudas.EmailAdministrador));
         var respuesta2fa = await page.RunAndWaitForResponseAsync(
             () => page.ClickAsync("button[type=\"submit\"]"), EsPostA("/cuenta/verificar-2fa"));
 
@@ -230,7 +230,7 @@ public class IdiomaPorCuentaTests(WebAppFixtureConCatalan fixture)
         if (respuesta.Headers.GetValueOrDefault("location")?.Contains("/cuenta/verificar-2fa") == true)
         {
             await page.WaitForURLAsync("**/cuenta/verificar-2fa**");
-            await page.FillAsync("#codigo", Ayudas.GenerarCodigoTotp(Ayudas.ClaveTotpAdministrador));
+            await page.FillAsync("#codigo", await Ayudas.SiguienteCodigoTotpAsync(email));
             respuesta = await page.RunAndWaitForResponseAsync(
                 () => page.ClickAsync("button[type=\"submit\"]"), EsPostA("/cuenta/verificar-2fa"));
         }

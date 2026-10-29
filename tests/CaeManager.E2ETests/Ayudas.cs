@@ -908,11 +908,46 @@ public static class Ayudas
         // pasan de largo por esta rama y siguen directas al dashboard.
         if (page.Url.Contains("/cuenta/verificar-2fa"))
         {
-            await page.FillAsync("#codigo", GenerarCodigoTotp(ClaveTotpAdministrador));
+            await page.FillAsync("#codigo", await SiguienteCodigoTotpAsync(email));
             await page.ClickAsync("button[type=\"submit\"]");
         }
 
         await page.Locator(".nav-principal").WaitForAsync(new LocatorWaitForOptions { Timeout = 30_000 });
+    }
+
+    /// <summary>Último paso TOTP (30 s) que cada cuenta usó en este proceso de test.</summary>
+    private static readonly Dictionary<string, long> UltimoPasoTotpPorCuenta = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Código TOTP del segundo paso de <paramref name="email"/> que el servidor todavía no aceptó: un
+    /// código aceptado no vuelve a valer (ASVS V2.8.4, ProveedorTotpDeUnSoloUso), y varios recorridos
+    /// entran con la misma cuenta dentro del mismo paso de 30 s. Toma el primer paso posterior al último
+    /// usado con esa cuenta, como mucho uno por delante del actual (el servidor tolera dos), y si no cabe
+    /// espera a que el reloj avance.
+    /// </summary>
+    public static async Task<string> SiguienteCodigoTotpAsync(string email, string claveBase32 = ClaveTotpAdministrador)
+    {
+        while (true)
+        {
+            TimeSpan espera;
+            lock (UltimoPasoTotpPorCuenta)
+            {
+                var ahora = DateTimeOffset.UtcNow;
+                var pasoActual = ahora.ToUnixTimeSeconds() / 30;
+                var paso = UltimoPasoTotpPorCuenta.TryGetValue(email, out var ultimo)
+                    ? Math.Max(pasoActual, ultimo + 1)
+                    : pasoActual;
+                if (paso <= pasoActual + 1)
+                {
+                    UltimoPasoTotpPorCuenta[email] = paso;
+                    return GenerarCodigoTotp(claveBase32, DateTimeOffset.FromUnixTimeSeconds(paso * 30));
+                }
+
+                espera = DateTimeOffset.FromUnixTimeSeconds((paso - 1) * 30) - ahora + TimeSpan.FromMilliseconds(200);
+            }
+
+            await Task.Delay(espera);
+        }
     }
 
     /// <summary>

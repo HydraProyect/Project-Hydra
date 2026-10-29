@@ -90,6 +90,9 @@ public class SegundoFactorDeCuentasIdentity(
                 usuario, AlmacenUsuarios.ProveedorInterno, NombreTokenClaveAutenticador, cancellationToken);
             await tokens.RemoveTokenAsync(
                 usuario, AlmacenUsuarios.ProveedorInterno, AlmacenUsuarios.NombreTokenCodigosRecuperacion, cancellationToken);
+            // Sin clave no hay nada que proteger con el último paso TOTP aceptado: no deja rastro.
+            await tokens.RemoveTokenAsync(
+                usuario, AlmacenUsuarios.ProveedorInterno, ProveedorTotpDeUnSoloUso.NombreTokenUltimoPaso, cancellationToken);
             // Sello nuevo: SignInManagerCuentaDesactivada.ValidateSecurityStampAsync
             // cierra en su siguiente validación las sesiones abiertas de la cuenta,
             // incluida la de quien tuviera el móvil perdido.
