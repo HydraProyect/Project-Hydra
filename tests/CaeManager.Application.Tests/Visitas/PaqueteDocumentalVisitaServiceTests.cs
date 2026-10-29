@@ -10,6 +10,8 @@ using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.TiposDocumento;
 using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.PaqueteDocumental;
+using CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
+using CaeManager.Application.Plataforma;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
@@ -671,6 +673,8 @@ public class PaqueteDocumentalVisitaServiceTests
     {
         var epi = DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi");
         var formacion = DocumentoDeTrabajador(_luis, _formacion, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "formacion");
+        DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "ausente", archivoInexistente: true);
+        DocumentoDeTrabajador(_luis, _reconocimiento, Hoy.AddDays(-100), VigenciaDocumento.VenceEl(Hoy.AddDays(-1)), "vencido");
 
         await GenerarAsync();
 
@@ -687,6 +691,7 @@ public class PaqueteDocumentalVisitaServiceTests
     {
         DocumentoDeTrabajador(_ana, _epi, Hoy.AddDays(-30), VigenciaDocumento.VenceEl(Hoy.AddDays(300)), "epi");
         _registro.Falla = true;
+        var archivosIniciales = _almacenamiento.ArchivosGuardados;
 
         var generar = () => new PaqueteDocumentalVisitaService(
                 _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger)
@@ -694,6 +699,25 @@ public class PaqueteDocumentalVisitaServiceTests
 
         await generar.Should().ThrowAsync<InvalidOperationException>();
         _conversacion.Mensajes.Should().BeEmpty("sin constancia del acceso, el adjunto no se añade");
+        _almacenamiento.ArchivosGuardados.Should().Be(archivosIniciales);
+    }
+
+    [Fact]
+    public async Task La_descarga_manual_registra_solo_los_documentos_incorporados()
+    {
+        var incluido = DocumentoDeTrabajador(_ana, _reconocimiento, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "incluido");
+        DocumentoDeTrabajador(_luis, _epi, Hoy.AddDays(-30), VigenciaDocumento.NoCaduca, "ausente", archivoInexistente: true);
+        _centros.ListaCanalesGestionDocumental.Add(CanalGestionDocumental.PorEmail(_centro.Id, "Acceso", "acceso@example.com", null));
+        var servicio = new PaqueteDocumentalVisitaService(
+            _visitas, _centros, _documentos, _tipos, _empresas, _trabajadores, _conversaciones, _almacenamiento, _alcance, _registro, _logger);
+        var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
+            _visitas, _centros, _alcance, servicio, new CurrentUserServiceFalso(Guid.NewGuid(), "GestorCae"), new SesionPrivilegiadaAusente());
+
+        var resultado = await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(_visita.Id), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        LeerZip(resultado.Valor.Contenido).Values.Should().BeEquivalentTo(["incluido"]);
+        _registro.Registrados.Should().Equal((incluido.Id, TipoAccesoDocumentoSensible.Apertura));
     }
 
     [Fact]

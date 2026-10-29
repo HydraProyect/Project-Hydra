@@ -376,7 +376,7 @@ public class PaqueteDocumentalVisitaCorreoTests
             Alcance(contexto), registroAlternativo ?? registro, NullLogger<PaqueteDocumentalVisitaService>.Instance);
 
         var handler = new ObtenerPaqueteDocumentalVisitaQueryHandler(
-            contexto, contexto, Alcance(contexto), paquete, registroAlternativo ?? registro, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
+            contexto, contexto, Alcance(contexto), paquete, _usuario, sesionPrivilegiada ?? new SesionPrivilegiadaAusente());
         return await handler.Handle(new ObtenerPaqueteDocumentalVisitaQuery(visitaId), CancellationToken.None);
     }
 
