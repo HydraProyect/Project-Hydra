@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.DocumentosIa.Common;
 using CaeManager.Domain.Common;
 
 namespace CaeManager.Application.DocumentosIa;
@@ -30,9 +31,9 @@ public class RouterExtraccionMetadatosDocumentoIaService(IDocumentAIRouterServic
 
         return Result.Exito(new MetadatosDocumentoExtraidosDto(
             resultado.Valor.TipoDetectado,
-            ParsearFecha(campos.GetValueOrDefault("fechaEmision")),
-            ParsearFecha(campos.GetValueOrDefault("fechaVencimiento")),
-            ParsearBooleano(campos.GetValueOrDefault("tieneFirma")),
+            ParsearFecha(campos.GetValueOrDefault(EvidenciaMinimaLectura.ClaveFechaEmision)),
+            ParsearFecha(campos.GetValueOrDefault(EvidenciaMinimaLectura.ClaveFechaVencimiento)),
+            ParsearBooleano(campos.GetValueOrDefault(EvidenciaMinimaLectura.ClaveTieneFirma)),
             resultado.Valor.ConfianzaGeneral,
             resultado.Valor.NotasValidacion,
             resultado.Valor.Contraste));

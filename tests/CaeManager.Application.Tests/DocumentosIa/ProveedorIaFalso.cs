@@ -10,7 +10,9 @@ public class ProveedorIaFalso(
     Result<TextoExtraccionDto>? resultadoTexto = null,
     Result<ExtraccionEstructuradaDto>? resultadoEstructurado = null,
     bool estaDisponible = true,
-    Action? alExtraerTexto = null) : IDocumentAIProvider
+    Action? alExtraerTexto = null,
+    Func<string, Result<ExtraccionEstructuradaDto>>? estructuradoPorTexto = null,
+    Func<string, Result<TextoExtraccionDto>>? textoPorNombreArchivo = null) : IDocumentAIProvider
 {
     public string Codigo => codigo;
     public CapacidadesProveedorIa Capacidades => capacidades;
@@ -22,6 +24,9 @@ public class ProveedorIaFalso(
     public int VecesLlamadoParaEstructurado { get; private set; }
     public string? UltimoTextoRecibidoParaEstructurar { get; private set; }
 
+    /// <summary>Nombre del archivo de cada llamada de OCR, en orden: las páginas rasterizadas llegan como «pagina-N.png».</summary>
+    public List<string> NombresArchivoRecibidosParaTexto { get; } = [];
+
     public Task<Result<TextoExtraccionDto>> ExtraerTextoAsync(byte[] contenidoArchivo, string nombreArchivo, CancellationToken cancellationToken = default)
     {
         VecesLlamadoParaTexto++;
@@ -29,6 +34,10 @@ public class ProveedorIaFalso(
         // OCR — es lo que permite comprobar que el router rasteriza y envía
         // página a página en vez de rasterizarlas todas primero.
         alExtraerTexto?.Invoke();
+        NombresArchivoRecibidosParaTexto.Add(nombreArchivo);
+        if (textoPorNombreArchivo is not null)
+            return Task.FromResult(textoPorNombreArchivo(nombreArchivo));
+
         return Task.FromResult(resultadoTexto ?? Result.Exito(new TextoExtraccionDto("texto falso")));
     }
 
@@ -36,6 +45,9 @@ public class ProveedorIaFalso(
     {
         VecesLlamadoParaEstructurado++;
         UltimoTextoRecibidoParaEstructurar = texto;
+        if (estructuradoPorTexto is not null)
+            return Task.FromResult(estructuradoPorTexto(texto));
+
         return Task.FromResult(resultadoEstructurado ?? Result.Exito(new ExtraccionEstructuradaDto(tipoEsperado, new Dictionary<string, string?>(), 99, null)));
     }
 }
