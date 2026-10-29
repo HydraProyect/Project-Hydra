@@ -485,7 +485,10 @@ public class TerminologiaCanonicaTests
         // móvil (NavegacionMovil), que bajo 1024 px es la única forma de alcanzarlo. Es un segundo
         // anfitrión del mismo componente, no un identificador nuevo; el renombrado sigue siendo un
         // incremento propio (§ 5 del contrato de terminología).
-        ["ClienteActivo"] = 72,
+        // 75 (antes 72): CierreSesionEnServidor lee la Sesión Privilegiada seleccionada y descarta la
+        // selección en su ámbito (IClienteActivoSeleccionado ×2, ClienteActivoSeleccionado ×1) para
+        // revocar la sesión al cerrarla; son consumidores de la interfaz existente, no un tipo nuevo.
+        ["ClienteActivo"] = 75,
     };
 
     [Theory]

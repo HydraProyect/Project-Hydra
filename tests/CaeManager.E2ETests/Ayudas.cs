@@ -37,7 +37,7 @@ public static class Ayudas
     /// </summary>
     public const string ClaveTotpAdministrador = "JBSWY3DPEHPK3PXP";
 
-    public const string ContrasenaUsuariosPrueba = "Prueba#2026";
+    public const string ContrasenaUsuariosPrueba = "Prueba#2026Segura";
 
     /// <summary>
     /// El «hoy» del producto: día de negocio en Europe/Madrid (DiaDeNegocio.Hoy() en
@@ -513,7 +513,8 @@ public static class Ayudas
                 // agotar IntentosPulsarAccionDeMenu — el reintento de más
                 // arriba nunca llegaba a ejecutarse.
                 var panel = await AbrirMenuAccionesAsync(disparador);
-                var item = panel.GetByText(textoAccion, new LocatorGetByTextOptions { Exact = true });
+                var item = panel.GetByRole(AriaRole.Menuitem, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true })
+                    .Or(panel.GetByRole(AriaRole.Menuitemradio, new LocatorGetByRoleOptions { Name = textoAccion, Exact = true }));
                 await item.ClickAsync(new LocatorClickOptions { Timeout = 10_000 });
 
                 // Menu?.Cerrar() en ItemMenuAccion.EjecutarAsync solo corre

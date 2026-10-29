@@ -264,6 +264,8 @@ public class CaeManagerDbContext(
     public DbSet<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound> AccesosLecturaInbound => Set<CaeManager.Domain.AutorizacionesLectura.AccesoLecturaInbound>();
     public DbSet<CaeManager.Domain.Seguridad.RegistroInicioSesion> RegistrosInicioSesion => Set<CaeManager.Domain.Seguridad.RegistroInicioSesion>();
     public DbSet<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion> PoliticasPaisesInicioSesion => Set<CaeManager.Domain.Seguridad.PoliticaPaisesInicioSesion>();
+    // Revocación en servidor de la sesión de cookie (claim talveg:sid). Ver RegistroSesionesUsuario.
+    public DbSet<CaeManager.Domain.Seguridad.SesionUsuario> SesionesUsuario => Set<CaeManager.Domain.Seguridad.SesionUsuario>();
     // Inbound M1, PR 4: copia de evidencia validada, en el Tenant del Cliente empresarial.
     public DbSet<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> EvidenciasInbound => Set<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound>();
     IQueryable<CaeManager.Domain.EvidenciasInbound.EvidenciaInbound> CaeManager.Application.ContratosAcceso.EvidenciasInbound.IEvidenciasInboundQueryContext.EvidenciasInbound => EvidenciasInbound;

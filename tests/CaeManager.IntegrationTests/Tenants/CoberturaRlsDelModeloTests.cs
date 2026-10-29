@@ -139,6 +139,10 @@ public class CoberturaRlsDelModeloTests : IAsyncLifetime
         ("ContactosSeguridadTenant", "solo_el_administrador_sustituye_la_propuesta", 'w',
             "lo único que el Tenant propietario actualiza es la propuesta pendiente a Sustituida, y solo su Administrador",
             ["app_es_administrador_del_tenant(", "app_ctx_usuario_id()"], ["'Propuesto'"], ["'Sustituido'"]),
+        ("SesionesUsuario", "solo_la_propia_cuenta_revoca", 'w',
+            "solo la cuenta que firma el contexto revoca sus sesiones de cookie, aunque otra cuenta del mismo Tenant " +
+            "pudiera escribir en él (el alta llega desde el inicio de sesión, sin usuario en el contexto)",
+            ["\"UsuarioId\"", "app_ctx_usuario_id()"], [], []),
     ];
 
     /// <summary>

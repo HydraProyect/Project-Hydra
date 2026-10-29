@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
@@ -43,10 +44,14 @@ public class CrearPlantillaDocumentoCommandHandler(
                 "Plantilla.AmbitoIncorrecto",
                 $"\"{tipoDocumento.Nombre}\" es un tipo de documento de otro ámbito — no coincide con el ámbito elegido para esta plantilla."));
 
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(request.Contenido, request.NombreArchivo)
+            || !string.Equals(Path.GetExtension(request.NombreArchivo), ".pdf", StringComparison.OrdinalIgnoreCase))
+            return Result.Fallo<CrearPlantillaDocumentoResultadoDto>(Error.Crear("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajePlantillaNoValida));
+
         var hash = CalcularHash(request.Contenido);
 
         using var flujo = new MemoryStream(request.Contenido);
-        var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, request.NombreArchivo, cancellationToken);
+        var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, "plantilla.pdf", cancellationToken);
 
         var documento = new PlantillaDocumento(
             OrigenPlantilla.Externa, request.Nombre, request.AmbitoAplicacion, request.FormatoOrigen, request.TipoDocumentoId,

@@ -55,11 +55,11 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
 
         foreach (var razonSocial in new[] { razonSocialA, razonSocialB })
         {
-            await page.GetByText("+ Nuevo Cliente").First.ClickAsync();
+            await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true }).ClickAsync();
             await drawer.GetByLabel("Razón social").FillAsync(razonSocial);
             await drawer.GetByLabel("Identificación fiscal *", new LocatorGetByLabelOptions { Exact = true })
                 .FillAsync(Ayudas.GenerarCifValido(razonSocial == razonSocialA ? 9_998_801 : 9_998_802));
-            await drawer.Locator(".drawer-pie").GetByText("Guardar").ClickAsync();
+            await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
             await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         }
 
@@ -68,8 +68,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // acotar por el sufijo compartido hace el test robusto aunque se
         // reintente sin limpiar el estado anterior.
         await page.GetByPlaceholder("Filtrar esta pantalla: nombre").FillAsync("P331 ");
-        var filaA = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialA });
-        var filaB = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { HasText = razonSocialB });
+        var filaA = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { Has = page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialA}", Exact = true }) });
+        var filaB = page.Locator(".lista-filas-acordeon .tarjeta-fila-acordeon", new PageLocatorOptions { Has = page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {razonSocialB}", Exact = true }) });
         await filaA.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
@@ -127,8 +127,8 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await filaB.Locator("input[type=\"checkbox\"]").CheckAsync();
         await Expect(barraLote.Locator(".barra-acciones-lote-cantidad")).ToHaveTextAsync("2 seleccionados en esta página");
 
-        await barraLote.GetByText("Dar de baja seleccionados").ClickAsync();
-        await page.GetByRole(AriaRole.Dialog).GetByText("Dar de baja", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await barraLote.GetByRole(AriaRole.Button, new() { Name = "Dar de baja seleccionados", Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Dar de baja", Exact = true }).ClickAsync();
 
         await filaA.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
         await filaB.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
@@ -144,9 +144,9 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         await filtrosGuardados.ClickAsync();
         await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = "Guardar filtro", Exact = true }).ClickAsync();
 
-        var modalGuardarFiltro = page.GetByRole(AriaRole.Dialog).Filter(new LocatorFilterOptions { HasText = "Guardar filtro actual" });
+        var modalGuardarFiltro = page.GetByRole(AriaRole.Dialog, new() { Name = "Guardar filtro actual", Exact = true });
         await modalGuardarFiltro.GetByLabel("Nombre").FillAsync(nombreFiltro);
-        await modalGuardarFiltro.GetByText("Guardar", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await modalGuardarFiltro.GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await modalGuardarFiltro.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
 
         // Limpiar la búsqueda a mano y volver a aplicarla desde el filtro
@@ -163,7 +163,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // confirmación (no tiene deshacer): sigue ahí hasta que se confirma.
         await filtrosGuardados.ClickAsync();
         await page.GetByRole(AriaRole.Menuitem, new PageGetByRoleOptions { Name = $"Borrar filtro guardado {nombreFiltro}", Exact = true }).ClickAsync();
-        await page.GetByRole(AriaRole.Dialog).GetByText("Borrar filtro", new LocatorGetByTextOptions { Exact = true }).ClickAsync();
+        await page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Borrar filtro", Exact = true }).ClickAsync();
         await page.GetByRole(AriaRole.Dialog).WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 10_000 });
         await filtrosGuardados.ClickAsync();
         await Expect(filtroGuardado).ToHaveCountAsync(0);
@@ -250,7 +250,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // document.activeElement en el momento del keydown, no cuántos Tabs
         // hicieron falta para llegar ahí, y depender del orden de tabulación
         // real es frágil en Chromium headless.
-        var botonNuevoCliente = page.GetByText("+ Nuevo Cliente").First;
+        var botonNuevoCliente = page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo Cliente", Exact = true });
         await botonNuevoCliente.FocusAsync();
         await Expect(botonNuevoCliente).ToBeFocusedAsync();
 
@@ -261,7 +261,7 @@ public class P331TecladoLoteFiltrosGuardadosTests(WebAppFixtureListados fixture)
         // "j"/"k" tampoco habían fijado ninguna fila enfocada, así que
         // RecibirAtajo("Enter") no tenía nada que abrir.
         var drawer = page.Locator(".drawer-panel");
-        await Expect(drawer.GetByText("Nuevo Cliente", new LocatorGetByTextOptions { Exact = true }))
+        await Expect(drawer.GetByRole(AriaRole.Heading, new() { Name = "Nuevo Cliente", Exact = true }))
             .ToBeVisibleAsync(new LocatorAssertionsToBeVisibleOptions { Timeout = 10_000 });
         // Ni la vista rápida de ninguna fila: Enter era del botón, no de la lista.
         await Expect(page.Locator(".workspace-panel")).Not.ToBeVisibleAsync();

@@ -125,6 +125,7 @@ src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: ClienteId
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteId = 2
 src/CaeManager.Application/Documentos/DocumentoAlcanceExtensions.cs :: clienteIdDeProyecto = 2
 src/CaeManager.Application/Documentos/Commands/RestaurarDocumento/RestaurarDocumentoCommand.cs :: ClienteId = 2
+src/CaeManager.Application/Documentos/Commands/ResolverRevisionIaDocumento/ResolverRevisionIaDocumentoCommand.cs :: ClienteId = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Documentos/Queries/ObtenerAcreditacionesPorProveedor/ObtenerAcreditacionesPorProveedorQuery.cs :: clienteIds = 2
 src/CaeManager.Application/Documentos/Queries/ObtenerDocumentoPorId/ObtenerDocumentoPorIdQuery.cs :: ClienteId = 7
@@ -321,6 +322,7 @@ src/CaeManager.Application/Visitas/Queries/ObtenerDetalleVisita/ObtenerDetalleVi
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitaPorId/ObtenerVisitaPorIdQuery.cs :: ClienteId = 1
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitas/ObtenerVisitasQuery.cs :: ClienteId = 4
 src/CaeManager.Application/Visitas/Queries/ObtenerVisitasParaCalendario/ObtenerVisitasParaCalendarioQuery.cs :: ClienteId = 1
+src/CaeManager.Application/Visitas/TrabajadoresAdmisiblesEnVisita.cs :: ClienteId = 1
 src/CaeManager.Domain/ApiKeys/CriterioSoporteClaveApi.cs :: TenantClienteId = 1
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: ClienteId = 2
 src/CaeManager.Domain/Blindaje42/SolicitudCertificacionTgss.cs :: clienteId = 4

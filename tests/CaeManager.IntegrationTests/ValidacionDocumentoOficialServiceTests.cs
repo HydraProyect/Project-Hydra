@@ -74,7 +74,6 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
                 new ParserCorrienteTgss(), new ParserCorrienteAeat(), new ParserIta(), new ParserRnt(), new ParserRlc()]),
             new FirmaDigitalDocumentoRepository(_dbContext),
             new VerificacionDocumentoOficialRepository(_dbContext),
-            new AprobacionDocumentoRepository(_dbContext),
             new RevisionIaDocumentoRepository(_dbContext),
             _dbContext,
             NullLogger<ValidacionDocumentoOficialService>.Instance);
@@ -111,13 +110,14 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         await servicio.ProcesarDocumentoAsync(documento.Id);
 
         var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
-        verificacion.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
         verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Coincide);
         verificacion.CodigoVerificacion.Should().Be("ABC123DEF456GHI7");
         verificacion.NivelConfianza.Should().Be(NivelConfianzaDocumental.FirmaValida);
 
         var aprobaciones = await _dbContext.AprobacionesDocumento.Where(a => a.DocumentoId == documento.Id).ToListAsync();
-        aprobaciones.Should().ContainSingle().Which.Tipo.Should().Be(TipoAprobacionDocumento.Automatica);
+        aprobaciones.Should().BeEmpty();
+        (await _dbContext.RevisionesIaDocumento.SingleAsync(r => r.DocumentoId == documento.Id)).Resuelta.Should().BeFalse();
 
         var firmas = await _dbContext.FirmasDigitalesDocumento.Where(f => f.DocumentoId == documento.Id).ToListAsync();
         firmas.Should().ContainSingle().Which.FirmanteNif.Should().Be("Q2827003A");
@@ -234,7 +234,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         await servicio.ProcesarDocumentoAsync(documento.Id);
 
         var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
-        verificacion.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
         verificacion.ResultadoCotejo.Should().Be(ResultadoCotejoDocumentoOficial.Coincide);
         verificacion.CifDetectado.Should().Be("X1234567L");
     }
@@ -325,7 +325,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
 
         var verificaciones = await _dbContext.VerificacionesDocumentoOficial
             .Where(v => v.DocumentoId == documento.Id).ToListAsync();
-        verificaciones.Should().ContainSingle().Which.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificaciones.Should().ContainSingle().Which.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public class ValidacionDocumentoOficialServiceTests : IAsyncLifetime
         await servicio.ProcesarDocumentoAsync(documento.Id);
 
         var verificacion = await _dbContext.VerificacionesDocumentoOficial.SingleAsync(v => v.DocumentoId == documento.Id);
-        verificacion.Decision.Should().Be(DecisionValidacionOficial.AutoValidado);
+        verificacion.Decision.Should().Be(DecisionValidacionOficial.RevisionRequerida);
         verificacion.PeriodoDetectado.Should().Be("2026-08");
     }
 

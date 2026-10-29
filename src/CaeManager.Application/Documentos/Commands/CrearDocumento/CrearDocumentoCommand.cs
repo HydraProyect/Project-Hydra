@@ -1,4 +1,5 @@
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.Documentos.Eventos;
 using CaeManager.Application.Documentos.Verificacion;
@@ -69,7 +70,8 @@ public class CrearDocumentoCommandHandler(
     ICurrentUserService currentUserService,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IPublisher publisher,
-    IAlcanceDatosService alcanceDatos)
+    IAlcanceDatosService alcanceDatos,
+    IVerificadorArchivoAlmacenado verificadorArchivo)
     : IRequestHandler<CrearDocumentoCommand, Result<Guid>>
 {
     public async Task<Result<Guid>> Handle(CrearDocumentoCommand request, CancellationToken cancellationToken)
@@ -150,6 +152,13 @@ public class CrearDocumentoCommandHandler(
         // ActualizarDocumentoDesdeAdjunto, que delegan aquí la creación.
         if (!await alcanceDatos.DocumentoVisibleAsync(documento, proyectosContext, cancellationToken))
             return Result.Fallo<Guid>(PropietarioNoEncontrado(ambitoSolicitado));
+
+        // OWASP ASVS 4.0.3 V12.1/V12.2: la clave de archivo ya está almacenada, pero quien la manda al comando puede no
+        // haber validado su contenido (el formulario web lo hace en el cliente, otros llamadores no). Se comprueba aquí
+        // la firma del contenido real, tras el alcance para no leer archivos a quien ni ve al propietario.
+        if (!string.IsNullOrWhiteSpace(request.ArchivoUrl)
+            && !await verificadorArchivo.EsDocumentoValidoAsync(request.ArchivoUrl, cancellationToken))
+            return Result.Fallo<Guid>(Error.Crear("Documento.ArchivoNoValido", ValidadorFirmaArchivo.MensajeDocumentoNoValido));
 
         repositorio.Agregar(documento);
 

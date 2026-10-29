@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 
@@ -135,8 +136,9 @@ public class ImportacionTests(WebAppFixture fixture)
             Assert.Equal("2", await Ayudas.LeerMetricaAsync(page, "Omitidos"));
 
             var filasOmitidas = page.Locator(".tabla-datos tbody tr");
-            await filasOmitidas.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 10_000 });
-            await Expect(filasOmitidas).ToHaveCountAsync(2);
+            await Expect(filasOmitidas).ToHaveCountAsync(2, new() { Timeout = 10_000 });
+            foreach (var filaOmitida in await filasOmitidas.AllAsync())
+                await Expect(filaOmitida).ToBeVisibleAsync(new() { Timeout = 10_000 });
 
             // La fila de Cliente/Centro, que ya se registraba antes de DCR-12 B.
             var filaClienteCentro = page.Locator(".tabla-datos tbody tr", new PageLocatorOptions { HasText = "CIF" });
@@ -161,7 +163,7 @@ public class ImportacionTests(WebAppFixture fixture)
         await page.GetByPlaceholder("Filtrar esta pantalla: razón social o CIF").FillAsync(Ayudas.EmpresaDeHojaEmpleadosImportacion);
         // Por el enlace del nombre, no por la fila entera: es lo que identifica a la Empresa de la fila, y
         // hasta que llega el filtro la lista las enseña todas.
-        await page.Locator(".tarjeta-fila-acordeon .enlace-nombre-fila", new PageLocatorOptions { HasText = Ayudas.EmpresaDeHojaEmpleadosImportacion })
+        await page.GetByRole(AriaRole.Button, new() { Name = $"Abrir la vista rápida de {Ayudas.EmpresaDeHojaEmpleadosImportacion}", Exact = true })
             .WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
@@ -208,7 +210,19 @@ public class ImportacionTests(WebAppFixture fixture)
         var sufijo = Guid.NewGuid().ToString("N")[..8];
         var nombreArchivo = $"archivo-ilegible-{sufijo}.xlsx";
         var rutaArchivo = Path.Combine(Path.GetTempPath(), nombreArchivo);
-        await File.WriteAllTextAsync(rutaArchivo, "Esto no es un libro de Excel válido — fuerza la excepción de ClosedXML al abrirlo.");
+        // El log ya no lleva el nombre del archivo (S-D-7: puede contener datos personales), así que
+        // el tamaño exacto hace de identificador de esta ejecución: relleno de longitud aleatoria.
+        var relleno = new string('x', 10_000 + (int)(BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0) % 1_000_000));
+        // Un .zip legible sin libro dentro: el inspector lo deja pasar (no hay hojas que contar) y falla ClosedXML al
+        // abrirlo, que es el error del sistema que deja rastro con pila. Un texto que ni es .zip lo rechaza ya el
+        // inspector como denegación esperada (ArchivoRechazadoException, aviso sin pila ni tamaño), que es otro camino.
+        using (var zip = ZipFile.Open(rutaArchivo, ZipArchiveMode.Create))
+        {
+            var parte = zip.CreateEntry("relleno.txt", CompressionLevel.NoCompression);
+            await using var escritor = new StreamWriter(parte.Open());
+            await escritor.WriteAsync("Esto no es un libro de Excel valido, fuerza la excepcion de ClosedXML al abrirlo. " + relleno);
+        }
+        var tamanoArchivo = new FileInfo(rutaArchivo).Length;
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
@@ -226,9 +240,10 @@ public class ImportacionTests(WebAppFixture fixture)
                 "No pudimos leer este archivo",
                 new LocatorAssertionsToContainTextOptions { Timeout = 10_000 });
 
-            var lineaDeLog = await Ayudas.EsperarLineaEnLogDeLaAppAsync(nombreArchivo, TimeSpan.FromSeconds(10));
-            Assert.Contains("Error al analizar el archivo", lineaDeLog);
+            var lineaDeLog = await Ayudas.EsperarLineaEnLogDeLaAppAsync(
+                $"Error al analizar un archivo .xlsx de {tamanoArchivo} bytes", TimeSpan.FromSeconds(10));
             Assert.Contains("cae", lineaDeLog);
+            Assert.DoesNotContain(nombreArchivo, lineaDeLog);
         }
         finally
         {

@@ -28,7 +28,7 @@ namespace CaeManager.Infrastructure.Persistence.Seed;
 /// </summary>
 public sealed record CredencialesDemo(string Contrasena, string ClaveApiActiva, string ClaveApiRevocada)
 {
-    public const string ContrasenaPorDefecto = "Prueba#2026";
+    public const string ContrasenaPorDefecto = "Prueba#2026Segura";
 
     public const string ClaveApiActivaPorDefecto =
         "hydra_dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd";

@@ -29,9 +29,13 @@ public interface ISegundoFactorDeCuentas
     /// Sustituye los códigos de recuperación de la cuenta por
     /// <paramref name="cantidad"/> nuevos y los devuelve en claro. Es la única vez
     /// que existen en claro: se guardan con hash, y los anteriores dejan de valer.
+    /// Exige <paramref name="codigoAutenticador"/>, el código TOTP actual de la cuenta
+    /// (reautenticación con un factor independiente de la sesión, S-A-2): si no es
+    /// válido cuenta como fallo en el bloqueo de la cuenta, y con la cuenta bloqueada
+    /// no se generan. Tras el alta de la MFA se reutiliza el código con que se activó.
     /// </summary>
     Task<Result<IReadOnlyList<string>>> GenerarCodigosRecuperacionAsync(
-        Guid usuarioId, int cantidad, CancellationToken cancellationToken = default);
+        Guid usuarioId, int cantidad, string codigoAutenticador, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Desactiva el segundo factor de la cuenta y borra su clave de autenticador y

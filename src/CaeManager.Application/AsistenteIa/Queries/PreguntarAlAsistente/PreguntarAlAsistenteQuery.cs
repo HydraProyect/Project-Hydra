@@ -105,7 +105,7 @@ public class PreguntarAlAsistenteQueryHandler(
     private const char SeparadorDeTurnos = '\u001E';
 
     /// <summary>
-    /// Los DNI, NIE, pasaportes, CIF y correos no salen hacia el proveedor, igual que en la
+    /// Los DNI, NIE, pasaportes, CIF, correos y teléfonos no salen hacia el proveedor, igual que en la
     /// orden del modo Operativo (<c>CrearTareaAsistenteCommand</c> recibe el texto ya
     /// enmascarado). Se enmascara la ventana reciente antes de recortar caracteres, y no turno a turno, para
     /// que el mismo documento lleve el mismo marcador en todos los turnos y dos documentos

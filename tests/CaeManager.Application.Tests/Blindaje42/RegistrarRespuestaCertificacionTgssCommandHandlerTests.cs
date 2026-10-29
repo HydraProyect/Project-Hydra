@@ -66,14 +66,30 @@ public class RegistrarRespuestaCertificacionTgssCommandHandlerTests
 
         var resultado = await handler.Handle(
             new RegistrarRespuestaCertificacionTgssCommand(
-                solicitud.Id, ResultadoCertificacionTgss.SinDescubiertos, Hoy, [1, 2, 3], "certificado.pdf"),
+                solicitud.Id, ResultadoCertificacionTgss.SinDescubiertos, Hoy, "%PDF-"u8.ToArray(), "certificado.pdf"),
             CancellationToken.None);
 
         resultado.EsExitoso.Should().BeTrue();
         solicitud.Resultado.Should().Be(ResultadoCertificacionTgss.SinDescubiertos);
         solicitud.RespuestaRegistradaPorUsuarioId.Should().Be(UsuarioId);
-        solicitud.EvidenciaNombreArchivo.Should().Be("certificado.pdf");
+        solicitud.EvidenciaNombreArchivo.Should().Be("evidencia.pdf");
         contexto.UnitOfWork.VecesGuardado.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Rechaza_evidencia_con_firma_de_ejecutable_sin_registrar_respuesta()
+    {
+        var contexto = new Contexto();
+        var solicitud = new SolicitudCertificacionTgss(Guid.NewGuid(), Guid.NewGuid(), Hoy, Guid.NewGuid());
+        contexto.Repositorio.Agregar(solicitud);
+
+        var resultado = await contexto.CrearHandler().Handle(
+            new RegistrarRespuestaCertificacionTgssCommand(solicitud.Id, ResultadoCertificacionTgss.SinDescubiertos,
+                Hoy, "MZ"u8.ToArray(), "certificado.pdf"), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("CertificacionTgss.EvidenciaNoValida");
+        contexto.UnitOfWork.VecesGuardado.Should().Be(0);
+        contexto.Almacenamiento.ArchivosGuardados.Should().Be(0);
     }
 
     [Fact]

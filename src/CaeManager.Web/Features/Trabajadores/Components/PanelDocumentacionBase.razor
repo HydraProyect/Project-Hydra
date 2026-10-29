@@ -36,10 +36,11 @@
             {
                 <span class="panel-doc-base-compacto-aviso">@Textos["DocBaseCompactoSinConfirmar"]</span>
             }
+            @{ var claves = new ClavesDeHermanos(); }
             @foreach (var indicador in _datos.Indicadores)
             {
                 <span class="panel-doc-base-punto panel-doc-base-punto-@Clase(indicador.Estado)"
-                      title="@($"{TextoTipo(indicador.Tipo)}: {TextoEstado(indicador)}")" @key="indicador.Tipo"></span>
+                      title="@($"{TextoTipo(indicador.Tipo)}: {TextoEstado(indicador)}")" @key="claves.De(indicador.Tipo)"></span>
             }
         </span>
     }
@@ -56,9 +57,10 @@
                 }
             </div>
             <ul class="panel-doc-base-lista">
+                @{ var claves = new ClavesDeHermanos(); }
                 @foreach (var indicador in _datos.Indicadores)
                 {
-                    <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="indicador.Tipo">
+                    <li class="panel-doc-base-fila panel-doc-base-fila-@Clase(indicador.Estado) @(OnCorregirDocumento.HasDelegate || OnSubirFaltante.HasDelegate ? "panel-doc-base-con-acciones" : null)" @key="claves.De(indicador.Tipo)">
                         <span class="panel-doc-base-nombre">
                             <span>@TextoTipo(indicador.Tipo)</span>
                             <span class="panel-doc-base-sub">@TextoDetalle(indicador)</span>

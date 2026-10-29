@@ -21,7 +21,39 @@ public class CrearPlantillaDocumentoCommandHandlerTests
 
     private static CrearPlantillaDocumentoCommand ComandoValido(Guid tipoDocumentoId, Guid? centroId = null, Guid? clienteId = null) =>
         new("Ficha de riesgos", AmbitoAplicacion.Trabajador, FormatoOrigenPlantilla.PdfConCampos,
-            tipoDocumentoId, [1, 2, 3], "plantilla.pdf", CentroId: centroId, ClienteId: clienteId);
+            tipoDocumentoId, "%PDF-"u8.ToArray(), "plantilla.pdf", CentroId: centroId, ClienteId: clienteId);
+
+    [Fact]
+    public async Task Rechaza_pdf_con_firma_de_ejecutable()
+    {
+        var (contexto, tipoId) = ContextoConTipoDocumentoDeTrabajador();
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new CrearPlantillaDocumentoCommandHandler(new PlantillaDocumentoRepositorioFalso(),
+            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+        var resultado = await handler.Handle(ComandoValido(tipoId) with { Contenido = "MZ"u8.ToArray() }, CancellationToken.None);
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("plantilla.png")] // imagen con firma PNG válida: es un documento admitido, pero una plantilla es solo PDF
+    [InlineData("plantilla.docx")]
+    public async Task Rechaza_una_plantilla_que_no_es_pdf_aunque_su_firma_coincida_con_su_extension(string nombre)
+    {
+        var (contexto, tipoId) = ContextoConTipoDocumentoDeTrabajador();
+        var almacenamiento = new FileStorageServiceFalso();
+        var handler = new CrearPlantillaDocumentoCommandHandler(new PlantillaDocumentoRepositorioFalso(),
+            new PlantillaDocumentoVersionRepositorioFalso(), contexto, almacenamiento, new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+        byte[] contenido = nombre.EndsWith(".png", StringComparison.Ordinal)
+            ? [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00]
+            : [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
+
+        var resultado = await handler.Handle(
+            ComandoValido(tipoId) with { Contenido = contenido, NombreArchivo = nombre }, CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Plantilla.ArchivoNoValido");
+        almacenamiento.ArchivosGuardados.Should().Be(0);
+    }
 
     [Fact]
     public async Task Crea_el_documento_y_su_primera_version_en_borrador()

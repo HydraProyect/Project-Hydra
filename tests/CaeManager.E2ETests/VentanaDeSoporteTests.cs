@@ -50,8 +50,8 @@ public class VentanaDeSoporteTests(WebAppFixtureVentanaSoporte fixture) : IAsync
 
         await Ayudas.AbrirDetalleDeDelegacionAsync(page, Ayudas.NombreClienteDelegadoDemo, soporte: true);
         var tarjeta = page.Locator(".delegaciones-tarjeta")
-            .Filter(new LocatorFilterOptions { HasText = Ayudas.NombreClienteDelegadoDemo })
-            .Filter(new LocatorFilterOptions { Has = page.GetByText("Soporte", new PageGetByTextOptions { Exact = true }) });
+            .Filter(new LocatorFilterOptions { Has = page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = Ayudas.NombreClienteDelegadoDemo }) })
+            .Filter(new LocatorFilterOptions { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Ver actividad registrada", Exact = true }) });
         await tarjeta.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         await tarjeta.GetByRole(AriaRole.Button, new LocatorGetByRoleOptions { Name = "Abrir acceso", Exact = true }).ClickAsync();

@@ -82,8 +82,13 @@ public class TenantClaimsPrincipalFactory(
         // La marca del TOTP de la sesión (precondición de abrir una Sesión Privilegiada) nunca sale
         // de la fábrica: un claim guardado en AspNetUserClaims la daría en cada sesión sin código. Solo
         // la ponen SignInManagerCuentaDesactivada al acertar el TOTP y su gancho de revalidación.
+        // Lo mismo con el identificador de sesión: un talveg:sid guardado en AspNetUserClaims haría que
+        // todas las sesiones de la cuenta compartieran uno, y cerrar una las cerraría todas (o ninguna,
+        // si el guardado no tiene fila). Solo lo pone SignInManagerCuentaDesactivada al emitir la cookie.
         foreach (var identidadGenerada in principal.Identities)
-            foreach (var marca in identidadGenerada.FindAll(SignInManagerCuentaDesactivada.ClaimTotpSesion).ToList())
+            foreach (var marca in identidadGenerada.Claims
+                         .Where(c => c.Type is SignInManagerCuentaDesactivada.ClaimTotpSesion or SignInManagerCuentaDesactivada.ClaimSid)
+                         .ToList())
                 identidadGenerada.RemoveClaim(marca);
 
         if (principal.Identity is not ClaimsIdentity identidad)

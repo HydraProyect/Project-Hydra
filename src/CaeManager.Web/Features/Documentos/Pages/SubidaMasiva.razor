@@ -93,9 +93,10 @@
             else
             {
                 <ul class="lista-items-subida-masiva">
+                    @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var item in ItemsFiltrados)
                     {
-                        <li @key="item.ClaveLocal" class="@(item.Expandido ? "item-subida-masiva item-subida-masiva-abierto" : "item-subida-masiva")">
+                        <li @key="claves.De(item.ClaveLocal)" class="@(item.Expandido ? "item-subida-masiva item-subida-masiva-abierto" : "item-subida-masiva")">
                             <div class="item-subida-masiva-fila">
                                 @if (item.MiniaturaBase64 is not null) { <img class="miniatura-subida-masiva" src="@($"data:image/png;base64,{item.MiniaturaBase64}")" alt="@Textos["MiniaturaAlt", item.NombreArchivo]" /> }
                                 else { <div class="miniatura-subida-masiva miniatura-subida-masiva-vacia"><Icono Nombre="documentos" /></div> }

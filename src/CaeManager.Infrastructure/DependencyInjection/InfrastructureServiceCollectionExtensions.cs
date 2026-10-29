@@ -127,7 +127,7 @@ public static class InfrastructureServiceCollectionExtensions
         services
             .AddIdentityCore<ApplicationUser>(opciones =>
             {
-                opciones.Password.RequiredLength = 10;
+                opciones.Password.RequiredLength = 12;
                 opciones.Password.RequireNonAlphanumeric = false;
                 opciones.User.RequireUniqueEmail = true;
                 opciones.SignIn.RequireConfirmedAccount = false;
@@ -161,6 +161,12 @@ public static class InfrastructureServiceCollectionExtensions
             .AddDefaultTokenProviders()
             // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
             .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
+
+        services.AddSingleton(sp =>
+        {
+            using var scope = sp.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            return new VerificacionContrasenaFicticia(scope.ServiceProvider.GetRequiredService<IPasswordHasher<ApplicationUser>>());
+        });
 
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
@@ -229,6 +235,9 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         // Ni la marca del TOTP de la sesión, que exige la apertura de una Sesión Privilegiada.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
+        // Ni el identificador de sesión: sin él, la cookie renovada se rechaza en la revalidación siguiente.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
         // y llavero compartido en S3. Ver RegistroDataProtection.
@@ -316,6 +325,8 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.AddHttpClient<CaeManager.Application.Integraciones.IWhatsAppCloudApiClient, WhatsAppCloudApiClient>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
+            // S-C-3: nunca seguir redirecciones con el Bearer de la línea.
+            .ConfigurePrimaryHttpMessageHandler(WhatsAppCloudApiClient.CrearManejadorSinRedirecciones)
             .AplicarResilienciaHttp(TimeSpan.FromSeconds(30));
 
         services.AvisarSiConfiguracionAMedias(WhatsAppCloudApiOptions.SeccionConfiguracion, opcionesWhatsApp,
@@ -671,6 +682,7 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<LibreOfficeConversorWordPdfServiceOptions>(configuration.GetSection(LibreOfficeConversorWordPdfServiceOptions.SeccionConfiguracion));
         services.AddSingleton<IConversorWordPdfService, LibreOfficeConversorWordPdfService>();
+        services.AddHostedService<LimpiezaTemporalesConversionWordHostedService>();
 
         // Política de retención RGPD: los plazos son decisión legal y viven en
         // configuración, no en el código (ver RetencionDatosOptions).
@@ -904,6 +916,12 @@ public static class InfrastructureServiceCollectionExtensions
         // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
         // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
         services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
+        services.AddOptions<OpcionesLimitesImportacion>()
+            .Bind(configuration.GetSection(OpcionesLimitesImportacion.Seccion))
+            .Validate(o => o.EsValida(),
+                "La sección LimitesImportacion no es válida: los topes tienen que ser positivos y EsperaSegundos, de 0 a 300.")
+            .ValidateOnStart();
+        services.AddSingleton<LimitadorAnalisisImportacion>();
         services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();
@@ -991,9 +1009,30 @@ public static class InfrastructureServiceCollectionExtensions
     /// <summary>
     /// Clave de configuración que permite arrancar el tráfico con la identidad
     /// administrativa. Es una opción <b>insegura</b> y se llama como se llama
-    /// para que nadie la ponga sin leer qué apaga.
+    /// para que nadie la ponga sin leer qué apaga. En Production no vale nunca:
+    /// ver <see cref="RechazarIdentidadAdministrativaEnProduccion"/>.
     /// </summary>
     internal const string ClaveDegradacionInsegura = "Rls:PermitirIdentidadAdministrativaInsegura";
+
+    /// <summary>
+    /// Guarda dura del hallazgo S-B-6 (auditoría 2026-10-28; ASVS V14.1): con
+    /// <c>ASPNETCORE_ENVIRONMENT=Production</c> —el del contenedor de staging y de
+    /// producción, fijado en el Dockerfile— el arranque se niega si
+    /// <see cref="ClaveDegradacionInsegura"/> vale <c>true</c>, haya o no conexión
+    /// de runtime. Antes solo lo impedía la lista blanca de secretos de
+    /// <c>deploy/ci-deploy.sh</c>, que no cubre un <c>.env</c> editado a mano.
+    /// La guarda se apoya en el nombre del entorno: un <c>.env</c> que además cambie
+    /// <c>ASPNETCORE_ENVIRONMENT</c> a Development la esquiva, igual que ya esquivaba la
+    /// exigencia de conexión de runtime de <see cref="ResolverCadenaDeTrafico"/>. Fijar el
+    /// entorno del contenedor corresponde al despliegue, no a esta comprobación.
+    /// </summary>
+    public static void RechazarIdentidadAdministrativaEnProduccion(IConfiguration configuration, IHostEnvironment entorno)
+    {
+        if (entorno.IsProduction() && configuration.GetValue(ClaveDegradacionInsegura, defaultValue: false))
+            throw new InvalidOperationException(
+                $"{ClaveDegradacionInsegura}=true está prohibido en Production: el tráfico podría correr con una " +
+                "identidad de PostgreSQL exenta de RLS. Quita la clave y configura ConnectionStrings:CaeManagerDbRuntime.");
+    }
 
     /// <summary>
     /// Con qué identidad conecta el tráfico. Función pura de (configuración,
@@ -1006,7 +1045,8 @@ public static class InfrastructureServiceCollectionExtensions
     /// y solo define <c>ConnectionStrings__CaeManagerDb</c>—, y fuera de
     /// desarrollo hace falta decirlo a propósito con
     /// <see cref="ClaveDegradacionInsegura"/>; sin esa declaración, el arranque
-    /// se niega.
+    /// se niega. En Production la declaración tampoco vale: se niega siempre
+    /// (<see cref="RechazarIdentidadAdministrativaEnProduccion"/>).
     /// </para>
     ///
     /// <para>
@@ -1020,6 +1060,7 @@ public static class InfrastructureServiceCollectionExtensions
     /// </summary>
     public static string ResolverCadenaDeTrafico(IConfiguration configuration, IHostEnvironment entorno)
     {
+        RechazarIdentidadAdministrativaEnProduccion(configuration, entorno);
         var cadenaRuntime = configuration.GetConnectionString("CaeManagerDbRuntime");
         if (!string.IsNullOrWhiteSpace(cadenaRuntime))
             return cadenaRuntime;

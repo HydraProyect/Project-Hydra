@@ -211,6 +211,11 @@ services:
       # REC-017/P39 y P0-2 — ver el comentario de más arriba, junto a `restart:`.
       Migraciones__AlArrancar: "false"
       Siembra__AlArrancar: "false"
+      # S-D-10 — filtrado de Host (HostFiltering): el dominio público es el mismo
+      # DOMINIO que ya usa Caddy (se interpola del .env de este directorio) y
+      # `localhost` es el Host del healthcheck y de las sondas por `docker exec`.
+      # Sin esto la app aceptaba cualquier Host (appsettings.json: "*").
+      AllowedHosts: "${DOMINIO};localhost"
     volumes:
       - caemanager-data:/data
       # P44b — certificado de cliente del conector de Microsoft 365 (PEM). Fuera del

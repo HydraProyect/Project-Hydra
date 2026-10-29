@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using Bunit;
 using CaeManager.Application.Common;
 using CaeManager.Domain.Common;
@@ -69,7 +70,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// Unicode: con char.IsUpper la «Á» se anunciaba como mayúscula cumplida.
     /// </summary>
     [Theory]
-    [InlineData("Abcdefghi1")]
+    [InlineData("Abcdefghijk1")]
     [InlineData("abcdefghi1")]
     [InlineData("ABCDEFGHI1")]
     [InlineData("Abcdefghij")]
@@ -116,16 +117,16 @@ public class AccesoCuentaEscenaTests : BunitContext
         var items = lista.QuerySelectorAll("li");
         items.Select(li => li.GetAttribute("data-regla"))
             .Should().Equal("longitud", "mayuscula", "minuscula", "numero");
-        items[0].GetAttribute("data-minimo").Should().Be("10");
+        items[0].GetAttribute("data-minimo").Should().Be("12");
         items[1].HasAttribute("data-minimo").Should().BeFalse();
-        items[0].TextContent.Should().Contain("Al menos 10 caracteres").And.Contain("pendiente");
+        items[0].TextContent.Should().Contain("Al menos 12 caracteres").And.Contain("pendiente");
         items.Should().OnlyContain(li => !li.ClassList.Contains("acceso-requisito-cumplido"));
         vacia.Find("[data-requisitos-resumen=password-nueva]").GetAttribute("aria-live").Should().Be("polite");
 
         var cumplida = Render<RequisitosContrasena>(p => p
             .Add(r => r.IdCampo, "password-nueva")
             .Add(r => r.Politica, PoliticaDeLaApp().Password)
-            .Add(r => r.Valor, "Abcdefghi1"));
+            .Add(r => r.Valor, "Abcdefghijk1"));
 
         cumplida.FindAll("li").Should().OnlyContain(li =>
             li.ClassList.Contains("acceso-requisito-cumplido") && li.TextContent.Contains("cumplido"));
@@ -315,8 +316,8 @@ public class AccesoCuentaEscenaTests : BunitContext
         _almacen.ResultadoUpdate = IdentityResult.Failed(new IdentityError { Code = "FalloDePrueba", Description = "No se pudo guardar el usuario." });
 
         var cut = Render<RestablecerContrasena>();
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
         await cut.Find("form").SubmitAsync();
 
         cut.FindAll("h2.acceso-titulo").Should().NotContain(h => h.TextContent == "Contraseña actualizada");
@@ -334,7 +335,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     public async Task Cambiar_contrasena_si_falla_persistir_el_usuario_no_navega_ni_refresca_sesion()
     {
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
-        var contrasenaActual = "Abcdefghi1";
+        var contrasenaActual = "Abcdefghijk1";
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
         _almacen.ResultadoUpdate = IdentityResult.Failed(new IdentityError { Code = "FalloDePrueba", Description = "No se pudo guardar el usuario." });
@@ -347,12 +348,68 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         var cut = Render<CambiarContrasena>();
         await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
         await cut.Find("form").SubmitAsync();
 
         cut.Find(".acceso-alerta").TextContent.Should().Be("No se pudo guardar el usuario.");
         navegacion.Uri.Should().Be(uriDePartida, "un UpdateAsync fallido no puede terminar en NavigateTo(\"/\") como si el cambio hubiera terminado");
+    }
+
+    [Fact]
+    public async Task Cambiar_contrasena_cuenta_fallos_y_respeta_el_bloqueo_temporal()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.es", DebeCambiarContrasena = true, LockoutEnabled = true };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
+        AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "incorrecta" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(1);
+        usuario.DebeCambiarContrasena.Should().BeTrue();
+        var mensaje = cut.Find(".acceso-alerta").TextContent;
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(5);
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(1);
+        cut.Find(".acceso-alerta").TextContent.Should().Be(mensaje);
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Cambiar_contrasena_con_la_cuenta_bloqueada_no_cambia_aunque_la_actual_sea_correcta_y_al_acertar_pone_el_contador_a_cero()
+    {
+        var usuario = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = "marta@example.es",
+            LockoutEnabled = true,
+            AccessFailedCount = 2,
+            LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(5),
+        };
+        _almacen.Usuario = usuario;
+        var hashInicial = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
+        _almacen.HashContrasena = hashInicial;
+        AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+
+        await cut.Find("form").SubmitAsync();
+
+        _almacen.HashContrasena.Should().Be(hashInicial, "con la cuenta bloqueada no se llega a ChangePasswordAsync");
+        cut.Find(".acceso-alerta").TextContent.Should().Contain("No se pudo verificar la contraseña actual o la cuenta está bloqueada.");
+
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await cut.Find("form").SubmitAsync();
+
+        _almacen.HashContrasena.Should().NotBe(hashInicial);
+        usuario.AccessFailedCount.Should().Be(0, "acertar la contraseña actual pone el contador a cero, como un login correcto");
     }
 
     /// <summary>
@@ -378,8 +435,8 @@ public class AccesoCuentaEscenaTests : BunitContext
             .NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
 
         var cut = Render<RestablecerContrasena>();
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
         await cut.Find("form").SubmitAsync();
 
         usuariosContador.LlamadasReset.Should().Be(0, "el rechazo del cerrojo pasa ANTES de tocar Identity");
@@ -396,7 +453,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     public async Task Cambiar_contrasena_con_el_cerrojo_ocupado_no_llama_a_ChangePasswordAsync()
     {
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
-        var contrasenaActual = "Abcdefghi1";
+        var contrasenaActual = "Abcdefghijk1";
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
         var usuariosContador = new UsuariosContador(_almacen, PoliticaDeLaApp());
@@ -412,8 +469,8 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         var cut = Render<CambiarContrasena>();
         await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = contrasenaActual });
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Z" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Z" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Zzz" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2Zzz" });
         await cut.Find("form").SubmitAsync();
 
         usuariosContador.LlamadasCambio.Should().Be(0, "el rechazo del cerrojo pasa ANTES de tocar Identity");
@@ -437,7 +494,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     };
 
     /// <summary>
-    /// El formulario pedía MinLength(8) y la política de Identity exige 10: una
+    /// El formulario pedía MinLength(8) y la política de Identity exige 12: una
     /// contraseña de 9 pasaba la validación del formulario y llegaba a Identity. Ahora
     /// se comprueba con la misma política (IdentityOptions), antes de tocar Identity.
     /// </summary>
@@ -445,7 +502,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     public async Task Cambiar_contrasena_rechaza_antes_de_Identity_lo_que_la_politica_no_admite()
     {
         var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta.ruiz@consultora.es", DebeCambiarContrasena = true };
-        var contrasenaActual = "Abcdefghi1";
+        var contrasenaActual = "Abcdefghijk1";
         _almacen.Usuario = usuario;
         _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, contrasenaActual);
 
@@ -458,7 +515,7 @@ public class AccesoCuentaEscenaTests : BunitContext
         await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvuts2" });
         await cut.Find("form").SubmitAsync();
 
-        cut.Find(".acceso-alerta").TextContent.Should().Be("La contraseña nueva no cumple los requisitos: al menos 10 caracteres.");
+        cut.Find(".acceso-alerta").TextContent.Should().Be("La contraseña nueva no cumple los requisitos: al menos 12 caracteres.");
         usuario.DebeCambiarContrasena.Should().BeTrue("no se ha tocado la cuenta");
     }
 
@@ -481,11 +538,11 @@ public class AccesoCuentaEscenaTests : BunitContext
             new("token-de-prueba", "__RequestVerificationToken");
     }
 
-    /// <summary>La de InfrastructureServiceCollectionExtensions: 10 caracteres, sin símbolo.</summary>
+    /// <summary>La de InfrastructureServiceCollectionExtensions: 12 caracteres, sin símbolo.</summary>
     private static IdentityOptions PoliticaDeLaApp()
     {
         var opciones = new IdentityOptions();
-        opciones.Password.RequiredLength = 10;
+        opciones.Password.RequiredLength = 12;
         opciones.Password.RequireNonAlphanumeric = false;
         return opciones;
     }
@@ -673,6 +730,85 @@ public class AccesoCuentaEscenaTests : BunitContext
         },
     };
 
+    /// <summary>
+    /// V3.3.3 en el cambio voluntario: ChangePasswordAsync rota el sello (las demás sesiones
+    /// dejan de validar) y RefreshSignInAsync reemite la cookie de esta con el sello nuevo.
+    /// La contraseña actual tiene 10 caracteres: las anteriores a la política de 12 siguen valiendo.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_contrasena_rota_el_sello_y_reemite_la_sesion_actual()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
+        var selloAnterior = await _usuarios.GetSecurityStampAsync(usuario);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+             new Claim("AspNet.Identity.SecurityStamp", selloAnterior!)], "test"));
+        var autenticacion = new AutenticacionCapturada(principal);
+        AddAuthorization().SetAuthorized(usuario.Email!).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var signIn = Services.GetRequiredService<SignInManager<ApplicationUser>>();
+        signIn.Context.RequestServices = new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("form").SubmitAsync();
+
+        var selloNuevo = await _usuarios.GetSecurityStampAsync(usuario);
+        selloNuevo.Should().NotBe(selloAnterior);
+        (await signIn.ValidateSecurityStampAsync(principal)).Should().BeNull();
+        autenticacion.Emitido.Should().NotBeNull();
+        autenticacion.Emitido!.FindFirstValue("AspNet.Identity.SecurityStamp").Should().Be(selloNuevo);
+    }
+
+    /// <summary>
+    /// V3.3.3 en el restablecimiento por enlace: ResetPasswordAsync rota el sello (las
+    /// sesiones abiertas en otros navegadores dejan de validar) y la página cierra además
+    /// la del navegador donde se usó el enlace, sin reemitir ninguna cookie.
+    /// </summary>
+    [Fact]
+    public async Task Restablecer_rota_el_sello_y_cierra_la_sesion_del_navegador_sin_reemitirla()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.test" };
+        _almacen.Usuario = usuario;
+        var selloAnterior = await _usuarios.GetSecurityStampAsync(usuario);
+        var token = await _usuarios.GeneratePasswordResetTokenAsync(usuario);
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
+             new Claim("AspNet.Identity.SecurityStamp", selloAnterior!)], "test"));
+        var autenticacion = new AutenticacionCapturada(principal);
+        Services.GetRequiredService<SignInManager<ApplicationUser>>().Context.RequestServices =
+            new ServiceCollection().AddSingleton<IAuthenticationService>(autenticacion).BuildServiceProvider();
+        var codigo = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+        Services.GetRequiredService<NavigationManager>().NavigateTo($"/cuenta/restablecer-contrasena?userId={usuario.Id}&code={codigo}");
+
+        var cut = Render<RestablecerContrasena>();
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghijk1" });
+        await cut.Find("form").SubmitAsync();
+
+        cut.Find("h2.acceso-titulo").TextContent.Should().Be("Contrase\u00f1a actualizada");
+        (await _usuarios.GetSecurityStampAsync(usuario)).Should().NotBe(selloAnterior);
+        (await Services.GetRequiredService<SignInManager<ApplicationUser>>().ValidateSecurityStampAsync(principal))
+            .Should().BeNull("la sesi\u00f3n con el sello anterior cae en la siguiente revalidaci\u00f3n");
+        autenticacion.Emitido.Should().BeNull("el enlace no abre ni conserva sesi\u00f3n");
+        autenticacion.Cierres.Should().BeGreaterThan(0, "la p\u00e1gina cierra la sesi\u00f3n del navegador");
+    }
+
+    private sealed class AutenticacionCapturada(ClaimsPrincipal? principal) : IAuthenticationService
+    {
+        public ClaimsPrincipal? Emitido { get; private set; }
+        public int Cierres { get; private set; }
+        public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) =>
+            Task.FromResult(principal is null ? AuthenticateResult.NoResult() : AuthenticateResult.Success(new AuthenticationTicket(principal, new AuthenticationProperties(), IdentityConstants.ApplicationScheme)));
+        public Task ChallengeAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task ForbidAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
+        public Task SignInAsync(HttpContext context, string? scheme, ClaimsPrincipal principal, AuthenticationProperties? properties) { Emitido = principal; return Task.CompletedTask; }
+        public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) { Cierres++; return Task.CompletedTask; }
+    }
+
     private sealed class AutenticacionSinOperacion : IAuthenticationService
     {
         public Task<AuthenticateResult> AuthenticateAsync(HttpContext context, string? scheme) => Task.FromResult(AuthenticateResult.NoResult());
@@ -807,13 +943,20 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// </summary>
     private sealed class AlmacenFalso :
         IUserStore<ApplicationUser>, IUserEmailStore<ApplicationUser>,
-        IUserPasswordStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>
+        IUserPasswordStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>, IUserLockoutStore<ApplicationUser>
     {
         private string? _hashContrasena;
         private string _securityStamp = Guid.NewGuid().ToString();
 
         public ApplicationUser? Usuario { get; set; }
         public IdentityResult ResultadoUpdate { get; set; } = IdentityResult.Success;
+        public Task<DateTimeOffset?> GetLockoutEndDateAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnd);
+        public Task SetLockoutEndDateAsync(ApplicationUser user, DateTimeOffset? end, CancellationToken ct) { user.LockoutEnd = end; return Task.CompletedTask; }
+        public Task<int> IncrementAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(++user.AccessFailedCount);
+        public Task ResetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) { user.AccessFailedCount = 0; return Task.CompletedTask; }
+        public Task<int> GetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.AccessFailedCount);
+        public Task<bool> GetLockoutEnabledAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnabled);
+        public Task SetLockoutEnabledAsync(ApplicationUser user, bool enabled, CancellationToken ct) { user.LockoutEnabled = enabled; return Task.CompletedTask; }
 
         /// <summary>Para sembrar la contraseña inicial directamente en el test, sin pasar por CreateAsync (no soportado).</summary>
         public string? HashContrasena { get => _hashContrasena; set => _hashContrasena = value; }

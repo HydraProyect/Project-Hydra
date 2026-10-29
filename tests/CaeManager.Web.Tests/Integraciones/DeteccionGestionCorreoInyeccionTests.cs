@@ -102,7 +102,7 @@ public sealed class DeteccionGestionCorreoInyeccionTests
     }
 
     [Fact]
-    public async Task El_candidato_cuyo_DNI_aparece_en_el_correo_lleva_su_mismo_marcador_y_los_demas_ninguno()
+    public async Task El_candidato_cuyo_DNI_aparece_en_el_correo_lleva_su_mismo_marcador_y_los_demas_no_salen()
     {
         var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
 
@@ -116,8 +116,48 @@ public sealed class DeteccionGestionCorreoInyeccionTests
         // Ana: su DNI, escrito con guion en el correo, es el mismo marcador que en el correo.
         documentoDe[Ana.Id].GetString().Should().Be("[DOC_1]");
         usuario.Should().Contain("DNI [DOC_1]");
-        // Luis: su NIE no aparece en el correo, así que viaja sin documento.
-        documentoDe[Luis.Id].ValueKind.Should().Be(JsonValueKind.Null);
+        documentoDe.Should().NotContainKey(Luis.Id);
+    }
+
+    [Fact]
+    public async Task Solo_se_envian_y_aceptan_los_candidatos_mencionados_por_nombre_o_documento()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new
+        {
+            esActualizacionDocumento = true,
+            resumen = "EPI",
+            confianza = 90,
+            items = new[] { new { trabajadorId = Luis.Id, tipoDocumentoId = Epi.Id, confianzaTrabajador = 90, confianzaTipoDocumento = 90 } }
+        }));
+        var resultado = await Servicio(manejador).DetectarAsync("Entrega de EPI de Ana", [Ana, Luis], [Epi]);
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().Contain("Ana").And.NotContain("Luis").And.NotContain(Luis.Id.ToString());
+        resultado.Valor.Items.Single().TrabajadorId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task El_nombre_casa_sin_tildes_ni_mayusculas_y_las_particulas_no_casan_a_nadie()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+        var mar = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "María del Mar Soler", "87654321X");
+
+        await Servicio(manejador).DetectarAsync("Entrega del EPI de los operarios: PEREZ", [Ana, mar], [Epi]);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().Contain(Ana.Id.ToString()).And.NotContain(mar.Id.ToString()).And.NotContain("Soler");
+    }
+
+    [Fact]
+    public async Task Un_nombre_corto_o_guardado_descompuesto_tambien_casa()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+        var xu = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "Xu Li", "Y1234567X");
+        var maria = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "María Soler", "87654321X");
+
+        await Servicio(manejador).DetectarAsync("EPI de Li y de María, por favor", [xu, maria, Luis], [Epi]);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().Contain(xu.Id.ToString()).And.Contain(maria.Id.ToString()).And.NotContain(Luis.Id.ToString());
     }
 
     [Fact]

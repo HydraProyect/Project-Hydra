@@ -73,6 +73,25 @@ public class SegundoFactorBajoRuntimeTests
     }
 
     [Fact]
+    public async Task Regenerar_sin_totp_valido_no_sustituye_los_codigos()
+    {
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId, "Consulta");
+        await CrearUsuarioCon2faAsync(arnes, usuarioId, "totp@caemanager.local", TenantA);
+        await GenerarAsync(arnes);
+        var antes = await LeerFilaCodigosAsync(arnes.CadenaPropietario, usuarioId);
+        using var ambito = arnes.Servicios.CreateScope();
+        var resultado = await Puerto(ambito.ServiceProvider).GenerarCodigosRecuperacionAsync(usuarioId, 10, "incorrecto");
+        resultado.EsFallido.Should().BeTrue();
+        (await LeerFilaCodigosAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(antes);
+
+        using var lectura = arnes.Servicios.CreateScope();
+        var cuenta = await lectura.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+            .FindByIdAsync(usuarioId.ToString());
+        cuenta!.AccessFailedCount.Should().Be(1, "el código erróneo cuenta en el bloqueo de la cuenta y se persiste aunque el comando falle");
+    }
+
+    [Fact]
     public async Task Regenerar_invalida_los_codigos_anteriores()
     {
         var usuarioId = Guid.NewGuid();
@@ -222,9 +241,13 @@ public class SegundoFactorBajoRuntimeTests
     {
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
+        var um = sp.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuarioId = (await sp.GetRequiredService<ICurrentUserService>().ObtenerUsuarioActualIdAsync())!.Value;
+        var usuario = (await um.FindByIdAsync(usuarioId.ToString()))!;
+        var codigo = CodigoTotp((await um.GetAuthenticatorKeyAsync(usuario))!);
         var handler = new GenerarCodigosRecuperacionCommandHandler(
             sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<IActorAuditoria>(), Puerto(sp));
-        var resultado = await handler.Handle(new GenerarCodigosRecuperacionCommand(), default);
+        var resultado = await handler.Handle(new GenerarCodigosRecuperacionCommand(codigo), default);
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         return resultado.Valor;
     }
@@ -232,11 +255,28 @@ public class SegundoFactorBajoRuntimeTests
     private static async Task GenerarCodigosDeAsync(ArnesDeArranqueRuntime arnes, Guid usuarioId)
     {
         using var ambito = arnes.Servicios.CreateScope();
+        var um = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var usuario = (await um.FindByIdAsync(usuarioId.ToString()))!;
+        var codigo = CodigoTotp((await um.GetAuthenticatorKeyAsync(usuario))!);
         var resultado = await Puerto(ambito.ServiceProvider)
-            .GenerarCodigosRecuperacionAsync(usuarioId, CodigosRecuperacion.Cantidad);
+            .GenerarCodigosRecuperacionAsync(usuarioId, CodigosRecuperacion.Cantidad, codigo);
         resultado.EsExitoso.Should().BeTrue();
         (await ContarTokensAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(2,
             "control positivo: antes de restablecer hay clave y códigos que borrar");
+    }
+
+    private static string CodigoTotp(string claveBase32)
+    {
+        const string alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+        var bits = string.Concat(claveBase32.TrimEnd('=').ToUpperInvariant()
+            .Select(c => Convert.ToString(alfabeto.IndexOf(c), 2).PadLeft(5, '0')));
+        var clave = Enumerable.Range(0, bits.Length / 8).Select(i => Convert.ToByte(bits.Substring(i * 8, 8), 2)).ToArray();
+        var paso = BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30);
+        if (BitConverter.IsLittleEndian) Array.Reverse(paso);
+        var hash = System.Security.Cryptography.HMACSHA1.HashData(clave, paso);
+        var offset = hash[^1] & 15;
+        var valor = ((hash[offset] & 127) << 24) | (hash[offset + 1] << 16) | (hash[offset + 2] << 8) | hash[offset + 3];
+        return (valor % 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private static async Task<CaeManager.Domain.Common.Result> RestablecerAsync(ArnesDeArranqueRuntime arnes, Guid usuarioId)

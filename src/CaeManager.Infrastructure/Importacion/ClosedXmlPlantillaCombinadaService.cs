@@ -6,6 +6,7 @@ using CaeManager.Application.Importacion;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Trabajadores;
 using ClosedXML.Excel;
+using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Infrastructure.Importacion;
@@ -35,7 +36,7 @@ namespace CaeManager.Infrastructure.Importacion;
 /// importó (la interfaz lo rotula "se omitirán"), mismo criterio que la hoja
 /// Empresas con una asociación a cliente inexistente.
 /// </summary>
-public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext) : IPlantillaCombinadaService
+public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosContext, IEmpresasQueryContext empresasContext, ITrabajadoresQueryContext trabajadoresContext, IOptions<OpcionesLimitesImportacion>? limites = null) : IPlantillaCombinadaService
 {
     private const string HojaClientes = "Clientes";
     private const string HojaEmpresas = "Empresas";
@@ -111,6 +112,9 @@ public class ClosedXmlPlantillaCombinadaService(ICentrosQueryContext centrosCont
 
     public async Task<PlanImportacionCombinadaDto> AnalizarAsync(Stream archivo, CancellationToken cancellationToken = default)
     {
+        // S-C-4: un .xlsx es un .zip; se inspecciona antes de que ClosedXML lo cargue entero.
+        InspectorXlsxSeguro.Verificar(archivo, limites?.Value);
+
         // F3b — Empresas, no la tabla legacy Clientes: la unicidad de Cif y
         // RazonSocial ya es global sobre esa tabla, así que comprobar aquí
         // contra Empresas es lo que de verdad evita el 23505 al guardar.

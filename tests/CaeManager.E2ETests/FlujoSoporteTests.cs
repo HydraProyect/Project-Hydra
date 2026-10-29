@@ -48,12 +48,12 @@ public class FlujoSoporteTests(WebAppFixtureParaSoporte fixture)
     /// Localiza la tarjeta de delegación de Soporte (no la Comercial) hacia
     /// el Cliente Delegante indicado — ambas comparten el mismo título
     /// "Gestionamos a {Cliente}" (SomosLaConsultora=true en las dos), así
-    /// que hace falta desambiguar por el badge "Soporte" que solo lleva esa.
+    /// que se desambigua por el botón de actividad que solo lleva la de soporte.
     /// </summary>
     private static ILocator TarjetaSoporte(IPage page, string nombreCliente) =>
         page.Locator(".delegaciones-tarjeta")
-            .Filter(new LocatorFilterOptions { HasText = nombreCliente })
-            .Filter(new LocatorFilterOptions { Has = page.GetByText("Soporte", new PageGetByTextOptions { Exact = true }) });
+            .Filter(new LocatorFilterOptions { Has = page.GetByRole(AriaRole.Heading, new PageGetByRoleOptions { Name = nombreCliente }) })
+            .Filter(new LocatorFilterOptions { Has = page.GetByRole(AriaRole.Button, new PageGetByRoleOptions { Name = "Ver actividad registrada", Exact = true }) });
 
     [Fact]
     public async Task Abrir_acceso_de_soporte_lo_registra_en_la_actividad_y_se_puede_cerrar()

@@ -18,6 +18,12 @@ namespace CaeManager.Infrastructure.Seguridad;
 /// de 12 meses escrito dentro y sin parámetros: el runtime puede pedir la purga
 /// pero no adelantarla ni borrar una fila concreta.
 /// </para>
+///
+/// <para>
+/// En la misma pasada, la conservación de 5 años de <c>SesionesUsuario</c> (sesiones de cookie
+/// emitidas y revocadas) con <c>app_purgar_sesiones_usuario()</c>, con el mismo criterio: corte
+/// fijo dentro de la función y sin DELETE para el runtime.
+/// </para>
 /// </summary>
 public class PurgaIniciosSesionHostedService(
     IServiceScopeFactory ambitoFactory, IEleccionLiderService eleccionLider, ILogger<PurgaIniciosSesionHostedService> logger)
@@ -60,5 +66,11 @@ public class PurgaIniciosSesionHostedService(
             .SingleAsync(stoppingToken);
         if (purgadas > 0)
             logger.LogInformation("Purgados {Filas} inicios de sesión con más de 12 meses.", purgadas);
+
+        var sesiones = await db.Database
+            .SqlQuery<int>($"SELECT public.app_purgar_sesiones_usuario() AS \"Value\"")
+            .SingleAsync(stoppingToken);
+        if (sesiones > 0)
+            logger.LogInformation("Purgadas {Filas} sesiones de cookie con más de 5 años.", sesiones);
     }
 }

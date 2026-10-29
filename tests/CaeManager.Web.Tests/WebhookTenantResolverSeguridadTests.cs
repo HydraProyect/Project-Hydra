@@ -1,3 +1,4 @@
+using CaeManager.Application.Common;
 using CaeManager.Domain.Integraciones;
 using CaeManager.Infrastructure.Integraciones;
 using CaeManager.Infrastructure.MultiTenancy;
@@ -89,6 +90,14 @@ public class WebhookTenantResolverSeguridadTests
     {
         var conexion = new SqliteConnection("Data Source=:memory:");
         await conexion.OpenAsync();
+        conexion.CreateFunction<string, string?>("app_tenant_de_webhook_graph", id =>
+        {
+            using var comando = conexion.CreateCommand();
+            comando.CommandText = "SELECT CASE WHEN count(*) = 1 THEN min(\"TenantId\") ELSE NULL END FROM \"SuscripcionesWebhook\" WHERE \"ConexionIntegracionId\" = $id";
+            comando.Parameters.AddWithValue("$id", id);
+            var valor = comando.ExecuteScalar();
+            return valor is null or DBNull ? null : (string)valor;
+        });
         var options = new DbContextOptionsBuilder<CaeManagerDbContext>()
             .UseSqlite(conexion, contextOwnsConnection: true).Options;
         var contexto = new ContextoSuscripciones(options);
@@ -106,13 +115,15 @@ public class WebhookTenantResolverSeguridadTests
         : CaeManagerDbContext(options, new EphemeralDataProtectionProvider(),
             new TenantActualAmbiental { TenantId = Guid.NewGuid() })
     {
+        private Guid? TenantAmbito => AmbitoTenantExplicito.TenantIdActual;
+
         protected override void OnModelCreating(ModelBuilder builder)
         {
             foreach (var tipo in builder.Model.GetEntityTypes().Select(t => t.ClrType).ToArray())
                 builder.Ignore(tipo);
 
             builder.Entity<SuscripcionWebhook>().HasKey(s => s.Id);
-            builder.Entity<SuscripcionWebhook>().HasQueryFilter(s => s.TenantId == Guid.Empty);
+            builder.Entity<SuscripcionWebhook>().HasQueryFilter(s => s.TenantId == TenantAmbito);
         }
     }
 }

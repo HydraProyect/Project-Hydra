@@ -560,7 +560,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             return;
         }
 
-        if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo))
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(contenido, nombreArchivo))
         {
             MarcarError(item, Textos["ErrorContenido"]);
             StateHasChanged();

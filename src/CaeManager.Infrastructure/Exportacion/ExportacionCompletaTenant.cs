@@ -56,6 +56,9 @@ public static class ExportacionCompletaTenant
     {
         "Contrasena", "HashClave", "RefreshToken", "AccessToken", "ClientState", "TokenAcceso", "PayloadCrudo",
         "PasswordHash", "SecurityStamp",
+        // SesionesUsuario sí se exporta (emisión y revocación de cada sesión de las cuentas del
+        // Tenant), pero no su identificador: es lo que hace valer una cookie.
+        "Sid",
     };
 
     /// <summary>

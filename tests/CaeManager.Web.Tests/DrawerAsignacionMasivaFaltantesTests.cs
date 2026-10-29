@@ -71,6 +71,7 @@ public class DrawerAsignacionMasivaFaltantesTests : BunitContext
     {
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddLocalization();
 
         DrawerAsignacionMasiva? componente = null;
         var cut = Render<DrawerAsignacionMasiva>(p => p.Add(d => d.OnGuardado, () => Task.CompletedTask));

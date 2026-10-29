@@ -43,6 +43,7 @@ public class ActualizarVerificacionExternaSubcontrataCommandHandlerTests
 
     [Theory]
     [InlineData("evidencia.pdf", "MZejecutable")]
+    [InlineData("evidencia.pdf", "")]
     [InlineData("evidencia.docx", "PK\u0003\u0004resto")]
     public async Task Rechaza_la_evidencia_invalida_sin_modificar_la_verificacion(string nombre, string contenido)
     {

@@ -79,7 +79,12 @@ comprobar "umbral no numerico es invalido" "2" "$?"
 # Se miran solo las lineas EJECUTABLES: el guion menciona `system prune` y
 # `--volumes` en un comentario, justamente para advertir de que no se usan, y
 # un grep sobre el fichero entero daria un falso positivo sobre esa advertencia.
-if sed 's/#.*//' "$GUION" | grep -qE "system prune|--volumes|volume (rm|prune)"; then
+#
+# Sin tubería hacia `grep -q`: con `pipefail`, si grep sale en el primer acierto
+# mientras sed aún escribe, sed muere por SIGPIPE, la tubería da fallo y el `if`
+# lo tomaría por «no aparece»: un verde falso justo cuando la orden está.
+ejecutable=$(sed 's/#.*//' "$GUION")
+if [ -z "$ejecutable" ] || grep -qE "system prune|--volumes|volume (rm|prune)" <<< "$ejecutable"; then
   comprobar "no contiene ninguna orden que borre volumenes" "si" "no"
 else
   comprobar "no contiene ninguna orden que borre volumenes" "si" "si"

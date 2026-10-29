@@ -21,15 +21,21 @@ namespace CaeManager.Application.Visitas.PaqueteDocumental;
 /// </summary>
 public interface IPaqueteDocumentalVisitaService
 {
+    /// <summary>
+    /// Construye el zip (<see cref="ConstruirAsync"/>), registra el acceso a cada documento sensible
+    /// que contiene (DEC-36, S-B-3) y lo adjunta a la conversación. El registro va antes de adjuntar y
+    /// falla en cerrado: sin constancia, el paquete no sale.
+    /// </summary>
     Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Construye el zip con la misma selección que <see cref="GenerarYEnviarAsync"/>
     /// (vigentes, uno por titular y tipo, nunca vencidos) sin adjuntarlo a ninguna
     /// conversación. Lo usa la descarga manual de un Centro gestionado por correo
-    /// (P1-X1). <b>No autoriza</b>: quien lo llame comprueba antes Tenant y alcance, y
-    /// registra el acceso a cada documento de <see cref="PaqueteDocumentalZip.Documentos"/>
-    /// que sea sensible. Null si no hay nada que empaquetar o el Centro no requiere
+    /// (P1-X1). Solo empaqueta a los Trabajadores de la Visita que son de su Empresa y visibles
+    /// para quien lo pide (S-B-1, <see cref="TrabajadoresAdmisiblesEnVisita"/>). <b>No autoriza la
+    /// Visita</b>: quien lo llame comprueba antes Tenant y alcance, y registra el acceso a cada
+    /// documento de <see cref="PaqueteDocumentalZip.Documentos"/> que sea sensible. Null si no hay nada que empaquetar o el Centro no requiere
     /// gestión CAE.
     /// </summary>
     Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default);

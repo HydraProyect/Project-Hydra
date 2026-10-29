@@ -47,6 +47,7 @@ public class ConfigurarDosFactoresGen2Tests : BunitContext
         Services.AddSingleton<ILoggerFactory>(NullLoggerFactory.Instance);
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
+        Services.AddSingleton<CaeManager.Infrastructure.Coordinacion.IEleccionLiderService>(new CerrojoVerificacionFalso());
         // Sin AddAuthorization(): registra su propio AuthenticationStateProvider, sin autenticar,
         // y como gana el ultimo registro pisaba a AutenticacionFalsa. La pagina no encontraba la
         // claim NameIdentifier, retornaba en la primera guarda y no pintaba nada. El [Authorize]

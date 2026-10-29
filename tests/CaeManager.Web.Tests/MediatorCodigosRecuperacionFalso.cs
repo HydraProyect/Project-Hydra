@@ -16,12 +16,14 @@ internal sealed class MediatorCodigosRecuperacionFalso(Error? fallo = null) : IM
         Enumerable.Range(0, CodigosRecuperacion.Cantidad).Select(i => $"AB{i:00}C-DE{i:00}F").ToList();
 
     public int Enviados { get; private set; }
+    public string? CodigoAutenticador { get; private set; }
 
     public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
     {
-        if (request is not GenerarCodigosRecuperacionCommand)
+        if (request is not GenerarCodigosRecuperacionCommand comando)
             throw new NotSupportedException($"Petición no esperada en el test: {request.GetType().Name}");
 
+        CodigoAutenticador = comando.CodigoAutenticador;
         Enviados++;
         object respuesta = fallo is null
             ? Result.Exito(Codigos)

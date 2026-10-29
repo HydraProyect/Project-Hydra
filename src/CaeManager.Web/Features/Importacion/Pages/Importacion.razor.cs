@@ -6,6 +6,7 @@ using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Importacion;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -139,6 +140,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
     private static readonly IReadOnlyList<FiltroPlan> FiltrosPlan = [FiltroPlan.Todas, FiltroPlan.Crear, FiltroPlan.Omitir];
 
+    /// <summary>Extensión del archivo subido para el log (S-D-7): acotada, sin el nombre.</summary>
+    private static string ExtensionParaLog(string nombreArchivo)
+    {
+        // Lista cerrada: una extensión arbitraria podría ser parte del nombre
+        // («Juan Perez.Garcia Lopez»).
+        var extension = Path.GetExtension(nombreArchivo).ToLowerInvariant();
+        return extension is ".xlsx" or ".xlsm" or ".xls" or ".csv" ? extension : "otra";
+    }
+
     private static string ClaveFiltroPlan(FiltroPlan filtro) => filtro switch
     {
         FiltroPlan.Crear => "FiltroPlanCrear",
@@ -190,6 +200,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         new("Contacto", "Nombre Apellidos — email@ejemplo.com", false)
     ];
 
+    [Inject] private LimitadorAnalisisImportacion Limitador { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -566,6 +577,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var contenido = memoria.ToArray();
             if (version != _versionAnalisis) return;
 
+            // El hueco se pide después de recibir el archivo: una subida lenta no debe ocupar uno de los
+            // pocos análisis concurrentes (el coste que se acota es el del análisis, no el de la subida).
+            using var permiso = await Limitador.IntentarEntrarAsync(_ciclo.Token);
+            if (version != _versionAnalisis) return;
+            if (permiso is null)
+            {
+                _mensajeError = Textos["ErrorAnalisisOcupado"];
+                return;
+            }
+
             PlanImportacionDto? planSimple = null;
             PlanImportacionCombinadaDto? planCombinada = null;
             switch (plantilla.Id)
@@ -592,10 +613,24 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         {
             // Página retirada con el análisis en vuelo: no hay a quién pintarlo.
         }
+        catch (LimiteHojaImportacionException ex)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado: límite de {Limite} por hoja.", ex.Filas ? "filas" : "celdas");
+            _mensajeError = Textos[ex.Filas ? "ErrorLimiteFilas" : "ErrorLimiteCeldas"];
+        }
+        catch (ArchivoRechazadoException)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado por el inspector XLSX.");
+            _mensajeError = Textos["ErrorLecturaArchivo"];
+        }
         catch (Exception ex)
         {
             if (version != _versionAnalisis) return;
-            Logger.LogError(ex, "Error al analizar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", archivo.Name, plantilla.Id);
+            // S-D-7: el nombre del archivo puede contener datos personales; al log van solo extensión y tamaño.
+            Logger.LogError(ex, "Error al analizar un archivo {ExtensionArchivo} de {TamanoBytes} bytes con la plantilla {PlantillaId}.",
+                ExtensionParaLog(archivo.Name), archivo.Size, plantilla.Id);
             _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         finally
@@ -887,7 +922,9 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Excepción no controlada al importar el archivo {NombreArchivo} con la plantilla {PlantillaId}.", nombreArchivo, plantilla.Id);
+            // S-D-7: sin el nombre del archivo en el log (puede contener datos personales).
+            Logger.LogError(ex, "Excepción no controlada al importar un archivo {ExtensionArchivo} con la plantilla {PlantillaId}.",
+                ExtensionParaLog(nombreArchivo), plantilla.Id);
             // Se persiste en HistorialImportacion.MensajeError: es dato, no se localiza.
             await RegistrarFalloAsync(plantilla, nombreArchivo, "Excepción no controlada durante la importación.");
             if (!_desechada)

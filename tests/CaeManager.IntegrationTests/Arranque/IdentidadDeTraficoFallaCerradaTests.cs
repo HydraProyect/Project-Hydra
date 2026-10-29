@@ -91,9 +91,23 @@ public class IdentidadDeTraficoFallaCerradaTests
             (InfrastructureServiceCollectionExtensions.ClaveDegradacionInsegura, "true"));
 
         InfrastructureServiceCollectionExtensions
-            .ResolverCadenaDeTrafico(configuracion, new EntornoDePrueba("Production"))
+            .ResolverCadenaDeTrafico(configuracion, new EntornoDePrueba("Staging"))
             .Should().Be(CadenaPropietario,
                 "sigue siendo posible arrancar degradado, pero solo tras escribirlo");
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData(CadenaRuntime)]
+    public void Produccion_rechaza_la_opcion_insegura_incluso_con_runtime(string? runtime)
+    {
+        var configuracion = Configuracion(
+            ("ConnectionStrings:CaeManagerDb", CadenaPropietario),
+            ("ConnectionStrings:CaeManagerDbRuntime", runtime),
+            (InfrastructureServiceCollectionExtensions.ClaveDegradacionInsegura, "true"));
+        var accion = () => InfrastructureServiceCollectionExtensions.ResolverCadenaDeTrafico(
+            configuracion, new EntornoDePrueba("Production"));
+        accion.Should().Throw<InvalidOperationException>().WithMessage("*PermitirIdentidadAdministrativaInsegura*RLS*");
     }
 
     [Fact]

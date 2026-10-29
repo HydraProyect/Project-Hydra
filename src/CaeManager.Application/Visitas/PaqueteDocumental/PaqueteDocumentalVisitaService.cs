@@ -7,6 +7,7 @@ using CaeManager.Application.Documentos;
 using CaeManager.Application.Empresas;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Application.Trabajadores;
+using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +24,8 @@ public class PaqueteDocumentalVisitaService(
     ITrabajadoresQueryContext trabajadoresContext,
     IConversacionRepository conversacionRepositorio,
     IFileStorageService almacenamiento,
+    IAlcanceDatosService alcanceDatos,
+    IRegistroAccesoDocumentoSensibleService registroAcceso,
     ILogger<PaqueteDocumentalVisitaService> logger) : IPaqueteDocumentalVisitaService
 {
     // Remitente distinto del de ResponderConversacionCommand
@@ -52,6 +55,13 @@ public class PaqueteDocumentalVisitaService(
 
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
         if (conversacion is null) return;
+
+        // DEC-36 (S-B-3): el adjunto entrega a un tercero el contenido de cada Documento del zip, igual
+        // que la descarga manual (ObtenerPaqueteDocumentalVisitaQuery), así que cada uno cuenta como una
+        // Apertura y se registra si es sensible. Antes de guardar el zip y de adjuntarlo: el registro
+        // falla en cerrado y, si no queda constancia, el paquete no sale.
+        foreach (var documento in paquete.Documentos)
+            await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
 
         using var flujoZip = new MemoryStream(paquete.Contenido);
         var archivoUrlZip = await almacenamiento.GuardarAsync(flujoZip, paquete.NombreArchivo, cancellationToken);
@@ -91,10 +101,22 @@ public class PaqueteDocumentalVisitaService(
             return null;
         }
 
-        var trabajadorIds = await visitasContext.VisitasTrabajadores
+        var trabajadorIdsDeLaVisita = await visitasContext.VisitasTrabajadores
             .Where(vt => vt.VisitaId == visitaId)
             .Select(vt => vt.TrabajadorId)
             .ToListAsync(cancellationToken);
+
+        // Defensa en profundidad (S-B-1): los comandos de la Visita ya solo admiten Trabajadores de la
+        // Empresa gestionada activa y visibles para quien opera, pero una Visita anterior a esa regla
+        // —o creada por otro usuario con más alcance— puede llevar a alguien que quien genera el
+        // paquete no ve. Su documentación no entra: el mismo criterio con el que se abre cada
+        // Documento suelto (ObtenerDocumentoPorIdQuery, TrabajadorVisibleAsync).
+        var trabajadorIds = await TrabajadoresAdmisiblesEnVisita.FiltrarAsync(
+            trabajadorIdsDeLaVisita, centro.EmpresaId, trabajadoresContext, empresasContext, alcanceDatos, cancellationToken);
+        if (trabajadorIds.Count < trabajadorIdsDeLaVisita.Count)
+            logger.LogWarning(
+                "Visita {VisitaId}: {Cantidad} trabajador(es) quedan fuera del paquete documental por no ser de la empresa de la visita o no estar en el alcance de quien lo genera.",
+                visitaId, trabajadorIdsDeLaVisita.Count - trabajadorIds.Count);
 
         var candidatos = await documentosContext.Documentos.Operativos()
             .Where(d => d.ArchivoUrl != null && (d.EmpresaId == centro.EmpresaId || (d.TrabajadorId != null && trabajadorIds.Contains(d.TrabajadorId.Value))))
@@ -207,7 +229,7 @@ public class PaqueteDocumentalVisitaService(
     /// <para>
     /// Este es el único punto que elige copia para el paquete de la Visita: lo usan el
     /// adjunto automático al buzón (<see cref="GenerarYEnviarAsync"/>) y la descarga manual
-    /// del ZIP (<see cref="ConstruirAsync"/>).
+    /// del ZIP (<see cref="ConstruirAsync"/>), y los dos registran el acceso a lo sensible.
     /// </para>
     /// </summary>
     private static SeleccionPaquete SeleccionarDocumentos(IReadOnlyList<DocumentoCandidatoDto> candidatos, DateOnly hoy)

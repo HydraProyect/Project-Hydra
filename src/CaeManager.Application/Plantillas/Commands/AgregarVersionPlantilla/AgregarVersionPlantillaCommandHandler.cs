@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Plantillas;
 using MediatR;
@@ -26,6 +27,10 @@ public class AgregarVersionPlantillaCommandHandler(
         if (plantilla is null || !await alcanceDatos.PlantillaDentroDeAlcanceAsync(plantilla, cancellationToken))
             return Result.Fallo<AgregarVersionPlantillaResultadoDto>(Error.Crear("Plantilla.NoEncontrada", "No encontramos esta plantilla."));
 
+        if (!ValidadorFirmaArchivo.EsDocumentoValido(request.Contenido, request.NombreArchivo)
+            || !string.Equals(Path.GetExtension(request.NombreArchivo), ".pdf", StringComparison.OrdinalIgnoreCase))
+            return Result.Fallo<AgregarVersionPlantillaResultadoDto>(Error.Crear("Plantilla.ArchivoNoValido", ValidadorFirmaArchivo.MensajePlantillaNoValida));
+
         var todasLasVersiones = await versionRepositorio.ObtenerPorPlantillaAsync(plantilla.Id, cancellationToken);
         var siguienteNumeroVersion = (todasLasVersiones.Count == 0 ? 0 : todasLasVersiones.Max(v => v.NumeroVersion)) + 1;
 
@@ -37,7 +42,7 @@ public class AgregarVersionPlantillaCommandHandler(
         var archivoIdentico = versionActual?.HashSha256ArchivoOriginal == hash;
 
         using var flujo = new MemoryStream(request.Contenido);
-        var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, request.NombreArchivo, cancellationToken);
+        var archivoUrl = await almacenamientoArchivos.GuardarAsync(flujo, "plantilla.pdf", cancellationToken);
 
         var nuevaVersion = new PlantillaDocumentoVersion(plantilla.Id, siguienteNumeroVersion, archivoUrl, hash);
 

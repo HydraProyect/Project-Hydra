@@ -118,7 +118,7 @@ public class AuditoriaRestauracionAnotacionAcreditacionTests : IAsyncLifetime
         var documentos = new DocumentoRepository(circuitoA);
         var alcance = new AlcanceDatosServiceFalso();
 
-        var anotada = await new MarcarAcreditacionAceptadaCommandHandler(repositorio, documentos, alcance, circuitoA, circuitoA)
+        var anotada = await new MarcarAcreditacionAceptadaCommandHandler(repositorio, documentos, alcance, circuitoA, circuitoA, circuitoA)
             .Handle(new MarcarAcreditacionAceptadaCommand(acreditacionId, VigenciaEnPlataforma.VenceEl(new DateOnly(2027, 3, 14))), CancellationToken.None);
         anotada.EsExitoso.Should().BeTrue();
         var recibo = anotada.Valor;
@@ -132,7 +132,7 @@ public class AuditoriaRestauracionAnotacionAcreditacionTests : IAsyncLifetime
             await circuitoB.SaveChangesAsync();
         }
 
-        var deshacer = await new RestaurarAnotacionAcreditacionCommandHandler(repositorio, documentos, alcance, circuitoA, circuitoA)
+        var deshacer = await new RestaurarAnotacionAcreditacionCommandHandler(repositorio, documentos, alcance, circuitoA, circuitoA, circuitoA)
             .Handle(new RestaurarAnotacionAcreditacionCommand(acreditacionId, recibo.EstadoPrevio, recibo.VigenciaPrevia, recibo.VersionResultante),
                 CancellationToken.None);
 

@@ -68,7 +68,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         await drawer.Locator(".drawer-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
         await drawer.WaitForAsync(new LocatorWaitForOptions { State = WaitForSelectorState.Hidden, Timeout = 15_000 });
 
-        var filaTipo = page.Locator("tr", new PageLocatorOptions { HasText = nombreTipoDocumento });
+        var filaTipo = page.GetByRole(AriaRole.Row, new() { Name = nombreTipoDocumento });
         await filaTipo.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         var interruptorVerificacionIa = filaTipo.GetByTitle(
             "Verifica por IA el tipo, fecha de emisión y firma del documento contra lo introducido al subirlo, con confidence score");
@@ -123,7 +123,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         // --- Paso 2: Trabajador de esa Empresa ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/trabajadores");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo trabajador", Exact = true }).ClickAsync();
 
         // DDL-076 (resolución en silencio con una única Empresa) vs. selector
         // real cuando ya hay varias — "AppCollection" acumula Empresas de
@@ -141,7 +141,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
 
         // --- Paso 3 (Subida): Documento del Trabajador, vencimiento a 10 días ---
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/documentos");
-        await page.GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).First.ClickAsync();
+        await page.Locator("[data-keytip-contenedor=\"N\"]").GetByRole(AriaRole.Button, new() { Name = "+ Nuevo documento", Exact = true }).ClickAsync();
 
         await drawer.GetByLabel("Trabajador", new LocatorGetByLabelOptions { Exact = true })
             .FillAsync($"{nombreTrabajador} {apellidosTrabajador} ({razonSocialEmpresa})");
@@ -170,7 +170,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // Mismo umbral que FlujoCriticoTests (rojo = 15 días) — se reutiliza
         // el patrón ya establecido en vez de reinventar el cálculo aquí.
         await page.GetByPlaceholder("Filtrar esta pantalla: Documento o propietario").FillAsync(apellidosTrabajador);
-        var filaDocumento = page.Locator("tr", new PageLocatorOptions { HasText = apellidosTrabajador });
+        var filaDocumento = page.GetByRole(AriaRole.Row, new() { Name = apellidosTrabajador });
         await filaDocumento.WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
         // Desde el 2026-10-08 Urgente y Próximo comparten la pastilla «Por vencer» (ámbar); lo que
         // dice que está a 10 días —dentro del umbral rojo— es el motivo de debajo.
@@ -274,7 +274,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // alta sin salir de la pantalla (ModalContactoAgenda,
         // PredeterminadoPorDefecto=true), que es justo lo que hace falta para
         // que la agenda resuelva un destinatario.
-        await tarjetaCliente.GetByRole(AriaRole.Button, new() { Name = "Añadir contacto", Exact = true }).First.ClickAsync();
+        await tarjetaCliente.GetByRole(AriaRole.Button, new() { Name = "Añadir contacto", Exact = true }).ClickAsync();
         await page.Locator(".modal-cuerpo").GetByLabel("Nombre").FillAsync(nombreContacto);
         await page.Locator(".modal-cuerpo").GetByLabel("Email").FillAsync(emailContacto);
         await page.Locator(".modal-pie").GetByRole(AriaRole.Button, new() { Name = "Guardar", Exact = true }).ClickAsync();
@@ -282,7 +282,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
         // Contacto predeterminado ⇒ ya sale marcado en _contactosPorCliente
         // al recargar (ver ReclamacionesTab.razor) — no hace falta marcar
         // ninguna casilla a mano.
-        await tarjetaCliente.GetByText(emailContacto).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
+        await tarjetaCliente.GetByRole(AriaRole.Checkbox, new() { Name = emailContacto }).WaitForAsync(new LocatorWaitForOptions { Timeout = 15_000 });
 
         // El botón "Enviar reclamación (N)" en sí (ver AccionesHeader de
         // ReclamacionesTab.razor) — Deshabilitado="@(seleccionados.Count == 0
@@ -380,7 +380,7 @@ public class FlujoCicloDocumentalTests(WebAppFixture fixture)
                 new LocatorGetByRoleOptions { Name = apellidosTrabajador });
             try
             {
-                await boton.First.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
+                await boton.WaitForAsync(new LocatorWaitForOptions { Timeout = 2_000 });
                 return boton;
             }
             catch (TimeoutException) { }

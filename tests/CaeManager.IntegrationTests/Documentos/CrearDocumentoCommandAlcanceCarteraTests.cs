@@ -354,6 +354,8 @@ public class CrearDocumentoCommandAlcanceCarteraTests : IAsyncLifetime
         servicios.AddSingleton<ICurrentUserService>(usuario);
         servicios.AddSingleton<ITenantActual>(tenantActual);
         servicios.AddSingleton<ISesionPrivilegiadaActual>(new SesionPrivilegiadaAusente());
+        // Crear/RenovarDocumento comprueban la firma del contenido (ASVS V12); estos escenarios no mandan archivo.
+        servicios.AddSingleton<CaeManager.Application.Common.IFileStorageService, AlmacenamientoConPdfMinimoFalso>();
 
         // El contenedor es dueño del contexto y lo libera con el proveedor.
         servicios.AddSingleton(_ => CrearContexto(tenant));

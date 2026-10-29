@@ -111,6 +111,16 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         /// cuenta recién creada: nunca con otro Tenant ya en el contexto.
         /// </summary>
         IdentificacionDeCuentaSinSesion,
+
+        /// <summary>
+        /// Resolución de un webhook entrante sin sesión (S-C-5: Microsoft 365, WhatsApp). El TenantId lo
+        /// devuelve una función SECURITY DEFINER acotada (<c>app_tenant_de_webhook_graph</c>,
+        /// <c>app_tenant_de_webhook_whatsapp</c>) que no devuelve nada más; el ámbito se abre solo para leer,
+        /// ya bajo RLS, la suscripción o la línea de ESE Tenant: en Graph se verifica su clientState y su
+        /// subscriptionId antes de devolver el TenantId al llamador; en WhatsApp el endpoint ya verificó la
+        /// firma X-Hub-Signature-256 del cuerpo. Nunca con otro Tenant ya en el contexto.
+        /// </summary>
+        IdentificacionWebhookSinSesion,
     }
 
     private sealed record EntradaBlanca(Categoria Categoria, string Motivo);
@@ -409,6 +419,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
         // ── CREDENCIAL VERIFICADA INMEDIATAMENTE ANTES ──────────────────────────────
         ["src/CaeManager.Infrastructure/Autenticacion/ApiKeyAuthenticationHandler.cs"] =
             new(Categoria.CredencialVerificadaInmediatamenteAntes, "clave.TenantId, tras validar el hash de la clave de API recibida"),
+        ["src/CaeManager.Infrastructure/Integraciones/WebhookTenantResolver.cs"] =
+            new(Categoria.IdentificacionWebhookSinSesion, "tenantId, resuelto por la función de la conexión; solo se lee la suscripción para verificar su secreto"),
+        ["src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs"] =
+            new(Categoria.IdentificacionWebhookSinSesion, "tenantId, resuelto por la función del PhoneNumberId; solo se lee la conexión de esa línea"),
         ["src/CaeManager.Web/Api/Integraciones/WebhookMicrosoft365Endpoints.cs"] =
             new(Categoria.CredencialVerificadaInmediatamenteAntes, "verificacion.TenantId, tras IWebhookTenantResolver.VerificarAsync comprobar clientState y subscriptionId"),
         ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
@@ -453,6 +467,8 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant de la cuenta que se busca o se escribe, resuelto por app_tenant_de_cuenta / app_cuenta_por_nombre_normalizado / app_cuentas_por_email_normalizado, solo sin Tenant en el contexto y dentro de AmbitoIdentificacionSinTenant"),
         ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] =
             new(Categoria.IdentificacionDeCuentaSinSesion, "3 llamadas — user.TenantId de la cuenta que Identity acaba de resolver en el inicio de sesión (o que validó el token «no he sido yo»), para leer la política de países, leer su historial e insertar su RegistroInicioSesion, y avisar al Administrador de su Tenant propietario"),
+        ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] =
+            new(Categoria.IdentificacionDeCuentaSinSesion, "2 llamadas — el Tenant propietario de la cuenta: user.TenantId que SignInManagerCuentaDesactivada acaba de resolver al emitir la cookie, para insertar su SesionUsuario; y cuenta.TenantId leída con AmbitoIdentificacionSinTenant para revocar una o todas sus sesiones, nunca el Tenant del workspace abierto; la RLS (solo_la_propia_cuenta_revoca) exige además que la cuenta sea quien firma el contexto"),
         ["src/CaeManager.Web/Program.cs"] =
             new(Categoria.BootstrapOSiembra, "TenantSeedData.IdPorDefecto, constante de siembra del tenant #1, solo en el arranque"),
 
@@ -595,6 +611,7 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
             ["src/CaeManager.Infrastructure/Persistence/Seed/PilotoOutboundAutoverificacion.cs"] = 2,
             ["src/CaeManager.Infrastructure/Identity/AlmacenUsuarios.cs"] = 2,
             ["src/CaeManager.Infrastructure/Seguridad/VigilanciaInicioSesionService.cs"] = 3,
+            ["src/CaeManager.Infrastructure/Identity/RegistroSesionesUsuario.cs"] = 2,
             ["src/CaeManager.Application/Usuarios/Commands/DesignarGestorCaePrincipal/DesignarGestorCaePrincipalCommand.cs"] = 2,
             ["src/CaeManager.Application/Operaciones/RelevoDePrincipalDeCartera.cs"] = 5,
             ["src/CaeManager.Application/Operaciones/ApoyoCartera/Commands/TerminarApoyoCarteraCommands.cs"] = 2,
@@ -657,6 +674,10 @@ public class LlamadasAAmbitoTenantExplicitoCongeladasTests
     {
         ["src/CaeManager.Web/Api/Integraciones/WebhookWhatsAppEndpoints.cs"] =
             "tests/CaeManager.IntegrationTests/MultiTenancy/WebhookLoopSinCreateScopeEntreTenantsTests.cs",
+        // El bucle de WebhookWhatsAppEndpoints llama a este resolutor con el mismo DbContext para líneas de
+        // Tenants distintos, y cada llamada abre el ámbito de su Tenant (S-C-5). Solo proyecta, sin rastreo.
+        ["src/CaeManager.Infrastructure/Integraciones/WebhookWhatsAppTenantResolver.cs"] =
+            "tests/CaeManager.IntegrationTests/Integraciones/WebhookTenantResolverTests.cs",
     };
 
     [Fact]

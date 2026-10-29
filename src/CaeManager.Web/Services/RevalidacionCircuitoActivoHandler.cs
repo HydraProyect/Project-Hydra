@@ -4,6 +4,7 @@ using CaeManager.Application.Plataforma;
 using CaeManager.Application.Tenants;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Server.Circuits;
+using Microsoft.Extensions.Options;
 
 namespace CaeManager.Web.Services;
 
@@ -93,7 +94,7 @@ public class RevalidacionCircuitoActivoHandler(
     IOperacionesQueryContext operacionesContext,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual,
     PuertaAccesoDatos puertaAccesoDatos,
-    IConfiguration configuracion,
+    IOptions<IntervalosRevalidacionOptions> intervalos,
     ILogger<RevalidacionCircuitoActivoHandler> logger,
     TimeProvider? reloj = null) : CircuitHandler, IAsyncDisposable
 {
@@ -115,12 +116,12 @@ public class RevalidacionCircuitoActivoHandler(
     {
         SembrarSeleccionMientrasHayHttpContext();
 
-        // Mismo patrón configurable que Circuit:* en Program.cs: ajustable en
-        // producción sin recompilar. 60 s por defecto — frecuente sin llegar
-        // a competir de forma apreciable con las consultas propias del
-        // usuario por PuertaAccesoDatos.
-        var intervalo = TimeSpan.FromSeconds(
-            configuracion.GetValue("Circuit:RevalidacionIntervaloSegundos", IntervaloPorDefectoSegundos));
+        // Circuit:RevalidacionIntervaloSegundos, ajustable en producción sin
+        // recompilar. 60 s por defecto — frecuente sin llegar a competir de
+        // forma apreciable con las consultas propias del usuario por
+        // PuertaAccesoDatos — y 60 s como techo: IntervalosRevalidacionOptions
+        // valida el rango al arrancar (S-B-7), así que aquí no se recorta nada.
+        var intervalo = TimeSpan.FromSeconds(intervalos.Value.CircuitoSegundos);
 
         _cts = new CancellationTokenSource();
         _bucle = EjecutarBucleAsync(intervalo, _cts.Token);

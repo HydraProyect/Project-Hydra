@@ -1,6 +1,9 @@
+using System.Globalization;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using CaeManager.Application.AsistenteIa.Preparacion;
 using CaeManager.Application.Comunicaciones.Deteccion;
 using CaeManager.Domain.Common;
@@ -16,7 +19,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// ApiKey configurada queda inerte, la ingesta del correo sigue funcionando,
 /// solo sin sugerencia de gestión.
 /// </summary>
-public class AnthropicDeteccionGestionCorreoService(
+public partial class AnthropicDeteccionGestionCorreoService(
     HttpClient httpClient,
     IOptions<AnthropicOptions> opciones,
     ILogger<AnthropicDeteccionGestionCorreoService> logger) : IDeteccionGestionCorreoService
@@ -112,13 +115,25 @@ public class AnthropicDeteccionGestionCorreoService(
                 "DeteccionGestionCorreo.NoConfigurado", "La detección automática de gestiones no está disponible ahora mismo."));
         }
 
-        // El DNI de los candidatos no sale de TALVEG (Z4-2): el correo se
-        // enmascara y cada candidato viaja con el marcador de su documento solo
-        // si ese documento aparece en el correo — la única situación en que el
-        // DNI ayuda a identificarlo. Los demás viajan sin documento.
+        // Minimización (RGPD art. 5.1.c): no sale la plantilla entera con Asignación
+        // activa, solo la preselección local de candidatos que el correo menciona — por
+        // su documento (el mismo marcador que en el correo; el DNI no sale nunca, Z4-2)
+        // o por alguna palabra de su nombre, sin distinguir mayúsculas ni tildes. Es la
+        // opción más simple que conserva el comportamiento: el modelo solo podía casar
+        // a un Trabajador con lo que el correo dice de él. Las partículas («del», «los»…)
+        // no cuentan, porque casarían a medio listado con cualquier frase. Lo que se
+        // pierde, a sabiendas: un apodo o una errata del nombre («Paco» por «Francisco»)
+        // ya no lo resuelve el modelo; el ítem llega sin Trabajador y lo asigna el Gestor
+        // CAE. Es reducción, no cota: un correo que nombre a muchos saca a esos muchos.
+        // La misma lista limita los Id que se aceptan de la respuesta.
         var correo = PromptCorreoEntrante.Preparar(cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuesta, LongitudMaximaCuerpo);
+        var palabrasDelCorreo = PalabrasDelCorreo(correo.Texto).ToHashSet(StringComparer.Ordinal);
+        var candidatos = trabajadoresDisponibles.Where(t =>
+                PromptCorreoEntrante.MarcadorDelDocumento(t.Dni, correo) is not null
+                || PalabrasDeNombre(t.NombreCompleto).Any(palabrasDelCorreo.Contains))
+            .ToArray();
         var trabajadoresJson = JsonSerializer.Serialize(
-            trabajadoresDisponibles.Select(t => new
+            candidatos.Select(t => new
             {
                 id = t.Id,
                 nombre = t.NombreCompleto,
@@ -185,7 +200,7 @@ public class AnthropicDeteccionGestionCorreoService(
                     "DeteccionGestionCorreo.RespuestaVacia", "No pudimos analizar el correo automáticamente."));
             }
 
-            return ParsearDeteccion(texto, trabajadoresDisponibles, tiposDocumentoDisponibles, correo);
+            return ParsearDeteccion(texto, candidatos, tiposDocumentoDisponibles, correo);
         }
         catch (HttpRequestException ex)
         {
@@ -271,6 +286,60 @@ public class AnthropicDeteccionGestionCorreoService(
     }
 
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
+
+    // Partículas de nombre en castellano y catalán, y apellidos que sin tilde son una
+    // palabra corriente de cualquier correo («más», «dos»): no identifican a nadie.
+    private static readonly HashSet<string> ParticulasDeNombre = new(StringComparer.Ordinal)
+    {
+        "DE", "DEL", "DELS", "LA", "LAS", "LOS", "LES", "SAN", "MAS", "DOS",
+    };
+
+    /// <summary>
+    /// Palabras del correo de dos o más letras, en mayúsculas y sin tildes, para casar
+    /// con ellas los nombres de los Trabajadores sin depender de cómo se escribieron.
+    /// </summary>
+    private static IEnumerable<string> PalabrasDelCorreo(string texto) =>
+        Palabras(texto).Where(p => p.Length >= 2);
+
+    /// <summary>
+    /// Palabras del nombre de un Trabajador que lo pueden identificar: las de tres o
+    /// más letras y, si no tiene ninguna («Xu Li»), las de dos.
+    /// </summary>
+    private static IEnumerable<string> PalabrasDeNombre(string? nombreCompleto)
+    {
+        if (string.IsNullOrWhiteSpace(nombreCompleto))
+            return [];
+
+        var palabras = Palabras(nombreCompleto.Normalize(NormalizationForm.FormKC)).ToArray();
+        var largas = palabras.Where(p => p.Length >= 3).ToArray();
+        return largas.Length > 0 ? largas : palabras.Where(p => p.Length >= 2).ToArray();
+    }
+
+    private static IEnumerable<string> Palabras(string texto)
+    {
+        foreach (Match palabra in RegexPalabra().Matches(texto))
+        {
+            var clave = SinTildes(palabra.Value).ToUpperInvariant();
+            if (!ParticulasDeNombre.Contains(clave))
+                yield return clave;
+        }
+    }
+
+    private static string SinTildes(string palabra)
+    {
+        var descompuesta = palabra.Normalize(NormalizationForm.FormD);
+        var resultado = new StringBuilder(descompuesta.Length);
+        foreach (var caracter in descompuesta)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(caracter) != UnicodeCategory.NonSpacingMark)
+                resultado.Append(caracter);
+        }
+
+        return resultado.ToString();
+    }
+
+    [GeneratedRegex(@"\p{L}+", RegexOptions.None, 1000)]
+    private static partial Regex RegexPalabra();
 
     private sealed record DeteccionGestionJson(
         bool EsActualizacionDocumento, string? Resumen, int Confianza, IReadOnlyList<ItemDeteccionGestionJson>? Items,

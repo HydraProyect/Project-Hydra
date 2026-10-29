@@ -102,7 +102,7 @@
 
         try
         {
-            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.BaseGeneralDelTenant));
+            var trabajadores = await Mediator.Send(new ObtenerTrabajadoresParaSelectorQuery(AlcanceSelectorTrabajadores.Cartera));
             var visita = await Mediator.Send(new ObtenerVisitaPorIdQuery(VisitaId));
             if (carga != _carga)
                 return;

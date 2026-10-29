@@ -55,13 +55,17 @@ using Sentry;
 using Serilog;
 using System.Globalization;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
 
 // El resolver de fuentes de PDFsharp 6 es global e independiente del ciclo de
 // vida de DI — se registra una sola vez al arrancar (ver EmbeddedFontResolver).
 GlobalFontSettings.FontResolver = new EmbeddedFontResolver();
 
 var builder = WebApplication.CreateBuilder(args);
+
+// S-B-6: en Production no se arranca con la válvula que deja el tráfico en la
+// identidad propietaria, exenta de RLS. ResolverCadenaDeTrafico repite la
+// comprobación; aquí falla antes de registrar nada.
+InfrastructureServiceCollectionExtensions.RechazarIdentidadAdministrativaEnProduccion(builder.Configuration, builder.Environment);
 
 // es-ES es el fallback del proceso para toda ejecución sin una cultura de
 // petición explícita (HostedServices, workers, arranque). Dentro de cada
@@ -339,11 +343,13 @@ if (azureAd.EstaConfigurado)
 // Antes eran los 30 minutos por defecto de Identity para la cookie y NADA para
 // el circuito: desactivar a alguien no cortaba nada (auditoría de seguridad
 // 2026-09-20). Es el tope de cuánto sobrevive una sesión a la desactivación;
-// el coste es una lectura de usuario por ventana y sesión activa.
-var intervaloRevalidacionSesion = TimeSpan.FromSeconds(
-    Math.Max(1, builder.Configuration.GetValue("Sesion:IntervaloRevalidacionSegundos", 60)));
-builder.Services.Configure<SecurityStampValidatorOptions>(
-    opciones => opciones.ValidationInterval = intervaloRevalidacionSesion);
+// el coste es una lectura de usuario por ventana y sesión activa. El rango
+// (de 1 a 60 s, para la sesión y para el circuito) se valida al arrancar en
+// IntervalosRevalidacionOptions (S-B-7).
+builder.Services.AddIntervalosRevalidacion(builder.Configuration);
+builder.Services.AddOptions<SecurityStampValidatorOptions>()
+    .Configure<Microsoft.Extensions.Options.IOptions<IntervalosRevalidacionOptions>>((opciones, intervalos) =>
+        opciones.ValidationInterval = TimeSpan.FromSeconds(intervalos.Value.SesionSegundos));
 // HSTS de 365 días; UseHsts sigue aplicándose solo fuera de Development.
 CaducidadSesion.ConfigurarHsts(builder.Services);
 
@@ -450,21 +456,20 @@ builder.Services.AddAuthorization(options =>
             .RequireClaim(CaeManager.Infrastructure.Identity.TenantClaimsPrincipalFactory.TipoClaimPermisoConsultarAccesoDocumentosSensibles));
 });
 
-// Rate limiting de la API pública, por tenant (no por IP — varias
-// integraciones del mismo cliente comparten cupo, coherente con "por tenant"
-// del ítem P3-29). Configurable sin recompilar, mismo patrón que
-// RetencionDatosOptions.
+// Rate limiting de la API pública, por clave presentada (huella SHA-256, nunca la
+// clave en claro) y, sin clave, por IP; más un techo por IP más holgado en el
+// limitador global (ver LimitadorApiPublica: por qué no se parte del principal
+// autenticado, que a esta altura del pipeline aún no existe). Configurables sin
+// recompilar, mismo patrón que RetencionDatosOptions.
 var rateLimitPorMinuto = builder.Configuration.GetValue("ApiPublica:RateLimitPorMinuto", 300);
+// Nunca por debajo del cupo por clave: un techo menor haría inalcanzable el cupo de una sola clave.
+var rateLimitPorMinutoPorIp = Math.Max(
+    builder.Configuration.GetValue("ApiPublica:RateLimitPorMinutoPorIp", 3000), rateLimitPorMinuto);
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("ApiPublica", httpContext => RateLimitPartition.GetFixedWindowLimiter(
-        partitionKey: httpContext.User.FindFirst(TenantClaimsPrincipalFactory.TipoClaimTenantId)?.Value ?? "sin-tenant",
-        factory: _ => new FixedWindowRateLimiterOptions
-        {
-            PermitLimit = rateLimitPorMinuto,
-            Window = TimeSpan.FromMinutes(1),
-        }));
+    options.AddPolicy(LimitadorApiPublica.Politica, httpContext =>
+        LimitadorApiPublica.ParticionPorLlamante(httpContext, rateLimitPorMinuto));
 });
 
 // Los enums viajan por JSON como CADENA, no como número. Sin esto salían
@@ -526,6 +531,10 @@ builder.Services.AddRateLimiter(opciones =>
     opciones.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     opciones.GlobalLimiter = System.Threading.RateLimiting.PartitionedRateLimiter.Create<HttpContext, string>(contexto =>
     {
+        // Techo por IP bajo /api/v1, delante del cupo por clave de la política ApiPublica.
+        if (LimitadorApiPublica.ParticionGlobal(contexto, rateLimitPorMinutoPorIp) is { } particionApi)
+            return particionApi;
+
         var esPostDeCuenta = HttpMethods.IsPost(contexto.Request.Method)
             && contexto.Request.Path.StartsWithSegments("/cuenta");
 
@@ -539,7 +548,8 @@ builder.Services.AddRateLimiter(opciones =>
 
         // La IP real ya está resuelta: UseForwardedHeaders corre al principio
         // del pipeline (ver más abajo) y el middleware de rate limiting actúa
-        // después, por petición. Este es el ÚNICO sitio del sistema que lee la
+        // después, por petición. Este y el techo por IP de /api/v1
+        // (LimitadorApiPublica) son los ÚNICOS sitios del sistema que leen la
         // IP del cliente —no la registra la auditoría, ni los accesos
         // sensibles, ni los logs—, así que es también el único alcance de lo
         // que se perdería si esa IP fuese falsificable: ver
@@ -1013,7 +1023,17 @@ if (args.Contains(CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenan
     try
     {
         CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.Resultado resultadoExportacion;
-        await using (var ficheroExportacion = new FileStream(rutaExportacion, FileMode.CreateNew, FileAccess.Write))
+        // S-B-2: el zip contiene todos los datos del Tenant propietario; en Unix se crea
+        // 0600 (solo su dueño), no con el umask por defecto. En Windows la propiedad no
+        // se admite y no se toca (los permisos los fija la ACL heredada del directorio).
+        var opcionesFicheroExportacion = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+        };
+        if (!OperatingSystem.IsWindows())
+            opcionesFicheroExportacion.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        await using (var ficheroExportacion = new FileStream(rutaExportacion, opcionesFicheroExportacion))
         {
             creado = true;
             resultadoExportacion = await CaeManager.Infrastructure.Exportacion.ExportacionCompletaTenant.ExportarAsync(
@@ -1094,7 +1114,8 @@ using (var scope = app.Services.CreateScope())
     //
     // Y si NO está declarada, aquí solo se llega habiendo pasado por la puerta
     // de ResolverCadenaDeTrafico: o esto es Development, o alguien puso
-    // Rls:PermitirIdentidadAdministrativaInsegura. En los dos casos el tráfico
+    // Rls:PermitirIdentidadAdministrativaInsegura en un entorno que no es
+    // Production (en Production esa clave impide arrancar). En los dos casos el tráfico
     // corre con el rol propietario, al que PostgreSQL no somete a RLS, y eso
     // tiene que decirse en CADA arranque y no solo en un comentario que nadie
     // vuelve a mirar — es lo que aportaba VerificacionRolRuntimeHostedService
@@ -1326,7 +1347,8 @@ app.UseRolEfectivoDelWorkspace();
 // ellos la descarga de PDFs (ver CuentaAMedioActivarSinAccesoMiddleware).
 app.UseCuentaAMedioActivarSinAcceso();
 
-// Tras UseAuthentication (el límite distingue anónimo/autenticado) y antes
+// Tras UseAuthentication (el límite de /cuenta distingue anónimo/autenticado;
+// el de /api/v1 reparte por clave presentada o IP, sin esperar a ApiKey) y antes
 // de que ningún endpoint procese la petición.
 app.UseRateLimiter();
 
@@ -1627,6 +1649,20 @@ namespace CaeManager.Web.Services
                 // IssuedUtc nuevo que la deja pasar sin revalidar el
                 // siguiente intervalo). La renovación se hace en la primera
                 // petición que sí valida.
+                contexto.ShouldRenew = false;
+                return Task.CompletedTask;
+            };
+
+            // ShouldRenew = false en OnValidatePrincipal no basta: el handler ya pidió la renovación
+            // deslizante en CheckForRefreshAsync, antes de ese evento, y se emitía igual la cookie con un
+            // IssuedUtc nuevo (una copia revocada ganaba otro intervalo sin revalidar). La renovación
+            // deslizante se cancela en su propio evento, para la misma ruta exacta.
+            var deslizanteOriginal = options.Events.OnCheckSlidingExpiration;
+            options.Events.OnCheckSlidingExpiration = contexto =>
+            {
+                if (!contexto.Request.Path.Equals(rutaExacta, StringComparison.OrdinalIgnoreCase))
+                    return deslizanteOriginal(contexto);
+
                 contexto.ShouldRenew = false;
                 return Task.CompletedTask;
             };

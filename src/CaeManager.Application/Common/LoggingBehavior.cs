@@ -137,6 +137,21 @@ public class LoggingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, 
             _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
             throw;
         }
+        catch (ArchivoRechazadoException)
+        {
+            // Denegación esperada de un archivo subido (ASVS V12.1), no un error del sistema: aviso con código y sin la
+            // traza ni el mensaje de la excepción, que no deben llegar al log por un archivo que alguien fabricó.
+            cronometro.Stop();
+            const string codigo = "Archivo.Rechazado";
+            actividad?.SetTag("DuracionMs", cronometro.ElapsedMilliseconds);
+            actividad?.SetTag("CodigoError", codigo);
+            actividad?.SetStatus(ActivityStatusCode.Error, codigo);
+            _logger.LogWarning(
+                "{Request} falló con {CodigoError} en {DuracionMs} ms",
+                nombre, codigo, cronometro.ElapsedMilliseconds);
+            _ventanaSalud.RegistrarDesenlace(fallo: true, lento: cronometro.ElapsedMilliseconds >= UmbralLentitudMs);
+            throw;
+        }
         catch (Exception ex)
         {
             cronometro.Stop();

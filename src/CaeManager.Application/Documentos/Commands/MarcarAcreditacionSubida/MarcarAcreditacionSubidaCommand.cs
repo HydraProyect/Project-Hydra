@@ -1,8 +1,10 @@
+using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
 using CaeManager.Application.Proyectos;
 using CaeManager.Domain.Common;
 using CaeManager.Domain.Documentos;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace CaeManager.Application.Documentos.Commands.MarcarAcreditacionSubida;
 
@@ -47,18 +49,25 @@ internal static class AcreditacionSubible
         "La plataforma rechazó esta versión. Sube una versión corregida del documento: al guardarla volverá a quedar pendiente de subir.");
 
     /// <summary>
-    /// La acreditación, si existe y su Documento es visible; <c>null</c> si no. Con <paramref name="recargar"/> se lee de
-    /// nuevo de la base con sus cambios de estado, que es lo que necesita quien crea o deshace un cambio.
+    /// La acreditación, si existe, el Centro de su canal está entre los que gestiona quien pide (la Asignación de Cartera
+    /// del Gestor CAE; una cartera Total no restringe) y su Documento es visible; <c>null</c> si no. Con
+    /// <paramref name="recargar"/> se lee de nuevo de la base con sus cambios de estado, que es lo que necesita quien crea
+    /// o deshace un cambio.
     /// </summary>
     public static async Task<AcreditacionDocumentoPlataforma?> CargarVisibleAsync(
         Guid acreditacionId, IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio,
         IDocumentoRepository documentoRepositorio, IAlcanceDatosService alcanceDatos,
-        IProyectosQueryContext proyectosContext, bool recargar, CancellationToken cancellationToken)
+        IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, bool recargar, CancellationToken cancellationToken)
     {
         var acreditacion = recargar
             ? await acreditacionRepositorio.ObtenerPorIdActualizadoAsync(acreditacionId, cancellationToken)
             : await acreditacionRepositorio.ObtenerPorIdAsync(acreditacionId, cancellationToken);
         if (acreditacion is null)
+            return null;
+
+        var centrosParaGestion = await alcanceDatos.ObtenerCentroIdsParaGestionAsync(cancellationToken);
+        if (centrosParaGestion is not null && !await centrosContext.CanalesGestionDocumental
+            .AnyAsync(c => c.Id == acreditacion.CanalGestionDocumentalId && centrosParaGestion.Contains(c.CentroId), cancellationToken))
             return null;
 
         var documento = await documentoRepositorio.ObtenerPorIdAsync(acreditacion.DocumentoId, cancellationToken);
@@ -70,7 +79,7 @@ internal static class AcreditacionSubible
 
 public class MarcarAcreditacionSubidaCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<MarcarAcreditacionSubidaCommand, Result>
 {
     public const string CodigoRechazadaSinVersionNueva = AcreditacionSubible.CodigoRechazadaSinVersionNueva;
@@ -78,7 +87,7 @@ public class MarcarAcreditacionSubidaCommandHandler(
     public async Task<Result> Handle(MarcarAcreditacionSubidaCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
-            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext, centrosContext,
             recargar: false, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(AcreditacionSubible.NoEncontrada);

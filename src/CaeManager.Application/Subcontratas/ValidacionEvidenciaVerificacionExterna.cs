@@ -13,10 +13,8 @@ internal static class ValidacionEvidenciaVerificacionExterna
 
     public static Result Validar(byte[] contenido, string? nombreArchivo)
     {
-        var extension = Path.GetExtension(nombreArchivo)?.ToLowerInvariant();
-        if (contenido.Length is > 0 and <= LimitesArchivoSubido.TamanoMaximoBytes
-            && extension is ".pdf" or ".jpg" or ".jpeg" or ".png"
-            && ValidadorFirmaArchivo.TieneFirmaValida(contenido, nombreArchivo!))
+        if (Path.GetExtension(nombreArchivo)?.ToLowerInvariant() is ".pdf" or ".jpg" or ".jpeg" or ".png"
+            && ValidadorFirmaArchivo.EsDocumentoValido(contenido, nombreArchivo))
             return Result.Exito();
 
         return Result.Fallo(Error.Crear("VerificacionExterna.EvidenciaFormatoNoValido",

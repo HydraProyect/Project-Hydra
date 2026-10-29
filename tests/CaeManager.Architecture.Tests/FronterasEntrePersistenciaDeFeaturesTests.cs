@@ -479,6 +479,15 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Documentos.CambiarEstadoAcreditacionEnCentroCommandHandler", "IProyectosQueryContext"),
         ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "ICentrosQueryContext"),
         ("Documentos.DeshacerCambioEstadoAcreditacionCommandHandler", "IProyectosQueryContext"),
+        // El resto de comandos de acreditación (AcreditacionSubible.CargarVisibleAsync) resuelven el Centro del canal
+        // (ICentrosQueryContext) para exigir que esté en la Asignación de Cartera de quien anota (ASVS V4.2.1).
+        ("Documentos.MarcarAcreditacionSubidaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionAceptadaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionRechazadaCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.MarcarAcreditacionPendienteDeSubirCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.ConfirmarVigenciaAcreditacionCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.RestaurarAnotacionAcreditacionCommandHandler", "ICentrosQueryContext"),
+        ("Documentos.DeshacerSubidaDesdeExtensionCommandHandler", "ICentrosQueryContext"),
         ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "IDocumentosQueryContext"),
         ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITiposDocumentoQueryContext"),
         ("Centros.ObtenerCambiosEstadoPlataformaDeCentroQueryHandler", "ITrabajadoresQueryContext"),
@@ -489,8 +498,8 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // el repositorio de negocio): «Lo he enviado» de la extensión necesita resolver
         // el proveedor del canal de la acreditación (ICentrosQueryContext) y
         // comprobar su Activo (IProveedoresPlataformaCaeQueryContext). «Marcar
-        // subido» del drill-down interno no exige esta comprobación y no depende
-        // de ninguna de las dos.
+        // subido» del drill-down interno no exige esta comprobación: no depende
+        // del proveedor, y del canal solo para la guarda de Centro de arriba.
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "ICentrosQueryContext"),
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProveedoresPlataformaCaeQueryContext"),
         ("Documentos.ConfirmarSubidaDesdeExtensionCommandHandler", "IProyectosQueryContext"),
@@ -857,9 +866,19 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         ("Visitas.CrearVisitaCommandHandler", "IComunicacionesQueryContext"),
         ("Visitas.CrearVisitaCommandHandler", "ISugerenciaVisitaCorreoRepository"),
         ("Visitas.CrearVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        // S-B-1: crear, editar y añadir desde el panel solo admiten Trabajadores de la Empresa del
+        // Centro (o de una Subcontrata con Relación Empresarial vigente con ella) y visibles
+        // (TrabajadoresAdmisiblesEnVisita): leen el Centro, los Trabajadores y las Relaciones.
+        ("Visitas.CrearVisitaCommandHandler", "IEmpresasQueryContext"),
+        ("Visitas.EditarVisitaCommandHandler", "ICentrosQueryContext"),
+        ("Visitas.EditarVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.EditarVisitaCommandHandler", "ITrabajadoresQueryContext"),
-        // Añadir un Trabajador desde el panel comprueba que existe en el Tenant, igual que EditarVisita.
+        ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ICentrosQueryContext"),
+        ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "IEmpresasQueryContext"),
         ("Visitas.AnadirTrabajadorAVisitaCommandHandler", "ITrabajadoresQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "ICentrosQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "IEmpresasQueryContext"),
+        ("Visitas.ObtenerCandidatosTrabajadorVisitaQueryHandler", "ITrabajadoresQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "ICentrosQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IClientesQueryContext"),
         ("Visitas.ObtenerDetalleVisitaQueryHandler", "IConfiguracionQueryContext"),

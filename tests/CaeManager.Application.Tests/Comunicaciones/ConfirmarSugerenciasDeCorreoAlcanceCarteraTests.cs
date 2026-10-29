@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Gestiones.Commands.CrearGestionesParaTrabajador;
 using CaeManager.Application.Tests.Clientes;
+using CaeManager.Application.Tests.Documentos;
 using CaeManager.Application.Tests.Gestiones;
 using CaeManager.Application.Tests.Plantillas;
 using CaeManager.Application.Tests.Reportes;
@@ -13,6 +14,7 @@ using CaeManager.Domain.Asignaciones;
 using CaeManager.Domain.Centros;
 using CaeManager.Domain.Comunicaciones;
 using CaeManager.Domain.Documentos;
+using CaeManager.Domain.RelacionesEmpresariales;
 using CaeManager.Domain.Trabajadores;
 using CaeManager.Domain.Visitas;
 using FluentAssertions;
@@ -58,6 +60,8 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         public required SugerenciaVisitaCorreo Sugerencia { get; init; }
         public required Centro Centro { get; init; }
         public required Trabajador Trabajador { get; init; }
+        public required Trabajador TrabajadorDeOtraEmpresa { get; init; }
+        public required Trabajador TrabajadorDeSubcontrata { get; init; }
         public required VisitaTrabajadoresFalsos Asignaciones { get; init; }
     }
 
@@ -65,11 +69,18 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         Guid clienteDeLaConversacion, IAlcanceDatosService? alcance = null, IActorAuditoria? actor = null)
     {
         var centro = new Centro(_clienteDeMiCartera, Guid.NewGuid(), "Planta norte");
-        var trabajador = Trabajador.DeEmpresa(Guid.NewGuid(), "Ana", "García", "12345678Z");
+        // S-B-1: Ana es de la Empresa del Centro; Bruno, de otra Empresa del mismo Tenant; Carla, de una
+        // Subcontrata proveedora vigente de la Empresa del Centro.
+        var trabajador = Trabajador.DeEmpresa(centro.EmpresaId, "Ana", "García", "12345678Z");
+        var deOtraEmpresa = Trabajador.DeEmpresa(Guid.NewGuid(), "Bruno", "Ajeno", "87654321X");
+        var subcontrataId = Guid.NewGuid();
+        var deSubcontrata = Trabajador.DeSubcontrata(subcontrataId, "Carla", "Proveedora", "11223344B");
         var centros = new CentrosQueryContextFalso();
         centros.ListaCentros.Add(centro);
         var trabajadores = new TrabajadoresQueryContextFalso();
-        trabajadores.ListaTrabajadores.Add(trabajador);
+        trabajadores.ListaTrabajadores.AddRange([trabajador, deOtraEmpresa, deSubcontrata]);
+        var empresas = new EmpresasQueryContextFalso();
+        empresas.ListaRelacionesEmpresariales.Add(RelacionEmpresarial.Crear(subcontrataId, centro.EmpresaId, DateTime.UtcNow));
 
         var mensaje = SembrarMensajeEnConversacionDe(clienteDeLaConversacion);
         var sugerencia = new SugerenciaVisitaCorreo(mensaje.Id, centro.Id, Hoy, null, "Pide visita", 90, 90, 90);
@@ -81,7 +92,7 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
         var paquetes = new PaqueteQueAnota();
         var asignaciones = new VisitaTrabajadoresFalsos();
         var handler = new CrearVisitaCommandHandler(
-            visitas, asignaciones, centros, trabajadores, sugerencias, _comunicaciones, paquetes,
+            visitas, asignaciones, centros, trabajadores, empresas, sugerencias, _comunicaciones, paquetes,
             new EvaluadorQueNoSella(), new CurrentUserServiceFalso(Guid.NewGuid()), new PublisherFalso(), new UnitOfWorkFalso(),
             NullLogger<CrearVisitaCommandHandler>.Instance,
             alcance ?? new AlcanceDatosServiceFalso(tieneAccesoTotal: false, clienteIdsVisibles: [_clienteDeMiCartera], centroIdsVisibles: [centro.Id]),
@@ -96,11 +107,54 @@ public class ConfirmarSugerenciasDeCorreoAlcanceCarteraTests
             Sugerencia = sugerencia,
             Centro = centro,
             Trabajador = trabajador,
+            TrabajadorDeOtraEmpresa = deOtraEmpresa,
+            TrabajadorDeSubcontrata = deSubcontrata,
         };
     }
 
     private static CrearVisitaCommand CrearVisitaDesde(EscenarioVisita e) =>
         new(e.Centro.Id, Hoy, Hoy, [e.Trabajador.Id], Notas: null, SugerenciaVisitaCorreoId: e.Sugerencia.Id);
+
+    // ---- S-B-1: la Empresa gestionada activa fija qué Trabajadores entran (decisión del propietario, 2026-10-28)
+
+    [Fact]
+    public async Task CrearVisita_admite_Trabajadores_de_la_Empresa_del_Centro_y_de_su_Subcontrata_vigente()
+    {
+        var e = PrepararVisita(_clienteDeMiCartera);
+
+        var resultado = await e.Handler.Handle(
+            new CrearVisitaCommand(e.Centro.Id, Hoy, Hoy, [e.Trabajador.Id, e.TrabajadorDeSubcontrata.Id], Notas: null), CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
+        e.Asignaciones.Agregadas.Select(f => f.TrabajadorId).Should().BeEquivalentTo([e.Trabajador.Id, e.TrabajadorDeSubcontrata.Id]);
+    }
+
+    [Fact]
+    public async Task CrearVisita_rechaza_un_Trabajador_de_otra_Empresa_y_no_crea_la_Visita()
+    {
+        var e = PrepararVisita(_clienteDeMiCartera);
+
+        var resultado = await e.Handler.Handle(
+            new CrearVisitaCommand(e.Centro.Id, Hoy, Hoy, [e.Trabajador.Id, e.TrabajadorDeOtraEmpresa.Id], Notas: null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Visitas.TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        resultado.Error.Mensaje.Should().Contain("empresa gestionada activa");
+        e.Visitas.Visitas.Should().BeEmpty();
+        e.Asignaciones.Agregadas.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task CrearVisita_rechaza_un_Trabajador_de_la_Empresa_fuera_del_alcance_de_datos()
+    {
+        // El Centro está al alcance; de los Trabajadores, solo uno que no es Ana.
+        var conAlcance = PrepararVisita(_clienteDeMiCartera, new AlcanceDatosServiceFalso(trabajadorIdsVisibles: [Guid.NewGuid()]));
+
+        var resultado = await conAlcance.Handler.Handle(
+            new CrearVisitaCommand(conAlcance.Centro.Id, Hoy, Hoy, [conAlcance.Trabajador.Id], Notas: null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be(CaeManager.Application.Visitas.TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        conAlcance.Visitas.Visitas.Should().BeEmpty();
+    }
 
     [Fact]
     public async Task CrearVisita_guarda_como_gestor_de_cada_asignacion_al_Actor_real_y_no_al_usuario_simulado()

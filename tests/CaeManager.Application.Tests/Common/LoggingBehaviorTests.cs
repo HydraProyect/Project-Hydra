@@ -139,6 +139,26 @@ public class LoggingBehaviorTests
     }
 
     [Fact]
+    public async Task Un_archivo_rechazado_se_registra_como_aviso_sin_pila_ni_mensaje()
+    {
+        // ASVS V12.1: el rechazo de un archivo subido es una denegación de entrada; un usuario que sube archivos
+        // malos no debe inundar el log ni Sentry con trazas, ni dejar en el log texto que fabricó el archivo.
+        var fabrica = new FabricaLoggerFalsa();
+        var behavior = Construir<FalsaQuery, string>(fabrica);
+
+        var acto = async () => await behavior.Handle(
+            new FalsaQuery(),
+            _ => throw new ArchivoRechazadoException("contenido-del-archivo"),
+            CancellationToken.None);
+
+        await acto.Should().ThrowAsync<ArchivoRechazadoException>();
+        var evento = fabrica.Logger.Eventos.Should().ContainSingle().Subject;
+        evento.Nivel.Should().Be(LogLevel.Warning);
+        evento.Excepcion.Should().BeNull();
+        evento.Mensaje.Should().Contain("Archivo.Rechazado").And.NotContain("contenido-del-archivo");
+    }
+
+    [Fact]
     public async Task Una_cancelacion_no_se_registra_como_error()
     {
         // En Blazor Server se cancelan requests continuamente (navegación,

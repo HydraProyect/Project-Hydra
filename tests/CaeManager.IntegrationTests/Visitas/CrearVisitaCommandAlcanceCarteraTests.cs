@@ -1,6 +1,7 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma;
 using CaeManager.Application.Visitas.Antelacion;
+using CaeManager.Application.Visitas;
 using CaeManager.Application.Visitas.Commands.CrearVisita;
 using CaeManager.Application.Visitas.PaqueteDocumental;
 using CaeManager.Domain.Asignaciones;
@@ -27,9 +28,9 @@ namespace CaeManager.IntegrationTests.Visitas;
 /// <summary>
 /// Alcance de cartera al CREAR una Visita. Existir en el Tenant no basta: un Gestor CAE solo
 /// crea Visitas sobre Centros dentro de su Asignación de Cartera, con el mismo criterio con el
-/// que las lecturas de Visita deciden si se ve (el Centro). Los Trabajadores siguen saliendo de
-/// la base general del Tenant (<c>AlcanceSelectorTrabajadores.BaseGeneralDelTenant</c>): acotarlos
-/// es una decisión de producto aún no tomada, y el último caso fija que este incremento no la toma.
+/// que las lecturas de Visita deciden si se ve (el Centro). Los Trabajadores, además, tienen que ser
+/// de la Empresa gestionada activa y visibles para quien crea (decisión del propietario, 2026-10-28,
+/// S-B-1, <c>TrabajadoresAdmisiblesEnVisita</c>): los dos últimos casos lo fijan.
 ///
 /// <see cref="AlcanceDatosService"/> real sobre PostgreSQL, sin fakes de alcance: la cartera sale
 /// de una <see cref="AsignacionCartera"/> de verdad.
@@ -179,18 +180,30 @@ public class CrearVisitaCommandAlcanceCarteraTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// Fija lo que este incremento NO cambia: los Trabajadores de la Visita no se acotan a la
-    /// cartera. Un Trabajador de una Subcontrata que el Gestor CAE todavía no ve puede acudir a
-    /// un Centro de su cartera, que es por lo que el formulario ofrece la base general del
-    /// Tenant. Si producto decide acotarlos, este test es el que tiene que cambiar.
+    /// S-B-1 (decisión del propietario, 2026-10-28): un Trabajador de una Subcontrata que el Gestor
+    /// CAE no ve y que no es proveedora de la Empresa del Centro no entra en la Visita, aunque el
+    /// Centro sea de su cartera: su documentación viajaría al Centro en el paquete documental.
     /// </summary>
     [Fact]
-    public async Task Gestor_CAE_lleva_a_su_Centro_un_Trabajador_fuera_de_su_cartera()
+    public async Task Gestor_CAE_no_lleva_a_su_Centro_un_Trabajador_fuera_de_su_cartera_ni_de_la_Empresa()
     {
         var resultado = await CrearAsync(_gestor, "GestorCae", _centroDentro, _trabajadorFuera);
 
-        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Codigo : "");
-        (await ContarVisitasAsync(_centroDentro)).Should().Be(1);
+        resultado.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        (await ContarVisitasAsync(_centroDentro)).Should().Be(0);
+    }
+
+    /// <summary>
+    /// Ni siquiera un rol de Propiedad, que ve a todos los Trabajadores del Tenant, lleva a un Centro
+    /// de la Empresa propia a un Trabajador de una Subcontrata que no es proveedora de esa Empresa.
+    /// </summary>
+    [Fact]
+    public async Task Un_rol_de_Propiedad_no_lleva_a_la_Visita_un_Trabajador_de_otra_Empresa()
+    {
+        var resultado = await CrearAsync(Guid.NewGuid(), "Administrador", _centroDentro, _trabajadorFuera);
+
+        resultado.Error.Codigo.Should().Be(TrabajadoresAdmisiblesEnVisita.CodigoNoAdmisible);
+        (await ContarVisitasAsync(_centroDentro)).Should().Be(0);
     }
 
     private async Task<Result<Guid>> CrearAsync(Guid usuarioId, string rol, Guid centroId, Guid trabajadorId)
@@ -201,7 +214,7 @@ public class CrearVisitaCommandAlcanceCarteraTests : IAsyncLifetime
 
         var handler = new CrearVisitaCommandHandler(
             new VisitaRepository(contexto), new VisitaTrabajadorRepository(contexto),
-            contexto, contexto,
+            contexto, contexto, contexto,
             new SugerenciaVisitaCorreoRepository(contexto), contexto,
             new PaqueteDocumentalNulo(), new EvaluadorExpedienteNulo(), usuario, new PublicadorNulo(), contexto,
             NullLogger<CrearVisitaCommandHandler>.Instance,

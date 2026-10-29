@@ -31,11 +31,13 @@ public class EntradasExternasAntiforgeryTests
 {
     private const string Subida = "/extension/acreditaciones/11111111-1111-1111-1111-111111111111/subida";
     private const string DeshacerSubida = Subida + "/deshacer";
+    private const string TodosLosDispositivos = "/cuenta/cerrar-sesion-en-todos-los-dispositivos";
 
     [Theory]
     [InlineData(Subida)]
     [InlineData("/cuenta/soporte/salir")]
     [InlineData("/cuenta/cerrar-sesion")]
+    [InlineData(TodosLosDispositivos)]
     public async Task Los_post_con_cookie_sin_token_responden_400(string ruta)
     {
         await using var app = await ArrancarAsync();
@@ -49,6 +51,7 @@ public class EntradasExternasAntiforgeryTests
     [InlineData(Subida)]
     [InlineData("/cuenta/soporte/salir")]
     [InlineData("/cuenta/cerrar-sesion")]
+    [InlineData(TodosLosDispositivos)]
     public async Task Los_post_vacios_sin_token_tambien_responden_400(string ruta)
     {
         await using var app = await ArrancarAsync();
@@ -104,6 +107,7 @@ public class EntradasExternasAntiforgeryTests
     [Theory]
     [InlineData(Subida, HttpStatusCode.OK)]
     [InlineData("/cuenta/cerrar-sesion", HttpStatusCode.Found)]
+    [InlineData(TodosLosDispositivos, HttpStatusCode.Found)]
     [InlineData("/cuenta/soporte/salir", HttpStatusCode.Unauthorized)]
     public async Task El_token_valido_permite_el_post_con_cookie(string ruta, HttpStatusCode esperado)
     {

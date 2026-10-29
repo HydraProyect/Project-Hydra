@@ -286,7 +286,7 @@ public class ActualizarDocumentoDesdeAdjuntoCommandTests : IAsyncLifetime
         return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
-    private static readonly byte[] ContenidoAdjuntoDePrueba = Encoding.UTF8.GetBytes("contenido del certificado de prueba");
+    private static readonly byte[] ContenidoAdjuntoDePrueba = Encoding.UTF8.GetBytes("%PDF-contenido del certificado de prueba");
 
     /// <summary>El adjunto de <see cref="SembrarEscenarioAsync"/> siempre vive en "adjuntos/certificado.pdf" — se preseeda con ese contenido para poder leer la copia que el handler debe producir.</summary>
     private static AlmacenamientoEnMemoriaFalso AlmacenamientoConAdjuntoSembrado()

@@ -336,4 +336,13 @@ public class PlanDecisionCerradaTests
         PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Trabajadores, [conDni])], Sufijo)
             .EsFallido.Should().BeTrue("el documento saldría en claro por las opciones");
     }
+
+    [Fact]
+    public void Un_candidato_con_un_telefono_en_el_nombre_se_sigue_preguntando()
+    {
+        var conTelefono = new CandidatoDecisionDto(Guid.NewGuid(), "Centro Norte (Getafe) 912 345 678");
+
+        PlanDecisionCerrada.ParaSeleccionar("x", [new SeleccionSolicitadaDto(Trabajadores, [conTelefono])], Sufijo)
+            .EsExitoso.Should().BeTrue("antes de enmascarar teléfonos ese nombre ya era válido");
+    }
 }

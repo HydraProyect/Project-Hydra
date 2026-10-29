@@ -125,12 +125,12 @@
             else
             {
                 <div class="lista-bandeja">
+                    @{ var claves = new ClavesDeHermanos(); }
                     @for (var i = 0; i < Math.Min(bandeja.Grupos.Count, MaximoGruposAtencion); i++)
                     {
-                        <GrupoCola @key="bandeja.Grupos[i].GrupoId" Grupo="bandeja.Grupos[i]"
+                        <GrupoCola @key="claves.De(bandeja.Grupos[i].GrupoId)" Grupo="bandeja.Grupos[i]"
                                    Compacto="true" AgruparPorEmpresa="AgruparPorEmpresa" />
                     }
-                    @{ var claves = new ClavesDeHermanos(); }
                     @foreach (var item in bandeja.SinGrupo)
                     {
                         <PanelResolverItem @key="claves.De(item.Id)" Item="item" />

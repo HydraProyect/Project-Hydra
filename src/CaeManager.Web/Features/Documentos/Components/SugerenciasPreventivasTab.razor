@@ -47,11 +47,12 @@ else if (Ventanas.All(v => v.Documentos.Count == 0))
 else
 {
     <div class="lista-trabajadores-acordeon">
+        @{ var clavesVentanas = new ClavesDeHermanos(); }
         @foreach (var ventana in Ventanas)
         {
             @if (ventana.Documentos.Count == 0) { continue; }
 
-            <div class="fila-trabajador-acordeon" @key="ventana.Etiqueta">
+            <div class="fila-trabajador-acordeon" @key="clavesVentanas.De(ventana.Etiqueta)">
                 <div class="fila-trabajador-acordeon-cuerpo">
                     <div class="cabecera-ventana-preventivo">
                         <span class="fila-trabajador-nombre">@ventana.Etiqueta</span>
