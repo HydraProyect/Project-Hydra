@@ -297,8 +297,11 @@ public sealed class PlanDecisionCerrada
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene candidatos con el mismo nombre.");
 
         // Un candidato descrito por su documento sacaría ese documento en claro, y
-        // además no casaría con el texto, que viaja enmascarado.
-        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores.Count > 0))
+        // además no casaría con el texto, que viaja enmascarado. Un teléfono en el
+        // nombre de un candidato (un Centro rotulado con su número) no invalida la
+        // decisión: es lo que ya ocurría antes de enmascarar teléfonos en el texto.
+        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores
+                .Any(i => i.Tipo != TipoIdentificadorEnmascarado.Telefono)))
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene un candidato descrito por un documento o un correo.");
 
         return null;

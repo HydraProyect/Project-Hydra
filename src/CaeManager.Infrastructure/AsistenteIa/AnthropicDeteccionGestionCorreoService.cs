@@ -121,10 +121,13 @@ public partial class AnthropicDeteccionGestionCorreoService(
         // o por alguna palabra de su nombre, sin distinguir mayúsculas ni tildes. Es la
         // opción más simple que conserva el comportamiento: el modelo solo podía casar
         // a un Trabajador con lo que el correo dice de él. Las partículas («del», «los»…)
-        // no cuentan, porque casarían a medio listado con cualquier frase. La misma lista
-        // limita los Id que se aceptan de la respuesta.
+        // no cuentan, porque casarían a medio listado con cualquier frase. Lo que se
+        // pierde, a sabiendas: un apodo o una errata del nombre («Paco» por «Francisco»)
+        // ya no lo resuelve el modelo; el ítem llega sin Trabajador y lo asigna el Gestor
+        // CAE. Es reducción, no cota: un correo que nombre a muchos saca a esos muchos.
+        // La misma lista limita los Id que se aceptan de la respuesta.
         var correo = PromptCorreoEntrante.Preparar(cuerpoMensaje, PromptCorreoEntrante.CamposDeLaRespuesta, LongitudMaximaCuerpo);
-        var palabrasDelCorreo = PalabrasDeNombre(correo.Texto).ToHashSet(StringComparer.Ordinal);
+        var palabrasDelCorreo = PalabrasDelCorreo(correo.Texto).ToHashSet(StringComparer.Ordinal);
         var candidatos = trabajadoresDisponibles.Where(t =>
                 PromptCorreoEntrante.MarcadorDelDocumento(t.Dni, correo) is not null
                 || PalabrasDeNombre(t.NombreCompleto).Any(palabrasDelCorreo.Contains))
@@ -284,21 +287,36 @@ public partial class AnthropicDeteccionGestionCorreoService(
 
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
-    // Partículas de nombre en castellano y catalán: no identifican a nadie.
+    // Partículas de nombre en castellano y catalán, y apellidos que sin tilde son una
+    // palabra corriente de cualquier correo («más», «dos»): no identifican a nadie.
     private static readonly HashSet<string> ParticulasDeNombre = new(StringComparer.Ordinal)
     {
-        "DEL", "DELS", "LAS", "LOS", "LES", "SAN",
+        "DE", "DEL", "DELS", "LA", "LAS", "LOS", "LES", "SAN", "MAS", "DOS",
     };
 
     /// <summary>
-    /// Palabras de tres o más letras, en mayúsculas y sin tildes, para casar el nombre
-    /// de un Trabajador con el correo sin depender de cómo se escribió.
+    /// Palabras del correo de dos o más letras, en mayúsculas y sin tildes, para casar
+    /// con ellas los nombres de los Trabajadores sin depender de cómo se escribieron.
     /// </summary>
-    private static IEnumerable<string> PalabrasDeNombre(string? texto)
-    {
-        if (string.IsNullOrEmpty(texto))
-            yield break;
+    private static IEnumerable<string> PalabrasDelCorreo(string texto) =>
+        Palabras(texto).Where(p => p.Length >= 2);
 
+    /// <summary>
+    /// Palabras del nombre de un Trabajador que lo pueden identificar: las de tres o
+    /// más letras y, si no tiene ninguna («Xu Li»), las de dos.
+    /// </summary>
+    private static IEnumerable<string> PalabrasDeNombre(string? nombreCompleto)
+    {
+        if (string.IsNullOrWhiteSpace(nombreCompleto))
+            return [];
+
+        var palabras = Palabras(nombreCompleto.Normalize(NormalizationForm.FormKC)).ToArray();
+        var largas = palabras.Where(p => p.Length >= 3).ToArray();
+        return largas.Length > 0 ? largas : palabras.Where(p => p.Length >= 2).ToArray();
+    }
+
+    private static IEnumerable<string> Palabras(string texto)
+    {
         foreach (Match palabra in RegexPalabra().Matches(texto))
         {
             var clave = SinTildes(palabra.Value).ToUpperInvariant();
@@ -320,7 +338,7 @@ public partial class AnthropicDeteccionGestionCorreoService(
         return resultado.ToString();
     }
 
-    [GeneratedRegex(@"\p{L}{3,}", RegexOptions.None, 1000)]
+    [GeneratedRegex(@"\p{L}+", RegexOptions.None, 1000)]
     private static partial Regex RegexPalabra();
 
     private sealed record DeteccionGestionJson(

@@ -54,8 +54,9 @@ public sealed record TextoEnmascarado(string Texto, IReadOnlyList<IdentificadorE
 /// salen de TALVEG. DNI, NIE, pasaporte, CIF, correos y teléfonos se sustituyen por
 /// marcadores (<c>[DOC_1]</c>, <c>[CIF_1]</c>, <c>[CORREO_1]</c>, <c>[TEL_1]</c>) antes
 /// de que el texto viaje al proveedor de IA, y se restauran al volver. El teléfono
-/// cubre los nueve dígitos españoles que empiezan por 6, 7, 8 o 9 y los números con
-/// prefijo internacional (<c>+</c> o <c>00</c>); una cifra suelta de otra forma no se toca.
+/// cubre los nueve dígitos españoles que empiezan por 6, 7, 8 o 9, seguidos o en sus
+/// agrupaciones habituales, y los números con prefijo internacional (<c>+</c> o
+/// <c>00</c>); una cifra de otra forma no se toca.
 /// <para>
 /// Medido con el proveedor (propuesta del asistente, § 4.3.5): con marcadores la
 /// selección acierta igual que en claro. Lo que <b>no</b> se enmascara, a propósito:
@@ -126,16 +127,18 @@ public static partial class EnmascaradorIdentificadores
     {
         // El orden importa solo para desempatar dos tramos que empiezan en el mismo
         // sitio: gana el primero de esta lista. El correo va delante porque su parte
-        // local puede contener algo con forma de DNI.
+        // local puede contener algo con forma de DNI. El teléfono va el último: con el
+        // mismo tramo («pasaporte 612345678») gana el documento, que es lo que casa a un
+        // candidato con el correo.
         var candidatos = new List<Tramo>();
         Añadir(candidatos, RegexCorreo(), texto, TipoIdentificadorEnmascarado.Correo);
-        Añadir(candidatos, RegexTelefono(), texto, TipoIdentificadorEnmascarado.Telefono);
         Añadir(candidatos, RegexNie(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
         Añadir(candidatos, RegexDni(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
         Añadir(candidatos, RegexDniSinLetraTrasPalabraClave(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
         Añadir(candidatos, RegexCif(), texto, TipoIdentificadorEnmascarado.NifEmpresa);
         Añadir(candidatos, RegexPasaporteOTie(), texto, TipoIdentificadorEnmascarado.Pasaporte);
         Añadir(candidatos, RegexPasaporteTrasPalabraClave(), texto, TipoIdentificadorEnmascarado.Pasaporte);
+        Añadir(candidatos, RegexTelefono(), texto, TipoIdentificadorEnmascarado.Telefono);
 
         var elegidos = new List<Tramo>();
         var fin = 0;
@@ -198,7 +201,12 @@ public static partial class EnmascaradorIdentificadores
     [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}")]
     private static partial Regex RegexCorreo();
 
-    [GeneratedRegex(@"(?<![\p{L}\p{N}@])(?:\+|00)\d(?:[ .\-()]{0,3}\d){6,14}(?![\p{L}\p{N}@])|(?<![\p{L}\p{N}@])[6789](?:[ .\-]?\d){8}(?![\p{L}\p{N}@])")]
+    // Internacional: «+» o «00» y un prefijo de país que no empieza por cero (así
+    // «000123456» o los ceros de «1.000.000.000» no casan). Nacional: nueve dígitos
+    // que empiezan por 6, 7, 8 o 9, seguidos o en las agrupaciones con que se escribe
+    // un teléfono (3-3-3, 3-2-2-2, 2-3-2-2) con el mismo separador en todo el número;
+    // un separador libre entre cada dígito convertiría «9.10.2026 10:00» en teléfono.
+    [GeneratedRegex(@"(?<![\p{L}\p{N}@])(?:(?:\+|00)[1-9](?:[ .\-()]{0,3}\d){6,14}|[6-9]\d{8}|[6-9]\d{2}(?<s1>[ .\-])\d{3}\k<s1>\d{3}|[6-9]\d{2}(?<s2>[ .\-])\d{2}\k<s2>\d{2}\k<s2>\d{2}|[6-9]\d(?<s3>[ .\-])\d{3}\k<s3>\d{2}\k<s3>\d{2})(?![\p{L}\p{N}@])")]
     private static partial Regex RegexTelefono();
 
     [GeneratedRegex(@"(?<![\p{L}\p{N}])[XYZ][\s\-]?\d{7}[\s\-]?[A-Z](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]

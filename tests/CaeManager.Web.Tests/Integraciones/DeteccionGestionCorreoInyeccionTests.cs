@@ -148,6 +148,19 @@ public sealed class DeteccionGestionCorreoInyeccionTests
     }
 
     [Fact]
+    public async Task Un_nombre_corto_o_guardado_descompuesto_tambien_casa()
+    {
+        var manejador = new ManejadorQueCaptura(RespuestaModelo(new { esActualizacionDocumento = false, resumen = "x", confianza = 0, items = Array.Empty<object>() }));
+        var xu = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "Xu Li", "Y1234567X");
+        var maria = new TrabajadorCandidatoGestionDto(Guid.NewGuid(), "María Soler", "87654321X");
+
+        await Servicio(manejador).DetectarAsync("EPI de Li y de María, por favor", [xu, maria, Luis], [Epi]);
+
+        var (_, usuario) = LeerPeticion(manejador.CuerpoRecibido!);
+        usuario.Should().Contain(xu.Id.ToString()).And.Contain(maria.Id.ToString()).And.NotContain(Luis.Id.ToString());
+    }
+
+    [Fact]
     public async Task Un_modelo_obediente_no_asocia_Trabajadores_ni_tipos_fuera_de_las_listas_enviadas()
     {
         var ajeno = Guid.NewGuid();

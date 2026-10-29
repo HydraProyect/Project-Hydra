@@ -64,8 +64,9 @@ public class SugerenciaGestionCorreoService(
         // Nivel 0 (DEC-33, REC-035) — ver el mismo gate en VerificacionIaDocumentoService.
         // Esta es la detección que más datos personales envía de las tres de la
         // ingesta: además del cuerpo del correo viajan los nombres de los
-        // Trabajadores candidatos (el DNI no: el proveedor lo sustituye por un
-        // marcador, ver AnthropicDeteccionGestionCorreoService), así que el gate
+        // Trabajadores candidatos que el correo menciona (el proveedor preselecciona
+        // por documento o por nombre y el DNI no sale: viaja su marcador, ver
+        // AnthropicDeteccionGestionCorreoService), así que el gate
         // va por delante de cargar nada. Vacío es el
         // mismo resultado que "el correo no aplica" — el llamador ya sabe tratarlo,
         // y ninguna clasificación de ruido depende de IA para existir.
