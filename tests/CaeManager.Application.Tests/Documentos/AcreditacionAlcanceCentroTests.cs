@@ -28,11 +28,14 @@ public class AcreditacionAlcanceCentroTests
     [InlineData("pendiente")]
     [InlineData("vigencia")]
     [InlineData("restaurar")]
-    public async Task Documento_visible_exige_centro_de_gestion_y_admite_cartera_total(string operacion)
+    public async Task Exige_el_centro_del_canal_en_la_cartera_y_el_documento_visible_y_admite_cartera_total(string operacion)
     {
-        foreach (var alcanceCentro in new[] { "fuera", "dentro", "total" })
+        // fuera: la cartera tiene otro Centro, que también tiene canal (la guarda mira el canal de ESTA acreditación).
+        // vacia: portal de Cliente, sin Centros de gestión. documento-fuera: Centro en cartera, Documento no visible.
+        foreach (var alcanceCentro in new[] { "fuera", "vacia", "documento-fuera", "dentro", "total" })
         {
             var centroId = Guid.NewGuid();
+            var otroCentroId = Guid.NewGuid();
             var documento = Documento.DeTrabajador(Guid.NewGuid(), Guid.NewGuid(), new DateOnly(2026, 1, 1), VigenciaDocumento.NoCaduca);
             var proveedor = new ProveedorPlataformaCae("dokify", "Dokify");
             var canal = CanalGestionDocumental.DePlataforma(centroId, "Portal", proveedor.Id, null, null, null);
@@ -50,15 +53,20 @@ public class AcreditacionAlcanceCentroTests
             acreditaciones.Agregar(acreditacion);
             var centros = new CentrosQueryContextFalso();
             centros.ListaCanalesGestionDocumental.Add(canal);
+            centros.ListaCanalesGestionDocumental.Add(
+                CanalGestionDocumental.DePlataforma(otroCentroId, "Portal", proveedor.Id, null, null, null));
             var proveedores = new ProveedoresPlataformaCaeQueryContextFalso();
             proveedores.ListaProveedores.Add(proveedor);
             proveedores.ListaDominios.Add(new DominioProveedorPlataformaCae(proveedor.Id, "dokify.net"));
-            var alcance = new AlcanceDatosServiceFalso(centroIdsParaGestion: alcanceCentro switch
+            var alcance = alcanceCentro switch
             {
-                "fuera" => [Guid.NewGuid()],
-                "dentro" => [centroId],
-                _ => null
-            });
+                "fuera" => new AlcanceDatosServiceFalso(centroIdsParaGestion: [otroCentroId]),
+                "vacia" => new AlcanceDatosServiceFalso(centroIdsParaGestion: []),
+                "documento-fuera" => new AlcanceDatosServiceFalso(
+                    tieneAccesoTotal: false, trabajadorIdsVisibles: [Guid.NewGuid()], centroIdsParaGestion: [centroId]),
+                "dentro" => new AlcanceDatosServiceFalso(centroIdsParaGestion: [centroId]),
+                _ => new AlcanceDatosServiceFalso(),
+            };
             var proyectos = new ProyectosQueryContextFalso();
             var unit = new UnitOfWorkFalso();
             var version = acreditacion.Version;
@@ -82,9 +90,9 @@ public class AcreditacionAlcanceCentroTests
                     .Handle(new(acreditacion.Id, EstadoAcreditacion.PendienteDeSubir, VigenciaEnPlataforma.SinConfirmar, version), CancellationToken.None)
             };
 
-            if (alcanceCentro == "fuera")
+            if (alcanceCentro is "fuera" or "vacia" or "documento-fuera")
             {
-                resultado.EsFallido.Should().BeTrue(operacion);
+                resultado.EsFallido.Should().BeTrue($"{operacion}, {alcanceCentro}");
                 resultado.Error.Codigo.Should().Be("Acreditacion.NoEncontrada");
                 unit.VecesGuardado.Should().Be(0);
             }
