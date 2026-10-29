@@ -29,6 +29,12 @@ public class SegundoFactorCommandsTests
     // ---------- Generar códigos (propia cuenta) ----------
 
     [Fact]
+    public void El_comando_no_expone_el_codigo_del_autenticador_al_convertirse_en_texto()
+    {
+        new GenerarCodigosRecuperacionCommand("654321").ToString().Should().NotContain("654321");
+    }
+
+    [Fact]
     public async Task Genera_diez_codigos_para_la_propia_cuenta_con_2FA_activa()
     {
         var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, true, 0) };
@@ -437,7 +443,7 @@ public class SegundoFactorCommandsTests
             Task.FromResult(_cuentas.GetValueOrDefault(usuarioId));
 
         public Task<Result<IReadOnlyList<string>>> GenerarCodigosRecuperacionAsync(
-            Guid usuarioId, int cantidad, CancellationToken cancellationToken = default)
+            Guid usuarioId, int cantidad, string codigoAutenticador, CancellationToken cancellationToken = default)
         {
             CodigosGeneradosPara.Add(usuarioId);
             IReadOnlyList<string> codigos = Enumerable.Range(0, cantidad).Select(i => $"COD{i:00}-XXXXX").ToList();

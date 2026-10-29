@@ -31,6 +31,7 @@
 @inject NavigationManager NavigationManager
 @inject IStringLocalizer<TextosCuenta> Textos
 @inject IMediator Mediator
+@inject CaeManager.Infrastructure.Coordinacion.IEleccionLiderService CerrojoVerificacion
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -99,6 +100,8 @@
             }
             <p class="texto-2fa-secundario">@Textos["CodigosRegenerarAyuda"]</p>
             <EditForm Model="Regenerar" method="post" OnSubmit="RegenerarCodigosAsync" FormName="regenerar-codigos">
+                <label for="codigo-regenerar">@Textos["CodigosVerificarAutenticador"]</label>
+                <InputText id="codigo-regenerar" @bind-Value="Regenerar!.Codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="12" />
                 <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">@Textos["CodigosRegenerar"]</Boton>
             </EditForm>
         </section>
@@ -230,9 +233,10 @@
     [SupplyParameterFromForm]
     private DatosEntrada? Entrada { get; set; }
 
-    // Sin campos: el formulario de regenerar solo lleva la intención (y el token
-    // antiforgery que EditForm añade). EditForm y no un <form> suelto, como el resto
-    // de formularios de esta página estática.
+    // Un solo campo: el código TOTP actual, que reautentica a quien regenera con un
+    // factor independiente de la sesión (S-A-2); una sesión robada no basta para
+    // obtener códigos nuevos. EditForm y no un <form> suelto, como el resto de
+    // formularios de esta página estática.
     [SupplyParameterFromForm(FormName = "regenerar-codigos")]
     private DatosRegenerar? Regenerar { get; set; }
 
@@ -362,7 +366,7 @@
         // menú y los gates de rol dependen de una claims transformation que solo
         // se recalcula en una carga nueva), y los códigos se generan después
         // desde esta misma página.
-        var codigos = await Mediator.Send(new GenerarCodigosRecuperacionCommand());
+        var codigos = await Mediator.Send(new GenerarCodigosRecuperacionCommand(codigoLimpio));
         if (codigos.EsFallido)
         {
             LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
@@ -380,10 +384,31 @@
     {
         if (_usuario is null || !_dosFactoresActivo) return;
 
-        var codigos = await Mediator.Send(new GenerarCodigosRecuperacionCommand());
+        // Mismo cerrojo no bloqueante que LoginCon2fa (verificar-2fa:{userId}): la página es SSR
+        // estática y dos POST concurrentes no se ven entre sí. Sin él, N códigos en paralelo
+        // cargarían la cuenta con el mismo ConcurrencyStamp y solo un AccessFailedAsync ganaría,
+        // de modo que N intentos sumarían un único fallo al bloqueo de la cuenta (S-A-2).
+        CaeManager.Domain.Common.Result<IReadOnlyList<string>>? resultadoObtenido = null;
+        var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
+            $"verificar-2fa:{_usuario.Id}",
+            async _ => resultadoObtenido = await Mediator.Send(new GenerarCodigosRecuperacionCommand(Regenerar?.Codigo ?? "")),
+            CancellationToken.None);
+        if (!ejecutado)
+        {
+            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogWarning("Regeneración de códigos de recuperación rechazada, ya había una verificación en curso: {UsuarioId}", _usuario.Id);
+            mensajeError = Textos["CodigosVerificacionEnCurso"];
+            return;
+        }
+
+        // ejecutado == true garantiza que el delegado corrió y asignó el resultado.
+        var codigos = resultadoObtenido!;
         if (codigos.EsFallido)
         {
-            mensajeError = codigos.Error.Mensaje;
+            LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog)
+                .LogWarning("Regeneración de códigos de recuperación rechazada: {UsuarioId} ({Codigo})", _usuario.Id, codigos.Error.Codigo);
+            mensajeError = codigos.Error.Codigo == "SegundoFactor.VerificacionFallida"
+                ? Textos["CodigosVerificacionFallida"] : codigos.Error.Mensaje;
             return;
         }
 
@@ -445,5 +470,5 @@
         public string Codigo { get; set; } = string.Empty;
     }
 
-    private sealed class DatosRegenerar;
+    private sealed class DatosRegenerar { public string Codigo { get; set; } = string.Empty; }
 }
