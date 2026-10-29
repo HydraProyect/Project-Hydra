@@ -1,4 +1,4 @@
-﻿using System.Text.RegularExpressions;
+using System.Text.RegularExpressions;
 using FluentAssertions;
 
 namespace CaeManager.Architecture.Tests;
@@ -441,6 +441,14 @@ public class ProhibicionSqlCrudoYFiltrosIgnoradosTests
         // transacción abierta.
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "return dbContext.Database.ExecuteSqlAsync(")] = 1,
         [("src/CaeManager.Infrastructure/Persistence/BloqueoCarteraUsuario.cs", "await dbContext.Database.ExecuteSqlAsync(")] = 1,
+
+        // ASVS V2.8.4: el último paso TOTP aceptado de la cuenta se guarda con una comparación e
+        // intercambio atómica (INSERT … ON CONFLICT DO UPDATE … WHERE valor = el leído), para que dos
+        // envíos simultáneos del mismo código o dos réplicas no lo acepten los dos. EF Core no tiene
+        // equivalente sin pasar por UserManager, que guardaría la cuenta entera y dejaría una fila
+        // permanente en RegistrosAuditoria por cada inicio de sesión. AspNetUserTokens no tiene RLS ni
+        // filtro global; la sentencia va parametrizada y solo toca la fila de esa cuenta.
+        [("src/CaeManager.Infrastructure/Identity/RegistroUltimoPasoTotp.cs", "await Contexto.Database.ExecuteSqlAsync($\"\"\"")] = 1,
 
         // Estado materializado (PR 3 y 3b): el escritor compara con lo guardado por lotes con unnest (borra lo que sobra,
         // actualiza solo las columnas calculadas de lo que cambió e inserta lo nuevo), una sentencia por tabla más la de la

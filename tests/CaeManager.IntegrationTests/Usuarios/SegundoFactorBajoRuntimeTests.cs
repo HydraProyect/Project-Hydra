@@ -91,6 +91,80 @@ public class SegundoFactorBajoRuntimeTests
         cuenta!.AccessFailedCount.Should().Be(1, "el código erróneo cuenta en el bloqueo de la cuenta y se persiste aunque el comando falle");
     }
 
+    /// <summary>
+    /// ASVS V2.8.4 bajo el rol de runtime: el TOTP que ya regeneró los códigos no vale una segunda vez
+    /// desde otra petición (otro ámbito, como otra réplica), cuenta como intento fallido, y el del paso
+    /// siguiente sí vale.
+    /// </summary>
+    [Fact]
+    public async Task Un_TOTP_ya_aceptado_no_vale_otra_vez_y_el_del_paso_siguiente_si()
+    {
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId, "Consulta");
+        await CrearUsuarioCon2faAsync(arnes, usuarioId, "reuso-totp@caemanager.local", TenantA);
+        string clave;
+        using (var lectura = arnes.Servicios.CreateScope())
+        {
+            var um = lectura.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            clave = (await um.GetAuthenticatorKeyAsync((await um.FindByIdAsync(usuarioId.ToString()))!))!;
+        }
+        var codigo = CodigoTotp(clave);
+
+        using (var primera = arnes.Servicios.CreateScope())
+            (await Puerto(primera.ServiceProvider).GenerarCodigosRecuperacionAsync(usuarioId, 10, codigo))
+                .EsExitoso.Should().BeTrue("control positivo: el código del paso actual vale la primera vez");
+        var trasLaPrimera = await LeerFilaCodigosAsync(arnes.CadenaPropietario, usuarioId);
+
+        using (var repeticion = arnes.Servicios.CreateScope())
+        {
+            var resultado = await Puerto(repeticion.ServiceProvider).GenerarCodigosRecuperacionAsync(usuarioId, 10, codigo);
+            resultado.Error.Codigo.Should().Be("SegundoFactor.VerificacionFallida", "un código ya aceptado no vuelve a valer");
+        }
+        (await LeerFilaCodigosAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(trasLaPrimera);
+        using (var lectura = arnes.Servicios.CreateScope())
+            (await lectura.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>()
+                    .FindByIdAsync(usuarioId.ToString()))!
+                .AccessFailedCount.Should().Be(1, "repetir el código cuenta en el bloqueo de la cuenta");
+
+        using (var siguiente = arnes.Servicios.CreateScope())
+            (await Puerto(siguiente.ServiceProvider).GenerarCodigosRecuperacionAsync(usuarioId, 10, CodigoTotp(clave, pasosDespues: 1)))
+                .EsExitoso.Should().BeTrue("el código del paso siguiente sí vale");
+    }
+
+    /// <summary>
+    /// La comparación e intercambio del último paso TOTP aceptado (RegistroUltimoPasoTotpPostgres) bajo el
+    /// rol de runtime: de dos verificaciones que leyeron el mismo valor, solo la primera en escribir guarda,
+    /// también cuando aún no había fila. Es lo que impide que dos envíos simultáneos del mismo código, o
+    /// dos réplicas, lo acepten los dos (V2.8.4).
+    /// </summary>
+    [Fact]
+    public async Task De_dos_verificaciones_que_leyeron_lo_mismo_solo_una_guarda_el_paso()
+    {
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId, "Consulta");
+        await CrearUsuarioCon2faAsync(arnes, usuarioId, "carrera-totp@caemanager.local", TenantA);
+        using var primera = arnes.Servicios.CreateScope();
+        using var segunda = arnes.Servicios.CreateScope();
+        var registroA = primera.ServiceProvider.GetRequiredService<IRegistroUltimoPasoTotp>();
+        var registroB = segunda.ServiceProvider.GetRequiredService<IRegistroUltimoPasoTotp>();
+
+        var leidoA = await registroA.LeerAsync(usuarioId);
+        var leidoB = await registroB.LeerAsync(usuarioId);
+        leidoA.Should().BeNull("control: todavía no se aceptó ningún código");
+
+        (await registroA.SustituirAsync(usuarioId, leidoA, "100:AAAA")).Should().BeTrue();
+        (await registroB.SustituirAsync(usuarioId, leidoB, "100:AAAA")).Should().BeFalse(
+            "la fila ya existe: la segunda pierde la carrera del alta");
+
+        var actual = await registroB.LeerAsync(usuarioId);
+        actual.Should().Be("100:AAAA");
+        (await registroA.SustituirAsync(usuarioId, actual, "101:AAAA")).Should().BeTrue();
+        (await registroB.SustituirAsync(usuarioId, actual, "101:AAAA")).Should().BeFalse(
+            "el valor cambió desde que lo leyó: la segunda pierde la carrera de la actualización");
+        (await registroB.LeerAsync(usuarioId)).Should().Be("101:AAAA");
+        (await ContarTokensAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(2, "la clave y una sola fila del paso");
+    }
+
     [Fact]
     public async Task Regenerar_invalida_los_codigos_anteriores()
     {
@@ -99,7 +173,8 @@ public class SegundoFactorBajoRuntimeTests
         await CrearUsuarioCon2faAsync(arnes, usuarioId, "regenerar@caemanager.local", TenantA);
 
         var primeros = await GenerarAsync(arnes);
-        var segundos = await GenerarAsync(arnes);
+        // El código del mismo paso ya se usó (V2.8.4): la segunda vez, el del paso siguiente.
+        var segundos = await GenerarAsync(arnes, pasosDespues: 1);
 
         segundos.Should().NotIntersectWith(primeros);
         await EnAmbitoAsync(arnes, async um =>
@@ -132,7 +207,7 @@ public class SegundoFactorBajoRuntimeTests
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         (await Leer2faActivaAsync(arnes.CadenaPropietario, afectadoId)).Should().BeFalse();
         (await ContarTokensAsync(arnes.CadenaPropietario, afectadoId)).Should().Be(0,
-            "se borran la clave del autenticador y los códigos de recuperación");
+            "se borran la clave del autenticador, los códigos de recuperación y el último paso TOTP aceptado");
         (await LeerSelloAsync(arnes.CadenaPropietario, afectadoId)).Should().NotBe(selloAntes,
             "el sello nuevo cierra las sesiones abiertas de la cuenta");
 
@@ -237,14 +312,14 @@ public class SegundoFactorBajoRuntimeTests
         sp.GetRequiredService<CaeManagerDbContext>(),
         new PuertaAccesoDatos());
 
-    private static async Task<IReadOnlyList<string>> GenerarAsync(ArnesDeArranqueRuntime arnes)
+    private static async Task<IReadOnlyList<string>> GenerarAsync(ArnesDeArranqueRuntime arnes, int pasosDespues = 0)
     {
         using var ambito = arnes.Servicios.CreateScope();
         var sp = ambito.ServiceProvider;
         var um = sp.GetRequiredService<UserManager<ApplicationUser>>();
         var usuarioId = (await sp.GetRequiredService<ICurrentUserService>().ObtenerUsuarioActualIdAsync())!.Value;
         var usuario = (await um.FindByIdAsync(usuarioId.ToString()))!;
-        var codigo = CodigoTotp((await um.GetAuthenticatorKeyAsync(usuario))!);
+        var codigo = CodigoTotp((await um.GetAuthenticatorKeyAsync(usuario))!, pasosDespues);
         var handler = new GenerarCodigosRecuperacionCommandHandler(
             sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<IActorAuditoria>(), Puerto(sp));
         var resultado = await handler.Handle(new GenerarCodigosRecuperacionCommand(codigo), default);
@@ -261,17 +336,18 @@ public class SegundoFactorBajoRuntimeTests
         var resultado = await Puerto(ambito.ServiceProvider)
             .GenerarCodigosRecuperacionAsync(usuarioId, CodigosRecuperacion.Cantidad, codigo);
         resultado.EsExitoso.Should().BeTrue();
-        (await ContarTokensAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(2,
-            "control positivo: antes de restablecer hay clave y códigos que borrar");
+        (await ContarTokensAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(3,
+            "control positivo: antes de restablecer hay clave, códigos y último paso TOTP aceptado que borrar");
     }
 
-    private static string CodigoTotp(string claveBase32)
+    /// <summary>TOTP de RFC 6238 del paso actual, o de <paramref name="pasosDespues"/> pasos después.</summary>
+    private static string CodigoTotp(string claveBase32, int pasosDespues = 0)
     {
         const string alfabeto = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
         var bits = string.Concat(claveBase32.TrimEnd('=').ToUpperInvariant()
             .Select(c => Convert.ToString(alfabeto.IndexOf(c), 2).PadLeft(5, '0')));
         var clave = Enumerable.Range(0, bits.Length / 8).Select(i => Convert.ToByte(bits.Substring(i * 8, 8), 2)).ToArray();
-        var paso = BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30);
+        var paso = BitConverter.GetBytes(DateTimeOffset.UtcNow.ToUnixTimeSeconds() / 30 + pasosDespues);
         if (BitConverter.IsLittleEndian) Array.Reverse(paso);
         var hash = System.Security.Cryptography.HMACSHA1.HashData(clave, paso);
         var offset = hash[^1] & 15;

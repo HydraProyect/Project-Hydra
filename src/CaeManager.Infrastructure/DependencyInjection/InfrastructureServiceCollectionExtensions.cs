@@ -159,8 +159,14 @@ public static class InfrastructureServiceCollectionExtensions
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
             .AddDefaultTokenProviders()
+            // Detrás de AddDefaultTokenProviders, con su mismo nombre: sustituye al proveedor del
+            // autenticador de serie por uno en el que un código TOTP aceptado no vuelve a valer
+            // (ASVS V2.8.4). Lo usan el login, el alta del autenticador y la reautenticación.
+            .AddTokenProvider<ProveedorTotpDeUnSoloUso>(TokenOptions.DefaultAuthenticatorProvider)
             // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
             .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
+
+        services.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
 
         services.AddSingleton(sp =>
         {
