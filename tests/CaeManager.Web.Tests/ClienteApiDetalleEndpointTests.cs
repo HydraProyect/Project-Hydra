@@ -42,6 +42,11 @@ public class ClienteApiDetalleEndpointTests
         json.RootElement.EnumerateObject().Select(p => p.Name).Should().Equal(
             "id", "razonSocial", "cif", "esCritico", "creadoEnUtc", "ejecutivoUsuarioId", "version");
         json.RootElement.GetProperty("id").GetGuid().Should().Be(Detalle.Id);
+        json.RootElement.GetProperty("razonSocial").GetString().Should().Be(Detalle.RazonSocial);
+        json.RootElement.GetProperty("cif").GetString().Should().Be(Detalle.Cif);
+        json.RootElement.GetProperty("esCritico").GetBoolean().Should().Be(Detalle.EsCritico);
+        json.RootElement.GetProperty("creadoEnUtc").GetDateTime().Should().Be(Detalle.CreadoEnUtc);
+        json.RootElement.GetProperty("version").GetGuid().Should().Be(Detalle.Version);
         json.RootElement.GetProperty("ejecutivoUsuarioId").GetGuid().Should().Be(GestorCaeUsuarioId);
     }
 
