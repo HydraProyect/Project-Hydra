@@ -86,6 +86,7 @@ public class DrawerAsignacionMasivaYaAsignadosTests : BunitContext
         var mediador = new MediatorFalso();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
+        Services.AddLocalization();
 
         var cut = Render<DrawerAsignacionMasiva>(p => p.Add(d => d.OnGuardado, () => Task.CompletedTask));
         IReadOnlySet<Guid>? yaAsignados = conYaAsignados ? new HashSet<Guid> { YaAsignado } : null;

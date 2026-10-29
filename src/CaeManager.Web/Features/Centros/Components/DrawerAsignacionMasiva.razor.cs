@@ -13,7 +13,6 @@ namespace CaeManager.Web.Features.Centros.Components;
 
 public partial class DrawerAsignacionMasiva : ComponentBase
 {
-    private Drawer? _drawer;
     /// <summary>Se dispara tras guardar con éxito — el host decide qué refrescar (una fila, la lista completa).</summary>
     [Parameter] public EventCallback OnGuardado { get; set; }
 
