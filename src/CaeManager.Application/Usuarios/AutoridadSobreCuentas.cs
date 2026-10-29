@@ -121,10 +121,18 @@ public static class AutoridadSobreCuentas
     /// quien lo pide— o corregirle el correo equivale a quedarse con la cuenta, es decir, a
     /// conceder Administrador a quien la active. Solo lo hace un Administrador (revisión
     /// puente del incremento del 2026-10-30).
+    ///
+    /// <para>
+    /// Una cuenta pendiente <b>sin rol</b> cuenta igual: es lo que deja el alta de un
+    /// Administrador cuando la asignación del rol falla después de crear la cuenta, y un
+    /// Administrador la completará asignándole el rol. Si Dirección CAE pudiera reenviarle
+    /// o corregirle el enlace antes, se quedaría con la cuenta que luego recibe Administrador.
+    /// </para>
     /// </summary>
     public static async Task<Result> VerificarActivacionDeCuentaAdministradorAsync(
         IReadOnlyCollection<string> rolesDestino, ICurrentUserService currentUserService) =>
-        rolesDestino.Contains(Administrador) && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
+        (rolesDestino.Count == 0 || rolesDestino.Contains(Administrador))
+        && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
             ? Result.Fallo(SoloUnAdministradorActivaAdministrador)
             : Result.Exito();
 

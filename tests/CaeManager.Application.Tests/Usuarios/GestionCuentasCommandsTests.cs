@@ -583,10 +583,13 @@ public class GestionCuentasCommandsTests
     /// lo pide, así que reenviarlo o corregir el correo de un Administrador pendiente es
     /// quedarse con la cuenta. Dirección CAE no concede Administrador, tampoco así.
     /// </summary>
-    [Fact]
-    public async Task Direccion_CAE_no_emite_ni_corrige_el_enlace_de_un_Administrador_pendiente()
+    // Sin rol: lo que deja el alta de un Administrador cuyo rol no llegó a asignarse.
+    [Theory]
+    [InlineData("Administrador")]
+    [InlineData(null)]
+    public async Task Direccion_CAE_no_emite_ni_corrige_el_enlace_de_un_Administrador_pendiente(string? rol)
     {
-        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Administrador", pendiente: true) };
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia(rol, pendiente: true) };
         var actor = ActorCon("DireccionCae");
 
         (await new GenerarActivacionUsuarioCommandHandler(puerto, actor, EnSuTenant).Handle(new(Cuenta), default))

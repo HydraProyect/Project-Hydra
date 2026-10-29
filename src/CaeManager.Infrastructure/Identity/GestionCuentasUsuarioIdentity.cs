@@ -247,7 +247,6 @@ public class GestionCuentasUsuarioIdentity(
             return Result.Exito(WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token)));
         }, cancellationToken);
 
-    /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
     /// <summary>
     /// SEG-1: rota el sello de una cuenta cuyo rol cambia, para que su sesión abierta se
     /// revalide. Una cuenta pendiente de activación (sin contraseña ni acceso externo) no
@@ -261,6 +260,7 @@ public class GestionCuentasUsuarioIdentity(
             usuario.RotarSelloDeSeguridad();
     }
 
+    /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
     private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
         string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
 
