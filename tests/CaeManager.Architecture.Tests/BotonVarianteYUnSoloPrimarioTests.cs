@@ -55,7 +55,8 @@ public class BotonVarianteYUnSoloPrimarioTests
     /// </summary>
     private static readonly IReadOnlyDictionary<string, int> PrimariosPermitidosPorSuperficie = new Dictionary<string, int>(StringComparer.Ordinal)
     {
-        ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 4,
+        // 6 el 2026-10-29 (reautenticación antes del alta del TOTP, ASVS V3.7.1): «Continuar» con la contraseña y «Volver a iniciar sesión con Microsoft» son ramas excluyentes entre sí y con el resto de estados de la página (alta, códigos, 2FA activa), así que siempre hay un solo primario pintado.
+        ["src/CaeManager.Web/Components/Account/Pages/ConfigurarAutenticadorDosFactores.razor"] = 6,
         // 2 el 2026-10-21 (404 con volver a la lista): el primario de «Volver a la lista de…» (línea 53) y el de la pantalla principal (línea 56) son ramas excluyentes: la línea 56 pasa a Secundario cuando hay lista, así que siempre hay un solo primario pintado.
         ["src/CaeManager.Web/Components/Pages/PaginaEstadoSistema.razor"] = 2,
         ["src/CaeManager.Web/Components/Workspace/PestanaAgendaContactos.razor"] = 2,

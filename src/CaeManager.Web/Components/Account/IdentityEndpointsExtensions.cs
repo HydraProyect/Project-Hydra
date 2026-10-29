@@ -70,7 +70,7 @@ public static class IdentityEndpointsExtensions
         // llegue aquí ningún código nuestro; RedirectUri es a dónde se manda
         // al navegador después de que ese middleware ya haya firmado la
         // cookie externa temporal.
-        endpoints.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl) => InicioSesionMicrosoft.Desafiar(returnUrl))
+        endpoints.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl, bool? reautenticar) => InicioSesionMicrosoft.Desafiar(returnUrl, reautenticar == true))
             .AllowAnonymous();
 
         // A dónde vuelve el navegador ya con la cookie externa temporal

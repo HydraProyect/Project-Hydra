@@ -244,8 +244,12 @@ public class InicioSesionMicrosoftTests
 
     // ── Redirección a Microsoft ─────────────────────────────────────────────
 
-    [Fact]
-    public async Task El_boton_redirige_a_Microsoft_con_codigo_PKCE_estado_y_nonce()
+    // Con reautenticar=true (alta del TOTP, ASVS V3.7.1) Microsoft debe volver a pedir las
+    // credenciales: prompt=login. Sin él, el inicio normal no fuerza nada.
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task El_boton_redirige_a_Microsoft_con_codigo_PKCE_estado_y_nonce(bool reautenticar)
     {
         var opciones = OpcionesCompletas();
         var autorizacion = $"https://login.microsoftonline.com/{opciones.TenantId}/oauth2/v2.0/authorize";
@@ -275,12 +279,13 @@ public class InicioSesionMicrosoftTests
 
         await using var app = builder.Build();
         app.UseAuthentication();
-        app.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl) => InicioSesionMicrosoft.Desafiar(returnUrl));
+        app.MapGet("/cuenta/iniciar-sesion-microsoft", (string? returnUrl, bool? reautenticar) => InicioSesionMicrosoft.Desafiar(returnUrl, reautenticar == true));
         await app.StartAsync();
 
         var origen = app.Urls.Single();
         using var cliente = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false });
-        using var respuesta = await cliente.GetAsync($"{origen}/cuenta/iniciar-sesion-microsoft?returnUrl=%2Fdocumentos");
+        var consulta = reautenticar ? "reautenticar=true&returnUrl=%2Fdocumentos" : "returnUrl=%2Fdocumentos";
+        using var respuesta = await cliente.GetAsync($"{origen}/cuenta/iniciar-sesion-microsoft?{consulta}");
 
         respuesta.StatusCode.Should().Be(HttpStatusCode.Redirect);
         var destino = respuesta.Headers.Location!;
@@ -296,6 +301,10 @@ public class InicioSesionMicrosoftTests
         parametros["state"].ToString().Should().NotBeNullOrWhiteSpace();
         parametros["nonce"].ToString().Should().NotBeNullOrWhiteSpace();
         parametros.Should().NotContainKey("client_secret", "el secreto nunca viaja en la redirección del navegador");
+        if (reautenticar)
+            parametros["prompt"].ToString().Should().Be("login", "el alta del TOTP no se abre con la sesión silenciosa de Microsoft");
+        else
+            parametros.Should().NotContainKey("prompt");
         destino.Query.Should().NotContain(opciones.ClientSecret!);
 
         // Nonce y correlación en cookies HttpOnly: sin ellas no se valida la vuelta.

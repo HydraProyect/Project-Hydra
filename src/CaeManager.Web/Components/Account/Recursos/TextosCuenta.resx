@@ -174,4 +174,12 @@
   <data name="CodigosVerificacionFallida" xml:space="preserve"><value>No se pudo verificar el código o la cuenta está bloqueada.</value></data>
   <data name="CodigosVerificacionEnCurso" xml:space="preserve"><value>Ya se está verificando un código para esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
   <data name="CambiarContrasenaVerificacionFallida" xml:space="preserve"><value>No se pudo verificar la contraseña actual o la cuenta está bloqueada.</value></data>
+  <data name="ReautenticacionTitulo" xml:space="preserve"><value>Confirma que eres tú</value></data>
+  <data name="ReautenticacionContrasenaAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a introducir tu contraseña.</value></data>
+  <data name="ReautenticacionContrasena" xml:space="preserve"><value>Contraseña actual</value></data>
+  <data name="ReautenticacionContinuar" xml:space="preserve"><value>Continuar</value></data>
+  <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Por seguridad, antes de configurar un segundo factor tienes que volver a iniciar sesión con Microsoft.</value></data>
+  <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Volver a iniciar sesión con Microsoft</value></data>
+  <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ya se está verificando esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha pasado demasiado tiempo desde que confirmaste tu identidad. Vuelve a confirmarla para activar la autenticación en dos pasos.</value></data>
 </root>

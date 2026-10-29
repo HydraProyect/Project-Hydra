@@ -156,16 +156,43 @@ public class SignInManagerCuentaDesactivada(
     /// Falla en cerrado: sin marca, con un valor que no es un instante, o con un instante futuro
     /// más allá del margen de reloj.
     /// </summary>
-    public static bool TotpEsReciente(ClaimsPrincipal? principal, DateTimeOffset ahora)
+    public static bool TotpEsReciente(ClaimsPrincipal? principal, DateTimeOffset ahora) =>
+        MarcaEsReciente(principal, ClaimTotpSesion, VentanaTotpReciente, ahora);
+
+    /// <summary>
+    /// Instante (segundos Unix, UTC) en que se completó el inicio de sesión de esta cookie: contraseña
+    /// y, si la cuenta lo tiene, segundo factor; o el callback de Microsoft. Lo pone
+    /// <see cref="SignInWithClaimsAsync"/> solo al emitir una sesión nueva, y lo conservan con su valor
+    /// original <see cref="RefreshSignInAsync"/> y la revalidación periódica
+    /// (<see cref="ConservarMarcaAutenticacionAlRevalidar"/>): refrescar la cookie no rejuvenece la
+    /// autenticación. Lo usa el alta del TOTP para no volver a pedir la contraseña a quien acaba de
+    /// introducirla en el login (ASVS 4.0.3 V2.5, V3.7.1).
+    /// </summary>
+    public const string ClaimAutenticacionSesion = "talveg:autenticado_en";
+
+    /// <summary>Antigüedad máxima del inicio de sesión para tratarlo como una autenticación reciente.</summary>
+    public static readonly TimeSpan VentanaAutenticacionReciente = TimeSpan.FromMinutes(10);
+
+    /// <summary>
+    /// Si el inicio de sesión de <paramref name="principal"/> se completó hace como mucho
+    /// <see cref="VentanaAutenticacionReciente"/>. Falla en cerrado igual que <see cref="TotpEsReciente"/>:
+    /// una cookie emitida antes de existir la marca no la lleva y no cuenta como reciente.
+    /// </summary>
+    public static bool AutenticacionEsReciente(ClaimsPrincipal? principal, DateTimeOffset ahora) =>
+        MarcaEsReciente(principal, ClaimAutenticacionSesion, VentanaAutenticacionReciente, ahora);
+
+    private static bool MarcaEsReciente(ClaimsPrincipal? principal, string tipo, TimeSpan ventana, DateTimeOffset ahora)
     {
-        if (principal?.FindFirst(ClaimTotpSesion)?.Value is not { } valor
+        if (principal?.FindFirst(tipo)?.Value is not { } valor
             || !long.TryParse(valor, NumberStyles.None, CultureInfo.InvariantCulture, out var segundos)
             || segundos > DateTimeOffset.MaxValue.ToUnixTimeSeconds())
             return false;
 
         var verificado = DateTimeOffset.FromUnixTimeSeconds(segundos);
-        return verificado <= ahora + MargenRelojTotp && ahora - verificado <= VentanaTotpReciente;
+        return verificado <= ahora + MargenRelojTotp && ahora - verificado <= ventana;
     }
+
+    private string? _marcaAutenticacionConservada;
 
     /// <summary>
     /// <c>RefreshSignInAsync</c> (cambiar la contraseña, activar el segundo factor) reemite la cookie
@@ -184,6 +211,7 @@ public class SignInManagerCuentaDesactivada(
         var mismaCuenta = autenticada.Principal is { } principal
             && UserManager.GetUserId(principal) == user.Id.ToString();
         _marcaTotpConservada = mismaCuenta ? autenticada.Principal!.FindFirst(ClaimTotpSesion)?.Value : null;
+        _marcaAutenticacionConservada = mismaCuenta ? autenticada.Principal!.FindFirst(ClaimAutenticacionSesion)?.Value : null;
         // Refrescar la cookie no abre una sesión nueva: conserva su identificador (y con él su
         // revocación). Sin cookie de la misma cuenta, la emisión registra una sesión nueva.
         _sidConservado = mismaCuenta ? LeerSid(autenticada.Principal) : null;
@@ -195,6 +223,7 @@ public class SignInManagerCuentaDesactivada(
         {
             _conservarMarcaSso = false;
             _marcaTotpConservada = null;
+            _marcaAutenticacionConservada = null;
             _sidConservado = null;
         }
     }
@@ -219,17 +248,36 @@ public class SignInManagerCuentaDesactivada(
         };
     }
 
-    private static void CopiarMarcaTotp(SecurityStampRefreshingPrincipalContext contexto)
+    private static void CopiarMarcaTotp(SecurityStampRefreshingPrincipalContext contexto) =>
+        CopiarMarca(contexto, ClaimTotpSesion);
+
+    /// <summary>
+    /// Engancha a <see cref="SecurityStampValidatorOptions.OnRefreshingPrincipal"/> la conservación de la
+    /// marca de inicio de sesión (<see cref="ClaimAutenticacionSesion"/>), con el mismo criterio que
+    /// <see cref="ConservarMarcaTotpAlRevalidar"/>: copia el valor original de la cookie validada, de la
+    /// misma cuenta, sin rejuvenecerlo; nunca la crea donde no estaba. Respeta un gancho anterior.
+    /// </summary>
+    public static void ConservarMarcaAutenticacionAlRevalidar(SecurityStampValidatorOptions opciones)
+    {
+        var anterior = opciones.OnRefreshingPrincipal;
+        opciones.OnRefreshingPrincipal = async contexto =>
+        {
+            if (anterior is not null) await anterior(contexto);
+            CopiarMarca(contexto, ClaimAutenticacionSesion);
+        };
+    }
+
+    private static void CopiarMarca(SecurityStampRefreshingPrincipalContext contexto, string tipo)
     {
         if (contexto.NewPrincipal?.Identity is not ClaimsIdentity nueva) return;
-        foreach (var ajena in nueva.FindAll(ClaimTotpSesion).ToList())
+        foreach (var ajena in nueva.FindAll(tipo).ToList())
             nueva.RemoveClaim(ajena);
 
         var actual = contexto.CurrentPrincipal;
-        if (actual?.FindFirst(ClaimTotpSesion)?.Value is { } marca
+        if (actual?.FindFirst(tipo)?.Value is { } marca
             && actual.FindFirst(ClaimTypes.NameIdentifier)?.Value is { } cuentaActual
             && cuentaActual == contexto.NewPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value)
-            nueva.AddClaim(new Claim(ClaimTotpSesion, marca));
+            nueva.AddClaim(new Claim(tipo, marca));
     }
 
     /// <summary>
@@ -292,8 +340,9 @@ public class SignInManagerCuentaDesactivada(
     public override async Task SignInWithClaimsAsync(
         ApplicationUser user, AuthenticationProperties? authenticationProperties, IEnumerable<Claim> additionalClaims)
     {
-        // La marca y el identificador de sesión solo los escribe este tipo: se descarta cualquier otro que llegue.
-        additionalClaims = additionalClaims.Where(c => c.Type != ClaimTotpSesion && c.Type != ClaimSid);
+        // Las marcas y el identificador de sesión solo los escribe este tipo: se descarta cualquier otro que llegue.
+        additionalClaims = additionalClaims.Where(c =>
+            c.Type != ClaimTotpSesion && c.Type != ClaimSid && c.Type != ClaimAutenticacionSesion);
         var marcaTotp = _verificandoTotp
             ? DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
             : _marcaTotpConservada;
@@ -315,6 +364,11 @@ public class SignInManagerCuentaDesactivada(
         // Una sesión nueva (contraseña, segundo factor, callback de Microsoft) se registra antes de
         // emitir la cookie; si el registro falla, no se emite. Un refresco conserva la suya.
         var sid = _sidConservado;
+        // La marca de inicio de sesión acompaña al identificador: una sesión nueva la pone con el
+        // instante de ahora y un refresco conserva la de su cookie, sin rejuvenecerla.
+        var marcaAutenticacion = sid is null
+            ? DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture)
+            : _marcaAutenticacionConservada;
         if (sid is { } conservado && !await sesiones.EstaVigenteAsync(user.Id, conservado))
         {
             // Un refresco (cambiar la contraseña, activar el segundo factor) no reemite la cookie de una
@@ -331,6 +385,8 @@ public class SignInManagerCuentaDesactivada(
             await RevocarSesionQueSustituyeAsync();
         }
         additionalClaims = additionalClaims.Append(new Claim(ClaimSid, sid.Value.ToString("N")));
+        if (marcaAutenticacion is not null)
+            additionalClaims = additionalClaims.Append(new Claim(ClaimAutenticacionSesion, marcaAutenticacion));
 
         await base.SignInWithClaimsAsync(user, authenticationProperties, ConMarcaDeInicioConMicrosoft(additionalClaims));
     }

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -49,11 +50,165 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddSingleton<ILoggerFactory>(new LoggerFactory([_registro]));
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
-        Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(UsuarioId));
+        Services.AddSingleton<AuthenticationStateProvider>(_autenticacion);
         Services.AddSingleton<CaeManager.Infrastructure.Coordinacion.IEleccionLiderService>(_cerrojo);
+        Services.AddSingleton<Microsoft.AspNetCore.DataProtection.IDataProtectionProvider>(
+            new Microsoft.AspNetCore.DataProtection.EphemeralDataProtectionProvider());
     }
 
     private readonly CerrojoVerificacionFalso _cerrojo = new();
+    private readonly AutenticacionFalsa _autenticacion = new(UsuarioId);
+
+    private const string ContrasenaCorrecta = "Contrasena-De-Prueba-1";
+
+    private void SinAutenticacionReciente(bool conContrasena = true)
+    {
+        _autenticacion.Reciente = false;
+        _almacen.Usuario!.PasswordHash = conContrasena
+            ? new PasswordHasher<ApplicationUser>().HashPassword(_almacen.Usuario, ContrasenaCorrecta)
+            : null;
+    }
+
+    private static async Task EnviarContrasenaAsync(IRenderedComponent<ConfigurarAutenticadorDosFactores> cut, string contrasena)
+    {
+        await cut.Find("#contrasena-actual").ChangeAsync(new ChangeEventArgs { Value = contrasena });
+        await cut.Find("form").SubmitAsync();
+    }
+
+    // ASVS 4.0.3 V2.5 / V3.7.1: dar de alta el factor exige una autenticación reciente.
+
+    [Fact]
+    public void Sin_autenticacion_reciente_pide_la_contrasena_y_no_genera_ni_ensena_la_clave()
+    {
+        SinAutenticacionReciente();
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        cut.FindAll("#contrasena-actual").Should().ContainSingle();
+        cut.Find("#contrasena-actual").GetAttribute("type").Should().Be("password");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty("una sesión sin autenticación reciente no ve la clave");
+        cut.FindAll(".clave-manual").Should().BeEmpty();
+        cut.FindAll(".uri-otpauth").Should().BeEmpty();
+        cut.FindAll("#codigo").Should().BeEmpty("sin clave no hay código que confirmar");
+        _almacen.ClaveGuardada.Should().BeNull("ni siquiera se genera una clave antes de reautenticar");
+    }
+
+    [Fact]
+    public async Task Una_contrasena_erronea_cuenta_en_el_bloqueo_y_no_ensena_la_clave()
+    {
+        SinAutenticacionReciente();
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarContrasenaAsync(cut, "no-es-la-contrasena");
+
+        _almacen.FallosAcceso.Should().Be(1, "un fallo de contraseña cuenta en el mismo bloqueo que el login");
+        _cerrojo.ClaveRecibida.Should().Be($"verificar-2fa:{UsuarioId}", "comparte el cerrojo del segundo factor del login");
+        cut.Find("[role=alert]").TextContent.Trim().Should().Be("No se pudo verificar la contraseña actual o la cuenta está bloqueada.");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        _almacen.ClaveGuardada.Should().BeNull();
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("contraseña incorrecta o cuenta bloqueada"));
+    }
+
+    [Fact]
+    public async Task Con_la_cuenta_bloqueada_ni_la_contrasena_correcta_abre_el_alta()
+    {
+        SinAutenticacionReciente();
+        _almacen.FinBloqueo = DateTimeOffset.UtcNow.AddMinutes(5);
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarContrasenaAsync(cut, ContrasenaCorrecta);
+
+        cut.Find("[role=alert]").TextContent.Trim().Should().Be("No se pudo verificar la contraseña actual o la cuenta está bloqueada.");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        _almacen.FallosAcceso.Should().Be(0, "con la cuenta bloqueada no se comprueba nada");
+    }
+
+    [Fact]
+    public async Task Con_otra_verificacion_en_curso_no_comprueba_la_contrasena()
+    {
+        SinAutenticacionReciente();
+        _cerrojo.Concede = false;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarContrasenaAsync(cut, "no-es-la-contrasena");
+
+        _almacen.FallosAcceso.Should().Be(0);
+        cut.Find("[role=alert]").TextContent.Should().Contain("Ya se está verificando esta cuenta");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task La_contrasena_correcta_ensena_la_clave_pone_a_cero_los_fallos_y_permite_el_alta()
+    {
+        SinAutenticacionReciente();
+        _almacen.FallosAcceso = 2;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarContrasenaAsync(cut, ContrasenaCorrecta);
+
+        cut.FindAll("img.qr-2fa").Should().ContainSingle();
+        cut.FindAll("#contrasena-actual").Should().BeEmpty();
+        _almacen.FallosAcceso.Should().Be(0, "como un login correcto");
+        _registro.Mensajes.Should().ContainSingle(m => m.Contains("Reautenticación con contraseña"));
+
+        await EnviarCodigoAsync(cut);
+
+        _almacen.DosFactoresActivo.Should().BeTrue();
+        _signIn.SesionReemitida.Should().BeTrue();
+    }
+
+    [Fact]
+    public void El_alta_forzada_justo_despues_del_login_no_vuelve_a_pedir_la_contrasena()
+    {
+        _gestor.EsAdministrador = true;
+        _almacen.Usuario!.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(_almacen.Usuario, ContrasenaCorrecta);
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        cut.FindAll("#contrasena-actual").Should().BeEmpty();
+        cut.FindAll("img.qr-2fa").Should().ContainSingle();
+        cut.FindAll(".dos-factores-obligatorio").Should().ContainSingle();
+        cut.Find("#prueba-reautenticacion").GetAttribute("value")
+            .Should().NotBeNullOrEmpty("la prueba de autenticación reciente viaja con el código");
+    }
+
+    [Fact]
+    public void Sin_autenticacion_reciente_el_Administrador_ve_el_aviso_y_la_contrasena()
+    {
+        SinAutenticacionReciente();
+        _gestor.EsAdministrador = true;
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        cut.FindAll(".dos-factores-obligatorio").Should().ContainSingle();
+        cut.FindAll("#contrasena-actual").Should().ContainSingle();
+    }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public void Sin_autenticacion_reciente_quien_entra_con_Microsoft_vuelve_a_iniciar_sesion_con_Microsoft(
+        bool sesionDeMicrosoft, bool conContrasena)
+    {
+        SinAutenticacionReciente(conContrasena);
+        _autenticacion.Microsoft = sesionDeMicrosoft;
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2Fsubcontratas%2F9c1d");
+
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        cut.FindAll("#contrasena-actual").Should().BeEmpty(
+            "la contraseña no sustituye al inicio con Microsoft, y una cuenta sin contraseña no tiene cuál dar");
+        cut.FindAll("img.qr-2fa").Should().BeEmpty();
+        var enlace = cut.FindAll(".tarjeta-reautenticacion a").Should().ContainSingle().Subject;
+        var href = enlace.GetAttribute("href")!;
+        href.Should().StartWith("/cuenta/iniciar-sesion-microsoft?");
+        var consulta = QueryHelpers.ParseQuery(href[href.IndexOf('?')..]);
+        consulta["reautenticar"].ToString().Should().Be("true", "Microsoft debe volver a pedir las credenciales (prompt=login)");
+        consulta["returnUrl"].ToString().Should().Be(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2Fsubcontratas%2F9c1d",
+            "tras el inicio con Microsoft se vuelve a esta página con su motivo y su destino");
+    }
 
     [Fact]
     public void Si_ResetAuthenticatorKeyAsync_falla_no_enseña_un_QR_que_el_servidor_no_guardo()
@@ -355,11 +510,26 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         await cut.Find("form").SubmitAsync();
     }
 
+    /// <summary>
+    /// Por defecto, una sesión recién iniciada con contraseña: la marca de inicio reciente abre el
+    /// alta sin volver a pedirla, como en el alta forzada justo después del login.
+    /// </summary>
     private sealed class AutenticacionFalsa(Guid usuarioId) : AuthenticationStateProvider
     {
-        public override Task<AuthenticationState> GetAuthenticationStateAsync() =>
-            Task.FromResult(new AuthenticationState(new ClaimsPrincipal(
-                new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba"))));
+        public bool Reciente { get; set; } = true;
+        public bool Microsoft { get; set; }
+
+        public override Task<AuthenticationState> GetAuthenticationStateAsync()
+        {
+            var identidad = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, usuarioId.ToString())], "prueba");
+            var inicio = Reciente ? DateTimeOffset.UtcNow : DateTimeOffset.UtcNow.AddHours(-1);
+            identidad.AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion,
+                inicio.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)));
+            if (Microsoft)
+                identidad.AddClaim(new Claim(RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
+                    RestriccionLoginLocalClaimsTransformation.MetodoLoginSso));
+            return Task.FromResult(new AuthenticationState(new ClaimsPrincipal(identidad)));
+        }
     }
 
     /// <summary>
@@ -474,8 +644,44 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         IUserEmailStore<ApplicationUser>,
         IUserAuthenticatorKeyStore<ApplicationUser>,
         IUserTwoFactorStore<ApplicationUser>,
-        IUserTwoFactorRecoveryCodeStore<ApplicationUser>
+        IUserTwoFactorRecoveryCodeStore<ApplicationUser>,
+        IUserPasswordStore<ApplicationUser>,
+        IUserLockoutStore<ApplicationUser>
     {
+        // Reautenticación con contraseña antes del alta: el hash vive en el propio usuario, y el
+        // bloqueo en estos dos campos, que es lo que AccessFailedAsync y el reinicio tocan.
+        public int FallosAcceso { get; set; }
+        public DateTimeOffset? FinBloqueo { get; set; }
+        public string? ClaveGuardada => _claveAutenticador;
+
+        public Task SetPasswordHashAsync(ApplicationUser user, string? passwordHash, CancellationToken ct)
+        {
+            user.PasswordHash = passwordHash;
+            return Task.CompletedTask;
+        }
+
+        public Task<string?> GetPasswordHashAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.PasswordHash);
+        public Task<bool> HasPasswordAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.PasswordHash is not null);
+        public Task<DateTimeOffset?> GetLockoutEndDateAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(FinBloqueo);
+
+        public Task SetLockoutEndDateAsync(ApplicationUser user, DateTimeOffset? lockoutEnd, CancellationToken ct)
+        {
+            FinBloqueo = lockoutEnd;
+            return Task.CompletedTask;
+        }
+
+        public Task<int> IncrementAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(++FallosAcceso);
+
+        public Task ResetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct)
+        {
+            FallosAcceso = 0;
+            return Task.CompletedTask;
+        }
+
+        public Task<int> GetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(FallosAcceso);
+        public Task<bool> GetLockoutEnabledAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(true);
+        public Task SetLockoutEnabledAsync(ApplicationUser user, bool enabled, CancellationToken ct) => Task.CompletedTask;
+
         // Solo para pintar la tarjeta de 2FA ya activo, que cuenta los códigos restantes.
         public Task ReplaceCodesAsync(ApplicationUser user, IEnumerable<string> recoveryCodes, CancellationToken ct) => Task.CompletedTask;
         public Task<bool> RedeemCodeAsync(ApplicationUser user, string code, CancellationToken ct) => Task.FromResult(false);

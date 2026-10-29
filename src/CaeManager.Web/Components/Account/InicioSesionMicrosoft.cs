@@ -237,14 +237,22 @@ public static class InicioSesionMicrosoft
         }
     }
 
-    /// <summary>Desafío del botón «continuar con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.</summary>
-    public static IResult Desafiar(string? returnUrl)
+    /// <summary>
+    /// Desafío del botón «continuar con Microsoft»: tras la respuesta, el navegador vuelve al callback de la cuenta.
+    /// Con <paramref name="reautenticar"/> (alta del TOTP, ASVS 4.0.3 V3.7.1) pide a Microsoft
+    /// <c>prompt=login</c>: la persona vuelve a introducir sus credenciales en vez de reutilizar en
+    /// silencio la sesión que ya tenga abierta en Microsoft.
+    /// </summary>
+    public static IResult Desafiar(string? returnUrl, bool reautenticar = false)
     {
         var destino = "/cuenta/microsoft-callback";
         if (!string.IsNullOrWhiteSpace(returnUrl))
             destino += $"?returnUrl={Uri.EscapeDataString(returnUrl)}";
 
-        return Results.Challenge(new AuthenticationProperties { RedirectUri = destino }, [IdentityEndpointsExtensions.EsquemaMicrosoft]);
+        AuthenticationProperties propiedades = reautenticar
+            ? new OpenIdConnectChallengeProperties { RedirectUri = destino, Prompt = OpenIdConnectPrompt.Login }
+            : new AuthenticationProperties { RedirectUri = destino };
+        return Results.Challenge(propiedades, [IdentityEndpointsExtensions.EsquemaMicrosoft]);
     }
 
     /// <summary>

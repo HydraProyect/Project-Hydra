@@ -237,6 +237,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
         // Ni el identificador de sesión: sin él, la cookie renovada se rechaza en la revalidación siguiente.
         services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        // Ni la marca de inicio de sesión, que el alta del TOTP lee como autenticación reciente.
+        services.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         services.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
 
         // Llavero de Data Protection: ruta, cifrado en reposo (certificado o KMS)
