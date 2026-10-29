@@ -59,8 +59,11 @@ public class DocumentosExportacionRegistroTests
         entrada.Filas.Should().Be(2);
         entrada.Criterios.Should().BeEquivalentTo(new Dictionary<string, string>
         {
-            ["busqueda"] = "true", ["estado"] = "Vencido", ["tipo"] = tipo.ToString(),
-            ["agrupar"] = "ambito", ["desc"] = "true"
+            ["busqueda"] = "true",
+            ["estado"] = "Vencido",
+            ["tipo"] = tipo.ToString(),
+            ["agrupar"] = "ambito",
+            ["desc"] = "true"
         });
     }
 
@@ -78,7 +81,8 @@ public class DocumentosExportacionRegistroTests
         registro.Registros.Should().HaveCount(2);
         registro.Registros[0].Criterios.Should().BeEquivalentTo(new Dictionary<string, string>
         {
-            ["ambito"] = "Empresa", ["plataforma"] = plataforma.ToString()
+            ["ambito"] = "Empresa",
+            ["plataforma"] = plataforma.ToString()
         });
         registro.Registros[1].Criterios.Should().BeEmpty();
     }
