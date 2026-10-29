@@ -2162,6 +2162,18 @@ public partial class TrabajadoresListaGen2Tests : BunitContext
 
         cut.Find("[role=dialog]").TextContent.Should().Contain(tituloEsperado).And.NotContain("(es)");
     }
+
+    [Fact]
+    public async Task Asignar_sin_centro_esta_deshabilitado_con_motivo()
+    {
+        var bea = Trabajador("Bea", "Alonso");
+        var cut = Renderizar(new MediatorFalso { Almacen = { bea } });
+        await AbrirAsignarACentro(cut, bea);
+        var boton = cut.FindAll("[role=dialog] .modal-pie button").Single(b => b.TextContent.Trim() == "Asignar");
+        boton.HasAttribute("disabled").Should().BeTrue();
+        boton.GetAttribute("title").Should().NotBeNullOrWhiteSpace();
+    }
+
     private static IElement BotonAsignarACentro(IRenderedComponent<Trabajadores> cut) =>
         cut.FindAll(".barra-acciones-lote button").Single(b => b.TextContent.Trim() == "Asignar a un centro");
 

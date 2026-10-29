@@ -714,4 +714,7 @@
   <data name="FormularioRapidoCrear" xml:space="preserve">
     <value>Crear</value>
   </data>
+  <data name="ModalSuscripcionObligatoria" xml:space="preserve">
+    <value>Completa l’identificador de subscripció.</value>
+  </data>
 </root>

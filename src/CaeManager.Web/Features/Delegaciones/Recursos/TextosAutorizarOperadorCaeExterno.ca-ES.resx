@@ -123,4 +123,7 @@
   <data name="AltaSinUrlPublica" xml:space="preserve">
     <value>No s’ha creat l’Operador CAE extern: no es pot generar l’enllaç d’activació perquè falta l’URL pública de l’aplicació.</value>
   </data>
+  <data name="ModalCamposObligatorios" xml:space="preserve">
+    <value>Completa els camps obligatoris.</value>
+  </data>
 </root>

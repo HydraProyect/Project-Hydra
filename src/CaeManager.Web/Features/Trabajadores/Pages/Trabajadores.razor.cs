@@ -40,7 +40,6 @@ namespace CaeManager.Web.Features.Trabajadores.Pages;
 
 public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva, IDisposable
 {
-    private Modal? _modalAsignarCentro;
     /// <summary>
     /// Se cancela al salir de la página: la resolución de la empresa activa que siga en vuelo deja de trabajar
     /// para nadie y su respuesta tardía no repinta un componente ya retirado.
@@ -1378,8 +1377,8 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private bool HayCambiosAlta => _drawerVisible && _instantanea.Difiere(ValoresFormulario());
 
     /// <summary>
-    /// P1-E2b: «hay cambios» del modal de asignar a centro, que no es un formulario de kit: sus campos comparados con cómo se
-    /// abrió. Lo lee AvisoCambiosSinGuardar; cerrado nunca hay nada que perder. «Guardar filtro» (ModalFormulario) lleva el suyo
+    /// P1-E2b: «hay cambios» del modal de asignar a centro, con sus campos comparados con cómo se
+    /// abrió. Lo lee ModalFormulario; cerrado nunca hay nada que perder. «Guardar filtro» (ModalFormulario) lleva el suyo
     /// en <see cref="HayCambiosFiltro"/>.
     /// </summary>
     private bool HayCambiosSinGuardar =>
@@ -1394,8 +1393,6 @@ public partial class Trabajadores : CaeManager.Web.Components.PaginaInteractiva,
     private object?[] ValoresAsignarCentro() => [_centroIdParaAsignar, _fechaAltaParaAsignar];
 
     private void FijarInstantaneaFormulario() => _instantanea.Fijar(ValoresFormulario());
-
-    private void CerrarFormulariosDescartando() => CerrarAsignarCentro();
 
     /// <summary>Cancelar descarta el nombre: reabrir el modal sin tocarlo no es un cambio.</summary>
     private void CerrarModalGuardarFiltro()
