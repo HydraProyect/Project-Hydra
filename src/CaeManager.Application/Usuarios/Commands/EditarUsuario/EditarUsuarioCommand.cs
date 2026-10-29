@@ -18,10 +18,20 @@ namespace CaeManager.Application.Usuarios.Commands.EditarUsuario;
 /// </para>
 ///
 /// <para>
-/// <b>Rol</b>: la regla de <see cref="RolesReservadosAlTenantDeOrigen"/> solo se
-/// aplica si el guardado <b>concede</b> el rol: conservar el que la cuenta ya tenía
-/// no es concederlo, y editar el nombre de un Administrador existente no debe
-/// bloquearse. Se decide antes de escribir nada.
+/// <b>Rol</b>: las reglas de concesión —solo un Administrador concede Administrador
+/// (<see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/>, decisión
+/// del 2026-10-30; Dirección CAE tampoco a sí misma) y la de
+/// <see cref="RolesReservadosAlTenantDeOrigen"/>— solo se aplican si el guardado
+/// <b>concede</b> el rol: conservar el que la cuenta ya tenía no es concederlo, y
+/// editar el nombre de un Administrador existente no debe bloquearse. Se decide antes
+/// de escribir nada.
+/// </para>
+///
+/// <para>
+/// <b>Sesión abierta</b> (SEG-1, auditoría 2026-10-29): cambiar el rol rota el sello de
+/// seguridad de la cuenta en la misma escritura (<see cref="IGestionCuentasUsuario.CambiarRolAsync"/>),
+/// así que la cookie y el circuito ya abiertos dejan de valer en su próxima
+/// revalidación en vez de conservar el rol anterior hasta el tope de 12 h.
 /// </para>
 ///
 /// <para>
@@ -39,7 +49,9 @@ namespace CaeManager.Application.Usuarios.Commands.EditarUsuario;
 /// <item>si quien edita es Administrador, se aplica lo pedido salvo que sea
 /// autogestión (<see cref="AutoridadSobreCuentas.EsAutogestionDelPermisoSensible"/>);</item>
 /// <item>si quien edita no es Administrador y la cuenta ya lo era, se conserva el
-/// valor guardado; si la está promoviendo, nace en <c>false</c>: nadie lo concede.</item>
+/// valor guardado; si la está promoviendo, nace en <c>false</c>: nadie lo concede
+/// (la promoción misma ya la rechaza la regla del 2026-10-30; esto queda como
+/// segunda barrera).</item>
 /// </list>
 /// </para>
 ///
@@ -103,6 +115,10 @@ public class EditarUsuarioCommandHandler(
         var concedeRol = !cuenta.Roles.Contains(request.Rol);
         if (concedeRol)
         {
+            var concesion = await AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync(request.Rol, currentUserService);
+            if (concesion.EsFallido)
+                return concesion;
+
             var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(
                 request.Rol, await currentUserService.ObtenerTenantOrigenIdAsync(), tenantActual.TenantId,
                 await RolesReservadosAlTenantDeOrigen.ActuaConAutoridadDePropiedadAsync(encargoActual));

@@ -74,8 +74,33 @@ public static class AutoridadSobreCuentas
     public static readonly Error CuentaInexistente = Error.Crear(
         "Usuarios.CuentaInexistente", "Esta cuenta ya no existe. Recargamos la lista.");
 
+    public static readonly Error SoloUnAdministradorConcedeAdministrador = Error.Crear(
+        "Usuarios.SoloUnAdministradorConcedeAdministrador",
+        "Solo un Administrador de la organización puede conceder el rol Administrador.");
+
     public static async Task<bool> PuedeGestionarCuentasAsync(ICurrentUserService currentUserService) =>
         await currentUserService.ObtenerRolEfectivoAsync() is { } rol && RolesQueGestionanCuentas.Contains(rol);
+
+    /// <summary>
+    /// Decisión del propietario, 2026-10-30 (cierra el hallazgo alto de la revisión de
+    /// madurez del 2026-10-08): el rol Administrador del Tenant solo lo concede un
+    /// Administrador —por su rol efectivo— o un Actor de Plataforma TALVEG por su propio
+    /// camino (el alta de un Tenant, que siembra al primer Administrador; no /usuarios).
+    /// Dirección CAE, Coordinador CAE y Gestor CAE nunca lo conceden, ni a otra cuenta ni
+    /// a sí mismos: conceder Propiedad no es una capacidad del plano Operación.
+    ///
+    /// <para>
+    /// Es una regla de rol, no de Tenant: se compone con
+    /// <see cref="RolesReservadosAlTenantDeOrigen"/>, que decide en qué Context Workspace
+    /// puede concederse. Solo se evalúa cuando el guardado concede el rol: conservar el
+    /// Administrador que la cuenta ya tenía no es concederlo.
+    /// </para>
+    /// </summary>
+    public static async Task<Result> VerificarConcesionDeAdministradorAsync(
+        string? rolConcedido, ICurrentUserService currentUserService) =>
+        rolConcedido == Administrador && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
+            ? Result.Fallo(SoloUnAdministradorConcedeAdministrador)
+            : Result.Exito();
 
     /// <summary>
     /// DEC-36 (REC-099): solo otro Administrador concede o revoca el permiso de

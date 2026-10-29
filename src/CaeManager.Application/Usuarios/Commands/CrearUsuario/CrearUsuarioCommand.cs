@@ -14,15 +14,18 @@ namespace CaeManager.Application.Usuarios.Commands.CrearUsuario;
 ///
 /// <para>
 /// <b>Quién</b>: Administrador o Dirección CAE, por su rol efectivo
-/// (<see cref="AutoridadSobreCuentas"/>). Administrador y Dirección CAE solo se
-/// conceden desde el Tenant de origen de quien da el alta
-/// (<see cref="RolesReservadosAlTenantDeOrigen"/>, decisión del 2026-09-23).
+/// (<see cref="AutoridadSobreCuentas"/>). Una cuenta Administrador solo la da de alta
+/// un Administrador (<see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/>,
+/// decisión del 2026-10-30): Dirección CAE da altas de cualquier otro rol. Además,
+/// Administrador y Dirección CAE solo se conceden desde el Tenant de origen de quien
+/// da el alta (<see cref="RolesReservadosAlTenantDeOrigen"/>, decisión del 2026-09-23).
 /// </para>
 ///
 /// <para>
 /// <b>Permiso sensible</b>: solo lo concede un Administrador, y solo a otro
-/// Administrador (Codex, HO-099-01): Dirección CAE también da altas, y sin esta
-/// regla podría crear un Administrador con el permiso ya concedido.
+/// Administrador (Codex, HO-099-01). Con la regla del 2026-10-30 Dirección CAE ya no
+/// crea Administradores; la condición sobre quien actúa se conserva como segunda
+/// barrera.
 /// </para>
 ///
 /// <para>
@@ -104,6 +107,10 @@ public class CrearUsuarioCommandHandler(
         if (tenantActual.TenantId is not { } tenantId)
             return Result.Fallo<UsuarioCreado>(Error.Crear(
                 "Usuarios.SinOrganizacion", "No pudimos determinar tu organización. Vuelve a iniciar sesión."));
+
+        var concesion = await AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync(request.Rol, currentUserService);
+        if (concesion.EsFallido)
+            return Result.Fallo<UsuarioCreado>(concesion.Error);
 
         var tenantOrigenId = await currentUserService.ObtenerTenantOrigenIdAsync();
         var rolAsignable = RolesReservadosAlTenantDeOrigen.Verificar(request.Rol, tenantOrigenId, tenantId,

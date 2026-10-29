@@ -367,8 +367,16 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// </summary>
     private IReadOnlyList<string> _rolesNoAsignables = [];
 
+    /// <summary>
+    /// Además de <see cref="_rolesNoAsignables"/>, el selector no ofrece Administrador a
+    /// quien no es Administrador (decisión del 2026-10-30: Dirección CAE no lo concede, ni
+    /// a otra cuenta ni a sí misma). Salvo como rol que la cuenta ya tenía: conservarlo no
+    /// es concederlo. Comodidad, no autoridad:
+    /// <see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/> decide.
+    /// </summary>
     private IEnumerable<string> RolesOfrecidos =>
-        Roles.Todos.Where(rol => !_rolesNoAsignables.Contains(rol) || rol == _rolCargado);
+        Roles.Todos.Where(rol => rol == _rolCargado
+            || (!_rolesNoAsignables.Contains(rol) && (rol != Roles.Administrador || _usuarioActualEsAdministrador)));
 
     /// <summary>
     /// DEC-36 (REC-099): «permiso específico», no el rol Administrador a

@@ -105,6 +105,8 @@ public class GestionCuentasUsuarioIdentity(
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
+            // SEG-1: AddToRoleAsync no rota el sello; lo persiste la propia escritura del rol.
+            usuario.RotarSelloDeSeguridad();
             var resultado = await userManager.AddToRoleAsync(usuario, rol);
             return resultado.Succeeded ? Result.Exito() : Result.Fallo(ErrorDeIdentity("Usuarios.FalloAlAsignarRol", resultado));
         }, cancellationToken);
@@ -136,6 +138,12 @@ public class GestionCuentasUsuarioIdentity(
             // completarse: el usuario conserva su rol anterior, que es un estado
             // válido, en vez de arriesgar dos roles a la vez (la invariante es
             // exactamente uno).
+            //
+            // SEG-1 (auditoría 2026-10-29): Identity no rota el sello al cambiar roles, y la
+            // sesión abierta conservaba el rol anterior hasta reconectar (tope de 12 h). El
+            // sello nuevo lo persiste la escritura de RemoveFromRolesAsync, junto a la baja
+            // de los roles anteriores: si esa escritura falla, la cuenta conserva rol y sello.
+            usuario.RotarSelloDeSeguridad();
             var quitar = await userManager.RemoveFromRolesAsync(usuario, rolesActuales);
             if (!quitar.Succeeded)
                 return new ResultadoCambioRol(DesenlaceCambioRol.FalloAlQuitarConservaElAnterior, DescribirErrores(quitar));

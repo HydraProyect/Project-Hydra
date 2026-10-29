@@ -150,6 +150,14 @@ public class ApplicationUser : IdentityUser<Guid>, IAccionAuditoriaPropia
     }
 
     /// <summary>
+    /// Security stamp nuevo, en la misma escritura que persista quien llame. Lo usa el
+    /// cambio de rol (SEG-1, auditoría 2026-10-29): Identity no rota el sello al añadir
+    /// o quitar roles, y la cookie y el circuito abiertos conservaban el rol anterior.
+    /// Con el sello nuevo, su próxima revalidación los da por caducados.
+    /// </summary>
+    public void RotarSelloDeSeguridad() => SecurityStamp = Guid.NewGuid().ToString();
+
+    /// <summary>
     /// Quita el bloqueo. No toca el security stamp: el que rotó en
     /// <see cref="Desactivar"/> sigue manteniendo muertas las sesiones anteriores.
     /// </summary>

@@ -126,9 +126,97 @@ public class GestionCuentasCommandsTests
         puerto.Escrituras.Should().BeEmpty();
     }
 
+    // ---------- Quién concede Administrador (decisión del 2026-10-30) ----------
+
+    [Theory]
+    [InlineData("DireccionCae")]
+    [InlineData("CoordinadorCae")]
+    [InlineData("GestorCae")]
+    public async Task Solo_un_Administrador_da_de_alta_una_cuenta_Administrador(string rolActor)
+    {
+        var puerto = new GestionCuentasFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon(rolActor), EnSuTenant)
+            .Handle(Alta("Administrador"), default);
+
+        resultado.Error.Should().Be(rolActor == "DireccionCae"
+            ? AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador
+            : AutoridadSobreCuentas.SinAutoridad);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Administrador_da_de_alta_a_otro_Administrador_en_su_Tenant()
+    {
+        var puerto = new GestionCuentasFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("Administrador"), EnSuTenant)
+            .Handle(Alta("Administrador"), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        puerto.Escrituras.Should().Equal($"crear:{resultado.Valor.UsuarioId}", $"rol:{resultado.Valor.UsuarioId}:Administrador");
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_sigue_dando_de_alta_cuentas_Direccion_CAE()
+    {
+        var puerto = new GestionCuentasFalsa();
+
+        var resultado = await NuevoAlta(puerto, ActorCon("DireccionCae"), EnSuTenant)
+            .Handle(Alta("DireccionCae"), default);
+
+        resultado.EsExitoso.Should().BeTrue("la regla del 2026-10-30 solo reserva Administrador");
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_no_promociona_a_otra_cuenta_a_Administrador()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+            .Handle(Edicion("Administrador"), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador);
+        puerto.Escrituras.Should().BeEmpty("se decide antes de escribir nada, tampoco el nombre");
+    }
+
+    [Fact]
+    public async Task Direccion_CAE_no_se_concede_Administrador_a_si_misma()
+    {
+        var puerto = new GestionCuentasFalsa { [Actor] = CuentaPropia("DireccionCae", id: Actor) };
+
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+            .Handle(new EditarUsuarioCommand(Actor, "Yo", "Administrador", null, null, false), default);
+
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador);
+        puerto.Escrituras.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Un_Administrador_promociona_a_otra_cuenta_a_Administrador()
+    {
+        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+
+        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
+            .Handle(Edicion("Administrador"), default);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        puerto.CambiosDeRol.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task Sin_rol_efectivo_no_se_concede_Administrador_aunque_el_puerto_lo_permitiera()
+    {
+        // Sesión Privilegiada de Soporte TALVEG: sin rol de negocio. Su camino para sembrar
+        // un Administrador es el alta del Tenant, no /usuarios.
+        (await AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync("Administrador", ActorCon(null)))
+            .Error.Should().Be(AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador);
+        (await AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync("GestorCae", ActorCon(null)))
+            .EsExitoso.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("Administrador", "Administrador", true)]
-    [InlineData("DireccionCae", "Administrador", false)]
     [InlineData("Administrador", "GestorCae", false)]
     public async Task El_permiso_sensible_solo_lo_concede_un_Administrador_a_otro_Administrador(
         string rolActor, string rolNuevo, bool esperado)
@@ -246,8 +334,10 @@ public class GestionCuentasCommandsTests
     }
 
     [Fact]
-    public async Task Direccion_CAE_que_promueve_a_Administrador_no_hereda_un_permiso_sensible_antiguo()
+    public async Task Direccion_CAE_que_intenta_promover_a_Administrador_no_toca_un_permiso_sensible_antiguo()
     {
+        // Hasta la decisión del 2026-10-30 la promoción pasaba y el permiso nacía en false. Ahora
+        // la promoción misma se rechaza antes de escribir: ni rol ni permiso.
         var puerto = new GestionCuentasFalsa
         {
             [Cuenta] = CuentaPropia("GestorCae") with { PermisoConsultarAccesoDocumentosSensibles = true },
@@ -256,8 +346,9 @@ public class GestionCuentasCommandsTests
         var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("DireccionCae"), EnSuTenant, new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte())
             .Handle(Edicion("Administrador", permiso: true), default);
 
-        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
-        puerto.Datos.Should().ContainSingle().Which.PermisoConsultarAccesoDocumentosSensibles.Should().BeFalse();
+        resultado.Error.Should().Be(AutoridadSobreCuentas.SoloUnAdministradorConcedeAdministrador);
+        puerto.Datos.Should().BeEmpty();
+        puerto.CambiosDeRol.Should().BeEmpty();
     }
 
     [Fact]

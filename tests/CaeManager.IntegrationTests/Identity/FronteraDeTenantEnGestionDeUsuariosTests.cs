@@ -374,6 +374,76 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             .FindByIdAsync(activada.ToString())).Should().NotBeNull("la cuenta activada no se borra");
     }
 
+    /// <summary>
+    /// SEG-1 (auditoría 2026-10-29): Identity no rota el sello de seguridad al cambiar
+    /// roles, y la cookie y el circuito Blazor abiertos conservaban el rol anterior hasta
+    /// el tope de 12 h. <c>ProveedorAutenticacionRevalidada</c> y la cookie dan por
+    /// caducada una sesión cuyo sello ya no es el de la base
+    /// (<c>SignInManager.ValidateSecurityStampAsync</c> compara exactamente esto), así
+    /// que la propiedad observable es que el sello persistido cambie con el rol y en la
+    /// misma escritura: se relee en un ámbito nuevo, desde PostgreSQL.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_rol_rota_el_sello_de_seguridad_persistido()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        string selloAnterior;
+        using (var alta = _servicios.CreateScope())
+        {
+            var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            cuentaId = await CrearAsync(usuarios, "cambia-de-rol@x.test", _tenantPropio, Roles.GestorCae);
+            selloAnterior = (await usuarios.FindByIdAsync(cuentaId.ToString()))!.SecurityStamp!;
+        }
+
+        using (var ambito = _servicios.CreateScope())
+        {
+            var cambio = await CrearCuentas(ambito.ServiceProvider).CambiarRolAsync(cuentaId, Roles.Consulta);
+            cambio.Desenlace.Should().Be(DesenlaceCambioRol.Cambiado);
+        }
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        cuenta!.SecurityStamp.Should().NotBe(selloAnterior,
+            "con el sello anterior la sesión abierta seguiría valiendo con el rol GestorCae");
+    }
+
+    [Fact]
+    public async Task Asignar_rol_a_una_cuenta_sin_rol_rota_el_sello_de_seguridad_persistido()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        string selloAnterior;
+        using (var alta = _servicios.CreateScope())
+        {
+            var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var usuario = new ApplicationUser
+            {
+                UserName = "sin-rol@x.test", Email = "sin-rol@x.test", NombreCompleto = "Sin rol", TenantId = _tenantPropio,
+            };
+            (await usuarios.CreateAsync(usuario)).Succeeded.Should().BeTrue();
+            cuentaId = usuario.Id;
+            selloAnterior = usuario.SecurityStamp!;
+        }
+
+        using (var ambito = _servicios.CreateScope())
+            (await CrearCuentas(ambito.ServiceProvider).AsignarRolAsync(cuentaId, Roles.Consulta)).EsExitoso.Should().BeTrue();
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        cuenta!.SecurityStamp.Should().NotBe(selloAnterior);
+    }
+
+    private static GestionCuentasUsuarioIdentity CrearCuentas(IServiceProvider sp) => new(
+        sp.GetRequiredService<UserManager<ApplicationUser>>(),
+        sp.GetRequiredService<PuertaAccesoDatos>(),
+        sp.GetRequiredService<DirectorioUsuariosTenant>(),
+        sp.GetRequiredService<CaeManagerDbContext>());
+
     private static PaginaUsuarios CrearPagina(
         IServiceProvider servicios, Guid actorId, bool esAdministrador, EmailServiceEspia? emailService = null)
     {
