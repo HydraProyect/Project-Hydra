@@ -12,10 +12,74 @@ namespace CaeManager.Application.Tests.Common;
 /// </summary>
 public class VerificadorArchivoAlmacenadoTests
 {
+    private static readonly byte[] Xml = "<?xml version=\"1.0\"?><a/>"u8.ToArray();
+
+    /// <summary>Un .docx con las dos partes obligatorias (con XML) más las que se pidan; <c>null</c> quita una parte obligatoria.</summary>
+    private static byte[] ConstruirDocx(
+        byte[]? tipos, byte[]? documento, params (string nombre, byte[] contenido)[] adicionales)
+    {
+        using var memoria = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(memoria, System.IO.Compression.ZipArchiveMode.Create, true))
+        {
+            if (tipos is not null) Escribir(zip, "[Content_Types].xml", tipos);
+            if (documento is not null) Escribir(zip, "word/document.xml", documento);
+            foreach (var (nombre, contenido) in adicionales) Escribir(zip, nombre, contenido);
+        }
+        return memoria.ToArray();
+    }
+
+    private static void Escribir(System.IO.Compression.ZipArchive zip, string nombre, byte[] contenido)
+    {
+        using var flujo = zip.CreateEntry(nombre).Open();
+        flujo.Write(contenido);
+    }
+
+    private static (string, byte[]) Relleno(string nombre, int megabytes) => (nombre, new byte[megabytes * 1024 * 1024]);
+
+    public static TheoryData<string, byte[], bool> CasosDocx() => new()
+    {
+        { "completo", ConstruirDocx(Xml, Xml), true },
+        { "con marca de orden de bytes y espacios", ConstruirDocx([0xEF, 0xBB, 0xBF, (byte)'\n', .. Xml], Xml), true },
+        { "sin Content_Types", ConstruirDocx(null, Xml), false },
+        { "sin document.xml", ConstruirDocx(Xml, null), false },
+        { "Content_Types vacio", ConstruirDocx([], Xml), false },
+        { "document.xml que no es XML", ConstruirDocx(Xml, "MZ ejecutable"u8.ToArray()), false },
+        { "document.xml duplicado con otra capitalizacion", ConstruirDocx(Xml, Xml, ("WORD/Document.xml", Xml)), false },
+        { "document.xml duplicado con barra invertida", ConstruirDocx(Xml, Xml, (@"word\document.xml", Xml)), false },
+        { "Content_Types duplicado", ConstruirDocx(Xml, Xml, ("[content_types].xml", Xml)), false },
+        { "demasiadas entradas", ConstruirDocx(Xml, Xml, Enumerable.Range(0, 2047).Select(i => ($"extra/{i}", Array.Empty<byte>())).ToArray()), false },
+        { "una entrada de mas de 100 MB", ConstruirDocx(Xml, Xml, Relleno("grande", 101)), false },
+        { "varias entradas que suman mas de 100 MB", ConstruirDocx(Xml, Xml, Relleno("a", 60), Relleno("b", 60)), false },
+        { "muchas partes que caben", ConstruirDocx(Xml, Xml, Enumerable.Range(0, 2000).Select(i => ($"extra/{i}.xml", Xml)).ToArray()), true }
+    };
+
+    [Theory]
+    [MemberData(nameof(CasosDocx))]
+    public async Task Docx_exige_estructura_y_limites_realmente_descomprimidos(string caso, byte[] contenido, bool valido)
+    {
+        ValidadorFirmaArchivo.EsDocumentoValido(contenido, "archivo.docx").Should().Be(valido, caso);
+        var (verificador, clave) = await Preparar("archivo.docx", contenido);
+        (await verificador.EsDocumentoValidoAsync(clave)).Should().Be(valido, caso);
+    }
+
+    [Fact]
+    public void Rechaza_zip_truncado_con_firma_docx() =>
+        ValidadorFirmaArchivo.EsDocumentoValido(Zip, "archivo.docx").Should().BeFalse();
+
+    [Fact]
+    public void Rechaza_un_docx_con_los_datos_comprimidos_corruptos()
+    {
+        var contenido = ConstruirDocx(Xml, Enumerable.Repeat((byte)'<', 50_000).ToArray());
+        for (var i = 40; i < contenido.Length - 200; i++) contenido[i] ^= 0xFF; // estropea cabeceras y datos, no el directorio central
+
+        ValidadorFirmaArchivo.EsDocumentoValido(contenido, "archivo.docx").Should().BeFalse();
+    }
+
     private static readonly byte[] Pdf = "%PDF-1.7\n"u8.ToArray();
     private static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00];
     private static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00];
     private static readonly byte[] Zip = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
+    private static readonly byte[] Docx = ConstruirDocx(Xml, Xml);
     private static readonly byte[] Ejecutable = [0x4D, 0x5A, 0x90, 0x00];
 
     [Theory]
@@ -23,7 +87,7 @@ public class VerificadorArchivoAlmacenadoTests
     [InlineData("foto.jpg", nameof(Jpeg))]
     [InlineData("foto.jpeg", nameof(Jpeg))]
     [InlineData("foto.png", nameof(Png))]
-    [InlineData("informe.docx", nameof(Zip))]
+    [InlineData("informe.docx", nameof(Docx))]
     [InlineData("DOCUMENTO.PDF", nameof(Pdf))]
     public async Task Acepta_cada_formato_de_documento_con_su_firma(string nombre, string contenido)
     {
@@ -117,6 +181,7 @@ public class VerificadorArchivoAlmacenadoTests
         nameof(Jpeg) => Jpeg,
         nameof(Png) => Png,
         nameof(Zip) => Zip,
+        nameof(Docx) => Docx,
         _ => Ejecutable
     };
 

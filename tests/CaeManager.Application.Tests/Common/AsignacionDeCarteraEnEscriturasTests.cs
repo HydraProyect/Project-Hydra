@@ -201,7 +201,7 @@ public class AsignacionDeCarteraEnEscriturasTests
     {
         var (centro, tipo, centros, tipos, filas) = MundoCentro();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
-            filas, centros, tipos, new AltaAcreditacionesPlataformaServiceFalso(), SinCartera(), new UnitOfWorkFalso());
+            filas, centros, tipos, new AltaAcreditacionesPlataformaServiceFalso(), SinCartera(), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, true, null, false, null, null, null),
@@ -217,7 +217,7 @@ public class AsignacionDeCarteraEnEscriturasTests
         var (centro, tipo, centros, tipos, filas) = MundoCentro();
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             filas, centros, tipos, new AltaAcreditacionesPlataformaServiceFalso(),
-            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso());
+            new AlcanceDatosServiceFalso(tieneAccesoTotal: false, centroIdsVisibles: [centro.Id]), new UnitOfWorkFalso(), new VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, true, null, false, null, null, null),

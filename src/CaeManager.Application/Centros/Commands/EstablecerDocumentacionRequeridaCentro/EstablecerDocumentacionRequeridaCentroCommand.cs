@@ -1,5 +1,6 @@
 using CaeManager.Application.Centros;
 using CaeManager.Application.Common;
+using CaeManager.Application.Common.Archivos;
 using CaeManager.Application.Documentos.Acreditacion;
 using CaeManager.Application.TiposDocumento;
 using CaeManager.Domain.Common;
@@ -49,7 +50,8 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
     ITiposDocumentoQueryContext tiposDocumentoContext,
     IAltaAcreditacionesPlataformaService altaAcreditaciones,
     IAlcanceDatosService alcanceDatos,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    IVerificadorArchivoAlmacenado verificadorArchivo)
     : IRequestHandler<EstablecerDocumentacionRequeridaCentroCommand, Result>
 {
     public async Task<Result> Handle(EstablecerDocumentacionRequeridaCentroCommand request, CancellationToken cancellationToken)
@@ -75,6 +77,20 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
 
         var fila = await repositorio.ObtenerPorParAsync(request.TipoDocumentoId, request.CentroId, cancellationToken);
 
+        // OWASP ASVS 4.0.3 V12.1/V12.2: la clave de archivo y el nombre original llegan del cliente; se validan en
+        // servidor (el formulario Blazor ya lo hace, otros llamadores no). El endpoint de descarga deriva del nombre
+        // original el nombre y el tipo del archivo, así que la clave y el nombre tienen que terminar en la misma
+        // extensión. Una clave nueva solo admite PDF o Word, con la firma y la estructura del contenido almacenado. El
+        // contenido de una clave que la fila ya tenía no se vuelve a exigir: editar la tolerancia o excluir el tipo no
+        // debe quedar bloqueado por un archivo anterior a esta validación.
+        if (request.ArchivoUrl is { } archivoUrl)
+        {
+            var cambiaClave = archivoUrl != fila?.ArchivoUrl;
+            var cambiaNombre = request.NombreArchivoOriginal != fila?.NombreArchivoOriginal;
+            if (((cambiaClave || cambiaNombre) && !ExtensionCoincide(archivoUrl, request.NombreArchivoOriginal))
+                || (cambiaClave && !await ArchivoRequisitoEsValidoAsync(archivoUrl, cancellationToken)))
+                return Result.Fallo(Error.Crear("DocumentacionRequeridaCentro.ArchivoNoValido", ValidadorFirmaArchivo.MensajeRequisitoNoValido));
+        }
         if (fila is null)
         {
             fila = new TipoDocumentoCentro(
@@ -101,4 +117,12 @@ public class EstablecerDocumentacionRequeridaCentroCommandHandler(
 
         return Result.Exito();
     }
+
+    private static bool ExtensionCoincide(string archivoUrl, string? nombreOriginal) =>
+        nombreOriginal is not null
+        && string.Equals(Path.GetExtension(nombreOriginal), Path.GetExtension(archivoUrl), StringComparison.OrdinalIgnoreCase);
+
+    private async Task<bool> ArchivoRequisitoEsValidoAsync(string archivoUrl, CancellationToken cancellationToken) =>
+        Path.GetExtension(archivoUrl).ToLowerInvariant() is ".pdf" or ".docx"
+        && await verificadorArchivo.EsDocumentoValidoAsync(archivoUrl, cancellationToken);
 }

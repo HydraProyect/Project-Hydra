@@ -93,7 +93,15 @@ public class ActualizarDocumentoDesdeAdjuntoCommandHandler(
         // poder borrar el archivo que el adjunto de la conversación sigue
         // necesitando, ni al revés.
         string archivoUrlDocumento;
-        await using (var flujo = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken))
+        Stream flujoAdjunto;
+        try { flujoAdjunto = await almacenamiento.AbrirAsync(adjunto.ArchivoUrl, cancellationToken); }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or KeyNotFoundException
+            or InvalidDataException or System.Security.Cryptography.CryptographicException)
+        {
+            // Sin blob (o ilegible): error controlado, igual que VerificadorArchivoAlmacenado; no una excepción al usuario.
+            return ArchivoNoValido();
+        }
+        await using (var flujo = flujoAdjunto)
         {
             using var memoria = new MemoryStream();
             var buffer = new byte[81920];
