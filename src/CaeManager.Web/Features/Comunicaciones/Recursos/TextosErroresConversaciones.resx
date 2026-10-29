@@ -45,4 +45,16 @@
   <data name="ErrorEnviarMensajeNuevo" xml:space="preserve">
     <value>No se envió el mensaje. Tu texto sigue en el formulario: comprueba tu conexión y pulsa Enviar otra vez.</value>
   </data>
+  <data name="ErrorAdjuntosCargaEnCurso" xml:space="preserve">
+    <value>Espera a que termine la carga de los adjuntos.</value>
+  </data>
+  <data name="ErrorAdjuntosMaximoArchivos" xml:space="preserve">
+    <value>Puedes adjuntar un máximo de {0} archivos.</value>
+  </data>
+  <data name="ErrorAdjuntosExcedenElTotal" xml:space="preserve">
+    <value>Los adjuntos no pueden superar {0} MB en total: quita alguno y vuelve a adjuntar el archivo.</value>
+  </data>
+  <data name="ErrorAdjuntoNoSePudoLeer" xml:space="preserve">
+    <value>No pudimos leer el adjunto o supera el espacio que queda de los {0} MB. No se ha añadido.</value>
+  </data>
 </root>

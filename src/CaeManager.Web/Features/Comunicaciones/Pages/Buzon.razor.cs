@@ -29,6 +29,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 {
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
@@ -198,10 +199,14 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
     private async Task ManejarArchivosRedactarAsync(InputFileChangeEventArgs e)
     {
-        _redactarError = await _cargaAdjuntos.AgregarAsync(e, _redactarAdjuntos);
+        _redactarError = AdjuntosCorreo.Mensaje(await _cargaAdjuntos.AgregarAsync(e, _redactarAdjuntos), ErroresTextos);
     }
 
-    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto) => _redactarAdjuntos.Remove(adjunto);
+    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto)
+    {
+        _redactarAdjuntos.Remove(adjunto);
+        _redactarError = null;
+    }
 
     private async Task EnviarMensajeNuevoAsync()
     {

@@ -990,7 +990,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
     {
-        _errorAdjuntos = await _cargaAdjuntos.AgregarAsync(e, _adjuntosPendientes);
+        _errorAdjuntos = AdjuntosCorreo.Mensaje(await _cargaAdjuntos.AgregarAsync(e, _adjuntosPendientes), ErroresTextos);
     }
 
     private void QuitarAdjuntoPendiente(AdjuntoParaEnviarDto adjunto)
