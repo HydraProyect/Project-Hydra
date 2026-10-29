@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Features.Documentos;
 using FluentAssertions;
 using MediatR;
@@ -10,6 +11,14 @@ namespace CaeManager.Web.Tests;
 
 public class DocumentosExportacionRegistroTests
 {
+    private static readonly Guid Origen = Guid.NewGuid();
+    private static readonly Guid Externo = Guid.NewGuid();
+
+    private sealed class TenantActualFalso(Guid? tenantId) : ITenantActual
+    {
+        public Guid? TenantId { get; } = tenantId;
+    }
+
     private sealed class RegistroFalso(bool falla = false) : IRegistroExportacionService
     {
         public List<(string Tipo, int Filas, IReadOnlyDictionary<string, string> Criterios)> Registros { get; } = [];
@@ -23,10 +32,16 @@ public class DocumentosExportacionRegistroTests
         }
     }
 
-    private sealed class MediadorFalso : IMediator
+    private sealed class MediadorFalso(IReadOnlyList<ClienteAutorizadoDto>? autorizados = null) : IMediator
     {
+        public int ConsultasDeDocumentos { get; private set; }
+
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            if (request is ObtenerClientesAutorizadosQuery)
+                return Task.FromResult((TResponse)(object)(autorizados ?? Array.Empty<ClienteAutorizadoDto>()));
+
+            ConsultasDeDocumentos++;
             var consulta = (ObtenerDocumentosQuery)(object)request;
             DocumentoListaDto[] documentos =
             [
@@ -49,7 +64,7 @@ public class DocumentosExportacionRegistroTests
     {
         var registro = new RegistroFalso();
         var tipo = Guid.NewGuid();
-        var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), registro, default,
+        var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
             q: "01234567Z", estado: "Vencido,01234567Z", tipo: tipo.ToString(), propietario: "01234567Z",
             orden: "Nombre; 01234567Z", agrupar: "ambito", desc: true);
 
@@ -72,10 +87,10 @@ public class DocumentosExportacionRegistroTests
     {
         var registro = new RegistroFalso();
         var plataforma = Guid.NewGuid();
-        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), registro, default,
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
             ambito: "Empresa", plataforma: plataforma.ToString());
         // Un entero no definido en el enumerado parsea, pero no es un ámbito: no llega al rastro.
-        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), registro, default,
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), registro, default,
             ambito: "12345678", plataforma: "01234567Z");
 
         registro.Registros.Should().HaveCount(2);
@@ -91,8 +106,36 @@ public class DocumentosExportacionRegistroTests
     public async Task Si_falla_el_registro_no_entrega_el_archivo()
     {
         var exportar = () => DocumentosEndpoints.ExportarAsync(
-            new DefaultHttpContext(), new MediadorFalso(), new RegistroFalso(falla: true), default);
+            new DefaultHttpContext(), new MediadorFalso(), new TenantActualFalso(Origen), new RegistroFalso(falla: true), default);
 
         await exportar.Should().ThrowAsync<InvalidOperationException>().WithMessage("sin rastro");
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_exportacion_exige_elegir_empresa_y_registra_solo_si_se_permite(bool empresaElegida)
+    {
+        var mediador = new MediadorFalso([
+            new(Origen, "Operador CAE", EsOrigen: true, EsGestionadoPorOperacion: false),
+            new(Externo, "Tenant beneficiario", EsOrigen: false, EsGestionadoPorOperacion: true, EsCarteraGestorCae: true)
+        ]);
+        var registro = new RegistroFalso();
+
+        var resultado = await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), mediador,
+            new TenantActualFalso(empresaElegida ? Externo : Origen), registro, default);
+
+        if (!empresaElegida)
+        {
+            resultado.Should().BeOfType<RedirectHttpResult>().Which.Url.Should().Be("/documentos");
+            mediador.ConsultasDeDocumentos.Should().Be(0);
+            registro.Registros.Should().BeEmpty();
+        }
+        else
+        {
+            resultado.Should().BeOfType<FileStreamHttpResult>();
+            mediador.ConsultasDeDocumentos.Should().BeGreaterThan(0);
+            registro.Registros.Should().ContainSingle().Which.Filas.Should().Be(2);
+        }
     }
 }

@@ -3,6 +3,7 @@ using CaeManager.Application.Common;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentoPorId;
 using CaeManager.Application.Documentos.Queries.ObtenerDocumentos;
 using CaeManager.Application.Importacion;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Documentos;
 using CaeManager.Infrastructure.Identity;
@@ -54,17 +55,29 @@ public static class DocumentosEndpoints
         // por cada lote de PaginadorExportacion sería un N+1.
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
+        // Sin SoloRolesDelListado(), como /trabajadores/exportar.xlsx: Documentos.razor
+        // declara [Authorize] sin roles y el menú del rol Cliente la ofrece
+        // (CatalogoSeccionesMenu.RolesDeDocumentos, AdmisionDeDestinos.RutasDelMenuDeCliente).
+        // Quien exporta el listado es quien lo ve; el alcance lo aplica ObtenerDocumentosQuery,
+        // la misma consulta de la página.
         endpoints.MapGet("/documentos/exportar.xlsx", ExportarAsync);
 
         return endpoints;
     }
 
     public static async Task<IResult> ExportarAsync(
-        HttpContext contexto, IMediator mediator, IRegistroExportacionService registroExportacion,
+        HttpContext contexto, IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion,
         CancellationToken cancellationToken,
         string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
         string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null)
     {
+        // Estado 4a: la página no muestra los Documentos del Tenant de origen a quien tiene que
+        // elegir una empresa de su cartera (ContextoEmpresaActiva.ResolverAsync); el endpoint no
+        // los consulta, no genera el archivo ni deja rastro. Misma guarda que Trabajadores.
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
+            return Results.Redirect("/documentos");
+
         CabecerasArchivoSensible.ProhibirCache(contexto);
 
         using var libro = new XLWorkbook();
