@@ -27,4 +27,14 @@ public interface IRasterizadorPaginasPdfService
 {
     /// <param name="indicePagina">Índice 0-based de la página a rasterizar.</param>
     Result<byte[]> RasterizarPagina(byte[] contenidoPdf, int indicePagina, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// La página reducida a <paramref name="anchoPixeles"/> de ancho, para enseñarla
+    /// como miniatura. La Subida múltiple retiene una por archivo pendiente de
+    /// confirmar: a 150 ppp cada una rondaba el megabyte para pintarse a 48 px
+    /// (S-C-3, ASVS 4.0.3 V12.1.1). Por defecto, la página entera: solo la
+    /// implementación real sabe reducirla.
+    /// </summary>
+    Result<byte[]> RasterizarMiniatura(byte[] contenidoPdf, int indicePagina, int anchoPixeles, CancellationToken cancellationToken = default) =>
+        RasterizarPagina(contenidoPdf, indicePagina, cancellationToken);
 }

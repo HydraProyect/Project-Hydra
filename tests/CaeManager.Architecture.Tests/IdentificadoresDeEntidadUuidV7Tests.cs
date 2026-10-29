@@ -53,6 +53,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
         ["src/CaeManager.Infrastructure/FileStorage/DiskFileStorageService.cs"] = 2,
         // Directorio temporal de conversión: nombre no predecible en /tmp.
         ["src/CaeManager.Infrastructure/Conversion/LibreOfficeConversorWordPdfService.cs"] = 1,
+        // Temporales de la Subida múltiple (S-C-3): nombres de fichero y de directorio no adivinables.
+        ["src/CaeManager.Web/Documentos/AlmacenTemporalSubidaMasiva.cs"] = 2,
+        ["src/CaeManager.Web/Documentos/CuotaSubidaMasiva.cs"] = 1,
     };
 
     /// <summary>

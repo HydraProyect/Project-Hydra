@@ -156,7 +156,7 @@ services:
     # Importa aqui mas que en otros servicios porque es donde corren los
     # parsers sobre contenido que sube el usuario: PDFsharp, los
     # decodificadores de imagen y LibreOffice. Los limites de entrada que ya
-    # existen (tope por archivo, presupuesto por lote, maximo de pixeles antes
+    # existen (tope por archivo, cuota de la Subida multiple, maximo de pixeles antes
     # de decodificar) acotan lo previsible; este techo acota lo que no se
     # previo, que es justo lo que hace falta frente a un fallo de parser.
     #
@@ -166,8 +166,9 @@ services:
     #
     # EL VALOR ES LA UNICA PARTE NO MEDIDA de este cambio: no se ha comprobado
     # ni la RAM de la maquina ni el consumo real en operacion. 3g deja holgura
-    # sobre el peor lote legitimo (60 archivos de 10 MB mas las copias de la
-    # conversion) y sigue muy por debajo de los varios GB que costaba un
+    # sobre el trabajo legitimo (los archivos que esperan confirmacion estan
+    # en temporales de disco con cuota, SubidaMasiva:*; en memoria quedan la
+    # lectura y la conversion en curso) y sigue muy por debajo de los varios GB que costaba un
     # archivo hostil antes de los limites de entrada. Ajustalo con
     # LIMITE_MEMORIA_APP en el .env tras mirar `free -g` y
     # `docker stats` en el servidor. Durante un drenaje hay DOS contenedores

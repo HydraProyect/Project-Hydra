@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.IO.Compression;
 
 namespace CaeManager.Web.Documentos;
@@ -29,10 +28,16 @@ namespace CaeManager.Web.Documentos;
 /// fiable.
 ///
 /// Se cuenta durante la copia por dos razones distintas: el presupuesto es
-/// acumulativo entre entradas y entre archivos del mismo lote, cosa que
-/// ninguna cabecera individual dice; y así el control no depende de una
+/// acumulativo entre entradas, entre archivos y entre lotes de la misma
+/// pantalla (es la reserva de <see cref="AlmacenTemporalSubidaMasiva"/>), cosa
+/// que ninguna cabecera individual dice; y así el control no depende de una
 /// garantía del framework que podría cambiar sin avisar. La cabecera evita
 /// descomprimir lo que ya se delata; el recuento real es lo que acota.
+///
+/// Las entradas se vuelcan a temporales del almacén, no a memoria (S-C-3,
+/// ASVS 4.0.3 V12.1.1): el .zip se lee desde su propio temporal y cada entrada
+/// se copia en trozos, así que extraer 60 archivos de 10 MB no retiene nunca
+/// más de un búfer en memoria.
 ///
 /// No se comprueba el ratio de compresión: sobre valores declarados no
 /// añade garantía (los elige el atacante) y sobre contenido legítimo muy
@@ -48,6 +53,7 @@ public static class ExtractorZip
     /// Directorios (entradas que terminan en "/" o sin contenido) se omiten
     /// en silencio — son estructura, no archivos que subir.
     /// </summary>
+    /// <param name="contenidoZip">El .zip, legible y con posicionamiento; no se cierra. Se lee de forma síncrona, como antes el <c>byte[]</c>: está en el disco de este servidor.</param>
     /// <param name="maximoEntradas">
     /// Cuántos archivos puede traer aún este .zip: son las plazas que quedan
     /// en el lote, no el tope de la subida. Se comprueba antes de descomprimir
@@ -59,90 +65,84 @@ public static class ExtractorZip
     /// archivo suelto. Descomprimir más para descartarlo después es
     /// justamente el gasto que hay que evitar.
     /// </param>
-    /// <param name="presupuestoTotalBytes">
-    /// Bytes descomprimidos que quedan disponibles para este .zip dentro del
-    /// presupuesto del lote completo (ver SubidaMasiva). Lo que ya gastaron
-    /// los archivos anteriores del mismo lote no vuelve a estar disponible.
+    /// <param name="almacen">
+    /// Donde quedan las entradas. Su reserva es el presupuesto: lo que ya
+    /// retienen los archivos anteriores de la misma pantalla no vuelve a estar
+    /// disponible. Si la extracción falla, lo ya extraído se borra.
     /// </param>
-    /// <exception cref="InvalidDataException">
+    /// <exception cref="LimiteDeZipSuperadoException">
     /// El .zip supera alguno de los tres límites. El llamador lo trata igual
     /// que un .zip ilegible: se marca el archivo con error y el lote sigue.
     /// </exception>
-    public static IReadOnlyList<(byte[] Contenido, string NombreArchivo)> Extraer(
-        byte[] contenidoZip,
+    public static IReadOnlyList<(ArchivoTemporal Archivo, string NombreArchivo)> Extraer(
+        Stream contenidoZip,
         int maximoEntradas,
         long maximoPorEntrada,
-        long presupuestoTotalBytes)
+        AlmacenTemporalSubidaMasiva almacen)
     {
-        var resultado = new List<(byte[], string)>();
-
-        using var flujo = new MemoryStream(contenidoZip);
-        using var archivo = new ZipArchive(flujo, ZipArchiveMode.Read);
-
-        var entradas = archivo.Entries
-            .Where(e => e.Length > 0 && !e.FullName.EndsWith('/'))
-            .ToList();
-
-        if (entradas.Count > maximoEntradas)
-            // Sin cifra de máximo a propósito: lo que se recibe aquí son las
-            // plazas que QUEDAN en el lote, no el tope de la subida, así que
-            // anunciarlo como "el máximo es N" mentiría en cuanto el lote
-            // llevara algún archivo — al usuario le diría que el límite es 5
-            // cuando son 60.
-            throw new LimiteDeZipSuperadoException(
-                $"El .zip contiene {entradas.Count} archivos y no caben en esta subida.");
-
-        var presupuestoRestante = presupuestoTotalBytes;
-
-        foreach (var entrada in entradas)
+        var resultado = new List<(ArchivoTemporal, string)>();
+        try
         {
-            // Rechazo barato por cabecera: si el propio .zip ya declara más
-            // de lo permitido, no hace falta abrir la entrada. Que sea
-            // falsificable no lo hace inútil — solo insuficiente, y por eso
-            // el tope real se aplica abajo sobre los bytes leídos.
-            if (entrada.Length > maximoPorEntrada)
+            using var archivo = new ZipArchive(contenidoZip, ZipArchiveMode.Read, leaveOpen: true);
+
+            var entradas = archivo.Entries
+                .Where(e => e.Length > 0 && !e.FullName.EndsWith('/'))
+                .ToList();
+
+            if (entradas.Count > maximoEntradas)
+                // Sin cifra de máximo a propósito: lo que se recibe aquí son las
+                // plazas que QUEDAN en el lote, no el tope de la subida, así que
+                // anunciarlo como "el máximo es N" mentiría en cuanto el lote
+                // llevara algún archivo — al usuario le diría que el límite es 5
+                // cuando son 60.
                 throw new LimiteDeZipSuperadoException(
-                    "Un archivo del .zip supera el máximo por archivo.");
+                    $"El .zip contiene {entradas.Count} archivos y no caben en esta subida.");
 
-            using var flujoEntrada = entrada.Open();
-            using var memoria = new MemoryStream();
-
-            var bufer = ArrayPool<byte>.Shared.Rent(64 * 1024);
-            try
+            foreach (var entrada in entradas)
             {
-                int leidos;
-                while ((leidos = flujoEntrada.Read(bufer, 0, bufer.Length)) > 0)
+                // Rechazo barato por cabecera: si el propio .zip ya declara más
+                // de lo permitido, no hace falta abrir la entrada. Que sea
+                // falsificable no lo hace inútil — solo insuficiente, y por eso
+                // el tope real se aplica en la copia sobre los bytes leídos.
+                if (entrada.Length > maximoPorEntrada)
+                    throw new LimiteDeZipSuperadoException(
+                        "Un archivo del .zip supera el máximo por archivo.");
+
+                // Solo el nombre, no la ruta interna del zip (carpetas dentro
+                // del propio comprimido) — es lo único que se muestra al usuario.
+                var nombreArchivo = Path.GetFileName(entrada.FullName);
+                if (string.IsNullOrWhiteSpace(nombreArchivo))
+                    continue;
+
+                ArchivoTemporal extraido;
+                try
                 {
-                    if (memoria.Length + leidos > maximoPorEntrada)
-                        throw new LimiteDeZipSuperadoException(
-                            "Un archivo del .zip supera el máximo por archivo al descomprimirse.");
-
-                    if (leidos > presupuestoRestante)
-                        throw new LimiteDeZipSuperadoException(
-                            "El contenido descomprimido del .zip supera el máximo admitido para una subida.");
-
-                    presupuestoRestante -= leidos;
-                    memoria.Write(bufer, 0, leidos);
+                    // Se reserva lo declarado ANTES de abrir la entrada: lo que no
+                    // cabe se rechaza sin descomprimir nada.
+                    extraido = almacen.Guardar(entrada.Open, entrada.Length, maximoPorEntrada);
                 }
-            }
-            finally
-            {
-                // clearArray: el búfer ha tenido contenido de un documento de
-                // trabajador y vuelve a un pool compartido con el resto del
-                // proceso.
-                ArrayPool<byte>.Shared.Return(bufer, clearArray: true);
+                catch (ArchivoTemporalDemasiadoGrandeException)
+                {
+                    throw new LimiteDeZipSuperadoException(
+                        "Un archivo del .zip supera el máximo por archivo al descomprimirse.");
+                }
+                catch (CuotaSubidaMasivaSuperadaException)
+                {
+                    throw new LimiteDeZipSuperadoException(
+                        "El contenido descomprimido del .zip no cabe en lo que queda de esta subida.");
+                }
+
+                resultado.Add((extraido, nombreArchivo));
             }
 
-            // Solo el nombre, no la ruta interna del zip (carpetas dentro
-            // del propio comprimido) — es lo único que se muestra al usuario.
-            var nombreArchivo = Path.GetFileName(entrada.FullName);
-            if (string.IsNullOrWhiteSpace(nombreArchivo))
-                continue;
-
-            resultado.Add((memoria.ToArray(), nombreArchivo));
+            return resultado;
         }
-
-        return resultado;
+        catch
+        {
+            foreach (var (extraido, _) in resultado)
+                almacen.Eliminar(extraido);
+            throw;
+        }
     }
 }
 

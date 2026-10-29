@@ -14,13 +14,19 @@ namespace CaeManager.Web.Tests;
 ///
 /// Estos casos fijan que los límites se aplican sobre los bytes realmente
 /// descomprimidos y mientras se descomprimen, no sobre lo que declara la
-/// cabecera del .zip (que la elige quien fabrica el archivo).
+/// cabecera del .zip (que la elige quien fabrica el archivo). El presupuesto
+/// es la reserva del <see cref="AlmacenTemporalSubidaMasiva"/> de la pantalla,
+/// y las entradas acaban en sus temporales, no en memoria (S-C-3).
 /// </summary>
-public class ExtractorZipTests
+public sealed class ExtractorZipTests : IDisposable
 {
     private const int MaximoEntradas = 60;
     private const long MaximoPorEntrada = 10 * 1024 * 1024;
     private const long PresupuestoHolgado = 600L * 1024 * 1024;
+
+    private readonly TemporalesDePrueba _temporales = new();
+
+    public void Dispose() => _temporales.Dispose();
 
     private static byte[] CrearZip(params (string Nombre, int Bytes)[] entradas)
     {
@@ -40,6 +46,17 @@ public class ExtractorZipTests
         return memoria.ToArray();
     }
 
+    private (IReadOnlyList<(ArchivoTemporal Archivo, string NombreArchivo)> Extraido, AlmacenTemporalSubidaMasiva Almacen) ExtraerEn(
+        byte[] zip, long presupuesto, int maximoEntradas = MaximoEntradas, long maximoPorEntrada = MaximoPorEntrada)
+    {
+        var almacen = _temporales.Cuota(porCircuito: presupuesto).CrearAlmacen(Guid.NewGuid());
+        using var flujo = new MemoryStream(zip);
+        return (ExtractorZip.Extraer(flujo, maximoEntradas, maximoPorEntrada, almacen), almacen);
+    }
+
+    private Action Extraer(byte[] zip, long presupuesto, int maximoEntradas = MaximoEntradas, long maximoPorEntrada = MaximoPorEntrada) =>
+        () => ExtraerEn(zip, presupuesto, maximoEntradas, maximoPorEntrada);
+
     [Fact]
     public void Un_zip_que_cabe_en_la_subida_no_puede_expandirse_mas_alla_del_presupuesto()
     {
@@ -49,31 +66,43 @@ public class ExtractorZipTests
         //
         // Ninguna entrada llega al máximo por archivo (10 MB) a propósito: si
         // alguna lo superara, la pararía ese tope y este caso no diría nada
-        // sobre el presupuesto. Se comprobó por mutación —retirando el
-        // control del presupuesto— que sin él este caso enrojece.
+        // sobre el presupuesto.
         var bomba = CrearZip(Enumerable.Range(0, 20).Select(i => ($"bomba{i}.pdf", 9 * 1024 * 1024)).ToArray());
         bomba.Length.Should().BeLessThan(10 * 1024 * 1024,
             "el .zip de entrada tiene que pasar el tope de subida para que el caso sea el real");
 
-        var extraer = () => ExtractorZip.Extraer(bomba, MaximoEntradas, MaximoPorEntrada, presupuestoTotalBytes: 60L * 1024 * 1024);
-
-        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
+        Extraer(bomba, presupuesto: 60L * 1024 * 1024).Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     [Fact]
-    public void El_presupuesto_se_agota_con_los_bytes_leidos_no_con_los_declarados()
+    public void El_presupuesto_es_acumulativo_entre_las_entradas_del_zip()
     {
-        // Tres entradas de 5 MB: ninguna supera el máximo por archivo (10 MB),
-        // así que ningún rechazo por cabecera las para. Lo único que puede
-        // detenerlas es contar los bytes según salen.
+        // Tres entradas de 5 MB: ninguna supera el máximo por archivo (10 MB)
+        // ni el presupuesto por sí sola. Lo único que puede detenerlas es la
+        // suma de lo que ya retiene la pantalla.
         var zip = CrearZip(
             ("uno.pdf", 5 * 1024 * 1024),
             ("dos.pdf", 5 * 1024 * 1024),
             ("tres.pdf", 5 * 1024 * 1024));
 
-        var extraer = () => ExtractorZip.Extraer(zip, MaximoEntradas, MaximoPorEntrada, presupuestoTotalBytes: 8 * 1024 * 1024);
+        Extraer(zip, presupuesto: 8 * 1024 * 1024).Should().ThrowExactly<LimiteDeZipSuperadoException>()
+            .WithMessage("El contenido descomprimido del .zip no cabe en lo que queda de esta subida.");
+    }
 
-        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
+    [Fact]
+    public void Un_zip_rechazado_a_medias_borra_lo_ya_extraido_y_devuelve_su_reserva()
+    {
+        var zip = CrearZip(("uno.pdf", 3000), ("dos.pdf", 3000), ("tres.pdf", 3000));
+        var cuota = _temporales.Cuota(porCircuito: 7000);
+        using var almacen = cuota.CrearAlmacen(Guid.NewGuid());
+        using var flujo = new MemoryStream(zip);
+
+        var extraer = () => ExtractorZip.Extraer(flujo, MaximoEntradas, MaximoPorEntrada, almacen);
+
+        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>("control: el tercero no cabe");
+        almacen.Reservado.Should().Be(0);
+        cuota.ReservadoGlobal.Should().Be(0);
+        Directory.GetFiles(almacen.Directorio).Should().BeEmpty("los dos que sí cupieron no se quedan huérfanos");
     }
 
     [Fact]
@@ -81,9 +110,7 @@ public class ExtractorZipTests
     {
         var entradas = Enumerable.Range(0, 5).Select(i => ($"doc{i}.pdf", 1024)).ToArray();
 
-        var extraer = () => ExtractorZip.Extraer(CrearZip(entradas), maximoEntradas: 4, MaximoPorEntrada, PresupuestoHolgado);
-
-        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
+        Extraer(CrearZip(entradas), PresupuestoHolgado, maximoEntradas: 4).Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     [Fact]
@@ -91,9 +118,7 @@ public class ExtractorZipTests
     {
         var zip = CrearZip(("gordo.pdf", 3 * 1024 * 1024));
 
-        var extraer = () => ExtractorZip.Extraer(zip, MaximoEntradas, maximoPorEntrada: 1024 * 1024, PresupuestoHolgado);
-
-        extraer.Should().ThrowExactly<LimiteDeZipSuperadoException>();
+        Extraer(zip, PresupuestoHolgado, maximoPorEntrada: 1024 * 1024).Should().ThrowExactly<LimiteDeZipSuperadoException>();
     }
 
     /// <summary>
@@ -106,25 +131,25 @@ public class ExtractorZipTests
     {
         var danado = new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05 };
 
-        var extraer = () => ExtractorZip.Extraer(danado, MaximoEntradas, MaximoPorEntrada, PresupuestoHolgado);
-
-        extraer.Should().Throw<InvalidDataException>(
+        Extraer(danado, PresupuestoHolgado).Should().Throw<InvalidDataException>(
             "no es un límite superado: su mensaje es del framework y no se enseña, va al aviso genérico de .zip ilegible");
     }
 
     [Fact]
-    public void Un_zip_normal_se_extrae_con_su_contenido_y_sus_nombres()
+    public async Task Un_zip_normal_se_extrae_a_temporales_con_su_contenido_y_sus_nombres()
     {
         var zip = CrearZip(("informe.pdf", 2048), ("carpeta/foto.png", 1024));
 
-        var extraido = ExtractorZip.Extraer(zip, MaximoEntradas, MaximoPorEntrada, PresupuestoHolgado);
+        var (extraido, almacen) = ExtraerEn(zip, PresupuestoHolgado);
 
         extraido.Should().HaveCount(2);
         extraido[0].NombreArchivo.Should().Be("informe.pdf");
-        extraido[0].Contenido.Should().HaveCount(2048);
+        (await almacen.LeerAsync(extraido[0].Archivo)).Should().HaveCount(2048);
         // La ruta interna del .zip se descarta: solo se conserva el nombre.
         extraido[1].NombreArchivo.Should().Be("foto.png");
-        extraido[1].Contenido.Should().HaveCount(1024);
+        (await almacen.LeerAsync(extraido[1].Archivo)).Should().HaveCount(1024);
+        almacen.Reservado.Should().Be(3072, "lo extraído descuenta del tope de la pantalla");
+        Directory.GetFiles(almacen.Directorio).Should().HaveCount(2);
     }
 
     /// <summary>
@@ -137,8 +162,8 @@ public class ExtractorZipTests
     private static byte[] FalsificarTamanoDeclarado(byte[] zip, uint tamanoMentira)
     {
         var copia = (byte[])zip.Clone();
-        // Cabecera local (PK): tamaño sin comprimir en el byte 22.
-        // Directorio central (PK): el mismo campo en el byte 24.
+        // Cabecera local (PK): tamaño sin comprimir en el byte 22.
+        // Directorio central (PK): el mismo campo en el byte 24.
         foreach (var (firma, desplazamiento) in new (byte[] Firma, int Desplazamiento)[]
                  {
                      ([0x50, 0x4B, 0x03, 0x04], 22),
@@ -175,11 +200,10 @@ public class ExtractorZipTests
         var mentiroso = FalsificarTamanoDeclarado(
             CrearZip(("mentiroso.pdf", bytesReales)), tamanoMentira: 1024);
 
-        var extraido = ExtractorZip.Extraer(
-            mentiroso, MaximoEntradas, maximoPorEntrada: 2 * 1024 * 1024, PresupuestoHolgado);
+        var (extraido, _) = ExtraerEn(mentiroso, PresupuestoHolgado, maximoPorEntrada: 2 * 1024 * 1024);
 
-        extraido[0].Contenido.Length.Should().Be(1024);
-        extraido[0].Contenido.Length.Should().BeLessThan(bytesReales);
+        extraido[0].Archivo.TamanoBytes.Should().Be(1024);
+        extraido[0].Archivo.TamanoBytes.Should().BeLessThan(bytesReales);
     }
 
     [Fact]
@@ -189,9 +213,10 @@ public class ExtractorZipTests
         // caso, un off-by-one rechazaría subidas legítimas y nadie lo notaría.
         var zip = CrearZip(("justo.pdf", 4096));
 
-        var extraido = ExtractorZip.Extraer(zip, MaximoEntradas, MaximoPorEntrada, presupuestoTotalBytes: 4096);
+        var (extraido, almacen) = ExtraerEn(zip, presupuesto: 4096);
 
         extraido.Should().HaveCount(1);
-        extraido[0].Contenido.Should().HaveCount(4096);
+        extraido[0].Archivo.TamanoBytes.Should().Be(4096);
+        almacen.Reservado.Should().Be(4096);
     }
 }

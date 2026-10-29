@@ -246,6 +246,15 @@ builder.Services.AddSingleton<RecuperacionContrasena>();
 // Misma instancia en los componentes y en el host (la cola es suya).
 builder.Services.AddSingleton<IHostedService, RecuperacionContrasena>(sp => sp.GetRequiredService<RecuperacionContrasena>());
 
+// S-C-3 (ASVS 4.0.3 V12.1.1): topes de lo que retiene la Subida múltiple de
+// Documentos, en temporales y no en memoria del circuito (ver OpcionesSubidaMasiva);
+// los tres tienen que ser positivos o la aplicación no arranca.
+builder.Services.AddOptions<CaeManager.Web.Documentos.OpcionesSubidaMasiva>()
+    .Bind(builder.Configuration.GetSection(CaeManager.Web.Documentos.OpcionesSubidaMasiva.SeccionConfiguracion))
+    .Validate(o => o.SonValidas())
+    .ValidateOnStart();
+builder.Services.AddSingleton<CaeManager.Web.Documentos.CuotaSubidaMasiva>();
+
 // Textos de interfaz en recursos .resx (IStringLocalizer<T>): sin esto no hay
 // IStringLocalizerFactory que resolver, aunque las culturas estén configuradas.
 builder.Services.AddLocalization();
@@ -678,6 +687,10 @@ builder.Services.AddHealthChecks()
 CaeManager.Application.Common.Marca.Configurar(builder.Configuration["Marca:Nombre"]);
 
 var app = builder.Build();
+
+// S-C-3: la cuota se construye al arrancar, no en la primera Subida múltiple, para que los
+// temporales que dejó un proceso caído se borren ya y una raíz no escribible falle aquí.
+app.Services.GetRequiredService<CaeManager.Web.Documentos.CuotaSubidaMasiva>();
 
 // Mantenimiento manual: misma identidad administrativa que los modos vecinos,
 // sin migraciones, siembra ni Kestrel. Ejecutar con la aplicación detenida.
