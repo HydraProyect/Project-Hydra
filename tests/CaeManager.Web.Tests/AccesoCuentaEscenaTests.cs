@@ -365,8 +365,8 @@ public class AccesoCuentaEscenaTests : BunitContext
         AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
         var cut = Render<CambiarContrasena>();
         await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "incorrecta" });
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
         await cut.Find("form").SubmitAsync();
         usuario.AccessFailedCount.Should().Be(1);
         usuario.DebeCambiarContrasena.Should().BeTrue();
@@ -397,8 +397,8 @@ public class AccesoCuentaEscenaTests : BunitContext
         AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
         var cut = Render<CambiarContrasena>();
         await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
-        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
-        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsrqp2" });
 
         await cut.Find("form").SubmitAsync();
 
