@@ -127,7 +127,7 @@ public static class InfrastructureServiceCollectionExtensions
         services
             .AddIdentityCore<ApplicationUser>(opciones =>
             {
-                opciones.Password.RequiredLength = 10;
+                opciones.Password.RequiredLength = 12;
                 opciones.Password.RequireNonAlphanumeric = false;
                 opciones.User.RequireUniqueEmail = true;
                 opciones.SignIn.RequireConfirmedAccount = false;
