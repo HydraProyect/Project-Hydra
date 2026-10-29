@@ -16,9 +16,10 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// indistinguible de una regla legítima.
 ///
 /// Eso importa porque esos campos no se quedan en un informe: alimentan
-/// decisiones. <c>VerificacionIaDocumentoService</c> los usa para decidir si un
-/// documento se aprueba solo, y <c>DeteccionTrabajadoresService</c> convierte
-/// el listado extraído en propuestas de alta y baja de personal.
+/// decisiones. <c>VerificacionIaDocumentoService</c> los usa para preparar una
+/// propuesta que siempre confirma una persona —desde #1817 ningún documento se
+/// aprueba solo—, y <c>DeteccionTrabajadoresService</c> convierte el listado
+/// extraído en propuestas de alta y baja de personal.
 ///
 /// <b>Esto es mitigación, no una garantía.</b> No existe una defensa completa
 /// contra la inyección de prompt: delimitar y advertir sube el listón, no lo

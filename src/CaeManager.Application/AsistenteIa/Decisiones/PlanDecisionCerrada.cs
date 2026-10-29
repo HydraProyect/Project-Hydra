@@ -86,7 +86,7 @@ public sealed class PlanDecisionCerrada
     private PlanDecisionCerrada(string campoTexto, string texto, IReadOnlyList<PreguntaCerrada> preguntas)
     {
         // Todo texto entra al estado por aquí, y entra enmascarado: los DNI, NIE,
-        // pasaportes, CIF y correos no salen hacia el proveedor. El Centro, el
+        // pasaportes, CIF, correos y teléfonos no salen hacia el proveedor. El Centro, el
         // Cliente empresarial y los nombres de persona sí, porque son lo que hay
         // que casar con los candidatos.
         var enmascarado = EnmascaradorIdentificadores.Enmascarar(texto);
@@ -297,8 +297,11 @@ public sealed class PlanDecisionCerrada
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene candidatos con el mismo nombre.");
 
         // Un candidato descrito por su documento sacaría ese documento en claro, y
-        // además no casaría con el texto, que viaja enmascarado.
-        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores.Count > 0))
+        // además no casaría con el texto, que viaja enmascarado. Un teléfono en el
+        // nombre de un candidato (un Centro rotulado con su número) no invalida la
+        // decisión: es lo que ya ocurría antes de enmascarar teléfonos en el texto.
+        if (seleccion.Candidatos.Any(c => EnmascaradorIdentificadores.Enmascarar(c.Nombre).Identificadores
+                .Any(i => i.Tipo != TipoIdentificadorEnmascarado.Telefono)))
             return ErrorInvalido($"El dato «{seleccion.Campo.Nombre}» tiene un candidato descrito por un documento o un correo.");
 
         return null;

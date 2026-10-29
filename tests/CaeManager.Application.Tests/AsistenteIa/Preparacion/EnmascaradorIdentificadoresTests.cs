@@ -54,13 +54,42 @@ public class EnmascaradorIdentificadoresTests
     }
 
     [Theory]
+    [InlineData("612345678")]
+    [InlineData("912 345 678")]
+    [InlineData("612 34 56 78")]
+    [InlineData("91 234 56 78")]
+    [InlineData("612-345-678")]
+    [InlineData("+34 612 345 678")]
+    [InlineData("0033 1 42 68 53 00")]
+    [InlineData("+1 (202) 555-0123")]
+    public void Telefonos_se_ocultan_y_restauran(string telefono)
+    {
+        var resultado = EnmascaradorIdentificadores.Enmascarar($"Llama al {telefono}");
+        resultado.Texto.Should().Be("Llama al [TEL_1]");
+        resultado.Restaurar(resultado.Texto).Should().Be($"Llama al {telefono}");
+        resultado.Identificadores.Should().ContainSingle().Which.Tipo.Should().Be(TipoIdentificadorEnmascarado.Telefono);
+    }
+
+    [Fact]
+    public void Con_el_mismo_tramo_gana_el_documento_al_telefono()
+    {
+        var resultado = EnmascaradorIdentificadores.Enmascarar("pasaporte 612345678");
+
+        resultado.Texto.Should().Be("pasaporte [DOC_1]");
+        resultado.Identificadores.Should().ContainSingle().Which.Tipo.Should().Be(TipoIdentificadorEnmascarado.Pasaporte);
+    }
+
+    [Theory]
     [InlineData("mantenimiento del 18/09/2026 al 30/09/2026")]
     [InlineData("pedido 12345678 de material")]
     [InlineData("el pasaporte francés de Ana")]
     [InlineData("Centro Frituritas Valencia Norte, nave 7")]
-    [InlineData("llama al 612345678")]
     [InlineData("presupuesto de 12.345.678 euros")]
     [InlineData("pasaporte ABCDEFGHIJKLMNOPQRSTU1")]
+    [InlineData("visita el 9.10.2026 10:00")]
+    [InlineData("visita el 7-11-2026 09:30")]
+    [InlineData("pedido 000123456")]
+    [InlineData("presupuesto de 1.000.000.000 euros")]
     public void Lo_que_no_es_un_identificador_no_se_toca(string texto)
     {
         // Enmascarar de más también es un fallo: un Centro o una fecha enmascarados

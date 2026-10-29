@@ -36,12 +36,13 @@ public class AnthropicDeteccionIntencionCaeService(
                 "DeteccionIntencionCae.NoConfigurado", "La detección automática de intención CAE no está disponible ahora mismo."));
         }
 
+        var correo = PromptCorreoEntrante.Preparar(cuerpoConversacion, []);
         var solicitud = new SolicitudAnthropic(
             config.Para(RutasAnthropic.RelevanciaCae).Modelo,
             config.MaxTokensRespuesta,
             ConfiguracionSalidaAnthropic.De(config.Para(RutasAnthropic.RelevanciaCae).Esfuerzo),
             SystemPrompt,
-            [new MensajeAnthropic("user", $"Transcripción de la conversación:\n\n{cuerpoConversacion}")]);
+            [new MensajeAnthropic("user", $"Transcripción de la conversación:\n\n{PromptCorreoEntrante.Delimitar(correo.Texto)}")]);
 
         using var peticion = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages")
         {
