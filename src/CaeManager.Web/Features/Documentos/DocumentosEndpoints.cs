@@ -54,68 +54,93 @@ public static class DocumentosEndpoints
         // por cada lote de PaginadorExportacion sería un N+1.
         // Lleva el listado completo de Documentos del tenant (propietario,
         // tipo, fechas): mismo criterio de caché que el PDF.
-        endpoints.MapGet("/documentos/exportar.xlsx", async (
-            HttpContext contexto, IMediator mediator, CancellationToken cancellationToken,
-            string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
-            string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null) =>
-        {
-            CabecerasArchivoSensible.ProhibirCache(contexto);
-
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Documentos");
-
-            hoja.Cell(1, 1).Value = "Propietario";
-            hoja.Cell(1, 2).Value = "Ámbito";
-            hoja.Cell(1, 3).Value = "Tipo de documento";
-            hoja.Cell(1, 4).Value = "Emisión";
-            hoja.Cell(1, 5).Value = "Vencimiento";
-            hoja.Cell(1, 6).Value = "Estado";
-            hoja.Row(1).Style.Font.Bold = true;
-
-            var fila = 2;
-            await foreach (var documento in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerDocumentosQuery(
-                        TrabajadorId: null,
-                        Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
-                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        // La selección de la franja de estado: varios nombres separados por coma.
-                        Estado: null,
-                        Estados: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
-                        Pagina: pagina,
-                        TamanoPagina: tamanoPagina,
-                        OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
-                        Descendente: desc,
-                        // Un valor que no es un Id se ignora, igual que en el listado: no es un 400.
-                        PropietarioId: Guid.TryParse(propietario, out var entidadAsociadaId) ? entidadAsociadaId : null,
-                        TipoDocumentoId: Guid.TryParse(tipo, out var tipoFiltro) ? tipoFiltro : null,
-                        ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null,
-                        AgruparPorAmbito: agrupar == "ambito"),
-                    cancellationToken)))
-            {
-                hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
-                hoja.Cell(fila, 2).Value = documento.Ambito.ToString();
-                hoja.Cell(fila, 3).Value = documento.TipoDocumentoNombre;
-                hoja.Cell(fila, 4).Value = documento.FechaEmision.ToDateTime(TimeOnly.MinValue);
-                if (documento.FechaVencimiento is not null)
-                    hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
-                hoja.Cell(fila, 6).Value = EstadoDocumentoUi.Texto(documento.Estado);
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "documentos.xlsx");
-        });
+        endpoints.MapGet("/documentos/exportar.xlsx", ExportarAsync);
 
         return endpoints;
+    }
+
+    public static async Task<IResult> ExportarAsync(
+        HttpContext contexto, IMediator mediator, IRegistroExportacionService registroExportacion,
+        CancellationToken cancellationToken,
+        string? q = null, string? ambito = null, string? estado = null, string? orden = null, bool desc = false,
+        string? tipo = null, string? plataforma = null, string? propietario = null, string? agrupar = null)
+    {
+        CabecerasArchivoSensible.ProhibirCache(contexto);
+
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Documentos");
+
+        hoja.Cell(1, 1).Value = "Propietario";
+        hoja.Cell(1, 2).Value = "Ámbito";
+        hoja.Cell(1, 3).Value = "Tipo de documento";
+        hoja.Cell(1, 4).Value = "Emisión";
+        hoja.Cell(1, 5).Value = "Vencimiento";
+        hoja.Cell(1, 6).Value = "Estado";
+        hoja.Row(1).Style.Font.Bold = true;
+
+        var fila = 2;
+        await foreach (var documento in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerDocumentosQuery(
+                    TrabajadorId: null,
+                    Ambito: Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoFiltro) ? ambitoFiltro : null,
+                    Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                    // La selección de la franja de estado: varios nombres separados por coma.
+                    Estado: null,
+                    Estados: SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estados ? estados : null,
+                    Pagina: pagina,
+                    TamanoPagina: tamanoPagina,
+                    OrdenarPor: string.IsNullOrWhiteSpace(orden) ? null : orden,
+                    Descendente: desc,
+                    // Un valor que no es un Id se ignora, igual que en el listado: no es un 400.
+                    PropietarioId: Guid.TryParse(propietario, out var entidadAsociadaId) ? entidadAsociadaId : null,
+                    TipoDocumentoId: Guid.TryParse(tipo, out var tipoFiltro) ? tipoFiltro : null,
+                    ProveedorPlataformaCaeId: Guid.TryParse(plataforma, out var plataformaFiltro) ? plataformaFiltro : null,
+                    AgruparPorAmbito: agrupar == "ambito"),
+                cancellationToken)))
+        {
+            hoja.Cell(fila, 1).Value = documento.PropietarioNombre;
+            hoja.Cell(fila, 2).Value = documento.Ambito.ToString();
+            hoja.Cell(fila, 3).Value = documento.TipoDocumentoNombre;
+            hoja.Cell(fila, 4).Value = documento.FechaEmision.ToDateTime(TimeOnly.MinValue);
+            if (documento.FechaVencimiento is not null)
+                hoja.Cell(fila, 5).Value = documento.FechaVencimiento.Value.ToDateTime(TimeOnly.MinValue);
+            hoja.Cell(fila, 6).Value = EstadoDocumentoUi.Texto(documento.Estado);
+            fila++;
+        }
+
+        hoja.Columns().AdjustToContents();
+
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        try
+        {
+            var estadosAplicados = SeleccionEstados.Separar<EstadoDocumento>(estado);
+            await registroExportacion.RegistrarAsync(
+                nameof(Documento), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("ambito", Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoAplicado) ? ambitoAplicado.ToString() : null),
+                    ("estado", estadosAplicados.Count > 0 ? string.Join(",", estadosAplicados) : null),
+                    ("tipo", Guid.TryParse(tipo, out var tipoAplicado) ? tipoAplicado.ToString() : null),
+                    ("plataforma", Guid.TryParse(plataforma, out var plataformaAplicada) ? plataformaAplicada.ToString() : null),
+                    ("propietario", Guid.TryParse(propietario, out var propietarioAplicado) ? propietarioAplicado.ToString() : null),
+                    ("agrupar", agrupar == "ambito" ? "ambito" : null),
+                    ("orden", CriteriosExportacion.SoloNombre(orden)), ("desc", desc ? "true" : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "documentos.xlsx");
     }
 
     /// <summary>
