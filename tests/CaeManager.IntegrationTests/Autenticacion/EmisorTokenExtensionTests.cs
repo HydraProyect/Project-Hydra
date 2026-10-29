@@ -76,7 +76,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, userManager, _protector);
+        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas());
 
         resultado.EsExitoso.Should().BeTrue();
         resultado.Valor.ExpiraEnUtc.Should().BeCloseTo(DateTime.UtcNow.Add(TokenSesionExtension.Vigencia), TimeSpan.FromSeconds(5));
@@ -93,7 +93,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         using var ambito = _servicios.CreateScope();
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var resultado = await EmisorTokenExtension.EmitirAsync(Guid.NewGuid(), userManager, _protector);
+        var resultado = await EmisorTokenExtension.EmitirAsync(Guid.NewGuid(), Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas());
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Extension.UsuarioNoEncontrado");
@@ -115,7 +115,7 @@ public class EmisorTokenExtensionTests : IAsyncLifetime
         await contexto.SaveChangesAsync();
 
         var userManager = ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, userManager, _protector);
+        var resultado = await EmisorTokenExtension.EmitirAsync(usuario.Id, Guid.NewGuid(), userManager, _protector, new SesionesExtensionFalsas());
 
         resultado.EsFallido.Should().BeTrue();
         resultado.Error.Codigo.Should().Be("Extension.CuentaAMedioActivar");

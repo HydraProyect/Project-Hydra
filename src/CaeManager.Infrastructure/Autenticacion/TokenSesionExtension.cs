@@ -18,15 +18,8 @@ namespace CaeManager.Infrastructure.Autenticacion;
 /// </para>
 ///
 /// <para>
-/// <b>La carga útil lleva el security stamp, y eso es la revocación.</b> El
-/// token es sin estado (no hay tabla, no hay migración), así que no se puede
-/// borrar una fila para invalidarlo. Lo que sí se puede es cambiar el
-/// security stamp del usuario —<c>UserManager.UpdateSecurityStampAsync</c>,
-/// que es lo que ya ocurre al cambiar la contraseña— y entonces todo token
-/// emitido antes deja de valer al instante, igual que las cookies de ese
-/// usuario. Es el mismo mecanismo de invalidación que Identity ya tiene, no
-/// uno nuevo; ver <c>ExtensionAuthenticationHandler</c>, que es quien lo
-/// comprueba en cada petición.
+/// El token vincula el sello de seguridad y el identificador de la sesión interactiva.
+/// Ambos se comprueban en cada petición para aplicar la revocación.
 /// </para>
 ///
 /// <para>
@@ -59,11 +52,12 @@ public static class TokenSesionExtension
     /// consume el token lo compara con el de la base: si no coinciden, el
     /// token es de antes de una invalidación y no vale.
     /// </param>
-    public static string Proteger(IDataProtectionProvider dataProtectionProvider, Guid usuarioId, string securityStamp)
+    public static string Proteger(IDataProtectionProvider dataProtectionProvider, Guid usuarioId, string securityStamp, Guid sid)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(securityStamp);
+        if (sid == Guid.Empty) throw new ArgumentException("Identificador de sesión vacío.", nameof(sid));
 
-        return CrearProtector(dataProtectionProvider).Protect($"{usuarioId:N}|{securityStamp}", Vigencia);
+        return CrearProtector(dataProtectionProvider).Protect($"{usuarioId:N}|{securityStamp}|{sid:N}", Vigencia);
     }
 
     /// <summary>
@@ -98,10 +92,10 @@ public static class TokenSesionExtension
     /// </summary>
     public static CargaUtilTokenExtension? ParsearCargaUtil(string cargaUtil)
     {
-        // El security stamp de Identity es Base32 (sin '|'), así que dos
+        // El security stamp de Identity es Base32 (sin '|'), así que tres
         // partes exactas es la única forma válida.
         var partes = cargaUtil.Split('|');
-        if (partes.Length != 2)
+        if (partes.Length != 3)
             return null;
 
         if (!Guid.TryParseExact(partes[0], "N", out var usuarioId) || usuarioId == Guid.Empty)
@@ -110,7 +104,10 @@ public static class TokenSesionExtension
         if (string.IsNullOrWhiteSpace(partes[1]))
             return null;
 
-        return new CargaUtilTokenExtension(usuarioId, partes[1]);
+        if (!Guid.TryParseExact(partes[2], "N", out var sid) || sid == Guid.Empty)
+            return null;
+
+        return new CargaUtilTokenExtension(usuarioId, partes[1], sid);
     }
 
     private static ITimeLimitedDataProtector CrearProtector(IDataProtectionProvider dataProtectionProvider) =>
@@ -118,4 +115,4 @@ public static class TokenSesionExtension
 }
 
 /// <summary>Contenido verificado de un token de extensión — ver <see cref="TokenSesionExtension"/>.</summary>
-public record CargaUtilTokenExtension(Guid UsuarioId, string SecurityStamp);
+public record CargaUtilTokenExtension(Guid UsuarioId, string SecurityStamp, Guid Sid);

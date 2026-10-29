@@ -19,8 +19,12 @@ namespace CaeManager.Infrastructure.Autenticacion;
 public static class EmisorTokenExtension
 {
     public static async Task<Result<(string Token, DateTime ExpiraEnUtc)>> EmitirAsync(
-        Guid usuarioId, UserManager<ApplicationUser> userManager, IDataProtectionProvider dataProtectionProvider)
+        Guid usuarioId, Guid? sid, UserManager<ApplicationUser> userManager, IDataProtectionProvider dataProtectionProvider,
+        IRegistroSesionesUsuario sesiones)
     {
+        if (sid is null || sid == Guid.Empty || !await sesiones.EstaVigenteAsync(usuarioId, sid.Value))
+            return Result.Fallo<(string, DateTime)>(Error.Crear("Extension.SesionNoVigente", "La sesión ya no está vigente. Vuelve a iniciar sesión."));
+
         var usuario = await userManager.FindByIdAsync(usuarioId.ToString());
         if (usuario is null)
             return Result.Fallo<(string, DateTime)>(Error.Crear("Extension.UsuarioNoEncontrado", "No encontramos el usuario."));
@@ -34,7 +38,7 @@ public static class EmisorTokenExtension
                 "Extension.CuentaAMedioActivar",
                 "La cuenta no puede conectar la extensión todavía. Cambia la contraseña para completar su activación."));
 
-        var token = TokenSesionExtension.Proteger(dataProtectionProvider, usuarioId, usuario.SecurityStamp);
+        var token = TokenSesionExtension.Proteger(dataProtectionProvider, usuarioId, usuario.SecurityStamp, sid.Value);
         return Result.Exito((token, DateTime.UtcNow.Add(TokenSesionExtension.Vigencia)));
     }
 }
