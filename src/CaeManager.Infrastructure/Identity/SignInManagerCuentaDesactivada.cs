@@ -61,7 +61,8 @@ public class SignInManagerCuentaDesactivada(
     IAuthenticationSchemeProvider schemes,
     IUserConfirmation<ApplicationUser> confirmation,
     IVigilanciaInicioSesion vigilancia,
-    IRegistroSesionesUsuario sesiones)
+    IRegistroSesionesUsuario sesiones,
+    VerificacionContrasenaFicticia contrasenaFicticia)
     : SignInManager<ApplicationUser>(userManager, contextAccessor, claimsFactory, optionsAccessor, logger, schemes, confirmation)
 {
     /// <summary>
@@ -384,7 +385,10 @@ public class SignInManagerCuentaDesactivada(
         // Cuenta inexistente: la base devolvió Failed sin llegar a la
         // sobrecarga con usuario. Solo cuenta para la ráfaga por IP.
         if (!_cuentaEncontrada)
+        {
+            contrasenaFicticia.Verificar(UserManager.PasswordHasher, password);
             await vigilancia.RegistrarAsync(null, null, MetodoInicioSesion.Contrasena, ResultadoInicioSesion.Fallido);
+        }
         return resultado;
     }
 
@@ -392,9 +396,39 @@ public class SignInManagerCuentaDesactivada(
     {
         _cuentaEncontrada = true;
         _paisNoPermitido = false;
-        var resultado = await base.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure);
-        await RegistrarAsync(user, MetodoInicioSesion.Contrasena, resultado);
-        return resultado;
+        _contrasenaSinVerificar = password;
+        try
+        {
+            var resultado = await base.PasswordSignInAsync(user, password, isPersistent, lockoutOnFailure);
+            await RegistrarAsync(user, MetodoInicioSesion.Contrasena, resultado);
+            return resultado;
+        }
+        finally
+        {
+            _contrasenaSinVerificar = null;
+        }
+    }
+
+    /// <summary>
+    /// Contraseña del inicio con contraseña en curso, solo hasta la primera
+    /// <see cref="PreSignInCheck"/>. Si esa comprobación previa rechaza la cuenta
+    /// (bloqueada, desactivada o país no permitido), o la cuenta no tiene contraseña local,
+    /// Identity no llega a verificar ningún hash; se verifica el ficticio para que el coste
+    /// dominante, el del hash, no distinga esas cuentas de una que no existe ni de una
+    /// contraseña errónea (S-A-10).
+    /// </summary>
+    private string? _contrasenaSinVerificar;
+
+    protected override async Task<SignInResult?> PreSignInCheck(ApplicationUser user)
+    {
+        var contrasena = _contrasenaSinVerificar;
+        _contrasenaSinVerificar = null;
+        var rechazo = await base.PreSignInCheck(user);
+        // Sin hash local (cuenta solo Microsoft, o tras «No he sido yo») Identity tampoco
+        // calcula ninguno: devuelve Failed al instante.
+        if (contrasena is not null && (rechazo is not null || user.PasswordHash is null))
+            contrasenaFicticia.Verificar(UserManager.PasswordHasher, contrasena);
+        return rechazo;
     }
 
     public override async Task<SignInResult> TwoFactorAuthenticatorSignInAsync(string code, bool isPersistent, bool rememberClient)

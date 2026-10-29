@@ -1,4 +1,11 @@
 using System.Security.Claims;
+using System.Text.Encodings.Web;
+using CaeManager.Infrastructure.Autenticacion;
+using CaeManager.Infrastructure.Seguridad;
+using CaeManager.Domain.Seguridad;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using CaeManager.Application.Common;
 using CaeManager.Application.Plataforma.Commands.CerrarSesionPrivilegiada;
 using CaeManager.Domain.Common;
@@ -25,6 +32,130 @@ namespace CaeManager.Web.Tests;
 public class SesionRevocableEnServidorTests
 {
     private static readonly Guid TenantPropietario = Guid.NewGuid();
+
+    [Fact]
+    public async Task El_token_de_extension_deja_de_autenticar_al_revocar_su_sesion()
+    {
+        var (gestor, _, sesiones, cuenta) = Montar();
+        var protector = new EphemeralDataProtectionProvider();
+        var sid = Guid.NewGuid();
+        var token = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, sid);
+        async Task<AuthenticateResult> Autenticar(string valor)
+        {
+            var handler = new ExtensionAuthenticationHandler(
+                new MonitorExtension(), NullLoggerFactory.Instance, UrlEncoder.Default, protector,
+                gestor.UserManager, new UserClaimsPrincipalFactory<ApplicationUser>(gestor.UserManager, Opciones.Create(new IdentityOptions())), sesiones);
+            var http = new DefaultHttpContext();
+            http.Request.Headers.Authorization = $"Extension {valor}";
+            await handler.InitializeAsync(new AuthenticationScheme("Extension", null, typeof(ExtensionAuthenticationHandler)), http);
+            return await handler.AuthenticateAsync();
+        }
+
+        (await Autenticar(token)).Succeeded.Should().BeTrue();
+        sesiones.ConsultasPorCuenta.Should().Contain((cuenta.Id, sid));
+        await sesiones.RevocarAsync(cuenta.Id, sid);
+        (await Autenticar(token)).Succeeded.Should().BeFalse();
+        var otroToken = TokenSesionExtension.Proteger(protector, cuenta.Id, cuenta.SecurityStamp!, Guid.NewGuid());
+        (await Autenticar(otroToken)).Succeeded.Should().BeTrue();
+        cuenta.SecurityStamp = "sello-rotado";
+        (await Autenticar(otroToken)).Succeeded.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Emision_rechaza_sesion_ausente_o_revocada()
+    {
+        var (gestor, _, sesiones, cuenta) = Montar();
+        var protector = new EphemeralDataProtectionProvider();
+        var sid = Guid.NewGuid();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, null, gestor.UserManager, protector, sesiones)).EsFallido.Should().BeTrue();
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones)).EsExitoso.Should().BeTrue();
+        await sesiones.RevocarAsync(cuenta.Id, sid);
+        (await EmisorTokenExtension.EmitirAsync(cuenta.Id, sid, gestor.UserManager, protector, sesiones)).EsFallido.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Inicio_de_sesion_de_cuenta_inexistente_verifica_hash_ficticio_y_falla()
+    {
+        var hasher = new HasherEspia();
+        var (gestor, _, _, _) = Montar(hasher: hasher, vigilancia: new VigilanciaFalsa());
+        var resultado = await gestor.PasswordSignInAsync("ausente@example.test", "clave-introducida", true, true);
+        resultado.Succeeded.Should().BeFalse();
+        hasher.ContrasenasVerificadas.Should().Equal("clave-introducida");
+        hasher.HashVerificado.Should().Be("hash-configurado");
+    }
+
+    [Fact]
+    public async Task Inicio_de_sesion_de_cuenta_bloqueada_verifica_hash_ficticio_y_sigue_bloqueada()
+    {
+        var hasher = new HasherEspia();
+        var (gestor, _, _, cuenta) = Montar(hasher: hasher, vigilancia: new VigilanciaFalsa());
+        cuenta.LockoutEnabled = true;
+        cuenta.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(15);
+        cuenta.PasswordHash = "hash-real";
+
+        var resultado = await gestor.PasswordSignInAsync(cuenta.UserName!, "clave-introducida", true, true);
+
+        resultado.IsLockedOut.Should().BeTrue();
+        hasher.ContrasenasVerificadas.Should().Equal("clave-introducida");
+        hasher.HashVerificado.Should().Be("hash-configurado", "la cuenta bloqueada no compara su hash real, solo el ficticio");
+    }
+
+    [Fact]
+    public async Task Inicio_de_sesion_de_cuenta_sin_contrasena_local_verifica_hash_ficticio()
+    {
+        var hasher = new HasherEspia();
+        var (gestor, _, _, cuenta) = Montar(hasher: hasher, vigilancia: new VigilanciaFalsa());
+        cuenta.PasswordHash = null;
+
+        var resultado = await gestor.PasswordSignInAsync(cuenta.UserName!, "clave-introducida", true, false);
+
+        resultado.Succeeded.Should().BeFalse();
+        hasher.ContrasenasVerificadas.Should().Equal("clave-introducida");
+        hasher.HashVerificado.Should().Be("hash-configurado");
+    }
+
+    [Fact]
+    public async Task Contrasena_erronea_de_cuenta_normal_verifica_una_sola_vez_su_hash_real()
+    {
+        var hasher = new HasherEspia();
+        var (gestor, _, _, cuenta) = Montar(hasher: hasher, vigilancia: new VigilanciaFalsa());
+        cuenta.PasswordHash = "hash-real";
+
+        var resultado = await gestor.PasswordSignInAsync(cuenta.UserName!, "clave-introducida", true, false);
+
+        resultado.Succeeded.Should().BeFalse();
+        hasher.ContrasenasVerificadas.Should().Equal(["clave-introducida"], "sin el ficticio de más: el coste no se duplica");
+        hasher.HashVerificado.Should().Be("hash-real");
+    }
+
+    private sealed class HasherEspia : IPasswordHasher<ApplicationUser>
+    {
+        public List<string> ContrasenasVerificadas { get; } = [];
+        public string? HashVerificado { get; private set; }
+        public string HashPassword(ApplicationUser user, string password) => "hash-configurado";
+        public PasswordVerificationResult VerifyHashedPassword(ApplicationUser user, string hashedPassword, string providedPassword)
+        {
+            HashVerificado = hashedPassword;
+            ContrasenasVerificadas.Add(providedPassword);
+            return PasswordVerificationResult.Failed;
+        }
+    }
+
+    private sealed class VigilanciaFalsa : IVigilanciaInicioSesion
+    {
+        public Task<bool> PermiteOrigenAsync(Guid usuarioId, Guid tenantId, CancellationToken ct = default) => Task.FromResult(true);
+        public Task RegistrarAsync(Guid? usuarioId, Guid? tenantId, MetodoInicioSesion metodo, ResultadoInicioSesion resultado,
+            SenalesInicioSesion senalesConocidas = SenalesInicioSesion.Ninguna, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<ResultadoNoHeSidoYo> ConfirmarNoHeSidoYoAsync(string usuarioId, string codigo, CancellationToken ct = default) => throw new NotSupportedException();
+    }
+
+    private sealed class MonitorExtension : IOptionsMonitor<ExtensionAuthenticationSchemeOptions>
+    {
+        public ExtensionAuthenticationSchemeOptions CurrentValue { get; } = new();
+        public ExtensionAuthenticationSchemeOptions Get(string? name) => CurrentValue;
+        public IDisposable? OnChange(Action<ExtensionAuthenticationSchemeOptions, string?> listener) => null;
+    }
+
 
     [Fact]
     public async Task Iniciar_sesion_registra_un_sid_en_el_Tenant_propietario_y_lo_pone_en_la_cookie()
@@ -273,7 +404,7 @@ public class SesionRevocableEnServidorTests
         return (http, mediador);
     }
 
-    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null)
+    private static (SignInManagerCuentaDesactivada Gestor, AutenticacionFalsa Autenticacion, SesionesFalsas Sesiones, ApplicationUser Cuenta) Montar(SesionesFalsas? sesionesDePrueba = null, IPasswordHasher<ApplicationUser>? hasher = null, IVigilanciaInicioSesion? vigilancia = null)
     {
         var cuenta = new ApplicationUser
         {
@@ -284,7 +415,7 @@ public class SesionRevocableEnServidorTests
         };
         var almacen = new AlmacenDeUnaCuenta(cuenta);
         var opciones = Opciones.Create(new IdentityOptions());
-        var usuarios = new UserManager<ApplicationUser>(almacen, opciones, new PasswordHasher<ApplicationUser>(),
+        var usuarios = new UserManager<ApplicationUser>(almacen, opciones, hasher ?? new PasswordHasher<ApplicationUser>(),
             [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
             NullLogger<UserManager<ApplicationUser>>.Instance);
         var autenticacion = new AutenticacionFalsa();
@@ -297,7 +428,7 @@ public class SesionRevocableEnServidorTests
             new UserClaimsPrincipalFactory<ApplicationUser>(usuarios, opciones), opciones,
             NullLogger<SignInManager<ApplicationUser>>.Instance,
             new AuthenticationSchemeProvider(Opciones.Create(new AuthenticationOptions())),
-            new DefaultUserConfirmation<ApplicationUser>(), null!, sesiones);
+            new DefaultUserConfirmation<ApplicationUser>(), vigilancia!, sesiones, new VerificacionContrasenaFicticia(usuarios.PasswordHasher));
         return (gestor, autenticacion, sesiones, cuenta);
     }
 
@@ -308,6 +439,7 @@ public class SesionRevocableEnServidorTests
         public List<(Guid UsuarioId, Guid Sid)> RevocadasPorCuenta { get; } = [];
         public List<Guid> CerradasTodas { get; } = [];
         public int Consultas { get; private set; }
+        public List<(Guid UsuarioId, Guid Sid)> ConsultasPorCuenta { get; } = [];
         public bool RevocarLanza { get; init; }
         public bool CerrarTodasLanza { get; init; }
 
@@ -320,6 +452,7 @@ public class SesionRevocableEnServidorTests
         public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default)
         {
             Consultas++;
+            ConsultasPorCuenta.Add((usuarioId, sid));
             return Task.FromResult(!Revocadas.Contains(sid));
         }
 
@@ -393,8 +526,18 @@ public class SesionRevocableEnServidorTests
         public Task SignOutAsync(HttpContext context, string? scheme, AuthenticationProperties? properties) => Task.CompletedTask;
     }
 
-    private sealed class AlmacenDeUnaCuenta(ApplicationUser cuenta) : IUserSecurityStampStore<ApplicationUser>
+    private sealed class AlmacenDeUnaCuenta(ApplicationUser cuenta) : IUserSecurityStampStore<ApplicationUser>, IUserLockoutStore<ApplicationUser>, IUserPasswordStore<ApplicationUser>
     {
+        public Task SetPasswordHashAsync(ApplicationUser user, string? passwordHash, CancellationToken ct) => throw new NotSupportedException();
+        public Task<string?> GetPasswordHashAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.PasswordHash);
+        public Task<bool> HasPasswordAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.PasswordHash is not null);
+        public Task<DateTimeOffset?> GetLockoutEndDateAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnd);
+        public Task SetLockoutEndDateAsync(ApplicationUser user, DateTimeOffset? lockoutEnd, CancellationToken ct) => throw new NotSupportedException();
+        public Task<int> IncrementAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task ResetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
+        public Task<int> GetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(0);
+        public Task<bool> GetLockoutEnabledAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnabled);
+        public Task SetLockoutEnabledAsync(ApplicationUser user, bool enabled, CancellationToken ct) => throw new NotSupportedException();
         public void Dispose() { }
         public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.Id.ToString());
         public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.UserName);
@@ -406,7 +549,8 @@ public class SesionRevocableEnServidorTests
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken ct) => throw new NotSupportedException();
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken ct) =>
             Task.FromResult(userId == cuenta.Id.ToString() ? cuenta : null);
-        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) => throw new NotSupportedException();
+        public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken ct) =>
+            Task.FromResult(normalizedUserName == cuenta.UserName?.ToUpperInvariant() ? cuenta : null);
         public Task SetSecurityStampAsync(ApplicationUser user, string stamp, CancellationToken ct)
         {
             user.SecurityStamp = stamp;

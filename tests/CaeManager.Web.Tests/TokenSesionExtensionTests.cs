@@ -25,19 +25,21 @@ public class TokenSesionExtensionTests
     public void Un_token_emitido_se_lee_con_el_mismo_usuario_y_stamp()
     {
         var usuarioId = Guid.NewGuid();
-        var token = TokenSesionExtension.Proteger(_protector, usuarioId, "STAMPBASE32");
+        var sid = Guid.NewGuid();
+        var token = TokenSesionExtension.Proteger(_protector, usuarioId, "STAMPBASE32", sid);
 
         var carga = TokenSesionExtension.Leer(_protector, token);
 
         carga.Should().NotBeNull();
         carga!.UsuarioId.Should().Be(usuarioId);
         carga.SecurityStamp.Should().Be("STAMPBASE32");
+        carga.Sid.Should().Be(sid);
     }
 
     [Fact]
     public void Un_token_de_otro_proveedor_de_claves_no_se_lee()
     {
-        var token = TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "STAMP");
+        var token = TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "STAMP", Guid.NewGuid());
 
         // Otro proveedor efímero = otras claves, como tras rotarlas.
         TokenSesionExtension.Leer(new EphemeralDataProtectionProvider(), token).Should().BeNull();
@@ -53,7 +55,7 @@ public class TokenSesionExtensionTests
     public void Emitir_sin_security_stamp_no_esta_permitido()
     {
         // Sin stamp no habría con qué revocar el token después.
-        var emitir = () => TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "   ");
+        var emitir = () => TokenSesionExtension.Proteger(_protector, Guid.NewGuid(), "   ", Guid.NewGuid());
 
         emitir.Should().Throw<ArgumentException>();
     }
@@ -71,9 +73,18 @@ public class TokenSesionExtensionTests
     }
 
     [Fact]
+    public void Un_token_anterior_sin_sid_se_rechaza()
+    {
+        var protector = _protector.CreateProtector("CaeManager.Extension.Sesion.v1").ToTimeLimitedDataProtector();
+        var token = protector.Protect($"{Guid.NewGuid():N}|STAMP", TimeSpan.FromHours(8));
+        TokenSesionExtension.Leer(_protector, token).Should().BeNull();
+        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|STAMP|{Guid.Empty:N}").Should().BeNull();
+    }
+
+    [Fact]
     public void Una_carga_util_sin_stamp_se_rechaza()
     {
-        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|   ").Should().BeNull();
+        TokenSesionExtension.ParsearCargaUtil($"{Guid.NewGuid():N}|   |{Guid.NewGuid():N}").Should().BeNull();
     }
 
     [Fact]
@@ -82,8 +93,9 @@ public class TokenSesionExtensionTests
         // Discrimina: si el parseo rechazara todo, los casos de arriba
         // pasarían igual y no probarían nada.
         var usuarioId = Guid.NewGuid();
+        var sid = Guid.NewGuid();
 
-        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP")
-            .Should().BeEquivalentTo(new CargaUtilTokenExtension(usuarioId, "STAMP"));
+        TokenSesionExtension.ParsearCargaUtil($"{usuarioId:N}|STAMP|{sid:N}")
+            .Should().BeEquivalentTo(new CargaUtilTokenExtension(usuarioId, "STAMP", sid));
     }
 }
