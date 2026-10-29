@@ -430,6 +430,11 @@ public class RestablecerYCambiarContrasenaTests : IAsyncLifetime
         EscribirPropiedad(pagina, "OpcionesIdentity", Opciones.Create(new IdentityOptions()));
         EscribirPropiedad(pagina, "LoggerFactory", NullLoggerFactory.Instance);
         EscribirPropiedad(pagina, "CerrojoCredencial", cerrojo ?? new CerrojoSiempreConcedidoFalso());
+        // Los textos reales del .resx: el mensaje uniforme de contraseña actual incorrecta sale de ahí (S-A-9).
+        EscribirPropiedad(pagina, "Textos",
+            new Microsoft.Extensions.Localization.StringLocalizer<CaeManager.Web.Components.Account.Recursos.TextosCuenta>(
+                new Microsoft.Extensions.Localization.ResourceManagerStringLocalizerFactory(
+                    Opciones.Create(new Microsoft.Extensions.Localization.LocalizationOptions()), NullLoggerFactory.Instance)));
         return pagina;
     }
 
