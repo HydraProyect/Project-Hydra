@@ -564,4 +564,7 @@
   <data name="BotonVerDocumentosImportados" xml:space="preserve">
     <value>Ver los documentos importados</value>
   </data>
+  <data name="ErrorAnalisisOcupado" xml:space="preserve"><value>Hi ha massa anàlisis d’importació en curs. Torna-ho a provar d’aquí a uns moments.</value></data>
+  <data name="ErrorLimiteFilas" xml:space="preserve"><value>El fitxer supera el màxim de files permès per full.</value></data>
+  <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El fitxer supera el màxim de cel·les permès.</value></data>
 </root>

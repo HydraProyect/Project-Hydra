@@ -6,6 +6,7 @@ using CaeManager.Application.Importacion.Commands.RegistrarHistorialImportacion;
 using CaeManager.Application.Importacion.Queries;
 using CaeManager.Application.Importacion.Queries.ObtenerHistorialImportaciones;
 using CaeManager.Infrastructure.Identity;
+using CaeManager.Infrastructure.Importacion;
 using CaeManager.Web.Components.DesignSystem;
 using MediatR;
 using Microsoft.AspNetCore.Components;
@@ -199,6 +200,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         new("Contacto", "Nombre Apellidos — email@ejemplo.com", false)
     ];
 
+    [Inject] private LimitadorAnalisisImportacion Limitador { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -575,6 +577,16 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
             var contenido = memoria.ToArray();
             if (version != _versionAnalisis) return;
 
+            // El hueco se pide después de recibir el archivo: una subida lenta no debe ocupar uno de los
+            // pocos análisis concurrentes (el coste que se acota es el del análisis, no el de la subida).
+            using var permiso = await Limitador.IntentarEntrarAsync(_ciclo.Token);
+            if (version != _versionAnalisis) return;
+            if (permiso is null)
+            {
+                _mensajeError = Textos["ErrorAnalisisOcupado"];
+                return;
+            }
+
             PlanImportacionDto? planSimple = null;
             PlanImportacionCombinadaDto? planCombinada = null;
             switch (plantilla.Id)
@@ -600,6 +612,18 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
         catch (OperationCanceledException) when (_ciclo.IsCancellationRequested)
         {
             // Página retirada con el análisis en vuelo: no hay a quién pintarlo.
+        }
+        catch (LimiteHojaImportacionException ex)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado: límite de {Limite} por hoja.", ex.Filas ? "filas" : "celdas");
+            _mensajeError = Textos[ex.Filas ? "ErrorLimiteFilas" : "ErrorLimiteCeldas"];
+        }
+        catch (ArchivoRechazadoException)
+        {
+            if (version != _versionAnalisis) return;
+            Logger.LogWarning("Archivo de importación rechazado por el inspector XLSX.");
+            _mensajeError = Textos["ErrorLecturaArchivo"];
         }
         catch (Exception ex)
         {

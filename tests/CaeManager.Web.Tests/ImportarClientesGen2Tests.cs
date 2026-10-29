@@ -330,6 +330,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
         Escenario escenario, string url = "importacion?plantilla=clientes", Action? antesDeRenderizar = null)
     {
         var mediador = new MediadorControlado(escenario.Responder);
+        Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
+        Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();

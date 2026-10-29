@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using ClosedXML.Excel;
 using Microsoft.Playwright;
 
@@ -212,7 +213,15 @@ public class ImportacionTests(WebAppFixture fixture)
         // El log ya no lleva el nombre del archivo (S-D-7: puede contener datos personales), así que
         // el tamaño exacto hace de identificador de esta ejecución: relleno de longitud aleatoria.
         var relleno = new string('x', 10_000 + (int)(BitConverter.ToUInt32(Guid.NewGuid().ToByteArray(), 0) % 1_000_000));
-        await File.WriteAllTextAsync(rutaArchivo, "Esto no es un libro de Excel valido, fuerza la excepcion de ClosedXML al abrirlo. " + relleno);
+        // Un .zip legible sin libro dentro: el inspector lo deja pasar (no hay hojas que contar) y falla ClosedXML al
+        // abrirlo, que es el error del sistema que deja rastro con pila. Un texto que ni es .zip lo rechaza ya el
+        // inspector como denegación esperada (ArchivoRechazadoException, aviso sin pila ni tamaño), que es otro camino.
+        using (var zip = ZipFile.Open(rutaArchivo, ZipArchiveMode.Create))
+        {
+            var parte = zip.CreateEntry("relleno.txt", CompressionLevel.NoCompression);
+            await using var escritor = new StreamWriter(parte.Open());
+            await escritor.WriteAsync("Esto no es un libro de Excel valido, fuerza la excepcion de ClosedXML al abrirlo. " + relleno);
+        }
         var tamanoArchivo = new FileInfo(rutaArchivo).Length;
 
         await using var contexto = await fixture.Browser.NewContextAsync();
