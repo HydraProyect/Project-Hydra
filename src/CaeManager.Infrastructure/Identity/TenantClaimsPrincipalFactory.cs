@@ -85,9 +85,13 @@ public class TenantClaimsPrincipalFactory(
         // Lo mismo con el identificador de sesión: un talveg:sid guardado en AspNetUserClaims haría que
         // todas las sesiones de la cuenta compartieran uno, y cerrar una las cerraría todas (o ninguna,
         // si el guardado no tiene fila). Solo lo pone SignInManagerCuentaDesactivada al emitir la cookie.
+        // Y la marca de inicio de sesión: guardada, haría «reciente» cada sesión y el alta del TOTP no
+        // volvería a pedir la contraseña.
         foreach (var identidadGenerada in principal.Identities)
             foreach (var marca in identidadGenerada.Claims
-                         .Where(c => c.Type is SignInManagerCuentaDesactivada.ClaimTotpSesion or SignInManagerCuentaDesactivada.ClaimSid)
+                         .Where(c => c.Type is SignInManagerCuentaDesactivada.ClaimTotpSesion
+                             or SignInManagerCuentaDesactivada.ClaimSid
+                             or SignInManagerCuentaDesactivada.ClaimAutenticacionSesion)
                          .ToList())
                 identidadGenerada.RemoveClaim(marca);
 

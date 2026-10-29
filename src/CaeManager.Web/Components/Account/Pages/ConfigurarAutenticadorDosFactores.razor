@@ -20,6 +20,7 @@
 @using CaeManager.Web.Services
 @using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.DataProtection
 @using Microsoft.AspNetCore.Identity
 @using Microsoft.Extensions.Localization
 @using MediatR
@@ -32,6 +33,7 @@
 @inject IStringLocalizer<TextosCuenta> Textos
 @inject IMediator Mediator
 @inject CaeManager.Infrastructure.Coordinacion.IEleccionLiderService CerrojoVerificacion
+@inject IDataProtectionProvider ProteccionDatos
 
 <PageTitle>Autenticación en dos pasos — @Marca.Nombre</PageTitle>
 
@@ -112,7 +114,7 @@
             <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@_errorCarga</span></div>
         </div>
     }
-    else if (_claveCompartida is not null && Entrada is not null)
+    else if (_usuario is not null)
     {
         @if (_dosFactoresObligatorio)
         {
@@ -123,45 +125,82 @@
             <p class="dos-factores-obligatorio" role="status">@Textos["DosFactoresObligatorioParaCredenciales"]</p>
         }
 
-        <div class="dos-factores-alta">
-            <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
-                <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la aplicación autenticadora" width="220" height="220" />
-                <p>Escanea con Google Authenticator, Microsoft Authenticator o 1Password.</p>
-            </aside>
+        @if (!_reautenticado)
+        {
+            @* ASVS 4.0.3 V2.5 y V3.7.1: dar de alta un factor exige haberse autenticado hace poco.
+               Sin eso, la clave no se genera ni se enseña: una cookie robada de una cuenta sin
+               TOTP no basta para registrar el factor de otro y dejar fuera al titular. *@
+            <section class="tarjeta-2fa tarjeta-reautenticacion" aria-labelledby="reautenticacion-titulo">
+                <h2 id="reautenticacion-titulo">@Textos["ReautenticacionTitulo"]</h2>
 
-            <div class="dos-factores-pasos">
-                <section class="tarjeta-2fa" aria-labelledby="anadir-aplicacion-titulo">
-                    <h2 id="anadir-aplicacion-titulo">1. Añade la cuenta a tu aplicación</h2>
-                    <p>Escanea el código QR con una aplicación autenticadora compatible con TOTP. ¿No puedes escanearlo? Introduce esta clave manualmente:</p>
-                    <div class="clave-manual">
-                        <code>@_claveCompartida</code>
-                    </div>
+                @if (mensajeError is not null)
+                {
+                    <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@mensajeError</span></div>
+                }
 
-                    <p class="texto-2fa-secundario">Si tu aplicación admite pegar una URI, usa esta:</p>
-                    <p class="uri-otpauth"><code>@_uriOtpAuth</code></p>
-                </section>
-
-                <section class="tarjeta-2fa tarjeta-confirmacion" aria-labelledby="confirmar-aplicacion-titulo">
-                    <h2 id="confirmar-aplicacion-titulo">2. Confirma que funciona</h2>
-
-                    @if (mensajeError is not null)
-                    {
-                        <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@mensajeError</span></div>
-                    }
-
-                    <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="configurar-2fa">
+                @if (_reautenticacionConMicrosoft)
+                {
+                    <p class="texto-2fa-secundario">@Textos["ReautenticacionMicrosoftAyuda"]</p>
+                    <Boton Variante="VarianteBoton.Primario" Href="@EnlaceReautenticacionMicrosoft" class="boton-2fa" data-enhance-nav="false">@Textos["ReautenticacionMicrosoftBoton"]</Boton>
+                }
+                else
+                {
+                    <p class="texto-2fa-secundario">@Textos["ReautenticacionContrasenaAyuda"]</p>
+                    <EditForm Model="Reautenticacion" method="post" OnValidSubmit="ReautenticarAsync" FormName="reautenticar-2fa">
                         <DataAnnotationsValidator />
-
-                        <label for="codigo">Código de 6 dígitos generado por la app</label>
-                        <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="000000" aria-describedby="codigo-ayuda" />
-                        <span id="codigo-ayuda" class="ayuda-codigo">Se aceptan espacios y guiones: se limpian antes de verificar.</span>
-                        <ValidationMessage For="() => Entrada.Codigo" />
-
-                        <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">Activar autenticación en dos pasos</Boton>
+                        <label for="contrasena-actual">@Textos["ReautenticacionContrasena"]</label>
+                        <InputText id="contrasena-actual" type="password" autocomplete="current-password" @bind-Value="Reautenticacion!.Contrasena" />
+                        <ValidationMessage For="() => Reautenticacion!.Contrasena" />
+                        <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">@Textos["ReautenticacionContinuar"]</Boton>
                     </EditForm>
-                </section>
+                }
+            </section>
+        }
+        else if (_claveCompartida is not null && Entrada is not null)
+        {
+            <div class="dos-factores-alta">
+                <aside class="tarjeta-2fa tarjeta-qr" aria-label="Código QR de configuración">
+                    <img class="qr-2fa" src="@_qrCodeDataUri" alt="Código QR para configurar la aplicación autenticadora" width="220" height="220" />
+                    <p>Escanea con Google Authenticator, Microsoft Authenticator o 1Password.</p>
+                </aside>
+
+                <div class="dos-factores-pasos">
+                    <section class="tarjeta-2fa" aria-labelledby="anadir-aplicacion-titulo">
+                        <h2 id="anadir-aplicacion-titulo">1. Añade la cuenta a tu aplicación</h2>
+                        <p>Escanea el código QR con una aplicación autenticadora compatible con TOTP. ¿No puedes escanearlo? Introduce esta clave manualmente:</p>
+                        <div class="clave-manual">
+                            <code>@_claveCompartida</code>
+                        </div>
+
+                        <p class="texto-2fa-secundario">Si tu aplicación admite pegar una URI, usa esta:</p>
+                        <p class="uri-otpauth"><code>@_uriOtpAuth</code></p>
+                    </section>
+
+                    <section class="tarjeta-2fa tarjeta-confirmacion" aria-labelledby="confirmar-aplicacion-titulo">
+                        <h2 id="confirmar-aplicacion-titulo">2. Confirma que funciona</h2>
+
+                        @if (mensajeError is not null)
+                        {
+                            <div class="alerta-login" role="alert"><Icono Nombre="error-circulo" Tamano="TamanoIcono.Pequeno" /> <span>@mensajeError</span></div>
+                        }
+
+                        <EditForm Model="Entrada" method="post" OnValidSubmit="VerificarAsync" FormName="configurar-2fa">
+                            <DataAnnotationsValidator />
+                            @* La prueba de autenticación reciente viaja con el código: la página es SSR
+                               estática y el POST no ve lo que se decidió al pintarla. *@
+                            <InputText id="prueba-reautenticacion" type="hidden" @bind-Value="Entrada.Reautenticacion" />
+
+                            <label for="codigo">Código de 6 dígitos generado por la app</label>
+                            <InputText id="codigo" @bind-Value="Entrada.Codigo" autocomplete="one-time-code" inputmode="numeric" maxlength="6" placeholder="000000" aria-describedby="codigo-ayuda" />
+                            <span id="codigo-ayuda" class="ayuda-codigo">Se aceptan espacios y guiones: se limpian antes de verificar.</span>
+                            <ValidationMessage For="() => Entrada.Codigo" />
+
+                            <Boton Variante="VarianteBoton.Primario" Type="submit" class="boton-2fa">Activar autenticación en dos pasos</Boton>
+                        </EditForm>
+                    </section>
+                </div>
             </div>
-        </div>
+        }
     }
 
     @if (!_cargando && _codigosRecuperacion is null)
@@ -240,12 +279,38 @@
     [SupplyParameterFromForm(FormName = "regenerar-codigos")]
     private DatosRegenerar? Regenerar { get; set; }
 
+    // Reautenticación antes del alta (ASVS 4.0.3 V2.5, V3.7.1): la contraseña actual, con el mismo
+    // conteo en el bloqueo de la cuenta que el login. Quien acaba de iniciar sesión no la repite
+    // (SignInManagerCuentaDesactivada.AutenticacionEsReciente): es el caso del Administrador al que
+    // se fuerza el alta justo después del login.
+    [SupplyParameterFromForm(FormName = "reautenticar-2fa")]
+    private DatosReautenticacion? Reautenticacion { get; set; }
+
+    // Hay autenticación reciente: inicio de sesión de hace poco, contraseña acertada en esta página
+    // o una prueba vigente de cualquiera de las dos. Sin ella no se genera ni se enseña la clave.
+    private bool _reautenticado;
+
+    // La sesión entró por Microsoft o la cuenta no tiene contraseña local: la reautenticación es
+    // volver a iniciar sesión con Microsoft. La contraseña no sustituye al inicio con Microsoft de
+    // una cuenta que lo usa (RestriccionLoginLocalClaimsTransformation).
+    private bool _reautenticacionConMicrosoft;
+
+    private ClaimsPrincipal? _principal;
+
+    // Vigencia de la prueba de reautenticación que viaja en el formulario del código: el tiempo de
+    // instalar la aplicación y escanear el QR. La ventana del inicio de sesión reciente es aparte.
+    private static readonly TimeSpan VigenciaPruebaReautenticacion = TimeSpan.FromMinutes(15);
+
+    private const string PropositoPruebaReautenticacion = "CaeManager.Web.ConfigurarAutenticadorDosFactores.Reautenticacion.v1";
+
     protected override async Task OnInitializedAsync()
     {
         Entrada ??= new DatosEntrada();
         Regenerar ??= new DatosRegenerar();
+        Reautenticacion ??= new DatosReautenticacion();
 
         var estadoAutenticacion = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        _principal = estadoAutenticacion.User;
         var idClaim = estadoAutenticacion.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (!Guid.TryParse(idClaim, out var id))
         {
@@ -266,10 +331,134 @@
         else
         {
             _dosFactoresObligatorio = await UserManager.IsInRoleAsync(_usuario, Roles.Administrador);
-            await CargarClaveCompartidaAsync(_usuario);
+
+            // La prueba que llega con el código (o la de un inicio de sesión reciente) es lo único que
+            // abre el alta; una prueba ajena, caducada o de otra sesión no vale.
+            var pruebaRecibida = PruebaReautenticacionEsValida(Entrada.Reautenticacion);
+            _reautenticado = pruebaRecibida
+                || SignInManagerCuentaDesactivada.AutenticacionEsReciente(_principal, DateTimeOffset.UtcNow);
+            if (_reautenticado)
+            {
+                if (!pruebaRecibida)
+                    Entrada.Reautenticacion = EmitirPruebaReautenticacion();
+                await CargarClaveCompartidaAsync(_usuario);
+            }
+            else
+            {
+                Entrada.Reautenticacion = string.Empty;
+                await PrepararReautenticacionAsync(_usuario);
+            }
         }
 
         _cargando = false;
+    }
+
+    private async Task PrepararReautenticacionAsync(ApplicationUser usuario)
+    {
+        var entroConMicrosoft = _principal?.HasClaim(
+            RestriccionLoginLocalClaimsTransformation.TipoClaimMetodoLogin,
+            RestriccionLoginLocalClaimsTransformation.MetodoLoginSso) == true;
+        var tieneContrasena = UserManager.SupportsUserPassword && await UserManager.HasPasswordAsync(usuario);
+        _reautenticacionConMicrosoft = entroConMicrosoft || !tieneContrasena;
+    }
+
+    // Vuelve aquí, con la misma consulta (motivo, returnUrl), tras el inicio con Microsoft: una
+    // sesión nueva lleva su marca de inicio reciente.
+    private string EnlaceReautenticacionMicrosoft =>
+        "/cuenta/iniciar-sesion-microsoft?returnUrl="
+        + Uri.EscapeDataString("/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
+
+    private ITimeLimitedDataProtector ProtectorPrueba =>
+        ProteccionDatos.CreateProtector(PropositoPruebaReautenticacion).ToTimeLimitedDataProtector();
+
+    // Ligada a la cuenta y a la sesión de cookie (talveg:sid): una prueba copiada de otra sesión
+    // no sirve aquí.
+    private string ContenidoPruebaReautenticacion =>
+        $"{_usuario!.Id:N}|{SignInManagerCuentaDesactivada.LeerSid(_principal)?.ToString("N")}";
+
+    private string EmitirPruebaReautenticacion() =>
+        ProtectorPrueba.Protect(ContenidoPruebaReautenticacion, VigenciaPruebaReautenticacion);
+
+    private bool PruebaReautenticacionEsValida(string? prueba)
+    {
+        if (string.IsNullOrEmpty(prueba) || _usuario is null)
+            return false;
+        try
+        {
+            return string.Equals(ProtectorPrueba.Unprotect(prueba, out _), ContenidoPruebaReautenticacion, StringComparison.Ordinal);
+        }
+        catch (System.Security.Cryptography.CryptographicException)
+        {
+            return false;
+        }
+    }
+
+    private async Task ReautenticarAsync()
+    {
+        if (_usuario is null || _dosFactoresActivo || _reautenticado || _reautenticacionConMicrosoft
+            || Reautenticacion is null || Entrada is null)
+            return;
+
+        var logger = LoggerFactory.CreateLogger(AuditoriaAutenticacion.CategoriaLog);
+        var contrasena = Reautenticacion.Contrasena;
+        // No vuelve a la página: el campo de contraseña se pinta vacío en la respuesta.
+        Reautenticacion.Contrasena = string.Empty;
+
+        // Mismo cerrojo no bloqueante que LoginCon2fa y la regeneración de códigos
+        // (verificar-2fa:{userId}): sin él, N contraseñas en paralelo cargarían la cuenta con el mismo
+        // ConcurrencyStamp y solo un AccessFailedAsync ganaría, de modo que N intentos sumarían un único
+        // fallo al bloqueo de la cuenta (S-A-9). Con la cuenta bloqueada no se comprueba nada.
+        var verificacionFallida = false;
+        var falloSinRegistrar = false;
+        var cuenta = _usuario;
+        var ejecutado = await CerrojoVerificacion.IntentarEjecutarComoLiderAsync(
+            $"verificar-2fa:{cuenta.Id}",
+            async _ =>
+            {
+                if (await UserManager.IsLockedOutAsync(cuenta))
+                {
+                    verificacionFallida = true;
+                    return;
+                }
+                if (!await UserManager.CheckPasswordAsync(cuenta, contrasena))
+                {
+                    verificacionFallida = true;
+                    // Como en LoginCon2fa: si el fallo no se guarda (concurrencia optimista), queda
+                    // anotado; el intento se rechaza igual.
+                    falloSinRegistrar = !(await UserManager.AccessFailedAsync(cuenta)).Succeeded;
+                    return;
+                }
+                // Como un login correcto: acertar la contraseña pone el contador a cero.
+                if (await UserManager.GetAccessFailedCountAsync(cuenta) > 0)
+                    await UserManager.ResetAccessFailedCountAsync(cuenta);
+            },
+            CancellationToken.None);
+
+        if (!ejecutado)
+        {
+            logger.LogWarning(
+                "Reautenticación para el alta de 2FA rechazada, ya había una verificación en curso: {UsuarioId}", cuenta.Id);
+            mensajeError = Textos["ReautenticacionEnCurso"];
+            return;
+        }
+
+        if (verificacionFallida)
+        {
+            // Un único mensaje para contraseña incorrecta y cuenta bloqueada, como en el login.
+            logger.LogWarning(
+                "Reautenticación para el alta de 2FA rechazada, contraseña incorrecta o cuenta bloqueada: {UsuarioId}", cuenta.Id);
+            if (falloSinRegistrar)
+                logger.LogWarning(
+                    "El fallo de contraseña del alta de 2FA no se pudo sumar al bloqueo de la cuenta: {UsuarioId}", cuenta.Id);
+            mensajeError = Textos["CambiarContrasenaVerificacionFallida"];
+            return;
+        }
+
+        logger.LogInformation("Reautenticación con contraseña para el alta de 2FA: {UsuarioId}", cuenta.Id);
+        mensajeError = null;
+        _reautenticado = true;
+        Entrada.Reautenticacion = EmitirPruebaReautenticacion();
+        await CargarClaveCompartidaAsync(cuenta);
     }
 
     private async Task CargarClaveCompartidaAsync(ApplicationUser usuario)
@@ -314,6 +503,14 @@
     private async Task VerificarAsync()
     {
         if (Entrada is null || _usuario is null) return;
+
+        // Se comprueba otra vez al activar, no solo al enseñar la clave: el POST del código es una
+        // petición nueva y su prueba de reautenticación puede haber caducado o no venir.
+        if (!_reautenticado)
+        {
+            mensajeError = Textos["ReautenticacionCaducada"];
+            return;
+        }
 
         var codigoLimpio = Entrada.Codigo.Replace(" ", string.Empty).Replace("-", string.Empty);
 
@@ -468,6 +665,14 @@
         [Required(ErrorMessage = "Introduce el código de la aplicación autenticadora.")]
         [StringLength(6, MinimumLength = 6, ErrorMessage = "El código debe tener 6 dígitos.")]
         public string Codigo { get; set; } = string.Empty;
+
+        public string Reautenticacion { get; set; } = string.Empty;
+    }
+
+    private sealed class DatosReautenticacion
+    {
+        [Required(ErrorMessage = "Introduce tu contraseña actual.")]
+        public string Contrasena { get; set; } = string.Empty;
     }
 
     private sealed class DatosRegenerar { public string Codigo { get; set; } = string.Empty; }

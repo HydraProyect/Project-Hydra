@@ -86,6 +86,7 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         servicios.Configure<SecurityStampValidatorOptions>(RestriccionLoginLocalClaimsTransformation.ConservarMetodoLoginAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaTotpAlRevalidar);
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
+        servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarMarcaAutenticacionAlRevalidar);
         // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
         servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
         // El hash ficticio del login con cuenta inexistente (S-A-10); aquí no se mide su coste.
@@ -332,6 +333,36 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: emitida);
         refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
         PrincipalDeLaCookie(refrescada)!.HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Una_sesion_nueva_lleva_su_marca_de_inicio_y_el_refresco_la_conserva_sin_rejuvenecerla()
+    {
+        // ASVS 4.0.3 V3.7.1: el alta del TOTP lee esta marca como autenticación reciente. La pone
+        // la emisión de una sesión nueva, nunca un claim adicional, y refrescar la cookie no la mueve.
+        var usuario = await CrearUsuarioAsync("marca-inicio@x.test");
+
+        string emitida;
+        using (var ambito = _servicios.CreateScope())
+        {
+            var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+            ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+            var cuenta = await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString());
+            await ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>()
+                .SignInWithClaimsAsync(cuenta!, isPersistent: false, [new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion, "1")]);
+            emitida = contexto.Response.Headers.SetCookie.ToString();
+        }
+
+        emitida.Should().NotBeEmpty("control: se emitió la cookie");
+        var marca = PrincipalDeLaCookie(emitida)!.FindAll(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion)
+            .Select(c => c.Value).ToList();
+        marca.Should().ContainSingle().Which.Should().NotBe("1", "la marca que llega como claim adicional se descarta");
+        SignInManagerCuentaDesactivada.AutenticacionEsReciente(PrincipalDeLaCookie(emitida), DateTimeOffset.UtcNow).Should().BeTrue();
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: emitida);
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        PrincipalDeLaCookie(refrescada)!.FindAll(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion)
+            .Select(c => c.Value).Should().Equal(marca);
     }
 
     [Fact]

@@ -169,4 +169,12 @@
   <data name="CodigosVerificacionFallida" xml:space="preserve"><value>No s’ha pogut verificar el codi o el compte està bloquejat.</value></data>
   <data name="CodigosVerificacionEnCurso" xml:space="preserve"><value>Ja s’està verificant un codi per a aquest compte. Espera un moment i torna-ho a provar.</value></data>
   <data name="CambiarContrasenaVerificacionFallida" xml:space="preserve"><value>No s’ha pogut verificar la contrasenya actual o el compte està bloquejat.</value></data>
+  <data name="ReautenticacionTitulo" xml:space="preserve"><value>Confirma que ets tu</value></data>
+  <data name="ReautenticacionContrasenaAyuda" xml:space="preserve"><value>Per seguretat, abans de configurar un segon factor has de tornar a introduir la teva contrasenya.</value></data>
+  <data name="ReautenticacionContrasena" xml:space="preserve"><value>Contrasenya actual</value></data>
+  <data name="ReautenticacionContinuar" xml:space="preserve"><value>Continua</value></data>
+  <data name="ReautenticacionMicrosoftAyuda" xml:space="preserve"><value>Per seguretat, abans de configurar un segon factor has de tornar a iniciar la sessió amb Microsoft.</value></data>
+  <data name="ReautenticacionMicrosoftBoton" xml:space="preserve"><value>Torna a iniciar la sessió amb Microsoft</value></data>
+  <data name="ReautenticacionEnCurso" xml:space="preserve"><value>Ja s’està verificant aquest compte. Espera un moment i torna-ho a provar.</value></data>
+  <data name="ReautenticacionCaducada" xml:space="preserve"><value>Ha passat massa temps des que vas confirmar la teva identitat. Torna a confirmar-la per activar l’autenticació en dos passos.</value></data>
 </root>
