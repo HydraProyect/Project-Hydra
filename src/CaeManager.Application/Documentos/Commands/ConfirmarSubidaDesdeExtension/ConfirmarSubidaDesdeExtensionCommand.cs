@@ -20,8 +20,9 @@ namespace CaeManager.Application.Documentos.Commands.ConfirmarSubidaDesdeExtensi
 /// (<see cref="DeshacerSubidaDesdeExtensionCommand"/>). Poner el archivo en el formulario no anota nada.
 ///
 /// <para>
-/// Mismo alcance que «Marcar subido» (<see cref="AcreditacionSubible"/>: el Documento tiene que estar en la cartera
-/// de quien pide; lo demás sale como «no encontrada») y la misma regla de la rechazada sin versión nueva. Además exige
+/// Mismo alcance que «Marcar subido» (<see cref="AcreditacionSubible"/>: el Centro del canal tiene que estar entre los
+/// que gestiona quien pide y el Documento en su cartera; lo demás sale como «no encontrada») y la misma regla de la
+/// rechazada sin versión nueva. Además exige
 /// el proveedor activo (MVP2 § 14.5, kill switch remoto): la extensión ya lo comprueba antes de poner el archivo, y esta
 /// es la segunda línea, para que TALVEG nunca anote una subida por un conector que se apagó entre medias.
 /// </para>
@@ -78,7 +79,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
     public async Task<Result<CambioEstadoAnotadoDto>> Handle(ConfirmarSubidaDesdeExtensionCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
-            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext, centrosContext,
             recargar: true, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo<CambioEstadoAnotadoDto>(AcreditacionSubible.NoEncontrada);
@@ -167,7 +168,7 @@ public class ConfirmarSubidaDesdeExtensionCommandHandler(
 
 public class DeshacerSubidaDesdeExtensionCommandHandler(
     IAcreditacionDocumentoPlataformaRepository acreditacionRepositorio, IDocumentoRepository documentoRepositorio,
-    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, IUnitOfWork unitOfWork)
+    IAlcanceDatosService alcanceDatos, IProyectosQueryContext proyectosContext, ICentrosQueryContext centrosContext, IUnitOfWork unitOfWork)
     : IRequestHandler<DeshacerSubidaDesdeExtensionCommand, Result>
 {
     public const string CodigoYaNoSePuedeDeshacer = DeshacerCambioEstadoAcreditacionCommandHandler.CodigoYaNoSePuedeDeshacer;
@@ -175,7 +176,7 @@ public class DeshacerSubidaDesdeExtensionCommandHandler(
     public async Task<Result> Handle(DeshacerSubidaDesdeExtensionCommand request, CancellationToken cancellationToken)
     {
         var acreditacion = await AcreditacionSubible.CargarVisibleAsync(
-            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext,
+            request.AcreditacionId, acreditacionRepositorio, documentoRepositorio, alcanceDatos, proyectosContext, centrosContext,
             recargar: true, cancellationToken);
         if (acreditacion is null)
             return Result.Fallo(AcreditacionSubible.NoEncontrada);

@@ -70,7 +70,7 @@ public class ConfirmarSubidaDesdeExtensionTests : IAsyncLifetime
         {
             var deshecho = await new DeshacerSubidaDesdeExtensionCommandHandler(
                     new AcreditacionDocumentoPlataformaRepository(contexto), new DocumentoRepository(contexto),
-                    new AlcanceDatosServiceFalso(), contexto, contexto)
+                    new AlcanceDatosServiceFalso(), contexto, contexto, contexto)
                 .Handle(new DeshacerSubidaDesdeExtensionCommand(acreditacionId, anotado.CambioId, anotado.Version),
                     CancellationToken.None);
             deshecho.EsExitoso.Should().BeTrue(deshecho.EsFallido ? deshecho.Error.Mensaje : null);

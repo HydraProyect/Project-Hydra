@@ -81,7 +81,7 @@ public class MarcarAcreditacionPendienteDeSubirIntegracionTests : IAsyncLifetime
     }
 
     private static MarcarAcreditacionPendienteDeSubirCommandHandler Handler(CaeManagerDbContext contexto, IAlcanceDatosService alcance) =>
-        new(new AcreditacionDocumentoPlataformaRepository(contexto), new DocumentoRepository(contexto), alcance, contexto, contexto);
+        new(new AcreditacionDocumentoPlataformaRepository(contexto), new DocumentoRepository(contexto), alcance, contexto, contexto, contexto);
 
     private async Task<(Guid AcreditacionId, Guid DocumentoId)> SembrarAcreditacionValidadaAsync()
     {
