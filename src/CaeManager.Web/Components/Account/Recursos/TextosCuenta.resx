@@ -170,4 +170,8 @@
   <data name="LoginErrorSsoSinSegundoFactor" xml:space="preserve">
     <value>Tu inicio de sesión con Microsoft no incluyó la verificación en dos pasos, y tu cuenta de {0} no la tiene configurada. Pide a tu Administrador que active la verificación en dos pasos en Microsoft.</value>
   </data>
+  <data name="CodigosVerificarAutenticador" xml:space="preserve"><value>Código actual de tu aplicación autenticadora</value></data>
+  <data name="CodigosVerificacionFallida" xml:space="preserve"><value>No se pudo verificar el código o la cuenta está bloqueada.</value></data>
+  <data name="CodigosVerificacionEnCurso" xml:space="preserve"><value>Ya se está verificando un código para esta cuenta. Espera un momento e inténtalo de nuevo.</value></data>
+  <data name="CambiarContrasenaVerificacionFallida" xml:space="preserve"><value>No se pudo verificar la contraseña actual o la cuenta está bloqueada.</value></data>
 </root>

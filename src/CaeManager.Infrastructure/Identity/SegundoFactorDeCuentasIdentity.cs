@@ -34,12 +34,30 @@ public class SegundoFactorDeCuentasIdentity(
         }, cancellationToken);
 
     public Task<Result<IReadOnlyList<string>>> GenerarCodigosRecuperacionAsync(
-        Guid usuarioId, int cantidad, CancellationToken cancellationToken = default) =>
+        Guid usuarioId, int cantidad, string codigoAutenticador, CancellationToken cancellationToken = default) =>
         puertaAccesoDatos.EjecutarAsync(async () =>
         {
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null)
                 return Result.Fallo<IReadOnlyList<string>>(ErrorCuentaNoEncontrada);
+
+            // Reautenticación con el TOTP actual (S-A-2): una sesión robada no basta para
+            // obtener códigos nuevos. Un envío vacío no es un intento y no cuenta; un código
+            // erróneo cuenta en el mismo bloqueo de la cuenta que el login, y con la cuenta
+            // bloqueada no se verifica nada. Mismo error para las dos cosas.
+            var codigo = (codigoAutenticador ?? "").Replace(" ", "").Replace("-", "");
+            if (codigo.Length == 0 || await userManager.IsLockedOutAsync(usuario))
+                return Result.Fallo<IReadOnlyList<string>>(ErrorCodigoAutenticador);
+            if (!await userManager.VerifyTwoFactorTokenAsync(
+                    usuario, userManager.Options.Tokens.AuthenticatorTokenProvider, codigo))
+            {
+                await userManager.AccessFailedAsync(usuario);
+                return Result.Fallo<IReadOnlyList<string>>(ErrorCodigoAutenticador);
+            }
+
+            // Como un segundo factor correcto en el login: los fallos anteriores dejan de contar.
+            if (await userManager.GetAccessFailedCountAsync(usuario) > 0)
+                await userManager.ResetAccessFailedCountAsync(usuario);
 
             // Identity genera los códigos, llama a AlmacenUsuarios.ReplaceCodesAsync
             // (que guarda solo los hashes) y hace UpdateAsync: una sola escritura, con
@@ -150,6 +168,9 @@ public class SegundoFactorDeCuentasIdentity(
 
     // El nombre que usa UserStoreBase para la clave TOTP (constante privada allí).
     private const string NombreTokenClaveAutenticador = "AuthenticatorKey";
+
+    private static readonly Error ErrorCodigoAutenticador =
+        Error.Crear("SegundoFactor.VerificacionFallida", "No se pudo verificar el código o la cuenta está bloqueada.");
 
     private static readonly Error ErrorCuentaNoEncontrada =
         Error.Crear("SegundoFactor.CuentaNoEncontrada", "No encontramos esa cuenta.");
