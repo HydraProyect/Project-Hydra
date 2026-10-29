@@ -65,6 +65,25 @@ public class DocumentosExportacionRegistroTests
     }
 
     [Fact]
+    public async Task El_ambito_y_la_plataforma_solo_llegan_al_rastro_si_son_validos()
+    {
+        var registro = new RegistroFalso();
+        var plataforma = Guid.NewGuid();
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), registro, default,
+            ambito: "Empresa", plataforma: plataforma.ToString());
+        // Un entero no definido en el enumerado parsea, pero no es un ámbito: no llega al rastro.
+        await DocumentosEndpoints.ExportarAsync(new DefaultHttpContext(), new MediadorFalso(), registro, default,
+            ambito: "12345678", plataforma: "01234567Z");
+
+        registro.Registros.Should().HaveCount(2);
+        registro.Registros[0].Criterios.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["ambito"] = "Empresa", ["plataforma"] = plataforma.ToString()
+        });
+        registro.Registros[1].Criterios.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Si_falla_el_registro_no_entrega_el_archivo()
     {
         var exportar = () => DocumentosEndpoints.ExportarAsync(

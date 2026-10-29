@@ -122,7 +122,7 @@ public static class DocumentosEndpoints
                 nameof(Documento), fila - 2,
                 CriteriosExportacion.Desde(
                     ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
-                    ("ambito", Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoAplicado) ? ambitoAplicado.ToString() : null),
+                    ("ambito", Enum.TryParse<AmbitoAplicacion>(ambito, out var ambitoAplicado) && Enum.IsDefined(ambitoAplicado) ? ambitoAplicado.ToString() : null),
                     ("estado", estadosAplicados.Count > 0 ? string.Join(",", estadosAplicados) : null),
                     ("tipo", Guid.TryParse(tipo, out var tipoAplicado) ? tipoAplicado.ToString() : null),
                     ("plataforma", Guid.TryParse(plataforma, out var plataformaAplicada) ? plataformaAplicada.ToString() : null),
