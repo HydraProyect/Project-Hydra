@@ -50,7 +50,10 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         Services.AddLocalization();
         Services.AddSingleton<MediatR.IMediator>(_mediador);
         Services.AddSingleton<AuthenticationStateProvider>(new AutenticacionFalsa(UsuarioId));
+        Services.AddSingleton<CaeManager.Infrastructure.Coordinacion.IEleccionLiderService>(_cerrojo);
     }
+
+    private readonly CerrojoVerificacionFalso _cerrojo = new();
 
     [Fact]
     public void Si_ResetAuthenticatorKeyAsync_falla_no_enseña_un_QR_que_el_servidor_no_guardo()
@@ -135,6 +138,53 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
         cut.Find("a[download]").GetAttribute("href").Should().StartWith("data:text/plain;charset=utf-8,")
             .And.Contain(Uri.EscapeDataString(MediatorCodigosRecuperacionFalso.Codigos[0]));
         navegacion.Uri.Should().Be(uriAntes, "sin esperar al usuario, los códigos se perderían al navegar");
+    }
+
+    [Fact]
+    public async Task Regenerar_envia_el_codigo_del_autenticador()
+    {
+        _almacen.DosFactoresActivo = true;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await cut.Find("#codigo-regenerar").ChangeAsync(new ChangeEventArgs { Value = "123456" });
+        await cut.Find(".tarjeta-regenerar form").SubmitAsync();
+        _mediador.CodigoAutenticador.Should().Be("123456");
+        _cerrojo.ClaveRecibida.Should().Be($"verificar-2fa:{UsuarioId}", "comparte el cerrojo del segundo factor del login");
+    }
+
+    [Fact]
+    public async Task Tras_el_alta_los_codigos_se_generan_con_el_codigo_que_la_activo()
+    {
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+
+        await EnviarCodigoAsync(cut);
+
+        _mediador.CodigoAutenticador.Should().Be(GestorUsuariosFallaAVoluntad.CodigoValido);
+    }
+
+    [Fact]
+    public async Task Regenerar_con_otra_verificacion_en_curso_no_envia_el_comando()
+    {
+        _almacen.DosFactoresActivo = true;
+        _cerrojo.Concede = false;
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await cut.Find("#codigo-regenerar").ChangeAsync(new ChangeEventArgs { Value = "123456" });
+        await cut.Find(".tarjeta-regenerar form").SubmitAsync();
+
+        _mediador.Enviados.Should().Be(0, "ni el código se verifica ni cuenta como intento");
+        cut.Find(".alerta-login").TextContent.Should().Contain("Ya se está verificando un código");
+    }
+
+    [Fact]
+    public async Task Regenerar_con_codigo_erroneo_o_cuenta_bloqueada_da_un_mensaje_uniforme()
+    {
+        _almacen.DosFactoresActivo = true;
+        Services.AddSingleton<MediatR.IMediator>(new MediatorCodigosRecuperacionFalso(
+            CaeManager.Domain.Common.Error.Crear("SegundoFactor.VerificacionFallida", "texto interno")));
+        var cut = Render<ConfigurarAutenticadorDosFactores>();
+        await cut.Find("#codigo-regenerar").ChangeAsync(new ChangeEventArgs { Value = "000000" });
+        await cut.Find(".tarjeta-regenerar form").SubmitAsync();
+
+        cut.Find(".alerta-login").TextContent.Trim().Should().Be("No se pudo verificar el código o la cuenta está bloqueada.");
     }
 
     [Fact]

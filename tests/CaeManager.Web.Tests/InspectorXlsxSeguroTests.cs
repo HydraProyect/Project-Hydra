@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using CaeManager.Application.Common;
 using CaeManager.Infrastructure.Importacion;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -67,6 +68,27 @@ public class InspectorXlsxSeguroTests
     }
 
     [Fact]
+    public void Un_zip_legible_sin_libro_pasa_el_inspector_y_falla_en_ClosedXML_con_un_error_que_no_es_un_rechazo_esperado()
+    {
+        // Es el archivo con el que el E2E «archivo ilegible deja rastro» fuerza un error del sistema (con pila y tamaño en
+        // el log): si el inspector lo rechazara, ese camino dejaría de ser alcanzable y el E2E fallaría por otra razón.
+        using var memoria = new MemoryStream();
+        using (var paquete = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var parte = paquete.CreateEntry("relleno.txt", CompressionLevel.NoCompression);
+            using var escritor = new StreamWriter(parte.Open());
+            escritor.Write(new string('x', 20_000));
+        }
+        memoria.Position = 0;
+
+        InspectorXlsxSeguro.Verificar(memoria);
+
+        memoria.Position.Should().Be(0);
+        var abrir = () => new XLWorkbook(memoria);
+        abrir.Should().Throw<Exception>().Which.Should().NotBeOfType<ArchivoRechazadoException>();
+    }
+
+    [Fact]
     public void Un_xlsx_valido_muy_repetitivo_no_da_falso_positivo()
     {
         // Peor caso razonable para el ratio: 50.000 filas con los mismos
@@ -115,7 +137,7 @@ public class InspectorXlsxSeguroTests
 
         var antes = GC.GetAllocatedBytesForCurrentThread();
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
-        verificar.Should().ThrowExactly<InvalidDataException>();
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>();
         var asignados = GC.GetAllocatedBytesForCurrentThread() - antes;
 
         // Aquí corta el rechazo barato por cabecera (declara 200 MiB); el
@@ -135,7 +157,7 @@ public class InspectorXlsxSeguroTests
         // inspección termina sin expandir nada y sin materializar memoria. La
         // mentira que sí importa, declarar poco y traer mucho, queda cubierta
         // por el conteo real de bytes que hace Verificar en los demás casos.
-        var bomba = CrearZipDeCeros(("xl/worksheets/sheet1.xml", 200L * 1024 * 1024));
+        var bomba = CrearZipDeCeros(("xl/worksheets/sheet1.bin", 200L * 1024 * 1024));
         const int firmaDirectorioCentral = 0x02014B50;
         var falsificado = false;
         for (var i = 0; i < bomba.Length - 28; i++)
@@ -178,7 +200,7 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*compresión*");
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*compresión*");
     }
 
     [Fact]
@@ -201,7 +223,7 @@ public class InspectorXlsxSeguroTests
 
             var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-            verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*tamaño descomprimido*");
+            verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*tamaño descomprimido*");
         }
         finally
         {
@@ -218,14 +240,14 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().ThrowExactly<InvalidDataException>().WithMessage("*demasiadas partes*");
+        verificar.Should().ThrowExactly<ArchivoRechazadoException>().WithMessage("*demasiadas partes*");
     }
 
     [Fact]
     public void El_numero_maximo_de_entradas_exacto_se_admite()
     {
         var entradas = Enumerable.Range(0, InspectorXlsxSeguro.MaximoEntradas)
-            .Select(i => ($"xl/parte{i}.xml", 10L)).ToArray();
+            .Select(i => ($"xl/parte{i}.bin", 10L)).ToArray();
         using var flujo = new MemoryStream(CrearZipDeCeros(entradas));
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
@@ -240,6 +262,6 @@ public class InspectorXlsxSeguroTests
 
         var verificar = () => InspectorXlsxSeguro.Verificar(flujo);
 
-        verificar.Should().Throw<InvalidDataException>();
+        verificar.Should().Throw<ArchivoRechazadoException>();
     }
 }

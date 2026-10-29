@@ -13,7 +13,8 @@ public interface IVerificadorArchivoAlmacenado
     /// <summary>
     /// Verdadero si la clave existe en el almacenamiento del Tenant activo, su extensión es la de un Documento admitido
     /// (PDF, JPG, PNG o Word .docx) y la firma de su contenido real coincide con esa extensión
-    /// (<see cref="ValidadorFirmaArchivo.TieneFormatoDeDocumento"/>). Una clave inexistente, de otro Tenant o cuyo
+    /// (<see cref="ValidadorFirmaArchivo.TieneFormatoDeDocumento"/>); para Word, además, su estructura OOXML mínima, con
+    /// topes de entradas y de bytes descomprimidos. Una clave inexistente, de otro Tenant o cuyo
     /// contenido no supera la comprobación de integridad del almacenamiento es «no válido», nunca una excepción.
     /// </summary>
     Task<bool> EsDocumentoValidoAsync(string archivoUrl, CancellationToken cancellationToken = default);
@@ -25,7 +26,8 @@ public interface IVerificadorArchivoAlmacenado
 /// extensión con la que se guardó, así que sirve de nombre para comparar.
 ///
 /// <para>
-/// Solo lee la cabecera. El tope de tamaño por archivo ya se aplicó al subirlo (cada archivo, antes de convertirlo), y el
+/// Lee solo la cabecera, salvo para DOCX: se lee entero (dentro del tope de subida) para comprobar su estructura OOXML.
+/// El tope de tamaño por archivo ya se aplicó al subirlo (cada archivo, antes de convertirlo), y el
 /// PDF que resulta de unificar varios puede pasar de ese tope sin ser un problema: volver a aplicarlo aquí rechazaría
 /// como «no válido» un Documento legítimo que el usuario acaba de componer.
 /// </para>
@@ -50,6 +52,18 @@ public sealed class VerificadorArchivoAlmacenado(IFileStorageService almacenamie
 
         await using (flujo)
         {
+            if (Path.GetExtension(archivoUrl).Equals(".docx", StringComparison.OrdinalIgnoreCase))
+            {
+                using var memoria = new MemoryStream();
+                var buffer = new byte[81920];
+                int leidosDocx;
+                while ((leidosDocx = await flujo.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    if (memoria.Length + leidosDocx > LimitesArchivoSubido.TamanoMaximoBytes) return false;
+                    await memoria.WriteAsync(buffer.AsMemory(0, leidosDocx), cancellationToken);
+                }
+                return ValidadorFirmaArchivo.EsDocumentoValido(memoria.ToArray(), archivoUrl);
+            }
             var cabecera = new byte[ValidadorFirmaArchivo.BytesDeCabeceraNecesarios];
             var leidos = await flujo.ReadAtLeastAsync(cabecera, cabecera.Length, throwOnEndOfStream: false, cancellationToken);
 

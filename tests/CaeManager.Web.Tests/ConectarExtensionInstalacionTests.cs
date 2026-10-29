@@ -25,12 +25,22 @@ public class ConectarExtensionInstalacionTests : BunitContext
         Services.AddLocalization();
         Services.AddScoped<PuertaAccesoDatos>();
         Services.AddSingleton<IDataProtectionProvider>(new EphemeralDataProtectionProvider());
+        Services.AddSingleton<IRegistroSesionesUsuario>(new SesionesQueNadieDebeTocar());
         Services.AddScoped(_ => new UserManager<ApplicationUser>(
             new AlmacenQueNadieDebeTocar(), null!, null!, null!, null!, null!, null!, null!, null!));
         Services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?> { ["Extension:UrlInstalacion"] = urlInstalacion })
             .Build());
         return Render<ConectarExtension>();
+    }
+
+    /// <summary>Tampoco consulta ninguna sesión: solo se usa al generar el token.</summary>
+    private sealed class SesionesQueNadieDebeTocar : IRegistroSesionesUsuario
+    {
+        public Task RegistrarAsync(Guid usuarioId, Guid tenantPropietarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> EstaVigenteAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<bool> RevocarAsync(Guid usuarioId, Guid sid, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<int> CerrarTodasAsync(Guid usuarioId, CancellationToken ct = default) => throw new NotSupportedException();
     }
 
     /// <summary>La sección de instalación no depende de generar el token: la página no llega a pedir ningún usuario.</summary>

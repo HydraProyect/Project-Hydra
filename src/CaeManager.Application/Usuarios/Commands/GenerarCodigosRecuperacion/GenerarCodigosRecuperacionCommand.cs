@@ -20,7 +20,10 @@ namespace CaeManager.Application.Usuarios.Commands.GenerarCodigosRecuperacion;
 /// permanente de esa persona.
 /// </para>
 /// </summary>
-public record GenerarCodigosRecuperacionCommand : ICommand<IReadOnlyList<string>>, IComandoDeAutoservicio;
+public record GenerarCodigosRecuperacionCommand(string CodigoAutenticador = "") : ICommand<IReadOnlyList<string>>, IComandoDeAutoservicio
+{
+    public override string ToString() => nameof(GenerarCodigosRecuperacionCommand);
+}
 
 /// <summary>
 /// Cuántos códigos se generan. Diez: la salida mínima que fija FS-01
@@ -59,6 +62,6 @@ public class GenerarCodigosRecuperacionCommandHandler(
                 "Activa primero la verificación en dos pasos: los códigos de recuperación la sustituyen cuando no tienes el móvil."));
 
         return await segundoFactor.GenerarCodigosRecuperacionAsync(
-            usuarioId.Value, CodigosRecuperacion.Cantidad, cancellationToken);
+            usuarioId.Value, CodigosRecuperacion.Cantidad, request.CodigoAutenticador, cancellationToken);
     }
 }

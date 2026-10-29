@@ -162,6 +162,12 @@ public static class InfrastructureServiceCollectionExtensions
             // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
             .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
+        services.AddSingleton(sp =>
+        {
+            using var scope = sp.GetRequiredService<IServiceScopeFactory>().CreateScope();
+            return new VerificacionContrasenaFicticia(scope.ServiceProvider.GetRequiredService<IPasswordHasher<ApplicationUser>>());
+        });
+
         // Vigencia de los tokens de restablecimiento y de activación. NO es
         // cosmética: el correo de "olvidé mi contraseña" lleva desde siempre
         // escrito que el enlace "caduca en 60 minutos", y su constante decía
@@ -910,6 +916,12 @@ public static class InfrastructureServiceCollectionExtensions
         // Propone (nunca envía) un recordatorio a los 2 días laborables de espera de respuesta externa (decisión de producto
         // 2026-10-17); el Gestor CAE lo aprueba o lo descarta. Auditado como Sistema; sin interruptor por Tenant.
         services.AddHostedService<Comunicaciones.PropuestaRecordatoriosConversacionHostedService>();
+        services.AddOptions<OpcionesLimitesImportacion>()
+            .Bind(configuration.GetSection(OpcionesLimitesImportacion.Seccion))
+            .Validate(o => o.EsValida(),
+                "La sección LimitesImportacion no es válida: los topes tienen que ser positivos y EsperaSegundos, de 0 a 300.")
+            .ValidateOnStart();
+        services.AddSingleton<LimitadorAnalisisImportacion>();
         services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));
         services.AddScoped<IExcelImportacionParser, ClosedXmlImportacionParser>();
         services.AddScoped<IPlantillaClientesService, ClosedXmlPlantillaClientesService>();

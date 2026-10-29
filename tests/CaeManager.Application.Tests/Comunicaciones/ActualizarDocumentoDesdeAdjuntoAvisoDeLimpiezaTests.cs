@@ -13,6 +13,28 @@ namespace CaeManager.Application.Tests.Comunicaciones;
 
 public class ActualizarDocumentoDesdeAdjuntoAvisoDeLimpiezaTests
 {
+    [Fact]
+    public async Task Adjunto_sin_blob_devuelve_error_controlado()
+    {
+        var contexto = new ComunicacionesQueryContextFalso();
+        var conversacion = new Conversacion("Documentación", empresaId: Guid.NewGuid());
+        var mensaje = new Mensaje(conversacion.Id, DireccionMensaje.Entrante, CanalConversacion.Correo, "remitente", "asunto", DateTime.UtcNow);
+        var adjunto = new AdjuntoMensaje(mensaje.Id, "adjunto.pdf", "application/pdf", 2, "inexistente.pdf");
+        contexto.ListaConversaciones.Add(conversacion);
+        contexto.ListaMensajes.Add(mensaje);
+        contexto.ListaAdjuntosMensaje.Add(adjunto);
+        var mediador = new MediadorFalso();
+        var almacen = new FileStorageServiceFalso();
+        var handler = new ActualizarDocumentoDesdeAdjuntoCommandHandler(contexto, new AlcanceDatosServiceFalso(),
+            new DocumentosQueryContextFalso(), mediador, mediador, almacen, Microsoft.Extensions.Logging.Abstractions.NullLogger<ActualizarDocumentoDesdeAdjuntoCommandHandler>.Instance);
+
+        var resultado = await handler.Handle(new ActualizarDocumentoDesdeAdjuntoCommand(adjunto.Id, Guid.NewGuid(),
+            Guid.NewGuid(), null, DateOnly.FromDateTime(DateTime.UtcNow), null, null), CancellationToken.None);
+
+        resultado.Error.Codigo.Should().Be("Adjunto.ArchivoNoValido");
+        almacen.ArchivosGuardados.Should().Be(0);
+    }
+
     [Theory]
     [InlineData(CanalConversacion.Correo, false)]
     [InlineData(CanalConversacion.WhatsApp, false)]

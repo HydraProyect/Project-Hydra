@@ -145,10 +145,16 @@
         // Se adquiere ANTES de tocar ChangePasswordAsync: el competidor se
         // rechaza sin gastar ningún intento contra Identity.
         IdentityResult? resultadoObtenido = null;
+        var verificacionFallida = false;
         var ejecutado = await CerrojoCredencial.IntentarEjecutarComoLiderAsync(
             $"credencial:{usuario.Id}",
             async _ =>
             {
+                if (await UserManager.IsLockedOutAsync(usuario))
+                {
+                    verificacionFallida = true;
+                    return;
+                }
                 // Se fija ANTES de ChangePasswordAsync, sobre la misma
                 // instancia de usuario que la operación va a actualizar: así
                 // Identity persiste el fin del cambio obligatorio en la MISMA
@@ -159,8 +165,23 @@
                 // falla (contraseña actual incorrecta, política de
                 // contraseña), no se persiste nada — ni la contraseña ni esta
                 // bandera en memoria — porque Identity no llega a guardar.
+                var cambioObligatorio = usuario.DebeCambiarContrasena;
                 usuario.DebeCambiarContrasena = false;
                 resultadoObtenido = await UserManager.ChangePasswordAsync(usuario, Entrada.ContrasenaActual, Entrada.ContrasenaNueva);
+                if (!resultadoObtenido.Succeeded)
+                {
+                    usuario.DebeCambiarContrasena = cambioObligatorio;
+                    if (resultadoObtenido.Errors.Any(e => e.Code == nameof(IdentityErrorDescriber.PasswordMismatch)))
+                    {
+                        verificacionFallida = true;
+                        await UserManager.AccessFailedAsync(usuario);
+                    }
+                }
+                else if (await UserManager.GetAccessFailedCountAsync(usuario) > 0)
+                {
+                    // Como un login correcto: acertar la contraseña actual pone el contador a cero.
+                    await UserManager.ResetAccessFailedCountAsync(usuario);
+                }
             },
             CancellationToken.None);
 
@@ -169,6 +190,16 @@
             logger.LogWarning(
                 "Cambio de contraseña rechazado, ya había una operación de credencial en curso: {UsuarioId}", usuario.Id);
             mensajeError = "Ya hay una operación sobre esta cuenta en curso. Espera un momento e inténtalo de nuevo.";
+            return;
+        }
+
+        if (verificacionFallida)
+        {
+            // Un único mensaje para contraseña actual incorrecta y cuenta bloqueada, como en
+            // el login; el registro sí lo deja anotado (S-A-9).
+            logger.LogWarning(
+                "Cambio de contraseña rechazado, contraseña actual incorrecta o cuenta bloqueada: {UsuarioId}", usuario.Id);
+            mensajeError = Textos["CambiarContrasenaVerificacionFallida"];
             return;
         }
 

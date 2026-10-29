@@ -41,12 +41,13 @@ public class ExtensionAuthenticationSchemeOptions : AuthenticationSchemeOptions
 /// </para>
 ///
 /// <para>
-/// <b>Tres motivos de rechazo que la cookie no comprueba en cada petición</b>
+/// <b>Cuatro motivos de rechazo que la cookie no comprueba en cada petición</b>
 /// y aquí sí, deliberadamente, porque este credencial vive fuera del
 /// navegador y de sus protecciones:
 /// </para>
 /// <list type="number">
-///   <item>Security stamp distinto del de la base — la vía de revocación.</item>
+///   <item>Security stamp distinto del de la base — revocación global.</item>
+///   <item>Sesión de origen revocada o inexistente — revocación individual.</item>
 ///   <item>Cuenta bloqueada (<c>LockoutEnd</c> vigente). Identity no toca el
 ///   security stamp al bloquear, así que sin esto un bloqueo no surtiría
 ///   efecto hasta que el token caducara.</item>
@@ -62,7 +63,8 @@ public class ExtensionAuthenticationHandler(
     UrlEncoder encoder,
     IDataProtectionProvider dataProtectionProvider,
     UserManager<ApplicationUser> userManager,
-    IUserClaimsPrincipalFactory<ApplicationUser> fabricaPrincipal)
+    IUserClaimsPrincipalFactory<ApplicationUser> fabricaPrincipal,
+    IRegistroSesionesUsuario sesiones)
     : AuthenticationHandler<ExtensionAuthenticationSchemeOptions>(options, logger, encoder)
 {
     private const string EsquemaCabecera = "Extension";
@@ -97,6 +99,9 @@ public class ExtensionAuthenticationHandler(
         // que no se puede variar sin romper el MAC. No hay nada que un
         // atacante pueda ir tanteando aquí.
         if (!string.Equals(usuario.SecurityStamp, carga.SecurityStamp, StringComparison.Ordinal))
+            return AuthenticateResult.Fail("Token inválido o caducado.");
+
+        if (!await sesiones.EstaVigenteAsync(carga.UsuarioId, carga.Sid, Context.RequestAborted))
             return AuthenticateResult.Fail("Token inválido o caducado.");
 
         if (await userManager.IsLockedOutAsync(usuario))

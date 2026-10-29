@@ -356,6 +356,62 @@ public class AccesoCuentaEscenaTests : BunitContext
         navegacion.Uri.Should().Be(uriDePartida, "un UpdateAsync fallido no puede terminar en NavigateTo(\"/\") como si el cambio hubiera terminado");
     }
 
+    [Fact]
+    public async Task Cambiar_contrasena_cuenta_fallos_y_respeta_el_bloqueo_temporal()
+    {
+        var usuario = new ApplicationUser { Id = Guid.NewGuid(), Email = "marta@example.es", DebeCambiarContrasena = true, LockoutEnabled = true };
+        _almacen.Usuario = usuario;
+        _almacen.HashContrasena = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
+        AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "incorrecta" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(1);
+        usuario.DebeCambiarContrasena.Should().BeTrue();
+        var mensaje = cut.Find(".acceso-alerta").TextContent;
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(5);
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(1);
+        cut.Find(".acceso-alerta").TextContent.Should().Be(mensaje);
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await cut.Find("form").SubmitAsync();
+        usuario.AccessFailedCount.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Cambiar_contrasena_con_la_cuenta_bloqueada_no_cambia_aunque_la_actual_sea_correcta_y_al_acertar_pone_el_contador_a_cero()
+    {
+        var usuario = new ApplicationUser
+        {
+            Id = Guid.NewGuid(),
+            Email = "marta@example.es",
+            LockoutEnabled = true,
+            AccessFailedCount = 2,
+            LockoutEnd = DateTimeOffset.UtcNow.AddMinutes(5),
+        };
+        _almacen.Usuario = usuario;
+        var hashInicial = new PasswordHasher<ApplicationUser>().HashPassword(usuario, "Abcdefghi1");
+        _almacen.HashContrasena = hashInicial;
+        AddAuthorization().SetAuthorized(usuario.Email).SetClaims(new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()));
+        var cut = Render<CambiarContrasena>();
+        await cut.Find("#password-actual").ChangeAsync(new ChangeEventArgs { Value = "Abcdefghi1" });
+        await cut.Find("#password-nueva").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+        await cut.Find("#password-confirmar").ChangeAsync(new ChangeEventArgs { Value = "Zyxwvutsr2" });
+
+        await cut.Find("form").SubmitAsync();
+
+        _almacen.HashContrasena.Should().Be(hashInicial, "con la cuenta bloqueada no se llega a ChangePasswordAsync");
+        cut.Find(".acceso-alerta").TextContent.Should().Contain("No se pudo verificar la contraseña actual o la cuenta está bloqueada.");
+
+        usuario.LockoutEnd = DateTimeOffset.UtcNow.AddSeconds(-1);
+        await cut.Find("form").SubmitAsync();
+
+        _almacen.HashContrasena.Should().NotBe(hashInicial);
+        usuario.AccessFailedCount.Should().Be(0, "acertar la contraseña actual pone el contador a cero, como un login correcto");
+    }
+
     /// <summary>
     /// DECISIÓN D: cerrojo no bloqueante compartido <c>credencial:{userId}</c>,
     /// adquirido ANTES de <c>ResetPasswordAsync</c>. Con el cerrojo ocupado, el
@@ -887,13 +943,20 @@ public class AccesoCuentaEscenaTests : BunitContext
     /// </summary>
     private sealed class AlmacenFalso :
         IUserStore<ApplicationUser>, IUserEmailStore<ApplicationUser>,
-        IUserPasswordStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>
+        IUserPasswordStore<ApplicationUser>, IUserSecurityStampStore<ApplicationUser>, IUserLockoutStore<ApplicationUser>
     {
         private string? _hashContrasena;
         private string _securityStamp = Guid.NewGuid().ToString();
 
         public ApplicationUser? Usuario { get; set; }
         public IdentityResult ResultadoUpdate { get; set; } = IdentityResult.Success;
+        public Task<DateTimeOffset?> GetLockoutEndDateAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnd);
+        public Task SetLockoutEndDateAsync(ApplicationUser user, DateTimeOffset? end, CancellationToken ct) { user.LockoutEnd = end; return Task.CompletedTask; }
+        public Task<int> IncrementAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(++user.AccessFailedCount);
+        public Task ResetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) { user.AccessFailedCount = 0; return Task.CompletedTask; }
+        public Task<int> GetAccessFailedCountAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.AccessFailedCount);
+        public Task<bool> GetLockoutEnabledAsync(ApplicationUser user, CancellationToken ct) => Task.FromResult(user.LockoutEnabled);
+        public Task SetLockoutEnabledAsync(ApplicationUser user, bool enabled, CancellationToken ct) { user.LockoutEnabled = enabled; return Task.CompletedTask; }
 
         /// <summary>Para sembrar la contraseña inicial directamente en el test, sin pasar por CreateAsync (no soportado).</summary>
         public string? HashContrasena { get => _hashContrasena; set => _hashContrasena = value; }

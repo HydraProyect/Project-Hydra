@@ -47,13 +47,14 @@ public static class ExtensionTokenEndpoints
             IFormCollection formulario,
             ClaimsPrincipal usuarioActual,
             UserManager<ApplicationUser> userManager,
-            IDataProtectionProvider dataProtectionProvider) =>
+            IDataProtectionProvider dataProtectionProvider,
+            IRegistroSesionesUsuario sesiones) =>
         {
             var valorClaim = usuarioActual.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (!Guid.TryParse(valorClaim, out var usuarioId))
                 return Results.Unauthorized();
 
-            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, userManager, dataProtectionProvider);
+            var resultado = await EmisorTokenExtension.EmitirAsync(usuarioId, SignInManagerCuentaDesactivada.LeerSid(usuarioActual), userManager, dataProtectionProvider, sesiones);
             if (resultado.EsFallido)
                 return resultado.Error.Codigo == "Extension.UsuarioNoEncontrado"
                     ? Results.Unauthorized()

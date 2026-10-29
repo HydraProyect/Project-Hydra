@@ -1271,7 +1271,7 @@ else
                 contenido = memoria.ToArray();
             }
 
-            if (!ValidadorFirmaArchivo.TieneFirmaValida(contenido, archivo.Name))
+            if (!ValidadorFirmaArchivo.EsDocumentoValido(contenido, archivo.Name))
             {
                 ToastService.Mostrar(
                     $"\"{archivo.Name}\" no es realmente un PDF ni un Word (.docx) — su contenido no coincide con la extensión.",
