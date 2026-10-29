@@ -37,7 +37,7 @@ public static class Ayudas
     /// </summary>
     public const string ClaveTotpAdministrador = "JBSWY3DPEHPK3PXP";
 
-    public const string ContrasenaUsuariosPrueba = "Prueba#2026";
+    public const string ContrasenaUsuariosPrueba = "Prueba#2026Segura";
 
     /// <summary>
     /// El «hoy» del producto: día de negocio en Europe/Madrid (DiaDeNegocio.Hoy() en

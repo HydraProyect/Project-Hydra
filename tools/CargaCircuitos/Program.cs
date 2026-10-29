@@ -512,7 +512,7 @@ static List<(string Email, string Password)> ConstruirUsuariosPrueba()
     var lista = new List<(string, string)>();
     foreach (var rol in roles)
         for (var i = 1; i <= 3; i++)
-            lista.Add(($"prueba.{rol}{i}@caemanager.local", "Prueba#2026"));
+            lista.Add(($"prueba.{rol}{i}@caemanager.local", "Prueba#2026Segura"));
     return lista;
 }
 

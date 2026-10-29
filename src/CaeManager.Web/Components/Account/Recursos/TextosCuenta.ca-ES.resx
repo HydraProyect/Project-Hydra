@@ -100,7 +100,7 @@
     <value>Tornar a la fitxa</value>
   </data>
   <data name="CambiarContrasenaVoluntarioExplicacion" xml:space="preserve">
-    <value>Escriu la contrasenya actual i la que vols fer servir a partir d'ara.</value>
+    <value>Escriu la contrasenya actual i la que vols fer servir a partir d'ara. La nova ha de tenir almenys {0} caràcters.</value>
   </data>
   <data name="CambiarContrasenaVolverSinCambiarla" xml:space="preserve">
     <value>Torna sense canviar-la</value>

@@ -87,7 +87,7 @@
     private bool EsCambioVoluntario => Motivo == RutasMiCuenta.MotivoMiCuenta;
 
     private string Explicacion => EsCambioVoluntario
-        ? Textos["CambiarContrasenaVoluntarioExplicacion"].Value
+        ? Textos["CambiarContrasenaVoluntarioExplicacion", OpcionesIdentity.Value.Password.RequiredLength].Value
         : "Tienes que cambiar tu contraseña antes de continuar.";
 
     protected override void OnInitialized() => Entrada ??= new DatosEntrada();
@@ -103,7 +103,7 @@
         }
 
         // La política sale de IdentityOptions, la misma que aplica ChangePasswordAsync
-        // al guardar (antes el modelo pedía MinLength(8) y la política exige 10): así el
+        // al guardar (antes el modelo pedía MinLength(8) y la política exige 12): así el
         // formulario no acepta lo que Identity va a rechazar, y el motivo sale en
         // castellano en vez de con la descripción en inglés de IdentityResult.
         var incumplidos = ReglasContrasena.Evaluar(OpcionesIdentity.Value.Password, Entrada.ContrasenaNueva)
