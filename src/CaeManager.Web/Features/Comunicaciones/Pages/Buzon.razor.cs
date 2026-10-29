@@ -29,6 +29,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 {
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private ILogger<Buzon> Logger { get; set; } = default!;
+    [Inject] private Microsoft.Extensions.Localization.IStringLocalizer<CaeManager.Web.Features.Comunicaciones.Recursos.TextosErroresConversaciones> ErroresTextos { get; set; } = default!;
 
     private IReadOnlyList<ConexionIntegracionListaDto> _conexiones = [];
     private Guid? _conexionSeleccionadaId;
@@ -56,6 +57,7 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
     private string _redactarAsunto = string.Empty;
     private string _redactarCuerpo = string.Empty;
     private readonly List<AdjuntoParaEnviarDto> _redactarAdjuntos = [];
+    private readonly AdjuntosCorreo _cargaAdjuntos = new();
     private string? _redactarError;
     private bool _enviandoRedaccion;
 
@@ -197,18 +199,14 @@ public partial class Buzon : CaeManager.Web.Components.PaginaInteractiva, IDispo
 
     private async Task ManejarArchivosRedactarAsync(InputFileChangeEventArgs e)
     {
-        const int maximoArchivos = 5;
-
-        foreach (var archivo in e.GetMultipleFiles(maximoArchivos))
-        {
-            await using var flujo = archivo.OpenReadStream(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes);
-            using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria);
-            _redactarAdjuntos.Add(new AdjuntoParaEnviarDto(archivo.Name, archivo.ContentType, memoria.ToArray()));
-        }
+        _redactarError = AdjuntosCorreo.Mensaje(await _cargaAdjuntos.AgregarAsync(e, _redactarAdjuntos), ErroresTextos);
     }
 
-    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto) => _redactarAdjuntos.Remove(adjunto);
+    private void QuitarAdjuntoRedactar(AdjuntoParaEnviarDto adjunto)
+    {
+        _redactarAdjuntos.Remove(adjunto);
+        _redactarError = null;
+    }
 
     private async Task EnviarMensajeNuevoAsync()
     {

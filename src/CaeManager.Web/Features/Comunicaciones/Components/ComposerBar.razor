@@ -114,7 +114,7 @@
                     <Icono Nombre="adjunto" Tamano="TamanoIcono.Pequeno" /> Adjuntar
                     <InputFile OnChange="e => OnArchivosSeleccionados.InvokeAsync(e)" multiple />
                 </label>
-                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@((string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0) || ErrorAdjuntos is not null)" OnClick="() => OnEnviar.InvokeAsync()">
+                <Boton Variante="VarianteBoton.Primario" Cargando="Enviando" Deshabilitado="@(string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0)" OnClick="() => OnEnviar.InvokeAsync()">
                     Enviar
                 </Boton>
             </div>
@@ -222,11 +222,11 @@
 
     /// <summary>
     /// Ctrl+Intro (Cmd+Intro en Mac) envía el correo con las mismas condiciones que el botón Enviar:
-    /// texto no vacío, adjuntos sin error y ningún envío en curso.
+    /// texto no vacío, variables resueltas y ningún envío en curso.
     /// </summary>
     private Task ManejarAtajoCorreoAsync(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
     {
-        var puedeEnviar = !Enviando && !(string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0) && ErrorAdjuntos is null;
+        var puedeEnviar = !Enviando && !(string.IsNullOrWhiteSpace(Texto) || VariablesPendientes.Count > 0);
         return e.Key == "Enter" && (e.CtrlKey || e.MetaKey) && puedeEnviar ? OnEnviar.InvokeAsync() : Task.CompletedTask;
     }
 
