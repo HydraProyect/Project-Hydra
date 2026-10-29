@@ -34,8 +34,9 @@ public interface IPaqueteDocumentalVisitaService
     /// conversación. Lo usa la descarga manual de un Centro gestionado por correo
     /// (P1-X1). Solo empaqueta a los Trabajadores de la Visita que son de su Empresa y visibles
     /// para quien lo pide (S-B-1, <see cref="TrabajadoresAdmisiblesEnVisita"/>). <b>No autoriza la
-    /// Visita</b>: quien lo llame comprueba antes Tenant y alcance, y registra el acceso a cada
-    /// documento de <see cref="PaqueteDocumentalZip.Documentos"/> que sea sensible. Null si no hay nada que empaquetar o el Centro no requiere
+    /// Visita</b>: quien lo llame comprueba antes Tenant y alcance. Registra el acceso a cada
+    /// documento de <see cref="PaqueteDocumentalZip.Documentos"/> que sea sensible antes de devolver el paquete;
+    /// si el registro falla, no lo devuelve. Null si no hay nada que empaquetar o el Centro no requiere
     /// gestión CAE.
     /// </summary>
     Task<PaqueteDocumentalZip?> ConstruirAsync(Guid visitaId, CancellationToken cancellationToken = default);

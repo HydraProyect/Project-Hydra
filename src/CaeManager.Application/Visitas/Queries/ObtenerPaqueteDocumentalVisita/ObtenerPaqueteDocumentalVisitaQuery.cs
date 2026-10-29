@@ -60,7 +60,6 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
     ICentrosQueryContext centrosContext,
     IAlcanceDatosService alcanceDatos,
     IPaqueteDocumentalVisitaService paqueteDocumental,
-    IRegistroAccesoDocumentoSensibleService registroAcceso,
     ICurrentUserService currentUserService,
     ISesionPrivilegiadaActual sesionPrivilegiadaActual)
     : IRequestHandler<ObtenerPaqueteDocumentalVisitaQuery, Result<PaqueteDocumentalDescargaDto>>
@@ -106,9 +105,6 @@ public class ObtenerPaqueteDocumentalVisitaQueryHandler(
         var paquete = await paqueteDocumental.ConstruirAsync(request.VisitaId, cancellationToken);
         if (paquete is null)
             return Result.Fallo<PaqueteDocumentalDescargaDto>(SinDocumentos);
-
-        foreach (var documento in paquete.Documentos)
-            await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
 
         return Result.Exito(new PaqueteDocumentalDescargaDto(paquete.NombreArchivo, paquete.Contenido));
     }

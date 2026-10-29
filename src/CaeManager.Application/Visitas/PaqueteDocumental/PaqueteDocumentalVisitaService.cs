@@ -50,18 +50,11 @@ public class PaqueteDocumentalVisitaService(
 
     public async Task GenerarYEnviarAsync(Guid visitaId, Guid conversacionId, CancellationToken cancellationToken = default)
     {
-        var paquete = await ConstruirAsync(visitaId, cancellationToken);
-        if (paquete is null) return;
-
         var conversacion = await conversacionRepositorio.ObtenerPorIdAsync(conversacionId, cancellationToken);
         if (conversacion is null) return;
 
-        // DEC-36 (S-B-3): el adjunto entrega a un tercero el contenido de cada Documento del zip, igual
-        // que la descarga manual (ObtenerPaqueteDocumentalVisitaQuery), así que cada uno cuenta como una
-        // Apertura y se registra si es sensible. Antes de guardar el zip y de adjuntarlo: el registro
-        // falla en cerrado y, si no queda constancia, el paquete no sale.
-        foreach (var documento in paquete.Documentos)
-            await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+        var paquete = await ConstruirAsync(visitaId, cancellationToken);
+        if (paquete is null) return;
 
         using var flujoZip = new MemoryStream(paquete.Contenido);
         var archivoUrlZip = await almacenamiento.GuardarAsync(flujoZip, paquete.NombreArchivo, cancellationToken);
@@ -188,6 +181,11 @@ public class PaqueteDocumentalVisitaService(
         }
 
         var nombreZip = $"documentacion-visita-{centro.Nombre.Replace(' ', '-')}-{visita.FechaInicio:yyyyMMdd}.zip";
+        // DEC-36: solo los documentos incorporados cuentan como aperturas. El registro es
+        // obligatorio antes de poner el paquete a disposición de cualquiera de las dos vías.
+        foreach (var documento in incluidos)
+            await registroAcceso.RegistrarSiSensibleAsync(documento.DocumentoId, TipoAccesoDocumentoSensible.Apertura, cancellationToken);
+
         return new PaqueteDocumentalZip(nombreZip, zipBytes, incluidos, centro.Nombre, visita.FechaInicio, visita.FechaFin);
     }
 
