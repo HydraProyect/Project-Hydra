@@ -57,7 +57,6 @@ public class AsistenteDePruebasTests
         provider.GetRequiredService<IOptions<AnthropicOptions>>().Value.ApiKey.Should().BeNullOrEmpty();
         new DisponibilidadAsistente(
                 provider.GetRequiredService<IOptions<AnthropicOptions>>(),
-                provider.GetRequiredService<IOptions<TypeSafeOptions>>(),
                 provider.GetServices<MarcaAsistenteDePruebas>())
             .PreguntasDisponibles.Should().BeTrue();
     }
@@ -87,7 +86,7 @@ public class AsistenteDePruebasTests
     public void Sin_doble_ni_clave_Consulta_PRL_no_esta_disponible()
     {
         new DisponibilidadAsistente(
-                Options.Create(new AnthropicOptions()), Options.Create(new TypeSafeOptions()), [])
+                Options.Create(new AnthropicOptions()), [])
             .PreguntasDisponibles.Should().BeFalse();
     }
 

@@ -79,6 +79,34 @@ public class DocumentAIRouterServiceTests
         proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
     }
 
+    [Theory]
+    [InlineData(TipoContenidoDocumento.Digital)]
+    [InlineData(TipoContenidoDocumento.Escaneado)]
+    [InlineData(TipoContenidoDocumento.Imagen)]
+    [InlineData(TipoContenidoDocumento.Mixto)]
+    public async Task Con_un_solo_proveedor_todas_las_rutas_usan_Anthropic(TipoContenidoDocumento tipo)
+    {
+        var proveedor = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+        var router = CrearRouter(Clasificacion(tipo, tipo == TipoContenidoDocumento.Digital), Result.Exito("texto digital"), proveedor);
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Certificado");
+        resultado.EsExitoso.Should().BeTrue();
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
+        proveedor.VecesLlamadoParaTexto.Should().Be(tipo == TipoContenidoDocumento.Digital ? 0 : 1);
+    }
+
+    [Fact]
+    public async Task Un_fallo_del_unico_proveedor_se_propaga_sin_alternativa()
+    {
+        var error = Error.Crear("DocumentAIProvider.ErrorApi", "Fallo controlado");
+        var proveedor = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.ExtraccionEstructurada,
+            resultadoEstructurado: Result.Fallo<ExtraccionEstructuradaDto>(error));
+        var router = CrearRouter(Clasificacion(TipoContenidoDocumento.Digital, true), Result.Exito("texto"), proveedor);
+        var resultado = await router.ProcesarAsync([1, 2, 3], "documento.pdf", "Certificado");
+        resultado.EsFallido.Should().BeTrue();
+        resultado.Error.Codigo.Should().Be(error.Codigo);
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(1);
+    }
+
     [Fact]
     public async Task Falla_de_forma_controlada_si_no_hay_proveedor_de_ocr_para_un_documento_escaneado()
     {

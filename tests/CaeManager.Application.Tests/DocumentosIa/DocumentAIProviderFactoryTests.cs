@@ -53,55 +53,47 @@ public class DocumentAIProviderFactoryTests
         resultado.Should().BeEmpty();
     }
 
-    /// <summary>
-    /// Reproduce el reparto real del contenedor: Mistral se registra ANTES que
-    /// Anthropic y declara también extracción estructurada, así que mientras el
-    /// orden salía del contenedor, el primario de estructuración era Mistral —
-    /// aunque el comentario del registro afirmara que era Anthropic. Quién
-    /// recibe los datos del documento no puede depender del orden de unas
-    /// líneas de DI.
-    /// </summary>
     [Fact]
     public void ObtenerPorCapacidad_usa_el_orden_declarado_y_no_el_de_registro()
     {
-        var mistral = new ProveedorIaFalso("mistral-ocr", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
+        var desconocido = new ProveedorIaFalso("a-proveedor-nuevo", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
         var anthropic = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
-        var gemini = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var falso = new ProveedorIaFalso("falso-e2e", CapacidadesProveedorIa.OcrImagenAEscaneado | CapacidadesProveedorIa.ExtraccionEstructurada);
 
-        // Orden de registro deliberadamente "malo": el mismo que el DI real.
-        var factory = new DocumentAIProviderFactory([mistral, anthropic, gemini]);
+        // Orden de registro deliberadamente "malo", y elegido para que ni el
+        // orden de registro ni el alfabético coincidan con el de la tabla: si la
+        // tabla se ignorase, "a-proveedor-nuevo" o "anthropic" irían delante.
+        var factory = new DocumentAIProviderFactory([desconocido, anthropic, falso]);
 
-        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
-            .Select(p => p.Codigo).Should().Equal("anthropic", "gemini", "mistral-ocr");
-
-        // Para OCR sí manda Mistral, que es el especializado — el orden es por
-        // capacidad, no uno global.
-        factory.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado)
-            .Select(p => p.Codigo).Should().Equal("mistral-ocr", "anthropic");
+        foreach (var capacidad in new[] { CapacidadesProveedorIa.ExtraccionEstructurada, CapacidadesProveedorIa.OcrImagenAEscaneado })
+        {
+            factory.ObtenerPorCapacidad(capacidad)
+                .Select(p => p.Codigo).Should().Equal(["falso-e2e", "anthropic", "a-proveedor-nuevo"], $"la tabla manda para {capacidad}");
+        }
     }
 
     [Fact]
     public void ObtenerPorCapacidad_excluye_a_los_proveedores_sin_credencial()
     {
         var sinClave = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.ExtraccionEstructurada, estaDisponible: false);
-        var conClave = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var conClave = new ProveedorIaFalso("falso-e2e", CapacidadesProveedorIa.ExtraccionEstructurada);
         var factory = new DocumentAIProviderFactory([sinClave, conClave]);
 
-        // Sin el filtro, Anthropic iría primero por orden declarado y se
-        // llevaría el trabajo pese a no poder atenderlo.
+        // Sin el filtro, Anthropic seguiría en la lista y se llevaría el
+        // trabajo de los reintentos pese a no poder atenderlo.
         factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
-            .Select(p => p.Codigo).Should().Equal("gemini");
+            .Select(p => p.Codigo).Should().Equal("falso-e2e");
     }
 
     [Fact]
-    public void ObtenerPorCapacidad_ordena_los_proveedores_desconocidos_por_codigo_al_final()
+    public void ObtenerPorCapacidad_ordena_los_proveedores_desconocidos_por_codigo_detras_de_los_declarados()
     {
         var nuevoZ = new ProveedorIaFalso("z-proveedor-nuevo", CapacidadesProveedorIa.ExtraccionEstructurada);
         var nuevoA = new ProveedorIaFalso("a-proveedor-nuevo", CapacidadesProveedorIa.ExtraccionEstructurada);
-        var conocido = new ProveedorIaFalso("gemini", CapacidadesProveedorIa.ExtraccionEstructurada);
+        var conocido = new ProveedorIaFalso("anthropic", CapacidadesProveedorIa.ExtraccionEstructurada);
         var factory = new DocumentAIProviderFactory([nuevoZ, conocido, nuevoA]);
 
         factory.ObtenerPorCapacidad(CapacidadesProveedorIa.ExtraccionEstructurada)
-            .Select(p => p.Codigo).Should().Equal("gemini", "a-proveedor-nuevo", "z-proveedor-nuevo");
+            .Select(p => p.Codigo).Should().Equal("anthropic", "a-proveedor-nuevo", "z-proveedor-nuevo");
     }
 }

@@ -10,7 +10,7 @@ namespace CaeManager.Infrastructure.AsistenteIa;
 /// Project-Hydra-Negocio/MACRO_PLAN_2026-08-13.md § 1.6). Un test que sube un documento y espera
 /// que <c>ProcesadorAnalisisDocumentoHostedService</c> lo procese no puede
 /// depender de un modelo real: no determinista, de pago y, sin credenciales
-/// en CI (las claves de Anthropic/Gemini/Mistral solo existen en el .env de
+/// en CI (las claves de Anthropic solo existen en el .env de
 /// la VPS de producción — ver InfrastructureServiceCollectionExtensions),
 /// siempre "inerte" en este entorno de todos modos (mismo patrón que
 /// <see cref="AnthropicDocumentAIProvider"/>: sin ApiKey, cada proveedor

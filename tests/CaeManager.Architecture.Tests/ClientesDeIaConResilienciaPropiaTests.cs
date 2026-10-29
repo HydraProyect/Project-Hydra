@@ -42,10 +42,8 @@ public class ClientesDeIaConResilienciaPropiaTests
         "AnthropicDeteccionRelevanciaCaeService",
         "AnthropicDeteccionIntencionCaeService",
         "AnthropicSegundaOpinionCriticaIa",
-        "MistralOcrDocumentAIProvider",
         "AnthropicDocumentAIProvider",
-        "GeminiDocumentAIProvider",
-        "TypeSafeDecisionesCerradasService",
+        "AnthropicDecisionesCerradasService",
     ];
 
     [Fact]

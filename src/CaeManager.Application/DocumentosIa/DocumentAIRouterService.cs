@@ -362,6 +362,12 @@ public class DocumentAIRouterService(
     /// <see cref="IDocumentAIProviderFactory.ObtenerPorCapacidad"/> y se queda
     /// con el mejor resultado, con dos diferencias frente a lo que hacía antes.
     ///
+    /// Con el proveedor único (Anthropic, decisión del 2026-10-29) la lista de
+    /// candidatos reales tiene un solo elemento, así que ni el fallback ni el
+    /// reintento por confianza llaman a otro proveedor: un fallo de Anthropic se
+    /// propaga. El mecanismo se conserva porque es general; que no haya un
+    /// segundo proveedor lo fija <c>ProveedorDocumentalUnicoTests</c>.
+    ///
     /// <b>Fallback ante fallo</b>: antes el segundo proveedor solo entraba si
     /// el primero devolvía <em>éxito</em> con confianza baja. Un timeout, un
     /// 429, una credencial ausente o un JSON inválido en el primero abortaban
@@ -601,8 +607,7 @@ public class DocumentAIRouterService(
     /// <summary>
     /// Caso 4 (Mixto): extrae texto de páginas digitales sin coste (OCR = 0)
     /// y rasteriza + hace OCR solo en las páginas escaneadas — evita pagar
-    /// OCR por páginas que ya tienen texto embebido cuando el proveedor
-    /// factura por página (Mistral OCR).
+    /// OCR por páginas que ya tienen texto embebido.
     /// </summary>
     private async Task<Result<TextoExtraidoDto>> ObtenerTextoMixtoAsync(
         ClasificacionDocumentoDto clasificacion, byte[] contenido, CancellationToken cancellationToken)

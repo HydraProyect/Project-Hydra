@@ -2,7 +2,7 @@ namespace CaeManager.Infrastructure.Comercial;
 
 /// <summary>
 /// Configuración de <see cref="StripePaymentProvider"/>. Mismo patrón
-/// "inerte por defecto" que <c>AnthropicOptions</c>/<c>MistralOcrOptions</c>
+/// "inerte por defecto" que <c>AnthropicOptions</c>
 /// (ver src/CaeManager.Infrastructure/AsistenteIa): sin claves configuradas,
 /// el proveedor de pagos no lanza ni bloquea el arranque — cada método
 /// devuelve un <c>Result</c> fallido controlado.

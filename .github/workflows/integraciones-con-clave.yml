@@ -214,7 +214,7 @@ jobs:
           psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1
           -f deploy/bootstrap/roles-de-cluster.sql
 
-      # Solo los tests de Anthropic: Gemini y Mistral siguen sin clave y siguen
+      # Solo los tests de Anthropic: los demás tests sin clave siguen
       # declarándose omitidos en los bloques de ci.yml. La variable lleva el
       # nombre que espera la aplicación (`Anthropic__ApiKey`), tomada del secreto
       # DE CI: en este paso y solo en este.

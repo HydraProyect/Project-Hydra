@@ -24,7 +24,6 @@ public class BotonAsistenteIaTests : BunitContext
     {
         Services.AddLocalization();
         Services.AddScoped<AsistenteIaService>();
-        Services.AddSingleton<IOptions<TypeSafeOptions>>(Options.Create(new TypeSafeOptions()));
         Services.AddScoped<DisponibilidadAsistente>();
         AddAuthorization().SetAuthorized("laura.perez@consultora.es");
         _modulo = JSInterop.SetupModule(ModuloVega);

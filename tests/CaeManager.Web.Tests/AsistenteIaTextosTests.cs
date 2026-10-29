@@ -46,9 +46,8 @@ public class AsistenteIaTextosTests : BunitContext
         Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba());
         Services.AddScoped<AsistenteIaService>();
         Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.AsistenteIa.AnthropicOptions>>(
-            Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.AnthropicOptions { ApiKey = "sk-ant-de-prueba" }));
-        Services.AddSingleton<Microsoft.Extensions.Options.IOptions<CaeManager.Infrastructure.AsistenteIa.TypeSafeOptions>>(
-            Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.TypeSafeOptions()));
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Infrastructure.AsistenteIa.AnthropicOptions()));
+        Services.AddSingleton(new CaeManager.Infrastructure.DependencyInjection.MarcaAsistenteDePruebas());
         Services.AddScoped<DisponibilidadAsistente>();
         Services.AddScoped<IMediator, MediatorQueNoResponde>();
         Services.AddSingleton<ISanitizadorHtmlService, GanssSanitizadorHtmlService>();
