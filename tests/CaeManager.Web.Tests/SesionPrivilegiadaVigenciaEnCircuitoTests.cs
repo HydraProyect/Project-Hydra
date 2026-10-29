@@ -13,7 +13,7 @@ using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore.Query;
-using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 using EstadoBootstrap = CaeManager.Domain.Plataforma.EstadoBootstrapPlataforma;
@@ -252,7 +252,7 @@ public sealed class SesionPrivilegiadaVigenciaEnCircuitoTests : IAsyncLifetime
             null!,
             _resolutor,
             _puerta,
-            new ConfigurationBuilder().Build(),
+            Options.Create(new IntervalosRevalidacionOptions()),
             NullLogger<RevalidacionCircuitoActivoHandler>.Instance,
             _reloj);
 
