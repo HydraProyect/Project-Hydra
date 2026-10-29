@@ -201,11 +201,29 @@ public class DiskFileStorageServiceTests : IDisposable
     {
         public bool Copiado { get; private set; }
 
+        // El servicio lee el contenido con ReadAsync (lectura exacta y sonda de fin), no con
+        // CopyToAsync: la cancelación se dispara al llegar al final, ya leído entero.
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            AlLlegarAlFinal(await base.ReadAsync(buffer, cancellationToken));
+
+        public override async Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken) =>
+            AlLlegarAlFinal(await base.ReadAsync(buffer, offset, count, cancellationToken));
+
         public override async Task CopyToAsync(Stream destination, int bufferSize, CancellationToken cancellationToken)
         {
             await base.CopyToAsync(destination, bufferSize, cancellationToken);
-            Copiado = true;
-            cts.Cancel();
+            AlLlegarAlFinal(0);
+        }
+
+        private int AlLlegarAlFinal(int leidos)
+        {
+            if (leidos == 0 && !Copiado)
+            {
+                Copiado = true;
+                cts.Cancel();
+            }
+
+            return leidos;
         }
     }
 
