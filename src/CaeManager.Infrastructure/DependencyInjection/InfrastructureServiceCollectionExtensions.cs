@@ -166,6 +166,8 @@ public static class InfrastructureServiceCollectionExtensions
             // Enlace «no he sido yo» del aviso de inicio de sesión inusual, con vigencia propia.
             .AddTokenProvider<CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo>(CaeManager.Infrastructure.Seguridad.ProveedorTokenNoHeSidoYo.Nombre);
 
+        services.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
+
         services.AddSingleton(sp =>
         {
             using var scope = sp.GetRequiredService<IServiceScopeFactory>().CreateScope();

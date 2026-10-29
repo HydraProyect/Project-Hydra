@@ -131,6 +131,40 @@ public class SegundoFactorBajoRuntimeTests
                 .EsExitoso.Should().BeTrue("el código del paso siguiente sí vale");
     }
 
+    /// <summary>
+    /// La comparación e intercambio del último paso TOTP aceptado (RegistroUltimoPasoTotpPostgres) bajo el
+    /// rol de runtime: de dos verificaciones que leyeron el mismo valor, solo la primera en escribir guarda,
+    /// también cuando aún no había fila. Es lo que impide que dos envíos simultáneos del mismo código, o
+    /// dos réplicas, lo acepten los dos (V2.8.4).
+    /// </summary>
+    [Fact]
+    public async Task De_dos_verificaciones_que_leyeron_lo_mismo_solo_una_guarda_el_paso()
+    {
+        var usuarioId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(usuarioId, "Consulta");
+        await CrearUsuarioCon2faAsync(arnes, usuarioId, "carrera-totp@caemanager.local", TenantA);
+        using var primera = arnes.Servicios.CreateScope();
+        using var segunda = arnes.Servicios.CreateScope();
+        var registroA = primera.ServiceProvider.GetRequiredService<IRegistroUltimoPasoTotp>();
+        var registroB = segunda.ServiceProvider.GetRequiredService<IRegistroUltimoPasoTotp>();
+
+        var leidoA = await registroA.LeerAsync(usuarioId);
+        var leidoB = await registroB.LeerAsync(usuarioId);
+        leidoA.Should().BeNull("control: todavía no se aceptó ningún código");
+
+        (await registroA.SustituirAsync(usuarioId, leidoA, "100:AAAA")).Should().BeTrue();
+        (await registroB.SustituirAsync(usuarioId, leidoB, "100:AAAA")).Should().BeFalse(
+            "la fila ya existe: la segunda pierde la carrera del alta");
+
+        var actual = await registroB.LeerAsync(usuarioId);
+        actual.Should().Be("100:AAAA");
+        (await registroA.SustituirAsync(usuarioId, actual, "101:AAAA")).Should().BeTrue();
+        (await registroB.SustituirAsync(usuarioId, actual, "101:AAAA")).Should().BeFalse(
+            "el valor cambió desde que lo leyó: la segunda pierde la carrera de la actualización");
+        (await registroB.LeerAsync(usuarioId)).Should().Be("101:AAAA");
+        (await ContarTokensAsync(arnes.CadenaPropietario, usuarioId)).Should().Be(2, "la clave y una sola fila del paso");
+    }
+
     [Fact]
     public async Task Regenerar_invalida_los_codigos_anteriores()
     {

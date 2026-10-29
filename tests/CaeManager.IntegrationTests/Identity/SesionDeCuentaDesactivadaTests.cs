@@ -78,7 +78,10 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             .AddEntityFrameworkStores<CaeManagerDbContext>()
             .AddSignInManager<SignInManagerCuentaDesactivada>()
             .AddClaimsPrincipalFactory<TenantClaimsPrincipalFactory>()
-            .AddTokenProvider<AuthenticatorTokenProvider<ApplicationUser>>(TokenOptions.DefaultAuthenticatorProvider);
+            // El autenticador real: un código TOTP aceptado no vuelve a valer (V2.8.4).
+            .AddTokenProvider<ProveedorTotpDeUnSoloUso>(TokenOptions.DefaultAuthenticatorProvider);
+        servicios.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
+        servicios.AddSingleton(TimeProvider.System);
         // El registro de inicios de sesión tiene su propio test
         // (RegistroInicioSesionBajoRuntimeTests); aquí solo estorbaría.
         servicios.AddScoped<IVigilanciaInicioSesion, VigilanciaSinEfecto>();
@@ -397,6 +400,45 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
             SignInManagerCuentaDesactivada.TotpEsReciente(emitida, DateTimeOffset.UtcNow).Should().BeTrue();
         else
             emitida.HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimTotpSesion).Should().BeFalse();
+    }
+
+    /// <summary>
+    /// ASVS V2.8.4 en el segundo paso del login: el TOTP que ya completó un inicio de sesión no completa
+    /// otro desde una petición nueva, y la repetición cuenta como intento fallido en el bloqueo de la cuenta.
+    /// </summary>
+    [Fact]
+    public async Task El_mismo_TOTP_no_completa_dos_veces_el_segundo_paso()
+    {
+        var usuario = await CrearUsuarioAsync("totp-repetido@x.test");
+        string clave;
+        using (var preparacion = _servicios.CreateScope())
+        {
+            var userManager = preparacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
+            (await userManager.ResetAuthenticatorKeyAsync(cuenta)).Succeeded.Should().BeTrue();
+            clave = (await userManager.GetAuthenticatorKeyAsync(cuenta))!;
+            (await userManager.SetTwoFactorEnabledAsync(cuenta, true)).Succeeded.Should().BeTrue();
+        }
+        var codigo = CodigoTotp(clave);
+
+        (await SegundoPasoConTotpAsync(usuario.Id, codigo)).Succeeded.Should().BeTrue(
+            "control positivo: el código del paso actual completa el segundo paso");
+        (await SegundoPasoConTotpAsync(usuario.Id, codigo)).Succeeded.Should().BeFalse(
+            "un código aceptado no vuelve a valer dentro de su ventana");
+
+        using var lectura = _servicios.CreateScope();
+        (await lectura.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString()))!
+            .AccessFailedCount.Should().Be(1, "repetir el código cuenta como intento fallido");
+    }
+
+    private async Task<SignInResult> SegundoPasoConTotpAsync(Guid usuarioId, string codigo)
+    {
+        using var ambito = _servicios.CreateScope();
+        var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+        contexto.Request.Headers.Cookie = CookieDeSegundoPasoPendiente(usuarioId);
+        ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+        return await ambito.ServiceProvider.GetRequiredService<SignInManager<ApplicationUser>>()
+            .TwoFactorAuthenticatorSignInAsync(codigo, isPersistent: false, rememberClient: false);
     }
 
     /// <summary>La cookie del segundo paso pendiente que deja la contraseña acertada («nombre=valor»).</summary>

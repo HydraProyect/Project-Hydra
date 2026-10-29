@@ -13,7 +13,7 @@ namespace CaeManager.Web.Tests;
 /// <summary>
 /// ASVS 4.0.3 V2.8.4: un código TOTP ya aceptado no vuelve a valer dentro de su ventana
 /// (<see cref="ProveedorTotpDeUnSoloUso"/>). Cada «petición» es un <c>UserManager</c> y un proveedor
-/// nuevos sobre el mismo almacén, como dos POST o dos réplicas sobre la misma base.
+/// nuevos sobre el mismo registro, como dos POST o dos réplicas sobre la misma base.
 /// </summary>
 public class ProveedorTotpDeUnSoloUsoTests
 {
@@ -22,7 +22,8 @@ public class ProveedorTotpDeUnSoloUsoTests
     private static readonly DateTimeOffset Inicio = DateTimeOffset.FromUnixTimeSeconds(1_800_000_000);
     private static readonly long PasoInicial = Inicio.ToUnixTimeSeconds() / 30;
 
-    private readonly AlmacenEnMemoria _almacen = new() { Clave = Clave };
+    private readonly AlmacenConClave _almacen = new() { Clave = Clave };
+    private readonly RegistroEnMemoria _registro = new();
     private readonly RelojFijo _reloj = new() { Ahora = Inicio };
 
     [Fact]
@@ -44,7 +45,7 @@ public class ProveedorTotpDeUnSoloUsoTests
 
         (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial + 1))).Should().BeTrue(
             "el paso siguiente aún no se usó y cae dentro de la ventana");
-        _almacen.UltimoPasoGuardado.Should().Be(PasoInicial + 1);
+        _registro.UltimoPaso.Should().Be(PasoInicial + 1);
     }
 
     [Fact]
@@ -57,6 +58,15 @@ public class ProveedorTotpDeUnSoloUsoTests
         (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial - 1))).Should().BeFalse();
     }
 
+    [Theory]
+    [InlineData(-2)]
+    [InlineData(2)]
+    public async Task Se_mantiene_la_tolerancia_de_dos_pasos_del_proveedor_de_serie(int desfase)
+    {
+        // Un móvil con el reloj desfasado hasta un minuto sigue entrando, como antes del cambio.
+        (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial + desfase))).Should().BeTrue();
+    }
+
     [Fact]
     public async Task Fuera_de_la_ventana_o_sin_seis_cifras_no_vale()
     {
@@ -64,21 +74,32 @@ public class ProveedorTotpDeUnSoloUsoTests
         (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial - 3))).Should().BeFalse();
         (await VerificarEnPeticionNuevaAsync(" " + Codigo(PasoInicial))).Should().BeFalse();
         (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial)[1..])).Should().BeFalse();
-        _almacen.Guardados.Should().Be(0, "un rechazo no escribe nada");
+        _registro.Escrituras.Should().Be(0, "un rechazo no escribe nada");
     }
 
     [Fact]
     public async Task Dentro_de_la_misma_peticion_el_codigo_aceptado_se_puede_comprobar_otra_vez()
     {
         // El alta verifica el código y genera los códigos de recuperación con él, en la misma petición.
-        var (usuarios, usuario) = Peticion();
+        var usuarios = Peticion();
         var codigo = Codigo(PasoInicial);
 
-        (await usuarios.VerifyTwoFactorTokenAsync(usuario, TokenOptions.DefaultAuthenticatorProvider, codigo)).Should().BeTrue();
-        (await usuarios.VerifyTwoFactorTokenAsync(usuario, TokenOptions.DefaultAuthenticatorProvider, codigo)).Should().BeTrue();
-        _almacen.Guardados.Should().Be(1, "la segunda comprobación de la misma acción no vuelve a escribir");
+        (await VerificarAsync(usuarios, codigo)).Should().BeTrue();
+        (await VerificarAsync(usuarios, codigo)).Should().BeTrue();
+        _registro.Escrituras.Should().Be(1, "la segunda comprobación de la misma acción no vuelve a escribir");
 
         (await VerificarEnPeticionNuevaAsync(codigo)).Should().BeFalse("en otra petición ya no vale");
+    }
+
+    [Fact]
+    public async Task La_excepcion_de_la_misma_peticion_no_pasa_de_la_ventana_del_codigo()
+    {
+        var usuarios = Peticion();
+        var codigo = Codigo(PasoInicial);
+        (await VerificarAsync(usuarios, codigo)).Should().BeTrue();
+
+        _reloj.Ahora = Inicio.AddSeconds(3 * 30);
+        (await VerificarAsync(usuarios, codigo)).Should().BeFalse("el código ya cayó fuera de su ventana");
     }
 
     [Fact]
@@ -93,12 +114,12 @@ public class ProveedorTotpDeUnSoloUsoTests
     }
 
     [Fact]
-    public async Task Si_no_se_puede_guardar_el_paso_el_codigo_no_vale()
+    public async Task Si_otra_verificacion_guardo_antes_el_codigo_no_vale()
     {
-        _almacen.FallarAlGuardar = true;
+        _registro.OtraVerificacionGuardaAntes = true;
 
         (await VerificarEnPeticionNuevaAsync(Codigo(PasoInicial))).Should().BeFalse(
-            "sin registro del paso, aceptar dejaría reutilizar el código: falla en cerrado");
+            "de dos verificaciones simultáneas del mismo código solo vale la que guarda: falla en cerrado");
     }
 
     [Theory]
@@ -113,7 +134,7 @@ public class ProveedorTotpDeUnSoloUsoTests
     }
 
     [Fact]
-    public void La_composicion_real_usa_este_proveedor_y_bloquea_la_cuenta_por_intentos_fallidos()
+    public void La_composicion_real_usa_este_proveedor_y_fija_el_bloqueo_por_intentos_fallidos()
     {
         var servicios = new ServiceCollection();
         servicios.AddInfrastructure(new ConfigurationBuilder().Build(), new EntornoFalso());
@@ -123,27 +144,30 @@ public class ProveedorTotpDeUnSoloUsoTests
         opciones.Tokens.AuthenticatorTokenProvider.Should().Be(TokenOptions.DefaultAuthenticatorProvider);
         opciones.Tokens.ProviderMap[TokenOptions.DefaultAuthenticatorProvider].ProviderType
             .Should().Be<ProveedorTotpDeUnSoloUso>("sustituye al AuthenticatorTokenProvider de serie (V2.8.4)");
+        servicios.Should().Contain(d => d.ServiceType == typeof(IRegistroUltimoPasoTotp)
+                                        && d.ImplementationType == typeof(RegistroUltimoPasoTotpPostgres));
 
-        // V2.2.1: el bloqueo por cuenta que aplican Login.razor (lockoutOnFailure: true) y el segundo paso.
+        // V2.2.1: la configuración del bloqueo por cuenta (que Login.razor active el bloqueo lo fija
+        // BloqueoPorCuentaEnElLoginTests, en Architecture.Tests).
         opciones.Lockout.MaxFailedAccessAttempts.Should().Be(5);
         opciones.Lockout.DefaultLockoutTimeSpan.Should().Be(TimeSpan.FromMinutes(15));
         opciones.Lockout.AllowedForNewUsers.Should().BeTrue();
     }
 
-    private async Task<bool> VerificarEnPeticionNuevaAsync(string codigo)
-    {
-        var (usuarios, usuario) = Peticion();
-        return await usuarios.VerifyTwoFactorTokenAsync(usuario, TokenOptions.DefaultAuthenticatorProvider, codigo);
-    }
+    private async Task<bool> VerificarEnPeticionNuevaAsync(string codigo) => await VerificarAsync(Peticion(), codigo);
 
-    private (UserManager<ApplicationUser> Usuarios, ApplicationUser Usuario) Peticion()
+    private Task<bool> VerificarAsync(UserManager<ApplicationUser> usuarios, string codigo) =>
+        usuarios.VerifyTwoFactorTokenAsync(_almacen.Usuario, TokenOptions.DefaultAuthenticatorProvider, codigo);
+
+    private UserManager<ApplicationUser> Peticion()
     {
         var usuarios = new UserManager<ApplicationUser>(
             _almacen, Options.Create(new IdentityOptions()), new PasswordHasher<ApplicationUser>(),
             [], [], new UpperInvariantLookupNormalizer(), new IdentityErrorDescriber(), null!,
             NullLogger<UserManager<ApplicationUser>>.Instance);
-        usuarios.RegisterTokenProvider(TokenOptions.DefaultAuthenticatorProvider, new ProveedorTotpDeUnSoloUso(_reloj));
-        return (usuarios, _almacen.Usuario);
+        usuarios.RegisterTokenProvider(TokenOptions.DefaultAuthenticatorProvider,
+            new ProveedorTotpDeUnSoloUso(_reloj, _registro, NullLogger<ProveedorTotpDeUnSoloUso>.Instance));
+        return usuarios;
     }
 
     private static string Codigo(long paso, string clave = Clave) =>
@@ -156,23 +180,40 @@ public class ProveedorTotpDeUnSoloUsoTests
     }
 
     /// <summary>
-    /// Almacén mínimo: los tokens escritos quedan pendientes hasta <see cref="UpdateAsync"/>, como en EF,
-    /// y <see cref="FallarAlGuardar"/> simula perder la concurrencia optimista de la cuenta.
+    /// El registro con la misma semántica de comparación e intercambio que el de PostgreSQL;
+    /// <see cref="OtraVerificacionGuardaAntes"/> simula perder la carrera entre la lectura y la escritura.
     /// </summary>
-    private sealed class AlmacenEnMemoria : IUserAuthenticatorKeyStore<ApplicationUser>, IUserAuthenticationTokenStore<ApplicationUser>
+    private sealed class RegistroEnMemoria : IRegistroUltimoPasoTotp
     {
-        private readonly Dictionary<(string Proveedor, string Nombre), string> _guardados = [];
-        private readonly Dictionary<(string Proveedor, string Nombre), string?> _pendientes = [];
+        private readonly Dictionary<Guid, string> _valores = [];
 
+        public bool OtraVerificacionGuardaAntes { get; set; }
+        public int Escrituras { get; private set; }
+
+        public long? UltimoPaso => _valores.Values.SingleOrDefault() is { } valor
+            ? long.Parse(valor.Split(':')[0], System.Globalization.CultureInfo.InvariantCulture)
+            : null;
+
+        public Task<string?> LeerAsync(Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(_valores.TryGetValue(usuarioId, out var valor) ? valor : null);
+
+        public Task<bool> SustituirAsync(Guid usuarioId, string? anterior, string nuevo, CancellationToken cancellationToken = default)
+        {
+            if (OtraVerificacionGuardaAntes)
+                _valores[usuarioId] = "otro";
+            if (_valores.GetValueOrDefault(usuarioId) != anterior)
+                return Task.FromResult(false);
+            _valores[usuarioId] = nuevo;
+            Escrituras++;
+            return Task.FromResult(true);
+        }
+    }
+
+    /// <summary>Almacén mínimo: solo la cuenta y su clave del autenticador.</summary>
+    private sealed class AlmacenConClave : IUserAuthenticatorKeyStore<ApplicationUser>
+    {
         public ApplicationUser Usuario { get; } = new() { Id = Guid.NewGuid(), UserName = "totp@x.test" };
         public string? Clave { get; set; }
-        public bool FallarAlGuardar { get; set; }
-        public int Guardados { get; private set; }
-
-        public long? UltimoPasoGuardado =>
-            _guardados.TryGetValue(("[AspNetUserStore]", ProveedorTotpDeUnSoloUso.NombreTokenUltimoPaso), out var valor)
-                ? long.Parse(valor.Split(':')[0], System.Globalization.CultureInfo.InvariantCulture)
-                : null;
 
         public Task SetAuthenticatorKeyAsync(ApplicationUser user, string key, CancellationToken cancellationToken)
         {
@@ -183,45 +224,13 @@ public class ProveedorTotpDeUnSoloUsoTests
         public Task<string?> GetAuthenticatorKeyAsync(ApplicationUser user, CancellationToken cancellationToken) =>
             Task.FromResult(Clave);
 
-        public Task SetTokenAsync(ApplicationUser user, string loginProvider, string name, string? value, CancellationToken cancellationToken)
-        {
-            _pendientes[(loginProvider, name)] = value;
-            return Task.CompletedTask;
-        }
-
-        public Task RemoveTokenAsync(ApplicationUser user, string loginProvider, string name, CancellationToken cancellationToken)
-        {
-            _pendientes[(loginProvider, name)] = null;
-            return Task.CompletedTask;
-        }
-
-        public Task<string?> GetTokenAsync(ApplicationUser user, string loginProvider, string name, CancellationToken cancellationToken) =>
-            Task.FromResult(_guardados.TryGetValue((loginProvider, name), out var valor) ? valor : null);
-
-        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken)
-        {
-            if (FallarAlGuardar)
-            {
-                _pendientes.Clear();
-                return Task.FromResult(IdentityResult.Failed(new IdentityErrorDescriber().ConcurrencyFailure()));
-            }
-
-            foreach (var (clave, valor) in _pendientes)
-            {
-                if (valor is null) _guardados.Remove(clave);
-                else _guardados[clave] = valor;
-            }
-            _pendientes.Clear();
-            Guardados++;
-            return Task.FromResult(IdentityResult.Success);
-        }
-
         public Task<string> GetUserIdAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(user.Id.ToString());
         public Task<string?> GetUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(user.UserName);
         public Task SetUserNameAsync(ApplicationUser user, string? userName, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<string?> GetNormalizedUserNameAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(user.NormalizedUserName);
         public Task SetNormalizedUserNameAsync(ApplicationUser user, string? normalizedName, CancellationToken cancellationToken) => Task.CompletedTask;
         public Task<IdentityResult> CreateAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
+        public Task<IdentityResult> UpdateAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
         public Task<IdentityResult> DeleteAsync(ApplicationUser user, CancellationToken cancellationToken) => Task.FromResult(IdentityResult.Success);
         public Task<ApplicationUser?> FindByIdAsync(string userId, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(Usuario);
         public Task<ApplicationUser?> FindByNameAsync(string normalizedUserName, CancellationToken cancellationToken) => Task.FromResult<ApplicationUser?>(Usuario);

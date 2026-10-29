@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Infrastructure.Identity;
 
@@ -20,11 +20,12 @@ namespace CaeManager.Infrastructure.Identity;
 /// <para>
 /// <b>Regla.</b> Acepta la misma ventana que el proveedor de serie (el paso actual y dos a cada lado),
 /// pero solo un paso <b>posterior</b> al último aceptado para la cuenta. Ese paso se guarda en
-/// <c>AspNetUserTokens</c> (proveedor <see cref="AlmacenUsuarios.ProveedorInterno"/>, nombre
-/// <see cref="NombreTokenUltimoPaso"/>), la misma tabla que la clave TOTP y los códigos de
-/// recuperación: lo comparten todas las réplicas y no necesita migración. La escritura pasa por
-/// <c>UserManager</c>, con la concurrencia optimista del <c>ConcurrencyStamp</c> de la cuenta: de dos
-/// verificaciones simultáneas del mismo código solo una guarda, y la otra se rechaza.
+/// <c>AspNetUserTokens</c> a través de <see cref="IRegistroUltimoPasoTotp"/> (ver
+/// <see cref="RegistroUltimoPasoTotpPostgres"/>): lo comparten todas las réplicas y no necesita migración.
+/// La escritura es una comparación e intercambio atómica sobre el valor leído: de dos verificaciones
+/// simultáneas del mismo código solo una guarda, y la otra se rechaza. Un código repetido cuenta como
+/// intento fallido en el bloqueo de la cuenta, igual que uno erróneo, y recibe el mismo mensaje: decir
+/// «ya usado» confirmaría a quien lo repite que el código era bueno.
 /// </para>
 ///
 /// <para>
@@ -38,10 +39,14 @@ namespace CaeManager.Infrastructure.Identity;
 /// <b>Una misma acción, dos comprobaciones.</b> El alta verifica el código y, en la misma petición,
 /// genera los códigos de recuperación con ese mismo código, que se vuelve a verificar. Esta instancia
 /// (transitoria, del <c>UserManager</c> del ámbito de la petición) recuerda el paso que acaba de
-/// aceptar y lo da por bueno otra vez dentro de su ámbito; cualquier otra petición lo rechaza.
+/// aceptar y lo da por bueno otra vez dentro de su ámbito; cualquier otra petición lo rechaza. Es seguro
+/// porque las tres rutas que verifican el TOTP son páginas de SSR estático (un ámbito, una petición): un
+/// <c>UserManager</c> de vida larga, como el de un circuito interactivo, alargaría esa excepción.
 /// </para>
 /// </summary>
-public class ProveedorTotpDeUnSoloUso(TimeProvider reloj) : AuthenticatorTokenProvider<ApplicationUser>
+public class ProveedorTotpDeUnSoloUso(
+    TimeProvider reloj, IRegistroUltimoPasoTotp registro, ILogger<ProveedorTotpDeUnSoloUso> logger)
+    : AuthenticatorTokenProvider<ApplicationUser>
 {
     /// <summary>Nombre del token de <c>AspNetUserTokens</c> que guarda el último paso aceptado.</summary>
     public const string NombreTokenUltimoPaso = "UltimoPasoTotp";
@@ -72,39 +77,41 @@ public class ProveedorTotpDeUnSoloUso(TimeProvider reloj) : AuthenticatorTokenPr
             && CoincideCodigo(bytesClave, previo.Paso, token))
             return true;
 
-        var ultimo = UltimoPasoAceptado(
-            await manager.GetAuthenticationTokenAsync(user, AlmacenUsuarios.ProveedorInterno, NombreTokenUltimoPaso),
-            huella);
+        var guardado = await registro.LeerAsync(user.Id);
+        var ultimo = UltimoPasoAceptado(guardado, huella);
 
         long? aceptado = null;
+        var repetido = false;
         for (var paso = pasoActual - PasosDeTolerancia; paso <= pasoActual + PasosDeTolerancia; paso++)
         {
-            if (paso > ultimo && CoincideCodigo(bytesClave, paso, token))
+            if (!CoincideCodigo(bytesClave, paso, token)) continue;
+            if (paso <= ultimo)
             {
-                aceptado = paso;
-                break;
+                repetido = true;
+                continue;
             }
+            aceptado = paso;
+            break;
         }
 
         if (aceptado is not { } pasoAceptado)
-            return false;
-
-        IdentityResult guardado;
-        try
         {
-            guardado = await manager.SetAuthenticationTokenAsync(
-                user, AlmacenUsuarios.ProveedorInterno, NombreTokenUltimoPaso,
-                pasoAceptado.ToString(CultureInfo.InvariantCulture) + ":" + huella);
-        }
-        catch (DbUpdateException)
-        {
-            // Otra verificación de la misma cuenta guardó antes (carrera en el alta de la fila):
-            // falla en cerrado, como la pérdida de concurrencia optimista de abajo.
+            // Un código correcto pero ya usado (o anterior al último usado) es la huella de una
+            // repetición: se registra, sin el código, para que se pueda investigar.
+            if (repetido)
+                logger.LogWarning("Código TOTP ya usado rechazado para la cuenta {UsuarioId}.", user.Id);
             return false;
         }
 
-        if (!guardado.Succeeded)
+        if (!await registro.SustituirAsync(
+                user.Id, guardado, pasoAceptado.ToString(CultureInfo.InvariantCulture) + ":" + huella))
+        {
+            // Otra verificación de la misma cuenta guardó entre la lectura y la escritura (dos envíos
+            // simultáneos, otra réplica): falla en cerrado.
+            logger.LogWarning(
+                "Código TOTP rechazado para la cuenta {UsuarioId}: otra verificación guardó antes.", user.Id);
             return false;
+        }
 
         _aceptadoEnEsteAmbito = (user.Id, huella, pasoAceptado);
         return true;

@@ -176,6 +176,7 @@ internal sealed class ArnesDeArranqueRuntime : IAsyncDisposable
             .AddDefaultTokenProviders()
             // Y el mismo autenticador: un código TOTP aceptado no vuelve a valer (V2.8.4).
             .AddTokenProvider<ProveedorTotpDeUnSoloUso>(TokenOptions.DefaultAuthenticatorProvider);
+        servicios.AddScoped<IRegistroUltimoPasoTotp, RegistroUltimoPasoTotpPostgres>();
         Microsoft.Extensions.DependencyInjection.Extensions.ServiceCollectionDescriptorExtensions.TryAddSingleton(servicios, TimeProvider.System);
 
         // Lo que un test necesita ADEMÁS del cableado de arriba (p. ej. los proveedores
