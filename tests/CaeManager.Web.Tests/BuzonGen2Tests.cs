@@ -393,4 +393,24 @@ public class BuzonGen2Tests : BunitContext
         mediador.Enviados.OfType<EnviarMensajeNuevoCommand>().Should().ContainSingle().Which.Adjuntos.Should().ContainSingle()
             .Which.Contenido.Should().Equal(1, 2, 3);
     }
+
+    [Fact]
+    public async Task Una_seleccion_con_mas_adjuntos_que_el_maximo_avisa_y_no_adjunta_ninguno()
+    {
+        var escenario = new Escenario
+        {
+            Interceptar = (peticion, _) => peticion is EnviarMensajeNuevoCommand
+                ? Task.FromResult<object?>(Result.Exito(Guid.NewGuid())) : null,
+        };
+        escenario.Conexiones.Add(Conexion(ConexionAId, "CAE Norte"));
+        var (cut, mediador) = Renderizar(escenario);
+        await ElegirConexion(cut, ConexionAId);
+        await cut.FindAll(".acciones-cabecera button").Single(b => b.TextContent.Trim() == "Redactar").ClickAsync(new MouseEventArgs());
+        await EscribirDestinatarioAsync(cut);
+        var archivos = Enumerable.Range(0, 6).Select(i => InputFileContent.CreateFromBinary([1], $"prueba{i}.txt")).ToArray();
+        await cut.InvokeAsync(() => cut.FindComponent<InputFile>().UploadFiles(archivos));
+        cut.Markup.Should().Contain("máximo de 5 archivos");
+        await cut.FindAll(".drawer-pie button").Single(b => b.TextContent.Trim() == "Enviar").ClickAsync(new MouseEventArgs());
+        mediador.Enviados.OfType<EnviarMensajeNuevoCommand>().Should().ContainSingle().Which.Adjuntos.Should().BeNullOrEmpty();
+    }
 }

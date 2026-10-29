@@ -1035,6 +1035,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
             _textoRespuesta = string.Empty;
             _macroSeleccionadaId = string.Empty;
             _adjuntosPendientes.Clear();
+            _errorAdjuntos = null;
             ToastService.Mostrar("Respuesta enviada.", TonoToast.Exito);
 
             await RegistrarAccionMedidaAsync();

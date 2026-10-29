@@ -52,7 +52,7 @@
     <value>Pots adjuntar un màxim de {0} fitxers.</value>
   </data>
   <data name="ErrorAdjuntosExcedenElTotal" xml:space="preserve">
-    <value>Els adjunts no poden superar {0} MB en total: treu-ne algun i torna a adjuntar el fitxer.</value>
+    <value>Els adjunts no poden superar {0} MB en total: treu-ne algun per afegir-ne més.</value>
   </data>
   <data name="ErrorAdjuntoNoSePudoLeer" xml:space="preserve">
     <value>No hem pogut llegir l'adjunt o supera l'espai que queda dels {0} MB. No s'ha afegit.</value>

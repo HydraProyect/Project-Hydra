@@ -52,7 +52,7 @@
     <value>Puedes adjuntar un máximo de {0} archivos.</value>
   </data>
   <data name="ErrorAdjuntosExcedenElTotal" xml:space="preserve">
-    <value>Los adjuntos no pueden superar {0} MB en total: quita alguno y vuelve a adjuntar el archivo.</value>
+    <value>Los adjuntos no pueden superar {0} MB en total: quita alguno para añadir más.</value>
   </data>
   <data name="ErrorAdjuntoNoSePudoLeer" xml:space="preserve">
     <value>No pudimos leer el adjunto o supera el espacio que queda de los {0} MB. No se ha añadido.</value>
