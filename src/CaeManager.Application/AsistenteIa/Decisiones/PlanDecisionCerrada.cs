@@ -86,7 +86,7 @@ public sealed class PlanDecisionCerrada
     private PlanDecisionCerrada(string campoTexto, string texto, IReadOnlyList<PreguntaCerrada> preguntas)
     {
         // Todo texto entra al estado por aquí, y entra enmascarado: los DNI, NIE,
-        // pasaportes, CIF y correos no salen hacia el proveedor. El Centro, el
+        // pasaportes, CIF, correos y teléfonos no salen hacia el proveedor. El Centro, el
         // Cliente empresarial y los nombres de persona sí, porque son lo que hay
         // que casar con los candidatos.
         var enmascarado = EnmascaradorIdentificadores.Enmascarar(texto);

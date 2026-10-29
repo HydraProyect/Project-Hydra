@@ -16,6 +16,9 @@ public enum TipoIdentificadorEnmascarado
 
     /// <summary>Dirección de correo electrónico.</summary>
     Correo,
+
+    /// <summary>Número de teléfono.</summary>
+    Telefono,
 }
 
 /// <summary>
@@ -48,9 +51,11 @@ public sealed record TextoEnmascarado(string Texto, IReadOnlyList<IdentificadorE
 
 /// <summary>
 /// Paso 1 del asistente de flujos: los identificadores personales y fiscales no
-/// salen de TALVEG. DNI, NIE, pasaporte, CIF y correos se sustituyen por marcadores
-/// (<c>[DOC_1]</c>, <c>[CIF_1]</c>, <c>[CORREO_1]</c>) antes de que el texto viaje al
-/// proveedor de IA, y se restauran al volver.
+/// salen de TALVEG. DNI, NIE, pasaporte, CIF, correos y teléfonos se sustituyen por
+/// marcadores (<c>[DOC_1]</c>, <c>[CIF_1]</c>, <c>[CORREO_1]</c>, <c>[TEL_1]</c>) antes
+/// de que el texto viaje al proveedor de IA, y se restauran al volver. El teléfono
+/// cubre los nueve dígitos españoles que empiezan por 6, 7, 8 o 9 y los números con
+/// prefijo internacional (<c>+</c> o <c>00</c>); una cifra suelta de otra forma no se toca.
 /// <para>
 /// Medido con el proveedor (propuesta del asistente, § 4.3.5): con marcadores la
 /// selección acierta igual que en claro. Lo que <b>no</b> se enmascara, a propósito:
@@ -124,6 +129,7 @@ public static partial class EnmascaradorIdentificadores
         // local puede contener algo con forma de DNI.
         var candidatos = new List<Tramo>();
         Añadir(candidatos, RegexCorreo(), texto, TipoIdentificadorEnmascarado.Correo);
+        Añadir(candidatos, RegexTelefono(), texto, TipoIdentificadorEnmascarado.Telefono);
         Añadir(candidatos, RegexNie(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
         Añadir(candidatos, RegexDni(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
         Añadir(candidatos, RegexDniSinLetraTrasPalabraClave(), texto, TipoIdentificadorEnmascarado.DocumentoPersona);
@@ -182,14 +188,18 @@ public static partial class EnmascaradorIdentificadores
     {
         TipoIdentificadorEnmascarado.NifEmpresa => "CIF",
         TipoIdentificadorEnmascarado.Correo => "CORREO",
+        TipoIdentificadorEnmascarado.Telefono => "TEL",
         _ => "DOC",
     };
 
-    [GeneratedRegex(@"\[(?:DOC|CIF|CORREO)_\d+\]", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"\[(?:DOC|CIF|CORREO|TEL)_\d+\]", RegexOptions.IgnoreCase)]
     private static partial Regex RegexMarcadorLiteral();
 
     [GeneratedRegex(@"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)*\.[A-Za-z]{2,}")]
     private static partial Regex RegexCorreo();
+
+    [GeneratedRegex(@"(?<![\p{L}\p{N}@])(?:\+|00)\d(?:[ .\-()]{0,3}\d){6,14}(?![\p{L}\p{N}@])|(?<![\p{L}\p{N}@])[6789](?:[ .\-]?\d){8}(?![\p{L}\p{N}@])")]
+    private static partial Regex RegexTelefono();
 
     [GeneratedRegex(@"(?<![\p{L}\p{N}])[XYZ][\s\-]?\d{7}[\s\-]?[A-Z](?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
     private static partial Regex RegexNie();
@@ -218,6 +228,6 @@ public static partial class EnmascaradorIdentificadores
     [GeneratedRegex(@"\bpasaporte\b\s*(?:n[º°o.]*\s*)?:?\s*(?<valor>(?=[A-Z0-9]{0,11}\d)[A-Z0-9]{5,12})(?![\p{L}\p{N}])", RegexOptions.IgnoreCase)]
     private static partial Regex RegexPasaporteTrasPalabraClave();
 
-    [GeneratedRegex(@"[\s\-.]")]
+    [GeneratedRegex(@"[\s\-.()]")]
     private static partial Regex RegexSeparadores();
 }
