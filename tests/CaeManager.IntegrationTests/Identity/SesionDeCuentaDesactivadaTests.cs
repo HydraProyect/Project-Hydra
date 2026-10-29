@@ -88,6 +88,8 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         servicios.Configure<SecurityStampValidatorOptions>(SignInManagerCuentaDesactivada.ConservarSidAlRevalidar);
         // El registro real de sesiones: la revalidación pregunta a app_sesion_vigente.
         servicios.AddScoped<IRegistroSesionesUsuario, RegistroSesionesUsuario>();
+        // El hash ficticio del login con cuenta inexistente (S-A-10); aquí no se mide su coste.
+        servicios.AddSingleton(new VerificacionContrasenaFicticia(new PasswordHasher<ApplicationUser>()));
 
         _servicios = servicios.BuildServiceProvider();
 
