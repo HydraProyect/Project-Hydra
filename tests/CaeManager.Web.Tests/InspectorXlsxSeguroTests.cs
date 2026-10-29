@@ -68,6 +68,27 @@ public class InspectorXlsxSeguroTests
     }
 
     [Fact]
+    public void Un_zip_legible_sin_libro_pasa_el_inspector_y_falla_en_ClosedXML_con_un_error_que_no_es_un_rechazo_esperado()
+    {
+        // Es el archivo con el que el E2E «archivo ilegible deja rastro» fuerza un error del sistema (con pila y tamaño en
+        // el log): si el inspector lo rechazara, ese camino dejaría de ser alcanzable y el E2E fallaría por otra razón.
+        using var memoria = new MemoryStream();
+        using (var paquete = new ZipArchive(memoria, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            var parte = paquete.CreateEntry("relleno.txt", CompressionLevel.NoCompression);
+            using var escritor = new StreamWriter(parte.Open());
+            escritor.Write(new string('x', 20_000));
+        }
+        memoria.Position = 0;
+
+        InspectorXlsxSeguro.Verificar(memoria);
+
+        memoria.Position.Should().Be(0);
+        var abrir = () => new XLWorkbook(memoria);
+        abrir.Should().Throw<Exception>().Which.Should().NotBeOfType<ArchivoRechazadoException>();
+    }
+
+    [Fact]
     public void Un_xlsx_valido_muy_repetitivo_no_da_falso_positivo()
     {
         // Peor caso razonable para el ratio: 50.000 filas con los mismos
