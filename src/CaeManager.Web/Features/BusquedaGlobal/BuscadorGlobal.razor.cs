@@ -773,7 +773,7 @@ public partial class BuscadorGlobal
             return [];
 
         return acciones
-            // La exportación de Trabajadores y la de Documentos solo se ofrecen cuando ya se ha
+            // Las exportaciones de RutasExportarQuePidenEmpresa solo se ofrecen cuando ya se ha
             // comprobado que la pantalla no está en el estado 4a (ver ResolverExportacionDeTrabajadoresAsync).
             .Where(a => exportarPermitido || !EsExportacionQuePideEmpresa(a.Ruta))
             .Select(a => new ItemBusquedaDto(
@@ -798,6 +798,10 @@ public partial class BuscadorGlobal
     {
         ["trabajadores"] = "/trabajadores/exportar.xlsx",
         ["documentos"] = "/documentos/exportar.xlsx",
+        ["empresas"] = "/empresas/exportar.xlsx",
+        ["subcontratas"] = "/subcontratas/exportar.xlsx",
+        ["clientes"] = "/clientes/exportar.xlsx",
+        ["centros"] = "/centros/exportar.xlsx",
     };
 
     /// <summary>

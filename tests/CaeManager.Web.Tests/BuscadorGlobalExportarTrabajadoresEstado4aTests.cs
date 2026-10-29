@@ -112,4 +112,34 @@ public class BuscadorGlobalExportarTrabajadoresEstado4aTests : BunitContext
 
         cut.WaitForAssertion(() => cut.Markup.Should().Contain("/documentos/exportar.xlsx"));
     }
+
+    /// <summary>
+    /// Las exportaciones de Empresas, Subcontratas, Clientes y Centros también redirigen en el estado 4a:
+    /// la paleta no ofrece lo que el endpoint negaría.
+    /// </summary>
+    public static TheoryData<string, string> PantallasConEstado4a => new()
+    {
+        { "/empresas", "Nueva empresa" },
+        { "/subcontratas", "Nueva subcontrata" },
+        { "/clientes", "Nuevo Cliente" },
+        { "/centros", "Nuevo centro" },
+    };
+
+    [Theory]
+    [MemberData(nameof(PantallasConEstado4a))]
+    public async Task En_el_estado_4a_la_paleta_no_ofrece_exportar_el_listado(string pantalla, string accionDeCrear)
+    {
+        var cut = await AbrirEnAsync(pantalla, accionDeCrear, [Propio(), Cartera()], Origen);
+
+        cut.Markup.Should().NotContain($"{pantalla}/exportar.xlsx");
+    }
+
+    [Theory]
+    [MemberData(nameof(PantallasConEstado4a))]
+    public async Task Con_una_empresa_de_la_cartera_elegida_la_paleta_ofrece_exportar_el_listado(string pantalla, string accionDeCrear)
+    {
+        var cut = await AbrirEnAsync(pantalla, accionDeCrear, [Propio(), Cartera()], Externo);
+
+        cut.WaitForAssertion(() => cut.Markup.Should().Contain($"{pantalla}/exportar.xlsx"));
+    }
 }

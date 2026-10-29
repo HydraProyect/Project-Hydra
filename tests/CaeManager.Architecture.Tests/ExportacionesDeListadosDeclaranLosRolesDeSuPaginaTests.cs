@@ -77,6 +77,83 @@ public class ExportacionesDeListadosDeclaranLosRolesDeSuPaginaTests
                 $"{ruta} no exporta los datos del Tenant de origen a quien tiene que elegir empresa, como {listado}.razor");
     }
 
+    /// <summary>
+    /// Listados cuya página resuelve la empresa gestionada activa con <c>ContextoEmpresaActiva.ResolverAsync</c>
+    /// y, en el estado 4a (<c>contexto.SinSeleccion</c>, que compone las mismas dos condiciones que
+    /// <c>ClientesAutorizados.PideElegirEmpresa</c>), enseña «Selecciona una empresa» en vez de la lista.
+    /// </summary>
+    public static TheoryData<string, string> ListadosConEstado4a => new()
+    {
+        { "Trabajadores", "/trabajadores/exportar.xlsx" },
+        { "Documentos", "/documentos/exportar.xlsx" },
+        { "Vehiculos", "/vehiculos/exportar.xlsx" },
+        { "Proyectos", "/proyectos/exportar.xlsx" },
+        { "Empresas", "/empresas/exportar.xlsx" },
+        { "Subcontratas", "/subcontratas/exportar.xlsx" },
+        { "Clientes", "/clientes/exportar.xlsx" },
+        { "Centros", "/centros/exportar.xlsx" },
+    };
+
+    /// <summary>
+    /// Quien exporta un listado es quien lo ve, también en el estado 4a: si la página no enseña los datos
+    /// del Tenant de origen a quien tiene que elegir empresa, su exportación los niega antes de consultar
+    /// o generar nada (OWASP API1, ASVS V4.2.1), y redirige a la propia página.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(ListadosConEstado4a))]
+    public void La_exportacion_de_un_listado_con_estado_4a_pide_elegir_empresa_antes_de_consultar(string listado, string ruta)
+    {
+        var carpeta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Features", listado);
+        var pagina = File.ReadAllText(Path.Combine(carpeta, "Pages", $"{listado}.razor.cs"));
+        var endpoint = File.ReadAllText(Path.Combine(carpeta, $"{listado}Endpoints.cs"));
+
+        pagina.Should().Contain("ContextoEmpresaActiva.ResolverAsync(")
+            .And.Contain("_sinEmpresaSeleccionada = contexto.SinSeleccion;",
+                $"control positivo: {listado}.razor enseña «Selecciona una empresa» en el estado 4a");
+        endpoint.Should().Contain($"MapGet(\"{ruta}\", ExportarAsync)",
+            $"{ruta} registra un método con nombre, el que miden los tests de comportamiento de Web.Tests");
+
+        var cuerpo = endpoint[endpoint.IndexOf("Task<IResult> ExportarAsync(", StringComparison.Ordinal)..];
+        var guarda = cuerpo.IndexOf("ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId)", StringComparison.Ordinal);
+        var redireccion = cuerpo.IndexOf($"return Results.Redirect(\"/{listado.ToLowerInvariant()}\");", StringComparison.Ordinal);
+        var consulta = cuerpo.IndexOf("PaginadorExportacion.PaginarAsync(", StringComparison.Ordinal);
+
+        guarda.Should().BeGreaterThanOrEqualTo(0,
+            $"{ruta} no exporta los datos del Tenant de origen a quien tiene que elegir empresa, como {listado}.razor");
+        redireccion.Should().BeGreaterThan(guarda, $"{ruta} devuelve a {listado}.razor, que pide elegir empresa");
+        consulta.Should().BeGreaterThan(redireccion, $"{ruta} niega antes de consultar el listado");
+    }
+
+    /// <summary>
+    /// Toda página que resuelve el estado 4a y tiene exportación está en <see cref="ListadosConEstado4a"/>:
+    /// una pantalla nueva con «Selecciona una empresa» no puede dejar su exportación fuera de la guarda.
+    ///
+    /// <para>
+    /// Límite del instrumento: solo ve listados con la forma <c>Features/X/Pages/X.razor.cs</c> más
+    /// <c>Features/X/XEndpoints.cs</c>. Una pantalla que resuelva el estado 4a desde un componente o
+    /// con otro nombre de fichero, o cuyo endpoint viva en otro fichero, queda fuera de esta búsqueda.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void Todo_listado_con_estado_4a_y_exportacion_esta_en_la_teoria()
+    {
+        var features = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Features");
+        var conEstado4aYExportacion = Directory.GetDirectories(features)
+            .Select(Path.GetFileName)
+            .Where(listado =>
+            {
+                var pagina = Path.Combine(features, listado!, "Pages", $"{listado}.razor.cs");
+                var endpoint = Path.Combine(features, listado!, $"{listado}Endpoints.cs");
+                return File.Exists(pagina) && File.Exists(endpoint)
+                    && File.ReadAllText(pagina).Contains("ContextoEmpresaActiva.ResolverAsync(", StringComparison.Ordinal)
+                    && File.ReadAllText(endpoint).Contains("/exportar.xlsx\"", StringComparison.Ordinal);
+            })
+            .ToList();
+
+        conEstado4aYExportacion.Should().HaveCountGreaterThanOrEqualTo(8, "control positivo: hoy son ocho listados");
+        conEstado4aYExportacion.Should().BeEquivalentTo(ListadosConEstado4a.Select(fila => (string)fila[0]));
+    }
+
     private static string RaizDelRepositorio()
     {
         var directorio = new DirectoryInfo(AppContext.BaseDirectory);

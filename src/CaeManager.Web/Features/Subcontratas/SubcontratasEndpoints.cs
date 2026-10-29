@@ -2,6 +2,7 @@ using CaeManager.Web.Services;
 using CaeManager.Application.Common;
 using CaeManager.Application.Subcontratas.Queries.ObtenerEvidenciaVerificacionParaDescarga;
 using CaeManager.Application.Subcontratas.Queries.ObtenerSubcontratas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Subcontratas;
 using CaeManager.Web.Exportacion;
@@ -64,56 +65,65 @@ public static class SubcontratasEndpoints
         endpoints.MapGet("/subcontratas/verificaciones/{id:guid}/evidencia", ServirEvidenciaAsync);
 
         // Mismo patrón de referencia que ClientesEndpoints.
-        endpoints.MapGet("/subcontratas/exportar.xlsx", async (
-            IMediator mediator, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
-            string? q = null, string? nivel = null, string? estado = null, string? contratadapor = null) =>
-        {
-            using var libro = new XLWorkbook();
-            var hoja = libro.Worksheets.Add("Subcontratas");
-
-            hoja.Cell(1, 1).Value = textos["ExcelColumnaRazonSocial"].Value;
-            hoja.Cell(1, 2).Value = "CIF";
-            hoja.Cell(1, 3).Value = textos["ExcelColumnaNivelServicio"].Value;
-            hoja.Cell(1, 4).Value = textos["ExcelColumnaCumplimiento"].Value;
-            hoja.Cell(1, 5).Value = textos["ExcelColumnaTotalVencidas"].Value;
-            hoja.Cell(1, 6).Value = textos["ExcelColumnaTotalProximas"].Value;
-            hoja.Row(1).Style.Font.Bold = true;
-
-            var fila = 2;
-            await foreach (var subcontrata in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
-                mediator.Send(
-                    new ObtenerSubcontratasQuery(
-                        Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
-                        Pagina: pagina,
-                        TamanoPagina: tamanoPagina,
-                        NivelServicio: Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelServicio) ? nivelServicio : null,
-                        EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado,
-                        ContratadaPorEmpresaId: Guid.TryParse(contratadapor, out var contratante) ? contratante : null),
-                    cancellationToken)))
-            {
-                hoja.Cell(fila, 1).Value = subcontrata.RazonSocial;
-                hoja.Cell(fila, 2).Value = subcontrata.Cif;
-                hoja.Cell(fila, 3).Value = EstadoSupervisionUi.TextoNivel(textos, subcontrata.NivelServicio);
-                if (subcontrata.CumplimientoPorcentaje is not null)
-                    hoja.Cell(fila, 4).Value = subcontrata.CumplimientoPorcentaje.Value;
-                hoja.Cell(fila, 5).Value = subcontrata.Recuentos.TotalVencidas;
-                hoja.Cell(fila, 6).Value = subcontrata.Recuentos.TotalProximas;
-                fila++;
-            }
-
-            hoja.Columns().AdjustToContents();
-
-            var stream = new MemoryStream();
-            libro.SaveAs(stream);
-            stream.Position = 0;
-
-            return Results.File(
-                stream,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                "subcontratas.xlsx");
-        });
+        endpoints.MapGet("/subcontratas/exportar.xlsx", ExportarAsync);
 
         return endpoints;
+    }
+
+    public static async Task<IResult> ExportarAsync(
+        IMediator mediator, ITenantActual tenantActual, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
+        string? q = null, string? nivel = null, string? estado = null, string? contratadapor = null)
+    {
+        // Estado 4a, igual que /trabajadores/exportar.xlsx: Subcontratas.razor no muestra las Subcontratas
+        // del Tenant de origen a quien tiene que elegir una empresa de su cartera
+        // (ContextoEmpresaActiva.ResolverAsync); el endpoint tampoco las consulta ni genera el archivo.
+        var autorizados = await mediator.Send(new ObtenerClientesAutorizadosQuery(), cancellationToken);
+        if (ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId))
+            return Results.Redirect("/subcontratas");
+
+        using var libro = new XLWorkbook();
+        var hoja = libro.Worksheets.Add("Subcontratas");
+
+        hoja.Cell(1, 1).Value = textos["ExcelColumnaRazonSocial"].Value;
+        hoja.Cell(1, 2).Value = "CIF";
+        hoja.Cell(1, 3).Value = textos["ExcelColumnaNivelServicio"].Value;
+        hoja.Cell(1, 4).Value = textos["ExcelColumnaCumplimiento"].Value;
+        hoja.Cell(1, 5).Value = textos["ExcelColumnaTotalVencidas"].Value;
+        hoja.Cell(1, 6).Value = textos["ExcelColumnaTotalProximas"].Value;
+        hoja.Row(1).Style.Font.Bold = true;
+
+        var fila = 2;
+        await foreach (var subcontrata in PaginadorExportacion.PaginarAsync((pagina, tamanoPagina) =>
+            mediator.Send(
+                new ObtenerSubcontratasQuery(
+                    Busqueda: string.IsNullOrWhiteSpace(q) ? null : q,
+                    Pagina: pagina,
+                    TamanoPagina: tamanoPagina,
+                    NivelServicio: Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelServicio) ? nivelServicio : null,
+                    EstadoDocumental: string.IsNullOrWhiteSpace(estado) ? null : estado,
+                    ContratadaPorEmpresaId: Guid.TryParse(contratadapor, out var contratante) ? contratante : null),
+                cancellationToken)))
+        {
+            hoja.Cell(fila, 1).Value = subcontrata.RazonSocial;
+            hoja.Cell(fila, 2).Value = subcontrata.Cif;
+            hoja.Cell(fila, 3).Value = EstadoSupervisionUi.TextoNivel(textos, subcontrata.NivelServicio);
+            if (subcontrata.CumplimientoPorcentaje is not null)
+                hoja.Cell(fila, 4).Value = subcontrata.CumplimientoPorcentaje.Value;
+            hoja.Cell(fila, 5).Value = subcontrata.Recuentos.TotalVencidas;
+            hoja.Cell(fila, 6).Value = subcontrata.Recuentos.TotalProximas;
+            fila++;
+        }
+
+        hoja.Columns().AdjustToContents();
+
+        var stream = new MemoryStream();
+        libro.SaveAs(stream);
+        stream.Position = 0;
+
+        return Results.File(
+            stream,
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "subcontratas.xlsx");
     }
 
     /// <summary>

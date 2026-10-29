@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Empresas.Queries.ObtenerEmpresas;
+using CaeManager.Application.Tenants.Queries.ObtenerClientesAutorizados;
 using CaeManager.Web.Features.Empresas;
 using ClosedXML.Excel;
 using FluentAssertions;
@@ -34,6 +35,7 @@ public class EmpresasExportarEndpointTests
         var mediador = new MediatorDeEmpresas();
         var builder = WebApplication.CreateSlimBuilder();
         builder.Services.AddSingleton<IMediator>(mediador);
+        builder.Services.AddSingleton<ITenantActual>(new TenantActualFalso());
         await using var app = builder.Build();
         app.MapEmpresasEndpoints();
         var endpoint = ((IEndpointRouteBuilder)app).DataSources.SelectMany(d => d.Endpoints).OfType<RouteEndpoint>()
@@ -86,12 +88,23 @@ public class EmpresasExportarEndpointTests
         mediador.Consultas.Should().BeEmpty("no se exporta «todo» por haber ignorado un filtro mal formado");
     }
 
+    private static readonly Guid Origen = Guid.NewGuid();
+
+    private sealed class TenantActualFalso : ITenantActual
+    {
+        public Guid? TenantId => Origen;
+    }
+
     private sealed class MediatorDeEmpresas : IMediator
     {
         public List<ObtenerEmpresasQuery> Consultas { get; } = [];
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
+            // Sin cartera: la guarda del estado 4a deja pasar (la cubre ExportacionesDeListadosEstado4aTests).
+            if (request is ObtenerClientesAutorizadosQuery)
+                return Task.FromResult((TResponse)(object)new List<ClienteAutorizadoDto> { new(Origen, "Operador CAE", EsOrigen: true) });
+
             if (request is not ObtenerEmpresasQuery consulta)
                 throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.");
 
