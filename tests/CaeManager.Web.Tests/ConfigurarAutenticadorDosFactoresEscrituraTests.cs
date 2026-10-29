@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -191,6 +192,8 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
     {
         SinAutenticacionReciente(conContrasena);
         _autenticacion.Microsoft = sesionDeMicrosoft;
+        Services.GetRequiredService<NavigationManager>().NavigateTo(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2Fsubcontratas%2F9c1d");
 
         var cut = Render<ConfigurarAutenticadorDosFactores>();
 
@@ -198,7 +201,13 @@ public class ConfigurarAutenticadorDosFactoresEscrituraTests : BunitContext
             "la contraseña no sustituye al inicio con Microsoft, y una cuenta sin contraseña no tiene cuál dar");
         cut.FindAll("img.qr-2fa").Should().BeEmpty();
         var enlace = cut.FindAll(".tarjeta-reautenticacion a").Should().ContainSingle().Subject;
-        enlace.GetAttribute("href").Should().StartWith("/cuenta/iniciar-sesion-microsoft?returnUrl=%2F");
+        var href = enlace.GetAttribute("href")!;
+        href.Should().StartWith("/cuenta/iniciar-sesion-microsoft?");
+        var consulta = QueryHelpers.ParseQuery(href[href.IndexOf('?')..]);
+        consulta["reautenticar"].ToString().Should().Be("true", "Microsoft debe volver a pedir las credenciales (prompt=login)");
+        consulta["returnUrl"].ToString().Should().Be(
+            "/cuenta/configurar-2fa?motivo=credenciales&returnUrl=%2Fsubcontratas%2F9c1d",
+            "tras el inicio con Microsoft se vuelve a esta página con su motivo y su destino");
     }
 
     [Fact]

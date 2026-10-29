@@ -520,12 +520,90 @@ public class SesionDeCuentaDesactivadaTests(ITestOutputHelper salida) : IAsyncLi
         (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimSid).Should().BeFalse();
     }
 
+    [Fact]
+    public async Task Refrescar_la_sesion_no_rejuvenece_un_inicio_de_sesion_antiguo()
+    {
+        // ASVS 4.0.3 V3.7.1: cambiar la contraseña (RefreshSignInAsync) no puede convertir un inicio
+        // de sesión de hace horas en uno reciente que abra el alta del TOTP sin pedir la contraseña.
+        var usuario = await CrearUsuarioAsync("refresco-inicio@x.test");
+        var hace3Horas = DateTimeOffset.UtcNow.AddHours(-3).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var cookie = CookieConMarca(
+            await PrincipalDeSesionAsync(usuario), SignInManagerCuentaDesactivada.ClaimAutenticacionSesion, hace3Horas);
+        SignInManagerCuentaDesactivada.AutenticacionEsReciente(PrincipalDeLaCookie(cookie), DateTimeOffset.UtcNow)
+            .Should().BeFalse("control: la cookie de partida no es reciente");
+
+        var refrescada = await EmitirCookieAsync(usuario.Id, refrescar: true, cookiePrevia: cookie);
+
+        refrescada.Should().NotBeEmpty("control: el refresco emitió una cookie nueva");
+        var principal = PrincipalDeLaCookie(refrescada)!;
+        principal.FindAll(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion).Select(c => c.Value).Should().Equal([hace3Horas]);
+        SignInManagerCuentaDesactivada.AutenticacionEsReciente(principal, DateTimeOffset.UtcNow).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Revalidar_la_cookie_conserva_el_inicio_de_sesion_con_su_instante()
+    {
+        // El SecurityStampValidator real rehace el principal con la fábrica de claims: sin
+        // ConservarMarcaAutenticacionAlRevalidar la marca moriría y el alta pediría la contraseña
+        // en mitad del proceso; con un valor nuevo, se rejuvenecería.
+        const string Centinela = "prueba:centinela";
+        var usuario = await CrearUsuarioAsync("revalidar-inicio@x.test");
+        var hace3Horas = DateTimeOffset.UtcNow.AddHours(-3).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        var principal = await PrincipalDeSesionAsync(usuario);
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(Centinela, "de-la-cookie"));
+        var cookie = CookieConMarca(
+            principal, SignInManagerCuentaDesactivada.ClaimAutenticacionSesion, hace3Horas, emitidaEnUtc: DateTimeOffset.UtcNow.AddHours(-2));
+
+        using var ambito = _servicios.CreateScope();
+        var contexto = new DefaultHttpContext { RequestServices = ambito.ServiceProvider };
+        contexto.Request.Headers.Cookie = cookie;
+        ambito.ServiceProvider.GetRequiredService<IHttpContextAccessor>().HttpContext = contexto;
+        var resultado = await contexto.AuthenticateAsync(IdentityConstants.ApplicationScheme);
+
+        resultado.Succeeded.Should().BeTrue("control: la cookie de una cuenta activa sigue validando");
+        resultado.Principal!.HasClaim(c => c.Type == Centinela)
+            .Should().BeFalse("control: el validador rehízo el principal con la fábrica de claims");
+        resultado.Principal!.FindAll(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion)
+            .Select(c => c.Value).Should().Equal([hace3Horas]);
+    }
+
+    [Fact]
+    public async Task Un_inicio_de_sesion_guardado_en_la_cuenta_no_llega_a_la_sesion()
+    {
+        // Con la marca en AspNetUserClaims, toda sesión de la cuenta parecería recién iniciada para
+        // siempre: la fábrica la descarta y la cookie lleva solo la que pone el inicio de sesión.
+        var usuario = await CrearUsuarioAsync("inicio-guardado@x.test");
+        var futuro = DateTimeOffset.UtcNow.AddYears(1).ToUnixTimeSeconds().ToString(CultureInfo.InvariantCulture);
+        using (var preparacion = _servicios.CreateScope())
+        {
+            var userManager = preparacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var cuenta = (await userManager.FindByIdAsync(usuario.Id.ToString()))!;
+            (await userManager.AddClaimAsync(cuenta, new Claim(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion, futuro))).Succeeded.Should().BeTrue();
+            (await userManager.GetClaimsAsync(cuenta)).Should().Contain(c => c.Type == SignInManagerCuentaDesactivada.ClaimAutenticacionSesion,
+                "control: el claim quedó guardado en la cuenta");
+        }
+
+        var cookie = await EmitirCookieAsync(usuario.Id, refrescar: false, cookiePrevia: null);
+        cookie.Should().NotBeEmpty("control: se emitió la cookie");
+        PrincipalDeLaCookie(cookie)!.FindAll(SignInManagerCuentaDesactivada.ClaimAutenticacionSesion)
+            .Should().ContainSingle().Which.Value.Should().NotBe(futuro);
+
+        using var ambito = _servicios.CreateScope();
+        var fabrica = ambito.ServiceProvider.GetRequiredService<IUserClaimsPrincipalFactory<ApplicationUser>>();
+        var cuentaLeida = (await ambito.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>().FindByIdAsync(usuario.Id.ToString()))!;
+        (await fabrica.CreateAsync(cuentaLeida)).HasClaim(c => c.Type == SignInManagerCuentaDesactivada.ClaimAutenticacionSesion).Should().BeFalse();
+    }
+
     /// <summary>Cookie de aplicación («nombre=valor») con la marca de TOTP que solo pone el segundo factor.</summary>
-    private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca, DateTimeOffset? emitidaEnUtc = null)
+    private string CookieConMarcaTotp(ClaimsPrincipal principal, string marca, DateTimeOffset? emitidaEnUtc = null) =>
+        CookieConMarca(principal, SignInManagerCuentaDesactivada.ClaimTotpSesion, marca, emitidaEnUtc);
+
+    /// <summary>Cookie de aplicación («nombre=valor») con una marca de sesión que solo pone el servidor.</summary>
+    private string CookieConMarca(ClaimsPrincipal principal, string tipo, string marca, DateTimeOffset? emitidaEnUtc = null)
     {
         var opciones = _servicios.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(IdentityConstants.ApplicationScheme);
-        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(SignInManagerCuentaDesactivada.ClaimTotpSesion, marca));
+        ((ClaimsIdentity)principal.Identity!).AddClaim(new Claim(tipo, marca));
         var ticket = new AuthenticationTicket(
             principal, new AuthenticationProperties { IssuedUtc = emitidaEnUtc ?? DateTimeOffset.UtcNow }, IdentityConstants.ApplicationScheme);
         return $"{opciones.Cookie.Name}={opciones.TicketDataFormat.Protect(ticket)}";

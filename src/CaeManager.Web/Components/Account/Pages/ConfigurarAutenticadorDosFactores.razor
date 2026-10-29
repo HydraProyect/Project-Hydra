@@ -297,12 +297,6 @@
 
     private ClaimsPrincipal? _principal;
 
-    // Vigencia de la prueba de reautenticación que viaja en el formulario del código: el tiempo de
-    // instalar la aplicación y escanear el QR. La ventana del inicio de sesión reciente es aparte.
-    private static readonly TimeSpan VigenciaPruebaReautenticacion = TimeSpan.FromMinutes(15);
-
-    private const string PropositoPruebaReautenticacion = "CaeManager.Web.ConfigurarAutenticadorDosFactores.Reautenticacion.v1";
-
     protected override async Task OnInitializedAsync()
     {
         Entrada ??= new DatosEntrada();
@@ -363,35 +357,22 @@
     }
 
     // Vuelve aquí, con la misma consulta (motivo, returnUrl), tras el inicio con Microsoft: una
-    // sesión nueva lleva su marca de inicio reciente.
+    // sesión nueva lleva su marca de inicio reciente. reautenticar=true pide a Microsoft que vuelva
+    // a pedir las credenciales (prompt=login) en vez de reutilizar su sesión en silencio.
     private string EnlaceReautenticacionMicrosoft =>
-        "/cuenta/iniciar-sesion-microsoft?returnUrl="
+        "/cuenta/iniciar-sesion-microsoft?reautenticar=true&returnUrl="
         + Uri.EscapeDataString("/" + NavigationManager.ToBaseRelativePath(NavigationManager.Uri));
-
-    private ITimeLimitedDataProtector ProtectorPrueba =>
-        ProteccionDatos.CreateProtector(PropositoPruebaReautenticacion).ToTimeLimitedDataProtector();
 
     // Ligada a la cuenta y a la sesión de cookie (talveg:sid): una prueba copiada de otra sesión
     // no sirve aquí.
-    private string ContenidoPruebaReautenticacion =>
-        $"{_usuario!.Id:N}|{SignInManagerCuentaDesactivada.LeerSid(_principal)?.ToString("N")}";
-
     private string EmitirPruebaReautenticacion() =>
-        ProtectorPrueba.Protect(ContenidoPruebaReautenticacion, VigenciaPruebaReautenticacion);
+        PruebaReautenticacion2fa.Emitir(
+            ProteccionDatos, _usuario!.Id, SignInManagerCuentaDesactivada.LeerSid(_principal), DateTimeOffset.UtcNow);
 
-    private bool PruebaReautenticacionEsValida(string? prueba)
-    {
-        if (string.IsNullOrEmpty(prueba) || _usuario is null)
-            return false;
-        try
-        {
-            return string.Equals(ProtectorPrueba.Unprotect(prueba, out _), ContenidoPruebaReautenticacion, StringComparison.Ordinal);
-        }
-        catch (System.Security.Cryptography.CryptographicException)
-        {
-            return false;
-        }
-    }
+    private bool PruebaReautenticacionEsValida(string? prueba) =>
+        _usuario is not null
+        && PruebaReautenticacion2fa.EsValida(
+            ProteccionDatos, prueba, _usuario.Id, SignInManagerCuentaDesactivada.LeerSid(_principal));
 
     private async Task ReautenticarAsync()
     {
