@@ -209,6 +209,91 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.Agregadas.Should().BeEquivalentTo([(exigido.Id, resultado.Valor)]);
     }
 
+    private static byte[] DocxMinimo()
+    {
+        using var memoria = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(memoria, System.IO.Compression.ZipArchiveMode.Create, true))
+            foreach (var nombre in new[] { "[Content_Types].xml", "word/document.xml" })
+            {
+                using var flujo = zip.CreateEntry(nombre).Open();
+                flujo.Write("<a/>"u8);
+            }
+        return memoria.ToArray();
+    }
+
+    // ASVS V12.1/V12.2 (seguimiento de #1812): el servidor valida la clave de archivo y el nombre original, también
+    // para Incluido = false, y solo admite PDF o Word.
+    [Theory]
+    [InlineData("inexistente", false, true, "archivo.pdf", false)]
+    [InlineData("pdf-malo", false, true, "archivo.pdf", false)]
+    [InlineData("pdf-malo", false, false, "archivo.pdf", false)]
+    [InlineData("pdf-bueno", false, true, "archivo.pdf", true)]
+    [InlineData("pdf-bueno", false, false, "archivo.pdf", true)]
+    [InlineData("pdf-bueno", false, true, "factura.exe", false)]
+    [InlineData("pdf-bueno", false, true, "informe.docx", false)]
+    [InlineData("pdf-bueno", false, true, null, false)]
+    [InlineData("pdf-bueno", false, true, "ARCHIVO.PDF", true)]
+    [InlineData("png-bueno", false, true, "foto.png", false)]
+    [InlineData("docx-bueno", false, true, "informe.docx", true)]
+    [InlineData("docx-sin-estructura", false, true, "informe.docx", false)]
+    [InlineData("pdf-malo", true, true, "archivo.pdf", true)]
+    [InlineData("pdf-malo", true, true, "archivo.exe", false)]
+    [InlineData("pdf-malo", true, true, null, false)]
+    public async Task Requisito_de_centro_valida_la_clave_y_el_contenido_antes_de_guardar(
+        string caso, bool claveYaGuardada, bool incluido, string? nombreOriginal, bool valido)
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var almacen = new FileStorageServiceFalso();
+        var (contenido, extension) = caso switch
+        {
+            "pdf-bueno" => ("%PDF-1.7"u8.ToArray(), "pdf"),
+            "png-bueno" => (new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00 }, "png"),
+            "docx-bueno" => (DocxMinimo(), "docx"),
+            "docx-sin-estructura" => (new byte[] { 0x50, 0x4B, 0x03, 0x04, 0x14, 0x00 }, "docx"),
+            _ => ("MZ"u8.ToArray(), "pdf")
+        };
+        var clave = caso == "inexistente" ? "inexistente.pdf" : await almacen.GuardarAsync(new MemoryStream(contenido), $"archivo.{extension}");
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        // Una clave que la fila ya tenía (anterior a esta validación) no se vuelve a exigir al editar otros campos.
+        if (claveYaGuardada)
+            filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, clave, "archivo.pdf", null));
+        var unit = new UnitOfWorkFalso();
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, incluido, null, false, clave, nombreOriginal, 5), CancellationToken.None);
+
+        resultado.EsExitoso.Should().Be(valido);
+        unit.VecesGuardado.Should().Be(valido ? 1 : 0);
+        if (!valido) resultado.Error.Codigo.Should().Be("DocumentacionRequeridaCentro.ArchivoNoValido");
+    }
+    [Fact]
+    public async Task Requisito_de_centro_con_fila_existente_valida_la_clave_nueva()
+    {
+        var mundo = new MundoAcreditaciones();
+        var centro = mundo.Centro();
+        var tipo = mundo.Tipo(RequisitoDocumental.No);
+        var almacen = new FileStorageServiceFalso();
+        var claveAnterior = await almacen.GuardarAsync(new MemoryStream("%PDF-1.7"u8.ToArray()), "anterior.pdf");
+        var claveNueva = await almacen.GuardarAsync(new MemoryStream("MZ"u8.ToArray()), "nueva.pdf");
+        var filas = new TipoDocumentoCentroRepositorioFalso();
+        filas.Agregar(new TipoDocumentoCentro(tipo.Id, centro.Id, true, null, false, claveAnterior, "anterior.pdf", null));
+        var unit = new UnitOfWorkFalso();
+        var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(filas, mundo.CentrosContexto,
+            mundo.TiposDocumentoContexto, mundo.Servicio(), new AlcanceDatosServiceFalso(), unit,
+            new CaeManager.Application.Common.Archivos.VerificadorArchivoAlmacenado(almacen));
+
+        var resultado = await handler.Handle(new EstablecerDocumentacionRequeridaCentroCommand(
+            centro.Id, tipo.Id, true, null, false, claveNueva, "nueva.pdf", null), CancellationToken.None);
+
+        resultado.EsFallido.Should().BeTrue();
+        unit.VecesGuardado.Should().Be(0);
+        filas.Relaciones.Single().ArchivoUrl.Should().Be(claveAnterior);
+    }
     [Fact]
     public async Task Que_un_centro_pase_a_exigir_un_tipo_acredita_los_documentos_de_ese_tipo_de_quienes_trabajan_alli()
     {
@@ -222,7 +307,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, mundo.Tipo(RequisitoDocumental.Si, nombre: "Reconocimiento médico"));
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: true, null, false, null, null, ToleranciaDias: null),
@@ -245,7 +330,7 @@ public class CaminosDeAltaAcreditacionesTests
         mundo.DocumentoDe(trabajador, tipo);
         var handler = new EstablecerDocumentacionRequeridaCentroCommandHandler(
             new TipoDocumentoCentroRepositorioFalso(), mundo.CentrosContexto, mundo.TiposDocumentoContexto,
-            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso());
+            mundo.Servicio(), new AlcanceDatosServiceFalso(), new UnitOfWorkFalso(), new Common.VerificadorArchivoAlmacenadoPermisivo());
 
         var resultado = await handler.Handle(
             new EstablecerDocumentacionRequeridaCentroCommand(centro.Id, tipo.Id, Incluido: false, null, false, null, null, ToleranciaDias: null),
