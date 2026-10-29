@@ -47,6 +47,36 @@ public class ExportacionesDeListadosDeclaranLosRolesDeSuPaginaTests
             $"{ruta} debe declarar los roles del listado: sin ellos lo descarga cualquier usuario autenticado");
     }
 
+    /// <summary>
+    /// Documentos y Trabajadores declaran <c>[Authorize]</c> sin roles (el rol Cliente entra con su
+    /// alcance): su exportación no puede cerrarle lo que la página le abre. Lo que sí comparten con
+    /// la página es el estado 4a: sin empresa elegida, redirigen al listado sin consultar.
+    /// </summary>
+    public static TheoryData<string, string> ListadosAbiertosATodoAutenticado => new()
+    {
+        { "Documentos", "/documentos/exportar.xlsx" },
+        { "Trabajadores", "/trabajadores/exportar.xlsx" },
+    };
+
+    [Theory]
+    [MemberData(nameof(ListadosAbiertosATodoAutenticado))]
+    public void La_exportacion_de_un_listado_sin_roles_no_los_restringe_y_pide_elegir_empresa(string listado, string ruta)
+    {
+        var carpeta = Path.Combine(RaizDelRepositorio(), "src", "CaeManager.Web", "Features", listado);
+        var pagina = File.ReadAllText(Path.Combine(carpeta, "Pages", $"{listado}.razor"));
+        var endpoint = File.ReadAllText(Path.Combine(carpeta, $"{listado}Endpoints.cs"));
+
+        pagina.Should().MatchRegex(@"@attribute \[Authorize\]\r?\n",
+            $"control positivo: {listado}.razor no restringe roles; si pasa a restringirlos, su exportación va a la teoría de arriba");
+        endpoint.Should().Contain($"MapGet(\"{ruta}\", ExportarAsync);",
+            $"{ruta} admite los mismos roles que {listado}.razor: todo usuario autenticado");
+        endpoint.Should().NotContain($"MapGet(\"{ruta}\", ExportarAsync).SoloRolesDelListado()",
+            $"{ruta} no puede cerrar al rol Cliente lo que {listado}.razor le abre");
+        endpoint.Should().Contain("ClientesAutorizados.PideElegirEmpresa(autorizados, tenantActual.TenantId)")
+            .And.Contain($"return Results.Redirect(\"/{listado.ToLowerInvariant()}\");",
+                $"{ruta} no exporta los datos del Tenant de origen a quien tiene que elegir empresa, como {listado}.razor");
+    }
+
     private static string RaizDelRepositorio()
     {
         var directorio = new DirectoryInfo(AppContext.BaseDirectory);

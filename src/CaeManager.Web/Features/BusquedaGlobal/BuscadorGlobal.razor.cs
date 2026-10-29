@@ -773,9 +773,9 @@ public partial class BuscadorGlobal
             return [];
 
         return acciones
-            // La exportación de Trabajadores solo se ofrece cuando ya se ha comprobado que la
-            // pantalla no está en el estado 4a (ver ResolverExportacionDeTrabajadoresAsync).
-            .Where(a => exportarPermitido || !EsExportacionDeTrabajadores(a.Ruta))
+            // La exportación de Trabajadores y la de Documentos solo se ofrecen cuando ya se ha
+            // comprobado que la pantalla no está en el estado 4a (ver ResolverExportacionDeTrabajadoresAsync).
+            .Where(a => exportarPermitido || !EsExportacionQuePideEmpresa(a.Ruta))
             .Select(a => new ItemBusquedaDto(
                 Guid.Empty,
                 a.Titulo,
@@ -787,10 +787,18 @@ public partial class BuscadorGlobal
             .ToList();
     }
 
-    private static bool EsExportacionDeTrabajadores(string ruta) =>
-        string.Equals(ruta, RutaExportarTrabajadores, StringComparison.Ordinal);
+    private static bool EsExportacionQuePideEmpresa(string ruta) =>
+        RutasExportarQuePidenEmpresa.Values.Contains(ruta, StringComparer.Ordinal);
 
-    private const string RutaExportarTrabajadores = "/trabajadores/exportar.xlsx";
+    /// <summary>
+    /// Pantallas cuyo endpoint de exportación redirige en el estado 4a
+    /// (<see cref="ClientesAutorizados.PideElegirEmpresa"/>): la paleta no ofrece lo que el endpoint negaría.
+    /// </summary>
+    private static readonly IReadOnlyDictionary<string, string> RutasExportarQuePidenEmpresa = new Dictionary<string, string>(StringComparer.Ordinal)
+    {
+        ["trabajadores"] = "/trabajadores/exportar.xlsx",
+        ["documentos"] = "/documentos/exportar.xlsx",
+    };
 
     /// <summary>
     /// Estado 4a (misma condición que aplica la página vía <c>ContextoEmpresaActiva</c>; el endpoint y esta
@@ -802,7 +810,8 @@ public partial class BuscadorGlobal
         // D-14: el ámbito honesto de la búsqueda (la empresa gestionada activa, no «tu cartera»)
         // sale de la misma lista autorizada que decide el estado 4a: una sola consulta por apertura.
         // Es solo un rótulo: el alcance real lo siguen decidiendo la consulta y RLS.
-        var enTrabajadores = SegmentoDeRuta(Navigation.Uri) == "trabajadores";
+        var segmento = SegmentoDeRuta(Navigation.Uri);
+        var enPantallaQuePideEmpresa = segmento is not null && RutasExportarQuePidenEmpresa.ContainsKey(segmento);
         _nombreAmbito = null;
         _selectorVisible = false;
         try
@@ -814,7 +823,7 @@ public partial class BuscadorGlobal
             // una empresa de la cartera): rótulo genérico, igual que pide la pantalla.
             _nombreAmbito = ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId) ? null : activo?.Nombre;
             _selectorVisible = ClientesAutorizados.SelectorVisible(autorizados, activo);
-            if (enTrabajadores && !ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
+            if (enPantallaQuePideEmpresa && !ClientesAutorizados.PideElegirEmpresa(autorizados, TenantActual.TenantId))
                 _accionesPantalla = ConstruirAccionesPantalla(exportarPermitido: true);
             StateHasChanged();
         }
