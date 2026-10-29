@@ -189,6 +189,7 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     private string _centroFormatosSeleccionado = string.Empty;
     private bool _enviando;
     private readonly List<AdjuntoParaEnviarDto> _adjuntosPendientes = [];
+    private readonly AdjuntosCorreo _cargaAdjuntos = new();
     private string? _errorAdjuntos;
     private string _emailFallback = string.Empty;
     private string _ejecutivoSeleccionado = string.Empty;
@@ -989,26 +990,13 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
     /// </summary>
     private async Task ManejarArchivosAdjuntosAsync(InputFileChangeEventArgs e)
     {
-        _errorAdjuntos = null;
-        const int maximoArchivos = 5;
-
-        foreach (var archivo in e.GetMultipleFiles(maximoArchivos))
-        {
-            await using var flujo = archivo.OpenReadStream(LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes);
-            using var memoria = new MemoryStream();
-            await flujo.CopyToAsync(memoria);
-            _adjuntosPendientes.Add(new AdjuntoParaEnviarDto(archivo.Name, archivo.ContentType, memoria.ToArray()));
-        }
-
-        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) > LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
-            _errorAdjuntos = "Los adjuntos superan los 3 MB en total — quita alguno antes de enviar.";
+        _errorAdjuntos = await _cargaAdjuntos.AgregarAsync(e, _adjuntosPendientes);
     }
 
     private void QuitarAdjuntoPendiente(AdjuntoParaEnviarDto adjunto)
     {
         _adjuntosPendientes.Remove(adjunto);
-        if (_adjuntosPendientes.Sum(a => a.Contenido.LongLength) <= LimitesAdjuntosCorreo.TamanoMaximoTotalAdjuntosBytes)
-            _errorAdjuntos = null;
+        _errorAdjuntos = null;
     }
 
     /// <summary>
@@ -1026,7 +1014,6 @@ public partial class Bandeja : CaeManager.Web.Components.PaginaInteractiva, IAsy
         // deshace.
         if (_enviando || _aplicandoMacro || VariablesPlantillaRespuesta.Pendientes(_textoRespuesta).Count > 0) return;
         if (_conversacionSeleccionadaId is null || string.IsNullOrWhiteSpace(_textoRespuesta)) return;
-        if (_detalle?.Canal == CanalConversacion.Correo && _errorAdjuntos is not null) return;
 
         _enviando = true;
         try
