@@ -2,13 +2,18 @@ namespace CaeManager.Application.DocumentosIa.Common;
 
 /// <summary>
 /// Lo mínimo que una lectura debe traer para que alguien pueda decidir con ella.
-/// No es una lista nueva: son las mismas evidencias que
-/// <c>VerificacionIaDocumentoService.ComputarMotivos</c> exige antes de que una
-/// lectura deje de pedir revisión por «falta de evidencia» (tipo detectado, fecha
-/// de emisión y firma) y las claves con las que
-/// <see cref="RouterExtraccionMetadatosDocumentoIaService"/> las lee. El router
-/// documental no conoce el tipo de documento concreto, así que no hay una lista de
-/// campos por tipo: esta es la única definición vigente de «lectura completa».
+/// No es una lista nueva: son las tres evidencias sobre las que
+/// <c>VerificacionIaDocumentoService.ComputarMotivos</c> decide si falta prueba
+/// (tipo detectado, fecha de emisión y firma) y las claves con las que
+/// <see cref="RouterExtraccionMetadatosDocumentoIaService"/> las lee. Una diferencia
+/// deliberada: ComputarMotivos pide siempre revisión si la firma no es «true»; aquí
+/// un «false» explícito basta para no leer más páginas, porque es una respuesta del
+/// modelo y la revisión se pide igual. El router documental no conoce el tipo de
+/// documento concreto, así que no hay una lista de campos por tipo: esta es la
+/// única definición vigente de «lectura con lo mínimo».
+///
+/// Coste conocido: un documento sin fecha de emisión explícita (la ausencia es un
+/// resultado normal del modelo) amplía siempre hasta el tope de 100 páginas.
 ///
 /// La fecha de vencimiento no figura: la verificación no la exige (hay documentos
 /// sin caducidad) y un campo que puede no existir nunca debería disparar la lectura

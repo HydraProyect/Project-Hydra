@@ -178,6 +178,7 @@ public class DocumentAIRouterService(
         var estructuracion = await EstructurarAsync(
             proveedoresEstructuracion, textoFinal.Texto, tipoEsperado, cancellationToken);
         var resultado = ConContraste(estructuracion.Resultado, textoFinal);
+        var ampliacionFallida = false;
 
         // PDF escaneado largo: se leyeron solo las primeras páginas y la última.
         // Si de ahí no salió lo mínimo para decidir, se amplía el OCR al resto
@@ -196,33 +197,44 @@ public class DocumentAIRouterService(
                     proveedoresEstructuracion, ampliado.Valor.Texto, tipoEsperado, cancellationToken);
                 var resultadoSegunda = ConContraste(segunda.Resultado, ampliado.Valor);
 
-                if (resultadoSegunda.EsExitoso)
+                // Gana la segunda solo si no trae menos que la primera: con más
+                // texto el modelo puede dispersarse y perder un campo que sí tenía.
+                var usarSegunda = resultadoSegunda.EsExitoso
+                    && EvidenciaMinimaLectura.Faltantes(resultadoSegunda.Valor).Count <= EvidenciaMinimaLectura.Faltantes(resultado.Valor).Count;
+
+                if (usarSegunda)
                 {
                     textoFinal = ampliado.Valor;
                     resultado = resultadoSegunda;
                 }
                 else
                 {
-                    // La ampliación se pagó pero no estructuró: se conserva la
-                    // primera lectura, válida, y se deja constancia.
+                    // La ampliación se pagó pero no mejoró (o no estructuró): se
+                    // conserva la primera lectura, válida, y se deja constancia. Su
+                    // coste OCR es el de todo lo pagado, aunque el texto sea el primero.
+                    ampliacionFallida = resultadoSegunda.EsFallido;
                     textoFinal = textoInicial with
                     {
                         CosteEstimadoOcr = ampliado.Valor.CosteEstimadoOcr,
                         NotaLocalizacion = CombinarIncidencias(
-                            textoInicial.NotaLocalizacion, "No se pudo estructurar la lectura ampliada a más páginas; se conserva la primera."),
+                            textoInicial.NotaLocalizacion,
+                            resultadoSegunda.EsFallido
+                                ? "Se intentó ampliar la lectura a más páginas y no se pudo estructurar; se conserva la lectura de las primeras."
+                                : "La lectura ampliada a más páginas no mejoró la de las primeras; se conserva esta."),
                     };
                 }
 
-                estructuracion = FusionarRondas(estructuracion, segunda);
+                estructuracion = FusionarRondas(estructuracion, segunda, usarSegunda);
             }
             else
             {
                 // El OCR del resto falló a medias: lo ya pagado cuenta en el coste.
+                ampliacionFallida = true;
                 textoFinal = textoInicial with
                 {
                     CosteEstimadoOcr = lectura.CosteOcr,
                     NotaLocalizacion = CombinarIncidencias(
-                        textoInicial.NotaLocalizacion, $"No se pudo ampliar la lectura a más páginas ({ampliado.Error.Codigo}); se conserva la primera."),
+                        textoInicial.NotaLocalizacion, $"Se intentó ampliar la lectura a más páginas y falló el OCR ({ampliado.Error.Codigo}); se conserva la lectura de las primeras."),
                 };
             }
         }
@@ -239,9 +251,29 @@ public class DocumentAIRouterService(
             return resultado;
         }
 
-        var (entradaCachePendiente, vinculoCreado) = await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, documentoId, cancellationToken);
+        var notasDelModelo = resultado.Valor.NotasValidacion;
+
+        // Lectura parcial: lo que el revisor ve (NotasValidacion viaja con la
+        // extracción) debe decir que hay páginas sin leer. El contraste
+        // determinista (p. ej. un «no apto») solo mira el texto leído.
+        if (textoFinal.PaginasLeidas is { } leidas && leidas < clasificacion.Valor.TotalPaginas)
+        {
+            resultado = Result.Exito(resultado.Valor with
+            {
+                NotasValidacion = CombinarIncidencias(
+                    notasDelModelo,
+                    $"{textoFinal.NotaLocalizacion} Un «no apto», una restricción o un dato que figure solo en las páginas no leídas no se habrá detectado."),
+            });
+        }
+
+        // Una ampliación que falló por un error transitorio (OCR o estructuración)
+        // no se cachea: la caché solo se invalida al cambiar la versión del
+        // pipeline, y la lectura incompleta quedaría como definitiva.
+        var (entradaCachePendiente, vinculoCreado) = ampliacionFallida
+            ? ((ExtraccionIaCache?)null, (ExtraccionIaCacheDocumento?)null)
+            : await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, documentoId, cancellationToken);
         var incidencias = CombinarIncidencias(
-            textoFinal.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
+            textoFinal.NotaLocalizacion, notasDelModelo, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
             hash, tipoEsperado, estructuracion.ProveedorCodigo, cronometro.ElapsedMilliseconds,
             textoFinal.CosteEstimadoOcr, estructuracion.CosteAcumulado,
@@ -270,14 +302,14 @@ public class DocumentAIRouterService(
 
     /// <summary>
     /// Une las dos vueltas de estructuración de un escaneado largo: el coste, los
-    /// intentos y los proveedores de ambas, con el ganador de la segunda si tuvo éxito.
+    /// intentos y los proveedores de ambas, con el ganador de la segunda solo si se usa.
     /// </summary>
-    private static ResultadoEstructuracion FusionarRondas(ResultadoEstructuracion primera, ResultadoEstructuracion segunda)
+    private static ResultadoEstructuracion FusionarRondas(ResultadoEstructuracion primera, ResultadoEstructuracion segunda, bool usarSegunda)
     {
         decimal? coste = primera.CosteAcumulado is null && segunda.CosteAcumulado is null
             ? null
             : (primera.CosteAcumulado ?? 0m) + (segunda.CosteAcumulado ?? 0m);
-        var baseResultado = segunda.Resultado.EsExitoso ? segunda : primera;
+        var baseResultado = usarSegunda ? segunda : primera;
 
         return baseResultado with
         {
@@ -557,8 +589,8 @@ public class DocumentAIRouterService(
         if (leidas < lectura.TotalPaginas)
         {
             nota += lectura.Ampliada && leidas >= MaximoPaginasEscaneadasPorDocumento
-                ? $" Se alcanzó el máximo de {MaximoPaginasEscaneadasPorDocumento} páginas por documento; el resto no se leyó."
-                : " El resto no se leyó.";
+                ? $" Se alcanzó el máximo de {MaximoPaginasEscaneadasPorDocumento} páginas por documento; el resto del documento no entró en la lectura."
+                : " El resto del documento no entró en la lectura.";
         }
 
         return new TextoExtraidoDto(
@@ -603,7 +635,9 @@ public class DocumentAIRouterService(
         // presentada como completa, y las decisiones que cuelgan de ella —
         // aprobar un documento, dar de baja a un trabajador que "no aparece" —
         // se tomarían sobre un texto al que le faltan páginas sin que nadie lo
-        // sepa.
+        // sepa. (El escaneado puro largo sí se lee hasta el tope sin fallar, por
+        // decisión de producto del 2026-10-29, pero lo declara en la nota de
+        // Incidencias y en NotasValidacion; ver ObtenerTextoEscaneadoLargoAsync.)
         if (indicesEscaneadas.Count > MaximoPaginasEscaneadasPorDocumento)
         {
             return Result.Fallo<TextoExtraidoDto>(Error.Crear(

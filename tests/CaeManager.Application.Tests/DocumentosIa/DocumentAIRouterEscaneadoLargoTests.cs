@@ -213,16 +213,20 @@ public class DocumentAIRouterEscaneadoLargoTests
         var registro = auditoria.Auditorias.Should().ContainSingle().Subject;
         registro.NumeroPaginas.Should().Be(4);
         registro.CosteEstimadoOcr.Should().Be((4 + 6) * CosteOcrPorPagina);
-        registro.Incidencias.Should().Contain("No se pudo ampliar la lectura").And.Contain("Ocr.Fallo");
+        registro.Incidencias.Should().Contain("Se intentó ampliar la lectura").And.Contain("Ocr.Fallo");
+
+        // Un fallo transitorio no deja la lectura incompleta como definitiva en la caché.
+        await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(2, "la segunda llamada no se sirve de la caché");
     }
 
     [Fact]
     public async Task Si_la_estructuracion_ampliada_falla_se_conserva_la_primera_lectura()
     {
         var llamadas = 0;
-        var proveedor = Proveedor(_ => ++llamadas == 1
-            ? Incompleta()
-            : Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("Ia.Fallo", "error de prueba")));
+        var proveedor = Proveedor(_ => ++llamadas == 2
+            ? Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("Ia.Fallo", "error de prueba"))
+            : Incompleta());
         var (router, auditoria, _) = CrearRouter(TipoContenidoDocumento.Escaneado, 30, proveedor);
 
         var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
@@ -231,7 +235,59 @@ public class DocumentAIRouterEscaneadoLargoTests
         var registro = auditoria.Auditorias.Should().ContainSingle().Subject;
         registro.NumeroPaginas.Should().Be(4, "el texto que respalda el resultado es el de las 4 primeras");
         registro.CosteEstimadoOcr.Should().Be(30 * CosteOcrPorPagina, "las 26 páginas de la ampliación se pagaron");
-        registro.Incidencias.Should().Contain("No se pudo estructurar la lectura ampliada");
+        registro.Incidencias.Should().Contain("no se pudo estructurar");
+
+        // Tampoco se cachea: el fallo de la segunda estructuración puede ser transitorio.
+        await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(4, "la segunda llamada vuelve a leer y a estructurar dos veces: no se sirve de la caché");
+    }
+
+    [Fact]
+    public async Task Si_la_lectura_ampliada_trae_menos_que_la_primera_se_conserva_la_primera_y_si_se_cachea()
+    {
+        var llamadas = 0;
+        var proveedor = Proveedor(_ => ++llamadas == 1
+            ? Result.Exito(new ExtraccionEstructuradaDto(
+                "Certificado", new Dictionary<string, string?> { ["fechaEmision"] = "2026-01-15" }, 90, null, CosteEstructuracionPorLlamada))
+            : Result.Exito(new ExtraccionEstructuradaDto(
+                null, new Dictionary<string, string?>(), 90, null, CosteEstructuracionPorLlamada)));
+        var (router, auditoria, _) = CrearRouter(TipoContenidoDocumento.Escaneado, 30, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+
+        resultado.Valor.TipoDetectado.Should().Be("Certificado");
+        resultado.Valor.Campos.Should().ContainKey("fechaEmision");
+        var registro = auditoria.Auditorias.Should().ContainSingle().Subject;
+        registro.NumeroPaginas.Should().Be(4);
+        registro.CosteEstimado.Should().Be(2 * CosteEstructuracionPorLlamada);
+        registro.Incidencias.Should().Contain("no mejoró");
+
+        await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+        proveedor.VecesLlamadoParaEstructurado.Should().Be(2, "es un resultado estable: sí se sirve de la caché");
+    }
+
+    [Fact]
+    public async Task La_lectura_parcial_lo_dice_en_las_notas_de_validacion_que_ve_el_revisor()
+    {
+        var proveedor = Proveedor(_ => Completa());
+        var (router, _, _) = CrearRouter(TipoContenidoDocumento.Escaneado, 30, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+
+        resultado.Valor.NotasValidacion.Should()
+            .Contain("se leyeron 4 páginas de 30")
+            .And.Contain("no apto");
+    }
+
+    [Fact]
+    public async Task Si_se_leyeron_todas_las_paginas_no_hay_aviso_de_lectura_parcial()
+    {
+        var proveedor = Proveedor(texto => texto.Contains("[pagina-5.png]") ? Completa() : Incompleta());
+        var (router, _, _) = CrearRouter(TipoContenidoDocumento.Escaneado, 30, proveedor);
+
+        var resultado = await router.ProcesarAsync([1, 2, 3], "escaneado.pdf", "Certificado");
+
+        resultado.Valor.NotasValidacion.Should().BeNull();
     }
 
     [Fact]
