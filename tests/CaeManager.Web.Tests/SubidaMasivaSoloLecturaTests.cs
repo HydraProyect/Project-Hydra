@@ -153,6 +153,10 @@ public class SubidaMasivaSoloLecturaTests : BunitContext
             {
                 DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-subida-masiva-tests")
             })));
+        Services.AddSingleton<CaeManager.Application.Common.IPresupuestoMemoriaDocumentos>(
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()),
+                TimeProvider.System));
 
         return Render<PaginaSubidaMasiva>();
     }

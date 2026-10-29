@@ -49,9 +49,13 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
             MaximoBytesPorCircuito = _maximoPorCircuito,
             DirectorioTemporal = Path.Combine(Path.GetTempPath(), "talveg-subida-masiva-tests")
         })));
+        // Igual que la cuota: se resuelve en el primer Render, y un test puede achicarlo antes.
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_ => _presupuestoMemoria ??= new PresupuestoMemoriaDocumentos(
+            Options.Create(new OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
     }
 
     private long _maximoPorCircuito = 600L * 1024 * 1024;
+    private PresupuestoMemoriaDocumentos? _presupuestoMemoria;
 
     [Fact]
     public void El_mockup_se_pinta_con_miga_zona_de_subida_y_acciones_de_documentos()
@@ -813,6 +817,103 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
         await DisposeComponentsAsync();
     }
 
+    /// <summary>
+    /// Seguimiento de S-C-3 (ASVS 4.0.3 V12.1.1): sin hueco en el presupuesto de memoria del proceso,
+    /// la lectura espera lo acotado y el archivo acaba en Error con el mismo mensaje que la cuota de
+    /// #1835, sin cargarse ni llegar a la IA; su temporal se borra. Con hueco, el siguiente sigue.
+    /// </summary>
+    [Fact]
+    public async Task Sin_hueco_en_el_presupuesto_de_memoria_la_lectura_se_rechaza_con_el_mensaje_de_la_cuota()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        _presupuestoMemoria = new PresupuestoMemoriaDocumentos(Options.Create(new OpcionesPresupuestoMemoriaDocumentos
+        {
+            MaximoBytes = LimitesArchivoSubido.TamanoMaximoBytes,
+            EsperaMaxima = TimeSpan.FromMilliseconds(100)
+        }), TimeProvider.System);
+        var ocupado = await _presupuestoMemoria.ReservarAsync(LimitesArchivoSubido.TamanoMaximoBytes);
+        var cut = Render<SubidaMasiva>();
+        var almacen = Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen");
+        var manejador = typeof(SubidaMasiva).GetMethod("ManejarArchivosSeleccionadosAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+
+        await cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [new InputFileChangeEventArgs([new ArchivoContado("sin-hueco.pdf", CrearPdf())])])!)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => FilaDe(cut, "sin-hueco.pdf").QuerySelector(".item-subida-masiva-error")!.TextContent.Should()
+            .Be("No cabe en esta subida: confirma o descarta los archivos pendientes y vuelve a soltarlo."), TimeSpan.FromSeconds(10));
+
+        _mediador.Recibidas.Select(r => r.Peticion).OfType<DetectarCamposDocumentoQuery>().Should().BeEmpty("no se cargó para leerlo");
+        almacen.Reservado.Should().Be(0, "su temporal se borró y la cuota de la pantalla volvió");
+        _presupuestoMemoria.EnEspera.Should().Be(0, "la espera vencida sale de la cola");
+        _presupuestoMemoria.Reservado.Should().Be(LimitesArchivoSubido.TamanoMaximoBytes, "solo queda la reserva que lo bloqueaba");
+
+        ocupado.Dispose();
+        await cut.InvokeAsync(() => (Task)manejador.Invoke(cut.Instance, [new InputFileChangeEventArgs([new ArchivoContado("con-hueco.pdf", CrearPdf())])])!)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => FilaDe(cut, "con-hueco.pdf").TextContent.Should().Contain("Pendiente de confirmar"), TimeSpan.FromSeconds(10));
+        cut.WaitForAssertion(() => _presupuestoMemoria.Reservado.Should().Be(0, "terminada la lectura, su reserva vuelve"), TimeSpan.FromSeconds(10));
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// Seguimiento de S-C-3: si al confirmar el almacenamiento no tiene hueco en el presupuesto de memoria,
+    /// el rechazo es pasajero: avisa con el mensaje de la cuota, la fila sigue pendiente con su PDF y se
+    /// puede volver a confirmar sin repetir la subida ni la lectura de la IA. La vista previa abierta se
+    /// suelta antes de guardar, para que el guardado no espere a una reserva de su misma pantalla.
+    /// </summary>
+    [Fact]
+    public async Task Confirmar_sin_hueco_en_el_presupuesto_de_memoria_deja_la_fila_pendiente_con_su_pdf()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        var almacen = Campo<AlmacenTemporalSubidaMasiva>(cut.Instance, "_almacen");
+        var presupuesto = (PresupuestoMemoriaDocumentos)Services.GetRequiredService<IPresupuestoMemoriaDocumentos>();
+        await ProcesarAsync(cut, "reintento.pdf");
+        await FilaDe(cut, "reintento.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        presupuesto.Reservado.Should().BePositive("control: la vista previa está abierta");
+
+        _almacenamiento.SinMemoria = true;
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+
+        Services.GetRequiredService<ToastService>().Mensajes.Should().Contain(t =>
+            t.Mensaje == "No cabe en esta subida: confirma o descarta los archivos pendientes y vuelve a soltarlo.");
+        FilaDe(cut, "reintento.pdf").TextContent.Should().Contain("Pendiente de confirmar", "el formulario sigue abierto para reintentar");
+        Directory.GetFiles(almacen.Directorio).Should().ContainSingle("el PDF sigue en su temporal para reintentar");
+        presupuesto.Reservado.Should().Be(0, "la vista previa soltó su reserva antes de guardar");
+
+        _almacenamiento.SinMemoria = false;
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Confirmar y crear").ClickAsync(new MouseEventArgs());
+        _almacenamiento.Guardados.Should().Be(1, "control: con hueco se confirma");
+        Directory.GetFiles(almacen.Directorio).Should().BeEmpty();
+        await DisposeComponentsAsync();
+    }
+
+    /// <summary>
+    /// Seguimiento de S-C-3: la vista previa abierta descuenta del presupuesto de memoria del proceso el
+    /// PDF y su base64, y cerrarla, confirmar o cerrar la pantalla lo devuelve.
+    /// </summary>
+    [Fact]
+    public async Task La_vista_previa_descuenta_del_presupuesto_de_memoria_mientras_esta_abierta()
+    {
+        PrepararPropuesta(confianza: 100, emision: new DateOnly(2026, 3, 1));
+        var cut = Render<SubidaMasiva>();
+        var presupuesto = (PresupuestoMemoriaDocumentos)Services.GetRequiredService<IPresupuestoMemoriaDocumentos>();
+        await ProcesarAsync(cut, "abierto.pdf");
+        presupuesto.Reservado.Should().Be(0, "control: con la fila cerrada no hay nada en memoria");
+
+        await FilaDe(cut, "abierto.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        var dataUri = cut.Find("iframe").GetAttribute("src")!;
+        presupuesto.Reservado.Should().BeGreaterThanOrEqualTo(dataUri.Length * (long)sizeof(char), "el base64 abierto descuenta");
+
+        await FilaDe(cut, "abierto.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        cut.FindAll("iframe").Should().BeEmpty("control: la fila se cerró");
+        presupuesto.Reservado.Should().Be(0);
+
+        await FilaDe(cut, "abierto.pdf").QuerySelector(".item-subida-masiva-acciones button")!.ClickAsync(new MouseEventArgs());
+        presupuesto.Reservado.Should().BePositive("control: vuelve a abrirse");
+        await DisposeComponentsAsync();
+        presupuesto.Reservado.Should().Be(0, "cerrar la pantalla la devuelve");
+    }
+
     /// <summary>S-C-3: confirmar, descartar o cerrar la pantalla borra el temporal del PDF y devuelve su reserva.</summary>
     [Fact]
     public async Task Confirmar_y_descartar_borran_el_temporal_del_pdf_y_la_vista_previa_solo_existe_abierta()
@@ -1067,8 +1168,14 @@ public sealed class SubidaMasivaGen2Tests : BunitContext
     {
         public int Guardados { get; private set; }
         public int Eliminados { get; private set; }
+
+        /// <summary>Como el almacenamiento real sin hueco en el presupuesto de memoria del proceso.</summary>
+        public bool SinMemoria { get; set; }
+
         public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
         {
+            if (SinMemoria)
+                return Task.FromException<string>(new PresupuestoMemoriaAgotadoException());
             Guardados++;
             return Task.FromResult("archivo");
         }

@@ -51,7 +51,9 @@ public class DiskFileStorageServiceTests : IDisposable
             new TenantActualAmbiental { TenantId = tenantId },
             _dataProtectionProvider,
             _alertas,
-            _logger);
+            _logger,
+            new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+                Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
 
     private string RutaDe(Guid tenantId, string identificador) =>
         Path.Combine(_rutaTemporal, tenantId.ToString("N"), Path.GetFileName(identificador));

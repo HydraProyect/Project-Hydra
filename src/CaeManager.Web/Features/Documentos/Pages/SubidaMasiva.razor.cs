@@ -94,6 +94,7 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
 
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private CuotaSubidaMasiva CuotaSubidaMasiva { get; set; } = default!;
+    [Inject] private IPresupuestoMemoriaDocumentos PresupuestoMemoria { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private IFileStorageService AlmacenamientoArchivos { get; set; } = default!;
     [Inject] private IConversorWordPdfService ConversorWordPdf { get; set; } = default!;
@@ -160,6 +161,17 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
 
     /// <summary>El PDF en base64 de la única fila abierta, o nada: se construye al abrirla y se suelta al cerrarla.</summary>
     private (Guid Clave, string DataUri)? _vistaPrevia;
+
+    /// <summary>Lo que <see cref="_vistaPrevia"/> descuenta del presupuesto de memoria del proceso mientras existe.</summary>
+    private ReservaMemoriaDocumentos? _reservaVistaPrevia;
+
+    /// <summary>
+    /// Veces el tamaño del original que una lectura tiene a la vez en memoria: el
+    /// original, su PDF, lo que la IA prepara a partir de él (texto, páginas
+    /// rasterizadas y su base64) y la miniatura. Se reserva entero del presupuesto del
+    /// proceso antes de cargar el original (seguimiento de S-C-3, ASVS 4.0.3 V12.1.1).
+    /// </summary>
+    private const int FactorMemoriaLectura = 4;
     private bool _procesandoLote;
     private bool _cargando = true;
     private bool _errorCarga;
@@ -569,26 +581,47 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
 
         try
         {
-            byte[] contenido;
+            // El original no se carga hasta tener hueco en el presupuesto del proceso
+            // para él y para todo lo que la lectura deriva de él; la reserva se
+            // devuelve al terminar la lectura, también si falla.
+            ReservaMemoriaDocumentos reserva;
             try
             {
-                contenido = await _almacen!.LeerAsync(original, token);
+                reserva = await ReservarMemoriaAsync(original.TamanoBytes * FactorMemoriaLectura, token);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (Exception ex)
             {
+                _almacen?.Eliminar(original);
+                if (ex is not CuotaSubidaMasivaSuperadaException) throw;
                 if (!EsVigente(carga)) return;
-                Logger.LogWarning(ex, "No se pudo recuperar {ReferenciaArchivo} del temporal en la subida múltiple.",
-                    ReferenciaArchivoTraza.De(item.NombreArchivo));
-                MarcarError(item, Textos["ErrorSubida"]);
+                MarcarError(item, Textos["ErrorSinEspacio"]);
                 StateHasChanged();
                 return;
             }
-            finally
-            {
-                _almacen?.Eliminar(original);
-            }
 
-            await LeerItemAsync(item, contenido, carga, token);
+            using (reserva)
+            {
+                byte[] contenido;
+                try
+                {
+                    contenido = await _almacen!.LeerAsync(original, token);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    if (!EsVigente(carga)) return;
+                    Logger.LogWarning(ex, "No se pudo recuperar {ReferenciaArchivo} del temporal en la subida múltiple.",
+                        ReferenciaArchivoTraza.De(item.NombreArchivo));
+                    MarcarError(item, Textos["ErrorSubida"]);
+                    StateHasChanged();
+                    return;
+                }
+                finally
+                {
+                    _almacen?.Eliminar(original);
+                }
+
+                await LeerItemAsync(item, contenido, carga, token);
+            }
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
@@ -735,7 +768,33 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             _almacen?.Eliminar(pdf);
         item.Pdf = null;
         if (_vistaPrevia?.Clave == item.ClaveLocal)
-            _vistaPrevia = null;
+            SoltarVistaPrevia();
+    }
+
+    /// <summary>Suelta la vista previa abierta y devuelve su reserva de memoria.</summary>
+    private void SoltarVistaPrevia()
+    {
+        _vistaPrevia = null;
+        _reservaVistaPrevia?.Dispose();
+        _reservaVistaPrevia = null;
+    }
+
+    /// <summary>
+    /// Reserva del presupuesto de memoria del proceso. Si no hay hueco dentro de la
+    /// espera máxima, falla igual que la cuota de la pantalla, del Tenant de origen o
+    /// del proceso (<see cref="CuotaSubidaMasivaSuperadaException"/>), y el archivo se
+    /// queda en Error con el mismo mensaje.
+    /// </summary>
+    private async Task<ReservaMemoriaDocumentos> ReservarMemoriaAsync(long bytes, CancellationToken token)
+    {
+        try
+        {
+            return await PresupuestoMemoria.ReservarAsync(bytes, token);
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            throw new CuotaSubidaMasivaSuperadaException();
+        }
     }
 
     private string? GenerarMiniatura(byte[] contenidoPdf, string nombreArchivo)
@@ -784,17 +843,34 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     {
         var expandir = !item.Expandido;
         foreach (var otro in _items) otro.Expandido = false;
-        _vistaPrevia = null;
+        SoltarVistaPrevia();
         item.Expandido = expandir;
         if (!expandir || item.Pdf is not { } pdf || _almacen is not { } almacen)
             return;
 
+        ReservaMemoriaDocumentos? reserva = null;
         try
         {
-            var contenido = await almacen.LeerAsync(pdf, _ciclo.Token);
+            // El PDF y su data URI (base64, dos bytes por carácter) viven en memoria
+            // mientras la fila está abierta: se reservan antes de leer y se devuelven
+            // al cerrarla (SoltarVistaPrevia).
+            // El token se toma antes de esperar: Dispose desecha _ciclo.
+            var token = _ciclo.Token;
+            reserva = await ReservarMemoriaAsync(pdf.TamanoBytes + BytesDataUriPdf(pdf.TamanoBytes), token);
+            var contenido = await almacen.LeerAsync(pdf, token);
             // Si mientras se leía se abrió otra fila o se cerró esta, la vista no es de nadie.
-            if (item.Expandido && item.Pdf == pdf)
+            if (item.Expandido && item.Pdf == pdf && !_desechado)
+            {
+                SoltarVistaPrevia();
                 _vistaPrevia = (item.ClaveLocal, ConstruirDataUriPdf(contenido));
+                _reservaVistaPrevia = reserva;
+                reserva = null;
+            }
+        }
+        catch (CuotaSubidaMasivaSuperadaException)
+        {
+            // Sin vista previa la fila se puede confirmar igual.
+            ToastService.Mostrar(Textos["ErrorSinEspacio"], TonoToast.Error);
         }
         catch (OperationCanceledException)
         {
@@ -806,7 +882,19 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             Logger.LogWarning(ex, "No se pudo leer la vista previa de {ReferenciaArchivo} en la subida múltiple.",
                 ReferenciaArchivoTraza.De(item.NombreArchivo));
         }
+        finally
+        {
+            // Sin vista que la retenga (fila cerrada entretanto o lectura fallida), vuelve ya.
+            reserva?.Dispose();
+        }
     }
+
+    /// <summary>
+    /// Bytes que ocupa en memoria construir la data URI de un PDF: el base64 y la URI
+    /// con su prefijo conviven un momento (<see cref="ConstruirDataUriPdf"/>), a dos
+    /// bytes por carácter.
+    /// </summary>
+    private static long BytesDataUriPdf(long bytesPdf) => 2 * (((bytesPdf + 2) / 3 * 4) + 64) * sizeof(char);
 
     private string? VistaPreviaDe(ItemLote item) =>
         _vistaPrevia is { } vista && vista.Clave == item.ClaveLocal ? vista.DataUri : null;
@@ -903,7 +991,13 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         // entre ambos pasos: para eso hace falta staging durable con TTL y un
         // recolector, que es una decisión de arquitectura pendiente (ver el
         // informe del Módulo 2).
+        // La vista previa de esta fila suelta su reserva del presupuesto de memoria antes
+        // de guardar: si no, el guardado podría esperar a una reserva de su misma pantalla.
+        if (_vistaPrevia?.Clave == item.ClaveLocal)
+            SoltarVistaPrevia();
+
         string? archivoUrl = null;
+        var conservarPdf = false;
         try
         {
             await using (var flujoPdf = almacen.AbrirLectura(pdf))
@@ -933,6 +1027,18 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
             item.DocumentoId = resultado.Valor;
             _totalCreados++;
         }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // El almacenamiento no tuvo hueco en el presupuesto de memoria del proceso
+            // para cifrarlo: no se llegó a escribir. Se descarta igual por si un paso
+            // posterior lo lanzara algún día. Es un rechazo pasajero, no del archivo:
+            // la fila sigue pendiente con su PDF para volver a confirmarla, sin repetir
+            // la subida ni la lectura de la IA. Mismo mensaje que cualquier otro «no
+            // cabe» de esta pantalla.
+            await DescartarArchivoHuerfanoAsync(archivoUrl);
+            ToastService.Mostrar(Textos["ErrorSinEspacio"], TonoToast.Error);
+            conservarPdf = EsVigente(carga);
+        }
         catch (Exception ex)
         {
             await DescartarArchivoHuerfanoAsync(archivoUrl);
@@ -946,7 +1052,8 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         {
             // Tanto en éxito como en error, la pantalla no necesita seguir
             // reteniendo el PDF completo: su temporal se borra y su reserva vuelve.
-            SoltarPdf(item);
+            if (!conservarPdf)
+                SoltarPdf(item);
         }
     }
 
@@ -1139,8 +1246,9 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
         _ciclo.Dispose();
         // Borra todos los temporales de la pantalla y devuelve su reserva
         // (también la de las miniaturas): lo pendiente de confirmar se pierde
-        // al salir, como ya avisa FS-14.
-        _vistaPrevia = null;
+        // al salir, como ya avisa FS-14. La vista previa devuelve además su
+        // reserva del presupuesto de memoria del proceso.
+        SoltarVistaPrevia();
         _almacen?.Dispose();
     }
 
