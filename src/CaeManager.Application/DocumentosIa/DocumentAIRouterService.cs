@@ -14,7 +14,10 @@ namespace CaeManager.Application.DocumentosIa;
 /// Implementa los 4 casos de Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2.3:
 /// Digital → texto local, sin OCR (Caso 1); Escaneado/Imagen → OCR del
 /// archivo completo (Casos 2-3); Mixto → texto digital de las páginas con
-/// texto + OCR de las páginas escaneadas (Caso 4, con rasterización).
+/// texto + OCR de las páginas escaneadas (Caso 4, con rasterización). Un PDF
+/// escaneado de más de 4 páginas se lee por páginas (las tres primeras y la
+/// última; el resto solo si falta lo mínimo para decidir) con un tope de 100
+/// páginas por documento.
 ///
 /// Antes de llamar a ningún proveedor comprueba la caché documental (§ 3) —
 /// si ya se procesó este mismo archivo bajo el mismo tipo esperado y con la
@@ -46,11 +49,13 @@ public class DocumentAIRouterService(
     /// <summary>
     /// Máximo de páginas escaneadas que se envían a OCR de un mismo documento.
     ///
-    /// El bucle de OCR del Caso Mixto es el único punto del pipeline donde el
-    /// gasto crece linealmente con el tamaño del archivo: el proveedor factura
-    /// por página, así que un PDF escaneado grande se traduce directamente en
-    /// factura, y además en tantas rasterizaciones nativas como páginas. Sin
-    /// tope, un solo documento podía consumir cuota de todos los tenants.
+    /// El bucle de OCR por páginas (Caso Mixto y PDF escaneado de más de
+    /// <see cref="PaginasDeLecturaCompleta"/> páginas) es el único punto del
+    /// pipeline donde el gasto crece linealmente con el tamaño del archivo: el
+    /// proveedor factura por página, así que un PDF escaneado grande se traduce
+    /// directamente en factura, y además en tantas rasterizaciones nativas como
+    /// páginas. Sin tope, un solo documento podía consumir cuota de todos los
+    /// tenants (OWASP API4, consumo de recursos sin límite).
     ///
     /// Es una guarda de seguridad, no una política de producto: está puesto
     /// alto para que no moleste a los documentos reales (una póliza larga ronda
@@ -58,8 +63,21 @@ public class DocumentAIRouterService(
     /// por aquí) y solo dispare ante lo que no tiene sentido procesar sin que
     /// una persona lo mire antes. Cuando exista presupuesto por tenant, este
     /// número debería salir de ahí.
+    ///
+    /// En el Caso Mixto se rechaza el documento que lo supera; en el escaneado
+    /// puro se lee hasta el tope y la nota de Incidencias deja constancia de las
+    /// páginas leídas frente a las totales.
     /// </summary>
     private const int MaximoPaginasEscaneadasPorDocumento = 100;
+
+    /// <summary>
+    /// Un PDF escaneado de este número de páginas o menos se manda entero al
+    /// OCR: el ahorro de leer menos páginas no compensa rasterizar una a una.
+    /// </summary>
+    private const int PaginasDeLecturaCompleta = 4;
+
+    /// <summary>Páginas del principio que se leen primero en un PDF escaneado largo (además de la última).</summary>
+    private const int PaginasInicialesEscaneado = 3;
 
     private static readonly JsonSerializerOptions JsonOpciones = new(JsonSerializerDefaults.Web);
 
@@ -69,9 +87,33 @@ public class DocumentAIRouterService(
     /// código de ese proveedor de OCR (para <see cref="AuditoriaExtraccionIa.ProveedoresInvocados"/>
     /// — solo se intenta uno por documento, nunca hay fallback en el paso de
     /// OCR, así que basta con un único código, no una lista).
+    /// <see cref="PaginasLeidas"/> solo se informa cuando se leyó una parte del
+    /// documento (escaneado largo): null significa «todas las páginas», y la
+    /// auditoría usa entonces el total clasificado. <see cref="LecturaProgresiva"/>
+    /// permite ampliar la lectura si la estructuración no encuentra lo mínimo.
     /// </summary>
     private sealed record TextoExtraidoDto(
-        string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null, string? ProveedorOcrCodigo = null, string? TextoCompleto = null);
+        string Texto, string? NotaLocalizacion, decimal? CosteEstimadoOcr = null, string? ProveedorOcrCodigo = null, string? TextoCompleto = null,
+        int? PaginasLeidas = null, LecturaEscaneadaPorPaginas? LecturaProgresiva = null);
+
+    /// <summary>
+    /// Estado de la lectura por páginas de un PDF escaneado largo: qué páginas
+    /// llevan OCR, cuánto costaron y si todavía se puede leer más sin pasar del
+    /// tope. Se crea por llamada a <see cref="ProcesarAsync"/>; no se comparte.
+    /// </summary>
+    private sealed class LecturaEscaneadaPorPaginas(byte[] contenido, IDocumentAIProvider proveedorOcr, int totalPaginas)
+    {
+        public byte[] Contenido { get; } = contenido;
+        public IDocumentAIProvider ProveedorOcr { get; } = proveedorOcr;
+        public int TotalPaginas { get; } = totalPaginas;
+        public SortedDictionary<int, string> TextosPorPagina { get; } = new();
+        public decimal? CosteOcr { get; set; }
+        public bool Ampliada { get; set; }
+
+        public bool PuedeAmpliar => !Ampliada
+            && TextosPorPagina.Count < TotalPaginas
+            && TextosPorPagina.Count < MaximoPaginasEscaneadasPorDocumento;
+    }
 
     public async Task<Result<ExtraccionEstructuradaDto>> ProcesarAsync(
         byte[] contenido, string nombreArchivo, string tipoEsperado, Guid? documentoId = null, CancellationToken cancellationToken = default)
@@ -127,48 +169,154 @@ public class DocumentAIRouterService(
             const string mensaje = "No hay ningún proveedor de IA disponible para procesar este documento.";
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, costeEstimado: null, clasificacion.Valor.TotalPaginas, 0, mensaje, documentoId, cancellationToken,
+                texto.Valor.CosteEstimadoOcr, costeEstimado: null, texto.Valor.PaginasLeidas ?? clasificacion.Valor.TotalPaginas, 0, mensaje, documentoId, cancellationToken,
                 proveedoresInvocados: CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo));
             return Result.Fallo<ExtraccionEstructuradaDto>(Error.Crear("DocumentAIRouter.SinProveedor", mensaje));
         }
 
+        var textoFinal = texto.Valor;
         var estructuracion = await EstructurarAsync(
-            proveedoresEstructuracion, texto.Valor.Texto, tipoEsperado, cancellationToken);
+            proveedoresEstructuracion, textoFinal.Texto, tipoEsperado, cancellationToken);
+        var resultado = ConContraste(estructuracion.Resultado, textoFinal);
+        var ampliacionFallida = false;
 
-        // El contraste determinista se calcula sobre el mismo texto que vio el
-        // modelo y viaja con la extracción, también a la caché: quien decide
-        // con ella no tiene que fiarse solo de lo que el modelo diga del texto.
-        // Si el contraste no se puede calcular queda null, que para decidir
-        // cuenta como «no contrastado»: nunca tumba una lectura ya pagada.
-        var resultado = estructuracion.Resultado.EsExitoso
-            ? Result.Exito(estructuracion.Resultado.Valor with
+        // PDF escaneado largo: se leyeron solo las primeras páginas y la última.
+        // Si de ahí no salió lo mínimo para decidir, se amplía el OCR al resto
+        // (hasta el tope por documento) y se estructura una segunda vez. Si no
+        // falta nada, el resto del documento no se lee ni se paga.
+        if (resultado.EsExitoso
+            && textoFinal.LecturaProgresiva is { PuedeAmpliar: true } lectura
+            && EvidenciaMinimaLectura.Faltan(resultado.Valor))
+        {
+            var textoInicial = textoFinal;
+            var ampliado = await AmpliarLecturaEscaneadaAsync(lectura, cancellationToken);
+
+            if (ampliado.EsExitoso)
             {
-                Contraste = ContrasteTextoDocumento.AnalizarSinFallar(texto.Valor.Texto, texto.Valor.TextoCompleto),
-            })
-            : estructuracion.Resultado;
+                var segunda = await EstructurarAsync(
+                    proveedoresEstructuracion, ampliado.Valor.Texto, tipoEsperado, cancellationToken);
+                var resultadoSegunda = ConContraste(segunda.Resultado, ampliado.Valor);
+
+                // Gana la segunda solo si no trae menos que la primera: con más
+                // texto el modelo puede dispersarse y perder un campo que sí tenía.
+                var usarSegunda = resultadoSegunda.EsExitoso
+                    && EvidenciaMinimaLectura.Faltantes(resultadoSegunda.Valor).Count <= EvidenciaMinimaLectura.Faltantes(resultado.Valor).Count;
+
+                if (usarSegunda)
+                {
+                    textoFinal = ampliado.Valor;
+                    resultado = resultadoSegunda;
+                }
+                else
+                {
+                    // La ampliación se pagó pero no mejoró (o no estructuró): se
+                    // conserva la primera lectura, válida, y se deja constancia. Su
+                    // coste OCR es el de todo lo pagado, aunque el texto sea el primero.
+                    ampliacionFallida = resultadoSegunda.EsFallido;
+                    textoFinal = textoInicial with
+                    {
+                        CosteEstimadoOcr = ampliado.Valor.CosteEstimadoOcr,
+                        NotaLocalizacion = CombinarIncidencias(
+                            textoInicial.NotaLocalizacion,
+                            resultadoSegunda.EsFallido
+                                ? "Se intentó ampliar la lectura a más páginas y no se pudo estructurar; se conserva la lectura de las primeras."
+                                : "La lectura ampliada a más páginas no mejoró la de las primeras; se conserva esta."),
+                    };
+                }
+
+                estructuracion = FusionarRondas(estructuracion, segunda, usarSegunda);
+            }
+            else
+            {
+                // El OCR del resto falló a medias: lo ya pagado cuenta en el coste.
+                ampliacionFallida = true;
+                textoFinal = textoInicial with
+                {
+                    CosteEstimadoOcr = lectura.CosteOcr,
+                    NotaLocalizacion = CombinarIncidencias(
+                        textoInicial.NotaLocalizacion, $"Se intentó ampliar la lectura a más páginas y falló el OCR ({ampliado.Error.Codigo}); se conserva la lectura de las primeras."),
+                };
+            }
+        }
+
+        var paginasLeidas = textoFinal.PaginasLeidas ?? clasificacion.Valor.TotalPaginas;
 
         if (resultado.EsFallido)
         {
             await RegistrarAuditoriaAsync(
                 hash, tipoEsperado, "ninguno", cronometro.ElapsedMilliseconds,
-                texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado, clasificacion.Valor.TotalPaginas, 0,
+                textoFinal.CosteEstimadoOcr, estructuracion.CosteAcumulado, paginasLeidas, 0,
                 CombinarIncidencias(resultado.Error.Mensaje, estructuracion.NotaIntentos), documentoId, cancellationToken,
-                proveedoresInvocados: CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados));
+                proveedoresInvocados: CombinarProveedoresInvocados(textoFinal.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados));
             return resultado;
         }
 
-        var (entradaCachePendiente, vinculoCreado) = await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, documentoId, cancellationToken);
+        var notasDelModelo = resultado.Valor.NotasValidacion;
+
+        // Lectura parcial: lo que el revisor ve (NotasValidacion viaja con la
+        // extracción) debe decir que hay páginas sin leer. El contraste
+        // determinista (p. ej. un «no apto») solo mira el texto leído.
+        if (textoFinal.PaginasLeidas is { } leidas && leidas < clasificacion.Valor.TotalPaginas)
+        {
+            resultado = Result.Exito(resultado.Valor with
+            {
+                NotasValidacion = CombinarIncidencias(
+                    notasDelModelo,
+                    $"{textoFinal.NotaLocalizacion} Un «no apto», una restricción o un dato que figure solo en las páginas no leídas no se habrá detectado."),
+            });
+        }
+
+        // Una ampliación que falló por un error transitorio (OCR o estructuración)
+        // no se cachea: la caché solo se invalida al cambiar la versión del
+        // pipeline, y la lectura incompleta quedaría como definitiva.
+        var (entradaCachePendiente, vinculoCreado) = ampliacionFallida
+            ? ((ExtraccionIaCache?)null, (ExtraccionIaCacheDocumento?)null)
+            : await GuardarEnCacheAsync(hash, tipoEsperado, resultado.Valor, documentoId, cancellationToken);
         var incidencias = CombinarIncidencias(
-            texto.Valor.NotaLocalizacion, resultado.Valor.NotasValidacion, estructuracion.NotaIntentos);
+            textoFinal.NotaLocalizacion, notasDelModelo, estructuracion.NotaIntentos);
         await RegistrarAuditoriaAsync(
             hash, tipoEsperado, estructuracion.ProveedorCodigo, cronometro.ElapsedMilliseconds,
-            texto.Valor.CosteEstimadoOcr, estructuracion.CosteAcumulado,
-            clasificacion.Valor.TotalPaginas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken,
+            textoFinal.CosteEstimadoOcr, estructuracion.CosteAcumulado,
+            paginasLeidas, resultado.Valor.ConfianzaGeneral, incidencias, documentoId, cancellationToken,
             entradaCachePendiente, estructuracion.ModeloExacto, estructuracion.RequestId,
-            CombinarProveedoresInvocados(texto.Valor.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados),
+            CombinarProveedoresInvocados(textoFinal.ProveedorOcrCodigo, estructuracion.ProveedoresInvocados),
             vinculoCreado);
 
         return resultado;
+    }
+
+    /// <summary>
+    /// El contraste determinista se calcula sobre el mismo texto que vio el
+    /// modelo y viaja con la extracción, también a la caché: quien decide
+    /// con ella no tiene que fiarse solo de lo que el modelo diga del texto.
+    /// Si el contraste no se puede calcular queda null, que para decidir
+    /// cuenta como «no contrastado»: nunca tumba una lectura ya pagada.
+    /// </summary>
+    private static Result<ExtraccionEstructuradaDto> ConContraste(Result<ExtraccionEstructuradaDto> estructurada, TextoExtraidoDto texto) =>
+        estructurada.EsExitoso
+            ? Result.Exito(estructurada.Valor with
+            {
+                Contraste = ContrasteTextoDocumento.AnalizarSinFallar(texto.Texto, texto.TextoCompleto),
+            })
+            : estructurada;
+
+    /// <summary>
+    /// Une las dos vueltas de estructuración de un escaneado largo: el coste, los
+    /// intentos y los proveedores de ambas, con el ganador de la segunda solo si se usa.
+    /// </summary>
+    private static ResultadoEstructuracion FusionarRondas(ResultadoEstructuracion primera, ResultadoEstructuracion segunda, bool usarSegunda)
+    {
+        decimal? coste = primera.CosteAcumulado is null && segunda.CosteAcumulado is null
+            ? null
+            : (primera.CosteAcumulado ?? 0m) + (segunda.CosteAcumulado ?? 0m);
+        var baseResultado = usarSegunda ? segunda : primera;
+
+        return baseResultado with
+        {
+            CosteAcumulado = coste,
+            NotaIntentos = CombinarIncidencias(primera.NotaIntentos, segunda.NotaIntentos),
+            ProveedoresInvocados = CombinarProveedoresInvocados(primera.ProveedoresInvocados, segunda.ProveedoresInvocados),
+        };
     }
 
     private static string? CombinarIncidencias(params string?[] partes)
@@ -326,7 +474,8 @@ public class DocumentAIRouterService(
         if (clasificacion.Tipo == TipoContenidoDocumento.Mixto)
             return await ObtenerTextoMixtoAsync(clasificacion, contenido, cancellationToken);
 
-        // Escaneado / Imagen: el archivo completo va al proveedor de OCR.
+        // Escaneado / Imagen: el archivo completo va al proveedor de OCR, salvo
+        // un PDF escaneado largo, que se lee por páginas (ver más abajo).
         var proveedoresOcr = proveedores.ObtenerPorCapacidad(CapacidadesProveedorIa.OcrImagenAEscaneado);
         if (proveedoresOcr.Count == 0)
         {
@@ -335,11 +484,118 @@ public class DocumentAIRouterService(
         }
 
         var proveedorOcr = proveedoresOcr[0];
+
+        if (clasificacion.Tipo == TipoContenidoDocumento.Escaneado && clasificacion.TotalPaginas > PaginasDeLecturaCompleta)
+            return await ObtenerTextoEscaneadoLargoAsync(clasificacion, contenido, proveedorOcr, cancellationToken);
+
         var textoOcr = await proveedorOcr.ExtraerTextoAsync(contenido, nombreArchivo, cancellationToken);
         if (textoOcr.EsFallido)
             return Result.Fallo<TextoExtraidoDto>(textoOcr.Error);
 
         return Result.Exito(new TextoExtraidoDto(textoOcr.Valor.Texto, null, textoOcr.Valor.CosteEstimado, proveedorOcr.Codigo));
+    }
+
+    /// <summary>
+    /// PDF escaneado de más de <see cref="PaginasDeLecturaCompleta"/> páginas:
+    /// OCR solo de las páginas 1, 2, 3 y la última (portada, datos de emisión y
+    /// firma suelen estar ahí). Si tras estructurar falta lo mínimo
+    /// (<see cref="EvidenciaMinimaLectura"/>), <see cref="ProcesarAsync"/> pide
+    /// ampliar con <see cref="AmpliarLecturaEscaneadaAsync"/>. A diferencia del
+    /// Caso Mixto, un documento por encima del tope no se rechaza: se lee hasta
+    /// <see cref="MaximoPaginasEscaneadasPorDocumento"/> y la nota de Incidencias
+    /// dice cuántas páginas se leyeron de cuántas.
+    /// </summary>
+    private async Task<Result<TextoExtraidoDto>> ObtenerTextoEscaneadoLargoAsync(
+        ClasificacionDocumentoDto clasificacion, byte[] contenido, IDocumentAIProvider proveedorOcr, CancellationToken cancellationToken)
+    {
+        var total = clasificacion.TotalPaginas;
+        var lectura = new LecturaEscaneadaPorPaginas(contenido, proveedorOcr, total);
+
+        var iniciales = Enumerable.Range(0, PaginasInicialesEscaneado).Append(total - 1).Distinct().ToList();
+        var leidas = new SortedDictionary<int, string>();
+        var lecturaInicial = await LeerPaginasAsync(lectura, iniciales, leidas, cancellationToken);
+        if (lecturaInicial.EsFallido)
+            return Result.Fallo<TextoExtraidoDto>(lecturaInicial.Error);
+
+        foreach (var (indice, texto) in leidas)
+            lectura.TextosPorPagina[indice] = texto;
+
+        return Result.Exito(ConstruirTextoEscaneadoLargo(lectura));
+    }
+
+    /// <summary>
+    /// Lee el resto de páginas en orden hasta completar
+    /// <see cref="MaximoPaginasEscaneadasPorDocumento"/> en total. Las páginas se
+    /// incorporan a la lectura solo si todas se leen bien; el coste de las que
+    /// llegaron a pagarse queda en <see cref="LecturaEscaneadaPorPaginas.CosteOcr"/>
+    /// en cualquier caso.
+    /// </summary>
+    private async Task<Result<TextoExtraidoDto>> AmpliarLecturaEscaneadaAsync(
+        LecturaEscaneadaPorPaginas lectura, CancellationToken cancellationToken)
+    {
+        lectura.Ampliada = true;
+
+        var presupuesto = MaximoPaginasEscaneadasPorDocumento - lectura.TextosPorPagina.Count;
+        var pendientes = Enumerable.Range(0, lectura.TotalPaginas)
+            .Where(i => !lectura.TextosPorPagina.ContainsKey(i))
+            .Take(presupuesto)
+            .ToList();
+
+        var nuevas = new SortedDictionary<int, string>();
+        var ampliacion = await LeerPaginasAsync(lectura, pendientes, nuevas, cancellationToken);
+        if (ampliacion.EsFallido)
+            return Result.Fallo<TextoExtraidoDto>(ampliacion.Error);
+
+        foreach (var (indice, texto) in nuevas)
+            lectura.TextosPorPagina[indice] = texto;
+
+        return Result.Exito(ConstruirTextoEscaneadoLargo(lectura));
+    }
+
+    /// <summary>
+    /// Rasteriza y envía a OCR una página cada vez (misma razón que en el Caso
+    /// Mixto: el pico de memoria no debe crecer con el número de páginas). El
+    /// coste de cada página leída se suma a <see cref="LecturaEscaneadaPorPaginas.CosteOcr"/>
+    /// en el momento, de modo que un fallo a medias no lo pierde.
+    /// </summary>
+    private async Task<Result> LeerPaginasAsync(
+        LecturaEscaneadaPorPaginas lectura, IReadOnlyList<int> indices, SortedDictionary<int, string> destino, CancellationToken cancellationToken)
+    {
+        foreach (var indicePagina in indices)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var imagen = rasterizador.RasterizarPagina(lectura.Contenido, indicePagina, cancellationToken);
+            if (imagen.EsFallido)
+                return Result.Fallo(imagen.Error);
+
+            var ocr = await lectura.ProveedorOcr.ExtraerTextoAsync(imagen.Valor, $"pagina-{indicePagina + 1}.png", cancellationToken);
+            if (ocr.EsFallido)
+                return Result.Fallo(ocr.Error);
+
+            destino[indicePagina] = ocr.Valor.Texto;
+            if (ocr.Valor.CosteEstimado is { } coste)
+                lectura.CosteOcr = (lectura.CosteOcr ?? 0m) + coste;
+        }
+
+        return Result.Exito();
+    }
+
+    private static TextoExtraidoDto ConstruirTextoEscaneadoLargo(LecturaEscaneadaPorPaginas lectura)
+    {
+        var leidas = lectura.TextosPorPagina.Count;
+        var nota = $"Documento escaneado de {lectura.TotalPaginas} páginas: se leyeron {leidas} páginas de {lectura.TotalPaginas}.";
+
+        if (leidas < lectura.TotalPaginas)
+        {
+            nota += lectura.Ampliada && leidas >= MaximoPaginasEscaneadasPorDocumento
+                ? $" Se alcanzó el máximo de {MaximoPaginasEscaneadasPorDocumento} páginas por documento; el resto del documento no entró en la lectura."
+                : " El resto del documento no entró en la lectura.";
+        }
+
+        return new TextoExtraidoDto(
+            string.Join("\n\n", lectura.TextosPorPagina.Values), nota, lectura.CosteOcr, lectura.ProveedorOcr.Codigo,
+            PaginasLeidas: leidas, LecturaProgresiva: lectura);
     }
 
     /// <summary>
@@ -379,7 +635,9 @@ public class DocumentAIRouterService(
         // presentada como completa, y las decisiones que cuelgan de ella —
         // aprobar un documento, dar de baja a un trabajador que "no aparece" —
         // se tomarían sobre un texto al que le faltan páginas sin que nadie lo
-        // sepa.
+        // sepa. (El escaneado puro largo sí se lee hasta el tope sin fallar, por
+        // decisión de producto del 2026-10-29, pero lo declara en la nota de
+        // Incidencias y en NotasValidacion; ver ObtenerTextoEscaneadoLargoAsync.)
         if (indicesEscaneadas.Count > MaximoPaginasEscaneadasPorDocumento)
         {
             return Result.Fallo<TextoExtraidoDto>(Error.Crear(
