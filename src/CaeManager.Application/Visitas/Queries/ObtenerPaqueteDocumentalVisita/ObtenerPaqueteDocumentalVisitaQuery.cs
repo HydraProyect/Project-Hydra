@@ -46,7 +46,8 @@ namespace CaeManager.Application.Visitas.Queries.ObtenerPaqueteDocumentalVisita;
 /// <para>
 /// DEC-36: el zip entrega el contenido de cada Documento que contiene, así que cada uno
 /// cuenta como una <see cref="TipoAccesoDocumentoSensible.Apertura"/> y se registra si es
-/// sensible — después de construir el zip, como el endpoint de un Documento suelto
+/// sensible — lo hace <see cref="IPaqueteDocumentalVisitaService.ConstruirAsync"/> al construir el zip
+/// (el mismo punto que usa el adjunto automático), como el endpoint de un Documento suelto
 /// registra después de abrir el archivo: un documento cuyo archivo no se pudo abrir no
 /// entró y no deja registro.
 /// </para>

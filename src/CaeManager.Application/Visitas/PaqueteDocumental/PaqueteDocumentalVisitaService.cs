@@ -264,7 +264,7 @@ public class PaqueteDocumentalVisitaService(
     /// nada que adjuntar un zip vacío. De cada grupo entra UNA copia: la primera cuyo archivo se
     /// pueda abrir; si ninguna se abre, el grupo queda fuera (con un aviso por cada intento).
     /// Devuelve también qué documentos entraron de verdad: su cuenta es la cifra que anuncia el
-    /// correo, y cada uno es un acceso a su contenido que la descarga manual debe registrar (DEC-36).
+    /// correo, y cada uno es un acceso a su contenido que <see cref="ConstruirAsync"/> registra (DEC-36).
     /// </summary>
     private async Task<(byte[] Bytes, IReadOnlyList<DocumentoEnPaquete> Documentos)?> ConstruirZipAsync(
         IReadOnlyList<IReadOnlyList<DocumentoParaZipDto>> grupos,
