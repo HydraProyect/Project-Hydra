@@ -822,11 +822,8 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddHttpClient<CaeManager.Application.Comunicaciones.Deteccion.IDeteccionRelevanciaCaeService, AnthropicDeteccionRelevanciaCaeService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(60));
-        // Decisiones cerradas del asistente de órdenes (MVP1, texto). Inerte por
-        // configuración: TypeSafe:Activo es false por defecto y hace falta además
-        // la clave — ver TypeSafeOptions por qué tener la clave no basta.
-        services.Configure<TypeSafeOptions>(configuration.GetSection(TypeSafeOptions.SeccionConfiguracion));
-        services.AddHttpClient<CaeManager.Application.AsistenteIa.Decisiones.IDecisionesCerradasAsistenteService, TypeSafeDecisionesCerradasService>(
+        // Las decisiones cerradas usan la misma configuración de Anthropic.
+        services.AddHttpClient<CaeManager.Application.AsistenteIa.Decisiones.IDecisionesCerradasAsistenteService, AnthropicDecisionesCerradasService>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(30));
         // IExtraccionMetadatosDocumentoIaService (Fase 38) ya no tiene una
@@ -834,50 +831,14 @@ public static class InfrastructureServiceCollectionExtensions
         // (Application) la satisface delegando en IDocumentAIRouterService,
         // registrada en ApplicationServiceCollectionExtensions.
         //
-        // IDocumentAIProvider: registro por interfaz general (no un typed
-        // client dedicado) — así IEnumerable<IDocumentAIProvider> recoge
-        // todos los proveedores para la Factory (ver
-        // Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 2). El ORDEN de estos
-        // registros importa: DocumentAIProviderFactory.ObtenerPorCapacidad
-        // conserva el orden de registro, y DocumentAIRouterService usa el
-        // primero de la lista como proveedor OCR sin reintento (a
-        // diferencia de la extracción estructurada, que sí reintenta con
-        // el segundo si el primero da poca confianza — ver Fase 41). Por
-        // eso Mistral (proveedor OCR especializado, registrado primero) se
-        // usa antes que Anthropic para OCR, mientras que para extracción
-        // estructurada Anthropic sigue siendo el primario (Fase 38-40,
-        // antes de tener claves reales) y Gemini el candidato de
-        // reintento — cambiar cuál es "primario" para estructuración es
-        // una decisión de benchmark, no algo que se cambie por tener una
-        // clave nueva (ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1).
-        //
-        // ProveedorFalsoDocumentAI (Horizonte 1.6, ciclo documental E2E):
-        // SIEMPRE antes que los reales, gateado por
-        // "DocumentosIa:ProveedorFalsoActivo" — apagado en cualquier sitio
-        // que no sea WebAppFixture (ver ese archivo), así que este bloque es
-        // inerte en producción. Ir primero es lo que lo convierte en el
-        // proveedor que de verdad usa DocumentAIRouterService, tanto para
-        // OCR como para extracción estructurada — ver el comentario de esa
-        // clase.
+        // El doble documental solo se registra cuando lo activa la fixture E2E.
         if (configuration.GetValue<bool>("DocumentosIa:ProveedorFalsoActivo"))
             services.AddSingleton<IDocumentAIProvider, ProveedorFalsoDocumentAI>();
-
-        services.Configure<MistralOcrOptions>(configuration.GetSection(MistralOcrOptions.SeccionConfiguracion));
-        services.AddHttpClient<MistralOcrDocumentAIProvider>(
-                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
-        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<MistralOcrDocumentAIProvider>());
 
         services.AddHttpClient<AnthropicDocumentAIProvider>(
                 cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
             .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
         services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<AnthropicDocumentAIProvider>());
-
-        services.Configure<GeminiOptions>(configuration.GetSection(GeminiOptions.SeccionConfiguracion));
-        services.AddHttpClient<GeminiDocumentAIProvider>(
-                cliente => cliente.Timeout = Timeout.InfiniteTimeSpan)
-            .AplicarResilienciaHttpIa(TimeSpan.FromSeconds(120));
-        services.AddScoped<IDocumentAIProvider>(sp => sp.GetRequiredService<GeminiDocumentAIProvider>());
 
         // Horizonte 1.7 ("Billing mínimo viable") — StripePaymentProvider es
         // el único IPaymentProvider real (ver su comentario sobre por qué no

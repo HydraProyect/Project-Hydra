@@ -4,7 +4,7 @@ namespace CaeManager.Application.Common;
 /// Kill switch de <see cref="Comunicaciones.Queries.DetectarActualizacionDocumentoDesdeAdjunto.DetectarActualizacionDocumentoDesdeAdjuntoQuery"/>
 /// — decisión explícita del usuario, 2026-08-08. Envía el adjunto completo
 /// de un mensaje de WhatsApp/correo (contenido externo, sin vetar por nadie
-/// del equipo) a un proveedor de IA externo (Anthropic/Mistral/Gemini),
+/// del equipo) a un proveedor de IA externo (Anthropic),
 /// mismo riesgo que <see cref="DeteccionPreviaDocumentoOptions"/> pero
 /// peor: aquello procesaba una subida manual ya iniciada por un usuario del
 /// sistema; esto procesaría cualquier fichero que le llegue al buzón

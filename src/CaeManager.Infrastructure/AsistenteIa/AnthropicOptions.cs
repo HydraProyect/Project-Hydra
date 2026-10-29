@@ -11,6 +11,15 @@ public class AnthropicOptions
 
     public string? ApiKey { get; set; }
 
+    /// <summary>
+    /// Enciende el agente de órdenes de Vega (decisiones cerradas, ver
+    /// <see cref="AnthropicDecisionesCerradasService"/>). Falso por defecto: la
+    /// clave basta para las consultas, pero no para el agente, cuya calibración
+    /// con Anthropic está sin medir. Sin este interruptor, el agente se
+    /// encendería en todo entorno que ya tenga la clave para las consultas.
+    /// </summary>
+    public bool AgenteActivo { get; set; }
+
     /// <summary>Modelo de toda ruta que no fije el suyo en <see cref="Rutas"/>.</summary>
     public string Modelo { get; set; } = "claude-sonnet-5";
 

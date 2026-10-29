@@ -3,16 +3,10 @@ using CaeManager.Domain.DocumentosIa;
 
 namespace CaeManager.Application.DocumentosIa.Common;
 
-/// <summary>
-/// Un proveedor de IA documental (Anthropic hoy para pruebas puntuales;
-/// Gemini/Mistral OCR después, ver Project-Hydra-Negocio/tecnico/docs/ARQUITECTURA-IA-DOCUMENTAL.md § 4.1)
-/// — el resto del sistema conoce esta interfaz y las <see cref="Capacidades"/>
-/// declaradas, nunca el proveedor concreto. Mismo patrón que
-/// <c>IIntegrationProvider</c> (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 4).
-/// </summary>
+/// <summary>Contrato de extracción documental y OCR de un proveedor de IA.</summary>
 public interface IDocumentAIProvider
 {
-    /// <summary>Identificador estable del proveedor (p. ej. "anthropic", "gemini-2-5-flash", "mistral-ocr") — nunca el nombre para decidir lógica, solo para registrarlo/resolverlo (ver <see cref="IDocumentAIProviderFactory"/>).</summary>
+    /// <summary>Identificador estable del proveedor (p. ej. "anthropic") — nunca el nombre para decidir lógica, solo para registrarlo/resolverlo (ver <see cref="IDocumentAIProviderFactory"/>).</summary>
     string Codigo { get; }
 
     CapacidadesProveedorIa Capacidades { get; }
@@ -66,7 +60,7 @@ public interface IDocumentAIProvider
 ///
 /// <paramref name="ModeloExacto"/> y <paramref name="RequestId"/> vienen de
 /// la respuesta del proveedor, no de lo que se pidió: cuando la
-/// configuración usa un alias móvil (p. ej. "mistral-small-latest"), lo que
+/// configuración usa un alias móvil (p. ej. un "-latest"), lo que
 /// hace reproducible una decisión auditada es qué versión concreta atendió
 /// ESTA llamada, y eso solo lo sabe la respuesta. Null si el proveedor no
 /// lo devuelve.

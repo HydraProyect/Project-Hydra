@@ -112,7 +112,7 @@ public class WebAppFixture : IAsyncLifetime
 
         // Horizonte 1.6 (ciclo documental E2E): registra ProveedorFalsoDocumentAI
         // como IDocumentAIProvider primario (ver InfrastructureServiceCollectionExtensions)
-        // en vez de depender de Anthropic/Gemini/Mistral reales — que en este
+        // en vez de depender de Anthropic real — que en este
         // proceso son "inertes" de todos modos (sin ApiKey, ver
         // AnthropicDocumentAIProvider) y, aunque tuvieran clave, harían de un
         // test de flujo de aplicación algo no determinista, de pago y lento.

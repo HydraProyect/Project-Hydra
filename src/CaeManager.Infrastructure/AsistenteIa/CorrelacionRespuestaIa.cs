@@ -28,7 +28,7 @@ internal static class CorrelacionRespuestaIa
 {
     /// <summary>
     /// Cabeceras de correlación de los proveedores en uso: <c>request-id</c>
-    /// (Anthropic y Mistral), <c>x-request-id</c> (variante habitual) y
+    /// (Anthropic), <c>x-request-id</c> (variante habitual) y
     /// <c>x-goog-request-id</c> (Google). Se prueban en orden y se devuelve la
     /// primera presente — no hay una sola cabecera estándar para esto.
     /// </summary>

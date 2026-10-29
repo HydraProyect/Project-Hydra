@@ -30,7 +30,8 @@ public sealed record RespuestaCerrada(string PreguntaId, string Eleccion, double
 /// <para>
 /// Vive en Application porque sus reglas no son de transporte: son las que
 /// hacen que la respuesta sea utilizable y que el texto de la orden no pueda
-/// gobernar la decisión. Medidas contra un modelo real antes de escribir esto:
+/// gobernar la decisión. Se midieron contra el proveedor anterior de decisiones
+/// cerradas; con el proveedor actual están sin medir:
 /// </para>
 /// <list type="number">
 /// <item><b>Escotilla en toda pregunta.</b> Sin una opción de abstención, el
@@ -66,8 +67,9 @@ public sealed class PlanDecisionCerrada
     public const int LongitudMaximaTexto = 8000;
 
     /// <summary>
-    /// Opciones por pregunta sin contar la abstención. El proveedor medido
-    /// rechaza más de 255 en total; los candidatos se filtran antes de preguntar.
+    /// Opciones por pregunta sin contar la abstención. El proveedor anterior
+    /// rechazaba más de 255 en total, y el tope se conserva para acotar el
+    /// tamaño de cada petición; los candidatos se filtran antes de preguntar.
     /// </summary>
     public const int MaximoCandidatos = 254;
 

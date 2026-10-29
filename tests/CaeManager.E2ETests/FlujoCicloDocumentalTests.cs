@@ -19,7 +19,7 @@ namespace CaeManager.E2ETests;
 ///
 /// El paso de IA usa <c>ProveedorFalsoDocumentAI</c> (ver
 /// WebAppFixture.cs, variable "DocumentosIa__ProveedorFalsoActivo"), no un
-/// proveedor real: Anthropic/Gemini/Mistral son "inertes" sin ApiKey en
+/// proveedor real: Anthropic es "inertes" sin ApiKey en
 /// este proceso de todos modos (ver AnthropicDocumentAIProvider) y, aunque
 /// tuvieran clave, un test de flujo de aplicación no debe depender de un
 /// modelo de pago, lento y no determinista solo para confirmar que la cola

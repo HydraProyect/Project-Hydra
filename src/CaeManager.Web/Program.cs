@@ -177,7 +177,7 @@ builder.WebHost.UseSentry(options =>
 
 // OpenTelemetry (Horizonte 2.3 del plan macro): trazas de MediatR (un span
 // por Command/Query, ver LoggingBehavior/Observabilidad), HTTP entrante y
-// saliente (incluidas las llamadas de AsistenteIa a Anthropic/Gemini/Mistral
+// saliente (incluidas las llamadas de AsistenteIa a Anthropic
 // OCR) y EF Core, más las 4 métricas que pide el plan (latencia por comando,
 // profundidad de cola de IA, circuitos activos, documentos
 // procesados/hora — ver Observabilidad.cs y ProcesadorAnalisisDocumentoHostedService)
@@ -216,7 +216,7 @@ if (!string.IsNullOrWhiteSpace(urlSeq))
             // MediatR: ver Observabilidad.ActivitySource / LoggingBehavior.
             .AddSource(Observabilidad.NombreOrigen)
             // HTTP entrante (páginas Razor, endpoints, API v1) y saliente
-            // (Anthropic/Gemini/Mistral OCR, Microsoft Graph...).
+            // (Anthropic OCR, Microsoft Graph...).
             .AddAspNetCoreInstrumentation()
             .AddHttpClientInstrumentation()
             // EF Core: la traza real de cada SELECT/INSERT/UPDATE — lo que
@@ -1541,7 +1541,7 @@ namespace CaeManager.Web.Services
     ///
     /// Acotado a propósito: solo mira la URL de destino, y solo actúa si
     /// coincide con la de ingesta de Seq — un 5xx real contra cualquier otro
-    /// destino (Anthropic, Gemini, Microsoft Graph, Stripe, WhatsApp...)
+    /// destino (Anthropic, Microsoft Graph, Stripe, WhatsApp...)
     /// sigue generando su evento normal, sin pasar por este filtro.
     ///
     /// No es un descarte total: dentro de la ventana de enfriamiento se deja

@@ -26,8 +26,7 @@ namespace CaeManager.Domain.DocumentosIa;
 /// proveedor ya sirve otra versión bajo el mismo alias. Tres campos lo
 /// cierran: <see cref="ModeloExacto"/> y <see cref="RequestId"/> vienen de la
 /// RESPUESTA del proveedor que ganó la estructuración, nunca del alias
-/// pedido en la configuración (que puede ser móvil — ver
-/// MistralOcrOptions.ModeloChat, por defecto "mistral-small-latest"); ambos
+/// pedido en la configuración, que puede ser un alias; ambos
 /// quedan null si nunca se llegó a llamar a ningún proveedor (caché, fallo
 /// de clasificación/texto, cero proveedores configurados).
 /// <see cref="VersionPipeline"/> es la versión vigente de
@@ -39,8 +38,8 @@ namespace CaeManager.Domain.DocumentosIa;
 /// todos los códigos que se intentaron para la estructuración de esta
 /// llamada (ganaran o no), en el orden en que se probaron.
 ///
-/// Deliberadamente sin región/endpoint de procesamiento: ninguno de los tres
-/// proveedores integrados (Anthropic, Gemini, Mistral) ofrece hoy selección
+/// Deliberadamente sin región/endpoint de procesamiento: la integración
+/// de Anthropic no configura una selección
 /// de región — es una pregunta que solo tiene sentido una vez exista una
 /// política de tratamiento IA por tenant (hallazgo #1 de la auditoría del
 /// Módulo 3, decisión pendiente del propietario). Una columna que siempre

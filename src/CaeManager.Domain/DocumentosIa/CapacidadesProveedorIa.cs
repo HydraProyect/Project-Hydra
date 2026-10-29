@@ -12,10 +12,10 @@ public enum CapacidadesProveedorIa
 {
     Ninguna = 0,
 
-    /// <summary>OCR: convierte una página escaneada/imagen en texto plano (p. ej. Mistral OCR).</summary>
+    /// <summary>OCR: convierte una página escaneada/imagen en texto plano (p. ej. Anthropic).</summary>
     OcrImagenAEscaneado = 1 << 0,
 
-    /// <summary>Extracción estructurada con confidence score a partir de texto ya disponible (p. ej. Gemini 2.5 Flash).</summary>
+    /// <summary>Extracción estructurada con confidence score a partir de texto ya disponible (p. ej. Anthropic).</summary>
     ExtraccionEstructurada = 1 << 1,
 
     /// <summary>Clasificación barata de tipo de documento, sin extracción completa — sin construir todavía.</summary>

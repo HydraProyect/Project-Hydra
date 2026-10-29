@@ -3,13 +3,7 @@ using CaeManager.Domain.DocumentosIa;
 
 namespace CaeManager.Application.DocumentosIa.Common;
 
-/// <summary>
-/// Resuelve un <see cref="IDocumentAIProvider"/> por su código — nunca un
-/// switch/if disperso comparando nombres de proveedor. Añadir un proveedor
-/// nuevo (Gemini/Mistral) es registrarlo en Infrastructure, cero cambios
-/// aquí. Mismo patrón que <c>IIntegrationProviderFactory</c>
-/// (Project-Hydra-Negocio/tecnico/ARQUITECTURA-INTEGRACIONES.md § 4).
-/// </summary>
+/// <summary>Resuelve el proveedor documental registrado por su codigo o capacidad.</summary>
 public interface IDocumentAIProviderFactory
 {
     Result<IDocumentAIProvider> Resolver(string codigo);
