@@ -137,9 +137,9 @@ public partial class Usuarios : CaeManager.Web.Components.PaginaIntegrableConfig
     /// El actor que edita, no el rol que se le asigna al usuario editado —
     /// esta página también la abre DireccionCae (mismo nivel de "ve todo el
     /// negocio"), pero DEC-36 (REC-099) dice específicamente "concedido
-    /// explícitamente por otro Administrador". Sin esta distinción, un
-    /// DireccionCae podría convertirse en Administrador con el permiso ya
-    /// concedido en el mismo guardado.
+    /// explícitamente por otro Administrador". Decide además si el selector
+    /// ofrece Administrador (<see cref="RolesOfrecidos"/>): desde el 2026-10-30
+    /// solo un Administrador lo concede.
     /// </summary>
     private bool _usuarioActualEsAdministrador;
 

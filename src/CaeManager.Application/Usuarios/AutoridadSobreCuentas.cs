@@ -37,6 +37,15 @@ namespace CaeManager.Application.Usuarios;
 /// 2026-10-15; deuda: ya no lo señala nadie). Sin señal fallan cerradas: la vía
 /// heredada (acceso de soporte) y la Sesión Privilegiada no la dan.
 /// </para>
+///
+/// <para>
+/// Encima de esas dos reglas de Tenant va una de rol (decisión del 2026-10-30): el rol
+/// Administrador solo lo concede un Administrador
+/// (<see cref="VerificarConcesionDeAdministradorAsync"/>), y por la misma razón solo un
+/// Administrador emite o corrige el enlace de activación de una cuenta Administrador
+/// pendiente (<see cref="VerificarActivacionDeCuentaAdministradorAsync"/>). Dirección CAE
+/// gestiona el resto de cuentas.
+/// </para>
 /// </summary>
 public static class AutoridadSobreCuentas
 {
@@ -100,6 +109,23 @@ public static class AutoridadSobreCuentas
         string? rolConcedido, ICurrentUserService currentUserService) =>
         rolConcedido == Administrador && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
             ? Result.Fallo(SoloUnAdministradorConcedeAdministrador)
+            : Result.Exito();
+
+    public static readonly Error SoloUnAdministradorActivaAdministrador = Error.Crear(
+        "Usuarios.SoloUnAdministradorActivaAdministrador",
+        "Solo un Administrador de la organización puede enviar o corregir el enlace de activación de una cuenta Administrador.");
+
+    /// <summary>
+    /// Corolario de <see cref="VerificarConcesionDeAdministradorAsync"/> para una cuenta
+    /// Administrador pendiente de activación: emitir su enlace de activación —que vuelve a
+    /// quien lo pide— o corregirle el correo equivale a quedarse con la cuenta, es decir, a
+    /// conceder Administrador a quien la active. Solo lo hace un Administrador (revisión
+    /// puente del incremento del 2026-10-30).
+    /// </summary>
+    public static async Task<Result> VerificarActivacionDeCuentaAdministradorAsync(
+        IReadOnlyCollection<string> rolesDestino, ICurrentUserService currentUserService) =>
+        rolesDestino.Contains(Administrador) && await currentUserService.ObtenerRolEfectivoAsync() != Administrador
+            ? Result.Fallo(SoloUnAdministradorActivaAdministrador)
             : Result.Exito();
 
     /// <summary>

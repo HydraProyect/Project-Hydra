@@ -106,7 +106,7 @@ public class GestionCuentasUsuarioIdentity(
             if (usuario is null) return Result.Fallo(ErrorCuentaNoEncontrada);
 
             // SEG-1: AddToRoleAsync no rota el sello; lo persiste la propia escritura del rol.
-            usuario.RotarSelloDeSeguridad();
+            await RotarSelloSiPuedeTenerSesionAsync(usuario);
             var resultado = await userManager.AddToRoleAsync(usuario, rol);
             return resultado.Succeeded ? Result.Exito() : Result.Fallo(ErrorDeIdentity("Usuarios.FalloAlAsignarRol", resultado));
         }, cancellationToken);
@@ -142,8 +142,9 @@ public class GestionCuentasUsuarioIdentity(
             // SEG-1 (auditoría 2026-10-29): Identity no rota el sello al cambiar roles, y la
             // sesión abierta conservaba el rol anterior hasta reconectar (tope de 12 h). El
             // sello nuevo lo persiste la escritura de RemoveFromRolesAsync, junto a la baja
-            // de los roles anteriores: si esa escritura falla, la cuenta conserva rol y sello.
-            usuario.RotarSelloDeSeguridad();
+            // de los roles anteriores. Si esa escritura falla, la cuenta conserva su rol y el
+            // sello puede quedar rotado o no: rotarlo de más solo obliga a volver a entrar.
+            await RotarSelloSiPuedeTenerSesionAsync(usuario);
             var quitar = await userManager.RemoveFromRolesAsync(usuario, rolesActuales);
             if (!quitar.Succeeded)
                 return new ResultadoCambioRol(DesenlaceCambioRol.FalloAlQuitarConservaElAnterior, DescribirErrores(quitar));
@@ -247,6 +248,19 @@ public class GestionCuentasUsuarioIdentity(
         }, cancellationToken);
 
     /// <summary>Sin contraseña y sin login externo: la persona nunca entró.</summary>
+    /// <summary>
+    /// SEG-1: rota el sello de una cuenta cuyo rol cambia, para que su sesión abierta se
+    /// revalide. Una cuenta pendiente de activación (sin contraseña ni acceso externo) no
+    /// puede tener sesión, y su enlace de activación lleva el sello con el que se emitió:
+    /// rotarlo dejaría sin valor el enlace ya enviado sin cortar nada (Codex, revisión
+    /// previa a PR del incremento).
+    /// </summary>
+    private async Task RotarSelloSiPuedeTenerSesionAsync(ApplicationUser usuario)
+    {
+        if (!await EsPendienteAsync(usuario))
+            usuario.RotarSelloDeSeguridad();
+    }
+
     private async Task<bool> EsPendienteAsync(ApplicationUser usuario) =>
         string.IsNullOrEmpty(usuario.PasswordHash) && (await userManager.GetLoginsAsync(usuario)).Count == 0;
 

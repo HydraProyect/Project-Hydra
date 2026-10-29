@@ -18,7 +18,9 @@ namespace CaeManager.Application.Usuarios.Commands.CrearUsuario;
 /// un Administrador (<see cref="AutoridadSobreCuentas.VerificarConcesionDeAdministradorAsync"/>,
 /// decisión del 2026-10-30): Dirección CAE da altas de cualquier otro rol. Además,
 /// Administrador y Dirección CAE solo se conceden desde el Tenant de origen de quien
-/// da el alta (<see cref="RolesReservadosAlTenantDeOrigen"/>, decisión del 2026-09-23).
+/// da el alta, salvo a quien opera el Tenant por Asignación de Operación o por un
+/// Encargo de administración pleno (<see cref="RolesReservadosAlTenantDeOrigen"/>,
+/// decisiones del 2026-09-23 y del 2026-10-20).
 /// </para>
 ///
 /// <para>

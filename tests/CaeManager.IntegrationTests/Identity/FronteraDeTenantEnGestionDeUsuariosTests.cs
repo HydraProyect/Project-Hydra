@@ -393,6 +393,9 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         {
             var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             cuentaId = await CrearAsync(usuarios, "cambia-de-rol@x.test", _tenantPropio, Roles.GestorCae);
+            var activada = await usuarios.FindByIdAsync(cuentaId.ToString());
+            (await usuarios.AddPasswordAsync(activada!, "Contrasena-De-Prueba-1")).Succeeded.Should().BeTrue(
+                "premisa: una cuenta activada, la única que puede tener sesión abierta");
             selloAnterior = (await usuarios.FindByIdAsync(cuentaId.ToString()))!.SecurityStamp!;
         }
 
@@ -410,8 +413,12 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             "con el sello anterior la sesión abierta seguiría valiendo con el rol GestorCae");
     }
 
+    /// <summary>
+    /// La cuenta que entró por SSO y espera rol (pestaña «Pendientes» de /roles) sí puede
+    /// tener una sesión abierta sin rol: asignárselo también rota el sello.
+    /// </summary>
     [Fact]
-    public async Task Asignar_rol_a_una_cuenta_sin_rol_rota_el_sello_de_seguridad_persistido()
+    public async Task Asignar_rol_a_una_cuenta_SSO_sin_rol_rota_el_sello_de_seguridad_persistido()
     {
         using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
         Guid cuentaId;
@@ -421,11 +428,13 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
             var usuarios = alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
             var usuario = new ApplicationUser
             {
-                UserName = "sin-rol@x.test", Email = "sin-rol@x.test", NombreCompleto = "Sin rol", TenantId = _tenantPropio,
+                UserName = "sso-sin-rol@x.test", Email = "sso-sin-rol@x.test", NombreCompleto = "SSO sin rol", TenantId = _tenantPropio,
             };
             (await usuarios.CreateAsync(usuario)).Succeeded.Should().BeTrue();
+            (await usuarios.AddLoginAsync(usuario, new UserLoginInfo("Microsoft", "sso-sin-rol", "Microsoft"))).Succeeded
+                .Should().BeTrue("premisa: acceso externo, así que puede tener sesión sin contraseña");
             cuentaId = usuario.Id;
-            selloAnterior = usuario.SecurityStamp!;
+            selloAnterior = (await usuarios.FindByIdAsync(cuentaId.ToString()))!.SecurityStamp!;
         }
 
         using (var ambito = _servicios.CreateScope())
@@ -436,6 +445,41 @@ public class FronteraDeTenantEnGestionDeUsuariosTests : IAsyncLifetime
         var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
         (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
         cuenta!.SecurityStamp.Should().NotBe(selloAnterior);
+    }
+
+    /// <summary>
+    /// Revisión Codex del incremento: el enlace de activación lleva el sello con el que se
+    /// emitió. Una cuenta pendiente no puede tener sesión, así que cambiarle el rol no rota
+    /// el sello y el enlace ya enviado sigue valiendo.
+    /// </summary>
+    [Fact]
+    public async Task Cambiar_el_rol_de_una_cuenta_pendiente_no_invalida_su_enlace_de_activacion()
+    {
+        using var ambitoTenant = AmbitoTenantExplicito.Establecer(_tenantPropio);
+        Guid cuentaId;
+        using (var alta = _servicios.CreateScope())
+            cuentaId = await CrearAsync(alta.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>(),
+                "pendiente-cambia-de-rol@x.test", _tenantPropio, Roles.GestorCae);
+
+        string token;
+        using (var emision = _servicios.CreateScope())
+        {
+            var generado = await CrearCuentas(emision.ServiceProvider).GenerarTokenActivacionAsync(cuentaId);
+            generado.EsExitoso.Should().BeTrue();
+            token = generado.Valor;
+        }
+
+        using (var ambito = _servicios.CreateScope())
+            (await CrearCuentas(ambito.ServiceProvider).CambiarRolAsync(cuentaId, Roles.Consulta))
+                .Desenlace.Should().Be(DesenlaceCambioRol.Cambiado);
+
+        using var comprobacion = _servicios.CreateScope();
+        var releidos = comprobacion.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var cuenta = await releidos.FindByIdAsync(cuentaId.ToString());
+        (await releidos.GetRolesAsync(cuenta!)).Should().Equal(Roles.Consulta);
+        (await releidos.VerifyUserTokenAsync(cuenta!, releidos.Options.Tokens.PasswordResetTokenProvider,
+            UserManager<ApplicationUser>.ResetPasswordTokenPurpose, token)).Should().BeTrue(
+            "el enlace ya enviado tiene que seguir activando la cuenta");
     }
 
     private static GestionCuentasUsuarioIdentity CrearCuentas(IServiceProvider sp) => new(

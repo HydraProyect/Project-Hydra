@@ -72,6 +72,13 @@ public class CorregirCorreoCuentaPendienteCommandHandler(
         if (destinoIntocable.EsFallido)
             return Result.Fallo<string>(destinoIntocable.Error);
 
+        // Y dentro de su Tenant de origen, solo un Administrador (decisión del 2026-10-30):
+        // Dirección CAE no concede Administrador, tampoco quedándose con una cuenta pendiente.
+        var activacionAdministrador = await AutoridadSobreCuentas.VerificarActivacionDeCuentaAdministradorAsync(
+            cuenta.Roles, currentUserService);
+        if (activacionAdministrador.EsFallido)
+            return Result.Fallo<string>(activacionAdministrador.Error);
+
         if (!cuenta.PendienteActivacion)
             return Result.Fallo<string>(GenerarActivacionUsuarioCommandHandler.YaActivada);
 

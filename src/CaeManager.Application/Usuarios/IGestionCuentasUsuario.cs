@@ -46,7 +46,8 @@ public interface IGestionCuentasUsuario
 
     /// <summary>
     /// Añade el rol a la cuenta, sin quitar ninguno, y rota su sello de seguridad en la
-    /// misma escritura (SEG-1): una sesión abierta sin rol no conserva ese estado.
+    /// misma escritura (SEG-1): una sesión abierta sin rol no conserva ese estado. Una
+    /// cuenta pendiente de activación no tiene sesión y su enlace lleva el sello: no se rota.
     /// </summary>
     Task<Result> AsignarRolAsync(Guid usuarioId, string rol, CancellationToken cancellationToken = default);
 
@@ -63,7 +64,8 @@ public interface IGestionCuentasUsuario
     /// (SEG-1, auditoría 2026-10-29): la cookie y el circuito Blazor abiertos con el rol
     /// anterior dejan de valer en su próxima revalidación
     /// (<c>ProveedorAutenticacionRevalidada</c>), en vez de conservarlo hasta el tope de
-    /// 12 h de la sesión.
+    /// 12 h de la sesión. Salvo en una cuenta pendiente de activación, que no puede tener
+    /// sesión y cuyo enlace de activación ya enviado lleva el sello.
     /// </para>
     /// </summary>
     Task<ResultadoCambioRol> CambiarRolAsync(Guid usuarioId, string rolNuevo, CancellationToken cancellationToken = default);
