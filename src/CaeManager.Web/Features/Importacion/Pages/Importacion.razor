@@ -198,6 +198,11 @@
                 </div>
             }
 
+            @if (PlantillaActualBloqueada)
+            {
+                <div class="aviso-altas-importacion" role="status" data-testid="aviso-plantilla-cae-sin-configurar">@Textos["AvisoPlantillaCaeSinConfigurar"]</div>
+            }
+
             <ZonaSoltarArchivo Titulo="@Textos["ZonaSoltarTitulo", Textos[PlantillaActual.ClaveTitulo].Value]"
                                 FormatosTexto="@Textos["ZonaSoltarFormatos", PlantillaActual.TamanoMaximoBytes / (1024 * 1024)]"
                                 Accept=".xlsx" Cargando="_analizando" NombreArchivoActual="@_nombreArchivo"

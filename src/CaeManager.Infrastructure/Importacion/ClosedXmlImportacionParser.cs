@@ -170,12 +170,7 @@ public class ClosedXmlImportacionParser(IAsignacionesQueryContext asignacionesCo
     /// Las hojas de Trabajadores válidas de la configuración (con nombre de hoja y razón social), sin repetir hoja.
     /// Una entrada a medias no se lee: sin Empresa declarada no hay a quién asignar los Trabajadores.
     /// </summary>
-    private List<HojaTrabajadoresCae> HojasTrabajadoresConfiguradas() =>
-        opciones.Value.HojasTrabajadores
-            .Where(h => !string.IsNullOrWhiteSpace(h.Hoja) && !string.IsNullOrWhiteSpace(h.RazonSocialEmpresa))
-            .Select(h => new HojaTrabajadoresCae { Hoja = h.Hoja.Trim(), RazonSocialEmpresa = h.RazonSocialEmpresa.Trim() })
-            .DistinctBy(h => h.Hoja, StringComparer.OrdinalIgnoreCase)
-            .ToList();
+    private List<HojaTrabajadoresCae> HojasTrabajadoresConfiguradas() => opciones.Value.HojasConfiguradas();
 
     private static List<ClienteCentroImportadoDto> AnalizarCentros(
         XLWorkbook libro,

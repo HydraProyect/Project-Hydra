@@ -564,6 +564,8 @@
   <data name="BotonVerDocumentosImportados" xml:space="preserve">
     <value>Ver los documentos importados</value>
   </data>
+  <data name="AvisoPlantillaCaeSinConfigurar" xml:space="preserve"><value>Aquesta plantilla no està configurada en aquest entorn: falten els fulls de Treballadors i l’Empresa de cadascun. Avisa Suport TALVEG abans d’importar.</value></data>
+  <data name="ErrorPlantillaCaeSinConfigurar" xml:space="preserve"><value>No es pot importar amb la plantilla CAE completa: aquest entorn no té configurats els fulls de Treballadors. Avisa Suport TALVEG.</value></data>
   <data name="ErrorAnalisisOcupado" xml:space="preserve"><value>Hi ha massa anàlisis d’importació en curs. Torna-ho a provar d’aquí a uns moments.</value></data>
   <data name="ErrorLimiteFilas" xml:space="preserve"><value>El fitxer supera el màxim de files permès per full.</value></data>
   <data name="ErrorLimiteCeldas" xml:space="preserve"><value>El fitxer supera el màxim de cel·les permès.</value></data>

@@ -206,6 +206,10 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
     [Inject] private PuertaAccesoDatos PuertaAccesoDatos { get; set; } = default!;
     [Inject] private ILogger<Importacion> Logger { get; set; } = default!;
+    [Inject] private IPlantillaCaeCompletaConfigurada PlantillaCaeCompleta { get; set; } = default!;
+
+    /// <summary>M-43: la plantilla CAE completa sin hojas de Trabajadores configuradas no puede importarse.</summary>
+    private bool PlantillaActualBloqueada => PlantillaActual.Id == "cae" && !PlantillaCaeCompleta.EstaConfigurada;
 
     [SupplyParameterFromQuery(Name = "plantilla")]
     private string? PlantillaInicial { get; set; }
@@ -552,6 +556,13 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
         var archivo = e.File;
         var plantilla = PlantillaActual;
+        if (PlantillaActualBloqueada)
+        {
+            // Defensa en el servidor: el aviso ya lo dice, pero el clic no se fía de lo que pintó la página.
+            DescartarAnalisis();
+            _mensajeError = Textos["ErrorPlantillaCaeSinConfigurar"];
+            return;
+        }
 
         // Un archivo nuevo es un plan nuevo: lo revisado y confirmado sobre el
         // anterior deja de valer, y los pasos 3 y 4 se vuelven a ganar.
