@@ -207,7 +207,7 @@ public class AccesoCuentaEscenaTests : BunitContext
     [Fact]
     public void La_verificacion_en_dos_pasos_tiene_titulo_y_salida_sin_estar_bloqueada()
     {
-        Services.AddSingleton<SignInManager<ApplicationUser>>(new SignInManagerCon2faPendiente(_usuarios));
+        Services.AddSingleton<SignInManager<ApplicationUser>>(new SignInManagerCon2faPendiente(new UsuariosContador(_almacen, PoliticaDeLaApp())));
 
         var cut = Render<LoginCon2fa>();
 
@@ -905,6 +905,8 @@ public class AccesoCuentaEscenaTests : BunitContext
 
         public int LlamadasReset { get; private set; }
         public int LlamadasCambio { get; private set; }
+
+        public override Task<bool> GetTwoFactorEnabledAsync(ApplicationUser user) => Task.FromResult(true);
 
         public override Task<IdentityResult> ResetPasswordAsync(ApplicationUser user, string token, string newPassword)
         {
