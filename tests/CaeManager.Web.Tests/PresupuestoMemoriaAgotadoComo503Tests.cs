@@ -4,6 +4,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace CaeManager.Web.Tests;
@@ -46,6 +47,34 @@ public sealed class PresupuestoMemoriaAgotadoComo503Tests
         var ejecutar = () => EjecutarAsync(_ => throw new InvalidOperationException("otro fallo"));
 
         await ejecutar.Should().ThrowExactlyAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task Si_la_respuesta_ya_ha_empezado_la_excepcion_se_propaga()
+    {
+        var servicios = new ServiceCollection().AddLogging().BuildServiceProvider();
+        var app = new ApplicationBuilder(servicios);
+        app.UseCabecerasSeguridad();
+        app.UsePresupuestoMemoriaAgotadoComo503();
+        app.Run(_ => throw new PresupuestoMemoriaAgotadoException());
+        var contexto = new DefaultHttpContext { RequestServices = servicios };
+        contexto.Features.Set<IHttpResponseFeature>(new RespuestaEmpezada());
+
+        var ejecutar = () => app.Build()(contexto);
+        await ejecutar.Should().ThrowExactlyAsync<PresupuestoMemoriaAgotadoException>();
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status200OK);
+        contexto.Response.Headers.RetryAfter.Should().BeEmpty();
+    }
+
+    private sealed class RespuestaEmpezada : IHttpResponseFeature
+    {
+        public int StatusCode { get; set; } = StatusCodes.Status200OK;
+        public string? ReasonPhrase { get; set; }
+        public IHeaderDictionary Headers { get; set; } = new HeaderDictionary();
+        public Stream Body { get; set; } = new MemoryStream();
+        public bool HasStarted => true;
+        public void OnStarting(Func<object, Task> callback, object state) { }
+        public void OnCompleted(Func<object, Task> callback, object state) { }
     }
 
     [Fact]
