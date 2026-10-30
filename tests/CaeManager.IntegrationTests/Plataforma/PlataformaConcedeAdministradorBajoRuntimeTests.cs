@@ -109,8 +109,13 @@ public class PlataformaConcedeAdministradorBajoRuntimeTests : IAsyncLifetime
         var fila = (await LeerAuditoriaDeSesionAsync(sesion)).Should().ContainSingle().Subject;
         fila.Should().BeEquivalentTo(new
         {
-            TenantId = _tenantA, EntidadTipo = "Usuario", EntidadId = _gestoraDeA, Accion = "Modificado",
-            UsuarioId = (Guid?)_tecnico, ActorRealUsuarioId = (Guid?)_tecnico, TipoActor = "Persona",
+            TenantId = _tenantA,
+            EntidadTipo = "Usuario",
+            EntidadId = _gestoraDeA,
+            Accion = "Modificado",
+            UsuarioId = (Guid?)_tecnico,
+            ActorRealUsuarioId = (Guid?)_tecnico,
+            TipoActor = "Persona",
         }, o => o.ExcludingMissingMembers());
         fila.DatosAntes.Should().Contain("GestorCae");
         fila.DatosDespues.Should().Contain(Motivo).And.Contain("Administrador");
