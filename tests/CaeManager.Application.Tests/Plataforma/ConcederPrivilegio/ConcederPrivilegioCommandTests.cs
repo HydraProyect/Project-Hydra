@@ -80,3 +80,30 @@ public class ConcederPrivilegioCommandValidatorTests
         validador.Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, 91)).IsValid.Should().BeFalse();
     }
 }
+
+public class AutoConcederPrivilegioCommandValidatorTests
+{
+    [Theory]
+    [InlineData(0)]
+    [InlineData(91)]
+    public void AdminPlataforma_no_exige_dias_de_vigencia(int dias)
+    {
+        var resultado = new AutoConcederPrivilegioCommandValidator()
+            .Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.AdminPlataforma, dias));
+
+        resultado.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, true)]
+    [InlineData(90, true)]
+    [InlineData(91, false)]
+    public void SoporteLectura_exige_vigencia_dentro_de_los_limites(int dias, bool valido)
+    {
+        var resultado = new AutoConcederPrivilegioCommandValidator()
+            .Validate(new AutoConcederPrivilegioCommand(CapacidadPrivilegio.SoporteLectura, dias));
+
+        resultado.IsValid.Should().Be(valido);
+    }
+}
