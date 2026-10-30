@@ -5,6 +5,9 @@ using CaeManager.Web.Features.Clientes;
 using CaeManager.Web.Features.Empresas;
 using CaeManager.Web.Features.Subcontratas;
 using CaeManager.Web.Features.Subcontratas.Recursos;
+using CaeManager.Web.Features.Trabajadores;
+using CaeManager.Web.Features.Vehiculos;
+using CaeManager.Web.Features.Vehiculos.Recursos;
 using FluentAssertions;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -223,6 +226,35 @@ public class ExportacionesDeListadosEstado4aTests
         registro.Registros.Should().ContainSingle().Which.Criterios.Should().BeEquivalentTo(
             new Dictionary<string, string> { ["listado"] = listado.ToLowerInvariant(), ["estado"] = "Vencido" },
             "solo consta el estado que la consulta reconoce: ni el texto libre, aunque sean solo letras, ni un número");
+    }
+
+    [Theory]
+    [InlineData("Trabajadores", "Vencido,01234567Z,Garcia,4", "Vencido")]
+    [InlineData("Vehiculos", "Vencido,01234567Z,Garcia,4", "Vencido")]
+    [InlineData("Trabajadores", "Vencido, SinDocumentos,Garcia,7", "Vencido,SinDocumentos")]
+    [InlineData("Vehiculos", "Vencido, SinDocumentos,Garcia,7", "Vencido,SinDocumentos")]
+    [InlineData("Trabajadores", "Garcia,4", null)]
+    [InlineData("Vehiculos", "Garcia,4", null)]
+    public async Task El_rastro_recoge_solo_los_estados_documentales_aplicados(string listado, string estado, string? esperado)
+    {
+        var mediador = new MediatorFalso([Propio(), Cartera()]);
+        var tenant = new TenantActualFalso(Externo);
+        var registro = new RegistroFalso();
+
+        if (listado == "Trabajadores")
+            await TrabajadoresEndpoints.ExportarAsync(mediador, tenant, registro, default, estado: estado);
+        else
+        {
+            var textos = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider()
+                .GetRequiredService<IStringLocalizer<TextosVehiculos>>();
+            await VehiculosEndpoints.ExportarAsync(mediador, tenant, registro, textos, default, estado: estado);
+        }
+
+        var criterios = registro.Registros.Should().ContainSingle().Which.Criterios;
+        if (esperado is null)
+            criterios.Should().NotContainKey("estado");
+        else
+            criterios.Should().ContainSingle().Which.Should().BeEquivalentTo(new KeyValuePair<string, string>("estado", esperado));
     }
 
     [Theory]

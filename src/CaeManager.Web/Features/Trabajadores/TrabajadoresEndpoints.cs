@@ -89,13 +89,13 @@ public static class TrabajadoresEndpoints
         // Al rastro va el criterio APLICADO, nunca el texto de la petición, que es
         // libre y puede ser un DNI o un nombre: de la búsqueda solo consta que la
         // hubo; de los filtros de Empresa, Subcontrata, Centro, Delegación y Oficio, el Id ya leído (uno
-        // que no se pudo leer no filtró nada, así que no consta); el estado y el
-        // orden, solo si tienen forma de nombre.
+        // que no se pudo leer no filtró nada, así que no consta); del estado, solo los valores
+        // documentales aplicados; del orden, solo si tiene forma de nombre.
         await registroExportacion.RegistrarAsync(
             nameof(Domain.Trabajadores.Trabajador), filas,
             CriteriosExportacion.Desde(
                 ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
-                ("estado", CriteriosExportacion.SoloNombres(estado)),
+                ("estado", CriteriosExportacion.EstadosDocumentalesAplicados(estado)),
                 ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
                 ("subcontrata", Guid.TryParse(subcontrata, out var subcontrataAplicada) ? subcontrataAplicada.ToString() : null),
                 ("centro", Guid.TryParse(centro, out var centroAplicado) ? centroAplicado.ToString() : null),
