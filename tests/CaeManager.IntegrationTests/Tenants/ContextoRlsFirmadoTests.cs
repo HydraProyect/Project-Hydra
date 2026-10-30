@@ -245,6 +245,47 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// El token más largo que admite la gramática mide 289 caracteres y usa todo el alfabeto hexadecimal: la cota de
+    /// tamaño y la comparación de uuid no pueden rechazarlo por formato.
+    /// </summary>
+    [Fact]
+    public async Task El_token_mas_largo_de_la_gramatica_es_formato_valido()
+    {
+        const string uuid = "abcdefab-cdef-4bcd-8def-0123456789ab";
+        var token = $"v1|{uuid}|{uuid}|{uuid}|{uuid}|abcdefghijklmnop|1234567890|123456789012|{Nonce}.{Firma}";
+        token.Should().HaveLength(289);
+
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.contexto", token);
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "clave desconocida");
+    }
+
+    /// <summary>Los bordes de partir el token por posición, no por gramática.</summary>
+    [Theory]
+    [InlineData("", "")] // solo la firma: 64 caracteres, sin separador
+    [InlineData(".", "")] // 65 caracteres: separador, pero sin carga
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|2|{Nonce}.", "\n")] // salto de línea final
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticiñn|1|2|{Nonce}.", "")] // carácter multibyte en un campo
+    [InlineData("||||||||.", "")] // nueve campos vacíos
+    public async Task Un_token_en_el_borde_de_la_particion_falla_con_formato_invalido(string antes, string despues)
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.contexto", antes + Firma + despues);
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "formato inválido");
+    }
+
+    [Fact]
+    public async Task Un_token_enorme_falla_con_formato_invalido()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.contexto", new string('|', 1_000_000) + "." + Firma);
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "formato inválido");
+    }
+
+    /// <summary>
     /// La validación corre una vez por tabla de cada consulta: una expresión regular con repeticiones acotadas
     /// costaba más de 1 ms por llamada y se comía el 60 % de Mi trabajo con una cartera de 10 Tenant (M-13).
     /// </summary>
@@ -253,10 +294,13 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
     {
         await using var conexion = await AbrirComoRuntimeAsync();
         await using var comando = conexion.CreateCommand();
-        comando.CommandText = "SELECT prosrc FROM pg_proc WHERE proname = 'app_contexto_validado'";
+        comando.CommandText = "SELECT prosrc FROM pg_proc WHERE proname = 'app_contexto_validado' AND pronamespace = 'public'::regnamespace";
         var cuerpo = (string?)await comando.ExecuteScalarAsync();
 
-        cuerpo.Should().NotBeNull().And.NotContain("regexp_").And.NotContain(" ~ ");
+        cuerpo.Should().NotBeNull().And.NotContain("regexp_").And.NotContain("~").And.NotContain("substring(");
+        cuerpo.Should().NotContainEquivalentOf("similar to");
+        // Sin esta cota nada falla por contrato: un token enorme se rechaza igual, pero tras copiarlo y partirlo.
+        cuerpo.Should().Contain("length(token) > 289");
     }
 
     // ── (4) Limpieza ──────────────────────────────────────────────────────

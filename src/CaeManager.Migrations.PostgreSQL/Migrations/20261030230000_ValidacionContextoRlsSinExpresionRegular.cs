@@ -45,6 +45,11 @@ BEGIN
 
     -- v1|clave|tenant|tenant_origen|usuario|origen|pid|caduca|nonce.hmac_hex, sin expresión regular: esta función
     -- corre una vez por tabla de cada consulta, y una expresión con repeticiones acotadas costaba más de 1 ms por llamada.
+    -- La cota va antes de partir el token: un token válido nunca pasa de 289 caracteres, y sin ella uno enorme
+    -- costaría copias y un array por cada comprobación.
+    IF length(token) > 289 THEN
+        RAISE EXCEPTION 'contexto RLS con formato inválido' USING ERRCODE = '42501';
+    END IF;
     carga := left(token, -65);
     firma := right(token, 64);
     partes := string_to_array(carga, '|');
