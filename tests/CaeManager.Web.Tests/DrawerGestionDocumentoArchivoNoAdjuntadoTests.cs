@@ -15,6 +15,10 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using CaeManager.Application.Documentos.Queries.DetectarCamposDocumento;
+using CaeManager.Web.Features.Documentos.Recursos;
+using Microsoft.Extensions.Localization;
 using PdfSharp.Pdf;
 
 namespace CaeManager.Web.Tests;
@@ -30,6 +34,9 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
     private sealed class MediatorQueAnotaComandos : IMediator
     {
         public List<CrearDocumentoCommand> Creados { get; } = [];
+        public List<byte[]> Detectados { get; } = [];
+        public List<long> ReservadoAlDetectar { get; } = [];
+        public Func<long> LeerReservado { get; set; } = () => 0;
 
         public Task<TResponse> Send<TResponse>(IRequest<TResponse> request, CancellationToken cancellationToken = default)
         {
@@ -38,10 +45,18 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
                 ObtenerTrabajadoresParaSelectorQuery => (IReadOnlyList<TrabajadorSelectorDto>)[],
                 ObtenerTiposDocumentoQuery => (IReadOnlyList<TipoDocumentoListaDto>)[],
                 CrearDocumentoCommand crear => Anotar(crear),
+                DetectarCamposDocumentoQuery detectar => AnotarDeteccion(detectar),
                 // La detección automática de campos es de mejor esfuerzo: si falla, el drawer sigue.
                 _ => throw new NotSupportedException($"Consulta no prevista en este test: {request.GetType().Name}.")
             };
             return Task.FromResult((TResponse)respuesta);
+        }
+
+        private Result<DeteccionCamposDocumentoDto> AnotarDeteccion(DetectarCamposDocumentoQuery consulta)
+        {
+            Detectados.Add(consulta.Contenido);
+            ReservadoAlDetectar.Add(LeerReservado());
+            return Result.Exito(new DeteccionCamposDocumentoDto(null, null, 0));
         }
 
         private Result<Guid> Anotar(CrearDocumentoCommand comando)
@@ -73,11 +88,20 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
     {
         public Queue<string?> Respuestas { get; } = new();
         public List<string> Borrados { get; } = [];
+        public byte[]? ContenidoGuardado { get; private set; }
 
-        public Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default) =>
-            Respuestas.Dequeue() is { } clave
-                ? Task.FromResult(clave)
-                : Task.FromException<string>(new IOException("El almacén no responde."));
+        /// <summary>Lo que hace el almacén antes de cargar el contenido: el real reserva aquí su propia memoria.</summary>
+        public Func<CancellationToken, Task>? AlGuardar { get; set; }
+
+        public async Task<string> GuardarAsync(Stream contenido, string nombreArchivoOriginal, CancellationToken cancellationToken = default)
+        {
+            if (AlGuardar is { } alGuardar)
+                await alGuardar(cancellationToken);
+            using var copia = new MemoryStream();
+            await contenido.CopyToAsync(copia, cancellationToken);
+            ContenidoGuardado = copia.ToArray();
+            return Respuestas.Dequeue() ?? throw new IOException("El almacén no responde.");
+        }
 
         public Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException("Este test no abre nada.");
@@ -97,11 +121,15 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
 
     private readonly MediatorQueAnotaComandos _mediator = new();
     private readonly AlmacenGuionizado _almacen = new();
+    private readonly PresupuestoMemoriaDocumentos _presupuesto = new(
+        Options.Create(new OpcionesPresupuestoMemoriaDocumentos { EsperaMaxima = TimeSpan.FromMilliseconds(20) }), TimeProvider.System);
 
     public DrawerGestionDocumentoArchivoNoAdjuntadoTests()
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddSingleton<IPresupuestoMemoriaDocumentos>(_presupuesto);
+        _mediator.LeerReservado = () => _presupuesto.Reservado;
     }
 
     private async Task<IRenderedComponent<DrawerGestionDocumento>> AbrirAltaListaParaGuardarAsync()
@@ -151,6 +179,146 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         cut.Find(".drawer-pie .boton-primario").ClickAsync(new MouseEventArgs());
 
     private IReadOnlyList<ToastMensaje> Toasts => Services.GetRequiredService<ToastService>().Mensajes;
+
+    [Fact]
+    public async Task Reserva_liberada_si_falla_el_procesamiento()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        Subir(cut, CrearPdfDanado());
+        _presupuesto.Reservado.Should().Be(0);
+        Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == "No pudimos procesar el archivo. Intenta nuevamente.");
+    }
+
+    [Fact]
+    public async Task Sin_hueco_muestra_el_mismo_error_y_no_adjunta()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        using var ocupado = await _presupuesto.ReservarAsync(_presupuesto.Maximo);
+        Subir(cut, CrearPdf());
+        var mensaje = Services.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>()["ErrorSinEspacio"].Value;
+        cut.WaitForAssertion(() => Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == mensaje));
+        _almacen.ContenidoGuardado.Should().BeNull("sin hueco no se llega a cargar ni a guardar nada");
+        _mediator.Detectados.Should().BeEmpty();
+        await PulsarGuardarAsync(cut);
+        _mediator.Creados.Should().BeEmpty();
+        _presupuesto.Reservado.Should().Be(_presupuesto.Maximo);
+    }
+
+    /// <summary>
+    /// Varias páginas de un mismo documento: la lectura reserva cuatro veces la suma de
+    /// lo declarado, ni un byte menos. Con exactamente ese hueco entra; con uno menos, no.
+    /// </summary>
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public async Task Con_varias_paginas_la_lectura_reserva_cuatro_veces_la_suma(long bytesDeMenos, bool entra)
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        var primera = CrearPdf();
+        var segunda = CrearPdf();
+        var necesario = 4L * (primera.Length + segunda.Length);
+        using var ocupado = await _presupuesto.ReservarAsync(_presupuesto.Maximo - necesario + bytesDeMenos);
+        var mensaje = Services.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>()["ErrorSinEspacio"].Value;
+
+        cut.FindComponent<InputFile>().UploadFiles(
+            InputFileContent.CreateFromBinary(primera, "pagina-1.pdf", contentType: "application/pdf"),
+            InputFileContent.CreateFromBinary(segunda, "pagina-2.pdf", contentType: "application/pdf"));
+
+        if (entra)
+        {
+            cut.WaitForAssertion(() => _almacen.ContenidoGuardado.Should().NotBeNull());
+            Toasts.Should().NotContain(t => t.Mensaje == mensaje);
+        }
+        else
+        {
+            cut.WaitForAssertion(() => Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == mensaje));
+            _almacen.ContenidoGuardado.Should().BeNull();
+        }
+    }
+
+    /// <summary>Sin hueco al guardar (el almacén no pudo reservar): mismo aviso, no queda adjunto y no retiene nada.</summary>
+    [Fact]
+    public async Task Sin_hueco_al_guardar_muestra_el_mismo_error_y_no_adjunta()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.AlGuardar = _ => throw new PresupuestoMemoriaAgotadoException();
+        var mensaje = Services.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>()["ErrorSinEspacio"].Value;
+
+        Subir(cut, CrearPdf());
+
+        cut.WaitForAssertion(() => Toasts.Should().Contain(t => t.Tono == TonoToast.Error && t.Mensaje == mensaje));
+        Toasts.Should().NotContain(t => t.Mensaje == "No pudimos procesar el archivo. Intenta nuevamente.");
+        _presupuesto.Reservado.Should().Be(0);
+        _mediator.Detectados.Should().BeEmpty();
+        cut.WaitForAssertion(() => cut.FindAll(".campo-mensaje-error").Should().ContainSingle()
+            .Which.TextContent.Should().Be("Este archivo no se adjuntó. Elige otro o vuelve a intentarlo."));
+        await PulsarGuardarAsync(cut);
+        _mediator.Creados.Should().BeEmpty();
+    }
+
+    /// <summary>
+    /// Doble reserva: el almacenamiento real reserva su propia memoria al guardar
+    /// (DiskFileStorageService.GuardarAsync). Si el formulario retuviera la suya —con
+    /// varias páginas puede ocupar casi todo el presupuesto—, el guardado esperaría a la
+    /// reserva de su mismo formulario hasta rechazarse aunque no hubiera ninguna otra
+    /// subida. El caso extremo: el guardado pide el presupuesto entero.
+    /// </summary>
+    [Fact]
+    public async Task El_guardado_no_espera_a_la_reserva_del_propio_formulario()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        long? reservadoAlGuardar = null;
+        _almacen.AlGuardar = async token =>
+        {
+            reservadoAlGuardar = _presupuesto.Reservado;
+            using var propia = await _presupuesto.ReservarAsync(_presupuesto.Maximo, token);
+        };
+
+        Subir(cut, CrearPdf());
+
+        cut.WaitForAssertion(() => _mediator.Detectados.Should().ContainSingle());
+        reservadoAlGuardar.Should().Be(0, "la reserva de la lectura se devuelve antes de guardar");
+        Toasts.Should().NotContain(t => t.Tono == TonoToast.Error);
+        _presupuesto.Reservado.Should().Be(0);
+        await PulsarGuardarAsync(cut);
+        _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().Be("blob-bueno");
+    }
+
+    /// <summary>La detección IA es de mejor esfuerzo: sin hueco para ella, el archivo ya guardado sigue adjunto.</summary>
+    [Fact]
+    public async Task Sin_hueco_para_la_deteccion_el_archivo_queda_adjunto_sin_detectar()
+    {
+        var cut = await AbrirAltaListaParaGuardarAsync();
+        _almacen.Respuestas.Enqueue("blob-bueno");
+        ReservaMemoriaDocumentos? ocupado = null;
+        // Otra subida ocupa el presupuesto justo cuando este formulario termina de guardar.
+        _almacen.AlGuardar = async token => ocupado = await _presupuesto.ReservarAsync(_presupuesto.Maximo, token);
+
+        try
+        {
+            Subir(cut, CrearPdf());
+
+            var subiendo = typeof(DrawerGestionDocumento).GetField("_subiendoArchivo", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            // La otra reserva se toma al guardar; después, el formulario termina sin detectar.
+            cut.WaitForAssertion(() =>
+            {
+                ocupado.Should().NotBeNull();
+                subiendo.GetValue(cut.Instance).Should().Be(false);
+            });
+            _mediator.Detectados.Should().BeEmpty();
+            Toasts.Should().NotContain(t => t.Tono == TonoToast.Error);
+            _presupuesto.Reservado.Should().Be(_presupuesto.Maximo, "solo queda la reserva de la otra subida");
+            cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+            await PulsarGuardarAsync(cut);
+            _mediator.Creados.Should().ContainSingle().Which.ArchivoUrl.Should().Be("blob-bueno");
+        }
+        finally
+        {
+            ocupado?.Dispose();
+        }
+    }
 
     [Fact]
     public async Task Un_pdf_que_no_se_puede_procesar_bloquea_guardar_y_no_dice_creado()
@@ -219,6 +387,10 @@ public class DrawerGestionDocumentoArchivoNoAdjuntadoTests : BunitContext
         Subir(cut, CrearPdf());
 
         cut.FindAll(".campo-mensaje-error").Should().BeEmpty();
+        _mediator.Detectados.Should().ContainSingle().Which.Should().Equal(_almacen.ContenidoGuardado!);
+        _mediator.ReservadoAlDetectar.Should().ContainSingle()
+            .Which.Should().Be((long)_almacen.ContenidoGuardado!.Length * 4, "la detección IA reserva el PDF y lo que deriva de él");
+        _presupuesto.Reservado.Should().Be(0);
         cut.Markup.Should().NotContain("No se ha guardado:", "con el archivo ya adjunto el aviso del bloqueo deja de aplicar");
         await PulsarGuardarAsync(cut);
 
