@@ -14,7 +14,8 @@ public class RevocarConcesionPrivilegioCommandTests
 {
     [Fact]
     public void El_validador_exige_identificador() =>
-        new RevocarConcesionPrivilegioCommandValidator().Validate(new(Guid.Empty)).IsValid.Should().BeFalse();
+        new RevocarConcesionPrivilegioCommandValidator().Validate(new RevocarConcesionPrivilegioCommand(Guid.Empty))
+            .IsValid.Should().BeFalse();
 
     [Theory]
     [InlineData(true)]

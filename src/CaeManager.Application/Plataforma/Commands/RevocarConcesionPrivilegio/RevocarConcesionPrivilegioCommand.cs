@@ -24,8 +24,8 @@ namespace CaeManager.Application.Plataforma.Commands.RevocarConcesionPrivilegio;
 /// <c>AutorizacionEscrituraBehavior</c> exige rol de escritura sin Sesión Privilegiada y, dentro de
 /// una, lo rechaza con cualquier capacidad: ningún marcador de capacidad acotada lo admite, de modo
 /// que administrar concesiones no se hace desde una inspección de soporte ni una impersonación. Tampoco
-/// es <see cref="IComandoDeAutoservicio"/>: renunciar a la propia concesión escribe en el plano de
-/// plataforma, no en las preferencias del usuario. Y, como al conceder, exige segundo factor activo
+/// es de autoservicio: renunciar a la propia concesión escribe en el plano de plataforma, no en las
+/// preferencias del usuario. Y, como al conceder, exige segundo factor activo
 /// (V4.3.1): una cuenta con solo la contraseña no retira autoridad a nadie.
 /// </para>
 ///
