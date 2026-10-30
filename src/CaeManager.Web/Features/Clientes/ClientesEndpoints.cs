@@ -61,7 +61,7 @@ public static class ClientesEndpoints
     }
 
     public static async Task<IResult> ExportarAsync(
-        IMediator mediator, ITenantActual tenantActual, CancellationToken cancellationToken,
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, CancellationToken cancellationToken,
         string? q = null, bool critico = false, string? ejecutivo = null, string? estado = null,
         string? orden = null, bool desc = false)
     {
@@ -116,6 +116,26 @@ public static class ClientesEndpoints
         var stream = new MemoryStream();
         libro.SaveAs(stream);
         stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Empresas.Empresa), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "clientes"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("critico", critico ? "true" : null),
+                    ("ejecutivo", Guid.TryParse(ejecutivo, out var ejecutivoAplicado) ? ejecutivoAplicado.ToString() : null),
+                    ("estado", SeleccionEstados.Separar<EstadoDocumento>(estado) is { Count: > 0 } estadosAplicados ? string.Join(",", estadosAplicados) : null),
+                    ("orden", CriteriosExportacion.SoloNombre(orden)),
+                    ("desc", desc ? "true" : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
 
         return Results.File(
             stream,

@@ -71,7 +71,7 @@ public static class SubcontratasEndpoints
     }
 
     public static async Task<IResult> ExportarAsync(
-        IMediator mediator, ITenantActual tenantActual, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, IStringLocalizer<TextosSubcontratas> textos, CancellationToken cancellationToken,
         string? q = null, string? nivel = null, string? estado = null, string? contratadapor = null)
     {
         // Estado 4a, igual que /trabajadores/exportar.xlsx: Subcontratas.razor no muestra las Subcontratas
@@ -119,6 +119,24 @@ public static class SubcontratasEndpoints
         var stream = new MemoryStream();
         libro.SaveAs(stream);
         stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Empresas.Empresa), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "subcontratas"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("nivel", Enum.TryParse<NivelServicioSubcontrata>(nivel, out var nivelAplicado) && Enum.IsDefined(nivelAplicado) ? nivelAplicado.ToString() : null),
+                    ("estado", CriteriosExportacion.EstadosDocumentalesAplicados(estado)),
+                    ("contratadapor", Guid.TryParse(contratadapor, out var contratanteAplicado) ? contratanteAplicado.ToString() : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
 
         return Results.File(
             stream,

@@ -24,7 +24,7 @@ public static class CentrosEndpoints
     }
 
     public static async Task<IResult> ExportarAsync(
-        IMediator mediator, ITenantActual tenantActual, CancellationToken cancellationToken,
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, CancellationToken cancellationToken,
         string? q = null, string? estado = null, string? cliente = null, string? empresa = null,
         [Microsoft.AspNetCore.Mvc.FromQuery(Name = "centro")] string? centroFiltro = null,
         string? orden = null, bool desc = false)
@@ -88,6 +88,27 @@ public static class CentrosEndpoints
         var stream = new MemoryStream();
         libro.SaveAs(stream);
         stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Centros.Centro), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "centros"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("estado", SeleccionEstados.Separar<EstadoCentro>(estado) is { Count: > 0 } estadosAplicados ? string.Join(",", estadosAplicados) : null),
+                    ("cliente", Guid.TryParse(cliente, out var clienteAplicado) ? clienteAplicado.ToString() : null),
+                    ("empresa", Guid.TryParse(empresa, out var empresaAplicada) ? empresaAplicada.ToString() : null),
+                    ("centro", Guid.TryParse(centroFiltro, out var centroAplicado) ? centroAplicado.ToString() : null),
+                    ("orden", CriteriosExportacion.SoloNombre(orden)),
+                    ("desc", desc ? "true" : null)),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
 
         return Results.File(
             stream,
