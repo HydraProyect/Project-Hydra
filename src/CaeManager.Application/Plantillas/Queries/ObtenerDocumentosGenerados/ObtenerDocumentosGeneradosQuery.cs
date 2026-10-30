@@ -57,8 +57,13 @@ public class ObtenerDocumentosGeneradosQueryHandler(
             .OrderByDescending(d => d.GeneradoEnUtc)
             .Select(d => new
             {
-                d.Id, d.DocumentoId, d.PlantillaDocumentoVersionId, d.TrabajadorId, d.EmpresaId,
-                d.GeneradoEnUtc, d.Estado,
+                d.Id,
+                d.DocumentoId,
+                d.PlantillaDocumentoVersionId,
+                d.TrabajadorId,
+                d.EmpresaId,
+                d.GeneradoEnUtc,
+                d.Estado,
             })
             .ToListAsync(cancellationToken);
 
