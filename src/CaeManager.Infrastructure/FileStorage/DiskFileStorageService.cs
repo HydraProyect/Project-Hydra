@@ -32,7 +32,10 @@ namespace CaeManager.Infrastructure.FileStorage;
 /// streaming en <see cref="IDataProtector"/> y los documentos de este
 /// sistema están acotados a 10 MB (ver <c>LimitesArchivoSubido.TamanoMaximoBytes</c>
 /// en Application), así que el coste es aceptable y coherente con
-/// cómo el resto del código ya maneja archivos subidos.
+/// cómo el resto del código ya maneja archivos subidos. Lo que se carga al
+/// guardar descuenta del presupuesto de memoria del proceso
+/// (<see cref="IPresupuestoMemoriaDocumentos"/>) mientras vive: muchas escrituras a
+/// la vez esperan su turno o se rechazan, no agotan la memoria de la réplica.
 ///
 /// <b>Formato versionado (v2)</b>: todo archivo nuevo se escribe con la marca
 /// <c>CAEBLOBv2</c> delante del payload protegido. Existe para deshacer una
@@ -88,6 +91,7 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
     private readonly IAlertaOperativa _alertaOperativa;
     private readonly ILogger<DiskFileStorageService> _logger;
     private readonly bool _rechazarLegadoEnClaro;
+    private readonly IPresupuestoMemoriaDocumentos _presupuestoMemoria;
 
     public DiskFileStorageService(
         IOptions<DiskFileStorageServiceOptions> opciones,
@@ -95,8 +99,10 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         ITenantActual tenantActual,
         IDataProtectionProvider dataProtectionProvider,
         IAlertaOperativa alertaOperativa,
-        ILogger<DiskFileStorageService> logger)
+        ILogger<DiskFileStorageService> logger,
+        IPresupuestoMemoriaDocumentos presupuestoMemoria)
     {
+        _presupuestoMemoria = presupuestoMemoria;
         _dataProtectionProvider = dataProtectionProvider;
         _alertaOperativa = alertaOperativa;
         _logger = logger;
@@ -129,16 +135,36 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         var identificador = $"{carpetaTenant}/{nombreArchivo}";
         var rutaCompleta = Path.Combine(_rutaBase, carpetaTenant, nombreArchivo);
 
-        using var memoria = new MemoryStream();
-        await contenido.CopyToAsync(memoria, cancellationToken);
-        var cifrado = ProtectorDeTenant(tenantId).Protect(memoria.ToArray());
+        // Seguimiento de S-C-3 (ASVS 4.0.3 V12.1.1): el claro y el cifrado viven a
+        // la vez en memoria —Data Protection no cifra en flujo y el formato v2 es
+        // marca + un único payload protegido—, así que ambos se reservan del
+        // presupuesto del proceso antes de existir y se devuelven al terminar, con
+        // éxito o sin él.
+        var reservas = new List<ReservaMemoriaDocumentos>(capacity: 4);
+        byte[]? claro = null;
+        byte[] cifrado;
+        try
+        {
+            claro = await LeerEnteroReservandoAsync(contenido, reservas, cancellationToken);
+            cifrado = ProtectorDeTenant(tenantId).Protect(claro);
+        }
+        catch
+        {
+            LiberarReservas(reservas);
+            throw;
+        }
+        finally
+        {
+            // Contenido de un documento de Trabajador: no se deja en el montículo
+            // más tiempo del necesario.
+            if (claro is not null)
+                CryptographicOperations.ZeroMemory(claro);
+        }
 
         // Marca delante: lo que hace que al leerlo se sepa que está cifrado
-        // sin tener que deducirlo de que el descifrado funcione.
-        var salida = new byte[MarcaFormatoV2.Length + cifrado.Length];
-        MarcaFormatoV2.CopyTo(salida, 0);
-        cifrado.CopyTo(salida, MarcaFormatoV2.Length);
-
+        // sin tener que deducirlo de que el descifrado funcione. Se escriben una
+        // detrás de otra en el temporal, sin componerlas antes en un tercer
+        // búfer: el fichero resultante es byte a byte el mismo.
         // Escritura atómica: se escribe primero a un temporal en la MISMA
         // carpeta (mismo volumen, condición para que el rename sea atómico
         // en vez de una copia) y solo se publica con File.Move al terminar.
@@ -156,7 +182,12 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
         var rutaTemporal = $"{rutaCompleta}.tmp-{Guid.NewGuid():N}";
         try
         {
-            await File.WriteAllBytesAsync(rutaTemporal, salida, cancellationToken);
+            await using (var salida = new FileStream(rutaTemporal, FileMode.CreateNew, FileAccess.Write,
+                FileShare.None, 81920, FileOptions.Asynchronous))
+            {
+                await salida.WriteAsync(MarcaFormatoV2, cancellationToken);
+                await salida.WriteAsync(cifrado, cancellationToken);
+            }
             File.Move(rutaTemporal, rutaCompleta);
         }
         catch
@@ -169,8 +200,104 @@ public class DiskFileStorageService : IFileStorageService, IAlmacenOriginalesInb
             catch { /* best-effort: el temporal queda huérfano, no se enmascara el error original */ }
             throw;
         }
+        finally
+        {
+            LiberarReservas(reservas);
+        }
 
         return identificador;
+    }
+
+    /// <summary>
+    /// Lo que Data Protection añade al claro (cabecera, IV, relleno y MAC): unos
+    /// cientos de bytes; 4 KiB lo cubre con holgura.
+    /// </summary>
+    private const int MargenCifradoBytes = 4 * 1024;
+
+    /// <summary>
+    /// Veces el claro que un guardado tiene a la vez en memoria: el claro, el cifrado
+    /// y la copia intermedia que el cifrador gestionado de Data Protection (el de
+    /// Linux) puede hacer antes de componer su salida. Es una cota, no una medida.
+    /// </summary>
+    private const int FactorClaroYCifrado = 3;
+
+    /// <summary>Paso de reserva cuando el origen no dice cuánto trae.</summary>
+    private const int TrozoReservaBytes = 1024 * 1024;
+
+    /// <summary>
+    /// Lee el origen entero a un único <c>byte[]</c> del tamaño exacto, después de
+    /// reservar lo que van a ocupar el claro y el cifrado que saldrá de él. Si el
+    /// origen sabe su longitud, las dos cosas se reservan juntas y de una vez —una
+    /// sola reserva, para que dos escrituras a medias no se bloqueen la una a la
+    /// otra esperando la segunda— y se lee sin copias intermedias. Si no, se lee
+    /// por trozos a un <see cref="MemoryStream"/> reservando cada crecimiento antes
+    /// de que ocurra; con mucha concurrencia eso puede acabar en rechazo al vencer
+    /// la espera, nunca en un bloqueo indefinido.
+    /// </summary>
+    private async Task<byte[]> LeerEnteroReservandoAsync(
+        Stream contenido, List<ReservaMemoriaDocumentos> reservas, CancellationToken cancellationToken)
+    {
+        if (contenido.CanSeek)
+        {
+            var restante = Math.Max(0, contenido.Length - contenido.Position);
+            if (restante > Array.MaxLength)
+                throw new InvalidOperationException("El archivo es demasiado grande para guardarse.");
+
+            reservas.Add(await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * restante + MargenCifradoBytes, cancellationToken));
+            var exacto = new byte[restante];
+            await contenido.ReadExactlyAsync(exacto, cancellationToken);
+
+            // Un flujo que se puede posicionar dice su longitud de verdad; si aun así
+            // trajera más, se sigue por el camino general en vez de truncar el documento.
+            var sonda = new byte[1];
+            if (await contenido.ReadAsync(sonda, cancellationToken) == 0)
+                return exacto;
+
+            using var resto = new MemoryStream();
+            resto.Write(exacto);
+            resto.Write(sonda);
+            CryptographicOperations.ZeroMemory(exacto);
+            return await LeerPorTrozosReservandoAsync(contenido, resto, reservas, cancellationToken);
+        }
+
+        using var memoria = new MemoryStream();
+        return await LeerPorTrozosReservandoAsync(contenido, memoria, reservas, cancellationToken);
+    }
+
+    private async Task<byte[]> LeerPorTrozosReservandoAsync(
+        Stream contenido, MemoryStream memoria, List<ReservaMemoriaDocumentos> reservas, CancellationToken cancellationToken)
+    {
+        long reservadoBufer = reservas.Sum(r => r.Bytes);
+        var trozo = new byte[81920];
+        int leidos;
+        while ((leidos = await contenido.ReadAsync(trozo, cancellationToken)) > 0)
+        {
+            // El MemoryStream crece al doble: lo que se reserva sigue ese crecimiento.
+            while (memoria.Length + leidos > reservadoBufer)
+            {
+                var ampliacion = Math.Max(TrozoReservaBytes, reservadoBufer);
+                reservas.Add(await _presupuestoMemoria.ReservarAsync(ampliacion, cancellationToken));
+                reservadoBufer += ampliacion;
+            }
+
+            memoria.Write(trozo, 0, leidos);
+        }
+
+        CryptographicOperations.ZeroMemory(trozo);
+        // La copia del tamaño exacto convive un momento con el búfer del MemoryStream,
+        // y después con el cifrado: las dos, en una sola reserva.
+        reservas.Add(await _presupuestoMemoria.ReservarAsync(FactorClaroYCifrado * memoria.Length + MargenCifradoBytes, cancellationToken));
+        var exacto = memoria.ToArray();
+        if (memoria.TryGetBuffer(out var bufer))
+            CryptographicOperations.ZeroMemory(bufer.AsSpan());
+        return exacto;
+    }
+
+    private static void LiberarReservas(List<ReservaMemoriaDocumentos> reservas)
+    {
+        foreach (var reserva in reservas)
+            reserva.Dispose();
+        reservas.Clear();
     }
 
     public async Task<Stream> AbrirAsync(string identificador, CancellationToken cancellationToken = default)

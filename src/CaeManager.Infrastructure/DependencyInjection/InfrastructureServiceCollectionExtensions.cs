@@ -645,6 +645,21 @@ public static class InfrastructureServiceCollectionExtensions
 
         services.Configure<DiskFileStorageServiceOptions>(configuration.GetSection(DiskFileStorageServiceOptions.SeccionConfiguracion));
 
+        // Seguimiento de S-C-3 (ASVS 4.0.3 V12.1.1): un único presupuesto por proceso de
+        // los bytes de documento cargados en memoria, compartido por el almacenamiento y
+        // por la Subida múltiple. Singleton porque cuenta el proceso entero; un valor
+        // fuera de rango impide arrancar (ver OpcionesPresupuestoMemoriaDocumentos).
+        services.AddOptions<OpcionesPresupuestoMemoriaDocumentos>()
+            .Bind(configuration.GetSection(OpcionesPresupuestoMemoriaDocumentos.SeccionConfiguracion))
+            .Validate(o => o.SonValidas(),
+                $"{OpcionesPresupuestoMemoriaDocumentos.SeccionConfiguracion}: MaximoBytes tiene que ser al menos " +
+                $"{OpcionesPresupuestoMemoriaDocumentos.MinimoBytes} y EsperaMaxima, mayor que cero y de cinco minutos como mucho.")
+            .ValidateOnStart();
+        services.AddSingleton(sp => new PresupuestoMemoriaDocumentos(
+            sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<OpcionesPresupuestoMemoriaDocumentos>>(),
+            sp.GetService<TimeProvider>() ?? TimeProvider.System));
+        services.AddSingleton<IPresupuestoMemoriaDocumentos>(sp => sp.GetRequiredService<PresupuestoMemoriaDocumentos>());
+
         // Único backend de almacenamiento de Documentos: disco local.
         //
         // El backend de S3 se retiró (auditoría del Módulo 2). Existía para
