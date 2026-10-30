@@ -1,4 +1,6 @@
+using CaeManager.Application.Common;
 using CaeManager.Application.Empresas;
+using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
 using CaeManager.Domain.Integraciones;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -25,8 +27,14 @@ public record LineaWhatsAppListaDto(
     EstadoConexionIntegracion Estado,
     string? UltimoError);
 
+/// <remarks>
+/// <c>UltimoError</c> se lee aparte y solo fuera de Sesión Privilegiada, como en
+/// <see cref="ObtenerConexionesIntegracionQueryHandler"/>: <c>cae_app_soporte</c> no tiene <c>SELECT</c> sobre
+/// esa columna.
+/// </remarks>
 public class ObtenerLineasWhatsAppQueryHandler(
-    IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext)
+    IIntegracionesQueryContext integracionesContext, IEmpresasQueryContext empresasContext,
+    IClienteActivoSeleccionado clienteActivoSeleccionado)
     : IRequestHandler<ObtenerLineasWhatsAppQuery, IReadOnlyList<LineaWhatsAppListaDto>>
 {
     public async Task<IReadOnlyList<LineaWhatsAppListaDto>> Handle(
@@ -53,8 +61,12 @@ public class ObtenerLineasWhatsAppQueryHandler(
                 ClienteNombre = (string?)cliente!.RazonSocial,
                 linea.MensajeAutoTriage,
                 conexion.Estado,
-                conexion.UltimoError,
             }).ToListAsync(cancellationToken);
+
+        var errores = filas.Count == 0 || clienteActivoSeleccionado.SesionPrivilegiadaIdSeleccionada is not null
+            ? new Dictionary<Guid, string>()
+            : await ObtenerConexionesIntegracionQueryHandler.UltimosErroresAsync(
+                integracionesContext, filas.Select(f => f.ConexionId).Distinct().ToList(), cancellationToken);
 
         var miembrosPorLinea = await integracionesContext.MiembrosPoolLinea
             .GroupBy(m => m.LineaWhatsAppId)
@@ -65,7 +77,7 @@ public class ObtenerLineasWhatsAppQueryHandler(
             .Select(f => new LineaWhatsAppListaDto(
                 f.Id, f.ConexionId, f.Version, f.Nombre, f.NumeroTelefono, f.PhoneNumberId, f.WabaId, f.Modo,
                 f.ComercialAsignadoId, miembrosPorLinea.GetValueOrDefault(f.Id, []), f.ClienteId, f.ClienteNombre,
-                f.MensajeAutoTriage, f.Estado, f.UltimoError))
+                f.MensajeAutoTriage, f.Estado, errores.GetValueOrDefault(f.ConexionId)))
             .ToList();
     }
 }

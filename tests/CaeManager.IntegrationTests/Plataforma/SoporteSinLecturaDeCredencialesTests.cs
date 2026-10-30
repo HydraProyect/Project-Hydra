@@ -1,6 +1,10 @@
 using CaeManager.Application.ApiKeys.Queries.ObtenerClavesApi;
 using CaeManager.Application.Common;
+using CaeManager.Application.Dashboard.Queries;
+using CaeManager.Application.Integraciones.Queries.ObtenerConexionesIntegracion;
+using CaeManager.Application.Integraciones.Queries.ObtenerLineasWhatsApp;
 using CaeManager.Domain.ApiKeys;
+using CaeManager.Domain.Integraciones;
 using CaeManager.Domain.Tenants;
 using CaeManager.Infrastructure.MultiTenancy;
 using CaeManager.Infrastructure.Persistence;
@@ -25,6 +29,15 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// añada mañana a esas tablas: el recuento exacto de columnas legibles de <c>ClavesApi</c> obliga a
 /// decidir si la nueva es secreta.
 /// </para>
+///
+/// <para>
+/// Lo mismo para lo que retiró <c>SoporteSinColumnasSecretasRestantes</c>: <c>Contrasena</c> de
+/// <c>CanalesGestionDocumental</c>, <c>CredencialesAccesoEmpresa</c> y <c>CredencialesAccesoSubcontrata</c>
+/// (y de <c>AccesosPlataformaCaeEmpresa</c>, que no se concedía), <c>ClientState</c> de
+/// <c>SuscripcionesWebhook</c>, <c>TokenAcceso</c> de <c>LineasWhatsApp</c> y <c>UltimoError</c> de
+/// <c>ConexionesIntegracion</c>. Los listados de conexiones y de líneas de WhatsApp, que Soporte TALVEG abre
+/// en Sesión Privilegiada, siguen funcionando sin el último error.
+/// </para>
 /// </summary>
 public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
 {
@@ -40,6 +53,32 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         "CaducaEnUtc", "TenantId", "Version", "CreadoEnUtc", "EstaEliminado", "EliminadoEnUtc",
         "EliminadoPorUsuarioId",
     ];
+
+    /// <summary>
+    /// Las tablas que Soporte TALVEG lee por columnas, con la columna secreta y todas las que sí lee. El
+    /// recuento exacto obliga a decidir, con cada columna nueva, si es secreta.
+    /// </summary>
+    public static TheoryData<string, string, string[]> TablasConColumnaSecreta => new()
+    {
+        { "CanalesGestionDocumental", "Contrasena", [
+            "Id", "CentroId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId", "EmailsDestinatarios",
+            "EsPrincipal", "EstaEliminado", "EtiquetaProposito", "NombreContacto", "Notas", "ProveedorPlataformaCaeId",
+            "TenantId", "Tipo", "UrlAcceso", "Usuario", "Version"] },
+        { "CredencialesAccesoEmpresa", "Contrasena", [
+            "Id", "CampoEmpresa", "EmpresaId", "Notas", "TenantId", "UrlAcceso", "Usuario"] },
+        { "CredencialesAccesoSubcontrata", "Contrasena", [
+            "Id", "CampoEmpresa", "Notas", "SubcontrataId", "TenantId", "UrlAcceso", "Usuario"] },
+        { "SuscripcionesWebhook", "ClientState", [
+            "Id", "ConexionIntegracionId", "FechaExpiracionUtc", "GraphSubscriptionId", "TenantId"] },
+        { "LineasWhatsApp", "TokenAcceso", [
+            "Id", "ComercialAsignadoId", "ConexionIntegracionId", "MensajeAutoTriage", "Modo", "NumeroTelefono",
+            "PhoneNumberId", "TenantId", "WabaId"] },
+        { "ConexionesIntegracion", "UltimoError", [
+            "Id", "BuzonEmail", "ClienteId", "CreadoEnUtc", "EliminadoEnUtc", "EliminadoPorUsuarioId", "EstaEliminado",
+            "Estado", "FechaConectadaUtc", "GestorPropietarioId", "Nombre", "Proveedor", "TenantId", "Version"] },
+    };
+
+    private const string ErrorDelProveedor = "El token de Microsoft Graph caducó: hay que reconectar el buzón.";
 
     public async Task InitializeAsync()
     {
@@ -63,6 +102,17 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
         // de 64 caracteres: aquí solo importa que exista la columna.
         contexto.ClavesApi.Add(new ClaveApi(
             "Integración de prueba", "hyd_prueba01", new string('a', 64), Guid.NewGuid(), DateTime.UtcNow.AddDays(30), "Prueba"));
+
+        // Un buzón con error y una línea de WhatsApp con error, para los listados de Integraciones.
+        var buzon = new ConexionIntegracion("avisos@buzon-de-prueba.local", "Buzón de prueba");
+        buzon.MarcarConError(ErrorDelProveedor);
+        var conexionWhatsApp = new ConexionIntegracion(
+            "+34600000099", "Línea de prueba", proveedor: ProveedorIntegracion.WhatsApp);
+        conexionWhatsApp.MarcarConError(ErrorDelProveedor);
+        contexto.ConexionesIntegracion.AddRange(buzon, conexionWhatsApp);
+        contexto.LineasWhatsApp.Add(new LineaWhatsApp(
+            conexionWhatsApp.Id, "PNID-" + Guid.NewGuid().ToString("N"), "WABA-PRUEBA", "+34600000099", "token-de-prueba",
+            ModoAsignacionLinea.PoolInbound));
         await contexto.SaveChangesAsync();
     }
 
@@ -108,8 +158,53 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
 
         todas.Should().Contain("HashClave", "control del instrumento: la columna secreta existe");
         legibles.Should().NotContain("HashClave");
+        legibles.Should().BeEquivalentTo(todas.Where(c => c != "HashClave"), "ClavesApi se lee entera salvo el hash");
         legibles.Should().BeEquivalentTo(ColumnasLegiblesDeClavesApi,
             "una columna nueva en ClavesApi no se concede sola: hay que decidir si es secreta y añadirla aquí y en la migración");
+    }
+
+    [Theory]
+    [MemberData(nameof(TablasConColumnaSecreta))]
+    public async Task Soporte_lee_por_columnas_todas_salvo_la_secreta(string tabla, string secreta, string[] legiblesEsperadas)
+    {
+        var (legibles, todas) = await ColumnasAsync(tabla);
+
+        todas.Should().Contain(secreta, "control del instrumento: la columna secreta existe");
+        legibles.Should().NotContain(secreta);
+        // Una columna nueva sin conceder falla aquí y no en Sesión Privilegiada: todas menos la secreta.
+        legibles.Should().BeEquivalentTo(todas.Where(c => c != secreta), $"{tabla} se lee entera salvo {secreta}");
+        legibles.Should().BeEquivalentTo(legiblesEsperadas,
+            $"una columna nueva en {tabla} no se concede sola: hay que decidir si es secreta y añadirla aquí y en la migración");
+    }
+
+    [Theory]
+    [MemberData(nameof(TablasConColumnaSecreta))]
+    public async Task Soporte_no_tiene_privilegio_de_tabla_sobre_las_tablas_con_columna_secreta(
+        string tabla, string secreta, string[] legiblesEsperadas)
+    {
+        _ = (secreta, legiblesEsperadas);
+        await using var conexion = new NpgsqlConnection(_cadenaConexion);
+        await conexion.OpenAsync();
+
+        foreach (var privilegio in new[] { "SELECT", "INSERT", "UPDATE", "DELETE", "REFERENCES", "TRIGGER" })
+        {
+            await using var comando = conexion.CreateCommand();
+            comando.CommandText = "SELECT has_table_privilege('cae_app_soporte', format('public.%I', @tabla::text), @privilegio);";
+            comando.Parameters.AddWithValue("tabla", tabla);
+            comando.Parameters.AddWithValue("privilegio", privilegio);
+
+            ((bool)(await comando.ExecuteScalarAsync())!).Should().BeFalse($"{privilegio} sobre {tabla}");
+        }
+    }
+
+    [Fact]
+    public async Task Soporte_no_lee_ninguna_columna_de_los_accesos_a_plataformas_CAE()
+    {
+        // AnadePlataformaCaeDeClienteEmpresarial ya se la retiró entera; aquí se mide.
+        var (legibles, todas) = await ColumnasAsync("AccesosPlataformaCaeEmpresa");
+
+        todas.Should().Contain("Contrasena", "control del instrumento: la tabla existe con su columna secreta");
+        legibles.Should().BeEmpty();
     }
 
     // ── Por sus efectos ────────────────────────────────────────────────────
@@ -121,6 +216,16 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     [InlineData("SELECT \"AccessToken\" FROM \"CredencialesIntegracion\";")]
     [InlineData("SELECT \"HashClave\" FROM \"ClavesApi\";")]
     [InlineData("SELECT * FROM \"ClavesApi\";")]
+    [InlineData("SELECT \"Contrasena\" FROM \"CanalesGestionDocumental\";")]
+    [InlineData("SELECT * FROM \"CanalesGestionDocumental\";")]
+    [InlineData("SELECT \"Contrasena\" FROM \"CredencialesAccesoEmpresa\";")]
+    [InlineData("SELECT \"Contrasena\" FROM \"CredencialesAccesoSubcontrata\";")]
+    [InlineData("SELECT \"Contrasena\" FROM \"AccesosPlataformaCaeEmpresa\";")]
+    [InlineData("SELECT \"ClientState\" FROM \"SuscripcionesWebhook\";")]
+    [InlineData("SELECT \"TokenAcceso\" FROM \"LineasWhatsApp\";")]
+    [InlineData("SELECT * FROM \"LineasWhatsApp\";")]
+    [InlineData("SELECT \"UltimoError\" FROM \"ConexionesIntegracion\";")]
+    [InlineData("SELECT count(*) FROM \"ConexionesIntegracion\" WHERE \"UltimoError\" IS NOT NULL;")]
     public async Task Soporte_no_puede_leer_secretos_ni_con_sql_directo(string sql)
     {
         await using var conexion = await AbrirComoSoporteAsync();
@@ -194,6 +299,94 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task En_Sesion_Privilegiada_EF_no_materializa_las_entidades_con_columna_secreta()
+    {
+        await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+
+        var lecturas = new (string Entidad, Func<Task> Leer)[]
+        {
+            ("CanalGestionDocumental", () => contexto.CanalesGestionDocumental.ToListAsync()),
+            ("CredencialAccesoEmpresa", () => contexto.CredencialesAccesoEmpresa.ToListAsync()),
+            ("CredencialAccesoSubcontrata", () => contexto.CredencialesAccesoSubcontrata.ToListAsync()),
+            ("SuscripcionWebhook", () => contexto.SuscripcionesWebhook.ToListAsync()),
+            ("LineaWhatsApp", () => contexto.LineasWhatsApp.ToListAsync()),
+            ("ConexionIntegracion", () => contexto.ConexionesIntegracion.ToListAsync()),
+        };
+
+        foreach (var (entidad, leer) in lecturas)
+            (await leer.Should().ThrowAsync<PostgresException>(entidad))
+                .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege, entidad);
+    }
+
+    [Fact]
+    public async Task En_Sesion_Privilegiada_EF_proyecta_las_columnas_no_secretas()
+    {
+        // Control positivo: es la forma de las proyecciones de ObtenerCanalesGestionDeCentroQuery,
+        // ObtenerCredencialAcceso*SinContrasenaQuery y ObtenerLineasWhatsAppQuery.
+        await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+
+        (await contexto.CanalesGestionDocumental.Select(c => new { c.Id, c.Usuario, c.UrlAcceso, c.Tipo }).ToListAsync())
+            .Should().BeEmpty();
+        (await contexto.CredencialesAccesoEmpresa.Select(c => new { c.Id, c.Usuario, c.Notas }).ToListAsync())
+            .Should().BeEmpty();
+        (await contexto.CredencialesAccesoSubcontrata.Select(c => new { c.Id, c.Usuario, c.Notas }).ToListAsync())
+            .Should().BeEmpty();
+        (await contexto.LineasWhatsApp.Select(l => new { l.Id, l.PhoneNumberId, l.Modo }).ToListAsync())
+            .Should().ContainSingle("la línea sembrada en el Tenant visitado");
+        (await contexto.ConexionesIntegracion.Select(c => new { c.Id, c.Nombre, c.Estado }).ToListAsync())
+            .Should().HaveCount(2, "el buzón y la conexión de WhatsApp sembrados");
+    }
+
+    [Fact]
+    public async Task En_Sesion_Privilegiada_los_listados_de_Integraciones_cargan_sin_el_ultimo_error()
+    {
+        // Los handlers reales, bajo cae_app_soporte. Si volvieran a proyectar UltimoError, esto daría 42501.
+        await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+        var seleccion = new ClienteActivoSeleccionadoFalso(_tenant, Guid.NewGuid());
+
+        var conexiones = await new ObtenerConexionesIntegracionQueryHandler(
+                contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(Guid.NewGuid()), seleccion)
+            .Handle(new ObtenerConexionesIntegracionQuery(), CancellationToken.None);
+        var lineas = await new ObtenerLineasWhatsAppQueryHandler(contexto, contexto, seleccion)
+            .Handle(new ObtenerLineasWhatsAppQuery(), CancellationToken.None);
+
+        conexiones.Should().ContainSingle("control positivo: el buzón sembrado se lista bajo cae_app_soporte")
+            .Which.Should().Match<ConexionIntegracionListaDto>(c => c.Estado == EstadoConexionIntegracion.ConError && c.UltimoError == null);
+        lineas.Should().ContainSingle("control positivo: la línea sembrada se lista bajo cae_app_soporte")
+            .Which.Should().Match<LineaWhatsAppListaDto>(l => l.Estado == EstadoConexionIntegracion.ConError && l.UltimoError == null);
+    }
+
+    [Fact]
+    public async Task En_Sesion_Privilegiada_el_panel_de_pendientes_por_plataforma_no_lee_la_contrasena_de_los_canales()
+    {
+        // El handler real compone «select canal» con un join: si EF no podara la subconsulta, traería
+        // CanalesGestionDocumental.Contrasena y esto daría 42501. Sin filas, el SQL se ejecuta igual.
+        await using var contexto = CrearContexto(sesionPrivilegiadaId: Guid.NewGuid());
+
+        var pendientes = await new ObtenerPendientePorPlataformaQueryHandler(contexto, contexto, contexto, new AlcanceDatosServiceFalso())
+            .Handle(new ObtenerPendientePorPlataformaQuery(), CancellationToken.None);
+
+        pendientes.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Sin_Sesion_Privilegiada_los_listados_de_Integraciones_muestran_el_ultimo_error()
+    {
+        // Guarda de no regresión: el Tenant sigue viendo por qué falla su conexión.
+        await using var contexto = CrearContexto(cadenaConexion: BaseDatosPostgresDePruebas.CadenaComoRuntime(_cadenaConexion));
+        var seleccion = new ClienteActivoSeleccionadoFalso(_tenant, sesionPrivilegiadaId: null);
+
+        var conexiones = await new ObtenerConexionesIntegracionQueryHandler(
+                contexto, contexto, new AlcanceDatosServiceFalso(), new CurrentUserServiceFalso(Guid.NewGuid()), seleccion)
+            .Handle(new ObtenerConexionesIntegracionQuery(), CancellationToken.None);
+        var lineas = await new ObtenerLineasWhatsAppQueryHandler(contexto, contexto, seleccion)
+            .Handle(new ObtenerLineasWhatsAppQuery(), CancellationToken.None);
+
+        conexiones.Should().ContainSingle().Which.UltimoError.Should().Be(ErrorDelProveedor);
+        lineas.Should().ContainSingle().Which.UltimoError.Should().Be(ErrorDelProveedor);
+    }
+
+    [Fact]
     public async Task Sin_Sesion_Privilegiada_el_runtime_sigue_leyendo_las_credenciales()
     {
         // Guarda de no regresión: la migración solo toca cae_app_soporte.
@@ -204,6 +397,15 @@ public class SoporteSinLecturaDeCredencialesTests : IAsyncLifetime
             .Which.HashClave.Should().HaveLength(64, "el runtime sí lee el hash: lo necesita para autenticar");
         (await contexto.CredencialesIntegracion.ToListAsync()).Should().BeEmpty();
         (await contexto.UserTokens.ToListAsync()).Should().BeEmpty();
+        // Sin descifrar: cada contexto de prueba tiene su propio EphemeralDataProtectionProvider.
+        (await contexto.LineasWhatsApp.CountAsync(l => l.TokenAcceso != null))
+            .Should().Be(1, "el runtime sí lee el token: lo necesita para enviar");
+        (await contexto.ConexionesIntegracion.ToListAsync()).Should().HaveCount(2)
+            .And.OnlyContain(c => c.UltimoError == ErrorDelProveedor);
+        (await contexto.CanalesGestionDocumental.ToListAsync()).Should().BeEmpty();
+        (await contexto.CredencialesAccesoEmpresa.ToListAsync()).Should().BeEmpty();
+        (await contexto.CredencialesAccesoSubcontrata.ToListAsync()).Should().BeEmpty();
+        (await contexto.SuscripcionesWebhook.ToListAsync()).Should().BeEmpty();
     }
 
     // ── Andamiaje ──────────────────────────────────────────────────────────

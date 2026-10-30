@@ -299,9 +299,10 @@ public partial class MiTrabajo : CaeManager.Web.Components.PaginaInteractiva, ID
         catch (Exception) when (!EsVigente(carga))
         {
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             _errorCarga = true;
+            Logger.LogError(ex, "Mi trabajo no pudo cargar la vista agregada.");
         }
         finally
         {
