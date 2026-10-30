@@ -29,6 +29,7 @@ namespace CaeManager.Domain.Plataforma;
 public class ConcesionPrivilegio : Entity, IVersionable
 {
     public const int LongitudMaximaMotivo = 500;
+    public const int MaximoDiasDeVigencia = 90;
 
     /// <summary>
     /// El usuario de la plataforma que recibe la capacidad. Guid suelto hacia
@@ -98,6 +99,8 @@ public class ConcesionPrivilegio : Entity, IVersionable
             throw new ArgumentException("La concesión debe tener un usuario de plataforma.", nameof(usuarioPlataformaId));
         if (vigenciaHasta is not null && vigenciaHasta <= vigenciaDesde)
             throw new ArgumentException("La vigencia debe terminar después de empezar.", nameof(vigenciaHasta));
+        if (vigenciaHasta is not null && vigenciaHasta.Value - vigenciaDesde > TimeSpan.FromDays(MaximoDiasDeVigencia))
+            throw new ArgumentException($"La vigencia no puede superar {MaximoDiasDeVigencia} días.", nameof(vigenciaHasta));
         if (motivoConcesion is { Length: > LongitudMaximaMotivo })
             throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivo} caracteres.", nameof(motivoConcesion));
         // Invariante explícito, no propiedad emergente de qué fábricas existen:

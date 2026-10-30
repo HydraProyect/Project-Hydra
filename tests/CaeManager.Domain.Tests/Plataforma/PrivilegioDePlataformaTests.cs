@@ -141,6 +141,37 @@ public class PrivilegioDePlataformaTests
 
     // ---------- vigencia ----------
 
+    [Theory]
+    [InlineData(90, true)]
+    [InlineData(91, false)]
+    public void Las_fabricas_respetan_el_tope_de_vigencia(int dias, bool admitida)
+    {
+        var fin = Ahora.AddDays(dias);
+        Func<ConcesionPrivilegio>[] fabricas =
+        [
+            () => ConcesionPrivilegio.SobreTenants(Tecnico, CapacidadPrivilegio.Aprovisionamiento, [TenantCliente], Ahora, fin),
+            () => ConcesionPrivilegio.Global(Tecnico, Ahora, fin),
+            () => ConcesionPrivilegio.SoporteLecturaGlobal(Tecnico, Ahora, fin),
+            () => ConcesionPrivilegio.RaizDeBootstrap(Tecnico, Ahora, fin),
+        ];
+
+        foreach (var crear in fabricas)
+        {
+            if (admitida)
+                crear().VigenciaHasta.Should().Be(fin);
+            else
+                crear.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenciaHasta");
+        }
+    }
+
+    [Fact]
+    public void Una_vigencia_que_supera_el_tope_en_un_instante_se_rechaza()
+    {
+        var crear = () => ConcesionPrivilegio.SoporteLecturaGlobal(Tecnico, Ahora, Ahora.AddDays(90).AddTicks(1));
+
+        crear.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenciaHasta");
+    }
+
     [Fact]
     public void Una_concesion_caducada_deja_de_cubrir_aunque_el_tenant_siga_en_su_alcance()
     {
