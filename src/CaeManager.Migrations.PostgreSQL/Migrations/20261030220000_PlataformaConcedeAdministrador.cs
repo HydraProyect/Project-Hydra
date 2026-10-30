@@ -164,6 +164,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
 
                   -- Fila y luego candado, como app_serializar_alta_de_administrador, y los roles
                   -- se leen ya bajo él.
+                  PERFORM public.app_bloquear_administradores_de_tenant(v_tenant);
 
                   -- La espera puede ser larga: lo que se cerró, revocó o caducó mientras tanto ya
                   -- no ampara el acto. Sin FOR SHARE: con FORCE RLS exigiría además las políticas de
@@ -203,6 +204,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   -- Con la fila ya tomada y una lectura nueva, para ver un acceso externo que se
                   -- enlazó mientras se esperaba.
                   SELECT (u."PasswordHash" IS NOT NULL AND u."PasswordHash" <> '')
+                         OR EXISTS (SELECT 1 FROM public."AspNetUserLogins" l WHERE l."UserId" = u."Id")
                     INTO v_puede_tener_sesion
                   FROM public."AspNetUsers" u
                   WHERE u."Id" = p_usuario;
