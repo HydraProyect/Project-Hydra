@@ -903,7 +903,7 @@ public static class InfrastructureServiceCollectionExtensions
         services.AddOptions<OpcionesLimitesImportacion>()
             .Bind(configuration.GetSection(OpcionesLimitesImportacion.Seccion))
             .Validate(o => o.EsValida(),
-                "La sección LimitesImportacion no es válida: los topes tienen que ser positivos y EsperaSegundos, de 0 a 300.")
+                "La sección LimitesImportacion no es válida: los topes tienen que ser positivos, el tope por Tenant no puede superar el global y EsperaSegundos debe estar entre 0 y 300.")
             .ValidateOnStart();
         services.AddSingleton<LimitadorAnalisisImportacion>();
         services.Configure<OpcionesPlantillaCaeCompleta>(configuration.GetSection(OpcionesPlantillaCaeCompleta.Seccion));

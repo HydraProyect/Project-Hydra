@@ -332,6 +332,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddOptions<CaeManager.Infrastructure.Importacion.OpcionesLimitesImportacion>();
         Services.AddSingleton<CaeManager.Infrastructure.Importacion.LimitadorAnalisisImportacion>();
+        Services.AddSingleton<ITenantActual>(new TenantEfectivoDePrueba(TenantImportacion));
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddScoped<ToastService>();
         Services.AddScoped<PuertaAccesoDatos>();
@@ -345,6 +346,8 @@ public partial class ImportarClientesGen2Tests : BunitContext
         var cut = Render<PaginaImportacion>();
         return (cut, mediador);
     }
+
+    private static readonly Guid TenantImportacion = Guid.NewGuid();
 
     private static readonly string[] OrdenPlantillas = ["cae", "clientes", "combinada", "documentos"];
 
@@ -776,6 +779,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     [Fact]
     public async Task Un_analisis_anterior_que_termina_tarde_no_pinta_su_plan()
     {
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("A", [Fila("Alfa S.L.")]);
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
@@ -805,6 +809,7 @@ public partial class ImportarClientesGen2Tests : BunitContext
     [Fact]
     public async Task Un_analisis_anterior_que_falla_tarde_no_pinta_su_error_ni_para_el_progreso_del_vigente()
     {
+        Services.Configure<OpcionesLimitesImportacion>(o => o.AnalisisConcurrentesPorTenant = 2);
         var escenario = new Escenario();
         escenario.Plan<AnalizarPlantillaClientesQuery>("B", [Fila("Beta S.L.")]);
         var puertaA = Puerta();

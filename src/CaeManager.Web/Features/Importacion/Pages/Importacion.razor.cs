@@ -201,6 +201,7 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
     ];
 
     [Inject] private LimitadorAnalisisImportacion Limitador { get; set; } = default!;
+    [Inject] private ITenantActual TenantActual { get; set; } = default!;
     [Inject] private IMediator Mediator { get; set; } = default!;
     [Inject] private ToastService ToastService { get; set; } = default!;
     [Inject] private UserManager<ApplicationUser> UserManager { get; set; } = default!;
@@ -579,7 +580,15 @@ public partial class Importacion : CaeManager.Web.Components.PaginaIntegrableCon
 
             // El hueco se pide después de recibir el archivo: una subida lenta no debe ocupar uno de los
             // pocos análisis concurrentes (el coste que se acota es el del análisis, no el de la subida).
-            using var permiso = await Limitador.IntentarEntrarAsync(_ciclo.Token);
+            // El tope por Tenant se cuenta contra el Tenant que resuelve el servidor desde la sesión, nunca contra un
+            // dato del navegador. Sin Tenant resuelto no se analiza: no hay cubo compartido para esas peticiones.
+            if (TenantActual.TenantId is not { } tenantPropietarioId || tenantPropietarioId == Guid.Empty)
+            {
+                _mensajeError = Textos["ErrorAnalisisSinTenant"];
+                return;
+            }
+
+            using var permiso = await Limitador.IntentarEntrarAsync(tenantPropietarioId, _ciclo.Token);
             if (version != _versionAnalisis) return;
             if (permiso is null)
             {
