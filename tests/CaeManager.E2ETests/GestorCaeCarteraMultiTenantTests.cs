@@ -113,41 +113,42 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
     /// <summary>
     /// ACC-1 / M-40 de punta a punta: el Gestor CAE con cartera en dos Tenants beneficiarios recorre Mi trabajo
-    /// solo con teclado. Foco en el control de la fila de un Tenant que no está activo, Espacio abre el detalle y
+    /// solo con teclado (usa la Rechazada de A, que el recorrido destructivo no consume: no depende del orden de ejecución). Foco en el control de la fila de un Tenant que no está activo, Enter abre el detalle y
     /// Enter sobre la acción del detalle hace el POST real a /cuenta/cliente-activo y aterriza en la acreditación
     /// con ese Tenant ya activo. Las filas nombran a los dos Tenants: la cola es la de toda la cartera.
     /// </summary>
     [Fact]
     public async Task El_Gestor_CAE_abre_con_teclado_una_fila_de_otro_Tenant_beneficiario_y_actua_desde_el_detalle()
     {
-        var tenantB = await IdTenantAsync(TenantBeneficiarioB);
-        var rechazadaB = await IdAcreditacionAsync(TrabajadorB, estado: 3);
+        var tenantA = await IdTenantAsync(TenantBeneficiarioA);
+        var rechazadaA = await IdAcreditacionAsync(TrabajadorA, estado: 3);
 
         await using var contexto = await fixture.Browser.NewContextAsync();
         var page = await contexto.NewPageAsync();
         await Ayudas.IniciarSesionAsync(page, fixture.BaseUrl, EmailGestorCae, Ayudas.ContrasenaUsuariosPrueba);
-        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioA);
-        Assert.NotEqual(tenantB, await Ayudas.TenantActivoIdAsync(page));
+        await Ayudas.CambiarClienteActivoAsync(page, fixture.BaseUrl, TenantBeneficiarioB);
+        Assert.NotEqual(tenantA, await Ayudas.TenantActivoIdAsync(page));
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
-        await FiltrarColaAsync(page, TrabajadorA, esperaEnFrio: true);
-        await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
-        await FiltrarColaAsync(page, TrabajadorB);
+        await FiltrarColaAsync(page, TrabajadorB, esperaEnFrio: true);
         await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeRechazada)).ToBeVisibleAsync();
+        await FiltrarColaAsync(page, TrabajadorA);
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
 
         // La fila no es un control: el único enfocable para abrirla es su botón, y no contiene a las acciones.
-        var abrir = AbrirDeFila(page, TenantBeneficiarioB, BadgeRechazada);
-        await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeRechazada).Locator("button[data-fila-abrir] button, button[data-fila-abrir] form")).ToHaveCountAsync(0);
+        var abrir = AbrirDeFila(page, TenantBeneficiarioA, BadgeRechazada);
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada).Locator("button[data-fila-abrir] button, button[data-fila-abrir] form")).ToHaveCountAsync(0);
+        Assert.True(await abrir.EvaluateAsync<int>("e => e.tabIndex") >= 0, "el botón de la fila debe estar en el orden de tabulación");
         await abrir.FocusAsync();
         await Expect(abrir).ToBeFocusedAsync();
-        await page.Keyboard.PressAsync("Space");
+        await page.Keyboard.PressAsync("Enter");
         var detalle = page.Locator(".mi-trabajo-detalle");
         await Expect(detalle).ToBeVisibleAsync();
-        await Expect(detalle.Locator(".mi-trabajo-detalle-sujeto")).ToContainTextAsync("Ledesma");
+        await Expect(detalle.Locator(".mi-trabajo-detalle-sujeto")).ToContainTextAsync("Castany");
 
         // Actuar desde el detalle, también con teclado.
-        var vueltaEsperada = Uri.EscapeDataString($"/mi-trabajo?q={Uri.EscapeDataString(TrabajadorB)}");
-        var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaB}&volver={vueltaEsperada}";
+        var vueltaEsperada = Uri.EscapeDataString($"/mi-trabajo?q={Uri.EscapeDataString(TrabajadorA)}");
+        var destinoEsperado = $"/documentos?pestana=plataforma&acreditacionId={rechazadaA}&volver={vueltaEsperada}";
         var accion = detalle.Locator("form[data-accion-cross-tenant] button[type=submit]");
         var cambio = await Ayudas.EnviarCambioDeTenantYEsperarRecargaAsync(page, async () =>
         {
@@ -158,7 +159,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
         Assert.Equal(destinoEsperado, cambio.Headers.GetValueOrDefault("location"));
         await page.WaitForURLAsync(url => url.EndsWith(destinoEsperado, StringComparison.Ordinal));
         await page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantB);
+        await Expect(Ayudas.DisparadorSelectorTenant(page)).ToHaveAttributeAsync("data-tenant-id", tenantA);
     }
 
     [Fact]
