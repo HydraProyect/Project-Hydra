@@ -273,12 +273,13 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
     public async Task Superado_el_TOTP_del_alta_se_vincula_y_se_termina_en_la_pagina_de_la_2FA()
     {
         _signIn.Resultado = SignInResult.Success;
+        Services.GetRequiredService<NavigationManager>().NavigateTo("/cuenta/verificar-2fa?ReturnUrl=%2Fdocumentos");
         var cut = RenderizarAlta("POST");
 
         await EnviarCodigoAsync(cut);
 
         _signIn.Usuarios.Vinculos.Should().ContainSingle().Which.ProviderKey.Should().Be("sub-1");
-        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("/cuenta/configurar-2fa",
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("/cuenta/configurar-2fa").And.Contain("returnUrl=%2Fdocumentos",
             "los códigos de recuperación nacen con la 2FA y necesitan la sesión recién emitida");
     }
 

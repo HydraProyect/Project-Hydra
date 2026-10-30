@@ -226,11 +226,13 @@ public static class IdentityEndpointsExtensions
 
             if (segundoFactor is SegundoFactorMicrosoft.PedirTotp or SegundoFactorMicrosoft.DarDeAltaTotp)
             {
-                // Primera vinculación de una cuenta sin TOTP: el alta de un factor exige
+                // Primera vinculación de una cuenta sin TOTP: el alta de un factor pide
                 // autenticación reciente (ASVS 4.0.3 V3.7.1). Si esta vuelta no viene de un
                 // desafío con prompt=login, se repite con él y la persona vuelve a introducir
-                // sus credenciales en Microsoft. La marca viaja protegida en el state: este
-                // callback no la acepta de la URL.
+                // sus credenciales en Microsoft. La marca viaja protegida en el state y este
+                // callback no la acepta de la URL, pero solo prueba que TALVEG lo pidió:
+                // prompt=login va en una URL que controla el navegador y aquí no se comprueba
+                // auth_time. Quien quite el parámetro sigue necesitando la MFA de Microsoft.
                 var altaTotp = segundoFactor == SegundoFactorMicrosoft.DarDeAltaTotp;
                 if (altaTotp && !InicioSesionMicrosoft.VieneDeReautenticacion(infoExterna.AuthenticationProperties))
                 {
