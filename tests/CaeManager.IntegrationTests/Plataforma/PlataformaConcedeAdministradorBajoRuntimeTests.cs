@@ -123,10 +123,14 @@ public class PlataformaConcedeAdministradorBajoRuntimeTests : IAsyncLifetime
         var sesion = await AbrirSesionConCapacidadAsync();
 
         var selloAntes = await SelloAsync(_sinActivarDeA);
+        var concurrenciaAntes = await EscalarAsync<string>(
+            @"SELECT ""ConcurrencyStamp"" FROM ""AspNetUsers"" WHERE ""Id"" = @u;", _sinActivarDeA);
 
         (await ConcederComoPlataformaAsync(_tenantA, sesion, _sinActivarDeA)).Should().Be("concedido");
 
         (await RolesAsync(_sinActivarDeA)).Should().Be("Administrador");
+        (await EscalarAsync<string>(@"SELECT ""ConcurrencyStamp"" FROM ""AspNetUsers"" WHERE ""Id"" = @u;", _sinActivarDeA))
+            .Should().NotBe(concurrenciaAntes, "una activación en curso no pisa el cambio de rol");
         (await SelloAsync(_sinActivarDeA)).Should().Be(selloAntes, "rotarlo invalidaría su enlace de activación");
     }
 

@@ -152,9 +152,7 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   -- La cuenta: del Tenant del contexto y no desactivada (mismo umbral que
                   -- ApplicationUser.UmbralDeCuentaDesactivada). Inexistente, de otro Tenant o
                   -- desactivada, el mismo código.
-                  SELECT (u."PasswordHash" IS NOT NULL AND u."PasswordHash" <> '')
-                         OR EXISTS (SELECT 1 FROM public."AspNetUserLogins" l WHERE l."UserId" = u."Id")
-                    INTO v_puede_tener_sesion
+                  PERFORM 1
                   FROM public."AspNetUsers" u
                   WHERE u."Id" = p_usuario
                     AND u."TenantId" = v_tenant
@@ -203,6 +201,14 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   JOIN public."AspNetRoles" r ON r."Id" = ur."RoleId"
                   WHERE ur."UserId" = p_usuario;
 
+                  -- Con la fila ya tomada y una lectura nueva, para ver un acceso externo que se
+                  -- enlazó mientras se esperaba.
+                  SELECT (u."PasswordHash" IS NOT NULL AND u."PasswordHash" <> '')
+                         OR EXISTS (SELECT 1 FROM public."AspNetUserLogins" l WHERE l."UserId" = u."Id")
+                    INTO v_puede_tener_sesion
+                  FROM public."AspNetUsers" u
+                  WHERE u."Id" = p_usuario;
+
                   -- GestionCuentasUsuarioIdentity.CambiarRolAsync y los datos de EditarUsuarioCommand:
                   -- un único rol, sin vínculos de otro rol y, como RotarSelloSiPuedeTenerSesionAsync,
                   -- sello nuevo solo si la cuenta puede tener sesión: rotarlo en una cuenta sin
@@ -223,8 +229,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                      "UsuarioId", "ActorRealUsuarioId", "ViaAcceso", "ViaAccesoId", "TipoActor", "FechaUtc")
                   VALUES
                     (uuidv7(), v_tenant, 'Usuario', p_usuario, 'Modificado',
-                     json_build_object('Roles', v_roles_antes, 'SecurityStamp', '***')::text,
-                     json_build_object('Roles', 'Administrador', 'SecurityStamp', '***',
+                     json_build_object('Roles', v_roles_antes)::text,
+                     json_build_object('Roles', 'Administrador', 'SelloRotado', v_puede_tener_sesion,
                                        'MotivoConcesionPorPlataforma', v_motivo)::text,
                      v_actor, v_actor, 'SesionPrivilegiada', p_sesion, 'Persona', v_ahora);
 
