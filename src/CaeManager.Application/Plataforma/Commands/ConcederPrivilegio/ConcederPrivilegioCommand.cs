@@ -79,17 +79,6 @@ public record ConcederPrivilegioCommand(
 
 public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPrivilegioCommand>
 {
-    /// <summary>
-    /// Mismo techo que la auto-concesión (<c>AutoConcederPrivilegioCommandValidator.MaximoDiasDeVigencia</c>):
-    /// son la misma decisión de producto —cuánto puede vivir una concesión de
-    /// plataforma— vista desde dos comandos. Duplicado a propósito (ambos son
-    /// <c>const</c> de su propio validador, no hay un tercer sitio del que
-    /// colgar la constante sin acoplar los dos comandos entre sí); un test de
-    /// coherencia (<c>VentanaDePrivilegioCuatroHorasTests</c>) vigila que no
-    /// diverjan.
-    /// </summary>
-    public const int MaximoDiasDeVigencia = 90;
-
     public ConcederPrivilegioCommandValidator()
     {
         RuleFor(c => c.UsuarioPlataformaBeneficiarioId).NotEmpty();
@@ -99,8 +88,8 @@ public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPriv
             .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos, la revocación del acceso de un Operador CAE externo y la concesión de Administrador.");
 
         RuleFor(c => c.DiasDeVigencia)
-            .InclusiveBetween(1, MaximoDiasDeVigencia)
-            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {MaximoDiasDeVigencia} días.");
+            .InclusiveBetween(1, ConcesionPrivilegio.MaximoDiasDeVigencia)
+            .WithMessage($"La vigencia de la concesión debe estar entre 1 y {ConcesionPrivilegio.MaximoDiasDeVigencia} días.");
 
         RuleFor(c => c.Motivo)
             .NotEmpty()

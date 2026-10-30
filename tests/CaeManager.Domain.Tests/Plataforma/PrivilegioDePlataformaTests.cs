@@ -142,6 +142,74 @@ public class PrivilegioDePlataformaTests
 
     // ---------- vigencia ----------
 
+    [Theory]
+    [InlineData(90, true)]
+    [InlineData(91, false)]
+    public void Las_fabricas_respetan_el_tope_de_vigencia(int dias, bool admitida)
+    {
+        var fin = Ahora.AddDays(dias);
+        Func<ConcesionPrivilegio>[] fabricas =
+        [
+            () => ConcesionPrivilegio.SobreTenants(Tecnico, CapacidadPrivilegio.Aprovisionamiento, [TenantCliente], Ahora, fin),
+            () => ConcesionPrivilegio.Global(Tecnico, Ahora, fin),
+            () => ConcesionPrivilegio.SoporteLecturaGlobal(Tecnico, Ahora, fin),
+            () => ConcesionPrivilegio.RaizDeBootstrap(Tecnico, Ahora, fin),
+        ];
+
+        foreach (var crear in fabricas)
+        {
+            if (admitida)
+                crear().VigenciaHasta.Should().Be(fin);
+            else
+                crear.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenciaHasta");
+        }
+    }
+
+    [Fact]
+    public void Una_vigencia_que_supera_el_tope_en_un_instante_se_rechaza()
+    {
+        var crear = () => ConcesionPrivilegio.SoporteLecturaGlobal(Tecnico, Ahora, Ahora.AddDays(90).AddTicks(1));
+
+        crear.Should().Throw<ArgumentException>().Which.ParamName.Should().Be("vigenciaHasta");
+    }
+
+    [Fact]
+    public void El_tope_no_alcanza_a_una_concesion_sin_fin()
+    {
+        ConcesionPrivilegio.SobreTenants(Tecnico, CapacidadPrivilegio.Aprovisionamiento, [TenantCliente], Ahora, null)
+            .VigenciaHasta.Should().BeNull();
+        ConcesionPrivilegio.Global(Tecnico, Ahora, null).VigenciaHasta.Should().BeNull();
+        ConcesionPrivilegio.RaizDeBootstrap(Tecnico, Ahora, null).VigenciaHasta.Should().BeNull();
+    }
+
+    /// <summary>
+    /// Una concesión anterior al tope no puede dejar sin acceso: fija que el tope
+    /// no vive en el constructor sin parámetros ni en lo que se hace con la fila
+    /// ya leída. Que EF Core use ese constructor lo fija
+    /// <c>ConcesionPrivilegioSeMaterializaSinValidarTests</c>, y
+    /// <c>ConcesionHistoricaSobreElTopeTests</c> lo prueba contra PostgreSQL.
+    /// </summary>
+    [Fact]
+    public void Una_fila_historica_por_encima_del_tope_se_materializa_cubre_y_se_puede_revocar()
+    {
+        var fila = (ConcesionPrivilegio)Activator.CreateInstance(typeof(ConcesionPrivilegio), nonPublic: true)!;
+        void Asignar(string propiedad, object valor) => typeof(ConcesionPrivilegio).GetProperty(propiedad)!.SetValue(fila, valor);
+        Asignar(nameof(ConcesionPrivilegio.UsuarioPlataformaId), Tecnico);
+        Asignar(nameof(ConcesionPrivilegio.Capacidad), CapacidadPrivilegio.AdminPlataforma);
+        Asignar(nameof(ConcesionPrivilegio.EsAlcanceGlobal), true);
+        Asignar(nameof(ConcesionPrivilegio.Estado), EstadoConcesionPrivilegio.Vigente);
+        Asignar(nameof(ConcesionPrivilegio.VigenciaDesde), Ahora.AddDays(-1));
+        Asignar(nameof(ConcesionPrivilegio.VigenciaHasta), Ahora.AddDays(400));
+
+        fila.CubreEn(TenantCliente, Ahora).Should().BeTrue();
+        fila.HaExpiradoEn(Ahora).Should().BeFalse();
+
+        fila.Revocar(Ahora);
+
+        fila.Estado.Should().Be(EstadoConcesionPrivilegio.Revocada);
+        fila.VigenciaHasta.Should().Be(Ahora);
+    }
+
     [Fact]
     public void Una_concesion_caducada_deja_de_cubrir_aunque_el_tenant_siga_en_su_alcance()
     {
