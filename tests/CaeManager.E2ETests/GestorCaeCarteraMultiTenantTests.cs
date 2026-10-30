@@ -131,7 +131,7 @@ public class GestorCaeCarteraMultiTenantTests(WebAppFixtureGestorCaeCarteraMulti
 
         await Ayudas.NavegarYEsperarAsync(page, $"{fixture.BaseUrl}/mi-trabajo");
         await FiltrarColaAsync(page, TrabajadorB, esperaEnFrio: true);
-        await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeRechazada)).ToBeVisibleAsync();
+        await Expect(FilaMiTrabajo(page, TenantBeneficiarioB, BadgeProximo)).ToBeVisibleAsync();
         await FiltrarColaAsync(page, TrabajadorA);
         await Expect(FilaMiTrabajo(page, TenantBeneficiarioA, BadgeRechazada)).ToBeVisibleAsync();
 
