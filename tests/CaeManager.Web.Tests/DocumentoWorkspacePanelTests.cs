@@ -128,6 +128,33 @@ public class DocumentoWorkspacePanelTests : BunitContext
         logger.Entradas.Should().ContainSingle(e => e.Nivel == LogLevel.Error && e.Excepcion is InvalidOperationException);
     }
 
+    [Fact]
+    public async Task Reintentar_tras_un_fallo_de_la_validacion_oficial_limpia_el_error_y_muestra_el_resultado()
+    {
+        Services.AddSingleton<ILogger<DocumentoWorkspacePanel>>(new LoggerCaptura());
+        var detalle = Detalle();
+        var mediador = new MediatorDocumento
+        {
+            Detalle = detalle,
+            FallaValidacion = true,
+            Validacion = new ValidacionOficialDocumentoDto(
+                PerfilDocumentoOficial.CorrienteTgss, NivelConfianzaDocumental.FirmaValidaSinRevocacion,
+                DecisionValidacionOficial.AutoValidado, ResultadoCotejoDocumentoOficial.Coincide, "Motivos de prueba.",
+                null, null, null, null, null, new DateTime(2026, 10, 3, 9, 0, 0, DateTimeKind.Utc), [])
+        };
+        Services.AddScoped<ToastService>();
+        Services.AddScoped<IMediator>(_ => mediador);
+        var cut = Render<DocumentoWorkspacePanel>(p => p
+            .Add(x => x.EntidadId, detalle.Id)
+            .Add(x => x.PestanaActiva, "validacion"));
+        cut.Markup.Should().Contain("No pudimos comprobar la validación del documento");
+
+        mediador.FallaValidacion = false;
+        await cut.FindAll("button").Single(b => b.TextContent.Trim() == "Reintentar").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        cut.Markup.Should().NotContain("No pudimos comprobar la validación del documento").And.Contain("Verificado automáticamente");
+    }
+
     private IRenderedComponent<DocumentoWorkspacePanel> Renderizar(
         DocumentoDetalleDto detalle, string pestanaActiva, ValidacionOficialDocumentoDto? validacion = null)
     {

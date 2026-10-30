@@ -139,7 +139,7 @@ else
                 else if (_errorValidacion)
                 {
                     <EstadoVacio Titulo="No pudimos comprobar la validación del documento" Descripcion="Intenta nuevamente en unos segundos.">
-                        <Accion><Boton Variante="VarianteBoton.Primario" OnClick="CargarValidacionAsync">Reintentar</Boton></Accion>
+                        <Accion><Boton Variante="VarianteBoton.Secundario" OnClick="CargarValidacionAsync">Reintentar</Boton></Accion>
                     </EstadoVacio>
                 }
                 else if (_validacion is null)
@@ -286,7 +286,8 @@ else
         }
         catch (Exception ex)
         {
-            if (carga == _cargaCabecera) _error = true;
+            if (carga != _cargaCabecera) return;
+            _error = true;
             Logger.LogError(ex, "No se pudo cargar la ficha del Documento {DocumentoId}.", id);
         }
         finally
@@ -312,7 +313,8 @@ else
         catch (Exception ex)
         {
             // Sin esto «Sin validación automática» sería indistinguible de una lectura fallida.
-            if (carga == _cargaValidacion) _errorValidacion = true;
+            if (carga != _cargaValidacion) return;
+            _errorValidacion = true;
             Logger.LogError(ex, "No se pudo leer la validación oficial del Documento {DocumentoId}.", id);
         }
         finally
