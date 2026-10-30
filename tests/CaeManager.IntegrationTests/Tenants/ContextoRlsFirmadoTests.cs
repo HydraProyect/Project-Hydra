@@ -183,6 +183,82 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "formato inválido");
     }
 
+    private const string Uuid = "01a18ea4-e641-7463-a9b4-041eacc008a4";
+    private const string Nonce = "0123456789abcdef0123456789abcdef";
+    private static readonly string Firma = new('a', 64);
+
+    /// <summary>
+    /// La gramática del token campo a campo: cada caso se aparta de un token bien formado en un solo punto, y ninguno
+    /// puede llegar a buscar la clave ni convertir un campo a uuid (eso daría otro error, no «formato inválido»).
+    /// </summary>
+    [Theory]
+    [InlineData($"v2|{Uuid}|||{Uuid}|peticion|1|2|{Nonce}")] // versión
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|2")] // faltan campos
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|2|{Nonce}|x")] // sobran campos
+    [InlineData($"v1||||{Uuid}|peticion|1|2|{Nonce}")] // la clave es obligatoria
+    [InlineData($"v1|01A18EA4-E641-7463-A9B4-041EACC008A4|||{Uuid}|peticion|1|2|{Nonce}")] // uuid en mayúsculas
+    [InlineData($"v1|01a18ea4e-641-7463-a9b4-041eacc008a4|||{Uuid}|peticion|1|2|{Nonce}")] // guiones desplazados
+    [InlineData($"v1|{Uuid}|no-es-uuid||{Uuid}|peticion|1|2|{Nonce}")] // Tenant
+    [InlineData($"v1|{Uuid}||no-es-uuid|{Uuid}|peticion|1|2|{Nonce}")] // Tenant de origen
+    [InlineData($"v1|{Uuid}|||no-es-uuid|peticion|1|2|{Nonce}")] // usuario
+    [InlineData($"v1|{Uuid}|||{Uuid}||1|2|{Nonce}")] // origen vacío
+    [InlineData($"v1|{Uuid}|||{Uuid}|abcdefghijklmnopq|1|2|{Nonce}")] // origen de 17
+    [InlineData($"v1|{Uuid}|||{Uuid}|Peticion|1|2|{Nonce}")] // origen fuera de a-z
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|12345678901|2|{Nonce}")] // pid de 11 dígitos
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|x|2|{Nonce}")] // pid no numérico
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|1234567890123|{Nonce}")] // caducidad de 13 dígitos
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1||{Nonce}")] // caducidad vacía
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|2|abc")] // nonce corto
+    [InlineData($"v1|{Uuid}|||{Uuid}|peticion|1|2|0123456789abcdef0123456789abcdeg")] // nonce no hexadecimal
+    public async Task Un_campo_fuera_de_la_gramatica_falla_con_formato_invalido(string carga)
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.contexto", $"{carga}.{Firma}");
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "formato inválido");
+    }
+
+    [Theory]
+    [InlineData("#", 64, "a")] // separador
+    [InlineData(".", 63, "g")] // no hexadecimal
+    [InlineData(".", 63, "")] // corta
+    public async Task Una_firma_fuera_de_la_gramatica_falla_con_formato_invalido(string separador, int largo, string final)
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        var firma = separador + Firma[..largo] + final;
+        await FijarGucAsync(conexion, "app.contexto", $"v1|{Uuid}|||{Uuid}|peticion|1|2|{Nonce}{firma}");
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "formato inválido");
+    }
+
+    /// <summary>
+    /// Bien formado con Tenant, Tenant de origen y usuario vacíos: pasa de la gramática y cae después, en la clave.
+    /// Es la forma del contexto de una conexión sin Tenant ni usuario, que no puede rechazarse por formato.
+    /// </summary>
+    [Fact]
+    public async Task Los_campos_opcionales_vacios_son_formato_valido()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await FijarGucAsync(conexion, "app.contexto", $"v1|{Guid.NewGuid():D}||||ambito|1|2|{Nonce}.{Firma}");
+
+        await DebeFallarCon42501Async(() => ContarRaicesAsync(conexion), "clave desconocida");
+    }
+
+    /// <summary>
+    /// La validación corre una vez por tabla de cada consulta: una expresión regular con repeticiones acotadas
+    /// costaba más de 1 ms por llamada y se comía el 60 % de Mi trabajo con una cartera de 10 Tenant (M-13).
+    /// </summary>
+    [Fact]
+    public async Task La_validacion_del_contexto_no_usa_expresiones_regulares()
+    {
+        await using var conexion = await AbrirComoRuntimeAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = "SELECT prosrc FROM pg_proc WHERE proname = 'app_contexto_validado'";
+        var cuerpo = (string?)await comando.ExecuteScalarAsync();
+
+        cuerpo.Should().NotBeNull().And.NotContain("regexp_").And.NotContain(" ~ ");
+    }
+
     // ── (4) Limpieza ──────────────────────────────────────────────────────
 
     [Fact]
