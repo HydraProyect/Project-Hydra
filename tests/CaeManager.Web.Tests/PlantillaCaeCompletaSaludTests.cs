@@ -8,15 +8,8 @@ namespace CaeManager.Web.Tests;
 /// <summary>M-43: la plantilla CAE completa sin hojas de Trabajadores es visible en <c>/salud</c> sin impedir servir.</summary>
 public class PlantillaCaeCompletaSaludTests
 {
-    private sealed class Monitor(OpcionesPlantillaCaeCompleta valor) : IOptionsMonitor<OpcionesPlantillaCaeCompleta>
-    {
-        public OpcionesPlantillaCaeCompleta CurrentValue => valor;
-        public OpcionesPlantillaCaeCompleta Get(string? name) => valor;
-        public IDisposable? OnChange(Action<OpcionesPlantillaCaeCompleta, string?> listener) => null;
-    }
-
     private static Task<HealthCheckResult> Comprobar(OpcionesPlantillaCaeCompleta opciones) =>
-        new PlantillaCaeCompletaHealthCheck(new PlantillaCaeCompletaConfigurada(new Monitor(opciones))).CheckHealthAsync(new HealthCheckContext());
+        new PlantillaCaeCompletaHealthCheck(new PlantillaCaeCompletaConfigurada(Options.Create(opciones))).CheckHealthAsync(new HealthCheckContext());
 
     [Fact]
     public async Task Sin_hojas_configuradas_es_Degraded_y_nunca_Unhealthy()

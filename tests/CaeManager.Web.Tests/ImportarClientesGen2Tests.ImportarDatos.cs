@@ -140,13 +140,12 @@ public partial class ImportarClientesGen2Tests
     }
 
     [Fact]
-    public async Task Sin_configurar_la_CAE_completa_las_otras_plantillas_no_se_bloquean()
+    public void Sin_configurar_la_CAE_completa_las_otras_plantillas_no_se_bloquean()
     {
         _plantillaCaeConfigurada = false;
         var (cut, _) = Renderizar(new Escenario(), url: "importacion?plantilla=clientes");
 
         cut.FindAll("[data-testid=aviso-plantilla-cae-sin-configurar]").Should().BeEmpty();
-        await Task.CompletedTask;
     }
 
     // ---------------------------------------------------------------- Importar datos: paso 1
