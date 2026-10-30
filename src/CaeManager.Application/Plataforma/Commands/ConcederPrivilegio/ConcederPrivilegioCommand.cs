@@ -73,6 +73,7 @@ public record ConcederPrivilegioCommand(
             CapacidadPrivilegio.Aprovisionamiento,
             CapacidadPrivilegio.RestablecimientoSegundoFactor,
             CapacidadPrivilegio.RevocacionOperadorCaeExterno,
+            CapacidadPrivilegio.ConcesionAdministrador,
         };
 }
 
@@ -165,7 +166,7 @@ public class ConcederPrivilegioCommandHandler(
         // Tenant ni se ve (null). Se ata a CapacidadesQuePuedenAbrirSesion y no a
         // una capacidad concreta para que una capacidad concedible nueva que
         // abra sesión herede el control sin que nadie tenga que acordarse; hoy
-        // cubre Aprovisionamiento, RestablecimientoSegundoFactor y RevocacionOperadorCaeExterno. Para el
+        // cubre Aprovisionamiento, RestablecimientoSegundoFactor, RevocacionOperadorCaeExterno y ConcesionAdministrador. Para el
         // restablecimiento, la función de base lo vuelve a exigir al ejercerla.
         if (CapacidadesQuePuedenAbrirSesion.Admite(request.Capacidad))
         {

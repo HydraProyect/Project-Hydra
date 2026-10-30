@@ -860,7 +860,7 @@ WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relrowsecurity;";
             ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "EstadoBootstrapPlataforma", "BootstrapPlataforma", "SoporteLectura"], []),
         ("privilegio_cierre_de_vigente", 'w', ["app_ctx_usuario_id()", "Revocada", "Expirada"], ["Vigente"]),
         ("privilegio_concesion_a_tercero", 'a',
-            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "VigenciaHasta"], []),
+            ["app_ctx_usuario_id()", "app_es_admin_plataforma(", "RevocacionOperadorCaeExterno", "ConcesionAdministrador", "VigenciaHasta"], []),
     ];
 
     /// <summary>

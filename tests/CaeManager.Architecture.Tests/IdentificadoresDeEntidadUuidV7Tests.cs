@@ -133,6 +133,9 @@ public class IdentificadoresDeEntidadUuidV7Tests
     private static readonly Dictionary<string, int> GenRandomUuidEnMigraciones = new()
     {
         ["src/CaeManager.Migrations.PostgreSQL/Migrations/20260926160042_LineaBaseCompactada.Esquema.cs"] = 5,
+        // SecurityStamp y ConcurrencyStamp de app_conceder_administrador_por_plataforma: son secretos,
+        // no Id, y un sello no puede ser predecible (ver SecretosYTokens). Los Id de esa función, uuidv7().
+        ["src/CaeManager.Migrations.PostgreSQL/Migrations/20261030220000_PlataformaConcedeAdministrador.cs"] = 2,
     };
 
     private static readonly Regex PatronNewGuid = new(@"\bGuid\s*\.\s*NewGuid\b", RegexOptions.Compiled);
