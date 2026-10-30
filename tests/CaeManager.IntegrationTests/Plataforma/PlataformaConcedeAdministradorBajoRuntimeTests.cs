@@ -75,6 +75,7 @@ public class PlataformaConcedeAdministradorBajoRuntimeTests : IAsyncLifetime
 
         var gestora = await contexto.Users.SingleAsync(u => u.Id == _gestoraDeA);
         gestora.CoordinadorUsuarioId = _coordinadorDeA;
+        gestora.PasswordHash = "hash-de-prueba";
         var desactivada = await contexto.Users.SingleAsync(u => u.Id == _desactivadaDeA);
         desactivada.Desactivar();
         var sinActivar = await contexto.Users.SingleAsync(u => u.Id == _sinActivarDeA);
@@ -121,8 +122,26 @@ public class PlataformaConcedeAdministradorBajoRuntimeTests : IAsyncLifetime
     {
         var sesion = await AbrirSesionConCapacidadAsync();
 
+        var selloAntes = await SelloAsync(_sinActivarDeA);
+
         (await ConcederComoPlataformaAsync(_tenantA, sesion, _sinActivarDeA)).Should().Be("concedido");
+
         (await RolesAsync(_sinActivarDeA)).Should().Be("Administrador");
+        (await SelloAsync(_sinActivarDeA)).Should().Be(selloAntes, "rotarlo invalidaría su enlace de activación");
+    }
+
+    [Fact]
+    public async Task Una_cuenta_sin_contrasena_con_acceso_externo_si_rota_el_sello()
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await EjecutarAsync(@"
+INSERT INTO ""AspNetUserLogins"" (""LoginProvider"", ""ProviderKey"", ""ProviderDisplayName"", ""UserId"")
+VALUES ('Microsoft', 'clave-externa', 'Microsoft', @u);", _sinActivarDeA);
+        var selloAntes = await SelloAsync(_sinActivarDeA);
+
+        (await ConcederComoPlataformaAsync(_tenantA, sesion, _sinActivarDeA)).Should().Be("concedido");
+
+        (await SelloAsync(_sinActivarDeA)).Should().NotBe(selloAntes, "ya puede tener una sesión abierta");
     }
 
     [Fact]
@@ -341,6 +360,33 @@ public class PlataformaConcedeAdministradorBajoRuntimeTests : IAsyncLifetime
         await retenedor.CommitAsync();
 
         (await concesion).Should().Be("concedido");
+    }
+
+    [Theory]
+    [InlineData(@"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() WHERE ""Id"" = @u;")]
+    [InlineData(@"UPDATE ""ConcesionesPrivilegio"" SET ""Estado"" = 'Revocada'
+WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);")]
+    public async Task Lo_que_se_cierra_o_se_revoca_durante_la_espera_del_candado_ya_no_ampara(string retirada)
+    {
+        var sesion = await AbrirSesionConCapacidadAsync();
+        await using var propietario = new NpgsqlConnection(_cadenaConexion);
+        await propietario.OpenAsync();
+        await using var retenedor = await propietario.BeginTransactionAsync();
+        await using (var tomar = new NpgsqlCommand(
+            "SELECT public.app_bloquear_administradores_de_tenant(@t);", propietario, retenedor))
+        {
+            tomar.Parameters.AddWithValue("t", _tenantA);
+            await tomar.ExecuteNonQueryAsync();
+        }
+
+        var concesion = ConcederComoPlataformaAsync(_tenantA, sesion, _gestoraDeA);
+        await EsperarEsperaDeCandadoAsync();
+        await EjecutarAsync(retirada, sesion);
+        await retenedor.CommitAsync();
+
+        (await concesion).Should().Be("sesion_no_autorizada");
+        (await RolesAsync(_gestoraDeA)).Should().Be("GestorCae");
+        (await LeerAuditoriaDeSesionAsync(sesion)).Should().BeEmpty();
     }
 
     // ── Preparación y lectura ────────────────────────────────────────────────

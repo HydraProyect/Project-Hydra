@@ -32,9 +32,12 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
     /// <para>
     /// Efectos, los de <c>EditarUsuarioCommand</c> con <c>CambiarRolAsync</c>: la cuenta se queda
     /// con Administrador como único rol, sin Coordinador CAE ni Cliente vinculado, y con sello
-    /// nuevo, de modo que su sesión abierta no conserva el rol anterior. Fila y luego candado de
-    /// Administradores del Tenant, el orden de <c>app_serializar_alta_de_administrador</c>. Es una
-    /// copia en SQL: si cambia ese camino en C#, cambia aquí.
+    /// nuevo si puede tener sesión, de modo que la abierta no conserva el rol anterior; la que
+    /// sigue sin activar conserva el suyo y su enlace de activación. Fila y luego candado de
+    /// Administradores del Tenant, el orden de <c>app_serializar_alta_de_administrador</c>, y la
+    /// sesión y la concesión se revalidan tras la espera. Es una copia en SQL: si cambia ese camino
+    /// en C#, cambia aquí. No asigna operaciones sin principal: <c>EditarUsuarioCommand</c> tampoco
+    /// lo hace cuando actúa quien no es del Tenant, y quedan en la alerta del Operador CAE.
     /// </para>
     ///
     /// <para>
@@ -59,13 +62,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         AND ("VigenciaHasta" IS NOT NULL)
                         AND (("Capacidad")::text IN ('Aprovisionamiento', 'RestablecimientoSegundoFactor', 'RevocacionOperadorCaeExterno', 'ConcesionAdministrador'))
                         AND public.app_es_admin_plataforma((SELECT public.app_ctx_usuario_id()))));
-
-                ALTER POLICY privilegio_del_usuario ON public."ConcesionesPrivilegio"
-                    WITH CHECK ((("UsuarioPlataformaId" = (SELECT public.app_ctx_usuario_id()))
-                        OR (("ConcedidaPorUsuarioId" = (SELECT public.app_ctx_usuario_id()))
-                            AND ("EsAlcanceGlobal" = false)
-                            AND ("Capacidad" IN ('Aprovisionamiento', 'RestablecimientoSegundoFactor', 'RevocacionOperadorCaeExterno', 'ConcesionAdministrador'))
-                            AND public.app_es_admin_plataforma((SELECT public.app_ctx_usuario_id())))));
 
                 ALTER POLICY sesion_privilegiada_apertura ON public."SesionesPrivilegiadas"
                     WITH CHECK ((("CerradaEnUtc" IS NULL)
@@ -96,7 +92,8 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   v_motivo text;
                   v_rol_administrador uuid;
                   v_roles_antes text;
-                  v_ahora timestamp with time zone := now();
+                  v_puede_tener_sesion boolean;
+                  v_ahora timestamp with time zone := clock_timestamp();
                 BEGIN
                   IF NOT public.app_ctx_valido() THEN
                     RETURN 'contexto_no_valido';
@@ -155,7 +152,9 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   -- La cuenta: del Tenant del contexto y no desactivada (mismo umbral que
                   -- ApplicationUser.UmbralDeCuentaDesactivada). Inexistente, de otro Tenant o
                   -- desactivada, el mismo código.
-                  PERFORM 1
+                  SELECT (u."PasswordHash" IS NOT NULL AND u."PasswordHash" <> '')
+                         OR EXISTS (SELECT 1 FROM public."AspNetUserLogins" l WHERE l."UserId" = u."Id")
+                    INTO v_puede_tener_sesion
                   FROM public."AspNetUsers" u
                   WHERE u."Id" = p_usuario
                     AND u."TenantId" = v_tenant
@@ -168,6 +167,23 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   -- Fila y luego candado, como app_serializar_alta_de_administrador, y los roles
                   -- se leen ya bajo él.
                   PERFORM public.app_bloquear_administradores_de_tenant(v_tenant);
+
+                  -- La espera puede ser larga: lo que se cerró, revocó o caducó mientras tanto ya
+                  -- no ampara el acto. Sin FOR SHARE: con FORCE RLS exigiría además las políticas de
+                  -- UPDATE de estas tablas. Cada sentencia ve aquí lo confirmado hasta ese momento.
+                  v_ahora := clock_timestamp();
+                  IF NOT EXISTS (
+                      SELECT 1
+                      FROM public."SesionesPrivilegiadas" s
+                      JOIN public."ConcesionesPrivilegio" c ON c."Id" = s."ConcesionPrivilegioId"
+                      WHERE s."Id" = p_sesion
+                        AND s."CerradaEnUtc" IS NULL
+                        AND s."ExpiraEnUtc" > v_ahora
+                        AND c."Estado" = 'Vigente'
+                        AND (c."VigenciaHasta" IS NULL OR c."VigenciaHasta" > v_ahora))
+                  THEN
+                    RETURN 'sesion_no_autorizada';
+                  END IF;
 
                   SELECT r."Id" INTO v_rol_administrador
                   FROM public."AspNetRoles" r WHERE r."NormalizedName" = 'ADMINISTRADOR';
@@ -188,14 +204,17 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                   WHERE ur."UserId" = p_usuario;
 
                   -- GestionCuentasUsuarioIdentity.CambiarRolAsync y los datos de EditarUsuarioCommand:
-                  -- un único rol, sin vínculos de otro rol, y sello nuevo en la misma transacción.
+                  -- un único rol, sin vínculos de otro rol y, como RotarSelloSiPuedeTenerSesionAsync,
+                  -- sello nuevo solo si la cuenta puede tener sesión: rotarlo en una cuenta sin
+                  -- activar invalidaría su enlace de activación.
                   DELETE FROM public."AspNetUserRoles" WHERE "UserId" = p_usuario;
                   INSERT INTO public."AspNetUserRoles" ("UserId", "RoleId") VALUES (p_usuario, v_rol_administrador);
 
                   UPDATE public."AspNetUsers"
                   SET "CoordinadorUsuarioId" = NULL,
                       "ClienteId" = NULL,
-                      "SecurityStamp" = upper(replace(gen_random_uuid()::text, '-', '')),
+                      "SecurityStamp" = CASE WHEN v_puede_tener_sesion
+                        THEN upper(replace(gen_random_uuid()::text, '-', '')) ELSE "SecurityStamp" END,
                       "ConcurrencyStamp" = gen_random_uuid()::text
                   WHERE "Id" = p_usuario;
 
@@ -234,13 +253,6 @@ namespace CaeManager.Migrations.PostgreSQL.Migrations
                         AND ("VigenciaHasta" IS NOT NULL)
                         AND (("Capacidad")::text IN ('Aprovisionamiento', 'RestablecimientoSegundoFactor', 'RevocacionOperadorCaeExterno'))
                         AND public.app_es_admin_plataforma((SELECT public.app_ctx_usuario_id()))));
-
-                ALTER POLICY privilegio_del_usuario ON public."ConcesionesPrivilegio"
-                    WITH CHECK ((("UsuarioPlataformaId" = (SELECT public.app_ctx_usuario_id()))
-                        OR (("ConcedidaPorUsuarioId" = (SELECT public.app_ctx_usuario_id()))
-                            AND ("EsAlcanceGlobal" = false)
-                            AND ("Capacidad" IN ('Aprovisionamiento', 'RestablecimientoSegundoFactor', 'RevocacionOperadorCaeExterno'))
-                            AND public.app_es_admin_plataforma((SELECT public.app_ctx_usuario_id())))));
 
                 ALTER POLICY sesion_privilegiada_apertura ON public."SesionesPrivilegiadas"
                     WITH CHECK ((("CerradaEnUtc" IS NULL)
