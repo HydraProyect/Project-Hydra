@@ -37,7 +37,7 @@ public class SegundoFactorCommandsTests
     [Fact]
     public async Task Genera_diez_codigos_para_la_propia_cuenta_con_2FA_activa()
     {
-        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, true, 0) };
+        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, true) };
         var handler = new GenerarCodigosRecuperacionCommandHandler(
             new CurrentUserServiceFalso(UsuarioA, "Consulta", TenantA), new ActorFijo(ActorAuditoria.Normal(UsuarioA)), puerto);
 
@@ -51,7 +51,7 @@ public class SegundoFactorCommandsTests
     [Fact]
     public async Task No_genera_codigos_sin_2FA_activa()
     {
-        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, false, 0) };
+        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, false) };
         var handler = new GenerarCodigosRecuperacionCommandHandler(
             new CurrentUserServiceFalso(UsuarioA, "GestorCae", TenantA), new ActorFijo(ActorAuditoria.Normal(UsuarioA)), puerto);
 
@@ -64,7 +64,7 @@ public class SegundoFactorCommandsTests
     [Fact]
     public async Task Quien_simula_a_otro_usuario_no_obtiene_sus_codigos()
     {
-        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, true, 0) };
+        var puerto = new SegundoFactorFalso { [UsuarioA] = new(TenantA, true) };
         var simulacion = new ActorAuditoria(AdminA, UsuarioA, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid());
         var handler = new GenerarCodigosRecuperacionCommandHandler(
             new CurrentUserServiceFalso(UsuarioA, "GestorCae", TenantA), new ActorFijo(simulacion), puerto);
@@ -193,7 +193,7 @@ public class SegundoFactorCommandsTests
     public async Task Una_cuenta_sin_2FA_activa_no_se_restablece()
     {
         var puerto = PuertoConCuentas();
-        puerto[UsuarioA] = new(TenantA, false, 0);
+        puerto[UsuarioA] = new(TenantA, false);
         var handler = Restablecer(puerto, AdminA, "Administrador", TenantA, TenantA);
 
         var resultado = await handler.Handle(new RestablecerSegundoFactorCommand(UsuarioA), default);
@@ -299,7 +299,7 @@ public class SegundoFactorCommandsTests
     public async Task Soporte_tampoco_restablece_una_cuenta_sin_2FA_activa()
     {
         var puerto = PuertoConCuentas();
-        puerto[UsuarioA] = new(TenantA, false, 0);
+        puerto[UsuarioA] = new(TenantA, false);
         puerto.AdministradoresUnicos.Add(UsuarioA);
 
         var resultado = await RestablecerPorSesion(
@@ -418,9 +418,9 @@ public class SegundoFactorCommandsTests
 
     private static SegundoFactorFalso PuertoConCuentas() => new()
     {
-        [AdminA] = new(TenantA, true, 10),
-        [UsuarioA] = new(TenantA, true, 7),
-        [UsuarioB] = new(TenantB, true, 10),
+        [AdminA] = new(TenantA, true),
+        [UsuarioA] = new(TenantA, true),
+        [UsuarioB] = new(TenantB, true),
     };
 
     private static RestablecerSegundoFactorCommandHandler Restablecer(

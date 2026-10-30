@@ -39,9 +39,13 @@ public class ObtenerClavesApiQueryHandler(IApiKeysQueryContext claveContext, ITe
 
         using var ambito = AmbitoTenantExplicito.Establecer(delegacion.TenantClienteId);
 
+        // RevocadaEnUtc == null y no c.EstaActiva: una propiedad sin mapear obliga a EF a
+        // materializar la entidad entera, HashClave incluida, y en Sesión Privilegiada la
+        // conexión lleva cae_app_soporte, que solo puede leer las columnas sin el hash
+        // (migración SoporteSinLecturaDeCredenciales).
         return await claveContext.ClavesApi
             .OrderByDescending(c => c.CreadoEnUtc)
-            .Select(c => new ClaveApiDto(c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.EstaActiva, c.CaducaEnUtc))
+            .Select(c => new ClaveApiDto(c.Id, c.NombreDescriptivo, c.PrefijoVisible, c.CreadoEnUtc, c.UltimoUsoUtc, c.RevocadaEnUtc == null, c.CaducaEnUtc))
             .ToListAsync(cancellationToken);
     }
 }

@@ -27,10 +27,11 @@ public class SegundoFactorDeCuentasIdentity(
             var usuario = await CargarEnFrescoAsync(usuarioId);
             if (usuario is null) return null;
 
+            // Solo AspNetUsers: este estado también se lee bajo cae_app_soporte (restablecimiento
+            // por Soporte TALVEG), que no tiene privilegios sobre AspNetUserTokens.
             return new EstadoSegundoFactor(
                 usuario.TenantId,
-                await userManager.GetTwoFactorEnabledAsync(usuario),
-                await userManager.CountRecoveryCodesAsync(usuario));
+                await userManager.GetTwoFactorEnabledAsync(usuario));
         }, cancellationToken);
 
     public Task<Result<IReadOnlyList<string>>> GenerarCodigosRecuperacionAsync(
