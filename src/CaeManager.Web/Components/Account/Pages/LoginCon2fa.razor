@@ -58,6 +58,7 @@
                     <ValidationMessage For="() => EntradaAlta.Codigo" />
                 </div>
 
+                <p class="acceso-nota">@Textos["AltaVinculoCodigoSiguiente"]</p>
                 <button type="submit" class="acceso-entrar">@Textos["AltaVinculoActivar"]</button>
             </EditForm>
         }
@@ -322,12 +323,12 @@
                 return;
             }
 
-            // Recién dado de alta el TOTP en la primera vinculación: los códigos de
-            // recuperación nacen con él (P0-8), y generarlos exige la sesión que se acaba
-            // de emitir, así que se termina en la página de la 2FA.
+            // Recién dado de alta el TOTP en la primera vinculación: la cuenta aún no tiene
+            // códigos de recuperación (P0-8), y generarlos exige la sesión que se acaba de
+            // emitir, así que se termina en la página de la 2FA, que los ofrece.
             if (altaTotpPendiente)
             {
-                Navigation.NavigateTo("/cuenta/configurar-2fa", forceLoad: true);
+                Navigation.NavigateTo(SegundoFactorParaCredenciales.RutaConfigurarVolviendoA(ReturnUrl), forceLoad: true);
                 return;
             }
 

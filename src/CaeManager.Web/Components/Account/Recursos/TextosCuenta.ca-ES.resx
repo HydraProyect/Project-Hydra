@@ -182,6 +182,7 @@
   <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escaneja el codi amb Google Authenticator, Microsoft Authenticator o 1Password. No el pots escanejar? Introdueix aquesta clau:</value></data>
   <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Codi de 6 dígits de l’aplicació</value></data>
   <data name="AltaVinculoActivar" xml:space="preserve"><value>Activa i continua</value></data>
+  <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Després et demanarem un altre codi: espera que l’aplicació en mostri un de nou, perquè cada codi serveix una sola vegada.</value></data>
   <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El codi no és vàlid. Comprova l’hora del dispositiu i torna-ho a provar.</value></data>
   <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No s’ha pogut preparar la verificació en dos passos. Torna a iniciar la sessió.</value></data>
 </root>

@@ -109,11 +109,12 @@ public static class InicioSesionMicrosoft
     /// Primera vinculación (<paramref name="vinculoNuevo"/>, decisión de 2026-10-28): exige
     /// siempre el TOTP de TALVEG, aunque Microsoft acreditara la MFA (ASVS 4.0.3 V2.1). Con
     /// TOTP configurado, se pide; sin él, la cuenta lo da de alta antes de vincular, tras
-    /// volver a introducir sus credenciales en Microsoft (V3.7.1). En los dos casos el vínculo
-    /// se guarda solo al superar el TOTP (<see cref="CompletarVinculoPendienteAsync"/>). La
-    /// MFA de Microsoft prueba quién controla la identidad del directorio, no que sea la
-    /// persona de la cuenta: el vínculo se decide por el correo, que en Entra edita quien
-    /// administra el directorio.
+    /// volver a introducir sus credenciales en Microsoft (V3.7.1), y solo si Microsoft acreditó
+    /// la MFA: sin TOTP ni MFA se rechaza, porque una contraseña de Entra sola registraría un
+    /// factor nuevo en la cuenta. Cuando hay vínculo, se guarda solo al superar el TOTP
+    /// (<see cref="CompletarVinculoPendienteAsync"/>). La MFA de Microsoft prueba quién controla
+    /// la identidad del directorio, no que sea la persona de la cuenta: el vínculo se decide por
+    /// el correo, que en Entra edita quien administra el directorio.
     /// </para>
     /// <para>
     /// Inicios posteriores, con la identidad ya vinculada (D-2): sesión directa si Microsoft
@@ -122,8 +123,8 @@ public static class InicioSesionMicrosoft
     /// </para>
     /// </summary>
     public static SegundoFactorMicrosoft DecidirSegundoFactor(bool mfaAcreditadaPorMicrosoft, bool totpConfigurado, bool vinculoNuevo) =>
-        vinculoNuevo ? (totpConfigurado ? SegundoFactorMicrosoft.PedirTotp : SegundoFactorMicrosoft.DarDeAltaTotp)
-        : mfaAcreditadaPorMicrosoft ? SegundoFactorMicrosoft.SesionDirecta
+        vinculoNuevo && mfaAcreditadaPorMicrosoft && !totpConfigurado ? SegundoFactorMicrosoft.DarDeAltaTotp
+        : mfaAcreditadaPorMicrosoft && !vinculoNuevo ? SegundoFactorMicrosoft.SesionDirecta
         : totpConfigurado ? SegundoFactorMicrosoft.PedirTotp
         : SegundoFactorMicrosoft.RechazarSinSegundoFactor;
 

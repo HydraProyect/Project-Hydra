@@ -187,6 +187,7 @@
   <data name="AltaVinculoClaveManual" xml:space="preserve"><value>Escanea el código con Google Authenticator, Microsoft Authenticator o 1Password. ¿No puedes escanearlo? Introduce esta clave:</value></data>
   <data name="AltaVinculoCodigoEtiqueta" xml:space="preserve"><value>Código de 6 dígitos de la aplicación</value></data>
   <data name="AltaVinculoActivar" xml:space="preserve"><value>Activar y continuar</value></data>
+  <data name="AltaVinculoCodigoSiguiente" xml:space="preserve"><value>Después te pediremos otro código: espera a que la aplicación muestre uno nuevo, porque cada código sirve una sola vez.</value></data>
   <data name="AltaVinculoCodigoNoValido" xml:space="preserve"><value>El código no es válido. Comprueba la hora de tu dispositivo e inténtalo de nuevo.</value></data>
   <data name="AltaVinculoErrorCarga" xml:space="preserve"><value>No se pudo preparar la verificación en dos pasos. Vuelve a iniciar sesión.</value></data>
 </root>

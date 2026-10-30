@@ -278,8 +278,48 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         await EnviarCodigoAsync(cut);
 
         _signIn.Usuarios.Vinculos.Should().ContainSingle().Which.ProviderKey.Should().Be("sub-1");
-        Services.GetRequiredService<NavigationManager>().Uri.Should().EndWith("/cuenta/configurar-2fa",
+        Services.GetRequiredService<NavigationManager>().Uri.Should().Contain("/cuenta/configurar-2fa",
             "los códigos de recuperación nacen con la 2FA y necesitan la sesión recién emitida");
+    }
+
+    /// <summary>
+    /// La recarga tras activar conserva la marca de alta en la cookie: con el TOTP ya activo
+    /// pide el código y no toca la clave, que es la del autenticador recién enlazado.
+    /// </summary>
+    [Fact]
+    public void Con_el_TOTP_ya_activado_la_marca_de_alta_no_cambia_la_clave_y_pide_el_codigo()
+    {
+        var cut = RenderizarAlta("GET");
+
+        _signIn.Usuarios.Reinicios.Should().Be(0);
+        cut.FindAll("#codigo").Should().ContainSingle();
+        cut.FindAll("#codigo-alta").Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Si_no_se_puede_reiniciar_la_clave_no_se_ensena_ninguna()
+    {
+        _signIn.Usuarios.TotpActivado = false;
+        _signIn.Usuarios.ReinicioFalla = true;
+
+        var cut = RenderizarAlta("GET");
+
+        cut.FindAll("#codigo-alta").Should().BeEmpty("una clave anterior pudo verla otra persona");
+        cut.Find("[role=alert]").TextContent.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public async Task Si_no_se_puede_activar_el_TOTP_no_se_avanza()
+    {
+        _signIn.Usuarios.TotpActivado = false;
+        _signIn.Usuarios.ActivacionFalla = true;
+        var cut = RenderizarAlta("GET");
+
+        await EnviarCodigoAltaAsync(cut, UsuariosConBloqueoFalso.CodigoValido);
+
+        cut.Find("[role=alert]").TextContent.Should().Contain("fallo");
+        _signIn.Usuarios.TotpActivado.Should().BeFalse();
+        Services.GetRequiredService<NavigationManager>().Uri.Should().NotContain("configurar-2fa");
     }
 
     private IRenderedComponent<LoginCon2fa> RenderizarAlta(string metodo)
@@ -436,6 +476,8 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         public bool TotpActivado { get; set; } = true;
         public int Reinicios { get; private set; }
         public int Activaciones { get; private set; }
+        public bool ReinicioFalla { get; set; }
+        public bool ActivacionFalla { get; set; }
         public List<UserLoginInfo> Vinculos { get; } = [];
         public const string ClaveAutenticador = "JBSWY3DPEHPK3PXP";
         public const string CodigoValido = "654321";
@@ -447,7 +489,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
         public override Task<IdentityResult> ResetAuthenticatorKeyAsync(ApplicationUser user)
         {
             Reinicios++;
-            return Task.FromResult(IdentityResult.Success);
+            return Task.FromResult(ReinicioFalla ? IdentityResult.Failed() : IdentityResult.Success);
         }
 
         public override Task<string?> GetAuthenticatorKeyAsync(ApplicationUser user) => Task.FromResult<string?>(ClaveAutenticador);
@@ -457,6 +499,7 @@ public class VerificacionDosPasosBloqueoTests : BunitContext
 
         public override Task<IdentityResult> SetTwoFactorEnabledAsync(ApplicationUser user, bool enabled)
         {
+            if (ActivacionFalla) return Task.FromResult(IdentityResult.Failed(new IdentityError { Description = "fallo" }));
             Activaciones++;
             TotpActivado = enabled;
             return Task.FromResult(IdentityResult.Success);

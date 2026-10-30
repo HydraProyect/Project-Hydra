@@ -205,9 +205,10 @@ public static class IdentityEndpointsExtensions
             // vínculo. La primera vinculación exige siempre el TOTP de TALVEG, también
             // con MFA de Microsoft (decisión de 2026-10-28, ASVS 4.0.3 V2.1); si la cuenta
             // aún no lo tiene, lo da de alta antes, tras reautenticarse en Microsoft
-            // (V3.7.1). Con la identidad ya vinculada rige D-2: si Microsoft no acreditó
-            // la MFA, el TOTP de TALVEG por el mismo paso que el inicio con contraseña
-            // (LoginCon2fa), y sin TOTP configurado no se emite sesión. Ver DecidirSegundoFactor.
+            // (V3.7.1), y solo si Microsoft acreditó la MFA. Con la identidad ya vinculada
+            // rige D-2: si Microsoft no acreditó la MFA, el TOTP de TALVEG por el mismo paso
+            // que el inicio con contraseña (LoginCon2fa). En ambos casos, sin TOTP ni MFA no
+            // se emite sesión. Ver DecidirSegundoFactor.
             var vinculoNuevo = decision == DecisionCuentaMicrosoft.VincularCuentaExistente;
             var segundoFactor = InicioSesionMicrosoft.DecidirSegundoFactor(
                 InicioSesionMicrosoft.MfaAcreditadaPorMicrosoft(infoExterna.Principal, opcionesAzureAd.Value.ContextoAutenticacionMfa),

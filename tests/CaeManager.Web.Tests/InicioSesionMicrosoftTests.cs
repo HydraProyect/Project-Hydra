@@ -99,9 +99,9 @@ public class InicioSesionMicrosoftTests
 
     /// <summary>
     /// Primera vinculación (decisión de 2026-10-28, ASVS 4.0.3 V2.1 y V3.7.1): la cuenta del
-    /// Tenant destino se halla por correo y no tiene identidad de Microsoft. Con MFA de
-    /// Microsoft o sin ella, nunca hay sesión directa ni se guarda el vínculo en el callback.
-    /// Sin TOTP, sin reautenticación se repite el desafío con prompt=login; reautenticada, la
+    /// Tenant destino se halla por correo y no tiene identidad de Microsoft. Nunca hay sesión
+    /// directa ni se guarda el vínculo en el callback. Sin TOTP ni MFA de Microsoft, rechazo.
+    /// Con MFA y sin TOTP, sin reautenticación se repite el desafío con prompt=login; con ella, la
     /// cookie de dos pasos lleva la marca del alta. Con TOTP, se pide sin reautenticar.
     /// </summary>
     [Theory]
@@ -177,6 +177,15 @@ public class InicioSesionMicrosoftTests
             "una primera vinculación nunca emite sesión de aplicación en el callback");
         var dosPasos = cookies.SingleOrDefault(c => c.StartsWith(".AspNetCore.Identity.TwoFactorUserId=", StringComparison.Ordinal)
             && c.Split(';')[0].Split('=', 2)[1].Length > 0);
+
+        if (!totp && !mfaMicrosoft)
+        {
+            respuesta.Headers.Location!.OriginalString.Should().Be("/cuenta/iniciar-sesion?errorSso=sin-mfa",
+                "una contraseña de Entra sola no registra un factor nuevo en la cuenta");
+            dosPasos.Should().BeNull();
+            await app.StopAsync();
+            return;
+        }
 
         if (!totp && !reautenticada)
         {
@@ -489,12 +498,12 @@ public class InicioSesionMicrosoftTests
     }
 
     // Decisión de 2026-10-28 (ASVS 4.0.3 V2.1): la primera vinculación exige siempre el TOTP
-    // de TALVEG; con MFA de Microsoft o sin ella, nunca hay sesión directa ni rechazo.
+    // de TALVEG y nunca hay sesión directa. Sin TOTP, el alta exige la MFA de Microsoft.
     [Theory]
     [InlineData(true, true, SegundoFactorMicrosoft.PedirTotp)]
     [InlineData(false, true, SegundoFactorMicrosoft.PedirTotp)]
     [InlineData(true, false, SegundoFactorMicrosoft.DarDeAltaTotp)]
-    [InlineData(false, false, SegundoFactorMicrosoft.DarDeAltaTotp)]
+    [InlineData(false, false, SegundoFactorMicrosoft.RechazarSinSegundoFactor)]
     public void La_primera_vinculacion_exige_siempre_el_TOTP_de_TALVEG_y_sin_el_lo_da_de_alta(
         bool mfa, bool totp, SegundoFactorMicrosoft esperado)
     {
