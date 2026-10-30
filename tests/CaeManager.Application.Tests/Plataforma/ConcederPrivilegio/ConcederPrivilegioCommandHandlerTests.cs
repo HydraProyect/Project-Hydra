@@ -75,6 +75,26 @@ public class ConcederPrivilegioCommandHandlerTests
     }
 
     /// <summary>
+    /// No puede haber un valor que el validador acepte y el dominio rechace: el
+    /// comando en el tope pasa la validación y el manejador, con su reloj real,
+    /// crea la concesión sin salirse del tope por ningún tick.
+    /// </summary>
+    [Fact]
+    public async Task El_tope_que_acepta_el_validador_tambien_lo_acepta_el_dominio()
+    {
+        var comando = Comando() with { DiasDeVigencia = ConcesionPrivilegio.MaximoDiasDeVigencia };
+        new ConcederPrivilegioCommandValidator().Validate(comando).IsValid.Should().BeTrue();
+        var handler = Handler(out var writer, out _);
+
+        var resultado = await handler.Handle(comando, CancellationToken.None);
+
+        resultado.EsExitoso.Should().BeTrue();
+        var concesion = writer.ConcesionAnadida!;
+        (concesion.VigenciaHasta!.Value - concesion.VigenciaDesde).Should()
+            .Be(TimeSpan.FromDays(ConcesionPrivilegio.MaximoDiasDeVigencia));
+    }
+
+    /// <summary>
     /// Toda capacidad que abre una Sesión Privilegiada exige que el beneficiario
     /// sea un Actor de Plataforma TALVEG (cuenta del Tenant de origen de quien
     /// concede). Aprovisionamiento no lo exigía antes: se podía conceder a una

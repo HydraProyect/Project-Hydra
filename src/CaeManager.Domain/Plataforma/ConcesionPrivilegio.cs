@@ -31,6 +31,25 @@ public class ConcesionPrivilegio : Entity, IVersionable
     public const int LongitudMaximaMotivo = 500;
 
     /// <summary>
+    /// Días máximos entre <see cref="VigenciaDesde"/> y <see cref="VigenciaHasta"/>.
+    /// Más generoso que la ventana de una sesión (DEC-43: 4 horas) porque son
+    /// cosas distintas: la concesión dice durante cuánto tiempo <i>podrías</i>
+    /// abrir sesiones; la ventana, cuánto dura cada una. Es una sola decisión de
+    /// producto y los validadores de los comandos de concesión leen este mismo
+    /// valor.
+    ///
+    /// <para>
+    /// Lo aplica el constructor al crear, nunca al leer: EF Core materializa por
+    /// el constructor privado sin parámetros, así que una fila ya guardada con
+    /// una vigencia mayor se sigue leyendo y no deja sin acceso a nadie. Una
+    /// concesión sin fin no entra en este cálculo: en producción solo nace así
+    /// la fundacional (<see cref="RaizDeBootstrap"/>), y bajo RLS las políticas
+    /// de INSERT exigen fin en el resto de caminos. Este tope no está en la base.
+    /// </para>
+    /// </summary>
+    public const int MaximoDiasDeVigencia = 90;
+
+    /// <summary>
     /// El usuario de la plataforma que recibe la capacidad. Guid suelto hacia
     /// <c>ApplicationUser</c> — Domain no referencia Identity, mismo patrón que
     /// <c>AsignacionCartera.UsuarioId</c>. Que pertenezca al tenant marcado
@@ -98,6 +117,8 @@ public class ConcesionPrivilegio : Entity, IVersionable
             throw new ArgumentException("La concesión debe tener un usuario de plataforma.", nameof(usuarioPlataformaId));
         if (vigenciaHasta is not null && vigenciaHasta <= vigenciaDesde)
             throw new ArgumentException("La vigencia debe terminar después de empezar.", nameof(vigenciaHasta));
+        if (vigenciaHasta is not null && vigenciaHasta.Value - vigenciaDesde > TimeSpan.FromDays(MaximoDiasDeVigencia))
+            throw new ArgumentException($"La vigencia no puede superar {MaximoDiasDeVigencia} días.", nameof(vigenciaHasta));
         if (motivoConcesion is { Length: > LongitudMaximaMotivo })
             throw new ArgumentException($"El motivo no puede superar {LongitudMaximaMotivo} caracteres.", nameof(motivoConcesion));
         // Invariante explícito, no propiedad emergente de qué fábricas existen:
