@@ -16,7 +16,15 @@ namespace CaeManager.Application.Plataforma.Commands.RevocarConcesionPrivilegio;
 /// <b>Quién.</b> El Actor de Plataforma TALVEG nombrado como beneficiario o como concedente, ni uno
 /// más: es la forma exacta de la política <c>privilegio_cierre_de_vigente</c>, que la base vuelve a
 /// imponer al guardar (OWASP ASVS 4.0.3 V4.1.1). Ser concedente basta aunque su propia autoridad ya
-/// haya vencido, igual que en la política. El titular puede renunciar a la suya.
+/// haya vencido, igual que en la política. El Actor beneficiario puede renunciar a la suya.
+/// </para>
+///
+/// <para>
+/// <b>Sesiones Privilegiadas abiertas con la concesión.</b> El comando no las cierra: esa escritura es
+/// de quien la abrió, no del concedente. Dejan de amparar a la vez, porque
+/// <c>SesionPrivilegiadaActual</c> y las funciones de acto exigen concesión vigente: la mutación
+/// siguiente se deniega, y un circuito ya abierto sigue leyendo hasta el siguiente tick de
+/// revalidación.
 /// </para>
 ///
 /// <para>
@@ -77,7 +85,7 @@ public class RevocarConcesionPrivilegioCommandHandler(
         if (concesion.Capacidad == CapacidadPrivilegio.AdminPlataforma)
             return Result.Fallo(Error.Crear(
                 "ConcesionPrivilegio.AdminPlataformaNoRevocable",
-                "La administración de la plataforma no se revoca desde aquí: la plataforma se quedaría sin administrador."));
+                "Una concesión AdminPlataforma no se revoca por esta vía: la plataforma se quedaría sin ningún Actor de Plataforma TALVEG que la administre."));
 
         concesion.Revocar(DateTime.UtcNow);
         try

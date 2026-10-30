@@ -156,9 +156,12 @@ public class ConcesionesPrivilegioPorOperacionBajoRuntimeTests : IAsyncLifetime
     [Fact]
     public async Task La_auditoria_de_la_revocacion_separa_al_actor_real_del_usuario_simulado()
     {
+        // En la aplicación, AutorizacionEscrituraBehavior rechaza este comando dentro de una Sesión
+        // Privilegiada, así que aquí no se prueba un camino alcanzable: se fija bajo cae_app_runtime la
+        // fila que dejaría, y que el interceptor no funde las dos identidades.
         var concesionId = await SembrarSoporteLecturaAsync();
         var actorReal = Guid.NewGuid();
-        var actor = new ActorAuditoria(actorReal, _beneficiario, TipoViaAcceso.Normal, null);
+        var actor = new ActorAuditoria(actorReal, _beneficiario, TipoViaAcceso.SesionPrivilegiada, Guid.NewGuid());
         await using (var contexto = CrearContexto(_beneficiario, auditar: actor))
         {
             var handler = new RevocarConcesionPrivilegioCommandHandler(contexto, contexto, Usuario(_beneficiario));
@@ -577,14 +580,17 @@ VALUES (gen_random_uuid(), @beneficiario, @capacidad, @global, now(),
                 npgsql => npgsql.MigrationsAssembly("CaeManager.Migrations.PostgreSQL"));
         if (auditar is { } actor)
             constructor.AddInterceptors(new AuditoriaInterceptor(new ActorFijo(actor)));
-        var options = constructor.AddInterceptors(
-                new TenantSelladoInterceptor(tenantActual),
-                new TenantRlsConnectionInterceptor(
-                    tenantActual, new SinClienteSeleccionado(), Usuario(usuario),
-                    BaseDatosPostgresDePruebas.FirmanteContextoRls))
-            .Options;
+        constructor.AddInterceptors(
+            new TenantSelladoInterceptor(tenantActual),
+            new TenantRlsConnectionInterceptor(
+                tenantActual, new SinClienteSeleccionado(), Usuario(usuario),
+                BaseDatosPostgresDePruebas.FirmanteContextoRls));
+        // Con el auditor va la tubería de guardado de producción, en su orden: el UPDATE renueva
+        // Version y compara la original, bajo RLS y con el trigger concesion_privilegio_solo_se_cierra.
+        if (auditar is not null)
+            constructor.AddInterceptors(new ConcurrenciaOptimistaInterceptor());
 
-        return new CaeManagerDbContext(options, new EphemeralDataProtectionProvider(), tenantActual);
+        return new CaeManagerDbContext(constructor.Options, new EphemeralDataProtectionProvider(), tenantActual);
     }
 
     private static Domain.Tenants.Tenant CrearTenant(Guid id, string nombre, bool esPlataforma = false)

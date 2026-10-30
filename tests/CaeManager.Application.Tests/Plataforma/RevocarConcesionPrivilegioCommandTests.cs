@@ -77,15 +77,15 @@ public class RevocarConcesionPrivilegioCommandTests
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task AdminPlataforma_no_se_revoca_ni_como_titular_ni_como_concedente(bool beneficiario)
+    public async Task AdminPlataforma_no_se_revoca_ni_como_beneficiario_ni_como_concedente(bool beneficiario)
     {
         var ahora = DateTime.UtcNow;
-        var titular = Guid.NewGuid();
+        var usuarioBeneficiario = Guid.NewGuid();
         var concedente = Guid.NewGuid();
-        var contexto = new Contexto(ConcesionPrivilegio.Global(titular, ahora.AddDays(-2), ahora.AddDays(1), concedente));
+        var contexto = new Contexto(ConcesionPrivilegio.Global(usuarioBeneficiario, ahora.AddDays(-2), ahora.AddDays(1), concedente));
         var unidad = new Unidad();
 
-        var resultado = await Handler(contexto, unidad, beneficiario ? titular : concedente)
+        var resultado = await Handler(contexto, unidad, beneficiario ? usuarioBeneficiario : concedente)
             .Handle(new(contexto.Concesion.Id), default);
 
         resultado.Error.Codigo.Should().Be("ConcesionPrivilegio.AdminPlataformaNoRevocable");
