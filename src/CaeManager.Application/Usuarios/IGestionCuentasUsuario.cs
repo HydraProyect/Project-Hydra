@@ -44,7 +44,11 @@ public interface IGestionCuentasUsuario
     /// <summary>Crea la cuenta sin contraseña y sin rol, y devuelve su Id.</summary>
     Task<Result<Guid>> CrearAsync(NuevaCuentaUsuario cuenta, CancellationToken cancellationToken = default);
 
-    /// <summary>Añade el rol a la cuenta, sin quitar ninguno.</summary>
+    /// <summary>
+    /// Añade el rol a la cuenta, sin quitar ninguno, y rota su sello de seguridad en la
+    /// misma escritura (SEG-1): una sesión abierta sin rol no conserva ese estado. Una
+    /// cuenta pendiente de activación no tiene sesión y su enlace lleva el sello: no se rota.
+    /// </summary>
     Task<Result> AsignarRolAsync(Guid usuarioId, string rol, CancellationToken cancellationToken = default);
 
     /// <summary>Guarda nombre, Coordinador CAE, Cliente vinculado y permiso sensible.</summary>
@@ -54,6 +58,15 @@ public interface IGestionCuentasUsuario
     /// Sustituye todos los roles de la cuenta por <paramref name="rolNuevo"/>.
     /// Identity no lo hace en una transacción: quitar y poner son dos escrituras, y
     /// el resultado dice cuál falló.
+    ///
+    /// <para>
+    /// Rota el sello de seguridad en la escritura que quita los roles anteriores
+    /// (SEG-1, auditoría 2026-10-29): la cookie y el circuito Blazor abiertos con el rol
+    /// anterior dejan de valer en su próxima revalidación
+    /// (<c>ProveedorAutenticacionRevalidada</c>), en vez de conservarlo hasta el tope de
+    /// 12 h de la sesión. Salvo en una cuenta pendiente de activación, que no puede tener
+    /// sesión y cuyo enlace de activación ya enviado lleva el sello.
+    /// </para>
     /// </summary>
     Task<ResultadoCambioRol> CambiarRolAsync(Guid usuarioId, string rolNuevo, CancellationToken cancellationToken = default);
 

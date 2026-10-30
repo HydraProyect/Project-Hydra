@@ -2007,16 +2007,14 @@ public partial class UsuariosGen2Tests : BunitContext
     }
 
     /// <summary>
-    /// Segunda mitad del mismo hueco (Codex, revisión 2026-09-12): no basta
-    /// con retirar el permiso al perder el rol Administrador si al volver a
-    /// ganarlo por otra vía —una promoción hecha por un DireccionCae, aquí
-    /// desde una cuenta con un flag histórico en `true` (p.ej. dejado así por
-    /// el hueco de arriba antes de su propio arreglo)— el flag se conserva tal
-    /// cual. Un DireccionCae no puede conceder este permiso; promocionar a
-    /// Administrador no puede ser una vía indirecta para heredarlo.
+    /// Decisión del 2026-10-30: solo un Administrador concede Administrador.
+    /// Hasta entonces un DireccionCae promocionaba aquí a Administrador (y el
+    /// permiso sensible histórico nacía en false). Ahora el selector no se lo
+    /// ofrece, y si se fuerza el valor como lo haría un cliente manipulado,
+    /// Application lo rechaza sin tocar ni el rol ni el permiso.
     /// </summary>
     [Fact]
-    public async Task DireccionCae_promociona_a_Administrador_y_no_hereda_un_permiso_historico()
+    public async Task DireccionCae_no_promociona_a_Administrador_aunque_se_salte_el_selector()
     {
         var ander = Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia");
         ander.PermisoConsultarAccesoDocumentosSensibles = true;
@@ -2026,13 +2024,54 @@ public partial class UsuariosGen2Tests : BunitContext
 
         var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
         await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        OpcionesDeRol(cut).Should().NotContain(RolesIdentidad.Administrador);
+
         await CampoPorEtiqueta(cut, "Rol").ChangeAsync(new() { Value = RolesIdentidad.Administrador });
         await GuardarAsync(cut);
 
+        cut.Find(".alerta-formulario").TextContent.Should().Contain("Solo un Administrador de la organización puede conceder");
+        _identidad.Asignaciones.Should().BeEmpty();
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Consulta);
+        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeTrue("no se escribió nada");
+    }
+
+    /// <summary>
+    /// Decisión del 2026-10-30, en el selector: Dirección CAE no ve Administrador
+    /// al dar de alta, pero sí el resto de roles, también Dirección CAE.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_no_ve_Administrador_en_el_selector_del_alta()
+    {
+        Sembrar((Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await cut.Find(".cabecera-listado-primaria button").ClickAsync(new());
+
+        OpcionesDeRol(cut).Should().BeEquivalentTo(RolesIdentidad.Todos.Where(r => r != RolesIdentidad.Administrador));
+    }
+
+    /// <summary>
+    /// Editando a un Administrador existente, Dirección CAE sigue viendo su rol en
+    /// la lista: conservarlo no es concederlo, y sin él un guardado del nombre lo
+    /// degradaría. El guardado del nombre pasa.
+    /// </summary>
+    [Fact]
+    public async Task DireccionCae_editando_a_un_Administrador_ve_su_rol_y_guarda_el_nombre()
+    {
+        Sembrar(
+            (Cuenta(JonId, "j.ibarra@talveg.es", "Jon Ibarra"), RolesIdentidad.DireccionCae),
+            (Cuenta(AnderId, "a.beitia@talveg.es", "Ander Beitia"), RolesIdentidad.Administrador));
+
+        var cut = Renderizar(actorId: JonId, rolActor: RolesIdentidad.DireccionCae);
+        await PulsarEnMenuAsync(cut, "a.beitia@talveg.es", "Editar");
+        OpcionesDeRol(cut).Should().Contain(RolesIdentidad.Administrador);
+
+        await EscribirAsync(cut, "Nombre completo", "Ander Beitia Zabala");
+        await GuardarAsync(cut);
+
         cut.FindAll(".alerta-formulario").Should().BeEmpty();
-        _identidad.Cuentas[AnderId].PermisoConsultarAccesoDocumentosSensibles.Should().BeFalse(
-            "solo otro Administrador concede el permiso; promocionar el rol no es una concesión");
-        _identidad.Asignaciones.Should().ContainSingle().Which.Rol.Should().Be(RolesIdentidad.Administrador);
+        _identidad.Cuentas[AnderId].NombreCompleto.Should().Be("Ander Beitia Zabala");
+        _identidad.RolesPorCuenta[AnderId].Should().Equal(RolesIdentidad.Administrador);
     }
 
     /// <summary>

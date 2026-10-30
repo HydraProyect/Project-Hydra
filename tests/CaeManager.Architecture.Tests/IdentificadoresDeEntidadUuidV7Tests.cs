@@ -40,7 +40,8 @@ public class IdentificadoresDeEntidadUuidV7Tests
     private static readonly Dictionary<string, int> SecretosYTokens = new()
     {
         // SecurityStamp de Identity: invalida sesiones abiertas y enlaces de activación emitidos; es un secreto.
-        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 2,
+        // El tercero es RotarSelloDeSeguridad (SEG-1: cambiar el rol revalida la sesión).
+        ["src/CaeManager.Infrastructure/Identity/ApplicationUser.cs"] = 3,
         ["src/CaeManager.Infrastructure/Identity/SegundoFactorDeCuentasIdentity.cs"] = 1,
         // Identificador de sesión de la cookie (talveg:sid): lo que hace revocable una sesión; no
         // debe poder adivinarse ni ordenarse por fecha.
