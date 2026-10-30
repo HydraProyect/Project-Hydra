@@ -21,7 +21,7 @@ public static class EmpresasEndpoints
     }
 
     public static async Task<IResult> ExportarAsync(
-        IMediator mediator, ITenantActual tenantActual, CancellationToken cancellationToken,
+        IMediator mediator, ITenantActual tenantActual, IRegistroExportacionService registroExportacion, CancellationToken cancellationToken,
         string? q = null, string? estado = null, string? cliente = null)
     {
         // Estado 4a, igual que /trabajadores/exportar.xlsx: Empresas.razor no muestra las Empresas del
@@ -82,6 +82,23 @@ public static class EmpresasEndpoints
         var stream = new MemoryStream();
         libro.SaveAs(stream);
         stream.Position = 0;
+
+        try
+        {
+            await registroExportacion.RegistrarAsync(
+                nameof(CaeManager.Domain.Empresas.Empresa), fila - 2,
+                CriteriosExportacion.Desde(
+                    ("listado", "empresas"),
+                    ("busqueda", string.IsNullOrWhiteSpace(q) ? null : "true"),
+                    ("estado", CriteriosExportacion.SoloNombres(estado)),
+                    ("cliente", clienteEmpresarialId?.ToString())),
+                cancellationToken);
+        }
+        catch
+        {
+            await stream.DisposeAsync();
+            throw;
+        }
 
         return Results.File(
             stream,
