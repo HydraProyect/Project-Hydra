@@ -300,7 +300,8 @@ public class ContextoRlsFirmadoTests : IAsyncLifetime
         cuerpo.Should().NotBeNull().And.NotContain("regexp_").And.NotContain("~").And.NotContain("substring(");
         cuerpo.Should().NotContainEquivalentOf("similar to");
         // Sin esta cota nada falla por contrato: un token enorme se rechaza igual, pero tras copiarlo y partirlo.
-        cuerpo.Should().Contain("length(token) > 289");
+        cuerpo!.IndexOf("length(token) > 289", StringComparison.Ordinal).Should()
+            .BeInRange(0, cuerpo.IndexOf("string_to_array", StringComparison.Ordinal) - 1);
     }
 
     // ── (4) Limpieza ──────────────────────────────────────────────────────
