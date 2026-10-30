@@ -634,7 +634,9 @@ WHERE ""ConcesionPrivilegioId"" = (SELECT ""ConcesionPrivilegioId"" FROM ""Sesio
 
     private async Task<Guid> AbrirSesionDeSoporteLecturaAsync()
     {
-        await using var contexto = CrearContexto(_tenantPlataforma);
+        // Sembrada como propietario: bajo runtime la auto-concesión exige AdminPlataforma vigente
+        // (privilegio_autoconcesion), y aquí solo hace falta la sesión de SoporteLectura.
+        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
         var ahora = DateTime.UtcNow;
         var concesion = ConcesionPrivilegio.SoporteLecturaGlobal(
             _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: _tecnico);

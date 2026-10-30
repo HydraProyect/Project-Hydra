@@ -123,7 +123,8 @@ public class ConcesionesSoloPorActoExplicitoTests
             "(ADR-011 § 8.7, punto 3), todas acotadas a un tenant — la matriz de auto-concesión no se toca y sigue rechazando las dos " +
             "para cualquiera. Autorizado por las migraciones RlsConcesionPorAdminDePlataforma y " +
             "RestablecimientoSegundoFactorPorSoporte y SoporteRevocaOperadorCaeExterno, que amplían el WITH CHECK de RLS para admitir " +
-            "exactamente esta forma.",
+            "exactamente esta forma; PartePoliticaConcesionesPorOperacion la deja en su propia política de INSERT " +
+            "(privilegio_concesion_a_tercero) y la acota además a vigente, de origen ordinario, con fin y a nombre de otra persona.",
     };
 
     [Fact]

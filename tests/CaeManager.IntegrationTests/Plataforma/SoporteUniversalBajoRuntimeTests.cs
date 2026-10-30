@@ -31,11 +31,12 @@ namespace CaeManager.IntegrationTests.Plataforma;
 /// </para>
 ///
 /// <para>
-/// Y la otra mitad: el invariante de alcance global vive también en la base.
-/// El <c>WITH CHECK</c> de RLS admite cualquier concesión que nombre a
-/// <c>app.usuario_id</c> como beneficiario, así que sin los CHECK de la
-/// migración <c>SoporteLecturaGlobalConCheckDeAlcance</c> una escritura que no
-/// pasara por el dominio podría acuñar una concesión global de escritura.
+/// Y la otra mitad: el invariante de alcance global vive también en la base,
+/// en los CHECK de la migración <c>SoporteLecturaGlobalConCheckDeAlcance</c>.
+/// Desde <c>PartePoliticaConcesionesPorOperacion</c> la RLS ya rechaza esas
+/// filas bajo <c>cae_app_runtime</c> antes de llegar al CHECK, así que los tests
+/// del CHECK escriben como propietario: es la barrera que queda para un rol que
+/// no está sujeto a RLS.
 /// </para>
 /// </summary>
 public class SoporteUniversalBajoRuntimeTests : IAsyncLifetime
@@ -57,6 +58,12 @@ public class SoporteUniversalBajoRuntimeTests : IAsyncLifetime
             contexto.Tenants.Add(CrearTenant(_tenantPlataforma, "Plataforma", esPlataforma: true));
             contexto.Tenants.Add(CrearTenant(_tenantA, "Tenant A S.L."));
             contexto.Tenants.Add(CrearTenant(_tenantB, "Tenant B S.L."));
+
+            // La auto-concesión de SoporteLectura exige AdminPlataforma vigente, en la matriz
+            // (AutorizacionAutoConcesionPorMatriz) y en la política privilegio_autoconcesion.
+            var ahora = DateTime.UtcNow;
+            contexto.ConcesionesPrivilegio.Add(ConcesionPrivilegio.Global(
+                _tecnico, ahora.AddMinutes(-10), ahora.AddDays(30), concedidaPorUsuarioId: Guid.NewGuid()));
             await contexto.SaveChangesAsync();
         }
 
@@ -122,8 +129,9 @@ public class SoporteUniversalBajoRuntimeTests : IAsyncLifetime
     {
         // Por debajo del dominio: la fila nace acotada y se le fuerza el alcance
         // global en el change tracker, que es lo que haría cualquier escritura
-        // que no pasara por las fábricas. RLS la dejaría pasar —nombra a
-        // app.usuario_id—; tiene que pararla el CHECK.
+        // que no pasara por las fábricas. Se escribe como propietario, que no
+        // está sujeto a RLS (bajo runtime la para antes privilegio_autoconcesion):
+        // tiene que pararla el CHECK.
         var concesion = ConcesionPrivilegio.SobreTenants(
             _tecnico, capacidad, [_tenantA], DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddDays(1),
             concedidaPorUsuarioId: _tecnico);
@@ -194,7 +202,7 @@ public class SoporteUniversalBajoRuntimeTests : IAsyncLifetime
         ConcesionPrivilegio concesion,
         Action<Microsoft.EntityFrameworkCore.ChangeTracking.EntityEntry<ConcesionPrivilegio>> forzar)
     {
-        await using var contexto = CrearContexto(_tenantPlataforma);
+        await using var contexto = CrearContexto(_tenantPlataforma, cadena: _cadenaConexion);
         contexto.ConcesionesPrivilegio.Add(concesion);
         forzar(contexto.Entry(concesion));
 

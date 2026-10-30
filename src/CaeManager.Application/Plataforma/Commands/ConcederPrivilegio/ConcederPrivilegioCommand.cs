@@ -64,8 +64,8 @@ public record ConcederPrivilegioCommand(
 {
     /// <summary>
     /// Lista cerrada. Una capacidad nueva no entra aquí por existir en el enum:
-    /// hace falta ampliar también el <c>WITH CHECK</c> de la política de
-    /// las concesiones de privilegio, que impone la misma lista en la base.
+    /// hace falta ampliar también el <c>WITH CHECK</c> de la política
+    /// <c>privilegio_concesion_a_tercero</c>, que impone la misma lista en la base.
     /// </summary>
     public static readonly IReadOnlySet<CapacidadPrivilegio> CapacidadesConcedibles =
         new HashSet<CapacidadPrivilegio>
