@@ -96,7 +96,7 @@ public class ConcederPrivilegioCommandValidator : AbstractValidator<ConcederPriv
         RuleFor(c => c.TenantObjetivoId).NotEmpty();
         RuleFor(c => c.Capacidad)
             .Must(ConcederPrivilegioCommand.CapacidadesConcedibles.Contains)
-            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos y la revocación del acceso de un Operador CAE externo.");
+            .WithMessage("Solo se conceden a otra persona el aprovisionamiento, el restablecimiento de la verificación en dos pasos, la revocación del acceso de un Operador CAE externo y la concesión de Administrador.");
 
         RuleFor(c => c.DiasDeVigencia)
             .InclusiveBetween(1, MaximoDiasDeVigencia)
