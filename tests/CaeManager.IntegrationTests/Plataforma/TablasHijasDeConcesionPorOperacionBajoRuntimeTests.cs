@@ -325,6 +325,34 @@ public class TablasHijasDeConcesionPorOperacionBajoRuntimeTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Una_sesion_no_nace_con_el_inicio_en_el_pasado()
+    {
+        await using var conexion = await AbrirRestringidaComoAsync(_tecnico);
+
+        var accion = async () => await InsertarSesionAsync(conexion, _concesionDelTecnico, _tenantA,
+            expira: "now() + interval '30 minutes'", inicio: "now() - interval '3 hours'");
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "un inicio retrasado haría pasar por más corta una sesión que el Tenant ve en su rastro");
+    }
+
+    [Fact]
+    public async Task Una_sesion_no_se_cierra_con_una_fecha_de_cierre_adelantada()
+    {
+        var sesion = await AbrirSesionDelTecnicoAsync();
+        await using var conexion = await AbrirRestringidaComoAsync(_tecnico);
+
+        var accion = async () => await EjecutarAsync(conexion,
+            @"UPDATE ""SesionesPrivilegiadas"" SET ""CerradaEnUtc"" = now() + interval '1 hour' WHERE ""Id"" = @id;", sesion);
+
+        (await accion.Should().ThrowAsync<PostgresException>())
+            .Which.SqlState.Should().Be(PostgresErrorCodes.InsufficientPrivilege,
+                "el cierre se fija al cerrar, no se anuncia para más adelante");
+        (await CerradaComoPropietarioAsync(sesion)).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Una_sesion_no_se_cierra_con_una_fecha_de_cierre_retrasada()
     {
         // La sesión la siembra el propietario, abierta hace tres horas: bajo runtime no podría nacer así.
