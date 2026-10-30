@@ -1323,7 +1323,7 @@ public class GestionCuentasCommandsTests
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
         puerto.Escrituras.Should().BeEmpty("se rechaza antes de guardar nada, también los datos");
-        administradores.Llamadas.Should().Equal($"hayOtro:{Tenant}:{id}");
+        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"esUltimo:{Tenant}:{id}");
     }
 
     [Fact]
@@ -1338,28 +1338,38 @@ public class GestionCuentasCommandsTests
 
         resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
         puerto.CambiosDeRol.Should().Equal("DireccionCae");
-        administradores.Llamadas.Should().Equal(
-            $"hayOtro:{Tenant}:{Cuenta}", $"bloquear:{Tenant}", $"hayOtro:{Tenant}:{Cuenta}");
+        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"esUltimo:{Tenant}:{Cuenta}");
     }
 
     [Fact]
-    public async Task Si_el_otro_Administrador_se_va_entre_la_lectura_y_el_candado_el_rol_no_cambia()
+    public async Task La_guarda_decide_con_los_roles_de_dentro_de_la_transaccion_no_con_los_leidos_antes()
     {
-        // La lectura previa ve a otro Administrador; la de dentro de la transacción, con el candado, ya no.
-        var puerto = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("Administrador") };
+        // El Command leyó un Gestor CAE; con el candado resulta ser ya el último Administrador.
         var transaccion = new TransaccionDeComandoFalsa();
-
-        var resultado = await new EditarUsuarioCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant,
-                transaccion, new AsignacionAutomaticaInerte(), new AdministradoresDelTenantFalso(true, false))
-            .Handle(Edicion("DireccionCae"), default);
-
-        resultado.Error.Codigo.Should().Be(AutoridadSobreCuentas.UltimoAdministrador.Codigo);
-        puerto.CambiosDeRol.Should().BeEmpty();
+        var editada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+        (await new EditarUsuarioCommandHandler(editada, ActorCon("DireccionCae"), EnSuTenant,
+                transaccion, new AsignacionAutomaticaInerte(), new AdministradoresDelTenantFalso(false))
+            .Handle(Edicion("CoordinadorCae"), default))
+            .Error.Codigo.Should().Be(AutoridadSobreCuentas.UltimoAdministrador.Codigo);
+        editada.Escrituras.Should().BeEmpty();
         transaccion.Deshechas.Should().Be(1);
+
+        var desactivada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
+        (await NuevaActivacion(desactivada, ActorCon("DireccionCae"), new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(false))
+            .Handle(new(Cuenta, false), default))
+            .EsFallido.Should().BeTrue();
+        desactivada.Escrituras.Should().BeEmpty();
+
+        var eliminada = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae", pendiente: true) };
+        (await new EliminarUsuarioPendienteCommandHandler(eliminada, ActorCon("DireccionCae"), EnSuTenant,
+                new TransaccionDeComandoFalsa(), new AdministradoresDelTenantFalso(false))
+            .Handle(new(Cuenta), default))
+            .Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
+        eliminada.Escrituras.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Conservar_el_Administrador_o_editar_otra_cuenta_no_consulta_a_los_Administradores()
+    public async Task Conservar_el_rol_o_conceder_Administrador_no_pasa_por_la_guarda()
     {
         var administradores = new AdministradoresDelTenantFalso(false);
 
@@ -1369,9 +1379,9 @@ public class GestionCuentasCommandsTests
             .Handle(Edicion("Administrador"), default)).EsExitoso.Should().BeTrue("conservar el rol no lo retira");
 
         var gestor = new GestionCuentasFalsa { [Cuenta] = CuentaPropia("GestorCae") };
-        (await new EditarUsuarioCommandHandler(gestor, ActorCon("DireccionCae"), EnSuTenant,
+        (await new EditarUsuarioCommandHandler(gestor, ActorCon("Administrador"), EnSuTenant,
                 new TransaccionDeComandoFalsa(), new AsignacionAutomaticaInerte(), administradores)
-            .Handle(Edicion("CoordinadorCae"), default)).EsExitoso.Should().BeTrue();
+            .Handle(Edicion("Administrador"), default)).EsExitoso.Should().BeTrue("conceder Administrador no retira a nadie");
 
         administradores.Llamadas.Should().BeEmpty();
     }
@@ -1389,7 +1399,7 @@ public class GestionCuentasCommandsTests
 
         resultado.Error.Codigo.Should().Be(AutoridadSobreCuentas.UltimoAdministrador.Codigo);
         puerto.Escrituras.Should().BeEmpty();
-        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"hayOtro:{Tenant}:{Cuenta}");
+        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"esUltimo:{Tenant}:{Cuenta}");
         transaccion.Ejecutadas.Should().Be(1, "la comprobación va dentro de la transacción que desactiva");
     }
 
@@ -1421,7 +1431,7 @@ public class GestionCuentasCommandsTests
 
         resultado.Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
         puerto.Escrituras.Should().BeEmpty();
-        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"hayOtro:{Tenant}:{Cuenta}");
+        administradores.Llamadas.Should().Equal($"bloquear:{Tenant}", $"esUltimo:{Tenant}:{Cuenta}");
         transaccion.Ejecutadas.Should().Be(1);
 
         (await new EliminarUsuarioPendienteCommandHandler(puerto, ActorCon("Administrador"), EnSuTenant,
@@ -1436,11 +1446,8 @@ public class GestionCuentasCommandsTests
         var administradores = new AdministradoresDelTenantFalso(true);
 
         (await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
-                CuentaPropia("Administrador"), null, administradores, default))
+                Cuenta, null, administradores, default))
             .Error.Should().Be(AutoridadSobreCuentas.UltimoAdministrador);
-        (await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
-                CuentaPropia("GestorCae"), null, administradores, default))
-            .EsExitoso.Should().BeTrue();
         administradores.Llamadas.Should().BeEmpty();
     }
 
@@ -1456,14 +1463,8 @@ public class GestionCuentasCommandsTests
             new CatalogoIncorporacionCarteraFalso(), new DirectorioDestinosCarteraFalso(null), new DirectorioRolesEnOrigen(),
             administradores);
 
-    /// <summary>
-    /// Responde en orden a cada <c>HayOtroAdministradorAsync</c> (la última respuesta se repite) y
-    /// anota las llamadas, para ver que el candado va antes de la lectura que decide.
-    /// </summary>
-    private sealed class AdministradoresDelTenantFalso(params bool[] respuestas) : IAdministradoresDelTenant
+    private sealed class AdministradoresDelTenantFalso(bool hayOtro) : IAdministradoresDelTenant
     {
-        private int _consultas;
-
         public List<string> Llamadas { get; } = [];
 
         public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default)
@@ -1472,10 +1473,10 @@ public class GestionCuentasCommandsTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> HayOtroAdministradorAsync(Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default)
+        public Task<bool> EsElUltimoAdministradorAsync(Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default)
         {
-            Llamadas.Add($"hayOtro:{tenantId}:{usuarioIdExcluido}");
-            return Task.FromResult(respuestas[Math.Min(_consultas++, respuestas.Length - 1)]);
+            Llamadas.Add($"esUltimo:{tenantId}:{usuarioId}");
+            return Task.FromResult(!hayOtro);
         }
     }
 

@@ -96,7 +96,7 @@ public class CambiarActivacionUsuarioCommandHandler(
             if (!request.Activar)
             {
                 var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
-                    cuenta, tenantActual.TenantId, administradores, ct);
+                    request.UsuarioId, tenantActual.TenantId, administradores, ct);
                 if (quedaAdministrador.EsFallido)
                     return quedaAdministrador;
 

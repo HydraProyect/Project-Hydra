@@ -35,8 +35,8 @@ public class AdministradoresDelTenant(CaeManagerDbContext dbContext, IDirectorio
             $"SELECT pg_advisory_xact_lock(hashtextextended({clave}, 0))", cancellationToken);
     }
 
-    public async Task<bool> HayOtroAdministradorAsync(
-        Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default) =>
-        (await directorio.ObtenerCuentasActivasConRolAsync(tenantId, AutoridadSobreCuentas.Administrador, cancellationToken))
-        .Any(id => id != usuarioIdExcluido);
+    public async Task<bool> EsElUltimoAdministradorAsync(
+        Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+        await directorio.ObtenerCuentasActivasConRolAsync(tenantId, AutoridadSobreCuentas.Administrador, cancellationToken)
+            is [var unica] && unica == usuarioId;
 }

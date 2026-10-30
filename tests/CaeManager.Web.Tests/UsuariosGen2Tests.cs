@@ -334,8 +334,8 @@ public partial class UsuariosGen2Tests : BunitContext
     private sealed class OtroAdministradorSiempre : CaeManager.Application.Usuarios.IAdministradoresDelTenant
     {
         public Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default) => Task.CompletedTask;
-        public Task<bool> HayOtroAdministradorAsync(Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default) =>
-            Task.FromResult(true);
+        public Task<bool> EsElUltimoAdministradorAsync(Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
     }
 
     /// <summary>El candado de cartera se prueba contra PostgreSQL; aquí no protege nada.</summary>

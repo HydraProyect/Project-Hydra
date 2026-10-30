@@ -1,5 +1,6 @@
 using CaeManager.Application.Common;
 using CaeManager.Application.Usuarios;
+using CaeManager.Application.Usuarios.Commands.EditarUsuario;
 using CaeManager.Application.Usuarios.Commands.EliminarUsuarioPendiente;
 using CaeManager.Domain.Auditoria;
 using CaeManager.Domain.Common;
@@ -39,11 +40,12 @@ public class UltimoAdministradorBajoRuntimeTests
         await CrearCuentaAsync(arnes, pendienteA, "pendiente-a@caemanager.local", null, Roles.Administrador);
         await CrearCuentaAsync(arnes, pendienteB, "pendiente-b@caemanager.local", null, Roles.Administrador);
 
-        (await HayOtroAsync(arnes, TenantA, pendienteA)).Should().BeTrue("la otra cuenta sigue sin activar, pero cuenta");
+        (await EsElUltimoAsync(arnes, TenantA, pendienteA)).Should().BeFalse("la otra cuenta sigue sin activar, pero cuenta");
 
         await DesactivarAsync(arnes, pendienteB);
 
-        (await HayOtroAsync(arnes, TenantA, pendienteA)).Should().BeFalse("la desactivada no sostiene el Tenant");
+        (await EsElUltimoAsync(arnes, TenantA, pendienteA)).Should().BeTrue("la desactivada no sostiene el Tenant");
+        (await EsElUltimoAsync(arnes, TenantA, pendienteB)).Should().BeFalse("la desactivada ya no es Administrador de nadie");
     }
 
     [Fact]
@@ -56,10 +58,10 @@ public class UltimoAdministradorBajoRuntimeTests
         await CrearCuentaAsync(arnes, administradorId, "admin@caemanager.local", Contrasena, Roles.Administrador);
         await CrearCuentaAsync(arnes, gestoraId, "gestora@caemanager.local", Contrasena, Roles.GestorCae);
 
-        (await HayOtroAsync(arnes, TenantA, administradorId)).Should().BeFalse("un Gestor CAE no es Administrador");
-        (await HayOtroAsync(arnes, TenantA, gestoraId)).Should().BeTrue("control positivo: el Administrador se ve bajo RLS");
-        (await HayOtroAsync(arnes, Guid.NewGuid(), gestoraId)).Should().BeFalse(
-            "el Administrador del Tenant A no sostiene otro Tenant");
+        (await EsElUltimoAsync(arnes, TenantA, administradorId)).Should().BeTrue("un Gestor CAE no es Administrador");
+        (await EsElUltimoAsync(arnes, TenantA, gestoraId)).Should().BeFalse("un Gestor CAE no es el último de nada");
+        (await EsElUltimoAsync(arnes, Guid.NewGuid(), administradorId)).Should().BeFalse(
+            "en otro Tenant no es Administrador");
     }
 
     [Fact]
@@ -102,9 +104,27 @@ public class UltimoAdministradorBajoRuntimeTests
         await CrearCuentaAsync(arnes, pendienteA, "pendiente-a@caemanager.local", null, Roles.Administrador);
         await CrearCuentaAsync(arnes, pendienteB, "pendiente-b@caemanager.local", null, Roles.Administrador);
 
-        var resultados = await Task.WhenAll(
+        // Las dos arrancan contra un candado ya tomado, y solo se suelta con ambas esperando: sin
+        // este orden, la primera podría terminar antes de que empezara la segunda y el test
+        // pasaría también sin candado.
+        await using var propietario = new NpgsqlConnection(arnes.CadenaPropietario);
+        await propietario.OpenAsync();
+        await using var retenedor = await propietario.BeginTransactionAsync();
+        await using (var tomar = new NpgsqlCommand(
+            "SELECT public.app_bloquear_administradores_de_tenant(@t);", propietario, retenedor))
+        {
+            tomar.Parameters.AddWithValue("t", TenantA);
+            await tomar.ExecuteNonQueryAsync();
+        }
+
+        var retiradas = new[]
+        {
             Task.Run(() => EliminarAsync(arnes, pendienteA)),
-            Task.Run(() => EliminarAsync(arnes, pendienteB)));
+            Task.Run(() => EliminarAsync(arnes, pendienteB)),
+        };
+        await EsperarEsperasDeCandadoAsync(arnes.CadenaPropietario, 2);
+        await retenedor.CommitAsync();
+        var resultados = await Task.WhenAll(retiradas);
 
         resultados.Count(r => r.EsExitoso).Should().Be(1, "cada retirada ve lo que confirmó la otra");
         resultados.Single(r => r.EsFallido).Error.Codigo.Should().Be(AutoridadSobreCuentas.UltimoAdministrador.Codigo);
@@ -114,6 +134,35 @@ public class UltimoAdministradorBajoRuntimeTests
             await ExisteAsync(arnes.CadenaPropietario, pendienteB),
         };
         quedan.Count(existe => existe).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Degradar_al_ultimo_Administrador_no_toca_ni_sus_datos_ni_su_permiso_ni_su_rol()
+    {
+        var administradorId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(Guid.NewGuid());
+        await CrearCuentaAsync(arnes, administradorId, "admin@caemanager.local", Contrasena, Roles.Administrador);
+
+        var resultado = await EditarAsync(arnes, administradorId, "Nombre nuevo", Roles.GestorCae);
+
+        resultado.Error.Codigo.Should().Be(AutoridadSobreCuentas.UltimoAdministrador.Codigo);
+        (await LeerNombreAsync(arnes.CadenaPropietario, administradorId)).Should().Be("admin@caemanager.local");
+        (await LeerRolesAsync(arnes.CadenaPropietario, administradorId)).Should().Equal(Roles.Administrador);
+    }
+
+    [Fact]
+    public async Task Degradar_con_otro_Administrador_guarda_datos_y_rol_en_la_misma_transaccion()
+    {
+        var administradorId = Guid.NewGuid();
+        await using var arnes = await CrearArnesAsync(Guid.NewGuid());
+        await CrearCuentaAsync(arnes, Guid.NewGuid(), "otro@caemanager.local", Contrasena, Roles.Administrador);
+        await CrearCuentaAsync(arnes, administradorId, "admin@caemanager.local", Contrasena, Roles.Administrador);
+
+        var resultado = await EditarAsync(arnes, administradorId, "Nombre nuevo", Roles.GestorCae);
+
+        resultado.EsExitoso.Should().BeTrue(resultado.EsFallido ? resultado.Error.Mensaje : "");
+        (await LeerNombreAsync(arnes.CadenaPropietario, administradorId)).Should().Be("Nombre nuevo");
+        (await LeerRolesAsync(arnes.CadenaPropietario, administradorId)).Should().Equal(Roles.GestorCae);
     }
 
     /// <summary>
@@ -215,10 +264,10 @@ public class UltimoAdministradorBajoRuntimeTests
     private static AdministradoresDelTenant Administradores(IServiceProvider sp) =>
         new(sp.GetRequiredService<CaeManagerDbContext>(), Directorio(sp));
 
-    private static async Task<bool> HayOtroAsync(ArnesDeArranqueRuntime arnes, Guid tenantId, Guid excluido)
+    private static async Task<bool> EsElUltimoAsync(ArnesDeArranqueRuntime arnes, Guid tenantId, Guid usuarioId)
     {
         using var ambito = arnes.Servicios.CreateScope();
-        return await Administradores(ambito.ServiceProvider).HayOtroAdministradorAsync(tenantId, excluido);
+        return await Administradores(ambito.ServiceProvider).EsElUltimoAdministradorAsync(tenantId, usuarioId);
     }
 
     /// <summary>Por el Command real, en un ámbito propio como cada pulsación de «Eliminar».</summary>
@@ -230,6 +279,16 @@ public class UltimoAdministradorBajoRuntimeTests
                 Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>(),
                 new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()), Administradores(sp))
             .Handle(new EliminarUsuarioPendienteCommand(usuarioId), default);
+    }
+
+    private static async Task<Result> EditarAsync(ArnesDeArranqueRuntime arnes, Guid usuarioId, string nombre, string rol)
+    {
+        using var ambito = arnes.Servicios.CreateScope();
+        var sp = ambito.ServiceProvider;
+        return await new EditarUsuarioCommandHandler(
+                Puerto(sp), sp.GetRequiredService<ICurrentUserService>(), sp.GetRequiredService<ITenantActual>(),
+                new TransaccionDeComando(sp.GetRequiredService<CaeManagerDbContext>()), null!, Administradores(sp))
+            .Handle(new EditarUsuarioCommand(usuarioId, nombre, rol, null, null, false), default);
     }
 
     private static async Task<Result> CambiarRolEnTransaccionAsync(
@@ -289,6 +348,37 @@ public class UltimoAdministradorBajoRuntimeTests
         {
             return error.SqlState;
         }
+    }
+
+    /// <summary>Hasta que <paramref name="cuantas"/> sesiones esperan un candado asesor; si no llegan, falla.</summary>
+    private static async Task EsperarEsperasDeCandadoAsync(string cadena, int cuantas)
+    {
+        await using var conexion = new NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        var limite = DateTime.UtcNow.AddSeconds(30);
+        long esperando = 0;
+        while (DateTime.UtcNow < limite)
+        {
+            await using var comando = new NpgsqlCommand(
+                "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND database = (SELECT oid FROM pg_database WHERE datname = current_database());",
+                conexion);
+            esperando = (long)(await comando.ExecuteScalarAsync())!;
+            if (esperando >= cuantas)
+                return;
+            await Task.Delay(50);
+        }
+
+        esperando.Should().BeGreaterThanOrEqualTo(cuantas, "las dos retiradas tienen que chocar con el candado");
+    }
+
+    private static async Task<string> LeerNombreAsync(string cadena, Guid usuarioId)
+    {
+        await using var conexion = new NpgsqlConnection(cadena);
+        await conexion.OpenAsync();
+        await using var comando = conexion.CreateCommand();
+        comando.CommandText = @"SELECT ""NombreCompleto"" FROM ""AspNetUsers"" WHERE ""Id"" = @u;";
+        comando.Parameters.AddWithValue("u", usuarioId);
+        return (string)(await comando.ExecuteScalarAsync())!;
     }
 
     private static async Task<bool> ExisteAsync(string cadena, Guid usuarioId)

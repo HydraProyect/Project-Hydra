@@ -72,7 +72,7 @@ public class EliminarUsuarioPendienteCommandHandler(
         var resultado = await transaccion.EjecutarAsync(async ct =>
         {
             var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
-                cuenta, tenantActual.TenantId, administradores, ct);
+                request.UsuarioId, tenantActual.TenantId, administradores, ct);
             return quedaAdministrador.EsFallido
                 ? quedaAdministrador
                 : await cuentas.EliminarAsync(request.UsuarioId, ct);

@@ -7,8 +7,9 @@ namespace CaeManager.Application.Usuarios;
 ///
 /// <para>
 /// Las dos llamadas van juntas y dentro de la transacción que escribe: primero el candado,
-/// después la lectura. Sin el candado, dos Administradores que se degradan a la vez verían
-/// cada uno al otro y el Tenant se quedaría sin ninguno.
+/// después la lectura, que decide con los roles de ese momento y no con los que el Command leyó
+/// antes de empezar. Sin el candado, dos Administradores que se degradan a la vez verían cada
+/// uno al otro y el Tenant se quedaría sin ninguno.
 /// </para>
 /// </summary>
 public interface IAdministradoresDelTenant
@@ -21,9 +22,10 @@ public interface IAdministradoresDelTenant
     Task BloquearAsync(Guid tenantId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Si el Tenant tiene, además de <paramref name="usuarioIdExcluido"/>, otra cuenta suya
-    /// con rol Administrador que no esté desactivada. Una cuenta pendiente de activación
-    /// cuenta: es un Administrador que aún no ha entrado, no la ausencia de uno.
+    /// Si <paramref name="usuarioId"/> es, leído ahora, la única cuenta del Tenant con rol
+    /// Administrador que no está desactivada. Una cuenta pendiente de activación cuenta: es un
+    /// Administrador que aún no ha entrado, no la ausencia de uno. Una cuenta que no es
+    /// Administrador, o que ya está desactivada, no es la última: retirarla no cambia nada.
     /// </summary>
-    Task<bool> HayOtroAdministradorAsync(Guid tenantId, Guid usuarioIdExcluido, CancellationToken cancellationToken = default);
+    Task<bool> EsElUltimoAdministradorAsync(Guid tenantId, Guid usuarioId, CancellationToken cancellationToken = default);
 }

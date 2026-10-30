@@ -86,7 +86,7 @@ public class EditarUsuarioCommandHandler(
 {
     public static readonly Error RolNoCambiado = Error.Crear(
         "Usuarios.RolNoCambiado",
-        "Los datos se guardaron, pero no pudimos cambiar el rol: su cartera cambió mientras tanto. Vuelve a intentarlo.");
+        "No se ha cambiado nada: su cartera cambió mientras tanto. Vuelve a intentarlo.");
 
     public static readonly Error AutogestionPermisoSensible = Error.Crear(
         "Usuarios.AutogestionPermisoSensible",
@@ -136,14 +136,6 @@ public class EditarUsuarioCommandHandler(
         var actorEsAdministrador = await currentUserService.ObtenerRolEfectivoAsync() == AutoridadSobreCuentas.Administrador;
         var eraAdministrador = cuenta.Roles.Contains(AutoridadSobreCuentas.Administrador);
 
-        // Degradar al último Administrador: se rechaza antes de guardar nada. Es una lectura
-        // sin candado; la que decide se repite con él dentro de la transacción del rol.
-        var retiraAdministrador = eraAdministrador && request.Rol != AutoridadSobreCuentas.Administrador;
-        if (retiraAdministrador
-            && (tenantActual.TenantId is not { } tenantDeLaCuenta
-                || !await administradores.HayOtroAdministradorAsync(tenantDeLaCuenta, cuenta.Id, cancellationToken)))
-            return Result.Fallo(AutoridadSobreCuentas.UltimoAdministrador);
-
         bool permiso;
         if (request.Rol != AutoridadSobreCuentas.Administrador)
         {
@@ -163,19 +155,6 @@ public class EditarUsuarioCommandHandler(
             permiso = eraAdministrador && cuenta.PermisoConsultarAccesoDocumentosSensibles;
         }
 
-        var datos = await cuentas.ActualizarDatosAsync(request.UsuarioId, new DatosCuentaUsuario(
-            request.NombreCompleto,
-            request.Rol == AutoridadSobreCuentas.RolGestorCae ? request.CoordinadorUsuarioId : null,
-            request.Rol == AutoridadSobreCuentas.RolCliente ? request.ClienteId : null,
-            permiso), cancellationToken);
-        if (datos.EsFallido)
-            return datos.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo
-                ? datos
-                : Result.Fallo(Error.Crear(datos.Error.Codigo, $"No pudimos guardar los cambios. {datos.Error.Mensaje}"));
-
-        if (!concedeRol)
-            return Result.Exito();
-
         // Primer usuario elegible (ADR-011 § 2.7, enmienda 2026-10-08, punto 4): si con el rol
         // nuevo la cuenta pasa a ser la única elegible de su Operador CAE, recibe en la misma
         // transacción las operaciones sin principal. Un cambio de rol que Identity deja a medias
@@ -185,15 +164,32 @@ public class EditarUsuarioCommandHandler(
             && origen == tenantActual.TenantId
             && EscaladoDePrincipalDeCartera.Niveles.Contains(request.Rol);
 
+        // Datos y rol en una transacción, con la regla del último Administrador por delante: un
+        // rechazo no deja guardados los datos calculados para el rol que no se concedió (el
+        // permiso sensible revocado a quien sigue siendo Administrador).
         ResultadoCambioRol cambio = null!;
         var escrita = await transaccion.EjecutarAsync(async ct =>
         {
-            var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
-                cuenta, tenantActual.TenantId, administradores, ct);
-            if (quedaAdministrador.EsFallido)
-                return Result.Fallo(Error.Crear(
-                    quedaAdministrador.Error.Codigo,
-                    $"Los datos se guardaron, pero no pudimos cambiar el rol. {quedaAdministrador.Error.Mensaje}"));
+            if (concedeRol && request.Rol != AutoridadSobreCuentas.Administrador)
+            {
+                var quedaAdministrador = await AutoridadSobreCuentas.VerificarQueNoEsElUltimoAdministradorAsync(
+                    request.UsuarioId, tenantActual.TenantId, administradores, ct);
+                if (quedaAdministrador.EsFallido)
+                    return quedaAdministrador;
+            }
+
+            var datos = await cuentas.ActualizarDatosAsync(request.UsuarioId, new DatosCuentaUsuario(
+                request.NombreCompleto,
+                request.Rol == AutoridadSobreCuentas.RolGestorCae ? request.CoordinadorUsuarioId : null,
+                request.Rol == AutoridadSobreCuentas.RolCliente ? request.ClienteId : null,
+                permiso), ct);
+            if (datos.EsFallido)
+                return datos.Error.Codigo == AutoridadSobreCuentas.NoEncontrado.Codigo
+                    ? datos
+                    : Result.Fallo(Error.Crear(datos.Error.Codigo, $"No pudimos guardar los cambios. {datos.Error.Mensaje}"));
+
+            if (!concedeRol)
+                return Result.Exito();
 
             cambio = await cuentas.CambiarRolAsync(request.UsuarioId, request.Rol, ct);
             if (cambio.Desenlace != DesenlaceCambioRol.Cambiado || !puedeSerElegible)
@@ -203,7 +199,7 @@ public class EditarUsuarioCommandHandler(
                 ? Result.Exito()
                 : Result.Fallo(RolNoCambiado);
         }, cancellationToken);
-        if (escrita.EsFallido)
+        if (escrita.EsFallido || !concedeRol)
             return escrita;
 
         return cambio.Desenlace switch
