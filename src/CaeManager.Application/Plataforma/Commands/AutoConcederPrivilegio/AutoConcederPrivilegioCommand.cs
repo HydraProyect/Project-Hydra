@@ -205,8 +205,8 @@ public class AutoConcederPrivilegioCommandHandler(
         // Un solo SaveChanges con un acoplamiento que conviene saber: la política
         // privilegio_autoconcesion exige el bootstrap SIN consumir al insertar la
         // concesión, y funciona porque EF Core ejecuta los comandos independientes
-        // ordenados por tabla (ConcesionesPrivilegio antes que
-        // EstadoBootstrapPlataforma). Si se añade una relación entre las dos
+        // ordenados por nombre de tabla (la de concesiones antes que la del
+        // estado del bootstrap). Si se añade una relación entre las dos
         // tablas o cambia ese orden, el arranque falla cerrado con 42501;
         // ConcesionesPrivilegioPorOperacionBajoRuntimeTests lo vigila.
         estado.Consumir(ahora);
