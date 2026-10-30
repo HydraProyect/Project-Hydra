@@ -247,16 +247,17 @@ VALUES ('Microsoft', 'clave-externa', 'Microsoft', @u);", _sinActivarDeA);
     }
 
     [Fact]
-    public async Task La_concesion_global_no_ampara_el_acto()
+    public async Task La_base_no_admite_una_concesion_global_de_esta_capacidad()
     {
         var sesion = await AbrirSesionConCapacidadAsync();
-        await EjecutarAsync(
-            @"UPDATE ""ConcesionesPrivilegio"" SET ""EsAlcanceGlobal"" = true WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);",
-            sesion);
-        var antes = await InstantaneaAsync();
 
-        (await ConcederComoPlataformaAsync(_tenantA, sesion, _gestoraDeA)).Should().Be("sesion_no_autorizada");
-        (await InstantaneaAsync()).Should().Be(antes);
+        var hacerlaGlobal = () => EjecutarAsync(
+            @"UPDATE ""ConcesionesPrivilegio"" SET ""EsAlcanceGlobal"" = true
+WHERE ""Id"" = (SELECT ""ConcesionPrivilegioId"" FROM ""SesionesPrivilegiadas"" WHERE ""Id"" = @u);",
+            sesion);
+
+        await hacerlaGlobal.Should().ThrowAsync<PostgresException>()
+            .WithMessage("*CK_ConcesionesPrivilegio_AlcanceGlobalSoloCapacidadesAdmitidas*");
     }
 
     [Fact]
