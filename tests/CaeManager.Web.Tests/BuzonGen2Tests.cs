@@ -16,7 +16,7 @@ using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 
 namespace CaeManager.Web.Tests;
 
@@ -83,13 +83,24 @@ public class BuzonGen2Tests : BunitContext
         });
     }
 
-    private (IRenderedComponent<Buzon> Cut, MediadorControlado Mediador) Renderizar(Escenario escenario)
+    private sealed class RegistroPrueba : ILogger<Buzon>
+    {
+        public List<(LogLevel Nivel, Exception? Excepcion)> Entradas { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Entradas.Add((logLevel, exception));
+    }
+
+    private (IRenderedComponent<Buzon> Cut, MediadorControlado Mediador) Renderizar(
+        Escenario escenario, TipoViaAcceso via = TipoViaAcceso.Normal, RegistroPrueba? registro = null)
     {
         var mediador = new MediadorControlado(escenario.Responder);
         Services.AddScoped<IMediator>(_ => mediador);
         Services.AddLocalization();
         Services.AddScoped<ToastService>();
-        Services.AddSingleton<ILogger<Buzon>>(_ => NullLogger<Buzon>.Instance);
+        Services.AddSingleton<IActorAuditoria>(new ActorDeVegaDePrueba(via));
+        Services.AddSingleton<ILogger<Buzon>>(registro ?? new RegistroPrueba());
         return (Render<Buzon>(), mediador);
     }
 
@@ -114,6 +125,47 @@ public class BuzonGen2Tests : BunitContext
 
     private static Task PulsarPaginador(IRenderedComponent<Buzon> cut, string texto) =>
         cut.FindAll(".buzon-paginador button").Single(b => b.TextContent.Trim() == texto).ClickAsync(new MouseEventArgs());
+
+    [Fact]
+    public async Task Sesion_privilegiada_no_consulta_la_estructura_y_muestra_el_aviso()
+    {
+        var escenario = new Escenario();
+        escenario.Conexiones.Add(Conexion(ConexionAId, "CAE Norte"));
+        var registro = new RegistroPrueba();
+        var (cut, mediador) = Renderizar(escenario, TipoViaAcceso.SesionPrivilegiada, registro);
+
+        await ElegirConexion(cut, ConexionAId);
+
+        mediador.Enviados.OfType<ObtenerEstructuraBuzonQuery>().Should().BeEmpty();
+        registro.Entradas.Should().NotContain(e => e.Nivel == LogLevel.Error);
+        cut.Markup.Should().Contain("No pudimos leer las carpetas de este buzón.");
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    public async Task Error_de_lectura_registra_aviso_para_42501_y_error_para_otros(bool permisoInsuficiente, bool envuelto)
+    {
+        Exception error = permisoInsuficiente
+            ? new PostgresException("Permiso denegado", "ERROR", "ERROR", PostgresErrorCodes.InsufficientPrivilege)
+            : new InvalidOperationException("Fallo inesperado");
+        if (envuelto) error = new InvalidOperationException("Error de acceso a datos", error);
+        var escenario = new Escenario
+        {
+            Interceptar = (peticion, _) => peticion is ObtenerEstructuraBuzonQuery
+                ? Task.FromException<object?>(error) : null
+        };
+        escenario.Conexiones.Add(Conexion(ConexionAId, "CAE Norte"));
+        var registro = new RegistroPrueba();
+        var (cut, mediador) = Renderizar(escenario, registro: registro);
+
+        await ElegirConexion(cut, ConexionAId);
+
+        mediador.Enviados.OfType<ObtenerEstructuraBuzonQuery>().Should().ContainSingle();
+        registro.Entradas.Should().ContainSingle().Which.Should().Be((permisoInsuficiente ? LogLevel.Warning : LogLevel.Error, error));
+        cut.Markup.Should().Contain("No pudimos leer las carpetas de este buzón.");
+    }
 
     [Fact]
     public void Sin_buzones_conectados_el_estado_vacio_ofrece_ir_a_Conexiones_y_no_Redactar()
