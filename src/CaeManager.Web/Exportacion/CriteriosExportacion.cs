@@ -1,5 +1,4 @@
 using CaeManager.Application.Documentos;
-using CaeManager.Domain.Documentos;
 
 namespace CaeManager.Web.Exportacion;
 
@@ -23,19 +22,6 @@ public static class CriteriosExportacion
         valor is { Length: > 0 and <= 40 } && valor.All(char.IsAsciiLetter) ? valor : null;
 
     /// <summary>
-    /// Una selección de estados (la franja de estado deja marcar varios): nombres separados por coma.
-    /// Cada uno pasa por <see cref="SoloNombre"/>; si alguno no es un nombre, nada llega al rastro.
-    /// </summary>
-    public static string? SoloNombres(string? valor)
-    {
-        if (valor is not { Length: > 0 and <= 200 })
-            return null;
-
-        var nombres = valor.Split(',');
-        return nombres.All(n => SoloNombre(n) is not null) ? valor : null;
-    }
-
-    /// <summary>
     /// El filtro de estado documental tal como lo aplica la consulta del listado
     /// (<see cref="EstadoDocumentalFiltro.Separar"/>): solo los valores que la consulta reconoce
     /// (un estado por su nombre o <see cref="EstadoDocumentalFiltro.SinDocumentos"/>), separados por coma. Lo que
@@ -45,7 +31,7 @@ public static class CriteriosExportacion
     {
         var aplicados = EstadoDocumentalFiltro.Separar(filtro)
             .Where(v => v == EstadoDocumentalFiltro.SinDocumentos
-                || !int.TryParse(v, out _) && Enum.TryParse<EstadoDocumento>(v, out var estado) && Enum.IsDefined(estado))
+                || EstadoDocumentalFiltro.EsNombreDeEstado(v, out _))
             .ToList();
 
         return aplicados.Count > 0 ? string.Join(EstadoDocumentalFiltro.Separador, aplicados) : null;
