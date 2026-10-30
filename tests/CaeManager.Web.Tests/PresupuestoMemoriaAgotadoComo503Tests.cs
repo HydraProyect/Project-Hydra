@@ -48,6 +48,23 @@ public sealed class PresupuestoMemoriaAgotadoComo503Tests
     }
 
     [Fact]
+    public async Task El_503_no_hereda_la_incrustacion_ni_el_HSTS_que_fijo_el_endpoint()
+    {
+        var contexto = await EjecutarAsync(contexto =>
+        {
+            // El endpoint permitió incrustarse y escribió HSTS antes de fallar: nada de eso sale en el 503.
+            contexto.PermitirIncrustacionEnMismoOrigen();
+            contexto.Response.Headers["Strict-Transport-Security"] = "valor del endpoint";
+            throw new PresupuestoMemoriaAgotadoException();
+        });
+
+        contexto.Response.StatusCode.Should().Be(StatusCodes.Status503ServiceUnavailable);
+        contexto.Response.Headers["X-Frame-Options"].ToString().Should().Be("DENY");
+        contexto.Response.Headers.ContentSecurityPolicy.ToString().Should().Contain("frame-ancestors 'none'");
+        contexto.Response.Headers.ContainsKey("Strict-Transport-Security").Should().BeFalse("no había HSTS a la entrada");
+    }
+
+    [Fact]
     public async Task Cualquier_otra_excepcion_no_se_traduce()
     {
         var ejecutar = () => EjecutarAsync(_ => throw new InvalidOperationException("otro fallo"));
