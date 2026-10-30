@@ -45,7 +45,7 @@ public class SoporteSinColumnasSecretasTests
 
     private const string MigracionQueRetiraElCodigoSeguro = "20261030230000_SoporteSinCodigoSeguroDocumentosGenerados";
 
-    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "CredencialesIntegracion"];
+    private static readonly string[] TablasSinNingunaColumna = ["AspNetUserTokens", "CredencialesIntegracion", "CredencialesConexionPlataformaCae"];
 
     /// <summary>
     /// Tablas que Soporte TALVEG lee por columnas, con la columna que nunca se le concede. Las de

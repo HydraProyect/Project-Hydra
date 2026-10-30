@@ -304,6 +304,7 @@ public class FronterasEntrePersistenciaDeFeaturesTests
         // no tiene sentido una feature de "billing" con su propio
         // repositorio de Tenant en paralelo al de Tenants.
         ("Comercial.ActualizarEstadoComercialTenantCommandHandler", "ITenantsQueryContext"),
+        ("Comercial.CambiarAddOnSubidaAutomaticaCommandHandler", "ITenantsQueryContext"),
         ("Comercial.ObtenerEstadoComercialTenantsQueryHandler", "ITenantsQueryContext"),
         ("Comercial.RegistrarSuscripcionTenantCommandHandler", "ITenantsQueryContext"),
         ("Comunicaciones.ActualizarDocumentoDesdeAdjuntoCommandHandler", "IDocumentosQueryContext"),

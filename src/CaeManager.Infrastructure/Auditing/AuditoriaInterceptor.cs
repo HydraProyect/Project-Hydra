@@ -38,7 +38,7 @@ namespace CaeManager.Infrastructure.Auditing;
 /// 1. Secretos cifrados por ValueConverter en CaeManagerDbContext
 ///    (CanalGestionDocumental, CredencialAccesoEmpresa,
 ///    CredencialAccesoSubcontrata, AccesoPlataformaCaeEmpresa,
-///    CredencialIntegracion, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
+///    CredencialIntegracion, CredencialConexionPlataformaCae, SuscripcionWebhook, LineaWhatsApp): nunca deben quedar en texto plano en el historial (ver
 ///    Project-Hydra-Negocio/tecnico/DATABASE.md). Esta lista debe crecer junto con cualquier propiedad
 ///    nueva que se cifre en reposo — el cifrado en la BD no protege el
 ///    historial de auditoría, que lee el valor plano directamente del
@@ -144,6 +144,7 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
         [typeof(CredencialAccesoSubcontrata)] = [nameof(CredencialAccesoSubcontrata.Usuario), nameof(CredencialAccesoSubcontrata.Contrasena)],
         [typeof(AccesoPlataformaCaeEmpresa)] = [nameof(AccesoPlataformaCaeEmpresa.Usuario), nameof(AccesoPlataformaCaeEmpresa.Contrasena)],
         [typeof(CredencialIntegracion)] = [nameof(CredencialIntegracion.RefreshToken), nameof(CredencialIntegracion.AccessToken)],
+        [typeof(CredencialConexionPlataformaCae)] = [nameof(CredencialConexionPlataformaCae.SecretoApi)],
         [typeof(SuscripcionWebhook)] = [nameof(SuscripcionWebhook.ClientState)],
         [typeof(LineaWhatsApp)] = [nameof(LineaWhatsApp.TokenAcceso)],
 
@@ -429,6 +430,10 @@ public class AuditoriaInterceptor(IActorAuditoria actorAuditoria) : SaveChangesI
             // 5 años de SesionesUsuario. El inicio ya queda en RegistrosInicioSesion; la tabla
             // guarda ella misma cuándo se emitió y cuándo se revocó cada sesión.
             if (entrada.Entity is CaeManager.Domain.Seguridad.SesionUsuario) continue;
+
+            // Cada llamada a una plataforma CAE de terceros: el propio UsoConexionPlataformaCae ya es el
+            // registro, y duplicarlo en RegistroAuditoria (sin purga) metería dos filas por llamada.
+            if (entrada.Entity is UsoConexionPlataformaCae) continue;
 
             // Estado materializado: dato derivado que el recálculo rehace en la misma transacción que la acción. La acción
             // ya se audita; auditar además cada fila recalculada metería miles de «Creado» o «Modificado» por una sola

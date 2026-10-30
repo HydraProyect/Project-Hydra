@@ -21,7 +21,7 @@ public class ProveedorPlataformaCaeConfiguration : IEntityTypeConfiguration<Prov
         // Sin HasQueryFilter: catálogo global del producto, no pertenece a
         // ningún tenant (mismo criterio que Tenant — ver ProveedorPlataformaCae.cs).
         builder.HasData(ProveedorPlataformaCaeSeedData.Datos
-            .Select(d => new { Id = d.Id, Codigo = d.Codigo, Nombre = d.Nombre, Grupo = d.Grupo, Activo = d.Activo }));
+            .Select(d => new { Id = d.Id, Codigo = d.Codigo, Nombre = d.Nombre, Grupo = d.Grupo, Activo = d.Activo, ConectorApiActivo = false }));
     }
 }
 
