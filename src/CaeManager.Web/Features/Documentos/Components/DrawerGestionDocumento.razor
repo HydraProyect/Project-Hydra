@@ -30,6 +30,7 @@
 @inject IFileStorageService AlmacenamientoArchivos
 @inject IConversorWordPdfService ConversorWordPdf
 @inject ILogger<DrawerGestionDocumento> Logger
+@inject IServiceProvider Servicios
 
 <DrawerFormulario Visible="_drawerVisible" VisibleChanged="CerrarDrawerAsync" Titulo="@(_editandoId is null ? "Nuevo documento" : "Renovar documento")"
                   HayCambios="() => HayCambiosSinGuardar" Guardando="_guardando" MensajeError="@_mensajeErrorFormulario"

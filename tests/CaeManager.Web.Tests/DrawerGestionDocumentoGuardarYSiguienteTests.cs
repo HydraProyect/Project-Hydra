@@ -96,6 +96,8 @@ public class DrawerGestionDocumentoGuardarYSiguienteTests : BunitContext
     {
         JSInterop.Mode = JSRuntimeMode.Loose;
         Services.AddLocalization();
+        Services.AddSingleton<CaeManager.Application.Common.IPresupuestoMemoriaDocumentos>(new CaeManager.Application.Common.PresupuestoMemoriaDocumentos(
+            Microsoft.Extensions.Options.Options.Create(new CaeManager.Application.Common.OpcionesPresupuestoMemoriaDocumentos()), TimeProvider.System));
     }
 
     private IRenderedComponent<DrawerGestionDocumento> Renderizar()

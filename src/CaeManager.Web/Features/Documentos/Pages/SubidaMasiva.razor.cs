@@ -170,8 +170,9 @@ public partial class SubidaMasiva : CaeManager.Web.Components.PaginaInteractiva,
     /// original, su PDF, lo que la IA prepara a partir de él (texto, páginas
     /// rasterizadas y su base64) y la miniatura. Se reserva entero del presupuesto del
     /// proceso antes de cargar el original (seguimiento de S-C-3, ASVS 4.0.3 V12.1.1).
+    /// El alta individual de <c>DrawerGestionDocumento</c> usa el mismo factor.
     /// </summary>
-    private const int FactorMemoriaLectura = 4;
+    internal const int FactorMemoriaLectura = 4;
     private bool _procesandoLote;
     private bool _cargando = true;
     private bool _errorCarga;

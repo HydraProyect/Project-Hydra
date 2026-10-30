@@ -19,6 +19,8 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Logging;
 
 namespace CaeManager.Web.Features.Documentos.Components;
@@ -26,6 +28,21 @@ namespace CaeManager.Web.Features.Documentos.Components;
 public partial class DrawerGestionDocumento : ComponentBase
 {
     private const int MaximoArchivosPorSubida = 20;
+
+    /// <summary>
+    /// Veces el tamaño de lo que se lee que el alta individual tiene a la vez en memoria:
+    /// el mismo factor que la lectura de la Subida múltiple, compartido para que no se
+    /// desalineen (los originales, el PDF unificado y lo que la conversión o la IA derivan
+    /// de ellos). Se reserva del presupuesto del proceso (<see cref="IPresupuestoMemoriaDocumentos"/>)
+    /// antes de cargar (seguimiento de S-C-3, OWASP API4:2023, ASVS 4.0.3 V12.1.1).
+    /// </summary>
+    private const int FactorMemoriaLectura = Pages.SubidaMasiva.FactorMemoriaLectura;
+
+    /// <summary>
+    /// Lo que la detección IA, que es opcional, espera hueco en el presupuesto antes de
+    /// omitirse; la lectura espera la máxima del presupuesto.
+    /// </summary>
+    private static readonly TimeSpan EsperaMaximaReservaDeteccion = TimeSpan.FromSeconds(2);
 
     /// <summary>Se dispara tras crear o renovar con éxito — el host decide qué recargar (rejilla, acordeón…).</summary>
     [Parameter] public EventCallback OnGuardado { get; set; }
@@ -607,8 +624,19 @@ public partial class DrawerGestionDocumento : ComponentBase
         _subiendoArchivo = true;
         StateHasChanged();
 
+        ReservaMemoriaDocumentos? reserva = null;
         try
         {
+            // El presupuesto se resuelve al subir, no al montar: el drawer vive dentro de
+            // muchas pantallas y de sus tests, y solo este paso carga documentos en memoria.
+            // Dentro del try: si faltara, el finally sigue soltando _subiendoArchivo.
+            var presupuesto = Servicios.GetRequiredService<IPresupuestoMemoriaDocumentos>();
+
+            // Nada se carga hasta tener hueco para los originales y todo lo que la conversión
+            // deriva de ellos. Si no lo hay dentro de la espera máxima, el archivo no se
+            // adjunta y se avisa con el mismo mensaje que la Subida múltiple.
+            reserva = await presupuesto.ReservarAsync(archivos.Sum(archivo => archivo.Size) * FactorMemoriaLectura);
+
             var contenidos = new List<(byte[] Contenido, string NombreArchivo)>();
             foreach (var archivo in archivos)
             {
@@ -633,6 +661,8 @@ public partial class DrawerGestionDocumento : ComponentBase
             }
 
             var pdfUnificado = await ConversorArchivosPdf.UnificarAsync(contenidos, ConversorWordPdf);
+            // Desde aquí solo hace falta el PDF unificado: los originales se sueltan ya.
+            contenidos.Clear();
 
             // Elegir un segundo archivo sustituye la clave del primero: si no
             // se descarta aquí, el primero se queda en almacenamiento sin que
@@ -641,6 +671,16 @@ public partial class DrawerGestionDocumento : ComponentBase
             // La clave anterior ya no existe: si el almacén falla ahora, el formulario no
             // puede seguir apuntando a ella.
             _archivoUrl = _archivoUrlDelDocumento;
+
+            // La reserva de la lectura se devuelve antes de guardar, como la vista previa de
+            // la Subida múltiple: el almacenamiento reserva por su cuenta el claro y el
+            // cifrado que carga (DiskFileStorageService.GuardarAsync), y si esta siguiera
+            // retenida —con varias páginas puede ocupar casi todo el presupuesto— el guardado
+            // esperaría a la reserva de este mismo formulario hasta rechazarse. Mientras se
+            // guarda, el PDF unificado que retiene el formulario es la única copia que el
+            // presupuesto no cuenta.
+            reserva.Dispose();
+            reserva = null;
 
             using var flujoPdf = new MemoryStream(pdfUnificado);
             _archivoUrl = await AlmacenamientoArchivos.GuardarAsync(flujoPdf, "documento.pdf");
@@ -661,7 +701,36 @@ public partial class DrawerGestionDocumento : ComponentBase
             }
 
             if (_editandoId is null && _ambitoAplicacion == nameof(AmbitoAplicacion.Trabajador))
+            {
+                // La detección IA deriva del PDF texto, páginas rasterizadas y su base64: se
+                // reserva de nuevo, ya sin el guardado en curso. Es de mejor esfuerzo, como
+                // la propia detección: sin hueco, el archivo ya está adjunto y los campos se
+                // rellenan a mano. Por eso espera menos que la reserva de la lectura: el
+                // archivo ya está adjunto y Guardar sigue deshabilitado mientras espera.
+                try
+                {
+                    using var esperaCorta = new CancellationTokenSource(EsperaMaximaReservaDeteccion);
+                    reserva = await presupuesto.ReservarAsync((long)pdfUnificado.Length * FactorMemoriaLectura, esperaCorta.Token);
+                }
+                catch (Exception ex) when (ex is PresupuestoMemoriaAgotadoException or OperationCanceledException)
+                {
+                    Logger.LogWarning("Sin hueco en el presupuesto de memoria de documentos: se omite la detección automática de campos.");
+                    return;
+                }
+
+                // Mientras esperaba hueco se pudo cerrar el formulario: ya no hay campos que sugerir.
+                if (!_drawerVisible)
+                    return;
+
                 await DetectarCamposAsync(pdfUnificado);
+            }
+        }
+        catch (PresupuestoMemoriaAgotadoException)
+        {
+            // Sin hueco para leer o para guardar: el archivo no se adjunta (el bloqueo de
+            // _archivoNoAdjuntado sigue) y se avisa con el mismo mensaje que la Subida múltiple.
+            var textos = Servicios.GetRequiredService<IStringLocalizer<TextosSubidaMasiva>>();
+            ToastService.Mostrar(textos["ErrorSinEspacio"], TonoToast.Error);
         }
         catch (Exception ex)
         {
@@ -670,6 +739,7 @@ public partial class DrawerGestionDocumento : ComponentBase
         }
         finally
         {
+            reserva?.Dispose();
             _subiendoArchivo = false;
         }
     }
