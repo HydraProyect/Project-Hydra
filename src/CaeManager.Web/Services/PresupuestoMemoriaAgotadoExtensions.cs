@@ -11,9 +11,9 @@ namespace CaeManager.Web.Services;
 ///
 /// <para>
 /// Solo traduce esa excepción y solo si la respuesta no ha empezado; cualquier otra sigue hasta
-/// <c>UseExceptionHandler</c>. Va detrás de <c>UseCabecerasSeguridad</c> y conserva lo que ese
-/// middleware y los anteriores ya fijaron (CSP, <c>nosniff</c>, <c>no-store</c>…): descarta solo lo
-/// que el endpoint escribió antes de fallar. Desactiva las páginas de estado para que el 503 no se
+/// <c>UseExceptionHandler</c>. Va detrás de <c>UseCabecerasSeguridad</c> y vuelve a aplicar sus
+/// cabeceras (CSP, <c>nosniff</c>, <c>no-store</c>…), conservando la cabecera HSTS anterior.
+/// Descarta las cabeceras posteriores y desactiva las páginas de estado para que el 503 no se
 /// reejecute como «no encontrado».
 /// </para>
 /// </summary>
@@ -28,7 +28,8 @@ public static class PresupuestoMemoriaAgotadoExtensions
     public static IApplicationBuilder UsePresupuestoMemoriaAgotadoComo503(this IApplicationBuilder app) =>
         app.Use(async (contexto, siguiente) =>
         {
-            var cabecerasPrevias = contexto.Response.Headers.ToArray();
+            // UseHsts puede haber fijado esta cabecera antes de los dos middlewares.
+            var habiaHsts = contexto.Response.Headers.TryGetValue("Strict-Transport-Security", out var hsts);
             try
             {
                 await siguiente(contexto);
@@ -36,8 +37,9 @@ public static class PresupuestoMemoriaAgotadoExtensions
             catch (PresupuestoMemoriaAgotadoException) when (!contexto.Response.HasStarted)
             {
                 contexto.Response.Clear();
-                foreach (var (nombre, valor) in cabecerasPrevias)
-                    contexto.Response.Headers[nombre] = valor;
+                CabecerasSeguridadExtensions.AplicarCabecerasSeguridad(contexto);
+                if (habiaHsts)
+                    contexto.Response.Headers["Strict-Transport-Security"] = hsts;
 
                 if (contexto.Features.Get<IStatusCodePagesFeature>() is { } paginasEstado)
                     paginasEstado.Enabled = false;
