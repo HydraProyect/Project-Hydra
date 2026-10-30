@@ -5,6 +5,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using System.Runtime.CompilerServices;
 
 namespace CaeManager.Web.Tests;
 
@@ -159,6 +160,37 @@ public sealed class DiskFileStorageServicePresupuestoMemoriaTests : IDisposable
         };
         await descargar.Should().ThrowExactlyAsync<IOException>();
         presupuesto.Reservado.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task El_finalizador_devuelve_la_reserva_de_un_flujo_abandonado()
+    {
+        var presupuesto = Presupuesto();
+        var servicio = Servicio(presupuesto);
+        var identificador = await servicio.GuardarAsync(new MemoryStream(Contenido(4096)), "archivo.pdf");
+        // En el grupo de hilos, no en el contexto de sincronización de xunit: AbrirYAbandonar
+        // espera de forma síncrona y bloquearía ese contexto si solo tuviera un hilo.
+        var referencia = await Task.Run(() => AbrirYAbandonar(servicio, identificador));
+        presupuesto.Reservado.Should().BeGreaterThan(0);
+
+        // El flujo vive solo en AbrirYAbandonar (NoInlining), así que no hay raíz que lo retenga ni
+        // en Debug ni en Release. Se repite la recogida unas pocas veces por si el finalizador
+        // tarda en quedar en cola; el límite evita un bucle infinito si el finalizador falta.
+        for (var intento = 0; intento < 5 && presupuesto.Reservado != 0; intento++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        referencia.IsAlive.Should().BeFalse();
+        presupuesto.Reservado.Should().Be(0);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static WeakReference AbrirYAbandonar(DiskFileStorageService servicio, string identificador)
+    {
+        var flujo = servicio.AbrirAsync(identificador).GetAwaiter().GetResult();
+        return new WeakReference(flujo);
     }
 
     [Fact]
